@@ -217,7 +217,7 @@ class OWHeatMap(OWWidget):
             # should remove the data where necessary
             return
         # check if the same length
-        data.id = id
+        data.setattr("id", id)
         if len(self.data) and (id in [d.id for d in self.data]):
             for i in range(len(self.data)):
                 if id==self.data[i].id:
