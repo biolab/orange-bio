@@ -359,12 +359,18 @@ class OWDisplayProfiles(OWWidget):
         # GRAPH TAB
         GraphTab = QVGroupBox(self)
 
+        ## display options
+        displayOptBox = QVButtonGroup("Display", GraphTab)
+        displayOptButtons = ['Majority Class', 'Majority Class Probability', 'Target Class Probability', 'Number of Instances']
+        OWGUI.checkOnly(displayOptBox, self, 'Expression Profiles', 'ShowSingleProfiles', tooltip='', callback=self.updateShowSingleProfiles)
+        OWGUI.checkOnly(displayOptBox, self, 'Box Plot', 'ShowAverageProfile', tooltip='', callback=self.updateShowAverageProfile)
+
         ## class selection (classQLB)
         self.classQVGB = QVGroupBox(GraphTab)
         self.classQVGB.setTitle("Classes")
         self.classQLB = QListBox(self.classQVGB)
         self.classQLB.setSelectionMode(QListBox.Multi)
-        self.unselectAllClassedQLB = QPushButton("(Un)select all", self.classQVGB)
+        self.unselectAllClassedQLB = QPushButton("(Un)Select All", self.classQVGB)
         self.connect(self.unselectAllClassedQLB, SIGNAL("clicked()"), self.SUAclassQLB)
         self.connect(self.classQLB, SIGNAL("selectionChanged()"), self.classSelectionChange)
 
@@ -378,11 +384,6 @@ class OWDisplayProfiles(OWWidget):
 ##        self.connect(self.showAverageQLB, SIGNAL("toggled(bool)"), self.updateShowAverageProfile)
 ##        self.connect(self.showSingleQLB, SIGNAL("toggled(bool)"), self.updateShowSingleProfiles)
 
-        ## display options
-        displayOptBox = QVButtonGroup("Display", GraphTab)
-        displayOptButtons = ['Majority Class', 'Majority Class Probability', 'Target Class Probability', 'Number of Instances']
-        OWGUI.checkOnly(displayOptBox, self, 'Profiles', 'ShowSingleProfiles', tooltip='', callback=self.updateShowSingleProfiles)
-        OWGUI.checkOnly(displayOptBox, self, 'Box Plot', 'ShowAverageProfile', tooltip='', callback=self.updateShowAverageProfile)
 
         self.tabs.insertTab(GraphTab, "Graph")
 
@@ -560,14 +561,14 @@ class OWDisplayProfiles(OWWidget):
             self.calcGraph()
             ## update graphics
             ## classQLB
-            self.classQLB.show()
+            self.classQVGB.show()
             classValues = self.MAdata.domain.classVar.values.native()
             for cn in range(len(classValues)):
                 self.classQLB.insertItem(ColorPixmap(self.classColor[cn]), classValues[cn])
             self.classQLB.selectAll(1)  ##or: if numberOfClasses > 0: self.classQLB.setSelected(0, 1)
 
             if self.MAnoclass:
-                self.classQLB.hide()
+                self.classQVGB.hide()
         else:
             self.classColor = None
             self.classBrighterColor = None
@@ -577,7 +578,7 @@ class OWDisplayProfiles(OWWidget):
     def data(self, MAdata):
         if not MAdata:
             self.graph.hide()
-            self.classQLB.hide()
+            self.classQVGB.hide()
             return
         ## if there is no class attribute, create a dummy one
         if MAdata.domain.classVar == None:

@@ -32,7 +32,7 @@ class OWHeatMap(OWWidget):
                     "ShowAnnotation", "LegendOnTop", "LegendOnBottom", "ShowAverageStripe", "ShowGroupLabel",
                     "MaintainArrayHeight",
                     'BShowballoon', 'BShowColumnID', 'BShowSpotIndex', 'BShowAnnotation', 'BShowGeneExpression',
-                    "BSpotVar", "BAnnotationVar",
+                    "BSpotVar", "ShowGeneAnnotations", "BAnnotationVar",
                     "CurrentPalette"]
 
     def __init__(self, parent=None, name='OWHeatMap'):
@@ -40,7 +40,7 @@ class OWHeatMap(OWWidget):
         OWWidget.__init__(self, parent, name, 'Microarray Heat Map', FALSE, FALSE) 
         
         self.inputs = [("Examples", ExampleTable, self.dataset, 1)]
-        self.outputs = [("Examples", ExampleTable)]
+        self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
 
         #set default settings
         self.CellWidth = 3; self.CellHeight = 3
@@ -53,14 +53,15 @@ class OWHeatMap(OWWidget):
         self.ShowGroupLabel = 1        # show class names in case of classified data?
         self.ShowAverageStripe = 1     # show the stripe with the evarage
         self.MaintainArrayHeight = 1   # adjust cell height while changing the merge factor
-        self.BShowballoon = 1           # balloon help
+        self.BShowballoon = 1          # balloon help
+        self.ShowGeneAnnotations = 1   # show annotations for genes
         self.BShowColumnID = 1; self.BShowSpotIndex = 1; self.BShowAnnotation = 1; self.BShowGeneExpression = 1
         self.BSpotVar = None; self.BAnnotationVar = None
         self.setColorPalette()
         
         self.loadSettings()
         self.data = None
-        self.maxHSize = 10; self.maxVSize = 10
+        self.maxHSize = 15; self.maxVSize = 15
 
         # GUI definition
         self.tabs = QTabWidget(self.controlArea, 'tabWidget')
@@ -76,9 +77,6 @@ class OWHeatMap(OWWidget):
         colorItems = [self.createColorStripe(i) for i in range(len(self.ColorPalettes))]
         OWGUI.comboBox(settingsTab, self, "CurrentPalette", box="Colors", items=colorItems, tooltip=None, callback=self.setColor)
 
-        box = QVButtonGroup("Annotations", settingsTab)
-        OWGUI.checkOnly(box, self, 'Legend (top)', 'LegendOnTop', callback=self.drawHeatMap)
-        OWGUI.checkOnly(box, self, 'Stripes with averages', 'ShowAverageStripe', callback=self.drawHeatMap)
         
         self.tabs.insertTab(settingsTab, "Settings")
 
@@ -100,6 +98,13 @@ class OWHeatMap(OWWidget):
 
         # INFO TAB
         tab = QVGroupBox(self)
+
+        box = QVButtonGroup("Graph Annotation", tab)
+        OWGUI.checkOnly(box, self, 'Legend (top)', 'LegendOnTop', callback=self.drawHeatMap)
+        OWGUI.checkOnly(box, self, 'Stripes with averages', 'ShowAverageStripe', callback=self.drawHeatMap)
+        OWGUI.checkOnly(box, self, 'Gene annotations', 'ShowGeneAnnotations', callback=self.drawHeatMap)
+        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationVar", items=[], callback=self.drawHeatMap)
+
         box = QVButtonGroup("Balloon", tab)
         OWGUI.checkOnly(box, self, "Show balloon", 'BShowballoon', callback=lambda: self.balloonInfoBox.setDisabled(not self.BShowballoon))
         box = QVButtonGroup("Balloon Info", tab)
@@ -107,12 +112,11 @@ class OWHeatMap(OWWidget):
         OWGUI.checkOnly(box, self, "Spot Index", 'BShowSpotIndex', callback=lambda: self.spotCombo.setDisabled(not self.BShowSpotIndex))
         self.spotCombo = OWGUI.comboBox(box, self, "BSpotVar", items=[])
         OWGUI.checkOnly(box, self, "Gene expression", 'BShowGeneExpression')
-        OWGUI.checkOnly(box, self, "Annotation", 'BShowAnnotation', callback=lambda: self.annotationCombo.setDisabled(not self.BShowAnnotation))
-        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationVar", items=[])
+        OWGUI.checkOnly(box, self, "Annotation", 'BShowAnnotation')
         self.balloonInfoBox = box
         self.tabs.insertTab(tab, "Info")
         
-        self.resize(400,400)
+        self.resize(700,400)
 
         # canvas with microarray
         self.layout = QVBoxLayout(self.mainArea)
@@ -169,24 +173,9 @@ class OWHeatMap(OWWidget):
         if not data:
             return
         self.data = data
-
-        # this is only to check, once bug is removed: remove
-        bs = orange.DomainBasicAttrStat(self.data)
-        minVal = min([bs[x].min for x in self.data.domain.attributes])
-        maxVal = max([bs[x].max for x in self.data.domain.attributes])
-        print 'mmm', minVal, maxVal
-##        self.sliderCutLow.setRange(minVal, 0, 0.1)
-##        self.sliderCutHigh.setRange(0.0001, maxVal, 0.1)
-##        if minVal > self.CutLow:
-##            self.CutLow = minValue
-##        if maxVal < self.CutLow:
-##            self.CutLow = maxValue
-##        self.sliderCutLow.setValue(self.CutLow)
-##        self.sliderCutHigh.setValue(self.CutHigh)
-        
+        self.setMetaCombos() # set the two combo widgets according to the data
         self.heatmapconstructor = orange.HeatmapConstructor(self.data)
         self.createHeatMap()
-        self.setMetaCombos() # set the two combo widgets according to the data
 
     # send out the data for selected rows, rows = [(group, from, to), ...]
     def sendData(self, rows):
@@ -194,9 +183,31 @@ class OWHeatMap(OWWidget):
         for (g,s,e) in rows:
             hm = self.heatmaps[g]
             ex += hm.examples[hm.exampleIndices[s] : hm.exampleIndices[e+1]]
-        # ex = hm.examples[hm.exampleIndices[row] : hm.exampleIndices[row+1]]
-        d = orange.ExampleTable(self.data.domain, ex)
-        self.send("Examples", d)
+
+        # the following code constructs a new data set, such that only
+        # class values that are used are present
+        cl = self.data.domain.classVar
+        if cl:
+            valPresent = [None] * len(cl.values)
+            for d in ex:
+                c = int(d.getclass())
+                if not valPresent[c]: valPresent[c] = c
+            values = [cl.values[i] for i in filter(lambda x:x<>None, valPresent)]
+
+            if len(values)>1: # more than one class value used
+                newClass = orange.EnumVariable(name=cl.name, values=values, getValueFrom=lambda e, v: e.getclass())
+                domain = orange.Domain(self.data.domain.attributes, newClass)
+            else:
+                domain = orange.Domain(self.data.domain.attributes, 0)
+            metas = self.data.domain.getmetas()
+            for key in metas:
+                domain.addmeta(key, metas[key])
+            selectedData = orange.ExampleTable(domain, ex)
+            if len(values)>1:
+                self.send("Classified Examples", selectedData)
+        else:
+            selectedData = orange.ExampleTable(self.data.domain, ex)
+        self.send("Examples", selectedData)
 
     ##########################################################################
     # callback functions
@@ -251,6 +262,36 @@ class OWHeatMap(OWWidget):
         t.show()
         return y + t.boundingRect().height() + 1
 
+    def drawGeneAnnotation(self, x, y, group):
+##        print 'hhh', len(self.heatmaps[group].exampleIndices)
+##        for i in self.heatmaps[group].exampleIndices:
+##            print i
+
+        # determine the appropriate font width for annotation
+        # this part is ugly, we need to do it computationally
+        font = QFont()
+        dummy = QCanvasText("dummy", self.canvas)
+        last = 2; offset = 0
+        for fsize in range(2,9):
+            font.setPointSize(fsize)
+            dummy.setFont(font)
+            if dummy.boundingRect().height() > self.CellHeight:
+                break
+            offset = (self.CellHeight - dummy.boundingRect().height())/2
+            last = fsize
+        font.setPointSize(last)
+        y += offset
+
+        # annotate
+        hm = self.heatmaps[group]
+        annotationVar = self.meta[self.BAnnotationVar]
+        for (row, indices) in enumerate(hm.exampleIndices[:-1]):
+            t = QCanvasText(str(hm.examples[hm.exampleIndices[row]][annotationVar]), self.canvas)
+            t.setFont(font)
+            t.setX(x); t.setY(y)
+            t.show()
+            y += self.CellHeight
+
     def drawHeatMap(self):
         lo = self.CutEnabled and self.CutLow   or self.lowerBound
         hi = self.CutEnabled and self.CutHigh  or self.upperBound
@@ -290,14 +331,12 @@ class OWHeatMap(OWWidget):
                 avg, avgWidth, avgHeight = self.heatmaps[g].getAverages(c_averageStripeWidth, int(self.CellHeight), lo, hi, self.Gamma)
                 ImageItem(avg, self.canvas, avgWidth, avgHeight, palette, x=c_offsetX, y=y)
             self.imgEnd.append(y+self.heights[g]-1)
-            y += self.heights[g] + c_spaceY
 
-##        for i in range(len(self.imgStart)):
-##            l = QCanvasLine(self.canvas)
-##            l.setPoints(2, self.imgStart[i], 2, self.imgEnd[i])
-##            print 'line %d->%d ' % (self.imgStart[i], self.imgEnd[i]),
-##            l.show()
-##        print
+            if self.ShowGeneAnnotations and self.CellHeight>4:
+                self.drawGeneAnnotation(x+self.imageWidth+c_offsetX/2, y, g)
+            y += self.heights[g] + c_spaceY
+        x += self.imageWidth
+
         self.selection.redraw()        
         self.canvas.update()
         
@@ -305,7 +344,6 @@ class OWHeatMap(OWWidget):
         merge = min(self.Merge, float(len(self.data)))
         squeeze = 1. / merge
         self.heatmaps, self.lowerBound, self.upperBound = self.heatmapconstructor(squeeze)
-        print 'bbb', self.lowerBound, self.upperBound
 
         self.sliderCutLow.setRange(self.lowerBound, 0, 0.1)
         self.sliderCutHigh.setRange(1e-10, self.upperBound, 0.1)
@@ -313,7 +351,9 @@ class OWHeatMap(OWWidget):
         self.CutHigh = min(self.CutHigh, self.upperBound)
         self.sliderCutLow.setValue(self.CutLow)
         self.sliderCutHigh.setValue(self.CutHigh)
-        
+
+        self.selection.remove()
+
         self.drawHeatMap()
 
 ##################################################################################################
@@ -392,6 +432,7 @@ class MyCanvasView(QCanvasView):
             col, row = int(x / self.dx), int(y / self.dy)
             # hm.getCellIntensity(row, col), hm.getRowIntensity(row)
             ex = hm.examples[hm.exampleIndices[row] : hm.exampleIndices[row+1]]
+            #print 'xxx', hm.exampleIndices[row], hm.exampleIndices[row+1]
             self.selector.setX(item.x()+col*self.dx-v_sel_width+1)
             self.selector.setY(item.y()+row*self.dy-v_sel_width+1)
             self.selector.show()
@@ -455,7 +496,7 @@ class SelectData:
     def remove(self):
         for r in self.squares:
             r.setCanvas(None)
-        self.squares = []; self.rows
+        self.squares = []; self.rows = []
 
     # starts the selection, called after the first click
     def start(self, p1, p2, add=False):
@@ -622,8 +663,8 @@ if __name__=="__main__":
     a.setMainWidget(ow)
 
 ##    data = orange.ExampleTable('wt-large')
-    d = orange.ExampleTable('wt')
-##    d = orange.ExampleTable('wtclassed')
+##    d = orange.ExampleTable('wt')
+    d = orange.ExampleTable('wtclassed')
     ow.dataset(d)
     ow.show()
     a.exec_loop()
