@@ -1,7 +1,7 @@
 """
 <name>GO Term Finder</name>
 <description>GO Term Finder</description>
-<icon>icons/GO.png</icon>
+<icon>icons/GOTermFinder.png</icon>
 <priority>100</priority>
 """
 
