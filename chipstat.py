@@ -171,9 +171,13 @@ def posthoc_anova_on_genes(className1, className2, aAnovaOnGeneResults, callback
     FpTime = -1*Numeric.ones((numGenes,), Numeric.Float)
     FpStrain = -1*Numeric.ones((numGenes,), Numeric.Float)
     FpTimeStrain = -1*Numeric.ones((numGenes,), Numeric.Float)
-    for idx, an in enumerate(aAnovaOnGeneResults.anovaList):
-        FpTime[idx], FpStrain[idx], FpTimeStrain[idx] = an.single_posthoc_anova_B_AB(cIdx1, cIdx2)
-        if callback: callback()
+    try:
+        for idx, an in enumerate(aAnovaOnGeneResults.anovaList):
+            FpTime[idx], FpStrain[idx], FpTimeStrain[idx] = an.single_posthoc_anova_B_AB(cIdx1, cIdx2)
+            if callback: callback()
+    except:
+        print "debug posthoc_anova_on_genes:\n\tclassName1: %s\n\tclassName2: %s\n\tcIdx1: %i\n\tcIdx2: %i, anovaIdx: %i\n\t" % (className1, className2, cIdx1, cIdx2, idx)
+        raise
     return Numeric.transpose(Numeric.array([FpTime, FpStrain, FpTimeStrain])).tolist()
         
 
@@ -473,10 +477,14 @@ class Anova2wayLRBase(AnovaLRBase):
         """
         if self._addInteraction != 1:
             raise "Error: single_posthoc_anova_B_AB can be conducted only when the interaction effect has been tested"
-        groupLensAcc0 = Numeric.array([0] + Numeric.add.accumulate(self._groupLens).tolist())
-        groupInd = map(lambda i,j: range(i,j), groupLensAcc0[:-1],groupLensAcc0[1:])
-        takeInd = groupInd[bLevel1] + groupInd[bLevel2]
-        an = self.__class__(MA.take(self._arr2d, takeInd, 1), [self._groupLens[bLevel1],self._groupLens[bLevel2]], addInteraction=1)
+        try:
+            groupLensAcc0 = Numeric.array([0] + Numeric.add.accumulate(self._groupLens).tolist())
+            groupInd = map(lambda i,j: range(i,j), groupLensAcc0[:-1],groupLensAcc0[1:])
+            takeInd = groupInd[bLevel1] + groupInd[bLevel2]
+            an = self.__class__(MA.take(self._arr2d, takeInd, 1), [self._groupLens[bLevel1],self._groupLens[bLevel2]], addInteraction=1)
+        except:
+            print "debug single_posthoc_anova_B_AB: calls anova with parameters\n%s\n%s\n" % (str(MA.take(self._arr2d, takeInd, 1)), str([self._groupLens[bLevel1],self._groupLens[bLevel2]]))
+            raise
         return an.FAprob, an.FBprob, an.FABprob
 
     
