@@ -59,7 +59,8 @@ class OWSelectGenes(OWWidget):
     def chipdata(self, data):
         if data:
             self.data = data
-            self.senddata()
+            if self.commitOnChange and len(self.selectors)>0 and len(self.data[0][1][0]) == len(self.selectors.values()[0][1]):
+                self.senddata()
         else:
             self.send("Selected Data", None)
             self.send("Other Data", None)
@@ -73,7 +74,9 @@ class OWSelectGenes(OWWidget):
             if id in self.selectors.keys(): del self.selectors[id]
         self.infoa.setText('%d selectors on input.' % len(self.selectors))
         self.drawtable()
-        self.senddata()
+##        print "debug OWSelectGenes.loadselection: self.commitOnChange: %s, len(self.selectors)>0: %s, self.data: %s, self.selectors.values(): %s" % (str(self.commitOnChange), str(len(self.selectors)>0), str(self.data), str(self.selectors.values()))
+        if self.commitOnChange and len(self.selectors)>0 and self.data and len(self.data[0][1][0]) == len(self.selectors.values()[0][1]):
+            self.senddata()
         self.commitBtn.setEnabled(self.selectors <> None and len(self.selectors))
 
     def drawtable(self):
@@ -113,7 +116,7 @@ class OWSelectGenes(OWWidget):
     def senddata(self):
         if len(self.selectors):
             self.progressBarInit()
-            s = self.selectors.values()
+##            s = self.selectors.values()
 
             sel = []
             for s in self.selectors.values():
@@ -125,7 +128,8 @@ class OWSelectGenes(OWWidget):
             if len(sel) == 0:
                 match = [0]*len(self.selectors.values()[0][1])
             elif len(sel)>1:
-                match = apply(map, (max, ) + tuple(sel))
+##                match = apply(map, (max, ) + tuple(sel))
+                match = apply(map, (min, ) + tuple(sel))
             else:
                 match = sel[0]
             if self.negate:
@@ -149,18 +153,22 @@ class OWSelectGenes(OWWidget):
                     self.send("Selected Data", None)
                     self.send("Other Data", self.data)
                 else:
-                    P = []; N = []
-                    pbStep = 80. / len(self.data)
-                    for (strainname, data) in self.data:
-                        dataP = [d.select(self.match) for d in data]
-                        dataN = [d.select(self.match, negate=1) for d in data]
-                        for i in range(len(data)):
-                            dataP[i].name = dataN[i].name = data[i].name
-                        P.append((strainname, dataP))
-                        N.append((strainname, dataN))
-                        self.progressBarAdvance(pbStep)
-                    self.send("Selected Data", P)
-                    self.send("Other Data", N)
+                    try:
+                        P = []; N = []
+                        pbStep = 80. / len(self.data)
+                        for (strainname, data) in self.data:
+                            dataP = [d.select(self.match) for d in data]
+                            dataN = [d.select(self.match, negate=1) for d in data]
+                            for i in range(len(data)):
+                                dataP[i].name = dataN[i].name = data[i].name
+                            P.append((strainname, dataP))
+                            N.append((strainname, dataN))
+                            self.progressBarAdvance(pbStep)
+                        self.send("Selected Data", P)
+                        self.send("Other Data", N)
+                    except:
+                        print "debug OWSelectGenes.senddata\n\tlen(d): %i\n\tlen(self.match): %i\n\t" % (len(d), len(self.match))
+                        raise
             self.progressBarFinished()
 
     def selectionChange(self):
