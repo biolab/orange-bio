@@ -447,12 +447,12 @@ class OWGOTermFinder(OWWidget):
                 if self.SelectDisjoint and len(geneTermList) > 1: ## this gene should be omitted, because belongs to many GOterms
                     continue
                 for goterm in geneTermList:
-                    ne = [str(e[a]) for a in self.clusterData.domain]
+                    nex = orange.Example(newdomain, e)
                     if self.AddGOclass:
-                        ne += [goterm]
-                    nex = orange.Example(newdomain, ne)
-                    for (id, var) in metas.items():
-                        nex.setmeta(id, e.getmeta(id))
+                        nex.setclass(goterm)
+##                    nex = orange.Example(newdomain, ne)
+##                    for (id, var) in metas.items():
+##                        nex.setmeta(id, e.getmeta(id))
                     newdata.append( nex)
 
             if newdata.domain.classVar:
