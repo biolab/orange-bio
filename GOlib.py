@@ -321,7 +321,7 @@ def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None,
             referenceSet = annotation['gene2GOID'].keys() ## use all genes in the annotation
         ## calculate frequencies for all GO terms
         ## so we don't have to do it next time, the clusterGenes set changes, because it takes a lot of time anyway
-        refGenesGOIDdirect, refGenesGOIDindirect, refGenesGOID = populateGO(referenceSet, annotation, GO, clusterGenesGOID.keys(), progressBar, progressStart + progressPart / 2.0, 4.0 * progressPart / 5.0)
+        refGenesGOIDdirect, refGenesGOIDindirect, refGenesGOID = populateGO(referenceSet, annotation, GO, clusterGenesGOID.keys(), progressBar, progressStart + progressPart / 5.0, 4.0 * progressPart / 5.0)
         lastFindTermsReference = [resID, refGenesGOID, referenceSet]
 
     N = len(referenceSet) ## number of genes in reference; used in the calculation of the p value
