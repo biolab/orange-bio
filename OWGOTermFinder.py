@@ -125,7 +125,7 @@ class OWGOTermFinder(OWWidget):
             self.evidenceCheckBoxes[etype] = tmpCB
 
         # reference
-        OWGUI.radioButtonsInBox(self.inputTab, self, 'ReferenceType', ['From Annotation', 'From Signal'], box='Reference', callback=self.findTermsBuildDAG)
+        OWGUI.radioButtonsInBox(self.inputTab, self, 'ReferenceType', ['Annotation', 'Signal'], box='Reference from', callback=self.findTermsBuildDAG)
         # GO aspects
         box = QHButtonGroup("GO Aspect", self.inputTab)
         box.setMaximumSize(250, 50)
@@ -135,7 +135,7 @@ class OWGOTermFinder(OWWidget):
         self.GOaspectBrowse = OWGUI.button(box, self, 'Browse', callback=self.browseGOaspect)
         self.GOaspectBrowse.setMaximumSize(50, 30)
         # gene name attribute
-        box = QHButtonGroup("Gene ID attribute", self.inputTab)
+        box = QHButtonGroup("Gene ID Attribute", self.inputTab)
         box.setMaximumSize(250, 50)
         self.geneIDAttrCombo = OWGUI.comboBox(box, self, 'BgeneIDattrIndx', items=[], callback=self.geneIDchanged)
         self.geneIDAttrCombo.setMaximumSize(160, 20)
@@ -151,7 +151,7 @@ class OWGOTermFinder(OWWidget):
         if not self.FilterNumEnabled:
             self.sliderFilterNumValue.box.setDisabled(1)
         #
-        OWGUI.checkBox(box, self, 'FilterPvalEnabled', "p. value", callback=self.setFilterPvalEnabled)
+        OWGUI.checkBox(box, self, 'FilterPvalEnabled', "p value", callback=self.setFilterPvalEnabled)
         self.sliderFilterPvalue = OWGUI.qwtHSlider(box, self, 'FilterPvalue', label='p:', labelWidth=33, minValue=0.0, maxValue=1.0, step=0.001, precision=3.0, ticks=0, maxWidth=80, callback=self.runFilters)
         if not self.FilterPvalEnabled:
             self.sliderFilterPvalue.box.setDisabled(1)
@@ -164,7 +164,7 @@ class OWGOTermFinder(OWWidget):
 
         # SELECT TAB
         self.selectTab = QVGroupBox(self)
-        OWGUI.radioButtonsInBox(self.selectTab, self, 'SelectMode', ['Subgraph', 'Node specific'], box='Mode', callback=self.viewSelectionChanged)
+        OWGUI.radioButtonsInBox(self.selectTab, self, 'SelectMode', ['Directly or Indirectly', 'Directly'], box='Annotated Genes', callback=self.viewSelectionChanged)
         box = QVButtonGroup('Output', self.selectTab)
         OWGUI.checkBox(box, self, 'SelectDisjoint', 'Disjoint/Inclusive', callback=self.viewSelectionChanged)
         OWGUI.checkBox(box, self, 'AddGOclass', 'Add GO term as new class', callback=self.viewSelectionChanged)
