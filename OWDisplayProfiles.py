@@ -357,7 +357,7 @@ class profilesGraph(OWGraph):
 
 
 class OWDisplayProfiles(OWWidget):
-    settingsList = ["PointWidth", "CurveWidth", "AverageCurveWidth", "BoxPlotWidth", "ShowAverageProfile", "ShowSingleProfiles"]
+    settingsList = ["PointWidth", "CurveWidth", "AverageCurveWidth", "BoxPlotWidth", "ShowAverageProfile", "ShowSingleProfiles", "CutEnabled", "CutLow", "CutHigh"]
     def __init__(self, parent=None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, 'Expression Profiles', 1)
@@ -369,6 +369,8 @@ class OWDisplayProfiles(OWWidget):
         self.CurveWidth = 1
         self.AverageCurveWidth = 4
         self.BoxPlotWidth = 2
+
+        self.CutLow = 0; self.CutHigh = 0; self.CutEnabled = 0
 
         #load settings
         self.loadSettings()
@@ -411,7 +413,6 @@ class OWDisplayProfiles(OWWidget):
 ##        self.connect(self.showAverageQLB, SIGNAL("toggled(bool)"), self.updateShowAverageProfile)
 ##        self.connect(self.showSingleQLB, SIGNAL("toggled(bool)"), self.updateShowSingleProfiles)
 
-
         self.tabs.insertTab(GraphTab, "Graph")
 
         # SETTINGS TAB
@@ -421,6 +422,16 @@ class OWDisplayProfiles(OWWidget):
         OWGUI.hSlider(SettingsTab, self, 'CurveWidth', box='Profile Width', minValue=1, maxValue=9, step=1, callback=self.updateCurveWidth, ticks=1)
         OWGUI.hSlider(SettingsTab, self, 'AverageCurveWidth', box='Average Profile Width', minValue=1, maxValue=9, step=1, callback=self.updateAverageCurveWidth, ticks=1)
         OWGUI.hSlider(SettingsTab, self, 'BoxPlotWidth', box='Box Plot Width', minValue=0, maxValue=9, step=1, callback=self.updateBoxPlotWidth, ticks=1)
+
+
+	## graph y scale
+        box = QVButtonGroup("Threshol/ Values", SettingsTab)
+        OWGUI.checkBox(box, self, 'CutEnabled', "Enabled", callback=self.setCutEnabled)
+        self.sliderCutLow = OWGUI.qwtHSlider(box, self, 'CutLow', label='Low:', labelWidth=33, minValue=-20, maxValue=0, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.updateYaxis)
+        self.sliderCutHigh = OWGUI.qwtHSlider(box, self, 'CutHigh', label='High:', labelWidth=33, minValue=0, maxValue=20, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.updateYaxis)
+        if not self.CutEnabled:
+            self.sliderCutLow.box.setDisabled(1)
+            self.sliderCutHigh.box.setDisabled(1)
 
         self.tabs.insertTab(SettingsTab, "Settings")
         
@@ -447,6 +458,20 @@ class OWDisplayProfiles(OWWidget):
                      SIGNAL('plotMouseReleased(const QMouseEvent&)'),
                      self.onMouseReleased)
         self.resize(800,600)
+
+    def updateYaxis(self):
+        if (not self.CutEnabled):
+            self.graph.setAxisAutoScale(QwtPlot.yLeft)
+            self.graph.replot()
+            return
+                                                                                                                                     
+        self.graph.setAxisScale(QwtPlot.yLeft, self.CutLow, self.CutHigh)
+        self.graph.replot()
+
+    def setCutEnabled(self):
+        self.sliderCutLow.box.setDisabled(not self.CutEnabled)
+        self.sliderCutHigh.box.setDisabled(not self.CutEnabled)
+        self.updateYaxis()
 
     def onMousePressed(self, e):
         if Qt.LeftButton == e.button():
@@ -590,10 +615,11 @@ class OWDisplayProfiles(OWWidget):
         self.graph.setPointWidth(self.PointWidth)
         self.graph.setCurveWidth(self.CurveWidth)
         self.graph.setAverageCurveWidth(self.AverageCurveWidth)
+	self.graph.setBoxPlotWidth(self.BoxPlotWidth)
 
         self.graph.setAxisAutoScale(QwtPlot.xBottom)
-        self.graph.setAxisAutoScale(QwtPlot.yLeft)
-        self.graph.replot()
+##        self.graph.setAxisAutoScale(QwtPlot.yLeft)
+        self.updateYaxis()
         self.progressBarFinished()
 
     def newdata(self):
