@@ -214,6 +214,7 @@ class OWHeatMap(OWWidget):
 
         self.bmps = []; self.heights = []
         for g in range(groups):
+            print self.Gamma
             bmp, self.imageWidth, imageHeight = self.heatmaps[g].getBitmap(int(self.CellWidth), int(self.CellHeight), lo, hi, self.Gamma)
             self.bmps.append(bmp)
             self.heights.append(imageHeight)
