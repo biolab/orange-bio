@@ -627,8 +627,69 @@ def txtGO2pickle(GOver = '200312'):
     print
 
 
-##############################################3
+## reads in annotation, and creates a table for
+## DDB -> GO term (for selected aspects and evidences)
+## needs:
+##    annotation to make the mappings
+##    GO for the GO Term ID -> GO Term Description
+##
+## usage:
+##    GOlib.DDBtoAspects(r'Annotations\dID.Dictyostelium discoideum.annotation', r'GO\200312-biological_process.go', 'DDBtoGO.tab', None)
+##
+##  select only IEA evidences
+##    GOlib.DDBtoAspects(r'Annotations\dID.Dictyostelium discoideum.annotation', r'GO\200312-biological_process.go', 'DDBtoGO.tab', ['IEA'])
+## 
+def DDBtoAspects(annotationFname, GOfname, outFname, evidences = None, useAspects = ['biological_process', 'cellular_component', 'molecular_function']):
+    try:
+        f = open(outFname, 'w')
+    except:
+        print "file %s could not be opened" % (outFname)
+        return
+    ## make header lines for Orange
+    f.write('DDB')
+    for aspect in useAspects:
+        f.write('\t' + aspect)
+    f.write('\n')
 
+    f.write('string')
+    for i in useAspects:
+        f.write('\tstring')
+    f.write('\n')
+
+    f.write('meta')
+    for i in useAspects:
+        f.write('\tmeta')
+    f.write('\n')
+
+    GO = cPickle.load(open(GOfname, 'r')) ## need the ontology only for the GO Term ID -> GO Term Description
+    annotation = cPickle.load(open(annotationFname, 'r'))
+    for (gene, geneAnn) in annotation['gene2GOID'].items():
+        termsByAspect = {}
+        for (daGOID, daNOT, daEvidence, daAspect, daDB_Object_Type) in geneAnn:
+            if daNOT <> '': continue ## should we skip those annotations that tell when a gene is not part of a specific GO term?
+            if (evidences <> None) and daEvidence not in evidences:
+                continue
+            tmpl = termsByAspect.get(daAspect, [])
+            if daGOID not in tmpl:
+                tmpl.append( daGOID)
+            termsByAspect[daAspect] = tmpl
+        f.write(gene)
+        for aspect in useAspects:
+            tmpl = termsByAspect.get(aspect, [])
+            if len(tmpl) > 0:
+                GOID = tmpl[0]
+                GOterm = GO['term'].get(GOID, ['?'])[0]
+                outStr = str(GOterm)
+            else:
+                outStr = ''
+            for GOID in tmpl[1:]:
+                GOterm = GO['term'].get(GOID, ['?'])[0]
+                outStr += ', ' + str(GOterm)
+            f.write('\t' + outStr)
+        f.write('\n')
+    f.close()
+
+##############################################
 
 
 if __name__=="__main__":
