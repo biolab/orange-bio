@@ -32,14 +32,15 @@ class OWHeatMap(OWWidget):
                     "ShowAnnotation", "LegendOnTop", "LegendOnBottom", "ShowAverageStripe", "ShowGroupLabel",
                     "MaintainArrayHeight",
                     'BShowballoon', 'BShowColumnID', 'BShowSpotIndex', 'BShowAnnotation', 'BShowGeneExpression',
-                    "BSpotVar", "ShowGeneAnnotations", "BAnnotationVar",
+                    "BSpotVar", "ShowGeneAnnotations", "ShowDataFileNames", "BAnnotationVar",
+                    "SelectionType",
                     "CurrentPalette", "SortGenes"]
 
-    def __init__(self, parent=None, name='OWHeatMap'):
+    def __init__(self, parent=None, name='HeatMap'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, name, 'Microarray Heat Map', FALSE, FALSE) 
         
-        self.inputs = [("Examples", ExampleTable, self.dataset, 1)]
+        self.inputs = [("Examples", ExampleTable, self.dataset, 0)]
         self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
 
         #set default settings
@@ -55,14 +56,16 @@ class OWHeatMap(OWWidget):
         self.MaintainArrayHeight = 1   # adjust cell height while changing the merge factor
         self.BShowballoon = 1          # balloon help
         self.ShowGeneAnnotations = 1   # show annotations for genes
+        self.ShowDataFileNames = 1     # show the names of the data sets (only in case of multiple files)
         self.BShowColumnID = 1; self.BShowSpotIndex = 1; self.BShowAnnotation = 1; self.BShowGeneExpression = 1
         self.BSpotVar = None; self.BAnnotationVar = None  # these are names of variables
         self.BSpotIndx = None; self.BAnnotationIndx = None # these are id's of the combo boxes
         self.SortGenes = 1
+        self.SelectionType = 0         # selection on a single data set
         self.setColorPalette()
         
         self.loadSettings()
-        self.data = None
+        self.data = []
         self.maxHSize = 15; self.maxVSize = 15
 
         # GUI definition
@@ -101,10 +104,11 @@ class OWHeatMap(OWWidget):
         # INFO TAB
         tab = QVGroupBox(self)
 
-        box = QVButtonGroup("Graph Annotation", tab)
+        box = QVButtonGroup("Annotation && Legends", tab)
         OWGUI.checkBox(box, self, 'LegendOnTop', 'Legend (top)', callback=self.drawHeatMap)
         OWGUI.checkBox(box, self, 'ShowAverageStripe', 'Stripes with averages', callback=self.drawHeatMap)
         OWGUI.checkBox(box, self, 'ShowGeneAnnotations', 'Gene annotations', callback=self.drawHeatMap)
+        
         self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationIndx", items=[], callback=lambda x='BAnnotationVar', y='BAnnotationIndx': self.setMetaID(x, y))
 
         box = QVButtonGroup("Balloon", tab)
@@ -117,7 +121,22 @@ class OWHeatMap(OWWidget):
         OWGUI.checkBox(box, self, 'BShowAnnotation', "Annotation")
         self.balloonInfoBox = box
         self.tabs.insertTab(tab, "Info")
-        
+
+        # FILES TAB
+        self.filesTab = QVGroupBox(self)
+        box = QVButtonGroup("Data Files", self.filesTab)
+        self.fileLB = QListBox(box, "lb")
+        self.connect(self.fileLB, SIGNAL("highlighted(int)"), self.fileSelectionChanged)    
+        self.tabs.insertTab(self.filesTab, "Files")
+        dir = os.path.dirname(__file__) + "../icons/"
+        hbox = QHBox(box)
+        self.fileUp = self.createButton(hbox, self, 'File Up', icon = QPixmap(dir+'Dlg_send.png'), toggle = 0, callback=lambda i=-1: self.fileOrderChange(i))
+        self.fileRef = self.createButton(hbox, self, 'File Up', icon = QPixmap(dir+'Dlg_send.png'), toggle = 0, callback=lambda i=0: self.fileOrderChange(i))
+        self.fileDown = self.createButton(hbox, self, 'File Up', icon = QPixmap(dir+'Dlg_send.png'), toggle = 0, callback=lambda i=1: self.fileOrderChange(i))
+
+        OWGUI.checkBox(self.filesTab, self, 'ShowDataFileNames', 'Show data file names', callback=self.drawHeatMap)
+        OWGUI.radioButtonsInBox(self.filesTab, self, 'SelectionType', ['Single data set', 'Multiple data sets'], box='Selection')
+
         self.resize(700,400)
 
         # canvas with microarray
@@ -127,6 +146,13 @@ class OWHeatMap(OWWidget):
         self.selection = SelectData(self, self.canvas)
         # self.canvasView = QCanvasView(self.canvas, self.mainArea)
         self.layout.add(self.canvasView)
+
+    def createButton(self, widget, parent, text, callback=None, icon=None, toggle=0):
+        btn = QPushButton(text, widget)
+        btn.setToggleButton(toggle)
+        if callback: parent.connect(btn, SIGNAL("clicked()"), callback)
+        if icon:   btn.setPixmap(icon)
+        return btn
 
     def createColorStripe(self, palette):
         dx = 104; dy = 18
@@ -176,27 +202,42 @@ class OWHeatMap(OWWidget):
             self.drawHeatMap()
 
     def setMetaCombos(self):
-        self.meta = [m.name for m in self.data.domain.getmetas().values()]
+        self.meta = [m.name for m in self.data[0].domain.getmetas().values()]
         (self.BSpotVar, self.BSpotIndx) = self.setMetaCombo(self.spotCombo, self.BSpotVar, enabled=self.BShowSpotIndex, default='RMI')
         (self.BAnnotationVar, self.BAnnotationIndx) = self.setMetaCombo(self.annotationCombo, self.BAnnotationVar, enabled=self.BShowAnnotation, default='annotation')
 
     ##########################################################################
     # handling of input/output signals
 
-    def dataset(self, data):
+    def dataset(self, data, id):
         if not data:
+            # should remove the data where necessary
             return
-        self.data = data
+        # check if the same length
+        data.id = id
+        if len(self.data) and (id in [d.id for d in self.data]):
+            for i in range(len(self.data)):
+                if id==self.data[i].id:
+                    self.data[i] = data
+                    self.fileLB.changeItem(data.name, i)
+                    break
+        else:
+            self.data.append(data)
+            self.fileLB.insertItem(data.name)
+
         self.send('Classified Examples', None)
         self.send('Examples', None)
         self.setMetaCombos() # set the two combo widgets according to the data
         self.constructHeatmap()
 
     def constructHeatmap(self):
+        self.heatmapconstructor = []
         if self.SortGenes:
-            self.heatmapconstructor = orange.HeatmapConstructor(self.data)
+            self.heatmapconstructor.append(orange.HeatmapConstructor(self.data[0]))
         else:
-            self.heatmapconstructor = orange.HeatmapConstructor(self.data, None)
+            self.heatmapconstructor.append(orange.HeatmapConstructor(self.data[0], None))
+        for i in range(len(self.data))[1:]:
+            self.heatmapconstructor.append(orange.HeatmapConstructor(self.data[i], self.heatmapconstructor[0]))
         self.createHeatMap()
 
     # send out the data for selected rows, rows = [(group, from, to), ...]
@@ -207,19 +248,19 @@ class OWHeatMap(OWWidget):
             ex += hm.examples[hm.exampleIndices[s] : hm.exampleIndices[e+1]]
 
         # Reduce the number of class values, if class is defined
-        cl = clo = self.data.domain.classVar
+        cl = clo = self.data[0].domain.classVar
         if cl:
             cl = orange.RemoveUnusedValues(cl, ex, removeOneValued = 1)
 
         # Construct a new domain only if the class has changed
         # (ie to lesser number of values or to one value (alias None))
         if cl != clo:
-            domain = orange.Domain(self.data.domain.attributes, cl)
-            metas = self.data.domain.getmetas()
+            domain = orange.Domain(self.data[0].domain.attributes, cl)
+            metas = self.data[0].domain.getmetas()
             for key in metas:
                 domain.addmeta(key, metas[key])
         else:
-            domain = self.data.domain
+            domain = self.data[0].domain
 
         selectedData = orange.ExampleTable(domain, ex)
         if selectedData.domain.classVar:
@@ -256,11 +297,24 @@ class OWHeatMap(OWWidget):
         self.createHeatMap()
         self.savedMerge = self.Merge
 
+    def fileSelectionChanged(self, sel):
+        # self.fileRef.setDisabled(sel==0)
+        self.selectedFile = sel
+        pass
+
+    def fileOrderChange(self, chg):
+        print 'ccc', chg
+        if chg==-1 and self.selectedFile>0:
+            switchFiles(self.selectedFile, self.selectedFile-1)
+        if chg==1  and self.selectedFile < len(self.data - 1):
+            switchFiles(self.selectedFile, self.selectedFile+1)
+        
+
     ##########################################################################
     # drawing
 
     def drawLegend(self, x, y, width, height, palette):
-        legend = self.heatmapconstructor.getLegend(width, height, self.Gamma)
+        legend = self.heatmapconstructor[0].getLegend(width, height, self.Gamma)
 
         lo = self.CutEnabled and self.CutLow   or self.lowerBound
         hi = self.CutEnabled and self.CutHigh  or self.upperBound
@@ -274,6 +328,17 @@ class OWHeatMap(OWWidget):
         y += t.boundingRect().height()+1
         self.legendItem = ImageItem(legend, self.canvas, width, height, palette, x=x, y=y)
         return y + c_legendHeight + c_spaceY
+
+    def drawFileName(self, label, x, y, width):
+        t = QCanvasText(label, self.canvas)
+        t.setX(x); t.setY(y)
+        t.show()
+        line = QCanvasLine(self.canvas)
+        line.setPoints(0, 0, width, 0)
+        y += t.boundingRect().height()
+        line.setX(x); line.setY(y)
+        line.show()
+        return y + 5
 
     def drawGroupLabel(self, label, x, y, width):
         t = QCanvasText(label, self.canvas)
@@ -298,7 +363,7 @@ class OWHeatMap(OWWidget):
         y += offset
 
         # annotate
-        hm = self.heatmaps[group]
+        hm = self.heatmaps[0][group]
         for (row, indices) in enumerate(hm.exampleIndices[:-1]):
             t = QCanvasText(str(hm.examples[hm.exampleIndices[row]][self.BAnnotationVar]), self.canvas)
             t.setFont(font)
@@ -316,47 +381,64 @@ class OWHeatMap(OWWidget):
         self.canvasView.heatmapParameters(self, self.CellWidth, self.CellHeight) # needed for event handling
 
         palette = self.ColorPalettes[self.CurrentPalette]
-        groups = (not self.data.domain.classVar and 1) or len(self.data.domain.classVar.values) # mercy! (just had to do this)
+        groups = (not self.data[0].domain.classVar and 1) or len(self.data[0].domain.classVar.values) # mercy! (just had to do this)
 
         self.bmps = []; self.heights = []; self.imgStart = []; self.imgEnd = []
-        for g in range(groups):
-            bmp, self.imageWidth, imageHeight = self.heatmaps[g].getBitmap(int(self.CellWidth), int(self.CellHeight), lo, hi, self.Gamma)
-            self.bmps.append(bmp)
-            self.heights.append(imageHeight)
+        for (i,hm) in enumerate(self.heatmaps):
+            bmpl = []
+            for g in range(groups):
+                bmp, self.imageWidth, imageHeight = hm[g].getBitmap(int(self.CellWidth), int(self.CellHeight), lo, hi, self.Gamma)
+                bmpl.append(bmp)
+                if not i: self.heights.append(imageHeight)
+            self.bmps.append(bmpl)
 
         self.canvas.resize(2000, 2000) # this needs adjustment
-        x = c_offsetX; y = c_offsetY
-        if self.ShowAverageStripe:
-            x += c_averageStripeWidth + c_spaceX
+        x = c_offsetX; y0 = c_offsetY
 
-        self.legend = self.heatmapconstructor.getLegend(self.imageWidth, c_legendHeight, self.Gamma)
+        self.legend = self.heatmapconstructor[0].getLegend(self.imageWidth, c_legendHeight, self.Gamma)
         if self.LegendOnTop:
-            y = self.drawLegend(x, y, self.imageWidth, c_legendHeight, palette)
+            y0 = self.drawLegend(x, y0, self.imageWidth, c_legendHeight, palette)
+
+        for i in range(len(self.data)):
+            y = y0
+
+            if self.ShowDataFileNames and len(self.data)>1:
+                y = self.drawFileName(self.data[i].name, x, y, self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + c_spaceX))
+
+            if self.ShowAverageStripe:
+                for g in range(groups):
+                    avg, avgWidth, avgHeight = self.heatmaps[i][g].getAverages(c_averageStripeWidth, int(self.CellHeight), lo, hi, self.Gamma)
+                    ImageItem(avg, self.canvas, avgWidth, avgHeight, palette, x=x, y=y)
+                x += c_averageStripeWidth + c_spaceX
+
+            for g in range(groups):
+                if self.ShowGroupLabel and groups>1:
+                    y = self.drawGroupLabel(self.data[i][0].domain.classVar.values[g], x, y, self.imageWidth)
+                if not i: self.imgStart.append(y)
+                image = ImageItem(self.bmps[i][g], self.canvas, self.imageWidth, self.heights[g], palette, x=x, y=y, z=z_heatmap)
+                image.hm = self.heatmaps[i][g] # needed for event handling
+                image.height = self.heights[g]; image.width = self.imageWidth
+                if not i: self.imgEnd.append(y+self.heights[g]-1)
+            x += self.imageWidth + c_offsetX
 
         for g in range(groups):
-            if self.ShowGroupLabel and groups>1:
-                y = self.drawGroupLabel(self.data.domain.classVar.values[g], x, y, self.imageWidth)
-            self.imgStart.append(y)
-            image = ImageItem(self.bmps[g], self.canvas, self.imageWidth, self.heights[g], palette, x=x, y=y, z=z_heatmap)
-            image.hm = self.heatmaps[g] # needed for event handling
-            image.height = self.heights[g]; image.width = self.imageWidth
-            if self.ShowAverageStripe:
-                avg, avgWidth, avgHeight = self.heatmaps[g].getAverages(c_averageStripeWidth, int(self.CellHeight), lo, hi, self.Gamma)
-                ImageItem(avg, self.canvas, avgWidth, avgHeight, palette, x=c_offsetX, y=y)
-            self.imgEnd.append(y+self.heights[g]-1)
-
             if self.ShowGeneAnnotations and self.CellHeight>4:
-                self.drawGeneAnnotation(x+self.imageWidth+c_offsetX/2, y, g)
+                self.drawGeneAnnotation(x, y, g)
             y += self.heights[g] + c_spaceY
-        x += self.imageWidth
 
         self.selection.redraw()        
         self.canvas.update()
         
     def createHeatMap(self):
-        merge = min(self.Merge, float(len(self.data)))
+        merge = min(self.Merge, float(len(self.data[0])))
         squeeze = 1. / merge
-        self.heatmaps, self.lowerBound, self.upperBound = self.heatmapconstructor(squeeze)
+        self.lowerBound = 1000; self.upperBound = -1000 # CHANGE!!!
+        self.heatmaps = []
+        for (i, hmc) in enumerate(self.heatmapconstructor):
+            hm, lb, ub = hmc(squeeze)
+            self.heatmaps.append(hm)
+            self.lowerBound = min(self.lowerBound, lb)
+            self.upperBound = max(self.upperBound, ub)
 
         self.sliderCutLow.setRange(self.lowerBound, 0, 0.1)
         self.sliderCutHigh.setRange(1e-10, self.upperBound, 0.1)
@@ -677,9 +759,13 @@ if __name__=="__main__":
     a.setMainWidget(ow)
 
 ##    data = orange.ExampleTable('wt-large')
-##    d = orange.ExampleTable('wt')
-    d = orange.ExampleTable('wtclassed')
-    ow.dataset(d)
+    d = orange.ExampleTable('wt'); d.name = 'wt'
+##    d = orange.ExampleTable('wtclassed'); d.name = 'wtclassed'
+    ow.dataset(d, 0)
+    d = orange.ExampleTable('wt2'); d.name = 'wt2'
+    ow.dataset(d, 1)
+    d = orange.ExampleTable('wt3'); d.name = 'wt3'
+    ow.dataset(d, 2)
     ow.show()
     a.exec_loop()
     ow.saveSettings()
