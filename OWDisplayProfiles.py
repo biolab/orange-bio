@@ -59,30 +59,31 @@ class boxPlotQwtPlotCurve(QwtPlotCurve):
                     ppy = py
 
             ## then draw boxes
-            np = QPen(self.pen())
-            np.setWidth(self.boxPlotPenWidth)
-            p.setPen(np)
-            for i in range(f, t, 6):
-                largestAdjVal = yMap.transform(self.y(i))
-                yq3 = yMap.transform(self.y(i + 1))
-                yavg = yMap.transform(self.y(i + 2))
-                yqM = yMap.transform(self.y(i + 3))
-                yq1 = yMap.transform(self.y(i + 4))
-                smallestAdjVal = yMap.transform(self.y(i + 5))
+            if self.boxPlotPenWidth > 0:
+                np = QPen(self.pen())
+                np.setWidth(self.boxPlotPenWidth)
+                p.setPen(np)
+                for i in range(f, t, 6):
+                    largestAdjVal = yMap.transform(self.y(i))
+                    yq3 = yMap.transform(self.y(i + 1))
+                    yavg = yMap.transform(self.y(i + 2))
+                    yqM = yMap.transform(self.y(i + 3))
+                    yq1 = yMap.transform(self.y(i + 4))
+                    smallestAdjVal = yMap.transform(self.y(i + 5))
 
-                px = xMap.transform(self.x(i))
-                wxl = xMap.transform(self.x(i) - self.tickXw/2.0)
-                wxr = xMap.transform(self.x(i) + self.tickXw/2.0)
+                    px = xMap.transform(self.x(i))
+                    wxl = xMap.transform(self.x(i) - self.tickXw/2.0)
+                    wxr = xMap.transform(self.x(i) + self.tickXw/2.0)
 
-                p.drawLine(wxl, largestAdjVal, wxr,   largestAdjVal) ## - upper whisker
-                p.drawLine(px, largestAdjVal, px, yq3)               ## | connection between upper whisker and q3
-                p.drawRect(wxl, yq3, wxr - wxl, yq1 - yq3)           ## box from q3 to q1
-                p.drawLine(wxl, yqM, wxr, yqM)                       ## median line
-                p.drawLine(px, yq1, px, smallestAdjVal)              ## | connection between q1 and lower whisker
-                p.drawLine(wxl, smallestAdjVal, wxr, smallestAdjVal) ## _ lower whisker
+                    p.drawLine(wxl, largestAdjVal, wxr,   largestAdjVal) ## - upper whisker
+                    p.drawLine(px, largestAdjVal, px, yq3)               ## | connection between upper whisker and q3
+                    p.drawRect(wxl, yq3, wxr - wxl, yq1 - yq3)           ## box from q3 to q1
+                    p.drawLine(wxl, yqM, wxr, yqM)                       ## median line
+                    p.drawLine(px, yq1, px, smallestAdjVal)              ## | connection between q1 and lower whisker
+                    p.drawLine(wxl, smallestAdjVal, wxr, smallestAdjVal) ## _ lower whisker
 
-                ## average line (circle)
-                p.drawEllipse(px - 3, yavg - 3, 6, 6)
+                    ## average line (circle)
+                    p.drawEllipse(px - 3, yavg - 3, 6, 6)
 
             p.setBackgroundMode(back)
         else:
@@ -420,7 +421,7 @@ class OWDisplayProfiles(OWWidget):
         OWGUI.hSlider(SettingsTab, self, 'PointWidth', box='Point Width', minValue=0, maxValue=9, step=1, callback=self.updatePointWidth, ticks=1)
         OWGUI.hSlider(SettingsTab, self, 'CurveWidth', box='Profile Width', minValue=1, maxValue=9, step=1, callback=self.updateCurveWidth, ticks=1)
         OWGUI.hSlider(SettingsTab, self, 'AverageCurveWidth', box='Average Profile Width', minValue=1, maxValue=9, step=1, callback=self.updateAverageCurveWidth, ticks=1)
-        OWGUI.hSlider(SettingsTab, self, 'BoxPlotWidth', box='Box Plot Width', minValue=1, maxValue=9, step=1, callback=self.updateBoxPlotWidth, ticks=1)
+        OWGUI.hSlider(SettingsTab, self, 'BoxPlotWidth', box='Box Plot Width', minValue=0, maxValue=9, step=1, callback=self.updateBoxPlotWidth, ticks=1)
 
         self.tabs.insertTab(SettingsTab, "Settings")
         
