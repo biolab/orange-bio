@@ -26,15 +26,18 @@ class OWRules(OWWidget):
         self.showMetas = 1
 
         # GUI
+#        self.grid=QGridLayout(self,1,1,5)
+#        self.grid.setColStretch(0,0)
         self.layout=QVBoxLayout(self.mainArea)
-        self.ar=QVGroupBox(self.mainArea)
-
+        self.ar = QVGroupBox(self.mainArea)
         OWGUI.checkBox(self.ar, self, 'ShowClosestOther', 'Show closest other expressions', tooltip='', callback=self.runRule)
         self.table = QTable(self.ar)
         self.table.setSelectionMode(QTable.Multi)
+
+        #self.grid.addWidget(self.ar, 0, 0)
         self.layout.add(self.ar)
-#        self.table.hide()
-        self.grid.setColStretch(0,0)
+        self.grid.setColStretch(0,1)
+        self.grid.setRowStretch(0,1)
 
     def ruledataset(self, data):
         self.rules = data
@@ -55,7 +58,7 @@ class OWRules(OWWidget):
             self.progressBarFinished()
 
     def set_table(self):
-        if self.rules==None or self.expression==None:
+        if self.rules == None or self.expression == None:
             return
 
         print self.rules.domain, self.rules.domain.getmetas()
@@ -119,7 +122,7 @@ class OWRules(OWWidget):
         self.connect(self.table,SIGNAL("selectionChanged()"), self.runRule)
         #self.table.setColumnMovingEnabled(1)
         self.table.show()
-        self.layout.activate() # this is needed to scale the widget correctly
+##        self.layout.activate() # this is needed to scale the widget correctly
 
     def sort(self, col):
         print "sorts the table by column col", col, self.sortby
@@ -130,14 +133,14 @@ class OWRules(OWWidget):
         self.table.sortColumn(col, self.sortby>=0, TRUE)
 
     def runRule(self):
-	if self.table.numSelections() <= 0:
+        if self.table.numSelections() <= 0:
             self.send("Expression", None)
             self.send("Genes", [])
             self.send("Motifs", [])
             return None
 
         geneListColumn = self.table.numCols() - 1
-	otherGeneListColumn = geneListColumn - 1
+        otherGeneListColumn = geneListColumn - 1
         rowsSelected = sum([self.table.isRowSelected(i) for i in range(self.table.numRows())])
         genesToSend = []
         motifsToSend = []
