@@ -80,7 +80,9 @@ class OWHeatMap(OWWidget):
 
         # define the color stripe to show the current palette
         colorItems = [self.createColorStripe(i) for i in range(len(self.ColorPalettes))]
-        OWGUI.comboBox(settingsTab, self, "CurrentPalette", box="Colors", items=colorItems, tooltip=None, callback=self.setColor)
+        palc = OWGUI.comboBox(settingsTab, self, "CurrentPalette", box="Colors", items=None, tooltip=None, callback=self.setColor)
+        for cit in colorItems:
+            palc.insertItem(cit) ## because of a string cast in the comboBox constructor
         OWGUI.checkBox(settingsTab, self, "SortGenes", "Sort genes", box="Sort", callback=self.constructHeatmap)
 
         self.tabs.insertTab(settingsTab, "Settings")
