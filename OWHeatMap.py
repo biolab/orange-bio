@@ -167,10 +167,11 @@ class OWHeatMap(OWWidget):
     # color indices for unknown is 255, underflow 253, overflow 254, white 252
     def setColorPalette(self):
         white = qRgb(255,255,255)
+        gray = qRgb(200,200,200)
         self.ColorPalettes = \
-          ([qRgb(255.*i/250., 255.*i/250., 255-(255.*i/250.)) for i in range(250)] + [white]*6,
-           [qRgb(0, 255.*i*2/250., 0) for i in range(125, 0, -1)] + [qRgb(255.*i*2/250., 0, 0) for i in range(125)] + [white]*6,
-           [qRgb(255.*i/250., 0, 0) for i in range(250)] + [white]*6)
+          ([qRgb(255.*i/250., 255.*i/250., 255-(255.*i/250.)) for i in range(250)] + [white]*3 + [qRgb(0., 0., 255.), qRgb(255., 255., 0.), gray],
+           [qRgb(0, 255.*i*2/250., 0) for i in range(125, 0, -1)] + [qRgb(255.*i*2/250., 0, 0) for i in range(125)] + [white]*3 + [qRgb(0, 255., 0), qRgb(255., 0, 0), gray],
+           [qRgb(255.*i/250., 0, 0) for i in range(250)] + [white]*3 + [qRgb(0., 0, 0), qRgb(255., 0, 0), gray])
         self.SelectionColors = [QColor(0,0,0), QColor(255,255,128), QColor(0,255,255)]
         self.CurrentPalette = 0
         
@@ -514,7 +515,10 @@ class MyCanvasView(QCanvasView):
             self.master.selection(self.clicked, event.y())
 
         # balloon handling
-        if not self.master.BShowballoon: return
+        try:
+            if self.master <> None and not self.master.BShowballoon: return
+        except:
+            return
         items = filter(lambda ci: ci.z()==z_heatmap, self.canvas.collisions(event.pos()))
         if len(items) == 0: # mouse over nothing special
             self.selector.hide()
