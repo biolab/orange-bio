@@ -165,7 +165,8 @@ class OWChipDataFiles(OWWidget):
             
             self.setFileTree()
             self.okToCommit = 1
-            self.sendData()
+            if self.applyOnChange:
+                self.sendData()
 
     # displays a file dialog and selects a directory
     def browseDirectory(self):
