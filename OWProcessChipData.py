@@ -14,7 +14,7 @@ import chipstat
 class OWProcessChipData(OWWidget):
     settingsList  = ["preStdMethod", "postStdMethod", "preStdRob", "postStdRob", "mergeType", "commitOnChange"]
 
-    def __init__(self, parent=None, name='Chip Data Files'):
+    def __init__(self, parent=None, name='Process Chip Data'):
         OWWidget.__init__(self, parent, name, "Process Chip Data pre- and post-processes chip data.")
         self.callbackDeposit = []
 

@@ -13,7 +13,7 @@ from OWChipANOVA import ANOVAResults, GeneSelection
 import chipstat
 
 class OWChipPostHocANOVA(OWWidget):
-    settingsList  = ['commitOnChange', 'f1', 'f2', 'p1', 'p2', 'p3', 'filter1', 'filter2', 'filter3']
+    settingsList  = ['commitOnChange', 'f1', 'f2', 'p1', 'p2', 'p3', 'filter1', 'filter2', 'filter3', 'selectorName', 'updateSelectorName']
 
     def __init__(self, parent=None, name='ANOVA on Chip Data'):
         OWWidget.__init__(self, parent, name, "ANOVA on chip data (strains, replicas).")
@@ -28,6 +28,7 @@ class OWChipPostHocANOVA(OWWidget):
         self.p1, self.p2, self.p3 = (2, 2, 2)
         self.filter1, self.filter2, self.filter3 = (1, 0, 0)
         self.f1 = None; self.f2 = None
+        self.selectorName = "PostHoc Test"; self.updateSelectorName = 1
         # Settings
         self.loadSettings()
         self.ps = None
@@ -37,6 +38,7 @@ class OWChipPostHocANOVA(OWWidget):
         # info
         box = QVGroupBox("Info", self.controlArea)
         self.infoa = QLabel('No data on input.', box)
+        self.infob = QLabel('Total of 0 genes selected', box)
         OWGUI.separator(self.controlArea)
 
         # factors
@@ -63,8 +65,11 @@ class OWChipPostHocANOVA(OWWidget):
             lbl.setFixedSize(25, lbl.sizeHint().height())
             OWGUI.comboBox(hbox, self, self.factors[i][1], items = self.pvals, callback=lambda x=i: self.geneselection(x))
             self.numgenes.append(QLabel('  (0 genes)', hbox))
-        self.selectionLbl = QLabel('Total of 0 genes selected', self.selectionBox)
         self.selectionBox.setDisabled(1)
+
+        OWGUI.separator(self.selectionBox)
+        self.selectorNameLE = OWGUI.lineEdit(self.selectionBox, self, 'selectorName', label='Selector Name: ')
+        OWGUI.checkBox(self.selectionBox, self, 'updateSelectorName', 'Automatically update selector name')
 
         # output
         box = QVGroupBox("Output", self.controlArea)
@@ -129,11 +134,12 @@ class OWChipPostHocANOVA(OWWidget):
                 self.match = map(lambda a,b: a or b, self.match, self.selection[indx])
         n = self.match.count(1)
         print self.match
-        self.selectionLbl.setText('Total of %d %s match criteria' % (n, ['genes', 'gene'][n==1]))
+        self.infob.setText('Total of %d %s match criteria' % (n, ['genes', 'gene'][n==1]))
         if self.commitOnChange or commit:
             self.senddata()
 
     def analysis(self, commit=0):
+        self.setSelectorName()
         self.progressBarInit()
         if not self.anova:
             return
@@ -146,7 +152,17 @@ class OWChipPostHocANOVA(OWWidget):
         self.progressBarFinished()
 
     def senddata(self):
-        self.send("PostHoc Gene Selection", self.match)
+        self.send("PostHoc Gene Selection", (selectorName, self.match))
+
+    def setSelectorName(self):
+        if self.updateSelectorName:
+            s = 'PostHoc %s, %s' % (self.f1, self.f2)
+##            ss = []
+##            for indx in range(3):
+##                if getattr(self, self.factors[indx][2]):
+##                    ss.append(self.factors[indx][4] % self.pvals[getattr(self, self.factors[indx][1])])
+##            if len(ss): s += reduce(lambda x,y:x+', '+y, ss)
+            self.selectorName = s
 
 if __name__=="__main__":
     a=QApplication(sys.argv)

@@ -7,6 +7,7 @@
 """
 
 from OWWidget import *
+from qttable import *
 import OWGUI
 from OWChipDataFiles import ChipData
 from OWChipANOVA import GeneSelection
@@ -20,9 +21,9 @@ class OWSelectGenes(OWWidget):
         self.callbackDeposit = []
 
         self.inputs = [("Gene Selection", GeneSelection, self.loadselection, 0), ("Structured Chip Data", ChipData, self.chipdata, 1)]
-        self.outputs = [("Selected Data", ChipData), ("Other Data", ChipData), ("Gene Selection", GeneSelection)]
+        self.outputs = [("Gene Selection", GeneSelection), ("Selected Data", ChipData), ("Other Data", ChipData)]
 
-        self.negate = 1
+        self.negate = 0
         self.selectors = {}
         self.data = None
         self.commitOnChange = 1
@@ -35,27 +36,29 @@ class OWSelectGenes(OWWidget):
         self.infoa = QLabel('No data on input.', box)
         self.infob = QLabel('', box)
         OWGUI.separator(self.controlArea)
+        box.setMinimumWidth(170)
 
         # gene selection
-        box = QVGroupBox("Gene Selection", self.controlArea)
+        self.layout=QVBoxLayout(self.mainArea)
+        box = QVGroupBox("Gene Selection", self.mainArea)
+        self.table=QTable(box)
+        self.table.setSelectionMode(QTable.NoSelection)
+        self.layout.add(box)
+        self.table.hide()
+        self.drawtable()
+
         OWGUI.checkBox(box, self, 'negate', 'Negate', callback = self.selectionChange)
 
         # output
         box = QVGroupBox("Output", self.controlArea)
-        OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on selection change')
+        OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on change')
         self.commitBtn = OWGUI.button(box, self, "Commit", callback=self.senddata, disabled=1)
 
-        self.resize(200,100)
+        self.resize(700,100)
         
     def chipdata(self, data):
         if data:
             self.data = data
-##            nfiles = 0
-##            for (n, d) in data:
-##                nfiles += len(d)
-##            self.infoa.setText("Microarray data, %d strains, total of %d data files" % (len(data), nfiles))
-##            d = data[0][1][0]
-##            self.infob.setText("Each data file contains %d measurements of %d genes" % (len(d.domain.attributes), len(d)))
             self.senddata()
         else:
             self.send("Selected Data", None)
@@ -65,34 +68,72 @@ class OWSelectGenes(OWWidget):
 
     def loadselection(self, selector, id):
         if selector:
-            self.selectors[id] = selector
+            self.selectors[id] = list(selector + (1,0))    # the last two items for use and negation
         else:
             del self.selectors[id]
-        print 'SELN',
-        for s in self.selectors.values():
-            print len(s),
-        print
-##        print self.selectors
-        self.infoa.setText('%d selectors on input' % len(self.selectors))
+        self.infoa.setText('%d selectors on input.' % len(self.selectors))
+        self.drawtable()
         self.senddata()
         self.commitBtn.setEnabled(self.selectors <> None and len(self.selectors))
+
+    def drawtable(self):
+        header = ['', 'Selector Name', 'Match #', 'Neg']
+        self.table.setNumCols(len(header))
+        self.header=self.table.horizontalHeader()
+        for i in range(len(header)):
+            self.header.setLabel(i, header[i])
+
+        self.table.setNumRows(len(self.selectors))
+        self.usesel_callback = [None] * len(self.selectors)
+        self.tmpWidgets = []
+        for (i, sel) in enumerate(self.selectors.values()):
+            for (pos, k) in [(0,2), (3,3)]:
+                cb = QCheckBox('', None)
+                cb.setChecked(sel[k])
+                self.usesel_callback[i] = lambda x, i=sel, k=k: self.usesel(x, i, k)
+                self.connect(cb, SIGNAL("toggled(bool)"), self.usesel_callback[i])
+                self.table.setCellWidget(i, pos, cb)
+                self.tmpWidgets.append(cb)
+            
+            self.table.setText(i, 1, sel[0])
+            self.table.setText(i, 2, '%d (%4.1f%s)' % (sel[1].count(1), 100.*sel[1].count(1)/len(sel[1]), '%') )
+        self.table.setLeftMargin(0)
+        self.table.verticalHeader().hide()
+
+        for i in range(len(header)):
+            self.table.adjustColumn(i)
+
+        self.table.show()
+
+    def usesel(self, x, sel, k):
+        sel[k] = int(x)
+        if self.commitOnChange:
+            self.senddata()
 
     def senddata(self):
         if len(self.selectors):
             self.progressBarInit()
             s = self.selectors.values()
-##            match = map(lambda *args: min(args), self.selectors.values())
-            # this needs to be changed!!!
-            match = []
-            n = len(s)
-            for i in range(len(s[0])):
-                mm = []
-                for j in range(n):
-                    mm.append(s[j][i])
-                match.append(min(mm))
-                
+
+            sel = []
+            for s in self.selectors.values():
+                if s[2]: # used?
+                    if s[3]: # negated?
+                        sel.append([not x for x in s[1]])
+                    else:
+                        sel.append(s[1])
+            if len(sel) == 0:
+                match = [0]*len(self.selectors.values()[0][1])
+            elif len(sel)>1:
+                match = apply(map, (max, ) + tuple(sel))
+            else:
+                match = sel[0]
             if self.negate:
-                match = [(1,0)[x] for x in match]
+                match = [not x for x in match]
+
+            nmatch = match.count(1)
+            self.infob.setText("%d genes (%4.1f%s) match criteria" % (nmatch, 100.*nmatch/len(self.selectors.values()[0][1]), '%'))
+
             self.match = match
             self.progressBarSet(20)
 
@@ -123,7 +164,8 @@ class OWSelectGenes(OWWidget):
             self.progressBarFinished()
 
     def selectionChange(self):
-        pass
+        if self.commitOnChange:
+            self.senddata()
 
 if __name__=="__main__":
     a=QApplication(sys.argv)

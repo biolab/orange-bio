@@ -66,6 +66,8 @@ class OWHeatMap(OWWidget):
         self.SortGenes = 1
         self.SelectionType = 0         # selection on a single data set
         self.setColorPalette()
+        self.refFile = 0               # position index of a reference file
+        self.selectedFile = None       # position of the selected file in the list box
         
         self.loadSettings()
         self.data = []
@@ -131,14 +133,15 @@ class OWHeatMap(OWWidget):
         self.filesTab = QVGroupBox(self)
         box = QVButtonGroup("Data Files", self.filesTab)
         self.fileLB = QListBox(box, "lb")
-        self.connect(self.fileLB, SIGNAL("highlighted(int)"), self.fileSelectionChanged)    
+##        self.fileLB.setMaximumWidth(10)
+        self.connect(self.fileLB, SIGNAL("highlighted(int)"), self.fileSelectionChanged)
+        self.connect(self.fileLB, SIGNAL("selected(int)"), self.setFileReferenceBySelection)
         self.tabs.insertTab(self.filesTab, "Files")
         self.tabs.setTabEnabled(self.filesTab, 0)
-        dir = os.path.dirname(__file__) + "../icons/"
-        hbox = QHBox(box)
-        self.fileUp = self.createButton(hbox, self, 'File Up', icon = QPixmap(dir+'Dlg_send.png'), toggle = 0, callback=lambda i=-1: self.fileOrderChange(i))
-        self.fileRef = self.createButton(hbox, self, 'File Up', icon = QPixmap(dir+'Dlg_send.png'), toggle = 0, callback=lambda i=0: self.fileOrderChange(i))
-        self.fileDown = self.createButton(hbox, self, 'File Up', icon = QPixmap(dir+'Dlg_send.png'), toggle = 0, callback=lambda i=1: self.fileOrderChange(i))
+        hbox = QVBox(box)
+        self.fileUp = OWGUI.button(hbox, self, 'Up', callback=lambda i=-1: self.fileOrderChange(i), disabled=1)
+        self.fileRef = OWGUI.button(hbox, self, 'Reference', self.setFileReference, disabled=1)
+        self.fileDown = OWGUI.button(hbox, self, 'Down', callback=lambda i=1: self.fileOrderChange(i), disabled=1)
 
         OWGUI.checkBox(self.filesTab, self, 'ShowDataFileNames', 'Show data file names', callback=self.drawHeatMap)
         OWGUI.radioButtonsInBox(self.filesTab, self, 'SelectionType', ['Single data set', 'Multiple data sets'], box='Selection')
@@ -152,13 +155,6 @@ class OWHeatMap(OWWidget):
         self.selection = SelectData(self, self.canvas)
         # self.canvasView = QCanvasView(self.canvas, self.mainArea)
         self.layout.add(self.canvasView)
-
-    def createButton(self, widget, parent, text, callback=None, icon=None, toggle=0):
-        btn = QPushButton(text, widget)
-        btn.setToggleButton(toggle)
-        if callback: parent.connect(btn, SIGNAL("clicked()"), callback)
-        if icon:   btn.setPixmap(icon)
-        return btn
 
     def createColorStripe(self, palette):
         dx = 104; dy = 18
@@ -222,10 +218,11 @@ class OWHeatMap(OWWidget):
     # handling of input/output signals
 
     def dataset(self, data, id):
-        dataIDs = [d.id for d in self.data]
+        ids = [d.id for d in self.data]
         if not data:
-            if id in dataIDs:
-                del self.data[dataIDs.index(id)]
+            if id in ids:
+                del self.data[ids.index(id)]
+                self.fileLB.removeItem(id)
         else:
             # check if the same length
             if data.domain.classVar:
@@ -233,15 +230,15 @@ class OWHeatMap(OWWidget):
                 if domain:
                     data = orange.ExampleTable(domain, data)
             data.setattr("id", id)
-            if len(self.data) and (id in dataIDs):
-                for i in range(len(self.data)):
-                    if id==self.data[i].id:
-                        self.data[i] = data
-                        self.fileLB.changeItem(data.name, i)
-                        break
+            if id in ids:
+                data.id = id
+                indx = ids.index(id)
+                self.data[indx] = data
+                self.fileLB.changeItem(self.createListItem(data.name, indx), indx)
             else:
+                self.fileLB.insertItem(self.createListItem(data.name, len(self.data)))
                 self.data.append(data)
-                self.fileLB.insertItem(data.name)
+#                self.fileLB.insertItem(data.name)
 
             if len(self.data) > 1:
                 self.tabs.setTabEnabled(self.filesTab, 1)
@@ -255,7 +252,6 @@ class OWHeatMap(OWWidget):
         self.canvas.update()
 
     def chipdata(self, data):
-        print 'CHIPDATA'
         self.data = [] # XXX should only remove the data from the same source, use id in this rutine
         if not data:
             for i in self.canvas.allItems():
@@ -271,14 +267,17 @@ class OWHeatMap(OWWidget):
         self.canvas.update()
         
     def constructHeatmap(self):
-        self.heatmapconstructor = []
         if len(self.data):
+            self.heatmapconstructor = [None] * len(self.data)
             if self.SortGenes:
-                self.heatmapconstructor.append(orange.HeatmapConstructor(self.data[0]))
+                self.heatmapconstructor[self.refFile] = orange.HeatmapConstructor(self.data[self.refFile])
             else:
-                self.heatmapconstructor.append(orange.HeatmapConstructor(self.data[0], None))
-            for i in range(len(self.data))[1:]:
-                self.heatmapconstructor.append(orange.HeatmapConstructor(self.data[i], self.heatmapconstructor[0]))
+                self.heatmapconstructor[self.refFile] = orange.HeatmapConstructor(self.data[self.refFile], None)
+            for i in range(len(self.data)):
+                if i <> self.refFile:
+                    self.heatmapconstructor[i] = orange.HeatmapConstructor(self.data[i], self.heatmapconstructor[self.refFile])
+        else:
+            self.heatmapconstructor = []
         self.createHeatMap()
 
     # remove unused values from the class of the data set
@@ -347,11 +346,6 @@ class OWHeatMap(OWWidget):
 
         self.createHeatMap()
         self.savedMerge = self.Merge
-
-    def fileSelectionChanged(self, sel):
-        # self.fileRef.setDisabled(sel==0)
-        self.selectedFile = sel
-        pass
 
     def fileOrderChange(self, chg):
         if chg==-1 and self.selectedFile>0:
@@ -510,6 +504,66 @@ class OWHeatMap(OWWidget):
             self.selection.remove()
         self.drawHeatMap()
 
+    ##########################################################################
+    # file list management
+
+    # rel = -1 for up, or 1 for down
+    def fileOrderChange(self, rel):
+        sel = self.selectedFile
+        data = self.data
+        data[sel], data[sel+rel] = (data[sel+rel], data[sel])
+        if sel == self.refFile:
+            self.refFile += rel
+        elif sel + rel == self.refFile:
+            self.refFile += -rel
+        # i got lazy here
+        self.fileLB.clear()
+        for i in range(len(data)):
+            self.fileLB.insertItem(self.createListItem(data[i].name, i))
+        self.fileLB.setSelected(sel + rel, 1)
+        self.constructHeatmap()
+
+    def setFileReferenceBySelection(self, sel):
+        self.fileSelectionChanged(sel)
+        self.setFileReference()
+        
+    def setFileReference(self):
+        sel = self.selectedFile
+        self.fileLB.changeItem(self.createListItem(self.data[self.refFile].name, -1), self.refFile)
+        self.refFile = sel
+        self.fileLB.changeItem(self.createListItem(self.data[sel].name, sel), sel)
+        self.constructHeatmap()
+##        self.canvas.update()
+
+    def fileSelectionChanged(self, sel):
+        print 'SEL', sel
+        # self.fileRef.setDisabled(sel==0)
+        self.selectedFile = sel
+        self.fileDown.setEnabled(sel < len(self.data)-1)
+        self.fileUp.setEnabled(sel>0)
+        self.fileRef.setEnabled(sel <> self.refFile)
+
+    def createListItem(self, text, position):
+        print 'MARK', position, self.refFile
+        pixmap = QPixmap()
+        pixmap.resize(14,13)
+        pixmap.fill(Qt.white)
+        
+        if position == self.refFile:
+            painter = QPainter()
+            painter.begin(pixmap)
+            painter.setPen(Qt.black)
+            painter.setBrush(Qt.black)
+            painter.drawRect(3, 3, 8, 8)
+            painter.end()
+            
+        listItem = QListBoxPixmap(pixmap)
+        listItem.setText(text)
+        return listItem
+##        return QListBoxText(text)
+
+
+##################################################################################################
 ##################################################################################################
 # color palette dialog
 
@@ -823,15 +877,18 @@ if __name__=="__main__":
 
     ow.show()
 ##    d = orange.ExampleTable('wt'); d.name = 'wt'
-    d = orange.ExampleTable('wt-nometa'); d.name = 'wt'
-    ow.dataset(d, 2)
-    d = orange.ExampleTable('wt-nometa'); d.name = 'wt'
-    ow.dataset(d, 1)
-    ow.dataset(None, 1)
-    ow.dataset(None, 2)
-##    d = orange.ExampleTable('wt2'); d.name = 'wt2'
-##    ow.dataset(d, 1)
-##    d = orange.ExampleTable('wt3'); d.name = 'wt3'
+##    d = orange.ExampleTable('wt-nometa'); d.name = 'wt'
 ##    ow.dataset(d, 2)
+##    d = orange.ExampleTable('wt-nometa'); d.name = 'wt'
+##    ow.dataset(d, 1)
+##    ow.dataset(None, 1)
+##    ow.dataset(None, 2)
+
+    names = ['wt1', 'wt2', 'wt3', 'wt4']
+    for i, s in enumerate(names): 
+        d = orange.ExampleTable(s); d.name = s
+        ow.dataset(d, i)
+    ow.dataset(None, 2)
+
     a.exec_loop()
     ow.saveSettings()

@@ -43,7 +43,6 @@ class OWChipDataFiles(OWWidget):
         self.selectedDirName = "None"
         self.applyOnChange = 0
         self.loadSettings()
-        print 'ddd (1)', self.recentDirs
 
         # GUI
         # CONTROLS
@@ -85,14 +84,9 @@ class OWChipDataFiles(OWWidget):
 
         if self.recentDirs!=[]:
             self.loadData(self.recentDirs[0])
-        print 'ddd (2)', self.recentDirs
 
-        self.commitBtn = OWGUI.button(box, self, "Test", callback=self.test)
+##        self.commitBtn = OWGUI.button(box, self, "Test", callback=self.test)
             
-    def test(self):
-        print 'ddd (tst)', self.recentDirs
-        print 'ddd (tst) type', type(self.recentDirs), type(self.recentDirs[0])
-        
     def setFileTree(self):
         self.tree.clear()
         self.listitems = []
@@ -188,9 +182,7 @@ class OWChipDataFiles(OWWidget):
         self.dircombo.clear()
         if len(self.recentDirs):
             for dir in self.recentDirs:
-                print 'DDD', dir
                 (upperdir,dirname)=os.path.split(dir[:-1]) #:-1 removes the trailing '\'
-                print '---'
                 #leave out the path
                 self.dircombo.insertItem(dirname)
         else:
@@ -200,12 +192,10 @@ class OWChipDataFiles(OWWidget):
     def addDirToList(self, dir):
         # Add a directory to the start of the file list. 
         # If it exists, move it to the start of the list
-        print 'ddd (4)', self.recentDirs
         if dir in self.recentDirs:
             self.recentDirs.remove(dir)
         self.recentDirs.insert(0, str(dir))
         self.setDirlist()
-        print 'ddd (5)', self.recentDirs
         self.selectedDirName = dir
 
     # called when user makes a selection from the drop-down menu
@@ -224,4 +214,3 @@ if __name__=="__main__":
     ow.show()
     a.exec_loop()
     ow.saveSettings()
-    print 'ddd', ow.recentDirs
