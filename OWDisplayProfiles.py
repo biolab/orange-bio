@@ -125,7 +125,7 @@ class profilesGraph(OWGraph):
         self.averageProfileCurveKeys = []
         self.showClasses = []
 
-    def setData(self, data, classColor, classBrighterColor, ShowAverageProfile, ShowSingleProfiles):
+    def setData(self, data, classColor, classBrighterColor, ShowAverageProfile, ShowSingleProfiles, progressBar = None):
         self.removeCurves()
         self.classColor = classColor
         self.classBrighterColor = classBrighterColor
@@ -155,12 +155,16 @@ class profilesGraph(OWGraph):
         if data.domain.classVar.varType <> orange.VarTypes.Discrete:
             print "error, class variable not discrete:", data.domain.classVar
             return
+        allc = len(data.domain.classVar.values)
         for c in data.domain.classVar.values:
+            if progressBar <> None: progressBar(int(ccn*100.0/allc))
             classSymb = QwtSymbol(QwtSymbol.Ellipse, QBrush(self.classColor[ccn]), QPen(self.classColor[ccn]), QSize(7,7)) ##self.black
             self.showClasses.append(0)
 
             self.profileCurveKeys.append([])
             self.averageProfileCurveKeys.append([])
+            allg = len(self.groups)
+            gcn = 0
             grpcnx = 0
             for (grpname, grpattrs) in self.groups:
                 oneClassData = data.select({data.domain.classVar.name:c})
@@ -169,7 +173,13 @@ class profilesGraph(OWGraph):
                 ## single profiles
                 nativeData = oneGrpData.native(2)
                 yVals = [[] for cn in range(len(grpattrs))]
+                alle = len(nativeData)
+                ecn = 0
                 for e in nativeData:
+                    ecn += 1
+                    progress = 100.0*(ccn + (float(gcn)/allg) * (float(ecn)/alle))
+                    progress = int(round(progress / allc))
+                    if progressBar <> None: progressBar(progress)
                     y = []
                     x = []
                     xcn = grpcnx
@@ -196,7 +206,7 @@ class profilesGraph(OWGraph):
                 vcn = 0
                 dist = orange.DomainDistributions(oneGrpData)
                 for a in dist:
-                    if a:
+                    if a and len(a) > 0:
                         ## box plot data
                         yavg = a.average()
                         yq1 = a.percentile(25)
@@ -227,7 +237,7 @@ class profilesGraph(OWGraph):
                         BPy.append( yavg )
                         BPy.append( yqM )
                         BPy.append( yq1 )
-                        BPy.append( smallestAdjacentValue )                       
+                        BPy.append( smallestAdjacentValue )
                         BPx.append( xcn )
                         BPx.append( xcn )
                         BPx.append( xcn )
@@ -240,6 +250,7 @@ class profilesGraph(OWGraph):
 
                 boxPlotCurveData.append( (BPx, BPy, ccn) )
                 grpcnx += len(grpattrs)
+                gcn +=1
             ccn += 1
 
         for (x, y, tmpCcn) in boxPlotCurveData:
@@ -528,7 +539,8 @@ class OWDisplayProfiles(OWWidget):
     ##
 
     def calcGraph(self):
-        self.graph.setData(self.MAdata, self.classColor, self.classBrighterColor, self.ShowAverageProfile, self.ShowSingleProfiles)
+        self.progressBarInit()
+        self.graph.setData(self.MAdata, self.classColor, self.classBrighterColor, self.ShowAverageProfile, self.ShowSingleProfiles, self.progressBarSet)
         self.graph.setPointWidth(self.PointWidth)
         self.graph.setCurveWidth(self.CurveWidth)
         self.graph.setAverageCurveWidth(self.AverageCurveWidth)
@@ -536,6 +548,7 @@ class OWDisplayProfiles(OWWidget):
         self.graph.setAxisAutoScale(QwtPlot.xBottom)
         self.graph.setAxisAutoScale(QwtPlot.yLeft)
         self.graph.replot()
+        self.progressBarFinished()
 
     def newdata(self):
         self.classQLB.clear()
