@@ -33,7 +33,7 @@ class OWHeatMap(OWWidget):
                     "MaintainArrayHeight",
                     'BShowballoon', 'BShowColumnID', 'BShowSpotIndex', 'BShowAnnotation', 'BShowGeneExpression',
                     "BSpotVar", "ShowGeneAnnotations", "BAnnotationVar",
-                    "CurrentPalette"]
+                    "CurrentPalette", "SortGenes"]
 
     def __init__(self, parent=None, name='OWHeatMap'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
@@ -58,6 +58,7 @@ class OWHeatMap(OWWidget):
         self.BShowColumnID = 1; self.BShowSpotIndex = 1; self.BShowAnnotation = 1; self.BShowGeneExpression = 1
         self.BSpotVar = None; self.BAnnotationVar = None  # these are names of variables
         self.BSpotIndx = None; self.BAnnotationIndx = None # these are id's of the combo boxes
+        self.SortGenes = 1
         self.setColorPalette()
         
         self.loadSettings()
@@ -77,9 +78,8 @@ class OWHeatMap(OWWidget):
         # define the color stripe to show the current palette
         colorItems = [self.createColorStripe(i) for i in range(len(self.ColorPalettes))]
         OWGUI.comboBox(settingsTab, self, "CurrentPalette", box="Colors", items=colorItems, tooltip=None, callback=self.setColor)
-        
+        OWGUI.checkBox(settingsTab, self, "SortGenes", "Sort genes", box="Sort", callback=self.constructHeatmap)
 
-        
         self.tabs.insertTab(settingsTab, "Settings")
 
         # FILTER TAB
@@ -105,16 +105,14 @@ class OWHeatMap(OWWidget):
         OWGUI.checkBox(box, self, 'LegendOnTop', 'Legend (top)', callback=self.drawHeatMap)
         OWGUI.checkBox(box, self, 'ShowAverageStripe', 'Stripes with averages', callback=self.drawHeatMap)
         OWGUI.checkBox(box, self, 'ShowGeneAnnotations', 'Gene annotations', callback=self.drawHeatMap)
-#        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationVar", items=[], callback=self.drawHeatMap)
-        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationIndx", items=[], callback=lambda x='BAnnotationVar', y='BAnnotationVarID', z='BAnnotationIndx': self.setMetaID(x, y, z))
+        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationIndx", items=[], callback=lambda x='BAnnotationVar', y='BAnnotationIndx': self.setMetaID(x, y))
 
         box = QVButtonGroup("Balloon", tab)
         OWGUI.checkBox(box, self, 'BShowballoon', "Show balloon", callback=lambda: self.balloonInfoBox.setDisabled(not self.BShowballoon))
         box = QVButtonGroup("Balloon Info", tab)
         OWGUI.checkBox(box, self, 'BShowColumnID', "Column ID")
         OWGUI.checkBox(box, self, 'BShowSpotIndex', "Spot Index", callback=lambda: self.spotCombo.setDisabled(not self.BShowSpotIndex))
-##        self.spotCombo = OWGUI.comboBox(box, self, "BSpotVar", items=[])
-        self.spotCombo = OWGUI.comboBox(box, self, "BSpotIndx", items=[], callback=lambda x='BSpotVar', y='BSpotVarID', z='BSpotIndx': self.setMetaID(x, y, z))
+        self.spotCombo = OWGUI.comboBox(box, self, "BSpotIndx", items=[], callback=lambda x='BSpotVar', y='BSpotIndx': self.setMetaID(x, y))
         OWGUI.checkBox(box, self, 'BShowGeneExpression', "Gene expression")
         OWGUI.checkBox(box, self, 'BShowAnnotation', "Annotation")
         self.balloonInfoBox = box
@@ -152,9 +150,8 @@ class OWHeatMap(OWWidget):
         
     # any time the data changes, the two combo boxes showing meta attributes
     # have to be adjusted
-    def setMetaCombo(self, cb, value, enabled=1, default=None):
+    def setMetaCombo(self, cb, value, enabled=1, default=None): 
         cb.clear()
-        self.meta = [m.name for m in self.data.domain.getmetas().values()]
         if len(self.meta)==0:
             cb.setDisabled(True)
             return (None, None, None)
@@ -171,27 +168,17 @@ class OWHeatMap(OWWidget):
         else:
             cb.setCurrentItem(0)
             value = self.meta[0]; indx = 0
-        m = self.data.domain.getmetas()
-        for k in m.keys():
-            if m[k].name == value:
-                break
-        return (value, k, indx)
+        return (value, indx)
 
-    def setMetaID(self, val, valID, valIndx):
-        setattr(self, val, self.meta[getattr(self, valIndx, 0)])
-        value = getattr(self, val)
-        m = self.data.domain.getmetas()
-        for k in m.keys():
-            if m[k].name == value:
-                break
-        setattr(self, valID, k)
-##        print 'mmm', "val", getattr(self, val), "ID", getattr(self, valID), "indx", getattr(self, valIndx)
+    def setMetaID(self, val, valIndx):
+        setattr(self, val, self.meta[getattr(self, valIndx)])
         if val=='BAnnotationVar':
             self.drawHeatMap()
 
     def setMetaCombos(self):
-        (self.BSpotVar, self.BSpotVarID, self.BSpotIndx) = self.setMetaCombo(self.spotCombo, self.BSpotVar, enabled=self.BShowSpotIndex, default='RMI')
-        (self.BAnnotationVar, self.BAnnotationVarID, self.BAnnotationIndx) = self.setMetaCombo(self.annotationCombo, self.BAnnotationVar, enabled=self.BShowAnnotation, default='annotation')
+        self.meta = [m.name for m in self.data.domain.getmetas().values()]
+        (self.BSpotVar, self.BSpotIndx) = self.setMetaCombo(self.spotCombo, self.BSpotVar, enabled=self.BShowSpotIndex, default='RMI')
+        (self.BAnnotationVar, self.BAnnotationIndx) = self.setMetaCombo(self.annotationCombo, self.BAnnotationVar, enabled=self.BShowAnnotation, default='annotation')
 
     ##########################################################################
     # handling of input/output signals
@@ -203,7 +190,13 @@ class OWHeatMap(OWWidget):
         self.send('Classified Examples', None)
         self.send('Examples', None)
         self.setMetaCombos() # set the two combo widgets according to the data
-        self.heatmapconstructor = orange.HeatmapConstructor(self.data)
+        self.constructHeatmap()
+
+    def constructHeatmap(self):
+        if self.SortGenes:
+            self.heatmapconstructor = orange.HeatmapConstructor(self.data)
+        else:
+            self.heatmapconstructor = orange.HeatmapConstructor(self.data, None)
         self.createHeatMap()
 
     # send out the data for selected rows, rows = [(group, from, to), ...]
@@ -217,7 +210,6 @@ class OWHeatMap(OWWidget):
         cl = clo = self.data.domain.classVar
         if cl:
             cl = orange.RemoveUnusedValues(cl, ex, removeOneValued = 1)
-##            print cl
 
         # Construct a new domain only if the class has changed
         # (ie to lesser number of values or to one value (alias None))
@@ -290,10 +282,6 @@ class OWHeatMap(OWWidget):
         return y + t.boundingRect().height() + 1
 
     def drawGeneAnnotation(self, x, y, group):
-##        print 'hhh', len(self.heatmaps[group].exampleIndices)
-##        for i in self.heatmaps[group].exampleIndices:
-##            print i
-
         # determine the appropriate font width for annotation
         # this part is ugly, we need to do it computationally
         font = QFont()
@@ -371,13 +359,11 @@ class OWHeatMap(OWWidget):
         self.heatmaps, self.lowerBound, self.upperBound = self.heatmapconstructor(squeeze)
 
         self.sliderCutLow.setRange(self.lowerBound, 0, 0.1)
-        # !!!
         self.sliderCutHigh.setRange(1e-10, self.upperBound, 0.1)
         self.CutLow = max(self.CutLow, self.lowerBound)
         self.CutHigh = min(self.CutHigh, self.upperBound)
         self.sliderCutLow.setValue(self.CutLow)
         self.sliderCutHigh.setValue(self.CutHigh)
-
         self.selection.remove()
         self.drawHeatMap()
 
