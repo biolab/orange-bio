@@ -685,7 +685,7 @@ if __name__=="__main__":
 
 ##    d = orange.ExampleTable('testClusterSet.tab', dontCheckStored=1)
 ##    d = orange.ExampleTable('hjSmall.tab', dontCheckStored=1)
-    d = orange.ExampleTable('hj.tab', dontCheckStored=1)
+    d = orange.ExampleTable('dicty2.tab', dontCheckStored=1)
     ow.clusterDataset(d, 0)
     ow.show()
     a.exec_loop()
