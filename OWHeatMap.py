@@ -179,11 +179,15 @@ class OWHeatMap(OWWidget):
     # drawing
 
     def drawLegend(self, x, y, width, height, palette):
-        legend = self.heatmapconstructor.getLegend(width, height)
-        t = QCanvasText("%3.1f" % self.heatmapconstructor.absLow, self.canvas)
+        legend = self.heatmapconstructor.getLegend(width, height, self.Gamma)
+
+        lo = self.CutEnabled and self.CutLow   or self.lowerBound
+        hi = self.CutEnabled and self.CutHigh  or self.upperBound
+
+        t = QCanvasText("%3.1f" % lo, self.canvas)
         t.setX(x); t.setY(y)
         t.show()
-        t = QCanvasText("%3.1f" % self.heatmapconstructor.absHigh, self.canvas)
+        t = QCanvasText("%3.1f" % hi, self.canvas)
         t.setX(x+width-t.boundingRect().width()); t.setY(y)
         t.show()
         y += t.boundingRect().height()+1
@@ -197,6 +201,9 @@ class OWHeatMap(OWWidget):
         return y + t.boundingRect().height() + 1
 
     def drawHeatMap(self):
+        lo = self.CutEnabled and self.CutLow   or self.lowerBound
+        hi = self.CutEnabled and self.CutHigh  or self.upperBound
+
         # remove everything from current canvas
         for i in self.canvas.allItems():
             i.setCanvas(None)
@@ -207,7 +214,7 @@ class OWHeatMap(OWWidget):
 
         self.bmps = []; self.heights = []
         for g in range(groups):
-            bmp, self.imageWidth, imageHeight = self.heatmaps[g].getBitmap(int(self.CellWidth), int(self.CellHeight))
+            bmp, self.imageWidth, imageHeight = self.heatmaps[g].getBitmap(int(self.CellWidth), int(self.CellHeight), lo, hi, self.Gamma)
             self.bmps.append(bmp)
             self.heights.append(imageHeight)
 
@@ -217,7 +224,7 @@ class OWHeatMap(OWWidget):
         if self.ShowAverageStripe:
             x += c_averageStripeWidth + c_spaceX
 
-        self.legend = self.heatmapconstructor.getLegend(self.imageWidth, c_legendHeight)
+        self.legend = self.heatmapconstructor.getLegend(self.imageWidth, c_legendHeight, self.Gamma)
         if self.LegendOnTop:
             y = self.drawLegend(x, y, self.imageWidth, c_legendHeight, palette)
 
@@ -228,7 +235,7 @@ class OWHeatMap(OWWidget):
             image.hm = self.heatmaps[g] # needed for event handling
             image.height = self.heights[g]; image.width = self.imageWidth
             if self.ShowAverageStripe:
-                avg, avgWidth, avgHeight = self.heatmaps[g].getAverages(c_averageStripeWidth, int(self.CellHeight))
+                avg, avgWidth, avgHeight = self.heatmaps[g].getAverages(c_averageStripeWidth, int(self.CellHeight), lo, hi, self.Gamma)
                 ImageItem(avg, self.canvas, avgWidth, avgHeight, palette, x=c_offsetX, y=y)
             y += self.heights[g] + c_spaceY
         
@@ -237,10 +244,8 @@ class OWHeatMap(OWWidget):
     def createHeatMap(self):
         merge = min(self.Merge, float(len(self.data)))
         squeeze = 1. / merge
-        lo = self.CutEnabled and self.CutLow
-        hi = self.CutEnabled and self.CutHigh
         print 'BEFORE HEATMAPCONS', squeeze
-        self.heatmaps = self.heatmapconstructor(squeeze, lo, hi, self.Gamma)
+        self.heatmaps, self.lowerBound, self.upperBound = self.heatmapconstructor(squeeze)
         print 'AFTER'
         self.drawHeatMap()
 
@@ -305,6 +310,7 @@ class MyCanvasView(QCanvasView):
                 self.canvas.update()
                 return
             col, row = int(x / self.dx), int(y / self.dy)
+            print hm.getCellIntensity(row, col), hm.getRowIntensity(row)
             ex = hm.examples[hm.exampleIndices[row] : hm.exampleIndices[row+1]]
             # print 'eee', len(ex)
             self.selector.setX(item.x()+col*self.dx-v_sel_width+1)
@@ -323,8 +329,8 @@ if __name__=="__main__":
     a.setMainWidget(ow)
 
 ##    data = orange.ExampleTable('wt-large')
-##    data = orange.ExampleTable('wt')
-    data = orange.ExampleTable('wtclassed')
+    data = orange.ExampleTable('wt')
+##    data = orange.ExampleTable('wtclassed')
     ow.data(data)
     ow.show()
     a.exec_loop()
