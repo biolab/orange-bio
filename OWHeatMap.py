@@ -406,6 +406,7 @@ class OWHeatMap(OWWidget):
             y += self.CellHeight
 
     def drawHeatMap(self):
+        print "DRAW HEATMAP"
         lo = self.CutEnabled and self.CutLow   or self.lowerBound
         hi = self.CutEnabled and self.CutHigh  or self.upperBound
 
@@ -422,14 +423,17 @@ class OWHeatMap(OWWidget):
             bmpl = []
             for g in range(groups):
                 bmp, self.imageWidth, imageHeight = hm[g].getBitmap(int(self.CellWidth), int(self.CellHeight), lo, hi, self.Gamma)
+                print "HAVE BITMAP %i %i" % (self.imageWidth, imageHeight),
                 bmpl.append(bmp)
                 if not i: self.heights.append(imageHeight)
+                print "OK"
             self.bmps.append(bmpl)
 
         self.canvas.resize(2000, 2000) # this needs adjustment
         x = c_offsetX; y0 = c_offsetY
 
         self.legend = self.heatmapconstructor[0].getLegend(self.imageWidth, c_legendHeight, self.Gamma)
+        print "LEGEND OK"
         if self.LegendOnTop:
             y0 = self.drawLegend(x, y0, self.imageWidth, c_legendHeight, palette)
 
@@ -437,17 +441,19 @@ class OWHeatMap(OWWidget):
             y = y0; y1 = y0
             if self.ShowDataFileNames and len(self.data)>1:
                 y1 = self.drawFileName(self.data[i].name, x, y, self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + c_spaceX))
-
             x0 = x
             # plot the heatmap (and group label)
             ycoord = []
             y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + c_spaceX)
             for g in range(groups):
+              if self.heights[g]:
                 if self.ShowGroupLabel and groups>1:
                     y = self.drawGroupLabel(self.data[i][0].domain.classVar.values[g], x, y, self.imageWidth)
                 if not i: self.imgStart.append(y)
                 ycoord.append(y)
+                print "DFN %i" % self.heights[g]
                 image = ImageItem(self.bmps[i][g], self.canvas, self.imageWidth, self.heights[g], palette, x=x, y=y, z=z_heatmap)
+                print "IMAGE %i" % g
                 image.hm = self.heatmaps[i][g] # needed for event handling
                 image.height = self.heights[g]; image.width = self.imageWidth
                 if not i: self.imgEnd.append(y+self.heights[g]-1)
