@@ -3,7 +3,7 @@
 <description>Shows the locations of genes.</description>
 <category>Genomics</category>
 <icon>icons/GenomeMap.png</icon>
-<priority>100</priority>
+<priority>200</priority>
 """
 
 import orange, OWGUI, math, glob
