@@ -301,7 +301,10 @@ def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None,
     ## CLUSTER GENE FREQUENCIES
     ## count the direct and indirect annotations for cluster genes
     n = len(clusterSet) ## number of genes in cluster; used in the calculation of the p value
-    clusterGenesGOIDdirect, clusterGenesGOIDindirect, clusterGenesGOID = populateGO(clusterSet, annotation, GO, None, progressBar, progressStart, progressPart / 5.0)
+    clSetUniq = []
+    for g in clusterSet:
+        if g not in clSeqUniq: clSetUniq.append( g)
+    clusterGenesGOIDdirect, clusterGenesGOIDindirect, clusterGenesGOID = populateGO(clSetUniq, annotation, GO, None, progressBar, progressStart, progressPart / 5.0)
     ## when calculating the p value we use both, the direct and indirect count
     ## but when selecting a node or a subtree we can use the direct and/or indirect
 
@@ -323,7 +326,11 @@ def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None,
             referenceSet = annotation['gene2GOID'].keys() ## use all genes in the annotation
         ## calculate frequencies for all GO terms
         ## so we don't have to do it next time, the clusterGenes set changes, because it takes a lot of time anyway
-        refGenesGOIDdirect, refGenesGOIDindirect, refGenesGOID = populateGO(referenceSet, annotation, GO, clusterGenesGOID.keys(), progressBar, progressStart + progressPart / 5.0, 4.0 * progressPart / 5.0)
+        refSetUniq = []
+        for g in referenceSet:
+            if g not in refSetUniq: refSetUniq.append( g)    
+            
+        refGenesGOIDdirect, refGenesGOIDindirect, refGenesGOID = populateGO(refSetUniq, annotation, GO, clusterGenesGOID.keys(), progressBar, progressStart + progressPart / 5.0, 4.0 * progressPart / 5.0)
         lastFindTermsReference = [resID, refGenesGOID, referenceSet]
 
     N = len(referenceSet) ## number of genes in reference; used in the calculation of the p value
