@@ -64,7 +64,7 @@ class OWDisplayMotifs(OWWidget):
 
         # inputs
         # data and graph temp variables
-        self.inputs = [("Examples", ExampleTable, self.cdata, 0), ("Genes", list, self.newGeneList), ("Motifs", list, self.newMotifList)]
+        self.inputs = [("Examples", ExampleTable, self.cdata, 0), ("Genes", ExampleTable, self.newGeneList), ("Motifs", list, self.newMotifList)]
 
         self.data = None
         self.motifLines = []
@@ -160,12 +160,19 @@ class OWDisplayMotifs(OWWidget):
 
     ## signal processing
     def newGeneList(self, list):
-        self.geneList = list
+	self.geneList = []
+	
+	if list <> None:
+		for e in list:
+			self.geneList.append( str(e[0]))
         self.calcMotifsGraph()
         self.updateMotifsGraph()
  
     def newMotifList(self, list):
-        self.motifList = list
+	self.motifList = []
+
+	if list <> None:
+        	self.motifList = list
         self.calcMotifsGraph()
         self.updateMotifsGraph()
 
@@ -230,14 +237,14 @@ class OWDisplayMotifs(OWWidget):
                     graphData[colorKey][0].append(motifDistToEnd + 3.0)
                     # set the point y values
                     if dir == "1":
-                        graphData[colorKey][1].append(lineCn - 0.45)
                         graphData[colorKey][1].append(lineCn + 0.0)
+                        graphData[colorKey][1].append(lineCn + 0.30)
                     elif dir == "-1":
+                        graphData[colorKey][1].append(lineCn - 0.30)
                         graphData[colorKey][1].append(lineCn + 0.0)
-                        graphData[colorKey][1].append(lineCn + 0.45)
                     else:
-                        graphData[colorKey][1].append(lineCn - 0.45)
-                        graphData[colorKey][1].append(lineCn + 0.45)
+                        graphData[colorKey][1].append(lineCn - 0.30)
+                        graphData[colorKey][1].append(lineCn + 0.30)
             lineCn += 1
 
         self.graph.setYLlabels(yVals)
