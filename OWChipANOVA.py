@@ -29,8 +29,8 @@ class OWChipANOVA(OWWidget):
 
         self.commitOnChange = 0
         self.chipdata = None
-        self.p1, self.p2, self.p3 = (2, 2, 2)
-        self.filter1, self.filter2, self.filter3 = (1, 0, 0)
+        self.p1, self.p2, self.p3 = (3, 3, 3)
+        self.filter1, self.filter2, self.filter3 = (0, 1, 1)
         self.selectorName = 'ANOVA'
         self.updateSelectorName = 1
         # Settings
