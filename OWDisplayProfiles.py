@@ -444,6 +444,7 @@ class OWDisplayProfiles(OWWidget):
         self.connect(self.graph,
                      SIGNAL('plotMouseReleased(const QMouseEvent&)'),
                      self.onMouseReleased)
+        self.resize(800,600)
 
     def onMousePressed(self, e):
         if Qt.LeftButton == e.button():
@@ -611,6 +612,8 @@ class OWDisplayProfiles(OWWidget):
         else:
             self.classColor = None
             self.classBrighterColor = None
+        self.classQVGB.update()
+        self.classQVGB.layout().activate()
         self.graph.show()
         self.layout.activate() # this is needed to scale the widget correctly
 
@@ -645,7 +648,7 @@ class OWDisplayProfiles(OWWidget):
         else:
             MAdata.setattr("id", id)
             if id in ids:
-                MAdata.id = id
+                MAdata.setattr("id", id)
                 indx = ids.index(id)
                 self.MAdata[indx] = MAdata
             else:
