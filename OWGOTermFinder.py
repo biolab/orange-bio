@@ -232,8 +232,10 @@ class OWGOTermFinder(OWWidget):
 
     def updateGeneID2annotationfile(self):
         ## geneID is key, item is list of indexes in self.RecentAnnotations that have that geneID
+        self.progressBarInit()
         self.geneID2annotationfile = {}
         cn = 0
+        allcn = len(self.RecentAnnotations)
         for f in self.RecentAnnotations:
             if f not in self.genesInAnnotationFile.keys():
                 loadedAnnotation = cPickle.load(open(f, 'r'))
@@ -245,6 +247,8 @@ class OWGOTermFinder(OWWidget):
                     tmpl.append(cn)
                     self.geneID2annotationfile[geneID] = tmpl
             cn += 1
+            self.progressBarSet(int(round(100.0*cn/allcn)))
+        self.progressBarFinished()
 
     ## this is called only when new data token is received
     def findMostAppropriateGeneIDandAnnotation(self):
@@ -262,7 +266,7 @@ class OWGOTermFinder(OWWidget):
 
         ## check if there are new annotation files present
         ## remove from self.geneID2annotationfile those not present in the RecentAnnotations list
-        self.updateGeneID2annotationfile() 
+        self.updateGeneID2annotationfile()
 
         ## for each attribute look how many genesID are there, that are also present in geneID2annotationfile
         ## if current self.geneIDattr has count 0
@@ -383,6 +387,7 @@ class OWGOTermFinder(OWWidget):
             for (li, liGOID) in self.goLVitem2GOID.items():
                 if liGOID == GOID:
                     self.goLV.setSelected(li, b)
+                    if b: self.goLV.ensureItemVisible(li)
 
     def viewSelectionChanged(self):
         geneToGOterm = {}
@@ -452,6 +457,7 @@ class OWGOTermFinder(OWWidget):
             startfile = lst[0]
         filename = QFileDialog.getOpenFileName(startfile, dialogText, None, dialogTitle)
         fn = str(filename)
+        fn = os.path.abspath(fn)
         if fn in lst: # if already in list, remove it
             lst.remove(fn)
         lst.insert(0, fn)
@@ -493,9 +499,9 @@ class OWGOTermFinder(OWWidget):
         ## load if forced, or if index has changed
         ## if forced = 0 and index has not changed (still is 0) then don't reload the annotation data
         if forced == 1 or self.BGOaspectIndx <> 0 or self.GO == None:
-            print "1:", str(self.RecentGOaspects) + "," + str(self.BGOaspectIndx)
+            if DEBUG: print "1:", str(self.RecentGOaspects) + "," + str(self.BGOaspectIndx)
             self.GO, self.BGOaspectIndx = self.loadRemember(self.RecentGOaspects, self.GOaspectCombo, self.BGOaspectIndx)
-            print "2:", str(self.RecentGOaspects) + "," + str(self.BGOaspectIndx)
+            if DEBUG: print "2:", str(self.RecentGOaspects) + "," + str(self.BGOaspectIndx)
             self.updateEvidences()
             self.findTermsBuildDAG()
 
