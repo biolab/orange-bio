@@ -150,7 +150,10 @@ class OWGenomeMap(OWWidget):
                 chrom.append((int(d['start']), int(d['stop']), int(d['chromosome']), geneID))
                 id2desc[int(d['chromosome'])] = len(chrom)-1
             else: ## loading genes positions
-                self.geneCoordinates[geneID] = (int(d['start']), int(d['stop']), id2desc[int(d['chromosome'])] )
+                tmpl = self.geneCoordinates.get(geneID, [])
+                tmpl.append( (int(d['start']), int(d['stop']), id2desc[int(d['chromosome'])] ) )
+                self.geneCoordinates[geneID] = tmpl
+#                self.geneCoordinates[geneID] = (int(d['start']), int(d['stop']), id2desc[int(d['chromosome'])] )
             geneIDs.append( geneID)
         self.genesInGenomeMapFile[filename] = geneIDs ## update with new data (in case file has changed)
         self.GenomeMapLoaded = 1
@@ -421,23 +424,24 @@ class ChromosomeGraph(QCanvas):
         for (i,d) in enumerate(self.parent.data):
             if not int(d[mid]):
                 continue # position not known for this gene
-            coord = self.parent.coord[i]
-            if not(coord[0]>self.bpR or coord[1]<self.bpL):  # is gene in the visible area of the chromosome?
-                l, r = max(coord[0], self.bpL),  min(coord[1], self.bpR)
-                lp, rp = self.bp2x(l), self.bp2x(r)
-                if rp-lp < self.parent.MinGeneWidth:
-                    diff = int((self.parent.MinGeneWidth - (rp-lp)) / 2)
-                    lp, rp = max(lp-diff, lborder), min(rp+diff, rborder)
-                y = yoffset + coord[2]*(ychrom+yspace)
-                r = QCanvasRectangle(lp, y, max(self.parent.MinGeneWidth, rp-lp), ychrom+1, self)
-                if colorclass:
-                    color = colors[int(d.getclass())]
-                else:
-                    color = geneColor
-                r.instance = d
-                r.setBrush(QBrush(color)); r.setPen(QPen(color))
-                r.setZ(zgenes)
-                r.show()
+            coords = self.parent.coord[i]
+            for coord in coords:
+                if not(coord[0]>self.bpR or coord[1]<self.bpL):  # is gene in the visible area of the chromosome?
+                    l, r = max(coord[0], self.bpL),  min(coord[1], self.bpR)
+                    lp, rp = self.bp2x(l), self.bp2x(r)
+                    if rp-lp < self.parent.MinGeneWidth:
+                        diff = int((self.parent.MinGeneWidth - (rp-lp)) / 2)
+                        lp, rp = max(lp-diff, lborder), min(rp+diff, rborder)
+                    y = yoffset + coord[2]*(ychrom+yspace)
+                    r = QCanvasRectangle(lp, y, max(self.parent.MinGeneWidth, rp-lp), ychrom+1, self)
+                    if colorclass:
+                        color = colors[int(d.getclass())]
+                    else:
+                        color = geneColor
+                    r.instance = d
+                    r.setBrush(QBrush(color)); r.setPen(QPen(color))
+                    r.setZ(zgenes)
+                    r.show()
 
     def repaintGenes(self):
         for i in filter(lambda i,z=zgenes: i.z()==z, self.allItems()):
