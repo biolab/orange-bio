@@ -3,22 +3,52 @@ import cPickle, math
 
 ### misc
 # need to replace with a "standard" function
-binoms = {}
-def binom(n,k):
-    global binoms
+# logsums[i] = log i!
+from math import log, exp
+logsums = [0]
+for i in range(1, 30000):
+    logsums.append(logsums[-1] + log(i))
 
-    r = binoms.get( str( (n, k)), None)
-    if r:
-        return r
+# log_comb(n, m) = log of binomial coefficient C(n, m)
+def log_comb(n, m):
+    return logsums[n] - logsums[n-m] - logsums[m]
 
-    if n==0 or k==0 or n==k:
-        binoms[ str( (n, k))] = 1
-        return 1
-    else: 
-        r = binom(n-1,k-1) + binom(n-1,k)
-        binoms[ str( (n,k))] = r
-        return r
+# Binomial distribution: probability that event occurs for c times
+# in g experiments, where p is probability of the event
+##binomial(0, 0, g) = 1
+##binomial(0, >0, g) = 0
+##binomial(1, g, g) = 1
+##binomial(1, <g, g) = 0
+
+def binomial(p, c, g):
+    if p == 0.0:
+        if c == 0.0:
+            return 1.0
+        elif c > 0.0:
+            return 0.0
+    elif p == 1.0:
+        if c == g:
+            return 1.0
+        elif c < g:
+            return 0.0
+    return exp(log_comb(g, c) + c*log(p) + (g-c)*log(1.0-p))
 ###
+
+##binoms = {}
+##def oldbinom(n,k):
+##    global binoms
+##
+##    r = binoms.get( str( (n, k)), None)
+##    if r:
+##        return r
+##
+##    if n==0 or k==0 or n==k:
+##        binoms[ str( (n, k))] = 1
+##        return 1
+##    else: 
+##        r = oldbinom(n-1,k-1) + oldbinom(n-1,k)
+##        binoms[ str( (n,k))] = r
+##        return r
 
 evidenceTypesOrdered = [
 'IMP',
@@ -325,7 +355,13 @@ def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None,
             G = len(genesInRef) ## reference frequency = all genes in reference for the selected GO term
             p = float(G) / float(N)
             x = len(genesInCluster) ## cluster frequency
-            pval = sum([(binom(n, j) * math.pow(p, j) * math.pow(1.0-p, n-j)) for j in range(x, n+1, 1)])
+##            pval = sum([(oldbinom(n, j) * math.pow(p, j) * math.pow(1.0-p, n-j)) for j in range(x, n+1, 1)])
+            pval = sum([binomial(p, j, n) for j in range(x, n+1, 1)])
+##            dval = abs(oldpval - pval)
+##            if dval > 0.0000000001:
+##                print oldpval
+##                print pval
+##                print
             GOtermValues[GOID] = (GO['term'].get(GOID, '?')[0], x, G, pval, genesInCluster, genesInClusterDirect)
             sortedGOIDs.append( (pval, x, GOID))
         sortedGOIDs.sort()
