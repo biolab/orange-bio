@@ -428,12 +428,14 @@ class OWDisplayProfiles(OWWidget):
         # data and graph temp variables
         
         self.inputs = [("Examples", ExampleTable, self.data, 0)]
+        self.outputs = [("Examples", ExampleTable)]
 
         # temp variables
         self.MAdata = []
         self.classColor = None
         self.classBrighterColor = None
         self.numberOfClasses  = 0
+        self.classValues = []
 
         self.graph.canvas().setMouseTracking(1)
 
@@ -545,12 +547,24 @@ class OWDisplayProfiles(OWWidget):
     ## class selection (classQLB)
     def classSelectionChange(self):
         list = []
+        selCls = []
         for i in range(self.classQLB.count()):
             if self.classQLB.isSelected(i):
                 list.append( 1 )
+                selCls.append(self.classValues[i])
             else:
                 list.append( 0 )
         self.graph.setShowClasses(list)
+        if selCls == []:
+            self.send("Examples", None)
+        else:
+            if len(self.MAdata) > 1:
+                newet = orange.ExampleTable(self.MAdata[0].domain)
+                for idx, i in enumerate(list):
+                    if i: newet.extend(self.MAdata[idx])
+            else:
+                newet = self.MAdata[0].filter({self.MAdata[0].domain.classVar.name:selCls})
+            self.send("Examples", newet)
     ##
 
     def calcGraph(self):
@@ -598,12 +612,12 @@ class OWDisplayProfiles(OWWidget):
             ## classQLB
             self.classQVGB.show()
             if len(self.MAdata) == 1:
-                classValues = self.MAdata[0].domain.classVar.values.native()
+                self.classValues = self.MAdata[0].domain.classVar.values.native()
             else:
-                classValues = [str(nd.name) for nd in self.MAdata]
+                self.classValues = [str(nd.name) for nd in self.MAdata]
                 
-            for cn in range(len(classValues)):
-                self.classQLB.insertItem(ColorPixmap(self.classBrighterColor[cn]), classValues[cn])
+            for cn in range(len(self.classValues)):
+                self.classQLB.insertItem(ColorPixmap(self.classBrighterColor[cn]), self.classValues[cn])
             self.classQLB.selectAll(1)  ##or: if numberOfClasses > 0: self.classQLB.setSelected(0, 1)
             self.update()
 
@@ -612,6 +626,7 @@ class OWDisplayProfiles(OWWidget):
         else:
             self.classColor = None
             self.classBrighterColor = None
+            self.classValues = []
         self.classQVGB.update()
         self.classQVGB.layout().activate()
         self.graph.show()
