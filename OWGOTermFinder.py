@@ -44,7 +44,7 @@ class OWGOTermFinder(OWWidget):
         self.FilterNumEnabled = False
         self.FilterNumValue = 1
         self.FilterPvalEnabled = True
-        self.FilterPvalue = 0.05
+        self.FilterPvalue = 0.50
         self.FilterDepthEnabled = False
         self.FilterDepthValue = 8
         self.SelectMode = 0 # sub graph
