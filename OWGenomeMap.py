@@ -11,6 +11,8 @@ import os.path # to find out where the local files are
 from OWWidget import *
 from qtcanvas import *
 
+from OWGraph import ColorPaletteHSV
+
 localdir = os.path.dirname(__file__) or "."
 
 DEBUG = 0
@@ -308,11 +310,7 @@ class OWGenomeMap(OWWidget):
             ## create color map
             self.colorByClassCB.setDisabled(self.data.domain.classVar == None)
             if self.data.domain.classVar:
-                self.classColors = []
-                for i in range(len(self.data.domain.classVar.values)):
-                    newColor = QColor()
-                    newColor.setHsv(i*360/len(self.data.domain.classVar.values), 255, 255)
-                    self.classColors.append(newColor)
+                self.classColors = ColorPaletteHSV(len(self.data.domain.classVar.values), 255)
             self.repaintChromeGraph()
 
 ##############################################################################
@@ -469,8 +467,8 @@ class ChromosomeGraph(QCanvas):
 
             # Reduce the number of class values, if class is defined
             cl = clo = data[0].domain.classVar
-            if cl:
-                cl = orange.RemoveUnusedValues(cl, ex, removeOneValued = 1)
+##            if cl:
+##                cl = orange.RemoveUnusedValues(cl, ex, removeOneValued = 1)
 
             # Construct a new domain only if the class has changed
             # (ie to lesser number of values or to one value (alias None))
