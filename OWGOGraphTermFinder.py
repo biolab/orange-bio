@@ -1966,6 +1966,9 @@ class OWGOGraphTermFinder(OWGOTermFinder):
                 if i.name[0] != 'd':    #ce je node dummy ga ne kazem
                     i.showNode()        
             
+            self.info = InfoTab(self.canvas)
+            self.edgeInfo = edgeInfoTab(self.canvas)
+
             if self.CBLegend:
                 self.legend.show()
             else:
