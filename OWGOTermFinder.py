@@ -22,9 +22,9 @@ class OWGOTermFinder(OWWidget):
                     "FilterNumEnabled", "FilterNumValue", "FilterPvalEnabled", "FilterPvalue", "FilterDepthEnabled", "FilterDepthValue",
                     "SelectMode", "SelectDisjoint", "AddGOclass"]
 
-    def __init__(self, parent=None, name='OWGoTermFinder'):
+    def __init__(self, parent=None, signalManager = None, name='OWGoTermFinder'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, name) 
+        OWWidget.__init__(self, parent, signalManager, name) 
 
         self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0)]
         self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]

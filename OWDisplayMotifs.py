@@ -39,8 +39,8 @@ class subBarQwtPlotCurve(QwtPlotCurve, subBarQwtCurve): # there must be a better
 
 class OWDisplayMotifs(OWWidget):
     settingsList = []
-    def __init__(self,parent=None):
-        OWWidget.__init__(self, parent, "&Display Motifs", 0)
+    def __init__(self,parent=None, signalManager = None):
+        OWWidget.__init__(self, parent, signalManager, "&Display Motifs", 0)
 
         # set default settings
         self.colorBy = None

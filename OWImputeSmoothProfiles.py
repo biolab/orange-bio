@@ -17,9 +17,9 @@ import chipimpute
 class OWImputeSmoothProfiles(OWWidget):
     settingsList  = ['impute', 'imputeK', 'smooth', 'windowSize', 'commitOnChange']
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, signalManager = None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, 'Impute & Loess Profiles')
+        OWWidget.__init__(self, parent, signalManager, 'Impute & Loess Profiles')
 
         self._data = None       # exampleTable
         self._dataMA = None     # input 2d masked array

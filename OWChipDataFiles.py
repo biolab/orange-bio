@@ -29,8 +29,8 @@ class myCheckListItem(QCheckListItem):
 class OWChipDataFiles(OWWidget):
     settingsList  = ["recentDirs","selectedDirName", "applyOnChange"]
 
-    def __init__(self, parent=None):
-        OWWidget.__init__(self, parent, 'Chip Data Files')
+    def __init__(self, parent=None, signalManager = None):
+        OWWidget.__init__(self, parent, signalManager, 'Chip Data Files')
 
         self.callbackDeposit = []
 

@@ -16,9 +16,9 @@ import chipappx
 class OWApproxProfiles(OWWidget):
     settingsList  = ['kernel', 'kernelSize', 'useSignificance', 'alpha', 'commitOnChange']
 
-    def __init__(self, parent=None, name='Approximate Profiles'):
+    def __init__(self, parent=None, signalManager = None, name='Approximate Profiles'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, name)
+        OWWidget.__init__(self, parent, signalManager, name)
 
         self._data = None       # exampleTable
         self._dataN = None      # 2d numeric array

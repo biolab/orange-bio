@@ -34,8 +34,8 @@ zchrom = 100; zchrombb=110; zgenes = 50; zticks = 40; zsel=10
 class OWGenomeMap(OWWidget):
     settingsList = ["MinGeneWidth", "ShowTicks", "ColorByClass", "RecentGenomeMaps"]
 
-    def __init__(self, parent=None):
-        OWWidget.__init__(self, parent, 'GenomeMap')
+    def __init__(self, parent=None, signalManager = None):
+        OWWidget.__init__(self, parent, signalManager, 'GenomeMap')
         self.setWFlags(Qt.WResizeNoErase | Qt.WRepaintNoErase) #this works like magic.. no flicker during repaint!
         self.parent = parent        
 

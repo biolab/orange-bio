@@ -358,9 +358,9 @@ class profilesGraph(OWGraph):
 
 class OWDisplayProfiles(OWWidget):
     settingsList = ["PointWidth", "CurveWidth", "AverageCurveWidth", "BoxPlotWidth", "ShowAverageProfile", "ShowSingleProfiles", "CutEnabled", "CutLow", "CutHigh"]
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, signalManager = None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, 'Expression Profiles', 1)
+        OWWidget.__init__(self, parent, signalManager, 'Expression Profiles', 1)
 
         #set default settings
         self.ShowAverageProfile = 1

@@ -14,8 +14,8 @@ import chipstat
 class OWChipPostHocANOVA(OWWidget):
     settingsList  = ['commitOnChange', 'f1', 'f2', 'p1', 'p2', 'p3', 'filter1', 'filter2', 'filter3', 'selectorName', 'updateSelectorName', 'useBonf']
 
-    def __init__(self, parent=None):
-        OWWidget.__init__(self, parent, 'ANOVA on Chip Data')
+    def __init__(self, parent=None, signalManager = None):
+        OWWidget.__init__(self, parent, signalManager, 'ANOVA on Chip Data')
         self.callbackDeposit = []
 
         self.inputs = [("Results of ANOVA", ANOVAResults, self.anovaresults)]

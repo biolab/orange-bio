@@ -14,8 +14,8 @@ import OWGUI
 class OWRules(OWWidget):
     settingsList = ['ShowClosestOther']
 
-    def __init__(self, parent=None):
-        OWWidget.__init__(self, parent,"Rule Selection")
+    def __init__(self, parent=None, signalManager = None):
+        OWWidget.__init__(self, parent, signalManager, "Rule Selection")
 
         self.inputs = [("Rules", ExampleTable, self.ruledataset), ("Expression", ExampleTable, self.expressiondataset)]
         self.outputs = [("Expression", ExampleTable), ("Genes", list), ("Motifs", list)]

@@ -27,9 +27,9 @@ circleR = (canvasW - 2 * canvasB)/2.
 class OWEpistasisAnalysis(OWWidget):	
     settingsList = ['distype']
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, signalManager = None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, 'Epistasis Analysis') 
+        OWWidget.__init__(self, parent, signalManager, 'Epistasis Analysis') 
         
         self.inputs = [("Examples", ExampleTable, self.dataset, 0), ("Structured Chip Data", ChipData, self.chipdata, 1)]
         self.outputs = [("Gene Selection", GeneSelection), ("Examples AB", ExampleTable), ("Examples BA", ExampleTable), ("Examples Parallel", ExampleTable)]

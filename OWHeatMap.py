@@ -39,9 +39,9 @@ class OWHeatMap(OWWidget):
                     "SelectionType",
                     "CurrentPalette", "SortGenes"]
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, signalManager = None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, 'HeatMap') 
+        OWWidget.__init__(self, parent, signalManager, 'HeatMap') 
         
         self.inputs = [("Examples", ExampleTable, self.dataset, 0), ("Structured Chip Data", ChipData, self.chipdata)]
         self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]

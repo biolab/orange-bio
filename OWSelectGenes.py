@@ -15,8 +15,8 @@ import chipstat
 class OWSelectGenes(OWWidget):
     settingsList  = ['negate', 'commitOnChange']
 
-    def __init__(self, parent=None):
-        OWWidget.__init__(self, parent, 'Select Genes')
+    def __init__(self, parent=None, signalManager = None):
+        OWWidget.__init__(self, parent, signalManager, 'Select Genes')
         self.callbackDeposit = []
 
         self.inputs = [("Gene Selection", GeneSelection, self.loadselection, 0), ("Structured Chip Data", ChipData, self.chipdata)]
