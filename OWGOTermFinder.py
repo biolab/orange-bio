@@ -433,7 +433,7 @@ class OWGOTermFinder(OWWidget):
             # new domain
             if self.AddGOclass:
                 newclass = orange.EnumVariable("GO class", values=agot)
-                newdomain = orange.Domain( self.clusterData.domain, newclass)
+                newdomain = orange.Domain( self.clusterData.domain.attributes, newclass)
             else:
                 newdomain = orange.Domain( self.clusterData.domain)
             metas = self.clusterData.domain.getmetas()
