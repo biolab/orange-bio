@@ -204,9 +204,12 @@ class OWGenomeMap(OWWidget):
         for f in self.RecentGenomeMaps:
             if f not in self.genesInGenomeMapFile.keys():
                 if DEBUG: print "loading", f
-                chromData = orange.ExampleTable(f, dontCheckStored=1)
-                geneIDs = [str(d['geneID']) for d in chromData] # all geneIDs in this file
-                self.genesInGenomeMapFile[f] = geneIDs # update with new data (in case file has changed)
+                try:
+                    chromData = orange.ExampleTable(f, dontCheckStored=1)
+                    geneIDs = [str(d['geneID']) for d in chromData] # all geneIDs in this file
+                    self.genesInGenomeMapFile[f] = geneIDs # update with new data (in case file has changed)
+                except:
+                    self.genesInGenomeMapFile[f] = [] # update with new data (in case file has changed)
             for geneID in self.genesInGenomeMapFile[f]:
                 tmpl = geneID2genomeMapfile.get(geneID, [])
                 if cn not in tmpl:

@@ -238,8 +238,12 @@ class OWGOTermFinder(OWWidget):
         allcn = len(self.RecentAnnotations)
         for f in self.RecentAnnotations:
             if f not in self.genesInAnnotationFile.keys():
-                loadedAnnotation = cPickle.load(open(f, 'r'))
-                self.genesInAnnotationFile[f] = loadedAnnotation['gene2GOID'].keys()
+                try:
+                    loadedAnnotation = cPickle.load(open(f, 'r'))
+                    self.genesInAnnotationFile[f] = loadedAnnotation['gene2GOID'].keys()
+                except:
+                    self.genesInAnnotationFile[f] = []
+                    continue
             genesInAnnotation = self.genesInAnnotationFile[f]
             for geneID in genesInAnnotation:
                 tmpl = self.geneID2annotationfile.get(geneID, [])
@@ -319,7 +323,10 @@ class OWGOTermFinder(OWWidget):
             self.BAnnotationIndx = bestAnnotation
             self.annotation, self.BAnnotationIndx = self.loadRemember(self.RecentAnnotations, self.annotationCombo, self.BAnnotationIndx)
             fn = self.RecentAnnotations[0] ## the loaded one is (becomes) always moved to 0 position
-            self.genesInAnnotationFile[fn] = self.annotation['gene2GOID'].keys() ## update, in case the file content changed
+            try:
+                self.genesInAnnotationFile[fn] = self.annotation['gene2GOID'].keys() ## update, in case the file content changed
+            except:
+                self.genesInAnnotationFile[fn] = []
 ##            self.annotationCombo.setCurrentItem(self.BAnnotationIndx)
 
         ## select the geneID, and rerun the GO term finding
@@ -474,7 +481,10 @@ class OWGOTermFinder(OWWidget):
                     lst.remove(fn)
                 lst.insert(0, fn) # add to beginning of list
                 self.setFilelist(filecombo, lst) # update combo
-                loadedData = cPickle.load(open(fn, 'r'))
+                try:
+                    loadedData = cPickle.load(open(fn, 'r'))
+                except:
+                    loadedData = None
                 indx = 0
         return loadedData, indx
 
