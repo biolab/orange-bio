@@ -127,7 +127,7 @@ class OWRules(OWWidget):
                 DDB = str(e['DDB'])
                 if DDB in rule:
                     nt.append( e)
-        self.send("Expression", nt)
+            self.send("Expression", nt)
 		
 ##############################################################################
 # Test the widget, run from DOS prompt
