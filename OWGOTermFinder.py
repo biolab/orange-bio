@@ -18,14 +18,14 @@ from qwt import *
 class OWGOTermFinder(OWWidget):	
     settingsList = ["AnnotationFileName", "RecentAnnotations", "ReferenceType", "RecentGOaspects",
                     "FilterNumEnabled", "FilterNumValue", "FilterPvalEnabled", "FilterPvalue", "FilterDepthEnabled", "FilterDepthValue",
-                    "SelectMode", "SelectDisjoint"]
+                    "SelectMode", "SelectDisjoint", "AddGOclass"]
 
     def __init__(self, parent=None, name='OWGoTermFinder'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, name, 'GO Term Finder', FALSE, FALSE) 
 
         self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0)]
-        self.outputs = [("Classified Examples", ExampleTableWithClass)]
+        self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
 
         #set default settings
         # annotation
@@ -46,6 +46,7 @@ class OWGOTermFinder(OWWidget):
         self.FilterDepthValue = 8
         self.SelectMode = 0 # sub graph
         self.SelectDisjoint = False # output inclusive
+        self.AddGOclass = False
         # check usage of all evidences
         for etype in GOlib.evidenceTypesOrdered:
             varName = "UseEvidence"+etype 
@@ -140,6 +141,7 @@ class OWGOTermFinder(OWWidget):
         OWGUI.radioButtonsInBox(selectTab, self, 'SelectMode', ['Subgraph', 'Node specific'], box='Mode', callback=self.viewSelectionChanged)
         box = QVButtonGroup('Output', selectTab)
         OWGUI.checkBox(box, self, 'SelectDisjoint', 'Disjoint/Inclusive', callback=self.viewSelectionChanged)
+        OWGUI.checkBox(box, self, 'AddGOclass', 'Add GO term as new class', callback=self.viewSelectionChanged)
         self.tabs.insertTab(selectTab, "Select")
 
         # ListView for DAG, and table for significant GOIDs
@@ -205,13 +207,13 @@ class OWGOTermFinder(OWWidget):
         self.clusterData = data
         if data:
             dattrs = [str(a.name) for a in data.domain.attributes + data.domain.getmetas().values()]
-            print self.geneNameAttr in dattrs, dattrs
+##            print self.geneNameAttr in dattrs, dattrs
             if self.geneNameAttr in dattrs:
                 for e in data:
                     g = str(e[self.geneNameAttr])
                     if g not in self.clusterGenes:
                         self.clusterGenes.append( g)
-            print len(self.clusterGenes), self.clusterGenes[:10]
+##            print len(self.clusterGenes), self.clusterGenes[:10]
         self.findTermsBuildDAG()
 
     def referenceDataset(self, data, id):
@@ -258,22 +260,39 @@ class OWGOTermFinder(OWWidget):
                         geneToGOterm[gene] = tmpl
         if self.clusterData:
             # class value; GO terms
-            newclass = orange.EnumVariable("GO class", values=allGOterms)
             # new domain
-            newdomain = orange.Domain( self.clusterData.domain.attributes + [newclass])
+            if self.AddGOclass:
+                newclass = orange.EnumVariable("GO class", values=allGOterms)
+                newdomain = orange.Domain( self.clusterData.domain, newclass)
+            else:
+                newdomain = orange.Domain( self.clusterData.domain)
+            metas = self.clusterData.domain.getmetas()
+            for key in metas:
+                newdomain.addmeta(key, metas[key])
             # new exampletable into where to put the filtered examples
             newdata = orange.ExampleTable(newdomain)
             for e in self.clusterData:
-                g = str(e[self.geneNameAttr].value)
+                g = str(e[self.geneNameAttr])
                 geneTermList = geneToGOterm.get(g, [])
                 if self.SelectDisjoint and len(geneTermList) > 1: ## this gene should be omitted, because belongs to many GOterms
                     continue
                 for goterm in geneTermList:
-                    ne = [str(e[a]) for a in self.clusterData.domain.attributes] + [goterm]
-                    newdata.append( orange.Example(newdomain, ne))
-            self.send("Classified Examples", newdata)
+                    ne = [str(e[a]) for a in self.clusterData.domain]
+                    if self.AddGOclass:
+                        ne += [goterm]
+                    nex = orange.Example(newdomain, ne)
+                    for (id, var) in metas.items():
+                        nex.setmeta(id, e.getmeta(id))
+                    newdata.append( nex)
+
+            if newdata.domain.classVar:
+                self.send("Classified Examples", newdata)
+            else:
+                self.send("Classified Examples", None)
+            self.send("Examples", newdata)
         else:
             self.send("Classified Examples", None)
+            self.send("Examples", None)
 
     ##########################################################################
     # callback functions
@@ -384,7 +403,8 @@ class OWGOTermFinder(OWWidget):
             else: # from the given set of genes - received by signal
                 ## for reference use genes in the reference list
                 self.GOIDsFound, self.GOtermValues, clusterSet, referenceSet = GOlib.findTerms(self.annotation, self.GO, self.clusterGenes, self.referenceGenes, evidences, self.progressBarSet, 0.0, 75.0)
-##            n = len(clusterSet); N = len(referenceSet) # needed if relative frequencies need to be displayed
+            n = len(clusterSet); N = len(referenceSet) # needed if relative frequencies need to be displayed
+##            print n, N
 
             ## find the max number of cluster gene istances in a GO term
             maxNumIstances = max( [1] + [x for (GOterm, x, G, pval, genesInGOID, genesInGOIDdirect) in self.GOtermValues.values()])
@@ -479,6 +499,7 @@ if __name__=="__main__":
 
     d = orange.ExampleTable('testClusterSet.tab', dontCheckStored=1)
     d = orange.ExampleTable('hjSmall.tab', dontCheckStored=1)
+##    d = orange.ExampleTable('hj.tab', dontCheckStored=1)
     ow.clusterDataset(d, 0)
     ow.show()
     a.exec_loop()
