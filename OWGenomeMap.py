@@ -58,7 +58,8 @@ class OWGenomeMap(OWWidget):
     def loadChromosomeDefinitions(self):
 ##        import os
 ##        print 'PATH', os.getcwd()
-        self.chromData = orange.ExampleTable(localdir+'/test-genome.tab')
+##        self.chromData = orange.ExampleTable(localdir+'/test-genome.tab')
+        self.chromData = orange.ExampleTable(localdir+'/Genome Maps/gene loci.tab')
         self.chrom = []
         self.geneCoordinates = {}
         id2desc = {}
