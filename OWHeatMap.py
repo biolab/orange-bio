@@ -87,7 +87,7 @@ class OWHeatMap(OWWidget):
 
         # FILTER TAB
         tab = QVGroupBox(self)
-        box = QVButtonGroup("Treshold Values", tab)
+        box = QVButtonGroup("Threshold Values", tab)
         OWGUI.checkBox(box, self, 'CutEnabled', "Enabled", callback=self.setCutEnabled)
         self.sliderCutLow = OWGUI.qwtHSlider(box, self, 'CutLow', label='Low:', labelWidth=33, minValue=-100, maxValue=0, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.drawHeatMap)
         self.sliderCutHigh = OWGUI.qwtHSlider(box, self, 'CutHigh', label='High:', labelWidth=33, minValue=0, maxValue=100, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.drawHeatMap)
