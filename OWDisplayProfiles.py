@@ -158,7 +158,7 @@ class profilesGraph(OWGraph):
         allc = len(data.domain.classVar.values)
         for c in data.domain.classVar.values:
             if progressBar <> None: progressBar(int(ccn*100.0/allc))
-            classSymb = QwtSymbol(QwtSymbol.Ellipse, QBrush(self.classColor[ccn]), QPen(self.classColor[ccn]), QSize(7,7)) ##self.black
+            classSymb = QwtSymbol(QwtSymbol.Ellipse, QBrush(self.classBrighterColor[ccn]), QPen(self.classBrighterColor[ccn]), QSize(7,7)) ##self.black
             self.showClasses.append(0)
 
             self.profileCurveKeys.append([])
@@ -194,7 +194,10 @@ class profilesGraph(OWGraph):
                         xcn += 1
                         vcn += 1
                     ckey = self.insertCurve('')
-                    self.setCurvePen(ckey, QPen(self.classColor[ccn], 1))
+                    if self.showAverageProfile:
+                        self.setCurvePen(ckey, QPen(self.classColor[ccn], 1))
+                    else:
+                        self.setCurvePen(ckey, QPen(self.classBrighterColor[ccn], 1))
                     self.setCurveData(ckey, x, y)
                     self.setCurveSymbol(ckey, classSymb)
                     self.profileCurveKeys[-1].append(ckey)
@@ -277,16 +280,23 @@ class profilesGraph(OWGraph):
             showCNum = (self.showClasses[cNum] <> 0)
 
             ## single profiles
-            b = showCNum and self.showSingleProfiles
+            bSingle = showCNum and self.showSingleProfiles
+            bAve = showCNum and self.showAverageProfile ## 1 = show average profiles for now
             for ckey in self.profileCurveKeys[cNum]:
                 curve =  self.curve(ckey)
-                if curve <> None: curve.setEnabled(b)
+                if curve <> None:
+                    curve.setEnabled(bSingle)
+                    qp = self.curvePen(ckey)
+                    if not(bAve):
+                        qp.setColor(self.classBrighterColor[cNum])
+                    else:
+                        qp.setColor(self.classColor[cNum])
+                    self.setCurvePen(ckey, qp)
 
             ## average profiles
-            b = showCNum and self.showAverageProfile ## 1 = show average profiles for now
             for ckey in self.averageProfileCurveKeys[cNum]:
                 curve =  self.curve(ckey)
-                if curve <> None: curve.setEnabled(b)
+                if curve <> None: curve.setEnabled(bAve)
 
         self.updateLayout()
         self.update()
@@ -314,13 +324,17 @@ class profilesGraph(OWGraph):
     def setCurveWidth(self, v):
         for cNum in range(len(self.showClasses)):
             for ckey in self.profileCurveKeys[cNum]:
-                self.setCurvePen(ckey, QPen(self.classColor[cNum], v))
+                qp = self.curvePen(ckey)
+                qp.setWidth(v)
+                self.setCurvePen(ckey, qp)
         self.update()
 
     def setAverageCurveWidth(self, v):
         for cNum in range(len(self.showClasses)):
             for ckey in self.averageProfileCurveKeys[cNum]:
-                self.setCurvePen(ckey, QPen(self.classBrighterColor[cNum], v))
+                qp = self.curvePen(ckey)
+                qp.setWidth(v)
+                self.setCurvePen(ckey, qp)
         self.update()
 
     def setBoxPlotWidth(self, v):
@@ -560,14 +574,14 @@ class OWDisplayProfiles(OWWidget):
             self.classColor = []
             self.classBrighterColor = []
             if self.numberOfClasses > 1:
-                allCforHSV = self.numberOfClasses - 1
+                allCforHSV = self.numberOfClasses ##- 1
             else:
                 allCforHSV = self.numberOfClasses
             for i in range(self.numberOfClasses):
                 newColor = QColor()
-                newColor.setHsv(i*255/allCforHSV, 160, 160)
+                newColor.setHsv(i*360/allCforHSV, 160, 160)
                 newBrighterColor = QColor()
-                newBrighterColor.setHsv(i*255/allCforHSV, 255, 255)
+                newBrighterColor.setHsv(i*360/allCforHSV, 255, 255)
                 self.classColor.append( newColor )
                 self.classBrighterColor.append( newBrighterColor )
 
@@ -577,7 +591,7 @@ class OWDisplayProfiles(OWWidget):
             self.classQVGB.show()
             classValues = self.MAdata.domain.classVar.values.native()
             for cn in range(len(classValues)):
-                self.classQLB.insertItem(ColorPixmap(self.classColor[cn]), classValues[cn])
+                self.classQLB.insertItem(ColorPixmap(self.classBrighterColor[cn]), classValues[cn])
             self.classQLB.selectAll(1)  ##or: if numberOfClasses > 0: self.classQLB.setSelected(0, 1)
             self.update()
 
