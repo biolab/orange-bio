@@ -1,12 +1,11 @@
 """
-<name>Display Profiles</name>
-<description>None.</description>
+<name>Expression Profiles</name>
+<description>Displays gene expression profiles.</description>
 <category>Genomics</category>
-<icon>icons\DisplayProfiles.png</icon>
+<icon>icons/ExpressionProfiles.png</icon>
 <priority>10</priority>
 """
 
-from OData import *
 from OWTools import *
 from OWWidget import *
 from OWGraph import *
@@ -324,7 +323,7 @@ class OWDisplayProfiles(OWWidget):
         "Constructor"
         OWWidget.__init__(self,
         parent,
-        "&Display Profiles",
+        "Expression Profiles",
         """None.
         """,
         TRUE,
@@ -348,8 +347,9 @@ class OWDisplayProfiles(OWWidget):
         
         # inputs
         # data and graph temp variables
-        self.addInput("cdata")
-        self.addInput("data")
+        
+        self.xxxinputs = [("Classified Examples", ExampleTableWithClass, self.data, 1), ("Examples", ExampleTable, self.data, 1)]
+        self.inputs = [("Examples", ExampleTable, self.data, 1)]
 
         # temp variables
         self.MAdata = None
@@ -398,6 +398,7 @@ class OWDisplayProfiles(OWWidget):
         self.connect(self.graph,
                      SIGNAL('plotMouseReleased(const QMouseEvent&)'),
                      self.onMouseReleased)
+        self.graph.hide()
 
     def onMousePressed(self, e):
         if Qt.LeftButton == e.button():
@@ -566,41 +567,40 @@ class OWDisplayProfiles(OWWidget):
         else:
             self.classColor = None
             self.classBrighterColor = None
+        self.graph.show()
 
     def data(self, MAdata):
+        if not MAdata:
+            self.graph.hide()
+            self.classQLB.hide()
+            return
         ## if there is no class attribute, create a dummy one
-        if MAdata.data.domain.classVar == None:
+        if MAdata.domain.classVar == None:
             noClass = orange.EnumVariable('noclass', values=['none'])
             noClass.getValueFrom = lambda ex, w: 0
-            newDomain = orange.Domain(MAdata.data.domain.variables + [noClass])
-            self.MAdata = MAdata.data.select(newDomain)
+            newDomain = orange.Domain(MAdata.domain.variables + [noClass])
+            self.MAdata = MAdata.select(newDomain)
             self.MAnoclass = 1 ## remember that there is no class to display
         else:
-            self.MAdata = MAdata.data
+            self.MAdata = MAdata
             self.MAnoclass = 0 ## there are classes
         self.newdata()
 
-    def cdata(self, MAcdata):
-        self.MAdata = MAcdata.data
-        self.MAnoclass = 0
-        self.newdata()
+# following is not needed, data handles these cases
+##    def cdata(self, MAcdata):
+##        if not MAcdata:
+##            self.graph.hide()
+##            return
+##        self.MAdata = MAcdata
+##        self.MAnoclass = 0
+##        self.newdata()
 
 if __name__ == "__main__":
     a = QApplication(sys.argv)
     owdm = OWDisplayProfiles()
     a.setMainWidget(owdm)
+    d = orange.ExampleTable('wtclassed')
+    owdm.data(d)
     owdm.show()
     a.exec_loop()
     owdm.saveSettings()
-
-##                        ## average +- dev plot
-##                        y1 = yavg
-##                        y2 = yavg + a.dev()
-##                        y3 = yavg - a.dev()
-##                        Ay.append( y1 )
-##                        Ay.append( y2 )
-##                        Ay.append( y3 )
-##                        Ax.append( xcn )
-##                        Ax.append( xcn )
-##                        Ax.append( xcn )
-##                avgCurveData.append((Ax, Ay, ccn) ) ## postpone rendering until the very last, so average curves are on top of all others
