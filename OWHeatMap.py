@@ -46,7 +46,7 @@ class OWHeatMap(OWWidget):
         self.CellWidth = 3; self.CellHeight = 3
         self.Merge = 1; self.savedMerge = self.Merge
         self.Gamma = 1
-        self.CutLow = 0; self.CutHigh = 0; self.CutEnabled = 1
+        self.CutLow = 0; self.CutHigh = 0; self.CutEnabled = 0
         self.ShowAnnotation = 0
         self.LegendOnTop = 1           # legend stripe on top (bottom)?
         self.LegendOnBottom = 1
@@ -56,7 +56,8 @@ class OWHeatMap(OWWidget):
         self.BShowballoon = 1          # balloon help
         self.ShowGeneAnnotations = 1   # show annotations for genes
         self.BShowColumnID = 1; self.BShowSpotIndex = 1; self.BShowAnnotation = 1; self.BShowGeneExpression = 1
-        self.BSpotVar = None; self.BAnnotationVar = None
+        self.BSpotVar = None; self.BAnnotationVar = None  # these are names of variables
+        self.BSpotIndx = None; self.BAnnotationIndx = None # these are id's of the combo boxes
         self.setColorPalette()
         
         self.loadSettings()
@@ -76,6 +77,7 @@ class OWHeatMap(OWWidget):
         # define the color stripe to show the current palette
         colorItems = [self.createColorStripe(i) for i in range(len(self.ColorPalettes))]
         OWGUI.comboBox(settingsTab, self, "CurrentPalette", box="Colors", items=colorItems, tooltip=None, callback=self.setColor)
+        
 
         
         self.tabs.insertTab(settingsTab, "Settings")
@@ -83,7 +85,7 @@ class OWHeatMap(OWWidget):
         # FILTER TAB
         tab = QVGroupBox(self)
         box = QVButtonGroup("Treshold Values", tab)
-        OWGUI.checkOnly(box, self, "Enabled", 'CutEnabled', callback=self.setCutEnabled)
+        OWGUI.checkBox(box, self, 'CutEnabled', "Enabled", callback=self.setCutEnabled)
         self.sliderCutLow = OWGUI.qwtHSlider(box, self, 'CutLow', label='Low:', labelWidth=33, minValue=-100, maxValue=0, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.drawHeatMap)
         self.sliderCutHigh = OWGUI.qwtHSlider(box, self, 'CutHigh', label='High:', labelWidth=33, minValue=0, maxValue=100, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.drawHeatMap)
         if not self.CutEnabled:
@@ -92,7 +94,7 @@ class OWHeatMap(OWWidget):
 
         box = QVButtonGroup("Merge", tab)
         OWGUI.qwtHSlider(box, self, "Merge", label='Rows:', labelWidth=33, minValue=1, maxValue=100, step=1, callback=self.mergeChanged, ticks=0)
-        OWGUI.checkOnly(box, self, "Maintain array height", 'MaintainArrayHeight')
+        OWGUI.checkBox(box, self, 'MaintainArrayHeight', "Maintain array height")
 
         self.tabs.insertTab(tab, "Filter")
 
@@ -100,19 +102,21 @@ class OWHeatMap(OWWidget):
         tab = QVGroupBox(self)
 
         box = QVButtonGroup("Graph Annotation", tab)
-        OWGUI.checkOnly(box, self, 'Legend (top)', 'LegendOnTop', callback=self.drawHeatMap)
-        OWGUI.checkOnly(box, self, 'Stripes with averages', 'ShowAverageStripe', callback=self.drawHeatMap)
-        OWGUI.checkOnly(box, self, 'Gene annotations', 'ShowGeneAnnotations', callback=self.drawHeatMap)
-        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationVar", items=[], callback=self.drawHeatMap)
+        OWGUI.checkBox(box, self, 'LegendOnTop', 'Legend (top)', callback=self.drawHeatMap)
+        OWGUI.checkBox(box, self, 'ShowAverageStripe', 'Stripes with averages', callback=self.drawHeatMap)
+        OWGUI.checkBox(box, self, 'ShowGeneAnnotations', 'Gene annotations', callback=self.drawHeatMap)
+#        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationVar", items=[], callback=self.drawHeatMap)
+        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationIndx", items=[], callback=lambda x='BAnnotationVar', y='BAnnotationVarID', z='BAnnotationIndx': self.setMetaID(x, y, z))
 
         box = QVButtonGroup("Balloon", tab)
-        OWGUI.checkOnly(box, self, "Show balloon", 'BShowballoon', callback=lambda: self.balloonInfoBox.setDisabled(not self.BShowballoon))
+        OWGUI.checkBox(box, self, 'BShowballoon', "Show balloon", callback=lambda: self.balloonInfoBox.setDisabled(not self.BShowballoon))
         box = QVButtonGroup("Balloon Info", tab)
-        OWGUI.checkOnly(box, self, "Column ID", 'BShowColumnID')
-        OWGUI.checkOnly(box, self, "Spot Index", 'BShowSpotIndex', callback=lambda: self.spotCombo.setDisabled(not self.BShowSpotIndex))
-        self.spotCombo = OWGUI.comboBox(box, self, "BSpotVar", items=[])
-        OWGUI.checkOnly(box, self, "Gene expression", 'BShowGeneExpression')
-        OWGUI.checkOnly(box, self, "Annotation", 'BShowAnnotation')
+        OWGUI.checkBox(box, self, 'BShowColumnID', "Column ID")
+        OWGUI.checkBox(box, self, 'BShowSpotIndex', "Spot Index", callback=lambda: self.spotCombo.setDisabled(not self.BShowSpotIndex))
+##        self.spotCombo = OWGUI.comboBox(box, self, "BSpotVar", items=[])
+        self.spotCombo = OWGUI.comboBox(box, self, "BSpotIndx", items=[], callback=lambda x='BSpotVar', y='BSpotVarID', z='BSpotIndx': self.setMetaID(x, y, z))
+        OWGUI.checkBox(box, self, 'BShowGeneExpression', "Gene expression")
+        OWGUI.checkBox(box, self, 'BShowAnnotation', "Annotation")
         self.balloonInfoBox = box
         self.tabs.insertTab(tab, "Info")
         
@@ -148,23 +152,46 @@ class OWHeatMap(OWWidget):
         
     # any time the data changes, the two combo boxes showing meta attributes
     # have to be adjusted
-    def setMetaCombo(self, cb, value, enabled):
+    def setMetaCombo(self, cb, value, enabled=1, default=None):
         cb.clear()
         self.meta = [m.name for m in self.data.domain.getmetas().values()]
         if len(self.meta)==0:
             cb.setDisabled(True)
-            return
+            return (None, None, None)
+        cb.setDisabled(not enabled)
         for m in self.meta:
             cb.insertItem(m)
+        
+        if not (value in self.meta):
+            value = default
+
         if value in self.meta:
             cb.setCurrentItem(self.meta.index(value))
+            indx = self.meta.index(value)
         else:
             cb.setCurrentItem(0)
-        cb.setDisabled(not enabled)
+            value = self.meta[0]; indx = 0
+        m = self.data.domain.getmetas()
+        for k in m.keys():
+            if m[k].name == value:
+                break
+        return (value, k, indx)
+
+    def setMetaID(self, val, valID, valIndx):
+        setattr(self, val, self.meta[getattr(self, valIndx, 0)])
+        value = getattr(self, val)
+        m = self.data.domain.getmetas()
+        for k in m.keys():
+            if m[k].name == value:
+                break
+        setattr(self, valID, k)
+##        print 'mmm', "val", getattr(self, val), "ID", getattr(self, valID), "indx", getattr(self, valIndx)
+        if val=='BAnnotationVar':
+            self.drawHeatMap()
 
     def setMetaCombos(self):
-        self.setMetaCombo(self.spotCombo, 'RMI', self.BShowSpotIndex)
-        self.setMetaCombo(self.annotationCombo, 'annotation', self.BShowAnnotation)
+        (self.BSpotVar, self.BSpotVarID, self.BSpotIndx) = self.setMetaCombo(self.spotCombo, self.BSpotVar, enabled=self.BShowSpotIndex, default='RMI')
+        (self.BAnnotationVar, self.BAnnotationVarID, self.BAnnotationIndx) = self.setMetaCombo(self.annotationCombo, self.BAnnotationVar, enabled=self.BShowAnnotation, default='annotation')
 
     ##########################################################################
     # handling of input/output signals
@@ -284,9 +311,8 @@ class OWHeatMap(OWWidget):
 
         # annotate
         hm = self.heatmaps[group]
-        annotationVar = self.meta[self.BAnnotationVar]
         for (row, indices) in enumerate(hm.exampleIndices[:-1]):
-            t = QCanvasText(str(hm.examples[hm.exampleIndices[row]][annotationVar]), self.canvas)
+            t = QCanvasText(str(hm.examples[hm.exampleIndices[row]][self.BAnnotationVar]), self.canvas)
             t.setFont(font)
             t.setX(x); t.setY(y)
             t.show()
@@ -311,7 +337,6 @@ class OWHeatMap(OWWidget):
             self.heights.append(imageHeight)
 
         self.canvas.resize(2000, 2000) # this needs adjustment
-
         x = c_offsetX; y = c_offsetY
         if self.ShowAverageStripe:
             x += c_averageStripeWidth + c_spaceX
@@ -346,6 +371,7 @@ class OWHeatMap(OWWidget):
         self.heatmaps, self.lowerBound, self.upperBound = self.heatmapconstructor(squeeze)
 
         self.sliderCutLow.setRange(self.lowerBound, 0, 0.1)
+        # !!!
         self.sliderCutHigh.setRange(1e-10, self.upperBound, 0.1)
         self.CutLow = max(self.CutLow, self.lowerBound)
         self.CutHigh = min(self.CutHigh, self.upperBound)
@@ -353,7 +379,6 @@ class OWHeatMap(OWWidget):
         self.sliderCutHigh.setValue(self.CutHigh)
 
         self.selection.remove()
-
         self.drawHeatMap()
 
 ##################################################################################################
@@ -450,16 +475,16 @@ class MyCanvasView(QCanvasView):
             if self.master.BShowSpotIndex or self.master.BShowAnnotation or self.master.BShowGeneExpression:
                 for (i, e) in enumerate(ex):
                     if i>5:
-                        body += "\n..."
+                        body += "\n... (%d more)" % (len(ex)-5)
                         break
                     else:
                         s = []
                         if self.master.BShowSpotIndex:
-                            s.append(str(e[self.master.meta[self.master.BSpotVar]]))
+                            s.append(str(e[self.master.BSpotVar]))
                         if self.master.BShowGeneExpression:
                             s.append(str(e[col]))
                         if self.master.BShowAnnotation:
-                            s.append(str(e[self.master.meta[self.master.BAnnotationVar]]))
+                            s.append(str(e[self.master.BAnnotationVar]))
                     if body: body += "\n"
                     else: body=""
                     body += reduce(lambda x,y: x + ' | ' + y, s)

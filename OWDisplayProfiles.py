@@ -362,8 +362,8 @@ class OWDisplayProfiles(OWWidget):
         ## display options
         displayOptBox = QVButtonGroup("Display", GraphTab)
         displayOptButtons = ['Majority Class', 'Majority Class Probability', 'Target Class Probability', 'Number of Instances']
-        OWGUI.checkOnly(displayOptBox, self, 'Expression Profiles', 'ShowSingleProfiles', tooltip='', callback=self.updateShowSingleProfiles)
-        OWGUI.checkOnly(displayOptBox, self, 'Box Plot', 'ShowAverageProfile', tooltip='', callback=self.updateShowAverageProfile)
+        OWGUI.checkBox(displayOptBox, self, 'ShowSingleProfiles', 'Expression Profiles', tooltip='', callback=self.updateShowSingleProfiles)
+        OWGUI.checkBox(displayOptBox, self, 'ShowAverageProfile', 'Box Plot', tooltip='', callback=self.updateShowAverageProfile)
 
         ## class selection (classQLB)
         self.classQVGB = QVGroupBox(GraphTab)
