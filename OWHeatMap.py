@@ -31,14 +31,16 @@ z_heatmap = 5                   # layer with heatmaps
 class OWHeatMap(OWWidget):	
     settingsList = ["CellWidth", "CellHeight", "Merge", "Gamma", "CutLow", "CutHigh", "CutEnabled", 
                     "ShowAnnotation", "LegendOnTop", "LegendOnBottom", "ShowAverageStripe", "ShowGroupLabel",
-                    "MaintainArrayHeight", 
+                    "MaintainArrayHeight",
+                    'BShowballoon', 'BShowColumnID', 'BShowSpotIndex', 'BShowAnnotation', 'BShowGeneExpression',
+                    "BSpotVar", "BAnnotationVar",
                     "CurrentPalette"]
 
     def __init__(self, parent=None, name='OWHeatMap'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, name, 'Microarray Heat Map', FALSE, FALSE) 
         
-        self.inputs = [("Examples", ExampleTableWithClass, self.data, 1)]
+        self.inputs = [("Examples", ExampleTableWithClass, self.microarrayData, 1)]
         self.outputs = [("Examples", ExampleTable)]
 
         #set default settings
@@ -52,9 +54,13 @@ class OWHeatMap(OWWidget):
         self.ShowGroupLabel = 1        # show class names in case of classified data?
         self.ShowAverageStripe = 1     # show the stripe with the evarage
         self.MaintainArrayHeight = 1   # adjust cell height while changing the merge factor
+        self.BShowballoon = 1           # balloon help
+        self.BShowColumnID = 1; self.BShowSpotIndex = 1; self.BShowAnnotation = 1; self.BShowGeneExpression = 1
+        self.BSpotVar = None; self.BAnnotationVar = None
         self.setColorPalette()
         
         self.loadSettings()
+        self.data = None
         self.maxHSize = 10; self.maxVSize = 10
 
         # GUI definition
@@ -69,7 +75,7 @@ class OWHeatMap(OWWidget):
 
         # define the color stripe to show the current palette
         colorItems = [self.createColorStripe(i) for i in range(len(self.ColorPalettes))] + ["Custom ..."]
-        OWGUI.comboBox(settingsTab, self, "CurrentPalette", label="Colors", items=colorItems, tooltip=None, callback=self.setColor)
+        OWGUI.comboBox(settingsTab, self, "CurrentPalette", box="Colors", items=colorItems, tooltip=None, callback=self.setColor)
 
         box = QVButtonGroup("Annotations", settingsTab)
         OWGUI.checkOnly(box, self, 'Legend (top)', 'LegendOnTop', callback=self.createHeatMap)
@@ -92,13 +98,29 @@ class OWHeatMap(OWWidget):
         OWGUI.checkOnly(box, self, "Maintain array height", 'MaintainArrayHeight')
         
             
-        self.tabs.insertTab(tab, "Filter && Merge")
+        self.tabs.insertTab(tab, "Filter")
+
+        # INFO TAB
+        tab = QVGroupBox(self)
+        box = QVButtonGroup("Balloon", tab)
+        OWGUI.checkOnly(box, self, "Show balloon", 'BShowballoon', callback=lambda: self.balloonInfoBox.setDisabled(not self.BShowballoon))
+        box = QVButtonGroup("Balloon Info", tab)
+        OWGUI.checkOnly(box, self, "Column ID", 'BShowColumnID')
+        OWGUI.checkOnly(box, self, "Spot Index", 'BShowSpotIndex', callback=lambda: self.spotCombo.setDisabled(not self.BShowSpotIndex))
+        self.spotCombo = OWGUI.comboBox(box, self, "BSpotVar", items=[])
+        OWGUI.checkOnly(box, self, "Annotation", 'BShowAnnotation', callback=lambda: self.annotationCombo.setDisabled(not self.BShowAnnotation))
+        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationVar", items=[])
+        OWGUI.checkOnly(box, self, "Gene expression", 'BShowGeneExpression')
+        self.balloonInfoBox = box
+        self.tabs.insertTab(tab, "Info")
+        
         self.resize(400,400)
 
         # canvas with microarray
         self.layout = QVBoxLayout(self.mainArea)
         self.canvas = QCanvas()
         self.canvasView = MyCanvasView(self.canvas, self.mainArea)
+        self.selection = SelectData(self, self.canvas)
         # self.canvasView = QCanvasView(self.canvas, self.mainArea)
         self.layout.add(self.canvasView)
 
@@ -121,10 +143,30 @@ class OWHeatMap(OWWidget):
            [qRgb(255.*i/250., 0, 0) for i in range(250)] + [white]*6)
         self.CurrentPalette = 0
         
+    # any time the data changes, the two combo boxes showing meta attributes
+    # have to be adjusted
+    def setMetaCombo(self, cb, value, enabled):
+        cb.clear()
+        self.meta = [m.name for m in self.data.domain.getmetas().values()]
+        if len(self.meta)==0:
+            cb.setDisabled(True)
+            return
+        for m in self.meta:
+            cb.insertItem(m)
+        if value in self.meta:
+            cb.setCurrentItem(self.meta.index(value))
+        else:
+            cb.setCurrentItem(0)
+        cb.setDisabled(not enabled)
+
+    def setMetaCombos(self):
+        self.setMetaCombo(self.spotCombo, 'RMI', self.BShowSpotIndex)
+        self.setMetaCombo(self.annotationCombo, 'annotation', self.BShowAnnotation)
+
     ##########################################################################
     # handling of input signals
 
-    def data(self, data):
+    def microarrayData(self, data):
         self.data = data
 
         # figure out the max in min value of expression
@@ -146,6 +188,7 @@ class OWHeatMap(OWWidget):
         
         self.heatmapconstructor = orange.HeatmapConstructor(self.data)
         self.createHeatMap()
+        self.setMetaCombos() # set the two combo widgets according to the data
         
     ##########################################################################
     # callback functions
@@ -174,7 +217,7 @@ class OWHeatMap(OWWidget):
 
         self.createHeatMap()
         self.savedMerge = self.Merge
-        
+
     ##########################################################################
     # drawing
 
@@ -207,14 +250,13 @@ class OWHeatMap(OWWidget):
         # remove everything from current canvas
         for i in self.canvas.allItems():
             i.setCanvas(None)
-        self.canvasView.heatmapParameters(self.CellWidth, self.CellHeight) # needed for event handling
+        self.canvasView.heatmapParameters(self, self.CellWidth, self.CellHeight) # needed for event handling
 
         palette = self.ColorPalettes[self.CurrentPalette]
         groups = (not data.domain.classVar and 1) or len(data.domain.classVar.values) # mercy! (just had to do this)
 
-        self.bmps = []; self.heights = []
+        self.bmps = []; self.heights = []; self.imgStart = []; self.imgEnd = []
         for g in range(groups):
-            print self.Gamma
             bmp, self.imageWidth, imageHeight = self.heatmaps[g].getBitmap(int(self.CellWidth), int(self.CellHeight), lo, hi, self.Gamma)
             self.bmps.append(bmp)
             self.heights.append(imageHeight)
@@ -232,22 +274,29 @@ class OWHeatMap(OWWidget):
         for g in range(groups):
             if self.ShowGroupLabel and groups>1:
                 y = self.drawGroupLabel(data.domain.classVar.values[g], x, y, self.imageWidth)
+            self.imgStart.append(y)
             image = ImageItem(self.bmps[g], self.canvas, self.imageWidth, self.heights[g], palette, x=x, y=y, z=z_heatmap)
             image.hm = self.heatmaps[g] # needed for event handling
             image.height = self.heights[g]; image.width = self.imageWidth
             if self.ShowAverageStripe:
                 avg, avgWidth, avgHeight = self.heatmaps[g].getAverages(c_averageStripeWidth, int(self.CellHeight), lo, hi, self.Gamma)
                 ImageItem(avg, self.canvas, avgWidth, avgHeight, palette, x=c_offsetX, y=y)
+            self.imgEnd.append(y+self.heights[g]-1)
             y += self.heights[g] + c_spaceY
-        
+
+        print self.imgEnd
+        for i in range(len(self.imgStart)):
+            l = QCanvasLine(self.canvas)
+            l.setPoints(2, self.imgStart[i], 2, self.imgEnd[i])
+            print 'line %d->%d ' % (self.imgStart[i], self.imgEnd[i]),
+            l.show()
+        print
         self.canvas.update()
         
     def createHeatMap(self):
         merge = min(self.Merge, float(len(self.data)))
         squeeze = 1. / merge
-        print 'BEFORE HEATMAPCONS', squeeze
         self.heatmaps, self.lowerBound, self.upperBound = self.heatmapconstructor(squeeze)
-        print 'AFTER'
         self.drawHeatMap()
 
 ##################################################################################################
@@ -288,19 +337,32 @@ class MyCanvasView(QCanvasView):
     def __init__(self, *args):
         apply(QCanvasView.__init__,(self,) + args)
         self.canvas = args[0]
+        self.clicked = False
         self.viewport().setMouseTracking(True)
+        self.setFocusPolicy(QWidget.ClickFocus)
+        self.setFocus()
+        self.shiftPressed = False
 
-    def heatmapParameters(self, cellWidth, cellHeight):
+    def heatmapParameters(self, master, cellWidth, cellHeight):
+        self.master = master
         self.dx, self.dy = cellWidth, cellHeight
         self.selector = QCanvasRectangle(0, 0, self.dx + 2 * v_sel_width - 1, self.dy + 2 * v_sel_width - 1, self.canvas)
-        #self.selector.setBrush(QBrush(BodyColor_Default))
         self.selector.setPen(QPen(Qt.black, v_sel_width))
         self.selector.setZ(10)
+        self.bubble = BubbleInfo(self.canvas)
 
     def contentsMouseMoveEvent(self, event):
+        # handling of selection
+        if self.clicked:
+            self.master.selection(self.clicked, event.y(), self.shiftPressed)
+
+
+        # balloon handling
+        if not self.master.BShowballoon: return
         items = filter(lambda ci: ci.z()==z_heatmap, self.canvas.collisions(event.pos()))
         if len(items) == 0: # mouse over nothing special
             self.selector.hide()
+            self.bubble.hide()
             self.canvas.update()
         else:
             item = items[0]
@@ -311,14 +373,171 @@ class MyCanvasView(QCanvasView):
                 self.canvas.update()
                 return
             col, row = int(x / self.dx), int(y / self.dy)
-            print hm.getCellIntensity(row, col), hm.getRowIntensity(row)
+            # hm.getCellIntensity(row, col), hm.getRowIntensity(row)
             ex = hm.examples[hm.exampleIndices[row] : hm.exampleIndices[row+1]]
-            # print 'eee', len(ex)
             self.selector.setX(item.x()+col*self.dx-v_sel_width+1)
             self.selector.setY(item.y()+row*self.dy-v_sel_width+1)
             self.selector.show()
 
+            # bubble, construct head
+            head = "%6.4f" % hm.getCellIntensity(row, col)
+            if self.master.BShowColumnID:
+                head += "\n"+ex[0].domain.attributes[col].name
+            self.bubble.head.setText(head)
+            # bubble, construct body
+            body = None
+            if self.master.BShowSpotIndex or self.master.BShowAnnotation or self.master.BShowGeneExpression:
+                for (i, e) in enumerate(ex):
+                    if i>5:
+                        body += "\n..."
+                        break
+                    else:
+                        s = []
+                        if self.master.BShowSpotIndex:
+                            s.append(str(e[self.master.meta[self.master.BSpotVar]]))
+                        if self.master.BShowGeneExpression:
+                            s.append(str(e[col]))
+                        if self.master.BShowAnnotation:
+                            s.append(str(e[self.master.meta[self.master.BAnnotationVar]]))
+                    if body: body += "\n"
+                    else: body=""
+                    body += reduce(lambda x,y: x + ' | ' + y, s)
+            self.bubble.body.setText(body)
+            self.bubble.show()
+            self.bubble.move(event.x()+20, event.y()+20)
+            
             self.canvas.update()
+
+    def keyPressEvent(self, e):
+        self.shiftPressed = e.key() == 4128
+
+    def keyReleaseEvent(self, e):        
+        self.shiftPressed = False
+
+    def contentsMousePressEvent(self, event):
+        # self.viewport().setMouseTracking(False)
+        self.clicked = event.y()
+        self.master.selection(self.clicked, event.y(), self.shiftPressed)
+
+    def contentsMouseReleaseEvent(self, event):
+        self.clicked = False
+        self.canvas.update()
+        self.master.selection.release()
+
+##################################################################################################
+# data selection
+
+class SelectData:
+    def __init__(self, master, canvas):
+        self.canvas = canvas
+        self.currentLines = None
+        self.master = master
+        self.squares = []
+        self.points = []
+
+    def __call__(self, p1, p2, add=False):
+        if not add and self.squares:
+            for r in self.squares:
+                r.setCanvas(None)
+            self.squares = []
+            self.points = []
+        points = self.findSelectionPoints(p1, p2)
+        self.points = self.mergePoints(self.points, points)
+        self.squares = self.drawOne(points)
+
+    def mergePoints(self, pl1, pl2):
+        print '->', pl1, '|||', pl2
+        
+        return pl1
+
+    def release(self):
+        pass
+        
+    def findSelectionPoints(self, p1, p2):
+        y1 = min(p1, p2); y2 = max(p1, p2)
+        start = self.master.imgStart; end = self.master.imgEnd
+        s = []
+        for i in range(len(start)):
+            if y2<start[i]:
+                break
+            if y1<end[i]:
+                if y1>start[i]:
+                    a = start[i] + int((y1-start[i])/self.master.CellHeight) * self.master.CellHeight
+                else:
+                    a = start[i]
+                if y2<end[i]:
+                    b = start[i] + (int((y2-start[i])/self.master.CellHeight)+1) * self.master.CellHeight-1
+                else:
+                    b = end[i]
+                s.append((a,b))
+        return s
+
+    def drawOne(self, points):
+        x = c_offsetX + self.master.ShowAverageStripe * (c_averageStripeWidth + c_spaceX)
+        lines = []
+        for (y1,y2) in points:
+            r = QCanvasRectangle(x-v_sel_width+1, y1-v_sel_width+1, self.master.imageWidth+2*v_sel_width-1, y2-y1+v_sel_width+2, self.canvas)
+            r.setPen(QPen(Qt.black, v_sel_width))
+            r.setZ(10)
+            r.show()
+            lines.append(r)
+        self.canvas.update()
+        return lines
+
+##################################################################################################
+# bubble info class
+
+bubbleBorder = 4
+
+class BubbleInfo(QCanvasRectangle):
+    def __init__(self, *args):
+        apply(QCanvasRectangle.__init__, (self,) + args)
+        self.canvas = args[0]
+        self.setBrush(QBrush(Qt.white))
+        #self.setPen(QPen(Qt.black, v_sel_width))
+        self.bubbleShadow = QCanvasRectangle(self.canvas)
+        self.bubbleShadow.setBrush(QBrush(Qt.black))
+        self.bubbleShadow.setPen(QPen(Qt.black))
+        self.head = QCanvasText(self.canvas)
+        self.line = QCanvasLine(self.canvas)
+        self.body = QCanvasText(self.canvas)
+        self.items = [self.head, self.line, self.body]
+        self.setZ(110)
+        self.bubbleShadow.setZ(109)
+        for i in self.items:
+            i.setZ(111)
+
+    def move(self, x, y):
+        QCanvasRectangle.move(self, x, y)
+        self.setX(x); self.setY(y)
+        self.bubbleShadow.move(x+5, y+5)
+        for item in self.items:
+            item.setX(x + bubbleBorder)
+        w = max(100, self.head.boundingRect().width() + 2 * bubbleBorder, self.body.boundingRect().width() + 2 * bubbleBorder)
+        y += 2
+        self.head.setY(y)
+        y += self.head.boundingRect().height()
+        self.line.setPoints(0,0,w,0)
+        self.line.setX(x); self.line.setY(y)
+        y += 2
+        self.body.setY(y)
+        h = 2 * (2 + (self.body.text()<>None)) + self.head.boundingRect().height() + (self.body.text()<>None) * self.body.boundingRect().height()
+        self.setSize(w,h)
+        self.bubbleShadow.setSize(w,h)
+        
+    def show(self):
+        QCanvasRectangle.show(self)
+        self.bubbleShadow.show()
+        self.head.show()
+        if self.body.text():
+            self.line.show()
+            self.body.show()
+
+    def hide(self):
+        QCanvasRectangle.hide(self)
+        self.bubbleShadow.hide()
+        for item in self.items:
+            item.hide()
 
 ##################################################################################################
 # test script
@@ -330,9 +549,9 @@ if __name__=="__main__":
     a.setMainWidget(ow)
 
 ##    data = orange.ExampleTable('wt-large')
-    data = orange.ExampleTable('wt')
-##    data = orange.ExampleTable('wtclassed')
-    ow.data(data)
+##    data = orange.ExampleTable('wt')
+    data = orange.ExampleTable('wtclassed')
+    ow.microarrayData(data)
     ow.show()
     a.exec_loop()
     ow.saveSettings()
