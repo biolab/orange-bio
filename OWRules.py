@@ -12,24 +12,28 @@ import OWGUI
 ##############################################################################
 
 class OWRules(OWWidget):
-    settingsList = []
+    settingsList = ['ShowClosestOther']
 
     def __init__(self, parent=None):
         OWWidget.__init__(self, parent,"Rule Selection")
 
         self.inputs = [("Rules", ExampleTable, self.ruledataset), ("Expression", ExampleTable, self.expressiondataset)]
-        self.outputs = [("Expression", ExampleTable)]
+        self.outputs = [("Expression", ExampleTable), ("Genes", list), ("Motifs", list)]
         
+        self.ShowClosestOther = FALSE
         self.expression = None
         self.rules = None
         self.showMetas = 1
 
         # GUI
         self.layout=QVBoxLayout(self.mainArea)
-        self.table=QTable(self.mainArea)
-        self.table.setSelectionMode(QTable.NoSelection)
-        self.layout.add(self.table)
-        self.table.hide()
+        self.ar=QVGroupBox(self.mainArea)
+
+        OWGUI.checkBox(self.ar, self, 'ShowClosestOther', 'Show closest other expressions', tooltip='', callback=self.runRule)
+        self.table = QTable(self.ar)
+        self.table.setSelectionMode(QTable.Multi)
+        self.layout.add(self.ar)
+#        self.table.hide()
         self.grid.setColStretch(0,0)
 
     def ruledataset(self, data):
@@ -80,11 +84,17 @@ class OWRules(OWWidget):
                 self.header.setLabel(j+col, m.name)
 
         # set the contents of the table (values of attributes)
+        formats = []
+        for j in range(len(self.rules.domain.attributes)):
+            if self.rules.domain.attributes[j].varType == orange.VarTypes.Continuous:
+                formats.append( "%06.3f")
+            else:
+                formats.append( "%s")
         instances = len(self.rules)
         for i in range(instances):
             self.progressBarSet(i*50/instances)
             for j in range(len(self.rules.domain.attributes)):
-                self.table.setText(i, j, str(self.rules[i][j]))
+                self.table.setText(i, j, formats[j] % (self.rules[i][j]))
         col = len(self.rules.domain.attributes)
         if self.rules.domain.classVar:
             self.progressBarSet(50+i*20/instances)
@@ -105,30 +115,80 @@ class OWRules(OWWidget):
         # manage sorting (not correct, does not handle real values)
         self.connect(self.header,SIGNAL("clicked(int)"), self.sort)
         self.sortby = 0
-        self.connect(self.table,SIGNAL("clicked(int, int, int, const QPoint&)"), self.runRule)
+        #self.connect(self.table,SIGNAL("clicked(int, int, int, const QPoint&)"), self.runRule)
+        self.connect(self.table,SIGNAL("selectionChanged()"), self.runRule)
         #self.table.setColumnMovingEnabled(1)
         self.table.show()
         self.layout.activate() # this is needed to scale the widget correctly
 
     def sort(self, col):
-        "sorts the table by column col"
+        print "sorts the table by column col", col, self.sortby
         if col == self.sortby-1:
             self.sortby = - self.sortby
         else:
             self.sortby = col+1
         self.table.sortColumn(col, self.sortby>=0, TRUE)
 
-    def runRule(self, row, col, button, point):
-        nt = orange.ExampleTable(self.expression.domain)
-        if row >= 0 and row < len(self.rules):
-            rule = str(self.rules[row]['geneList'])
-            rule = eval(rule)
-            for e in self.expression:
-                DDB = str(e['DDB'])
-                if DDB in rule:
-                    nt.append( e)
-            self.send("Expression", nt)
-		
+    def runRule(self):
+	if self.table.numSelections() <= 0:
+            self.send("Expression", None)
+            self.send("Genes", [])
+            self.send("Motifs", [])
+            return None
+
+        geneListColumn = self.table.numCols() - 1
+	otherGeneListColumn = geneListColumn - 1
+        rowsSelected = sum([self.table.isRowSelected(i) for i in range(self.table.numRows())])
+        genesToSend = []
+        motifsToSend = []
+        if rowsSelected == 1: ## if only one row selected, return "original" domain
+            multi = 0
+            if self.ShowClosestOther:
+                newcls = ['other'] + [str(self.table.text(i, 0)) for i in range(self.table.numRows()) if self.table.isRowSelected(i)]
+                newclvar = orange.EnumVariable('rule', values = newcls)
+                ndom = orange.Domain(self.expression.domain.attributes + [newclvar])
+            else:
+                ndom = self.expression.domain
+        else: ## otherwise create a new domain, where rule is class
+            multi = 1
+            newcls = [str(self.table.text(i, 0)) for i in range(self.table.numRows()) if self.table.isRowSelected(i)]
+            newclvar = orange.EnumVariable('rule', values = newcls)
+            ndom = orange.Domain(self.expression.domain.attributes + [newclvar])
+
+        nt = orange.ExampleTable(ndom)
+        for cn in range(self.table.numRows()):
+            if self.table.isRowSelected(cn):
+                geneList = str(self.table.text(cn, geneListColumn)) ##self.rules[row]['geneList'])
+                geneList = eval(geneList)
+                if self.ShowClosestOther:
+                    otherGeneList = str(self.table.text(cn, otherGeneListColumn))
+                    otherGeneList = eval(otherGeneList)
+                for e in self.expression:
+                    DDB = str(e['DDB'])
+                    if DDB in geneList:
+                       if DDB not in genesToSend: genesToSend.append( DDB)
+                       ne = orange.Example(ndom, e)
+                       motsInRule = []
+                       if multi:
+                           rule = str(self.table.text(cn, 0))
+                           motsInRule = rule.split(' and ')
+                           ne.setclass(str(rule))
+                       elif self.ShowClosestOther:
+                           rule = str(self.table.text(cn, 0))
+                           motsInRule = rule.split(' and ')
+                           ne.setclass(str(rule))
+                       for mot in motsInRule:
+                           if mot not in motifsToSend: motifsToSend.append( mot)
+                       nt.append( ne)
+                    if not(multi) and self.ShowClosestOther and DDB in otherGeneList:
+                       ne = orange.Example(ndom, e)
+                       ne.setclass("other")
+                       nt.append( ne)
+        self.send("Expression", nt)
+        self.send("Genes", genesToSend)
+        self.send("Motifs", motifsToSend)
+        print genesToSend
+        print motifsToSend
 ##############################################################################
 # Test the widget, run from DOS prompt
 # > python OWDataTable.py)
