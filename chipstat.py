@@ -803,7 +803,8 @@ if __name__ == "__main__":
     import Dicty.DAnnotation
 
 ##    myPath = r"C:\Python23\Lib\site-packages\orange\OrangeWidgets\Genomics\chipdata"
-    myPath = r"C:\Documents and Settings\peterjuv\My Documents\Transcriptional Phenotype\DictyData\orngDataStruct_Nancy"
+##    myPath = r"C:\Documents and Settings\peterjuv\My Documents\Transcriptional Phenotype\DictyData\orngDataStruct_Nancy"
+    myPath = r"C:\Documents and Settings\peterjuv\My Documents\Transcriptional Phenotype\DictyData\orngDataStruct_Nancy_yakApufA"
 
     def generateETStruct(path):
         ddbList = Dicty.DAnnotation.getDDBList()
@@ -823,7 +824,7 @@ if __name__ == "__main__":
                 orange.saveTabDelimited(pathSt + "\\" + rep + ".tab", et)
 
     # generate orange example table structure
-    generateETStruct(myPath)
+##    generateETStruct(myPath)
 
     # load data
 ##    etStruct = getETStruct(myPath)
@@ -831,7 +832,7 @@ if __name__ == "__main__":
 ##    rglc = DN.getReplicaGroupListCopy()
 ##    DNpufAyakA = DN.getSubData([rglc[DN.getIdxStrain("pufA")], rglc[DN.getIdxStrain("yakA")], rglc[DN.getIdxStrain("yakApufA")]])
 ##    ma3d = DNpufAyakA.getRaw3dAll()
-##
+
     # test orngET <-> MA
 ##    m2d1 = DNpufAyakA.getRaw2d(DNpufAyakA.replicas[1])
 ##    et = ma2orng(m2d1, Meda.Preproc.getTcDomain(13, False, [], None))
