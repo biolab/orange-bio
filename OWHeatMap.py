@@ -167,7 +167,7 @@ class OWHeatMap(OWWidget):
         self.oldMerge = self.savedMerge
         if self.MaintainArrayHeight and self.oldMerge <> self.Merge:
             k = self.Merge / self.oldMerge
-            l = min(self.CellHeight * k, self.maxVSize)
+            l = max(1, min(self.CellHeight * k, self.maxVSize))
             if l <> self.CellHeight:
                 self.CellHeight = l
                 self.sliderVSize.setValue(self.CellHeight)
@@ -235,11 +235,11 @@ class OWHeatMap(OWWidget):
         self.canvas.update()
         
     def createHeatMap(self):
-        merge = min(self.Merge, len(self.data))
-        squeeze = 1 / merge
+        merge = min(self.Merge, float(len(self.data)))
+        squeeze = 1. / merge
         lo = self.CutEnabled and self.CutLow
         hi = self.CutEnabled and self.CutHigh
-        print 'BEFORE HEATMAPCONS', lo, hi, self.Gamma
+        print 'BEFORE HEATMAPCONS', squeeze
         self.heatmaps = self.heatmapconstructor(squeeze, lo, hi, self.Gamma)
         print 'AFTER'
         self.drawHeatMap()
@@ -323,8 +323,8 @@ if __name__=="__main__":
     a.setMainWidget(ow)
 
 ##    data = orange.ExampleTable('wt-large')
-    data = orange.ExampleTable('wt')
-##    data = orange.ExampleTable('wtclassed')
+##    data = orange.ExampleTable('wt')
+    data = orange.ExampleTable('wtclassed')
     ow.data(data)
     ow.show()
     a.exec_loop()
