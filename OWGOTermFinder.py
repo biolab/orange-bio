@@ -388,6 +388,9 @@ class OWGOTermFinder(OWWidget):
         ## self.findTermsBuildDAG() need to call it, if you call referenceDatasetChanged directly
 
     def tableSelectionChanged(self):
+        self.progressBarInit()
+        tot = len(self.significantGOIDs)
+        totcn = 0
         for i in range(len(self.significantGOIDs)):
             b = self.sigTermsTable.isRowSelected(i, False)
             GOID = self.significantGOIDs[i]
@@ -395,6 +398,9 @@ class OWGOTermFinder(OWWidget):
                 if liGOID == GOID:
                     self.goLV.setSelected(li, b)
                     if b: self.goLV.ensureItemVisible(li)
+            self.progressBarSet(int(round(totcn*100.0/tot)))
+            totcn += 1
+        self.progressBarFinished()
 
     def viewSelectionChanged(self):
         geneToGOterm = {}
