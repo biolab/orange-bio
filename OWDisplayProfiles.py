@@ -622,7 +622,6 @@ class OWDisplayProfiles(OWWidget):
             mname = MAdata.name ## remember name 
             MAdata = MAdata.select(newDomain) ## because select forgets it
             MAdata.name = mname
-            MAdata = MAdata2
             for e in MAdata: e.setclass('n')
             MAdata.setattr("noclass", 1) ## remember that there is no class to display
         elif MAdata and MAdata.domain.classVar.varType <> orange.VarTypes.Discrete:
