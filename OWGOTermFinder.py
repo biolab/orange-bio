@@ -450,9 +450,6 @@ class OWGOTermFinder(OWWidget):
                     nex = orange.Example(newdomain, e)
                     if self.AddGOclass:
                         nex.setclass(goterm)
-##                    nex = orange.Example(newdomain, ne)
-##                    for (id, var) in metas.items():
-##                        nex.setmeta(id, e.getmeta(id))
                     newdata.append( nex)
 
             if newdata.domain.classVar:
