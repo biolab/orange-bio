@@ -64,7 +64,7 @@ class OWGOTermFinder(OWWidget):
         self.GO = None
 
         # received by signals
-        self.geneNameAttr = 'GeneName'
+        self.geneNameAttr = 'DDB' # name of attribute from where to take the gene ID or name
         # should read from 'GeneName' column in input signal "Examples"
         self.clusterGenes = [] ## ['YPD1', 'WHI4', 'SHS1', 'GCS1', 'HO', 'YDL228C', 'SSB1', 'PTP1', 'BRE4', 'OST4', 'YDL233W', 'GYP7']
         self.clusterData = None
@@ -204,21 +204,23 @@ class OWGOTermFinder(OWWidget):
         self.clusterGenes = []
         self.clusterData = data
         if data:
-            dattrs = [str(a.name) for a in data.domain.attributes]
+            dattrs = [str(a.name) for a in data.domain.attributes + data.domain.getmetas().values()]
+            print self.geneNameAttr in dattrs, dattrs
             if self.geneNameAttr in dattrs:
                 for e in data:
-                    g = str(e[self.geneNameAttr].value)
+                    g = str(e[self.geneNameAttr])
                     if g not in self.clusterGenes:
                         self.clusterGenes.append( g)
+            print len(self.clusterGenes), self.clusterGenes[:10]
         self.findTermsBuildDAG()
 
     def referenceDataset(self, data, id):
         self.referenceGenes = []
         if data:
-            dattrs = [str(a.name) for a in data.domain.attributes]
+            dattrs = [str(a.name) for a in data.domain.attributes + data.domain.getmetas().values()]
             if self.geneNameAttr in dattrs:
                 for e in data:
-                    g = str(e[self.geneNameAttr].value)
+                    g = str(e[self.geneNameAttr])
                     if g not in self.referenceGenes:
                         self.referenceGenes.append( g)
         self.findTermsBuildDAG()
@@ -475,7 +477,8 @@ if __name__=="__main__":
     ow = OWGOTermFinder()
     a.setMainWidget(ow)
 
-    d = orange.ExampleTable('testClusterSet.tab')
+    d = orange.ExampleTable('testClusterSet.tab', dontCheckStored=1)
+    d = orange.ExampleTable('hjSmall.tab', dontCheckStored=1)
     ow.clusterDataset(d, 0)
     ow.show()
     a.exec_loop()
