@@ -76,6 +76,7 @@ class OWProcessChipData(OWWidget):
             self.sendData()
 
     def chipdata(self, data):
+        print data
         self.commitBtn.setEnabled(data <> None)
         if data:
             self.data = data
