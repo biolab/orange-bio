@@ -144,7 +144,6 @@ class OWHeatMap(OWWidget):
         self.fileDown = OWGUI.button(hbox, self, 'Down', callback=lambda i=1: self.fileOrderChange(i), disabled=1)
         for btn in [self.fileUp, self.fileRef, self.fileDown]:
             btn.setMaximumWidth(45)
-            
 
         OWGUI.checkBox(self.filesTab, self, 'ShowDataFileNames', 'Show data file names', callback=self.drawHeatMap)
         OWGUI.radioButtonsInBox(self.filesTab, self, 'SelectionType', ['Single data set', 'Multiple data sets'], box='Selection')
@@ -221,8 +220,8 @@ class OWHeatMap(OWWidget):
     # handling of input/output signals
 
     def dataset(self, data, id):
-        print 'GOT', id
         ids = [d.id for d in self.data]
+        print 'GOT', id, 'PREV', ids
         if not data:
             if id in ids:
                 k = ids.index(id)
@@ -240,6 +239,7 @@ class OWHeatMap(OWWidget):
                     data = orange.ExampleTable(domain, data)
             data.setattr("id", id)
             if id in ids:
+                print 'REPLACE ID'
                 data.id = id
                 indx = ids.index(id)
                 self.data[indx] = data
@@ -263,6 +263,8 @@ class OWHeatMap(OWWidget):
     def chipdata(self, data):
         print 'CHIPDATA'
         self.data = [] # XXX should only remove the data from the same source, use id in this rutine
+        self.fileLB.clear()
+        self.refFile = 0
         if not data:
             for i in self.canvas.allItems():
                 i.setCanvas(None)
