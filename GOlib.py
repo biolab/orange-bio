@@ -473,7 +473,7 @@ def txtAnnotation2pickle(annotationFname, saveAsPickleFname, forDicty=0):
 ##     GOlib.txtGO2pickle('200312')
 ##
 def txtGO2pickle(GOver = '200312'):
-    exit("forced error - this function is not tested yet")
+##    exit("forced error - this function is not tested yet")
     dataDir = './go_' + GOver + '-termdb-tables/'
 
     ## read in term definitions

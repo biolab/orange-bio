@@ -379,7 +379,7 @@ class OWGOTermFinder(OWWidget):
             self.referenceGenes = []
             dattrs = [a for a in self.referenceData.domain.attributes + self.referenceData.domain.getmetas().values()]
             if self.geneIDattr in dattrs:
-                for e in data:
+                for e in self.referenceData:
                     g = str(e[self.geneIDattr])
                     if g not in self.referenceGenes:
                         self.referenceGenes.append( g)
