@@ -107,7 +107,7 @@ class OWHeatMap(OWWidget):
         tab = QVGroupBox(self)
 
         box = QVButtonGroup("Annotation && Legends", tab)
-        OWGUI.checkBox(box, self, 'LegendOnTop', 'Legend (top)', callback=self.drawHeatMap)
+        OWGUI.checkBox(box, self, 'LegendOnTop', 'Show legend', callback=self.drawHeatMap)
         OWGUI.checkBox(box, self, 'ShowAverageStripe', 'Stripes with averages', callback=self.drawHeatMap)
         OWGUI.checkBox(box, self, 'ShowGeneAnnotations', 'Gene annotations', callback=self.drawHeatMap)
         
@@ -289,6 +289,7 @@ class OWHeatMap(OWWidget):
         for (g,s,e) in rows:
             hm = self.heatmaps[0][g]
             ex += hm.examples[hm.exampleIndices[s] : hm.exampleIndices[e+1]]
+            print 'sss', s, e
 
         # Reduce the number of class values, if class is defined
         newdomain = self.checkDomain(self.data[0], selection=ex)
