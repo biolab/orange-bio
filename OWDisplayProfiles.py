@@ -568,6 +568,7 @@ class OWDisplayProfiles(OWWidget):
             self.classColor = None
             self.classBrighterColor = None
         self.graph.show()
+        self.box.activate()
 
     def data(self, MAdata):
         if not MAdata:

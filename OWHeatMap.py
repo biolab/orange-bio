@@ -39,7 +39,7 @@ class OWHeatMap(OWWidget):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, name, 'Microarray Heat Map', FALSE, FALSE) 
         
-        self.inputs = [("Examples", ExampleTable, self.microarrayData, 1)]
+        self.inputs = [("Examples", ExampleTable, self.dataset, 1)]
         self.outputs = [("Examples", ExampleTable)]
 
         #set default settings
@@ -165,7 +165,7 @@ class OWHeatMap(OWWidget):
     ##########################################################################
     # handling of input/output signals
 
-    def microarrayData(self, data):
+    def dataset(self, data):
         if not data:
             return
         self.data = data
@@ -309,7 +309,7 @@ class OWHeatMap(OWWidget):
         squeeze = 1. / merge
         print 'enter sss', squeeze
         self.heatmaps, self.lowerBound, self.upperBound = self.heatmapconstructor(squeeze)
-        print 'exit sss'
+        print 'exit sss', self.data
         self.drawHeatMap()
 
 ##################################################################################################
@@ -620,7 +620,7 @@ if __name__=="__main__":
 ##    data = orange.ExampleTable('wt-large')
 ##    data = orange.ExampleTable('wt')
     d = orange.ExampleTable('wtclassed')
-    ow.microarrayData(d)
+    ow.dataset(d)
     ow.show()
     a.exec_loop()
     ow.saveSettings()
