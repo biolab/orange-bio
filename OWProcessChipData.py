@@ -51,16 +51,16 @@ class OWProcessChipData(OWWidget):
         
         # merge
         OWGUI.separator(self.controlArea)
-        self.mergeTypes = [('mean', 'Mean'), ('median', 'Median'), ('min', 'Minimum expression'), ('max', 'Maximum expression')]
+        self.mergeTypes = [(0, "No merging"), ('mean', 'Mean'), ('median', 'Median'), ('min', 'Minimum expression'), ('max', 'Maximum expression')]
         labels = [x[1] for x in self.mergeTypes]
         OWGUI.radioButtonsInBox(self.controlArea, self, 'mergeType', labels, box='Merge Replicas', tooltips=None, callback=self.selectionChange)
 
         # postprocessing
         OWGUI.separator(self.controlArea)
-        box = QVGroupBox("Postprocessing", self.controlArea)
+        self.boxPostproc = QVGroupBox("Postprocessing", self.controlArea)
         labels = [x[0] for x in self.std]
-        OWGUI.comboBox(box, self, 'postStdMethod', label=None, labelWidth=None, orientation='vertical', items=labels, callback=self.selectionChange)
-        self.postRobBtn = OWGUI.checkBox(box, self, "postStdRob", "Robust standardization", callback=self.selectionChange)
+        OWGUI.comboBox(self.boxPostproc, self, 'postStdMethod', label=None, labelWidth=None, orientation='vertical', items=labels, callback=self.selectionChange)
+        self.postRobBtn = OWGUI.checkBox(self.boxPostproc, self, "postStdRob", "Robust standardization", callback=self.selectionChange)
 
         # output
         OWGUI.separator(self.controlArea)
@@ -115,19 +115,27 @@ class OWProcessChipData(OWWidget):
             data = self.processArrays(data, self.std[self.preStdMethod][1], self.preStdRob)
         self.progressBarSet(30)
         # merging
-        merged = chipstat.merge_replicas(data, self.mergeTypes[self.mergeType][0])
+        print "self.mergeType", self.mergeType
+        if self.mergeType: data = chipstat.merge_replicas(data, self.mergeTypes[self.mergeType][0])
+##        merged = chipstat.merge_replicas(data, self.mergeTypes[self.mergeType][0])
         self.progressBarSet(70)
         # postprocessing
         if self.postStdMethod: # 0 means no preprocessing
-            merged = self.processArrays(merged, self.std[self.postStdMethod][1], self.preStdRob)
-        for (i,d) in enumerate(merged):
-            d[1][0].name = self.data[i][0]
+            data = self.processArrays(data, self.std[self.postStdMethod][1], self.preStdRob)
+        for i,(strain, etList) in enumerate(data):
+            if len(etList) == len(self.data[i][1]):
+                for j,et in enumerate(etList):
+                    et.name = self.data[i][1][j].name
+            else:
+                for et in etList:
+                    et.name = strain
         self.progressBarFinished()
-        self.send('Structured Chip Data', merged)
+        self.send('Structured Chip Data', data)
             
     def setBtnsState(self):
         self.preRobBtn.setEnabled(self.preStdMethod > 0)
         self.postRobBtn.setEnabled(self.postStdMethod > 0)
+        self.boxPostproc.setEnabled(self.mergeType > 0)
 
 if __name__=="__main__":
     a=QApplication(sys.argv)

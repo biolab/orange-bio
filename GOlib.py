@@ -303,7 +303,7 @@ def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None,
     n = len(clusterSet) ## number of genes in cluster; used in the calculation of the p value
     clSetUniq = []
     for g in clusterSet:
-        if g not in clSeqUniq: clSetUniq.append( g)
+        if g not in clSetUniq: clSetUniq.append( g)
     clusterGenesGOIDdirect, clusterGenesGOIDindirect, clusterGenesGOID = populateGO(clSetUniq, annotation, GO, None, progressBar, progressStart, progressPart / 5.0)
     ## when calculating the p value we use both, the direct and indirect count
     ## but when selecting a node or a subtree we can use the direct and/or indirect

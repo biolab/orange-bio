@@ -287,7 +287,7 @@ def ma2orng_keepClassMetas(arr2d, aExampleTable):
     domClassMeta.addmetas(aExampleTable.domain.getmetas())
     etAtt = orange.ExampleTable(domAtt, arr2d.tolist("?"))
     etClassMeta = orange.ExampleTable(domClassMeta, aExampleTable)
-    return orange.ExampleTable([etAtt, etClassMeta])
+    return orange.ExampleTable(aExampleTable.domain, orange.ExampleTable([etAtt, etClassMeta]))
 
 
 ###################################################################################
