@@ -130,6 +130,7 @@ class OWHeatMap(OWWidget):
         self.fileLB = QListBox(box, "lb")
         self.connect(self.fileLB, SIGNAL("highlighted(int)"), self.fileSelectionChanged)    
         self.tabs.insertTab(self.filesTab, "Files")
+        self.tabs.setTabEnabled(self.filesTab, 0)
         dir = os.path.dirname(__file__) + "../icons/"
         hbox = QHBox(box)
         self.fileUp = self.createButton(hbox, self, 'File Up', icon = QPixmap(dir+'Dlg_send.png'), toggle = 0, callback=lambda i=-1: self.fileOrderChange(i))
@@ -228,6 +229,11 @@ class OWHeatMap(OWWidget):
             self.data.append(data)
             self.fileLB.insertItem(data.name)
 
+        if (self.data <> None and len(self.data) > 1):
+            self.tabs.setTabEnabled(self.filesTab, 1)
+        else:
+            self.tabs.setTabEnabled(self.filesTab, 0)
+            
         self.send('Classified Examples', None)
         self.send('Examples', None)
         self.setMetaCombos() # set the two combo widgets according to the data
