@@ -171,15 +171,13 @@ class OWRules(OWWidget):
                     if DDB in geneList:
                        if DDB not in genesToSend: genesToSend.append( DDB)
                        ne = orange.Example(ndom, e)
-                       motsInRule = []
+                       rule = str(self.table.text(cn, 0))
+                       motsInRule = rule.split(' and ')
                        if multi:
-                           rule = str(self.table.text(cn, 0))
-                           motsInRule = rule.split(' and ')
                            ne.setclass(str(rule))
                        elif self.ShowClosestOther:
-                           rule = str(self.table.text(cn, 0))
-                           motsInRule = rule.split(' and ')
                            ne.setclass(str(rule))
+
                        for mot in motsInRule:
                            if mot not in motifsToSend: motifsToSend.append( mot)
                        nt.append( ne)
