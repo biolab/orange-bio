@@ -218,6 +218,16 @@ class OWHeatMap(OWWidget):
             # should remove the data where necessary
             return
         # check if the same length
+        if data.domain.classVar:
+            domain = self.checkDomain(data)
+            if domain:
+                data = orange.ExampleTable(domain, data)
+                print 'changed!'
+        print 'len=', len(data)
+        if data.domain.classVar:
+            print 'class', len(data.domain.classVar.values)
+        else:
+            print 'no class'
         data.setattr("id", id)
         if len(self.data) and (id in [d.id for d in self.data]):
             for i in range(len(self.data)):
@@ -249,6 +259,30 @@ class OWHeatMap(OWWidget):
             self.heatmapconstructor.append(orange.HeatmapConstructor(self.data[i], self.heatmapconstructor[0]))
         self.createHeatMap()
 
+    # remove unused values from the class of the data set
+    def checkDomain(self, data, selection = None):
+        # Reduce the number of class values, if class is defined
+        cl = clo = data.domain.classVar
+        if cl:
+            if selection:
+                print 'selection'
+                cl = orange.RemoveUnusedValues(cl, selection, removeOneValued = 1)
+                if cl == clo:
+                    print 'same'
+            else:
+                cl = orange.RemoveUnusedValues(cl, data, removeOneValued = 1)
+
+        # Construct a new domain only if the class has changed
+        # (ie to lesser number of values or to one value (alias None))
+        if cl != clo:
+            domain = orange.Domain(data.domain.attributes, cl)
+            metas = data.domain.getmetas()
+            for key in metas:
+                domain.addmeta(key, metas[key])
+            return domain
+        else:
+            return None
+
     # send out the data for selected rows, rows = [(group, from, to), ...]
     def sendData(self, rows):
         ex = []
@@ -257,21 +291,11 @@ class OWHeatMap(OWWidget):
             ex += hm.examples[hm.exampleIndices[s] : hm.exampleIndices[e+1]]
 
         # Reduce the number of class values, if class is defined
-        cl = clo = self.data[0].domain.classVar
-        if cl:
-            cl = orange.RemoveUnusedValues(cl, ex, removeOneValued = 1)
-
-        # Construct a new domain only if the class has changed
-        # (ie to lesser number of values or to one value (alias None))
-        if cl != clo:
-            domain = orange.Domain(self.data[0].domain.attributes, cl)
-            metas = self.data[0].domain.getmetas()
-            for key in metas:
-                domain.addmeta(key, metas[key])
-        else:
-            domain = self.data[0].domain
-
-        selectedData = orange.ExampleTable(domain, ex)
+        newdomain = self.checkDomain(self.data[0], selection=ex)
+        if not newdomain:
+            print 'retain'
+            newdomain = self.data[0].domain
+        selectedData = orange.ExampleTable(newdomain, ex)
         if selectedData.domain.classVar:
             self.send("Classified Examples", selectedData)
         else:
