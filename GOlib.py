@@ -48,6 +48,9 @@ evidenceTypes = {
 'IC': 'inferred by curator'
 }
 
+
+##############################################3
+### GO functions
 ## returns DAG (dictionary) of maxdepth
 def DAGfilterForDepth(dag, node, cdepth):
     filteredDAG = {}
@@ -330,6 +333,266 @@ def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None,
     if progressBar:
         progressBar(progressStart + progressPart)
     return sortedGOIDs, GOtermValues, clusterSet, referenceSet
+##############################################3
+
+
+##############################################3
+### annotation txt to pickle
+## reads in annotation and creates pickle file for GOTermFinder widget
+## usage:
+##   yeast
+##     GOlib.txtAnnotation2pickle('20040210-gene_association.sgd', 'Saccharomyces cerevisiae.annotation')
+##     reads annotation from 20040210-gene_association.sgd and creates a pickle file 'Saccharomyces cerevisiae.annotation'
+##
+##   dicty
+##     GOlib.txtAnnotation2pickle('20040203-gene_association.ddb', 'dID.Dictyostelium discoideum.annotation', forDicty=1)
+def txtAnnotation2pickle(annotationFname, saveAsPickleFname, forDicty=0):
+    GOID2gene = {}
+    gene2GOID = {}
+
+    cn = 0
+    countByEvidenceType = {}
+    countByAspect = {}
+
+    f = open(annotationFname)
+    line = f.readline()
+    while line:
+        line = line.replace('\n', '').replace('\r', '')
+        if line[0] == '!': ## skip comments
+            line = f.readline()
+            continue
+
+        lineSplit = line.split('\t')
+        assert( len(lineSplit) == 15)
+
+        ## description can be found at: http://www.geneontology.org/GO.annotation.html#file
+        DB                = lineSplit[0]
+        DB_Object_ID      = lineSplit[1] ## a unique identifier in DB for the item being annotated 
+
+        DB_Object_Symbol  = lineSplit[2] ## a (unique and valid) symbol to which DB_Object_ID is matched (gene name)
+        if forDicty:
+            DB_Object_Symbol  = DB_Object_ID ## easier for Dicty, where we have RMI->dID
+
+        NOT               = lineSplit[3]
+        GOID              = lineSplit[4]
+        DB_Reference      = lineSplit[5]
+        Evidence          = lineSplit[6]  ## IMP, IGI, IPI, ISS, IDA, IEP, IEA, TAS, NAS, ND, IC 
+        WithORFrom        = lineSplit[7]
+        Aspect            = lineSplit[8]  ## P (biological process), F (molecular function) or C (cellular component)
+        DB_Object_Name    = lineSplit[9]
+        DB_Object_Synonym = lineSplit[10]
+        DB_Object_Type    = lineSplit[11] ## gene, transcript, protein, protein_structure, complex 
+        taxon             = lineSplit[12]
+        Date              = lineSplit[13]
+        Assigned_by       = lineSplit[14]
+
+        if Aspect == 'P':
+            Aspect = 'biological_process'
+        if Aspect == 'F':
+            Aspect = 'molecular_function'
+        if Aspect == 'C':
+            Aspect = 'cellular_component'
+
+        tmpList = GOID2gene.get(GOID, [])
+        tmpList.append( (DB_Object_Symbol, NOT, Evidence, Aspect, DB_Object_Type))
+        GOID2gene[GOID] = tmpList
+
+        tmpList = gene2GOID.get(DB_Object_Symbol, [])
+        tmpList.append( (GOID, NOT, Evidence, Aspect, DB_Object_Type))
+        gene2GOID[DB_Object_Symbol] = tmpList
+
+        ## count
+        tmpcn = countByEvidenceType.get(Evidence, 0)
+        countByEvidenceType[Evidence] = tmpcn + 1
+        tmpcn = countByAspect.get(Aspect, 0)
+        countByAspect[Aspect] = tmpcn + 1
+        cn += 1
+
+        line = f.readline()
+    f.close()
+
+    print "Genes (or gene products) annotated: %d" % (len(gene2GOID.keys()))
+    print "GOIDs with annotation: %d" % (len(GOID2gene.keys()))
+    print
+    print "All annotations: %d " % (cn)
+    print "Annotations by Evidence type:"
+    for (evidenceType, num) in countByEvidenceType.items():
+        print "\t%-3.3s: %d" % (evidenceType, num)
+    print "Annotations by aspect:"
+    for (aspect, num) in countByAspect.items():
+        print "\t%s: %d" % (aspect, num)
+    print
+    print
+
+
+    annotation = {'GOID2gene': GOID2gene, 'gene2GOID': gene2GOID, 'evidenceTypes': evidenceTypes}
+    cPickle.dump(annotation, open(saveAsPickleFname, 'w'))
+    print "saved into", saveAsPickleFname
+
+
+## GO txt to pickle
+## reads in GO and creates three pickle files (one for each aspect) for the GOTermFinder widget
+## it assumes that data is in the dataDir of a certain name
+## usage:
+##     GOlib.txtGO2pickle('200312')
+##
+def txtGO2pickle(GOver = '200312'):
+    exit("forced error - this function is not tested yet")
+    dataDir = './go_' + GOver + '-termdb-tables/'
+
+    ## read in term definitions
+    term = {} ## GOID -> description; to be pickled
+    termIDtoGOID = {} ## temp., needed to parse term2term
+    termRelTypes = {}
+    obsoleteCn = 0
+    obsoleteTerms = []
+
+    f = open(dataDir + 'term.txt')
+    line = f.readline()
+    while line:
+        line = line.replace('\n', '').replace('\r', '')
+        lineSplit = line.split('\t')
+        assert( len(lineSplit) == 6)
+
+        termID = int(lineSplit[0])
+        name = str(lineSplit[1])
+        type = str(lineSplit[2])
+        GOID = str(lineSplit[3])
+        obsolete = int(lineSplit[4])
+        isroot = int(lineSplit[5])
+
+        assert( termIDtoGOID.get(termID, None) == None)
+        termIDtoGOID[termID] = GOID
+
+        if not(obsolete):
+            if type == 'relationship':
+                termRelTypes[termID] = 'name'
+            else:
+                assert( term.get(GOID, None) == None)
+                term[GOID] = (name, type, isroot)
+        else:
+            obsoleteTerms.append(termID)
+            obsoleteCn +=1
+
+        line = f.readline()
+    f.close()
+
+    print "Term definitions:"
+    print "\tread %d term definitons" % (len(term.keys()))
+    print "\tskipped %d obsolete definitions" % (obsoleteCn)
+    print "\tread %d relation type definitions: %s" % (len(termRelTypes.keys()), termRelTypes.items())
+    print
+    print
+
+    ## read in the GO (=term2term relations)
+    GOIDtoGOID = {} ## consists of dictionaries, created from the children of root node ('Gene_Ontology')
+    rGOIDtoGOID = {} ## prepare the "Reverse" GO DAG
+    ## each of the dictionaries is also a dictionary, where for each GO
+    f = open(dataDir + 'term2term.txt')
+    line = f.readline()
+    while line:
+        line = line.replace('\n', '').replace('\r', '')
+        lineSplit = line.split('\t')
+        assert( len(lineSplit) == 4)
+
+        autoInc = int(lineSplit[0])
+        relType = int(lineSplit[1])
+        term1ID = int(lineSplit[2])
+        term2ID = int(lineSplit[3])
+
+        if not(term1ID in obsoleteTerms or term2ID in obsoleteTerms):
+            GOID1 = termIDtoGOID[term1ID]
+            GOID2 = termIDtoGOID[term2ID]
+            term1name, term1IDaspect, term1isroot = term[GOID1] ## get the aspect
+            term2name, term2IDaspect, term2isroot = term[GOID2] ## get the aspect
+
+            if term1name == term1IDaspect:
+                GOID1 = 'root'
+
+            if term1isroot:
+                assert( not(term2isroot))
+                assert( GOIDtoGOID.get(term2name, None) == None)
+                GOIDtoGOID[term2name] = {}
+                rGOIDtoGOID[term2name] = {}
+            else:
+                assert( term1IDaspect == term2IDaspect) ## should be in same aspect
+                childrenList = GOIDtoGOID[term1IDaspect].get(GOID1, [])
+                childrenList.append( (GOID2, relType))
+                GOIDtoGOID[term1IDaspect][GOID1] = childrenList
+
+        line = f.readline()
+    f.close()
+
+    ## build the "Reverse" GOIDtoGOID by reading the transitive closure of in reverse (switching parent and child nodes)
+    f = open(dataDir + 'graph_path.txt')
+    line = f.readline()
+    while line:
+        line = line.replace('\n', '').replace('\r', '')
+        lineSplit = line.split('\t')
+        assert( len(lineSplit) == 4)
+
+        autoInc = int(lineSplit[0])
+        term1ID = int(lineSplit[1])
+        term2ID = int(lineSplit[2])
+        distance = int(lineSplit[3])
+
+        if distance > 0 and term1ID <> term2ID and not(term1ID in obsoleteTerms or term2ID in obsoleteTerms):
+            GOID1 = termIDtoGOID[term1ID]
+            GOID2 = termIDtoGOID[term2ID]
+            term1name, term1IDaspect, term1isroot = term[GOID1] ## get the aspect
+            term2name, term2IDaspect, term2isroot = term[GOID2] ## get the aspect
+
+            if term1name == term1IDaspect:
+                GOID1 = 'root'
+
+            if term1isroot:
+                line = f.readline()
+                continue
+
+            assert( term1IDaspect == term2IDaspect) ## should be in same aspect
+            parentList = rGOIDtoGOID[term1IDaspect].get(GOID2, [])
+            if GOID1 not in parentList:
+                parentList.append( GOID1)
+            rGOIDtoGOID[term1IDaspect][GOID2] = parentList
+
+        line = f.readline()
+    f.close()
+
+
+    print "GO read:"
+
+    for aspect in GOIDtoGOID.keys():
+        print "\t%d %s nodes" % (len(GOIDtoGOID[aspect].keys()), aspect)
+        print "\t%d %s nodes in reverse GO" % (len(rGOIDtoGOID[aspect].keys()), aspect)
+        GO = {'aspect': aspect, 'term': term, 'relationTypes': termRelTypes, 'GO': GOIDtoGOID[aspect], 'rGO': rGOIDtoGOID[aspect]}
+        fname = GOver + '-' + aspect + '.go'
+        cPickle.dump(GO, open(fname, 'w'))
+    print
+    print
+
+    ## test the reverse GOIDtoGOID
+    errors = 0
+    print "testing reverse GO"
+    for (aspect, GO) in GOIDtoGOID.items():
+        for (GOIDparent, lst) in GO.items():
+            for (GOIDchild, relType) in lst:
+                try:
+                    assert( GOIDparent in rGOIDtoGOID[aspect][GOIDchild])
+                except:
+                    errors = 1
+                    print "error in aspect:", aspect
+                    print "\tparent GO:", GOIDparent, term[GOIDparent]
+                    print "\tchild GO:", GOIDchild, term[GOIDchild]
+                    print "\tchild's parent list:", rGOIDtoGOID[aspect][GOIDchild]
+                    print
+                    print
+    if errors:
+        print "some errors in the reverse GO!"
+    print
+
+
+##############################################3
+
 
 
 if __name__=="__main__":
@@ -377,4 +640,6 @@ if __name__=="__main__":
     fDAG = DAGfilterForDepth(DAG, 'root', 1000)
     print "fDAG:", fDAG
     printDAG(fDAG, testGO['term'], GOtermValues.keys(), sigGOIDs)
+
+
 
