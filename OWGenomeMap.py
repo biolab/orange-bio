@@ -36,6 +36,7 @@ class OWGenomeMap(OWWidget):
         self.classColors = []
         self.loadChromosomeDefinitions()
         self.data = None
+        self.mid = orange.newmetaid() # meta id for a marker if a gene has a known position
         self.graph = ChromosomeGraph(self, self.chrom)
         
         # inputs and outputs
@@ -63,24 +64,25 @@ class OWGenomeMap(OWWidget):
         id2desc = {}
         for d in self.chromData:
             if int(d['start']) == 0:
-                self.chrom.append((int(d['start']), int(d['stop']), int(d['chromosome']), str(d['RMI'])))
+                self.chrom.append((int(d['start']), int(d['stop']), int(d['chromosome']), str(d['DDB'])))
                 id2desc[int(d['chromosome'])] = len(self.chrom)-1
             else:
-                self.geneCoordinates[str(d['RMI'])] = (int(d['start']), int(d['stop']), id2desc[int(d['chromosome'])] )
+                self.geneCoordinates[str(d['DDB'])] = (int(d['start']), int(d['stop']), id2desc[int(d['chromosome'])] )
 
     def dataset(self, data):
         self.data = data
 
-        if self.data:        
+        if self.data:
+            mid = self.mid
             ### XXX issue a warning if not found
             found = 0
             metas = self.data.domain.getmetas()
             for rmiIndx in metas.keys():
-                if metas[rmiIndx].name == 'RMI':
+                if metas[rmiIndx].name == 'DDB':
                     found = 1
                     break
             if not found:
-                print 'XXX warning: RMI not found in data set'
+                print 'XXX warning: DDB not found in data set'
                 return
 
             coord = self.geneCoordinates
@@ -88,11 +90,13 @@ class OWGenomeMap(OWWidget):
             if self.data:
                 for (i,d) in enumerate(data):
     ##                rmi = str(d.getmeta(rmiIndx))    # XXX change to this once bug is removed
-                    rmi = str(d['RMI'])
+                    rmi = str(d['DDB'])
                     if coord.has_key(rmi):
                         self.coord[i] = coord[rmi]
+                        d[mid] = 1
                     else:
                         ### XXX issue a warning
+                        d[mid] = 0
                         print 'no key for', rmi
             else:
                 pass
@@ -206,11 +210,14 @@ class ChromosomeGraph(QCanvas):
 
     # paint the genes
     def paintGenes(self):
+        mid = self.parent.mid
         if not self.parent.data: return
         lborder, rborder = xoffset, self.width()-xoffset
         colorclass = self.parent.data.domain.classVar and self.parent.ColorByClass
         colors = self.parent.classColors
         for (i,d) in enumerate(self.parent.data):
+            if not int(d[mid]):
+                continue # position not known for this gene
             coord = self.parent.coord[i]
             if not(coord[0]>self.bpR or coord[1]<self.bpL):  # is gene in the visible area of the chromosome?
                 l, r = max(coord[0], self.bpL),  min(coord[1], self.bpR)
@@ -434,7 +441,8 @@ if __name__=="__main__":
     a=QApplication(sys.argv)
     ow=OWGenomeMap()
     a.setMainWidget(ow)
-    data = orange.ExampleTable("wtclassed.tab")
+#    data = orange.ExampleTable("wtclassed.tab")
+    data = orange.ExampleTable("hj.tab")
     ow.show()
     ow.dataset(data)
     a.exec_loop()
