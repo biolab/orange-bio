@@ -13,7 +13,7 @@ from OWChipANOVA import ANOVAResults, GeneSelection
 import chipstat
 
 class OWChipPostHocANOVA(OWWidget):
-    settingsList  = ['commitOnChange', 'f1', 'f2', 'p1', 'p2', 'p3', 'filter1', 'filter2', 'filter3', 'selectorName', 'updateSelectorName']
+    settingsList  = ['commitOnChange', 'f1', 'f2', 'p1', 'p2', 'p3', 'filter1', 'filter2', 'filter3', 'selectorName', 'updateSelectorName', 'useBonf']
 
     def __init__(self, parent=None, name='ANOVA on Chip Data'):
         OWWidget.__init__(self, parent, name, "ANOVA on chip data (strains, replicas).")
@@ -25,10 +25,11 @@ class OWChipPostHocANOVA(OWWidget):
         self.commitOnChange = 0
         self.anova = None
 
-        self.p1, self.p2, self.p3 = (2, 2, 2)
-        self.filter1, self.filter2, self.filter3 = (1, 0, 0)
+        self.p1, self.p2, self.p3 = (3, 3, 3)
+        self.filter1, self.filter2, self.filter3 = (0, 1, 1)
         self.f1 = None; self.f2 = None
         self.selectorName = "PostHoc Test"; self.updateSelectorName = 1
+        self.useBonf = 1
         # Settings
         self.loadSettings()
         self.ps = None
@@ -42,18 +43,22 @@ class OWChipPostHocANOVA(OWWidget):
         OWGUI.separator(self.controlArea)
 
         # factors
-        box = QVGroupBox("Factors", self.controlArea)
-        self.f1Combo = OWGUI.comboBox(box, self, 'f1', sendSelectedValue=1, callback=[self.setFactorCombos, self.analysis], label="First:", labelWidth=50, orientation="horizontal")
+        self.pvals = [0.0001, 0.001, 0.01, 0.05, 0.1, 0.2, 0.5]
+        self.factorsBox = QVGroupBox("Factors", self.controlArea)
+##        self.f1Combo = OWGUI.comboBox(self.factorsBox, self, 'f1', sendSelectedValue=1, callback=[self.setFactorCombos, self.analysis], label="First:", labelWidth=50, orientation="horizontal")
+        self.f1Combo = OWGUI.comboBox(self.factorsBox, self, 'f1', sendSelectedValue=1, callback=[self.setF1Combo, self.setF2Combo, self.analysis], label="First:", labelWidth=50, orientation="horizontal")
         self.f1Combo.setDisabled(1)
-        self.f2Combo = OWGUI.comboBox(box, self, 'f2', sendSelectedValue=1, callback=[self.setFactorCombos, self.analysis], label="Second:", labelWidth=50, orientation="horizontal")
+##        self.f2Combo = OWGUI.comboBox(self.factorsBox, self, 'f2', sendSelectedValue=1, callback=[self.setFactorCombos, self.analysis], label="Second:", labelWidth=50, orientation="horizontal")
+        self.f2Combo = OWGUI.comboBox(self.factorsBox, self, 'f2', sendSelectedValue=1, callback=[self.setF2Combo, self.setF1Combo, self.analysis], label="Second:", labelWidth=50, orientation="horizontal")
         self.f2Combo.setDisabled(1)
+        self.cbBonf = OWGUI.checkBox(self.factorsBox, self, "useBonf", "Use Bonferroni correction", callback=self.geneselectionall)
+        self.factorsBox.setDisabled(1)
 
         # gene selection
         self.selectionBox = QVGroupBox("Gene Selection", self.controlArea)
         self.factors = [('First factor (time)', 'p1', 'filter1'),
                    ('Second factor (strain)', 'p2', 'filter2'),
                    ('Interaction factor (time*strain)', 'p3', 'filter3')]
-        self.pvals = [0.0001, 0.001, 0.01, 0.05, 0.1, 0.2, 0.5]
 
         self.numgenes = []
         for i in range(3):
@@ -78,33 +83,62 @@ class OWChipPostHocANOVA(OWWidget):
 
         self.resize(200,100)
 
-    def setFactorCombos(self):
+##    def setFactorCombos(self):
+##
+##        def setOneCombo(combo, exclude):
+##            combo.clear()
+##            labels = [x for x in self.anova.classNames]
+##            if exclude in self.anova.classNames:
+##                labels.remove(exclude)
+##            for l in labels:
+##                combo.insertItem(l)
+##
+##        items = self.anova.classNames
+##        if not self.f1 in items:
+##            self.f1 = items[items[0]==self.f2]
+##        if not self.f2 in items:
+##            self.f2 = items[items[0]==self.f2]
+##
+##        setOneCombo(self.f1Combo, self.f2)
+##        setOneCombo(self.f2Combo, self.f1)
+##        self.f1 = self.f1 # this looks stupid, but it's not:
+##        self.f2 = self.f2 # it sets the right item to the combo boxes
 
-        def setOneCombo(combo, exclude):
-            combo.clear()
-            labels = [x for x in self.anova.classNames]
-            if exclude in self.anova.classNames:
-                labels.remove(exclude)
-            for l in labels:
-                combo.insertItem(l)
+    def setF1Combo(self):
+        self.f1Combo.clear()
+        labels = list(self.anova.classNames)
+        if self.f2 in labels:
+            labels.remove(self.f2)
+        for l in labels:
+            self.f1Combo.insertItem(l)
+        if not self.f1 in labels:
+            self.f1Combo.setCurrentItem(0)
+            self.f1 = labels[0]
+        else:
+            self.f1Combo.setCurrentItem(labels.index(self.f1))
 
-        items = self.anova.classNames
-        if not self.f1 in items:
-            self.f1 = items[items[0]==self.f2]
-        if not self.f2 in items:
-            self.f2 = items[items[0]==self.f2]
-
-        setOneCombo(self.f1Combo, self.f2)
-        setOneCombo(self.f2Combo, self.f1)
-        self.f1 = self.f1 # this looks stupid, but it's not:
-        self.f2 = self.f2 # it sets the right item to the combo boxes
-
+    def setF2Combo(self):
+        self.f2Combo.clear()
+        labels = list(self.anova.classNames)
+        if self.f1 in labels:
+            labels.remove(self.f1)
+        for l in labels:
+            self.f2Combo.insertItem(l)
+        if not self.f2 in labels:
+            self.f2Combo.setCurrentItem(0)
+            self.f2 = labels[0]
+        else:
+            self.f2Combo.setCurrentItem(labels.index(self.f2))
+        
     def anovaresults(self, anova):
         self.anova = anova
         self.selectionBox.setEnabled(anova <> None)
+        self.factorsBox.setEnabled(anova <> None)
         self.commitBtn.setEnabled(anova <> None)
         if anova:
-            self.setFactorCombos()
+##            self.setFactorCombos()
+            self.setF1Combo()
+            self.setF2Combo()
             self.f1Combo.setEnabled(1)
             self.f2Combo.setEnabled(1)
             self.analysis(commit=1)
@@ -115,8 +149,15 @@ class OWChipPostHocANOVA(OWWidget):
             self.f1Combo.setDisabled(1)
         
 
-    def geneselection(self, indx, commit=0):            
+    def geneselectionall(self, commit=0):
+        self.geneselection(0,0)
+        self.geneselection(1,0)
+        self.geneselection(2,commit)
+
+    def geneselection(self, indx, commit=0):
         margin = self.pvals[getattr(self, self.factors[indx][1])]
+        if self.cbBonf.isChecked() and self.anova != None:
+            margin /= len(self.anova.classNames)*1.
         p = [x[indx] for x in self.ps]
         n = len(filter(lambda x: x<margin, p))
         self.numgenes[indx].setText('  (%d %s)' % (n, ['genes', 'gene'][n==1]))
@@ -146,8 +187,9 @@ class OWChipPostHocANOVA(OWWidget):
         self.ps = chipstat.posthoc_anova_on_genes(self.f1, self.f2, self.anova, callback=lambda: self.progressBarAdvance(pbStep))
         self.progressBarSet(90)
         self.selection = [None]*3
-        for indx in range(3):
-            self.geneselection(indx, commit=1)
+##        for indx in range(3):
+##            self.geneselection(indx, commit=1)
+        self.geneselectionall(commit=1)
         self.progressBarFinished()
 
     def senddata(self):
