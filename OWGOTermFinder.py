@@ -143,8 +143,8 @@ class OWGOTermFinder(OWWidget):
         self.tabs.insertTab(self.inputTab, "Input")
 
         # FILTER TAB
-        filterTab = QVGroupBox(self)
-        box = QVButtonGroup("Filter GO Term Nodes", filterTab)
+        self.filterTab = QVGroupBox(self)
+        box = QVButtonGroup("Filter GO Term Nodes", self.filterTab)
         #
         OWGUI.checkBox(box, self, 'FilterNumEnabled', "Number of instances", callback=self.setFilterNumEnabled)
         self.sliderFilterNumValue = OWGUI.qwtHSlider(box, self, 'FilterNumValue', label='#:', labelWidth=33, minValue=1, maxValue=1000, step=1.0, precision=1, ticks=0, maxWidth=80, callback=self.runFilters)
@@ -160,15 +160,15 @@ class OWGOTermFinder(OWWidget):
         self.sliderFilterDepthValue = OWGUI.qwtHSlider(box, self, 'FilterDepthValue', label='p:', labelWidth=33, minValue=0.0, maxValue=100, step=1.0, precision=1.0, ticks=0, maxWidth=80, callback=self.runFilters)
         if not self.FilterDepthEnabled:
             self.sliderFilterDepthValue.box.setDisabled(1)
-        self.tabs.insertTab(filterTab, "Filter")
+        self.tabs.insertTab(self.filterTab, "Filter")
 
         # SELECT TAB
-        selectTab = QVGroupBox(self)
-        OWGUI.radioButtonsInBox(selectTab, self, 'SelectMode', ['Subgraph', 'Node specific'], box='Mode', callback=self.viewSelectionChanged)
-        box = QVButtonGroup('Output', selectTab)
+        self.selectTab = QVGroupBox(self)
+        OWGUI.radioButtonsInBox(self.selectTab, self, 'SelectMode', ['Subgraph', 'Node specific'], box='Mode', callback=self.viewSelectionChanged)
+        box = QVButtonGroup('Output', self.selectTab)
         OWGUI.checkBox(box, self, 'SelectDisjoint', 'Disjoint/Inclusive', callback=self.viewSelectionChanged)
         OWGUI.checkBox(box, self, 'AddGOclass', 'Add GO term as new class', callback=self.viewSelectionChanged)
-        self.tabs.insertTab(selectTab, "Select")
+        self.tabs.insertTab(self.selectTab, "Select")
 
         # ListView for DAG, and table for significant GOIDs
         self.DAGcolumns = ['GO term', 'Cluster frequency', 'Reference frequency', 'p value', 'Genes']
@@ -425,11 +425,14 @@ class OWGOTermFinder(OWWidget):
                     if GOterm not in tmpl:
                         tmpl.append(GOterm)
                         geneToGOterm[gene] = tmpl
+        self.sendSelectedGenesData(geneToGOterm, allGOterms)
+
+    def sendSelectedGenesData(self, gtg, agot):
         if self.clusterData:
             # class value; GO terms
             # new domain
             if self.AddGOclass:
-                newclass = orange.EnumVariable("GO class", values=allGOterms)
+                newclass = orange.EnumVariable("GO class", values=agot)
                 newdomain = orange.Domain( self.clusterData.domain, newclass)
             else:
                 newdomain = orange.Domain( self.clusterData.domain)
@@ -440,7 +443,7 @@ class OWGOTermFinder(OWWidget):
             newdata = orange.ExampleTable(newdomain)
             for e in self.clusterData:
                 g = str(e[self.geneIDattr])
-                geneTermList = geneToGOterm.get(g, [])
+                geneTermList = gtg.get(g, [])
                 if self.SelectDisjoint and len(geneTermList) > 1: ## this gene should be omitted, because belongs to many GOterms
                     continue
                 for goterm in geneTermList:
