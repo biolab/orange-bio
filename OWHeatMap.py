@@ -68,17 +68,17 @@ class OWHeatMap(OWWidget):
         # SETTINGS TAB
         settingsTab = QVGroupBox(self)
         box = QVButtonGroup("Cell Size (Pixels)", settingsTab)
-        OWGUI.qwtHSlider(box, self, "CellWidth", label='Width: ', labelWidth=38, minValue=1, maxValue=self.maxHSize, step=1, precision=0, callback=self.createHeatMap)
+        OWGUI.qwtHSlider(box, self, "CellWidth", label='Width: ', labelWidth=38, minValue=1, maxValue=self.maxHSize, step=1, precision=0, callback=self.drawHeatMap)
         self.sliderVSize = OWGUI.qwtHSlider(box, self, "CellHeight", label='Height: ', labelWidth=38, minValue=1, maxValue=self.maxVSize, step=1, precision=0, callback=self.createHeatMap)
-        OWGUI.qwtHSlider(settingsTab, self, "Gamma", box="Gamma", minValue=0.1, maxValue=1, step=0.1, callback=self.createHeatMap)
+        OWGUI.qwtHSlider(settingsTab, self, "Gamma", box="Gamma", minValue=0.1, maxValue=1, step=0.1, callback=self.drawHeatMap)
 
         # define the color stripe to show the current palette
         colorItems = [self.createColorStripe(i) for i in range(len(self.ColorPalettes))]
         OWGUI.comboBox(settingsTab, self, "CurrentPalette", box="Colors", items=colorItems, tooltip=None, callback=self.setColor)
 
         box = QVButtonGroup("Annotations", settingsTab)
-        OWGUI.checkOnly(box, self, 'Legend (top)', 'LegendOnTop', callback=self.createHeatMap)
-        OWGUI.checkOnly(box, self, 'Stripes with averages', 'ShowAverageStripe', callback=self.createHeatMap)
+        OWGUI.checkOnly(box, self, 'Legend (top)', 'LegendOnTop', callback=self.drawHeatMap)
+        OWGUI.checkOnly(box, self, 'Stripes with averages', 'ShowAverageStripe', callback=self.drawHeatMap)
         
         self.tabs.insertTab(settingsTab, "Settings")
 
@@ -86,8 +86,8 @@ class OWHeatMap(OWWidget):
         tab = QVGroupBox(self)
         box = QVButtonGroup("Treshold Values", tab)
         OWGUI.checkOnly(box, self, "Enabled", 'CutEnabled', callback=self.setCutEnabled)
-        self.sliderCutLow = OWGUI.qwtHSlider(box, self, 'CutLow', label='Low:', labelWidth=33, minValue=-100, maxValue=0, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.createHeatMap)
-        self.sliderCutHigh = OWGUI.qwtHSlider(box, self, 'CutHigh', label='High:', labelWidth=33, minValue=0, maxValue=100, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.createHeatMap)
+        self.sliderCutLow = OWGUI.qwtHSlider(box, self, 'CutLow', label='Low:', labelWidth=33, minValue=-100, maxValue=0, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.drawHeatMap)
+        self.sliderCutHigh = OWGUI.qwtHSlider(box, self, 'CutHigh', label='High:', labelWidth=33, minValue=0, maxValue=100, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.drawHeatMap)
         if not self.CutEnabled:
             self.sliderCutLow.box.setDisabled(1)
             self.sliderCutHigh.box.setDisabled(1)
@@ -170,22 +170,19 @@ class OWHeatMap(OWWidget):
             return
         self.data = data
 
-        # figure out the max in min value of expression
+        # this is only to check, once bug is removed: remove
         bs = orange.DomainBasicAttrStat(self.data)
         minVal = min([bs[x].min for x in self.data.domain.attributes])
         maxVal = max([bs[x].max for x in self.data.domain.attributes])
-        #self.sliderCutLow.setScale(minVal, 0)
-        self.sliderCutLow.setRange(minVal, 0, 0.1)
-        self.sliderCutHigh.setRange(0, maxVal, 0.1)
-        changed = 0
-        if minVal > self.CutLow:
-            self.CutLow = minValue
-            changed = 1
-        if maxVal < self.CutLow:
-            self.CutLow = maxValue
-            changed = 1
-        self.sliderCutLow.setValue(self.CutLow)
-        self.sliderCutHigh.setValue(self.CutHigh)
+        print 'mmm', minVal, maxVal
+##        self.sliderCutLow.setRange(minVal, 0, 0.1)
+##        self.sliderCutHigh.setRange(0.0001, maxVal, 0.1)
+##        if minVal > self.CutLow:
+##            self.CutLow = minValue
+##        if maxVal < self.CutLow:
+##            self.CutLow = maxValue
+##        self.sliderCutLow.setValue(self.CutLow)
+##        self.sliderCutHigh.setValue(self.CutHigh)
         
         self.heatmapconstructor = orange.HeatmapConstructor(self.data)
         self.createHeatMap()
@@ -210,12 +207,12 @@ class OWHeatMap(OWWidget):
             # put a code here that allows to define ones own colors
         else:
             pm = self.createColorStripe(self.CurrentPalette)
-            self.createHeatMap()
+            self.drawHeatMap()
 
     def setCutEnabled(self):
         self.sliderCutLow.box.setDisabled(not self.CutEnabled)
         self.sliderCutHigh.box.setDisabled(not self.CutEnabled)
-        self.createHeatMap()
+        self.drawHeatMap()
 
     def mergeChanged(self):
         self.oldMerge = self.savedMerge
@@ -307,9 +304,16 @@ class OWHeatMap(OWWidget):
     def createHeatMap(self):
         merge = min(self.Merge, float(len(self.data)))
         squeeze = 1. / merge
-        print 'enter sss', squeeze
         self.heatmaps, self.lowerBound, self.upperBound = self.heatmapconstructor(squeeze)
-        print 'exit sss', self.data
+        print 'bbb', self.lowerBound, self.upperBound
+
+        self.sliderCutLow.setRange(self.lowerBound, 0, 0.1)
+        self.sliderCutHigh.setRange(1e-10, self.upperBound, 0.1)
+        self.CutLow = max(self.CutLow, self.lowerBound)
+        self.CutHigh = min(self.CutHigh, self.upperBound)
+        self.sliderCutLow.setValue(self.CutLow)
+        self.sliderCutHigh.setValue(self.CutHigh)
+        
         self.drawHeatMap()
 
 ##################################################################################################
@@ -618,8 +622,8 @@ if __name__=="__main__":
     a.setMainWidget(ow)
 
 ##    data = orange.ExampleTable('wt-large')
-##    data = orange.ExampleTable('wt')
-    d = orange.ExampleTable('wtclassed')
+    d = orange.ExampleTable('wt')
+##    d = orange.ExampleTable('wtclassed')
     ow.dataset(d)
     ow.show()
     a.exec_loop()
