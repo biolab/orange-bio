@@ -221,7 +221,6 @@ class OWHeatMap(OWWidget):
 
     def dataset(self, data, id):
         ids = [d.id for d in self.data]
-        print 'GOT', id, 'PREV', ids
         if not data:
             if id in ids:
                 k = ids.index(id)
@@ -239,8 +238,6 @@ class OWHeatMap(OWWidget):
                     data = orange.ExampleTable(domain, data)
             data.setattr("id", id)
             if id in ids:
-                print 'REPLACE ID'
-                data.id = id
                 indx = ids.index(id)
                 self.data[indx] = data
                 self.fileLB.changeItem(self.createListItem(data.name, indx), indx)
@@ -326,7 +323,7 @@ class OWHeatMap(OWWidget):
             newdomain = self.data[0].domain
         selectedData = orange.ExampleTable(newdomain, ex)
         if selectedData.domain.classVar:
-            self.send("Classified Examples", selectedData)
+            self.send("Classified Examples", selectedData, 1)
         else:
             self.send("Classified Examples", None)
         self.send("Examples", selectedData, 1)
