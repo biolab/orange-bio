@@ -1,7 +1,6 @@
 """
 <name>Process Chip Data</name>
 <description>Pre- and post-processing of chip data.</description>
-<category>Genomics</category>
 <icon>icons/ProcessChipData.png</icon>
 <priority>1110</priority>
 """
@@ -14,8 +13,8 @@ import chipstat
 class OWProcessChipData(OWWidget):
     settingsList  = ["preStdMethod", "postStdMethod", "preStdRob", "postStdRob", "mergeType", "commitOnChange"]
 
-    def __init__(self, parent=None, name='Process Chip Data'):
-        OWWidget.__init__(self, parent, name, "Process Chip Data pre- and post-processes chip data.")
+    def __init__(self, parent=None):
+        OWWidget.__init__(self, parent, 'Process Chip Data')
         self.callbackDeposit = []
 
         self.inputs = [("Structured Chip Data", ChipData, self.chipdata)]

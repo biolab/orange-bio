@@ -1,7 +1,6 @@
 """
 <name>Post Hoc ANOVA on Chip Data</name>
 <description>Post Hoc ANOVA on chip data (strains, replicas).</description>
-<category>Genomics</category>
 <icon>icons/ChipPostHocANOVA.png</icon>
 <priority>1130</priority>
 """
@@ -15,11 +14,11 @@ import chipstat
 class OWChipPostHocANOVA(OWWidget):
     settingsList  = ['commitOnChange', 'f1', 'f2', 'p1', 'p2', 'p3', 'filter1', 'filter2', 'filter3', 'selectorName', 'updateSelectorName', 'useBonf']
 
-    def __init__(self, parent=None, name='ANOVA on Chip Data'):
-        OWWidget.__init__(self, parent, name, "ANOVA on chip data (strains, replicas).")
+    def __init__(self, parent=None):
+        OWWidget.__init__(self, parent, 'ANOVA on Chip Data')
         self.callbackDeposit = []
 
-        self.inputs = [("Results of ANOVA", ANOVAResults, self.anovaresults, 1)]
+        self.inputs = [("Results of ANOVA", ANOVAResults, self.anovaresults)]
         self.outputs = [("PostHoc Gene Selection", GeneSelection)]
 
         self.commitOnChange = 0

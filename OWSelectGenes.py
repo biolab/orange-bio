@@ -1,7 +1,6 @@
 """
 <name>Select Genes</name>
 <description>Select genes from chip based on input selectors.</description>
-<category>Genomics</category>
 <icon>icons/SelectGenes.png</icon>
 <priority>1150</priority>
 """
@@ -16,11 +15,11 @@ import chipstat
 class OWSelectGenes(OWWidget):
     settingsList  = ['negate', 'commitOnChange']
 
-    def __init__(self, parent=None, name='Select Genes'):
-        OWWidget.__init__(self, parent, name, "Select genes from chip based on input selectors")
+    def __init__(self, parent=None):
+        OWWidget.__init__(self, parent, 'Select Genes')
         self.callbackDeposit = []
 
-        self.inputs = [("Gene Selection", GeneSelection, self.loadselection, 0), ("Structured Chip Data", ChipData, self.chipdata, 1)]
+        self.inputs = [("Gene Selection", GeneSelection, self.loadselection, 0), ("Structured Chip Data", ChipData, self.chipdata)]
         self.outputs = [("Gene Selection", GeneSelection), ("Selected Data", ChipData), ("Other Data", ChipData)]
 
         self.negate = 0

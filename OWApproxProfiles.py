@@ -1,7 +1,6 @@
 """
 <name>Approximate Profiles</name>
 <description>Approximation of expression profiles by various kernel functions.</description>
-<category>Genomics</category>
 <icon>icons/Unknown.png</icon>
 <priority>310</priority>
 """
@@ -19,7 +18,7 @@ class OWApproxProfiles(OWWidget):
 
     def __init__(self, parent=None, name='Approximate Profiles'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, name, "Approximation of expression profiles by various kernel functions.")
+        OWWidget.__init__(self, parent, name)
 
         self._data = None       # exampleTable
         self._dataN = None      # 2d numeric array

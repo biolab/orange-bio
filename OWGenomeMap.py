@@ -1,7 +1,6 @@
 """
 <name>Genome Map</name>
 <description>Shows the locations of genes.</description>
-<category>Genomics</category>
 <icon>icons/GenomeMap.png</icon>
 <priority>200</priority>
 """
@@ -35,8 +34,8 @@ zchrom = 100; zchrombb=110; zgenes = 50; zticks = 40; zsel=10
 class OWGenomeMap(OWWidget):
     settingsList = ["MinGeneWidth", "ShowTicks", "ColorByClass", "RecentGenomeMaps"]
 
-    def __init__(self, parent=None, name='GenomeMap'):
-        OWWidget.__init__(self, parent, name, "Shows the locations of genes on the chromosomes.")
+    def __init__(self, parent=None):
+        OWWidget.__init__(self, parent, 'GenomeMap')
         self.setWFlags(Qt.WResizeNoErase | Qt.WRepaintNoErase) #this works like magic.. no flicker during repaint!
         self.parent = parent        
 
@@ -74,7 +73,7 @@ class OWGenomeMap(OWWidget):
         self.graph = ChromosomeGraph(self)
 
         # inputs and outputs
-        self.inputs=[("Examples", ExampleTable, self.dataset, 1)]
+        self.inputs=[("Examples", ExampleTable, self.dataset)]
         self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
 
         # GUI definition

@@ -1,7 +1,6 @@
 """
 <name>Expression Profiles</name>
 <description>Displays gene expression profiles.</description>
-<category>Genomics</category>
 <icon>icons/ExpressionProfiles.png</icon>
 <priority>10</priority>
 """
@@ -359,9 +358,9 @@ class profilesGraph(OWGraph):
 
 class OWDisplayProfiles(OWWidget):
     settingsList = ["PointWidth", "CurveWidth", "AverageCurveWidth", "BoxPlotWidth", "ShowAverageProfile", "ShowSingleProfiles"]
-    def __init__(self,parent=None, name='Expression Profiles'):
+    def __init__(self, parent=None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, name, """None.""", FALSE, TRUE)
+        OWWidget.__init__(self, parent, 'Expression Profiles', 1)
 
         #set default settings
         self.ShowAverageProfile = 1

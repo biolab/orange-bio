@@ -25,11 +25,11 @@ circleR = (canvasW - 2 * canvasB)/2.
 # main class
 
 class OWEpistasisAnalysis(OWWidget):	
-    settingsList = []
+    settingsList = ['distype']
 
-    def __init__(self, parent=None, name='Epistasis Analysis'):
+    def __init__(self, parent=None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, name, 'Epistasis Analysis', FALSE, FALSE) 
+        OWWidget.__init__(self, parent, 'Epistasis Analysis') 
         
         self.inputs = [("Examples", ExampleTable, self.dataset, 0), ("Structured Chip Data", ChipData, self.chipdata, 1)]
         self.outputs = [("Gene Selection", GeneSelection), ("Examples AB", ExampleTable), ("Examples BA", ExampleTable), ("Examples Parallel", ExampleTable)]
@@ -38,6 +38,7 @@ class OWEpistasisAnalysis(OWWidget):
         self.selectedFile = None
         self.A, self.B, self.AB = (None, None, None)
         self.epiA, self.epiB, self.para = (0, 0, 0)
+        self.distype = 0
         #set default settings
         self.loadSettings()
 
@@ -66,6 +67,8 @@ class OWEpistasisAnalysis(OWWidget):
         self.infochi = QLabel(self.sbox, '')
         self.sbox.setDisabled(1)
 
+        OWGUI.radioButtonsInBox(self.controlArea, self, "distype", ["Average By Gene", "Average By Measurement"], box="Distance", tooltips=None, callback=self.analysis)
+
         # canvas
         self.canvas = QCanvas()
         self.layout = QVBoxLayout(self.mainArea)
@@ -73,7 +76,7 @@ class OWEpistasisAnalysis(OWWidget):
         self.canvas.resize(canvasW, canvasW)
         self.layout.add(self.canvasView)
 
-        self.resize(420,250)
+        self.resize(420,350)
 
     ##########################################################################
     # handling of input/output signals
@@ -168,6 +171,8 @@ class OWEpistasisAnalysis(OWWidget):
     ##########################################################################
     # epistasis analysis
 
+    import math
+
     def analysis(self):
         markers = [d.marker for d in self.data]
         if len(filter(lambda x: x<>None, markers)) < 3:
@@ -179,7 +184,7 @@ class OWEpistasisAnalysis(OWWidget):
         self.sbox.setEnabled(1)
 
         pa, pb, pab = [self.data[markers.index(x)] for x in range(3)]
-        dist = orange.ExamplesDistanceConstructor_Euclidean(pa)
+        dist = orange.ExamplesDistanceConstructor_Euclidean(pa, normalize=0)
 
         ave = [0]*3
         vote = [0]*3
@@ -189,9 +194,15 @@ class OWEpistasisAnalysis(OWWidget):
             voteindx = d.index(min(d))
             vote[voteindx] += 1
             genevote.append(voteindx)
+            if self.distype==1:
+                for i in range(3):
+                    d[i] = d[i] * d[i]
             for i in range(3):
                 ave[i] += d[i]
-        ave = [x/len(pa) for x in ave]
+        if self.distype==1:
+            ave = [math.sqrt(x)/len(pa) for x in ave]
+        else:
+            ave = [x/len(pa) for x in ave]
 
         # compute Chi^2 statistics,
         # update the interface (report on results)
@@ -225,7 +236,6 @@ class OWEpistasisAnalysis(OWWidget):
         for i in self.canvas.allItems():
             i.setCanvas(None)
 
-        print ds
         s = sum(ds)/2.
         K = math.sqrt( s * reduce(lambda x,y: x*y, map(lambda x: s-x, ds)) )
         R = reduce(lambda x,y: x*y, ds) / (4 * K)
@@ -271,7 +281,6 @@ class OWEpistasisAnalysis(OWWidget):
             for i in range(3):
                 d = datasets[i].select(genevotes, key)
                 d.name = datasets[i].name
-                print 'sss', len(d)
                 self.send(channel, d, i)
         markers = [d.marker for d in self.data]
         datasets = [self.data[markers.index(x)] for x in range(3)]
@@ -292,14 +301,6 @@ if __name__=="__main__":
     a.setMainWidget(ow)
 
     ow.show()
-##    d = orange.ExampleTable('wt'); d.name = 'wt'
-##    d = orange.ExampleTable('wt-nometa'); d.name = 'wt'
-##    ow.dataset(d, 2)
-##    d = orange.ExampleTable('wt-nometa'); d.name = 'wt'
-##    ow.dataset(d, 1)
-##    ow.dataset(None, 1)
-##    ow.dataset(None, 2)
-
     names = ['wt1', 'wt2', 'wt3', 'wt4']
 ##    names = [r'chipdata/pufA/pufA1.1.raw.tab', r'chipdata/yakA/yakA1.1.raw.tab', r'chipdata/yakApufA/yakApufA1.1.raw.tab', r'chipdata/yakApufA/yakApufA1.1.raw.tab']
     for i, s in enumerate(names): 

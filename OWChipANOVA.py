@@ -1,7 +1,6 @@
 """
 <name>ANOVA on Chip Data</name>
 <description>ANOVA on chip data (strains, replicas).</description>
-<category>Genomics</category>
 <icon>icons/ChipANOVA.png</icon>
 <priority>1120</priority>
 """
@@ -20,8 +19,8 @@ class GeneSelection(orange.Orange):
 class OWChipANOVA(OWWidget):
     settingsList  = ['p1', 'p2', 'p3', 'filter1', 'filter2', 'filter3', 'commitOnChange', 'selectorName', 'updateSelectorName']
 
-    def __init__(self, parent=None, name='ANOVA on Chip Data'):
-        OWWidget.__init__(self, parent, name, "ANOVA on chip data (strains, replicas).")
+    def __init__(self, parent=None):
+        OWWidget.__init__(self, parent, 'ANOVA on Chip Data')
         self.callbackDeposit = []
 
         self.inputs = [("Structured Chip Data", ChipData, self.chipdata, 1)]

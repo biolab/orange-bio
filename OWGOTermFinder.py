@@ -24,7 +24,7 @@ class OWGOTermFinder(OWWidget):
 
     def __init__(self, parent=None, name='OWGoTermFinder'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, name, 'GO Term Finder', FALSE, FALSE) 
+        OWWidget.__init__(self, parent, name) 
 
         self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0)]
         self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]

@@ -1,7 +1,6 @@
 """
 <name>Impute & Loess Profiles</name>
 <description>Imputation and non-parametric smoothing of expression profiles.</description>
-<category>Genomics</category>
 <icon>icons/Unknown.png</icon>
 <priority>320</priority>
 """
@@ -18,9 +17,9 @@ import chipimpute
 class OWImputeSmoothProfiles(OWWidget):
     settingsList  = ['impute', 'imputeK', 'smooth', 'windowSize', 'commitOnChange']
 
-    def __init__(self, parent=None, name='Impute & Loess Profiles'):
+    def __init__(self, parent=None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, name, "Imputation and non-parametric smoothing of expression profiles.")
+        OWWidget.__init__(self, parent, 'Impute & Loess Profiles')
 
         self._data = None       # exampleTable
         self._dataMA = None     # input 2d masked array

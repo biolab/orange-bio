@@ -1103,9 +1103,8 @@ DEBUG = 0
 class OWGOGraphTermFinder(OWGOTermFinder):
     settingsList = ["subNodes","CBLegend","CBGenes","FilterNumEnabled",
                     "FilterPvalEnabled","FilterDepthEnabled","RBNodeColor","RBNodeAnnotation"]
-    def __init__(self, parent=None, name='OWGraphicGoTermFinder'):
-        self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWGOTermFinder.__init__(self, parent, name)
+    def __init__(self, parent=None):
+        OWGOTermFinder.__init__(self, parent, 'OWGraphicGoTermFinder')
         self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0)]
         self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
         self.goLV.reparent(None,0,QPoint(0,0),False) #remove the textual viewer of DAG
