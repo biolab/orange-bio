@@ -427,12 +427,10 @@ class OWDisplayProfiles(OWWidget):
         # inputs
         # data and graph temp variables
         
-        self.xxxinputs = [("Classified Examples", ExampleTableWithClass, self.data, 1), ("Examples", ExampleTable, self.data, 1)]
-        self.inputs = [("Examples", ExampleTable, self.data, 1)]
+        self.inputs = [("Examples", ExampleTable, self.data, 0)]
 
         # temp variables
-        self.MAdata = None
-        self.MAnoclass = 1 
+        self.MAdata = []
         self.classColor = None
         self.classBrighterColor = None
         self.numberOfClasses  = 0
@@ -555,8 +553,25 @@ class OWDisplayProfiles(OWWidget):
     ##
 
     def calcGraph(self):
+        ## compute from self.MAdata
+        if len(self.MAdata) == 1:
+            d = self.MAdata[0]
+        elif len(self.MAdata) > 0:
+            combCvals = [str(nd.name) for nd in self.MAdata]
+            combClass = orange.EnumVariable('file', values=combCvals)
+            combDomain = orange.Domain(self.MAdata[0].domain.attributes + [combClass])
+            d = orange.ExampleTable(combDomain)
+            
+            for tmpd in self.MAdata:
+                newtmpd = tmpd.select(combDomain)
+                for te in newtmpd:
+                    te.setclass(tmpd.name)
+                d.extend(newtmpd)
+        else:
+            return
+
         self.progressBarInit()
-        self.graph.setData(self.MAdata, self.classColor, self.classBrighterColor, self.ShowAverageProfile, self.ShowSingleProfiles, self.progressBarSet)
+        self.graph.setData(d, self.classColor, self.classBrighterColor, self.ShowAverageProfile, self.ShowSingleProfiles, self.progressBarSet)
         self.graph.setPointWidth(self.PointWidth)
         self.graph.setCurveWidth(self.CurveWidth)
         self.graph.setAverageCurveWidth(self.AverageCurveWidth)
@@ -568,11 +583,12 @@ class OWDisplayProfiles(OWWidget):
 
     def newdata(self):
         self.classQLB.clear()
-        if self.MAdata.domain.classVar.varType <> orange.VarTypes.Discrete:
-            print "error, class variable not discrete:", self.MAdata.domain.classVar
-        if self.MAdata <> None and self.MAdata.domain.classVar.varType == orange.VarTypes.Discrete:
+        if len(self.MAdata) > 1 or (len(self.MAdata) == 1 and self.MAdata[0].domain.classVar.varType == orange.VarTypes.Discrete):
             ## classQLB
-            self.numberOfClasses = len(self.MAdata.domain.classVar.values)
+            if len(self.MAdata) == 1:
+                self.numberOfClasses = len(self.MAdata[0].domain.classVar.values)
+            else:
+                self.numberOfClasses = len(self.MAdata)
             self.classColor = ColorPaletteHSV(self.numberOfClasses, 160)
             self.classBrighterColor = ColorPaletteHSV(self.numberOfClasses, 255)
 
@@ -580,13 +596,17 @@ class OWDisplayProfiles(OWWidget):
             ## update graphics
             ## classQLB
             self.classQVGB.show()
-            classValues = self.MAdata.domain.classVar.values.native()
+            if len(self.MAdata) == 1:
+                classValues = self.MAdata[0].domain.classVar.values.native()
+            else:
+                classValues = [str(nd.name) for nd in self.MAdata]
+                
             for cn in range(len(classValues)):
                 self.classQLB.insertItem(ColorPixmap(self.classBrighterColor[cn]), classValues[cn])
             self.classQLB.selectAll(1)  ##or: if numberOfClasses > 0: self.classQLB.setSelected(0, 1)
             self.update()
 
-            if self.MAnoclass:
+            if len(self.MAdata) == 1 and self.MAdata[0].noclass:
                 self.classQVGB.hide()
         else:
             self.classColor = None
@@ -594,21 +614,49 @@ class OWDisplayProfiles(OWWidget):
         self.graph.show()
         self.layout.activate() # this is needed to scale the widget correctly
 
-    def data(self, MAdata):
+    def data(self, MAdata, id):
+        ## if there is no class attribute, create a dummy one
+        if MAdata and MAdata.domain.classVar == None:
+            noClass = orange.EnumVariable('file', values=['n'])
+            newDomain = orange.Domain(MAdata.domain.attributes + [noClass])
+            mname = MAdata.name ## remember name 
+            MAdata = MAdata.select(newDomain) ## because select forgets it
+            MAdata.name = mname
+            MAdata = MAdata2
+            for e in MAdata: e.setclass('n')
+            MAdata.setattr("noclass", 1) ## remember that there is no class to display
+        elif MAdata and MAdata.domain.classVar.varType <> orange.VarTypes.Discrete:
+            print "error, ignoring table, because its class variable not discrete:", MAdata.domain.classVar
+            MAdata = None
+        elif MAdata:
+            MAdata.setattr("noclass", 0) ## there are classes by default
+
+        ## handling of more than one data set
+        # check if the same domain
+        if MAdata and len(self.MAdata) and str(MAdata.domain.attributes) <> str(self.MAdata[0].domain.attributes):
+            print "domains:", MAdata.domain.attributes
+            print "and,   :", self.MAdata[0].domain.attributes
+            print "are not same"
+            MAdata = None
+
+        ids = [d.id for d in self.MAdata]
         if not MAdata:
+            if id in ids:
+                del self.MAdata[ids.index(id)]
+        else:
+            MAdata.setattr("id", id)
+            if id in ids:
+                MAdata.id = id
+                indx = ids.index(id)
+                self.MAdata[indx] = MAdata
+            else:
+                self.MAdata.append(MAdata)
+
+        if len(self.MAdata) == 0:
             self.graph.hide()
             self.classQVGB.hide()
             return
-        ## if there is no class attribute, create a dummy one
-        if MAdata.domain.classVar == None:
-            noClass = orange.EnumVariable('noclass', values=['none'])
-            noClass.getValueFrom = lambda ex, w: 0
-            newDomain = orange.Domain(MAdata.domain.variables + [noClass])
-            self.MAdata = MAdata.select(newDomain)
-            self.MAnoclass = 1 ## remember that there is no class to display
-        else:
-            self.MAdata = MAdata
-            self.MAnoclass = 0 ## there are classes
+
         self.newdata()
 
 # following is not needed, data handles these cases
