@@ -70,7 +70,7 @@ class OWSelectGenes(OWWidget):
         if selector:
             self.selectors[id] = list(selector + (1,0))    # the last two items for use and negation
         else:
-            del self.selectors[id]
+            if id in self.selectors.keys(): del self.selectors[id]
         self.infoa.setText('%d selectors on input.' % len(self.selectors))
         self.drawtable()
         self.senddata()

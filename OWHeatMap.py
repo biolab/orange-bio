@@ -138,10 +138,13 @@ class OWHeatMap(OWWidget):
         self.connect(self.fileLB, SIGNAL("selected(int)"), self.setFileReferenceBySelection)
         self.tabs.insertTab(self.filesTab, "Files")
         self.tabs.setTabEnabled(self.filesTab, 0)
-        hbox = QVBox(box)
+        hbox = QHBox(box)
         self.fileUp = OWGUI.button(hbox, self, 'Up', callback=lambda i=-1: self.fileOrderChange(i), disabled=1)
-        self.fileRef = OWGUI.button(hbox, self, 'Reference', self.setFileReference, disabled=1)
+        self.fileRef = OWGUI.button(hbox, self, 'Ref', self.setFileReference, disabled=1)
         self.fileDown = OWGUI.button(hbox, self, 'Down', callback=lambda i=1: self.fileOrderChange(i), disabled=1)
+        for btn in [self.fileUp, self.fileRef, self.fileDown]:
+            btn.setMaximumWidth(45)
+            
 
         OWGUI.checkBox(self.filesTab, self, 'ShowDataFileNames', 'Show data file names', callback=self.drawHeatMap)
         OWGUI.radioButtonsInBox(self.filesTab, self, 'SelectionType', ['Single data set', 'Multiple data sets'], box='Selection')
@@ -218,11 +221,17 @@ class OWHeatMap(OWWidget):
     # handling of input/output signals
 
     def dataset(self, data, id):
+        print 'GOT', id
         ids = [d.id for d in self.data]
         if not data:
             if id in ids:
-                del self.data[ids.index(id)]
-                self.fileLB.removeItem(id)
+                k = ids.index(id)
+                del self.data[k]
+                self.fileLB.removeItem(k)
+                if self.refFile == k:
+                    self.refFile = 0
+                    if len(self.data):
+                        self.fileLB.changeItem(self.createListItem(self.data[0].name, self.refFile), self.refFile)
         else:
             # check if the same length
             if data.domain.classVar:
@@ -252,6 +261,7 @@ class OWHeatMap(OWWidget):
         self.canvas.update()
 
     def chipdata(self, data):
+        print 'CHIPDATA'
         self.data = [] # XXX should only remove the data from the same source, use id in this rutine
         if not data:
             for i in self.canvas.allItems():
@@ -317,7 +327,7 @@ class OWHeatMap(OWWidget):
             self.send("Classified Examples", selectedData)
         else:
             self.send("Classified Examples", None)
-        self.send("Examples", selectedData)
+        self.send("Examples", selectedData, 1)
 
     ##########################################################################
     # callback functions
@@ -536,7 +546,6 @@ class OWHeatMap(OWWidget):
 ##        self.canvas.update()
 
     def fileSelectionChanged(self, sel):
-        print 'SEL', sel
         # self.fileRef.setDisabled(sel==0)
         self.selectedFile = sel
         self.fileDown.setEnabled(sel < len(self.data)-1)
@@ -544,7 +553,6 @@ class OWHeatMap(OWWidget):
         self.fileRef.setEnabled(sel <> self.refFile)
 
     def createListItem(self, text, position):
-        print 'MARK', position, self.refFile
         pixmap = QPixmap()
         pixmap.resize(14,13)
         pixmap.fill(Qt.white)

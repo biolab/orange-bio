@@ -133,7 +133,6 @@ class OWChipPostHocANOVA(OWWidget):
             if getattr(self, self.factors[indx][2]) and self.selection[indx]:
                 self.match = map(lambda a,b: a or b, self.match, self.selection[indx])
         n = self.match.count(1)
-        print self.match
         self.infob.setText('Total of %d %s match criteria' % (n, ['genes', 'gene'][n==1]))
         if self.commitOnChange or commit:
             self.senddata()
@@ -152,7 +151,7 @@ class OWChipPostHocANOVA(OWWidget):
         self.progressBarFinished()
 
     def senddata(self):
-        self.send("PostHoc Gene Selection", (selectorName, self.match))
+        self.send("PostHoc Gene Selection", (self.selectorName, self.match))
 
     def setSelectorName(self):
         if self.updateSelectorName:

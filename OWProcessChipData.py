@@ -84,7 +84,6 @@ class OWProcessChipData(OWWidget):
             for (n, d) in data:
                 nfiles += len(d)
             self.infoa.setText("Microarray data, %d strains, total of %d data files" % (len(data), nfiles))
-            print data
             d = data[0][1][0]
             self.infob.setText("Each data file contains %d measurements of %d genes" % (len(d.domain.attributes), len(d)))
 
