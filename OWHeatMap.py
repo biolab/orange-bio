@@ -222,12 +222,12 @@ class OWHeatMap(OWWidget):
             domain = self.checkDomain(data)
             if domain:
                 data = orange.ExampleTable(domain, data)
-                print 'changed!'
-        print 'len=', len(data)
-        if data.domain.classVar:
-            print 'class', len(data.domain.classVar.values)
-        else:
-            print 'no class'
+##                print 'changed!'
+##        print 'len=', len(data)
+##        if data.domain.classVar:
+##            print 'class', len(data.domain.classVar.values)
+##        else:
+##            print 'no class'
         data.setattr("id", id)
         if len(self.data) and (id in [d.id for d in self.data]):
             for i in range(len(self.data)):
@@ -265,10 +265,10 @@ class OWHeatMap(OWWidget):
         cl = clo = data.domain.classVar
         if cl:
             if selection:
-                print 'selection'
+##                print 'selection'
                 cl = orange.RemoveUnusedValues(cl, selection, removeOneValued = 1)
-                if cl == clo:
-                    print 'same'
+##                if cl == clo:
+##                    print 'same'
             else:
                 cl = orange.RemoveUnusedValues(cl, data, removeOneValued = 1)
 
@@ -293,7 +293,7 @@ class OWHeatMap(OWWidget):
         # Reduce the number of class values, if class is defined
         newdomain = self.checkDomain(self.data[0], selection=ex)
         if not newdomain:
-            print 'retain'
+##            print 'retain'
             newdomain = self.data[0].domain
         selectedData = orange.ExampleTable(newdomain, ex)
         if selectedData.domain.classVar:
@@ -336,7 +336,7 @@ class OWHeatMap(OWWidget):
         pass
 
     def fileOrderChange(self, chg):
-        print 'ccc', chg
+##        print 'ccc', chg
         if chg==-1 and self.selectedFile>0:
             switchFiles(self.selectedFile, self.selectedFile-1)
         if chg==1  and self.selectedFile < len(self.data - 1):
