@@ -656,7 +656,7 @@ class MyCanvasView(QCanvasView):
             self.selector.show()
 
             # bubble, construct head
-            if hm.getCellIntensity(row, col):
+            if hm.getCellIntensity(row, col)==None:
                 head = "%6.4f" % hm.getCellIntensity(row, col)
             else:
                 head = "Missing Data"
