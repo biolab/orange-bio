@@ -76,7 +76,9 @@ class OWGenomeMap(OWWidget):
         self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
 
         # GUI definition
-        box = QVButtonGroup("Graph Options", self.controlArea)
+        self.controls = QVGroupBox(self.controlArea)
+        box = QVButtonGroup("Graph Options", self.controls)
+        box.setMaximumSize(250, 80)
         OWGUI.qwtHSlider(box, self, "MinGeneWidth", label='Min. mark width: ', labelWidth=80, minValue=1, maxValue=10, step=1, callback=self.graph.repaintGenes)
         self.colorByClassCB = OWGUI.checkBox(box, self, "ColorByClass", "Gene colors wrt class", callback=self.graph.repaintGenes, disabled=1)
 
@@ -85,7 +87,7 @@ class OWGenomeMap(OWWidget):
         self.view.setMinimumWidth(500)
         box.addWidget(self.view)
 
-        box = QHButtonGroup("Genome Map", self.controlArea)
+        box = QHButtonGroup("Genome Map", self.controls)
         box.setMaximumSize(250, 50)
         self.genomeMapCombo = OWGUI.comboBox(box, self, 'GenomeMapIndx', items=[], callback=self.loadGenomeMap)
         self.genomeMapCombo.setMaximumSize(160, 20)
@@ -93,7 +95,7 @@ class OWGenomeMap(OWWidget):
         self.genomeMapBrowse = OWGUI.button(box, self, 'Browse', callback=self.browseGenomeMap)
         self.genomeMapBrowse.setMaximumSize(50, 30)
 
-        box = QHButtonGroup("Gene ID attribute", self.controlArea)
+        box = QHButtonGroup("Gene ID attribute", self.controls)
         box.setMaximumSize(250, 50)
         self.geneIDAttrCombo = OWGUI.comboBox(box, self, 'geneIDattrIndx', items=[], callback=self.geneIDchanged)
         self.geneIDAttrCombo.setMaximumSize(160, 20)
@@ -192,7 +194,7 @@ class OWGenomeMap(OWWidget):
             return
 
         ## all discrete and string type attributes are good candidates
-        self.candidateGeneIDsFromSignal = [a for a in self.data.domain.attributes + self.data.domain.getmetas().values() if a.varType == orange.VarTypes.Discrete or a.varType == orange.VarTypes.Other]
+        self.candidateGeneIDsFromSignal = [a for a in self.data.domain.attributes + self.data.domain.getmetas().values() if a.varType == orange.VarTypes.Discrete or a.varType == orange.VarTypes.Other or a.varType == orange.VarTypes.String]
         self.setGeneIDAttributeList()
         self.geneIDAttrCombo.setDisabled(1)
 
