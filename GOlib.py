@@ -472,7 +472,7 @@ def txtAnnotation2pickle(annotationFname, saveAsPickleFname, forDicty=0):
 ## usage:
 ##     GOlib.txtGO2pickle('200312')
 ##
-def txtGO2pickle(GOver = '200312'):
+def txtGO2pickle(GOver = '200312', putIntoDir='.'):
 ##    exit("forced error - this function is not tested yet")
     dataDir = './go_' + GOver + '-termdb-tables/'
 
@@ -502,7 +502,7 @@ def txtGO2pickle(GOver = '200312'):
 
         if not(obsolete):
             if type == 'relationship':
-                termRelTypes[termID] = 'name'
+                termRelTypes[termID] = name
             else:
                 assert( term.get(GOID, None) == None)
                 term[GOID] = (name, type, isroot)
@@ -601,7 +601,7 @@ def txtGO2pickle(GOver = '200312'):
         print "\t%d %s nodes" % (len(GOIDtoGOID[aspect].keys()), aspect)
         print "\t%d %s nodes in reverse GO" % (len(rGOIDtoGOID[aspect].keys()), aspect)
         GO = {'aspect': aspect, 'term': term, 'relationTypes': termRelTypes, 'GO': GOIDtoGOID[aspect], 'rGO': rGOIDtoGOID[aspect]}
-        fname = GOver + '-' + aspect + '.go'
+        fname = putIntoDir + '\\' + GOver + '-' + aspect + '.go'
         cPickle.dump(GO, open(fname, 'w'))
     print
     print
