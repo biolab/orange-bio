@@ -634,12 +634,12 @@ def txtGO2pickle(GOver = '200312'):
 ##    GO for the GO Term ID -> GO Term Description
 ##
 ## usage:
-##    GOlib.DDBtoAspects(r'Annotations\dID.Dictyostelium discoideum.annotation', r'GO\200312-biological_process.go', 'DDBtoGO.tab', None)
+##    GOlib.DDB2GOaspects(r'Annotations\dID.Dictyostelium discoideum.annotation', r'GO\200312-biological_process.go', 'DDBtoGO.tab', None)
 ##
 ##  select only IEA evidences
-##    GOlib.DDBtoAspects(r'Annotations\dID.Dictyostelium discoideum.annotation', r'GO\200312-biological_process.go', 'DDBtoGO.tab', ['IEA'])
+##    GOlib.DDB2GOaspects(r'Annotations\dID.Dictyostelium discoideum.annotation', r'GO\200312-biological_process.go', 'DDBtoGO.tab', ['IEA'])
 ## 
-def DDBtoAspects(annotationFname, GOfname, outFname, evidences = None, useAspects = ['biological_process', 'cellular_component', 'molecular_function']):
+def DDB2GOaspects(annotationFname, GOfname, outFname, evidences = None, useAspects = ['biological_process', 'cellular_component', 'molecular_function']):
     try:
         f = open(outFname, 'w')
     except:
