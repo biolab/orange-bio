@@ -41,6 +41,7 @@ class OWGOTermFinder(OWWidget):
         self.RecentGOaspects = []
         self.BGOaspectIndx = 0
         #
+        self.maxDepth = 8
         self.FilterNumEnabled = False
         self.FilterNumValue = 1
         self.FilterPvalEnabled = True

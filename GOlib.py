@@ -104,6 +104,8 @@ def DAGfilterForDepth(dag, node, cdepth):
 ## creates a minimal GO displaying all significant GOIDs with genes annotated to them
 ##
 def createGODAGtoDisplay(Lgo, allGOIDs, sigGOIDs):
+    if not Lgo: return {'root': []}
+
     DAG = {}
     ## select significant GOIDs (sigGOIDs) and their children that are also in allGOIDs (all terms with genes from cluster set)
     for goid in allGOIDs:

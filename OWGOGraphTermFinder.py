@@ -1105,7 +1105,7 @@ class OWGOGraphTermFinder(OWGOTermFinder):
                     "FilterPvalEnabled","FilterDepthEnabled","RBNodeColor","RBNodeAnnotation"]
     def __init__(self, parent=None, name='OWGraphicGoTermFinder'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWGOTermFinder.__init__(self, parent, name)         
+        OWGOTermFinder.__init__(self, parent, name)
         self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0)]
         self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
         self.goLV.reparent(None,0,QPoint(0,0),False) #remove the textual viewer of DAG
@@ -1131,7 +1131,7 @@ class OWGOGraphTermFinder(OWGOTermFinder):
         self.setColorPalette()        
         
         self.loadSettings()
-        
+      
         #VISUAL SETTINGS TAB
         Visual = QVGroupBox(self)
         OWGUI.hSlider(Visual, self, 'sizeH', box='Horizontal Space', minValue=1, maxValue=20, step=1, callback=self.toggleHorizontalSpaceSlider, ticks=1)
@@ -1169,6 +1169,9 @@ class OWGOGraphTermFinder(OWGOTermFinder):
         self.canvas = QCanvas(1,1)
         self.layout.add(self.splitter)
         self.view = MyCanvasView(self.canvas,self.splitter)
+
+        self.info = InfoTab(self.canvas)
+        self.edgeInfo = edgeInfoTab(self.canvas)
         
         self.canvasLegend = QCanvas(0, 0)
         self.canvasLegend.resize(700,90)
@@ -1968,8 +1971,6 @@ class OWGOGraphTermFinder(OWGOTermFinder):
             else:
                self.legend.hide()
                      
-            self.info = InfoTab(self.canvas)
-            self.edgeInfo = edgeInfoTab(self.canvas)
             self.showHideGenes()
             self.changeNodeAnnotation()
             self.changeColoration()
