@@ -166,17 +166,18 @@ class OWGOTermFinder(OWWidget):
         # table of significant GO terms
         self.sigTermsTable = QTable(self.splitter)
         self.sigTermsTable.setNumCols(5)
-        self.sigTermsTable.setNumRows(0)
+        self.sigTermsTable.setNumRows(4)
         ## hide the vertical header
         self.sigTermsTable.verticalHeader().hide()
         self.sigTermsTable.setLeftMargin(0)
-        self.sigTermsTable.setSelectionMode(QTable.NoSelection)
+        self.sigTermsTable.setSelectionMode(QTable.Multi)
         self.sigTermsTable.setColumnWidth(0, 300)
         for col in range(1, self.sigTermsTable.numCols()):
             self.sigTermsTable.setColumnWidth(col, 100)
         self.header = self.sigTermsTable.horizontalHeader()
         for i in range(len(self.DAGcolumns)):
             self.header.setLabel(i, self.DAGcolumns[i])
+        self.connect(self.sigTermsTable, SIGNAL("selectionChanged()"), self.tableSelectionChanged)
         self.splitter.show()
 
         self.resize(1000, 800)
@@ -221,6 +222,14 @@ class OWGOTermFinder(OWWidget):
                     if g not in self.referenceGenes:
                         self.referenceGenes.append( g)
         self.findTermsBuildDAG()
+
+    def tableSelectionChanged(self):
+        for i in range(len(self.significantGOIDs)):
+            b = self.sigTermsTable.isRowSelected(i, False)
+            GOID = self.significantGOIDs[i]
+            for (li, liGOID) in self.goLVitem2GOID.items():
+                if liGOID == GOID:
+                    self.goLV.setSelected(li, b)
 
     def viewSelectionChanged(self):
         geneToGOterm = {}
