@@ -115,9 +115,7 @@ class OWProcessChipData(OWWidget):
             data = self.processArrays(data, self.std[self.preStdMethod][1], self.preStdRob)
         self.progressBarSet(30)
         # merging
-        print "self.mergeType", self.mergeType
         if self.mergeType: data = chipstat.merge_replicas(data, self.mergeTypes[self.mergeType][0])
-##        merged = chipstat.merge_replicas(data, self.mergeTypes[self.mergeType][0])
         self.progressBarSet(70)
         # postprocessing
         if self.postStdMethod: # 0 means no preprocessing
