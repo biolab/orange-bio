@@ -136,7 +136,7 @@ def insertDummy(povezave = {}, rang = {}):               #procedure for insertin
         len = 0
         for n in povezave.keys():
           for i in povezave[n]:
-            len = (rang[i[0]]-rang[n]) #**
+            len = (rang.get(i[0],0)-rang.get(n,0)) #**
             if len > 1:
                long = long + [(n,i[0],len,i[1])] #**
         return long
