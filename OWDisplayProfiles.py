@@ -9,8 +9,7 @@
 from OWTools import *
 from OWWidget import *
 from OWGraph import *
-from OWGUI import *
-from OWDisplayProfilesOptions import *
+import OWGUI
 
 import statc
 
@@ -27,6 +26,7 @@ class boxPlotQwtPlotCurve(QwtPlotCurve):
         QwtPlotCurve.__init__(self, parent, text)
         self.connectPoints = connectPoints
         self.tickXw = tickXw
+        self.boxPlotPenWidth = 2
 
     def draw(self, p, xMap, yMap, f, t):
         # save ex settings
@@ -56,7 +56,10 @@ class boxPlotQwtPlotCurve(QwtPlotCurve):
                     ppx = px
                     ppy = py
 
-            ## then draw boxes            
+            ## then draw boxes
+            np = QPen(self.pen())
+            np.setWidth(self.boxPlotPenWidth)
+            p.setPen(np)
             for i in range(f, t, 6):
                 largestAdjVal = yMap.transform(self.y(i))
                 yq3 = yMap.transform(self.y(i + 1))
@@ -68,8 +71,6 @@ class boxPlotQwtPlotCurve(QwtPlotCurve):
                 px = xMap.transform(self.x(i))
                 wxl = xMap.transform(self.x(i) - self.tickXw/2.0)
                 wxr = xMap.transform(self.x(i) + self.tickXw/2.0)
-
-                p.setPen(self.pen())
 
                 p.drawLine(wxl, largestAdjVal, wxr,   largestAdjVal) ## - upper whisker
                 p.drawLine(px, largestAdjVal, px, yq3)               ## | connection between upper whisker and q3
@@ -88,6 +89,9 @@ class boxPlotQwtPlotCurve(QwtPlotCurve):
         # restore ex settings
         p.setPen(pen)
         p.setBrush(brush)
+
+    def setBoxPlotPenWidth(self, v):
+        self.boxPlotPenWidth = v
 
 class profilesGraph(OWGraph):
     def __init__(self, parent = None, name = None, title = ""):
@@ -308,6 +312,14 @@ class profilesGraph(OWGraph):
                 self.setCurvePen(ckey, QPen(self.classBrighterColor[cNum], v))
         self.update()
 
+    def setBoxPlotWidth(self, v):
+        for cNum in range(len(self.showClasses)):
+            for ckey in self.averageProfileCurveKeys[cNum]:
+                c = self.curve(ckey)
+                c.setBoxPlotPenWidth(v)
+                c.curveChanged()
+        self.update()
+
     def sizeHint(self):
         return QSize(170, 170)
 
@@ -318,32 +330,71 @@ class profilesGraph(OWGraph):
 
 
 class OWDisplayProfiles(OWWidget):
-    settingsList = ["PointWidth", "CurveWidth", "AverageCurveWidth", "ShowAverageProfile", "ShowSingleProfiles"]
-    def __init__(self,parent=None):
-        "Constructor"
-        OWWidget.__init__(self,
-        parent,
-        "Expression Profiles",
-        """None.
-        """,
-        TRUE,
-        TRUE)
+    settingsList = ["PointWidth", "CurveWidth", "AverageCurveWidth", "BoxPlotWidth", "ShowAverageProfile", "ShowSingleProfiles"]
+    def __init__(self,parent=None, name='Expression Profiles'):
+        self.callbackDeposit = [] # deposit for OWGUI callback functions
+        OWWidget.__init__(self, parent, name, """None.""", FALSE, TRUE)
 
         #set default settings
         self.ShowAverageProfile = 1
         self.ShowSingleProfiles = 0
-        self.PointWidth = 4
+        self.PointWidth = 2
         self.CurveWidth = 1
-        self.AverageCurveWidth = 6
+        self.AverageCurveWidth = 4
+        self.BoxPlotWidth = 2
 
         #load settings
         self.loadSettings()
 
         # GUI
-        self.box = QVBoxLayout(self.mainArea)
+        self.layout=QVBoxLayout(self.mainArea)
         self.graph = profilesGraph(self.mainArea, "")
+        self.layout.add(self.graph)
+        self.graph.hide()
         self.connect(self.graphButton, SIGNAL("clicked()"), self.graph.saveToFile)
-        self.box.addWidget(self.graph)
+
+        # GUI definition
+        self.tabs = QTabWidget(self.space, 'tabWidget')
+
+        # GRAPH TAB
+        GraphTab = QVGroupBox(self)
+
+        ## class selection (classQLB)
+        self.classQVGB = QVGroupBox(GraphTab)
+        self.classQVGB.setTitle("Classes")
+        self.classQLB = QListBox(self.classQVGB)
+        self.classQLB.setSelectionMode(QListBox.Multi)
+        self.unselectAllClassedQLB = QPushButton("(Un)select all", self.classQVGB)
+        self.connect(self.unselectAllClassedQLB, SIGNAL("clicked()"), self.SUAclassQLB)
+        self.connect(self.classQLB, SIGNAL("selectionChanged()"), self.classSelectionChange)
+
+        ## show single/average profile
+##        self.showAverageQLB = QPushButton("Box Plot", self.classQVGB)
+##        self.showAverageQLB.setToggleButton(1)
+##        self.showAverageQLB.setOn(self.ShowAverageProfile)
+##        self.showSingleQLB = QPushButton("Single Profiles", self.classQVGB)
+##        self.showSingleQLB.setToggleButton(1)
+##        self.showSingleQLB.setOn(self.ShowSingleProfiles)
+##        self.connect(self.showAverageQLB, SIGNAL("toggled(bool)"), self.updateShowAverageProfile)
+##        self.connect(self.showSingleQLB, SIGNAL("toggled(bool)"), self.updateShowSingleProfiles)
+
+        ## display options
+        displayOptBox = QVButtonGroup("Display", GraphTab)
+        displayOptButtons = ['Majority Class', 'Majority Class Probability', 'Target Class Probability', 'Number of Instances']
+        OWGUI.checkOnly(displayOptBox, self, 'Profiles', 'ShowSingleProfiles', tooltip='', callback=self.updateShowSingleProfiles)
+        OWGUI.checkOnly(displayOptBox, self, 'Box Plot', 'ShowAverageProfile', tooltip='', callback=self.updateShowAverageProfile)
+
+        self.tabs.insertTab(GraphTab, "Graph")
+
+        # SETTINGS TAB
+        SettingsTab = QVGroupBox(self)
+
+        OWGUI.hSlider(SettingsTab, self, 'PointWidth', box='Point Width', minValue=0, maxValue=9, step=1, callback=self.updatePointWidth, ticks=1)
+        OWGUI.hSlider(SettingsTab, self, 'CurveWidth', box='Profile Width', minValue=1, maxValue=9, step=1, callback=self.updateCurveWidth, ticks=1)
+        OWGUI.hSlider(SettingsTab, self, 'AverageCurveWidth', box='Average Profile Width', minValue=1, maxValue=9, step=1, callback=self.updateAverageCurveWidth, ticks=1)
+        OWGUI.hSlider(SettingsTab, self, 'BoxPlotWidth', box='Box Plot Width', minValue=1, maxValue=9, step=1, callback=self.updateBoxPlotWidth, ticks=1)
+
+        self.tabs.insertTab(SettingsTab, "Settings")
         
         # inputs
         # data and graph temp variables
@@ -358,37 +409,6 @@ class OWDisplayProfiles(OWWidget):
         self.classBrighterColor = None
         self.numberOfClasses  = 0
 
-        self.options = OWDisplayProfilesOptions()
-        self.setOptions()
-
-        #connect settingsbutton to show options
-        self.connect(self.settingsButton, SIGNAL("clicked()"), self.options.show)
-
-        #connect GUI controls of options in options dialog to settings
-        self.connect(self.options.pointWidthSlider, SIGNAL("valueChanged(int)"), self.setPointWidth)
-        self.connect(self.options.lineWidthSlider, SIGNAL("valueChanged(int)"), self.setCurveWidth)
-        self.connect(self.options.averageLineWidthSlider, SIGNAL("valueChanged(int)"), self.setAverageCurveWidth)
-
-        # GUI connections
-        ## class selection (classQLB)
-        self.classQVGB = QVGroupBox(self.space)
-        self.classQVGB.setTitle("Classes")
-        self.classQLB = QListBox(self.classQVGB)
-        self.classQLB.setSelectionMode(QListBox.Multi)
-        self.unselectAllClassedQLB = QPushButton("(Un)select all", self.classQVGB)
-        self.connect(self.unselectAllClassedQLB, SIGNAL("clicked()"), self.SUAclassQLB)
-        self.connect(self.classQLB, SIGNAL("selectionChanged()"), self.classSelectionChange)
-
-        ## show single/average profile
-        self.showAverageQLB = QPushButton("Box Plot", self.classQVGB)
-        self.showAverageQLB.setToggleButton(1)
-        self.showAverageQLB.setOn(self.ShowAverageProfile)
-        self.showSingleQLB = QPushButton("Single Profiles", self.classQVGB)
-        self.showSingleQLB.setToggleButton(1)
-        self.showSingleQLB.setOn(self.ShowSingleProfiles)
-        self.connect(self.showAverageQLB, SIGNAL("toggled(bool)"), self.setShowAverageProfile)
-        self.connect(self.showSingleQLB, SIGNAL("toggled(bool)"), self.setShowSingleProfiles)
-
         self.graph.canvas().setMouseTracking(1)
 
         self.zoomStack = []
@@ -398,7 +418,6 @@ class OWDisplayProfiles(OWWidget):
         self.connect(self.graph,
                      SIGNAL('plotMouseReleased(const QMouseEvent&)'),
                      self.onMouseReleased)
-        self.graph.hide()
 
     def onMousePressed(self, e):
         if Qt.LeftButton == e.button():
@@ -465,39 +484,24 @@ class OWDisplayProfiles(OWWidget):
                 g.saveToFileDirect(clfname, ext)
             cl += 1
 
-    def setShowAverageProfile(self, v):
-        self.ShowAverageProfile = v
-        self.graph.setShowAverageProfile(v)
+    def updateShowAverageProfile(self):
+        self.graph.setShowAverageProfile(self.ShowAverageProfile)
 
-    def setShowSingleProfiles(self, v):
-        self.ShowSingleProfiles = v
-        self.graph.setShowSingleProfiles(v)
+    def updateShowSingleProfiles(self):
+        self.graph.setShowSingleProfiles(self.ShowSingleProfiles)
 
-    def setPointWidth(self, v):
-        self.PointWidth = v
-        self.graph.setPointWidth(v)
+    def updatePointWidth(self):
+        self.graph.setPointWidth(self.PointWidth)
 
-    def setCurveWidth(self, v):
-        self.CurveWidth = v
-        self.graph.setCurveWidth(v)
+    def updateCurveWidth(self):
+        self.graph.setCurveWidth(self.CurveWidth)
 
-    def setAverageCurveWidth(self, v):
-        self.AverageCurveWidth = v
-        self.graph.setAverageCurveWidth(v)
+    def updateAverageCurveWidth(self):
+        self.graph.setAverageCurveWidth(self.AverageCurveWidth)
 
-    def setOptions(self):
-        self.options.pointWidthSlider.setValue(self.PointWidth)
-        self.options.pointWidthLCD.display(self.PointWidth)
-        self.setPointWidth(self.PointWidth)
-        #
-        self.options.lineWidthSlider.setValue(self.CurveWidth)
-        self.options.lineWidthLCD.display(self.CurveWidth)
-        self.setCurveWidth(self.CurveWidth)
-        #
-        self.options.averageLineWidthSlider.setValue(self.AverageCurveWidth)
-        self.options.averageLineWidthLCD.display(self.AverageCurveWidth)
-        self.setAverageCurveWidth(self.AverageCurveWidth)
-
+    def updateBoxPlotWidth(self):
+        self.graph.setBoxPlotWidth(self.BoxPlotWidth)
+        
     ##
     def selectUnselectAll(self, qlb):
         selected = 0
@@ -568,7 +572,7 @@ class OWDisplayProfiles(OWWidget):
             self.classColor = None
             self.classBrighterColor = None
         self.graph.show()
-        self.box.activate()
+        self.layout.activate() # this is needed to scale the widget correctly
 
     def data(self, MAdata):
         if not MAdata:
