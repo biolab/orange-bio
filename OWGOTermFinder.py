@@ -264,7 +264,7 @@ class OWGOTermFinder(OWWidget):
             return
 
         ## all discrete and string type attributes are good candidates
-        self.candidateGeneIDsFromSignal = [a for a in self.clusterData.domain.attributes + self.clusterData.domain.getmetas().values() if a.varType == orange.VarTypes.Discrete or a.varType == orange.VarTypes.Other]
+        self.candidateGeneIDsFromSignal = [a for a in self.clusterData.domain.attributes + self.clusterData.domain.getmetas().values() if a.varType == orange.VarTypes.Discrete or a.varType == orange.VarTypes.Other or a.varType == orange.VarTypes.String]
         self.setGeneIDAttributeList()
         self.geneIDAttrCombo.setDisabled(1)
 
