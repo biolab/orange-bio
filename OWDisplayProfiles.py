@@ -579,6 +579,7 @@ class OWDisplayProfiles(OWWidget):
             for cn in range(len(classValues)):
                 self.classQLB.insertItem(ColorPixmap(self.classColor[cn]), classValues[cn])
             self.classQLB.selectAll(1)  ##or: if numberOfClasses > 0: self.classQLB.setSelected(0, 1)
+            self.update()
 
             if self.MAnoclass:
                 self.classQVGB.hide()
