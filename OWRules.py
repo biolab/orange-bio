@@ -18,7 +18,7 @@ class OWRules(OWWidget):
         OWWidget.__init__(self, parent, signalManager, "Rule Selection")
 
         self.inputs = [("Rules", ExampleTable, self.ruledataset), ("Expression", ExampleTable, self.expressiondataset)]
-        self.outputs = [("Expression", ExampleTable), ("Genes", list), ("Motifs", list)]
+        self.outputs = [("Expression", ExampleTable), ("Genes", ExampleTable), ("Motifs", list)]
         
         self.ShowClosestOther = FALSE
         self.expression = None
@@ -135,7 +135,7 @@ class OWRules(OWWidget):
     def runRule(self):
         if self.table.numSelections() <= 0:
             self.send("Expression", None)
-            self.send("Genes", [])
+            self.send("Genes", None)
             self.send("Motifs", [])
             return None
 
@@ -185,8 +185,21 @@ class OWRules(OWWidget):
                        ne = orange.Example(ndom, e)
                        ne.setclass("other")
                        nt.append( ne)
+
+	## make an ExampleTable containing the gene list
+	if len(genesToSend) > 0:
+		gvar = orange.EnumVariable("geneList", values = genesToSend)
+		gdom = orange.Domain([gvar])
+		gtable = orange.ExampleTable(orange.Domain(gdom, 0))
+		for g in genesToSend:
+			e = orange.Example(gdom)
+			e[0] = g
+			gtable.append( e)
+	else:
+		gtable = None
+
         self.send("Expression", nt)
-        self.send("Genes", genesToSend)
+        self.send("Genes", gtable)
         self.send("Motifs", motifsToSend)
         print genesToSend
         print motifsToSend
