@@ -244,7 +244,7 @@ class OWHeatMap(OWWidget):
     def sendData(self, rows):
         ex = []
         for (g,s,e) in rows:
-            hm = self.heatmaps[g]
+            hm = self.heatmaps[0][g]
             ex += hm.examples[hm.exampleIndices[s] : hm.exampleIndices[e+1]]
 
         # Reduce the number of class values, if class is defined
@@ -400,31 +400,37 @@ class OWHeatMap(OWWidget):
             y0 = self.drawLegend(x, y0, self.imageWidth, c_legendHeight, palette)
 
         for i in range(len(self.data)):
-            y = y0
-
+            y = y0; y1 = y0
             if self.ShowDataFileNames and len(self.data)>1:
-                y = self.drawFileName(self.data[i].name, x, y, self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + c_spaceX))
+                y1 = self.drawFileName(self.data[i].name, x, y, self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + c_spaceX))
 
-            if self.ShowAverageStripe:
-                for g in range(groups):
-                    avg, avgWidth, avgHeight = self.heatmaps[i][g].getAverages(c_averageStripeWidth, int(self.CellHeight), lo, hi, self.Gamma)
-                    ImageItem(avg, self.canvas, avgWidth, avgHeight, palette, x=x, y=y)
-                x += c_averageStripeWidth + c_spaceX
-
+            x0 = x
+            # plot the heatmap (and group label)
+            ycoord = []
+            y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + c_spaceX)
             for g in range(groups):
                 if self.ShowGroupLabel and groups>1:
                     y = self.drawGroupLabel(self.data[i][0].domain.classVar.values[g], x, y, self.imageWidth)
                 if not i: self.imgStart.append(y)
+                ycoord.append(y)
                 image = ImageItem(self.bmps[i][g], self.canvas, self.imageWidth, self.heights[g], palette, x=x, y=y, z=z_heatmap)
                 image.hm = self.heatmaps[i][g] # needed for event handling
                 image.height = self.heights[g]; image.width = self.imageWidth
                 if not i: self.imgEnd.append(y+self.heights[g]-1)
-            x += self.imageWidth + c_offsetX
+                y += self.heights[g] + c_spaceY
 
+            x = x0
+            # plot stripe with averages
+            if self.ShowAverageStripe:
+                for g in range(groups):
+                    avg, avgWidth, avgHeight = self.heatmaps[i][g].getAverages(c_averageStripeWidth, int(self.CellHeight), lo, hi, self.Gamma)
+                    ImageItem(avg, self.canvas, avgWidth, avgHeight, palette, x=x, y=ycoord[g])
+            x += self.imageWidth + c_offsetX + self.ShowAverageStripe * (c_averageStripeWidth + c_spaceX)
+
+        # plot the gene annotation
         for g in range(groups):
             if self.ShowGeneAnnotations and self.CellHeight>4:
-                self.drawGeneAnnotation(x, y, g)
-            y += self.heights[g] + c_spaceY
+                self.drawGeneAnnotation(x, ycoord[g], g)
 
         self.selection.redraw()        
         self.canvas.update()
@@ -758,14 +764,14 @@ if __name__=="__main__":
     ow = OWHeatMap()
     a.setMainWidget(ow)
 
-##    data = orange.ExampleTable('wt-large')
-    d = orange.ExampleTable('wt'); d.name = 'wt'
-##    d = orange.ExampleTable('wtclassed'); d.name = 'wtclassed'
-    ow.dataset(d, 0)
-    d = orange.ExampleTable('wt2'); d.name = 'wt2'
-    ow.dataset(d, 1)
-    d = orange.ExampleTable('wt3'); d.name = 'wt3'
-    ow.dataset(d, 2)
     ow.show()
+##    data = orange.ExampleTable('wt-large')
+##    d = orange.ExampleTable('wt'); d.name = 'wt'
+    d = orange.ExampleTable('wtclassed'); d.name = 'wtclassed'
+    ow.dataset(d, 0)
+##    d = orange.ExampleTable('wt2'); d.name = 'wt2'
+##    ow.dataset(d, 1)
+##    d = orange.ExampleTable('wt3'); d.name = 'wt3'
+##    ow.dataset(d, 2)
     a.exec_loop()
     ow.saveSettings()
