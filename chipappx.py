@@ -54,14 +54,13 @@ class ApproxOrthPolyBasis:
 
     def getAppxCoef3d(self, arr3d, numCoef=None, maxCut=False):
         """returns given number of approx. coefficeints cutted-off at the maximal value (excluding the first one)
-        and the corresponding approx. polynomials evaluated at given number of equidistant points"""
+        """
         assert len(arr3d.shape) == 3
         if numCoef == None:
             numCoef = self.k
         else:
             assert 0 < numCoef <= self.k, "number of coefficients not in range [1," + str(self.k) + "]"
         coef3d = Numeric.zeros((arr3d.shape[0], self.k, arr3d.shape[2]), Numeric.Float)
-        # points for evaluation of appx. curves
         if maxCut:
             for idx2 in range(arr3d.shape[2]):
                 coef3d[:,:,idx2] = self.coef_maxCut(self.getAppxCoef(arr3d[:,:,idx2], numCoef=numCoef))
@@ -72,7 +71,8 @@ class ApproxOrthPolyBasis:
 
 
     def getAppxCurve3d(self, appxCoef3d, points=None):
-        """returns appx. curves given 3d appx. coefficients in axis 1"""
+        """returns appx. curves given 3d appx. coefficients in axis 1
+        """
         assert len(appxCoef3d.shape) == 3
         assert points == None or len(points) > 0, "None or list of points expected"
         if points == None:
@@ -199,7 +199,7 @@ class OrthPolyBasis:
         a = Numeric.zeros((k,1),Numeric.Float)
         b = Numeric.zeros((k,1),Numeric.Float)
         t[0,:] = Numeric.ones(self.n,Numeric.Float)
-        t[1,:] = self.x - sum(self.x)/self.n
+        if k > 1: t[1,:] = self.x - sum(self.x)/self.n
         for i in range(1,k-1):
             a[i+1] = Numeric.innerproduct(self.x, t[i,:] * t[i,:]) / Numeric.innerproduct(t[i,:],t[i,:])
             b[i] = Numeric.innerproduct(t[i,:], t[i,:]) / Numeric.innerproduct(t[i-1,:],t[i-1,:])
