@@ -220,6 +220,7 @@ class OWHeatMap(OWWidget):
     # handling of input/output signals
 
     def dataset(self, data, id):
+        print 'GGG', data
         ids = [d.id for d in self.data]
         if not data:
             if id in ids:

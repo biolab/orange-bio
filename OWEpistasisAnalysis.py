@@ -32,7 +32,7 @@ class OWEpistasisAnalysis(OWWidget):
         OWWidget.__init__(self, parent, name, 'Epistasis Analysis', FALSE, FALSE) 
         
         self.inputs = [("Examples", ExampleTable, self.dataset, 0), ("Structured Chip Data", ChipData, self.chipdata, 1)]
-        self.outputs = [("Gene Selection", GeneSelection)]
+        self.outputs = [("Gene Selection", GeneSelection), ("Examples AB", ExampleTable), ("Examples BA", ExampleTable), ("Examples Parallel", ExampleTable)]
 
         self.data = []
         self.selectedFile = None
@@ -196,11 +196,12 @@ class OWEpistasisAnalysis(OWWidget):
         # compute Chi^2 statistics,
         # update the interface (report on results)
         for i in range(3):
-            self.selChkbox[i].setText(self.cbinfo[i][1] + "  (%d genes)"%vote[i])
-        p = statc.chisquare([len(pa)/3.]*3,vote)[1]
+            self.selChkbox[i].setText(self.cbinfo[i][1] + "  (%d genes)" % vote[i])
+        p = statc.chisquare([len(pa)/3.]*3, vote)[1]
         self.infochi.setText('Chi Square: ' + ['p = %6.4f' % p, 'p < 0.0001'][p<0.0001])
 
         self.setAnalysisPlot(ave)
+        self.senddata(genevote)
 
     def setAnalysisPlot(self, ds):
         def plotDot(x, y, w=10, z=10):
@@ -224,6 +225,7 @@ class OWEpistasisAnalysis(OWWidget):
         for i in self.canvas.allItems():
             i.setCanvas(None)
 
+        print ds
         s = sum(ds)/2.
         K = math.sqrt( s * reduce(lambda x,y: x*y, map(lambda x: s-x, ds)) )
         R = reduce(lambda x,y: x*y, ds) / (4 * K)
@@ -263,6 +265,22 @@ class OWEpistasisAnalysis(OWWidget):
         plotText(xb, yab-20, labels[ds[:-1].index(max(ds[:-1]))], xoffset=-0.33)
 
         self.canvas.update()
+
+    def senddata(self, genevotes):
+        def sendkeyeddata(channel, key):
+            for i in range(3):
+                d = datasets[i].select(genevotes, key)
+                d.name = datasets[i].name
+                print 'sss', len(d)
+                self.send(channel, d, i)
+        markers = [d.marker for d in self.data]
+        datasets = [self.data[markers.index(x)] for x in range(3)]
+        channels= ["Examples AB", "Examples BA", "Examples Parallel"]
+        for c in channels:
+            for i in range(3): # this should be excluded, repear in heat map
+                self.send(c, None, i)
+        for (i,ch) in enumerate(channels):
+            sendkeyeddata(ch, i)
 
 ##################################################################################################
 # test script
