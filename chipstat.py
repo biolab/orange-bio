@@ -796,58 +796,66 @@ class MultLinReg:
 
 if __name__ == "__main__":
     
-##    import Meda.Preproc
-##    reload(Meda.Preproc)
-##    import Dicty
-##    reload(Dicty)
+    import Meda.Preproc
+    reload(Meda.Preproc)
+    import Dicty
+    reload(Dicty)
+    import Dicty.DAnnotation
 
+##    myPath = r"C:\Python23\Lib\site-packages\orange\OrangeWidgets\Genomics\chipdata"
+    myPath = r"C:\Documents and Settings\peterjuv\My Documents\Transcriptional Phenotype\DictyData\orngDataStruct_Nancy"
 
-    myPath = r"C:\Python23\Lib\site-packages\orange\OrangeWidgets\Genomics\chipdata"
+    def generateETStruct(path):
+        ddbList = Dicty.DAnnotation.getDDBList()
+        if not os.path.exists(path):
+            os.mkdir(path)
+        DN = Dicty.DData.DData_Nancy()    
+        for st in DN.strains:
+            pathSt = path + "\\" + st
+            if not os.path.exists(pathSt):
+                os.mkdir(pathSt)
+            for rep in DN.strain2replicaList(st):
+                ma2d = DN.getRaw2d(rep)
+                et = Meda.Preproc.ma2orng(ma2d,Meda.Preproc.getTcDomain(ma2d.shape[1], False, [], None))
+                et.domain.addmeta(orange.newmetaid(), orange.StringVariable("DDB"))
+                for eIdx,e in enumerate(et):
+                    e["DDB"] = ddbList[eIdx]
+                orange.saveTabDelimited(pathSt + "\\" + rep + ".tab", et)
 
-##    def generateETStruct(path):
-##        if not os.path.exists(path):
-##            os.mkdir(path)
-##        DN = Dicty.DData.DData_Nancy()    
-##        for st in DN.strains:
-##            pathSt = path + "\\" + st
-##            if not os.path.exists(pathSt):
-##                os.mkdir(pathSt)
-##            for rep in DN.strain2replicaList(st):
-##                ma2d = DN.getRaw2d(rep)
-##                et = Meda.Preproc.ma2orng(ma2d,Meda.Preproc.getTcDomain(ma2d.shape[1], False, [], None))
-##                orange.saveTabDelimited(pathSt + "\\" + rep + ".tab", et)
-
-##    generateETStruct(myPath)
+    # generate orange example table structure
+    generateETStruct(myPath)
 
     # load data
-    print 'read data...'
-    etStruct = getETStruct(myPath)
+##    etStruct = getETStruct(myPath)
 ##    DN = Dicty.DData.DData_Nancy()
 ##    rglc = DN.getReplicaGroupListCopy()
 ##    DNpufAyakA = DN.getSubData([rglc[DN.getIdxStrain("pufA")], rglc[DN.getIdxStrain("yakA")], rglc[DN.getIdxStrain("yakApufA")]])
 ##    ma3d = DNpufAyakA.getRaw3dAll()
 ##
-##    # test orngET <-> MA
+    # test orngET <-> MA
 ##    m2d1 = DNpufAyakA.getRaw2d(DNpufAyakA.replicas[1])
 ##    et = ma2orng(m2d1, Meda.Preproc.getTcDomain(13, False, [], None))
 ##    m2d2 = orng2ma(et)
 ##    print "conversion orngET <-> MA OK?", MA.add.reduce(MA.add.reduce(m2d1 - m2d2 > 0.001)) == 0
 ##    print "masked places OK?", MA.count(m2d1) == MA.count(m2d2)
 
-##    # test conversion to etStruct
+    # test conversion to etStruct
 ##    print "conversion to etStruct OK?", MA.add.reduce(MA.add.reduce(MA.add.reduce((etStruct2ma3d(etStruct) - DNpufAyakA.getRaw3dAll() > 0.001)))) == 0
 
     # test Anova
-    print 'data read, anova ...'
-    pvals, aAnovaOnGeneResults = anova_on_genes(etStruct)
-##
-##    # test standardization
+##    pvals, aAnovaOnGeneResults = anova_on_genes(etStruct)
+##    anova_meda = Dicty.DAnova.DGeneAnovaSTreduced(ma3d, DNpufAyakA.replicaGroupInd, 0.05, 0)
+##    pvals_meda = Numeric.transpose(Numeric.array([myAnova.FprobTime, myAnova.FprobStrain, myAnova.FprobTimeStrain]))
+##    pvals_OW = Numeric.array(pvals)
+##    print "Anova OK?", Numeric.add.reduce(Numeric.add.reduce(pvals_meda - pvals_OW)) < 0.00001
+    
+    # test standardization
 ##    etA = standardize_arrays(etStruct[0][1][1])
 ##    print "std.arrays OK?", MA.add.reduce(MA.add.reduce(orng2ma(etA) - Meda.Preproc.scaleMad(Meda.Preproc.centerMed(ma3d[:,:,1])) > 0.1)) == 0
 ##    etB = standardize_genes(etStruct[0][1][1])
 ##    print "std.genes OK?", MA.add.reduce(MA.add.reduce(orng2ma(etB) - Meda.Preproc.scaleMad(Meda.Preproc.centerMed(ma3d[:,:,1],1),1) > 0.1)) == 0
 ##    
-##    # test merge replicas
+    # test merge replicas
 ##    mergedETStruct_mean = merge_replicas(etStruct, "mean")
 ##    print "merge replicas: mean OK?", MA.add.reduce(MA.add.reduce(orng2ma(mergedETStruct_mean[0][1][0]) - DNpufAyakA.getMean2d("pufA") > 0.001)) == 0
 ##    mergedETStruct_median = merge_replicas(etStruct, "median")
@@ -856,4 +864,4 @@ if __name__ == "__main__":
 ##    print "merge replicas: min < median?", MA.add.reduce(MA.add.reduce(orng2ma(mergedETStruct_min[0][1][0]) > orng2ma(mergedETStruct_median[0][1][0]))) == 0
 ##    print "merge replicas: median < max?", MA.add.reduce(MA.add.reduce(orng2ma(mergedETStruct_median[0][1][0]) > orng2ma(mergedETStruct_max[0][1][0]))) == 0
 ##    print "merge replicas: abs(min - median)?", MA.add.reduce(MA.add.reduce(MA.absolute(orng2ma(mergedETStruct_mean[0][1][0]) - orng2ma(mergedETStruct_median[0][1][0]))))
-##    
+
