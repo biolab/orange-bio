@@ -11,6 +11,8 @@ from OWWidget import *
 from OWGraph import *
 import OWGUI
 
+from OWGraph import ColorPaletteHSV
+
 import statc
 
 ## format of data:
@@ -571,19 +573,8 @@ class OWDisplayProfiles(OWWidget):
         if self.MAdata <> None and self.MAdata.domain.classVar.varType == orange.VarTypes.Discrete:
             ## classQLB
             self.numberOfClasses = len(self.MAdata.domain.classVar.values)
-            self.classColor = []
-            self.classBrighterColor = []
-            if self.numberOfClasses > 1:
-                allCforHSV = self.numberOfClasses ##- 1
-            else:
-                allCforHSV = self.numberOfClasses
-            for i in range(self.numberOfClasses):
-                newColor = QColor()
-                newColor.setHsv(i*360/allCforHSV, 160, 160)
-                newBrighterColor = QColor()
-                newBrighterColor.setHsv(i*360/allCforHSV, 255, 255)
-                self.classColor.append( newColor )
-                self.classBrighterColor.append( newBrighterColor )
+            self.classColor = ColorPaletteHSV(self.numberOfClasses, 160)
+            self.classBrighterColor = ColorPaletteHSV(self.numberOfClasses, 255)
 
             self.calcGraph()
             ## update graphics
