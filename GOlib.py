@@ -133,7 +133,7 @@ def DAGdepth(dag):
 ## used: for cluster and reference frequencies of GO terms
 ##
 def populateGO(geneList, Lann, Lgo, LonlyGOIDs=None, progressBar = None, progressStart = 0.0, progressPart = 100.0):
-    if LonlyGOIDs and len(LonlyGOIDs) == 0:
+    if (LonlyGOIDs <> None and len(LonlyGOIDs) == 0) or (geneList <> None and len(geneList) == 0):
         return {}, {}, {}
 
     genesGOIDdirect = {}
@@ -145,12 +145,16 @@ def populateGO(geneList, Lann, Lgo, LonlyGOIDs=None, progressBar = None, progres
         ## go over only the GOIDs in list
         for daGOID in LonlyGOIDs:
             if progressBar:
-                progressBar(progressStart + progressPart * pcn / len(LonlyGOIDs))
                 pcn += 1.0
+                progressBar(progressStart + progressPart * pcn / len(LonlyGOIDs))
             geneAnn = Lann['GOID2gene'].get(daGOID, None)
             if not(geneAnn): continue
 
+            ppcn = 0.0
             for (daGene, daNOT, daEvidence, daAspect, daDB_Object_Type) in geneAnn:
+                if progressBar:
+                    ppcn += 1
+                    progressBar(progressStart + (pcn + ppcn / len(geneAnn)) * (progressPart/len(LonlyGOIDs)))
                 if daAspect <> Lgo['aspect']: continue ## skip annotations different from the loaded GO aspect
                 if daGene not in geneList:
                     continue
@@ -179,18 +183,21 @@ def populateGO(geneList, Lann, Lgo, LonlyGOIDs=None, progressBar = None, progres
                     tmpl = genesGOIDboth.get(GOID, [])
                     if (daGene, daEvidence) not in tmpl:
                         genesGOIDboth[GOID] = tmpl + [(daGene, daEvidence)]
-
     else:
         ## go over all genes and find the apropriate GOIDs
         for gene in geneList: ## go over genes
             if progressBar:
-                progressBar(progressStart + progressPart * pcn / len(geneList))
                 pcn += 1.0
+                progressBar(progressStart + progressPart * pcn / len(geneList))
 
             geneAnn = Lann['gene2GOID'].get(gene, None)
             if not(geneAnn): continue
 
+            ppcn = 0.0
             for (daGOID, daNOT, daEvidence, daAspect, daDB_Object_Type) in geneAnn:
+                if progressBar:
+                    ppcn += 1
+                    progressBar(progressStart + (pcn + (ppcn / len(geneAnn))) * (progressPart / len(geneList)))
                 if daAspect <> Lgo['aspect']: continue ## skip annotations different from the loaded GO aspect
     ##            if daNOT <> '': continue ## should we skip those annotations that tell when a gene is not part of a specific GO term?
 
