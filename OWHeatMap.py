@@ -173,6 +173,8 @@ class OWHeatMap(OWWidget):
         if not data:
             return
         self.data = data
+        self.send('Classified Examples', None)
+        self.send('Examples', None)
         self.setMetaCombos() # set the two combo widgets according to the data
         self.heatmapconstructor = orange.HeatmapConstructor(self.data)
         self.createHeatMap()
@@ -184,29 +186,27 @@ class OWHeatMap(OWWidget):
             hm = self.heatmaps[g]
             ex += hm.examples[hm.exampleIndices[s] : hm.exampleIndices[e+1]]
 
-        # the following code constructs a new data set, such that only
-        # class values that are used are present
-        cl = self.data.domain.classVar
+        # Reduce the number of class values, if class is defined
+        cl = clo = self.data.domain.classVar
         if cl:
-            valPresent = [None] * len(cl.values)
-            for d in ex:
-                c = int(d.getclass())
-                if not valPresent[c]: valPresent[c] = c
-            values = [cl.values[i] for i in filter(lambda x:x<>None, valPresent)]
+            cl = orange.RemoveUnusedValues(cl, ex, removeOneValued = 1)
+##            print cl
 
-            if len(values)>1: # more than one class value used
-                newClass = orange.EnumVariable(name=cl.name, values=values, getValueFrom=lambda e, v: e.getclass())
-                domain = orange.Domain(self.data.domain.attributes, newClass)
-            else:
-                domain = orange.Domain(self.data.domain.attributes, 0)
+        # Construct a new domain only if the class has changed
+        # (ie to lesser number of values or to one value (alias None))
+        if cl != clo:
+            domain = orange.Domain(self.data.domain.attributes, cl)
             metas = self.data.domain.getmetas()
             for key in metas:
                 domain.addmeta(key, metas[key])
-            selectedData = orange.ExampleTable(domain, ex)
-            if len(values)>1:
-                self.send("Classified Examples", selectedData)
         else:
-            selectedData = orange.ExampleTable(self.data.domain, ex)
+            domain = self.data.domain
+
+        selectedData = orange.ExampleTable(domain, ex)
+        if selectedData.domain.classVar:
+            self.send("Classified Examples", selectedData)
+        else:
+            self.send("Classified Examples", None)
         self.send("Examples", selectedData)
 
     ##########################################################################
@@ -438,7 +438,10 @@ class MyCanvasView(QCanvasView):
             self.selector.show()
 
             # bubble, construct head
-            head = "%6.4f" % hm.getCellIntensity(row, col)
+            if hm.getCellIntensity(row, col):
+                head = "%6.4f" % hm.getCellIntensity(row, col)
+            else:
+                head = "Missing Data"
             if self.master.BShowColumnID:
                 head += "\n"+ex[0].domain.attributes[col].name
             self.bubble.head.setText(head)
