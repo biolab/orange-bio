@@ -6,6 +6,7 @@
 """
 
 import orange, math
+import orangene
 import OWGUI
 #from string import *
 from qt import *
@@ -280,12 +281,12 @@ class OWHeatMap(OWWidget):
         if len(self.data):
             self.heatmapconstructor = [None] * len(self.data)
             if self.SortGenes:
-                self.heatmapconstructor[self.refFile] = orange.HeatmapConstructor(self.data[self.refFile])
+                self.heatmapconstructor[self.refFile] = orangene.HeatmapConstructor(self.data[self.refFile])
             else:
-                self.heatmapconstructor[self.refFile] = orange.HeatmapConstructor(self.data[self.refFile], None)
+                self.heatmapconstructor[self.refFile] = orangene.HeatmapConstructor(self.data[self.refFile], None)
             for i in range(len(self.data)):
                 if i <> self.refFile:
-                    self.heatmapconstructor[i] = orange.HeatmapConstructor(self.data[i], self.heatmapconstructor[self.refFile])
+                    self.heatmapconstructor[i] = orangene.HeatmapConstructor(self.data[i], self.heatmapconstructor[self.refFile])
         else:
             self.heatmapconstructor = []
         self.createHeatMap()
