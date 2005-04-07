@@ -1945,8 +1945,8 @@ class OWGOGraphTermFinder(OWGOTermFinder):
             self.maxNumInstances = max( [1] + [x for (GOterm, x, G, pval, genesInGOID, genesInGOIDdirect) in self.GOtermValues.values()]) #calculate the maximum number of instances in node
             self.maxDepth = max([x for x in self.minCross.keys()])
             
-            self.sliderFilterDepthValue.setValue(self.maxDepth+1) 
-            self.sliderFilterDepthValue.setRange(1, self.maxDepth+1, 1)
+            self.sliderFilterDepthValue.setValue(self.maxDepth) 
+            self.sliderFilterDepthValue.setRange(0, self.maxDepth, 1)
             
             self.sliderFilterPvalue.setValue(1)
             self.sliderFilterPvalue.setRange(0.0, 1.0, 0.001)
@@ -1998,7 +1998,7 @@ class OWGOGraphTermFinder(OWGOTermFinder):
             PNodes[i] = '0'
         
         for i in self.nodes:
-            if ((i.level >= self.FilterDepthValue)|(i.cluster < self.FilterNumValue))|(not PNodes.has_key(i)):
+            if ((i.level > self.FilterDepthValue)|(i.cluster < self.FilterNumValue))|(not PNodes.has_key(i)):
                 self.hideNode(i)
             else:
                 self.showNode(i)
