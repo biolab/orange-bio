@@ -16,7 +16,7 @@ from OWOptions import *
 from qwt import *
 from OWChipDataFiles import ChipData
 
-from OWChipANOVA import ANOVAResults
+# from OWChipANOVA import ANOVAResults
 
 ##############################################################################
 # parameters that determine the canvas layout
