@@ -39,25 +39,35 @@ def kNNimputeMA(arr2d, K=20, callback=None):
             callback()
     return aImp
 
-
-def loessMA(m, windowSize, axis=0, callback=None):
-    """Returns a new array with values at the given axis smoothed by loess; the masked values are approximated by loess.
-    Assumes equidistant spacing of points on the given axis.
+def loessMA(m, windowSize, axis=0, approxMasked=True, verbose=False, callback=None):
+    """Returns a new array with values at the given axis smoothed by loess;
+    if approxMasked==True: the masked values are approximated by loess;
+    assumes equidistant spacing of points on the given axis.
     """
     assert 0 < windowSize <= m.shape[axis], "0 < windowSize_% <=1 OR windowSize in range(1,m.shape[axis]+1)"
     m = MA.asarray(m)
+    if m.typecode() <> MA.Float:
+        m = m.astype(MA.Float)
     shp_other = list(m.shape)
     shp_other.pop(axis)
     # get a transposed and reshaped mask and data from m; if m.mask() == None, construct a new array of zeros
     mask = Numeric.reshape(Numeric.transpose(MA.getmaskarray(m), [axis] + range(0,axis) + range(axis+1,len(m.shape))), (m.shape[axis], Numeric.multiply.reduce(shp_other)))
-    data = Numeric.reshape(Numeric.transpose(m.raw_data(), [axis] + range(0,axis) + range(axis+1,len(m.shape))), (m.shape[axis], Numeric.multiply.reduce(shp_other)))
+    data = MA.reshape(MA.transpose(m, [axis] + range(0,axis) + range(axis+1,len(m.shape))), (m.shape[axis], Numeric.multiply.reduce(shp_other)))
     maskInv = -1*(mask-1)
     xall = Numeric.arange(data.shape[0])
-    for ii in range(data.shape[1]):
-        data[:,ii] = Numeric.array(statc.loess(zip(Numeric.compress(maskInv[:,ii], xall).tolist(), Numeric.compress(maskInv[:,ii], data[:,ii]).tolist()), xall.tolist(), windowSize))[:,1]
+    xallList = xall.tolist()
+    for ii in Numeric.compress(Numeric.add.reduce(maskInv,0) > 1, range(data.shape[1])):    # run loess if the profile contains more than 2 values
+        try:
+            data[:,ii] = MA.array(statc.loess(zip(MA.compress(maskInv[:,ii], xall).tolist(), MA.compress(maskInv[:,ii], data[:,ii]).tolist()), xallList, windowSize))[:,1]
+        except:
+            if verbose:
+                print "Warning: loessMA: could not loess axis %i index %i" % (axis, ii)
         if callback:
             callback()
-    return Numeric.transpose(Numeric.reshape(data, [m.shape[axis]] + shp_other), [axis] + range(0,axis) + range(axis+1,len(m.shape)))
+    if not approxMasked:
+        data = MA.array(data, mask=mask)
+    return MA.transpose(MA.reshape(data, [m.shape[axis]] + shp_other), [axis] + range(0,axis) + range(axis+1,len(m.shape)))
+
 
 
 if __name__=="__main__":
