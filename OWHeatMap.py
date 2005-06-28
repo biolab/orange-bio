@@ -90,6 +90,9 @@ class OWHeatMap(OWWidget):
         for cit in colorItems:
             palc.insertItem(cit) ## because of a string cast in the comboBox constructor
         OWGUI.checkBox(settingsTab, self, "SortGenes", "Sort genes", box="Sort", callback=self.constructHeatmap)
+        
+        palc.setCurrentItem(self.CurrentPalette)  #needed to update combobox after adding items. Maybe this could be useful to include in OWGUI as update() or similar?
+        
 
         self.tabs.insertTab(settingsTab, "Settings")
 
@@ -104,7 +107,7 @@ class OWHeatMap(OWWidget):
             self.sliderCutHigh.box.setDisabled(1)
 
         box = QVButtonGroup("Merge", tab)
-        OWGUI.qwtHSlider(box, self, "Merge", label='Rows:', labelWidth=33, minValue=1, maxValue=100, step=1, callback=self.mergeChanged, ticks=0)
+        OWGUI.qwtHSlider(box, self, "Merge", label='Rows:', labelWidth=33, minValue=1, maxValue=900, step=1, callback=self.mergeChanged, precision=0, ticks=0)
         OWGUI.checkBox(box, self, 'MaintainArrayHeight', "Maintain array height")
 
         self.tabs.insertTab(tab, "Filter")
@@ -338,7 +341,6 @@ class OWHeatMap(OWWidget):
             self.CurrentPalette = 0
             # put a code here that allows to define ones own colors
         else:
-            pm = self.createColorStripe(self.CurrentPalette)
             self.drawHeatMap()
 
     def setCutEnabled(self):
@@ -451,7 +453,8 @@ class OWHeatMap(OWWidget):
                 if not i: self.heights.append(imageHeight)
             self.bmps.append(bmpl)
 
-        self.canvas.resize(2000, 2000) # this needs adjustment
+        totalHeight = max(reduce(lambda x,y:x+y, self.heights) + 500, 2000)
+        self.canvas.resize(2000, totalHeight) # this needs adjustment
         x = c_offsetX; y0 = c_offsetY
 
         self.legend = self.heatmapconstructor[0].getLegend(self.imageWidth, c_legendHeight, self.Gamma)
@@ -713,6 +716,7 @@ class SelectData:
         self.master = master
         self.add = FALSE
         self.squares = []; self.rows = []    # cumulative, used for multiple selection
+        self.cRows = []; self.cSquares = []  #workaround for when release(self) is called before any clicking at all has occured (maybe caused by a Qt bug?)
 
     # removes the selection and relate information
     def remove(self):
