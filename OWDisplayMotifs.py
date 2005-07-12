@@ -34,7 +34,7 @@ class subBarQwtCurve(QwtCurve):
             p.drawRect(px1, py1, (px2 - px1), (py2 - py1))
 
 class subBarQwtPlotCurve(QwtPlotCurve, subBarQwtCurve): # there must be a better way to do this
-    def dummy():
+    def dummy(self):
         None
 
 class OWDisplayMotifs(OWWidget):
