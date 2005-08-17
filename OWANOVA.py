@@ -17,7 +17,6 @@ class OWANOVA(OWWidget):
     settingsList  = ["anovaType", "interaction", "selectorA", "selectorB", "selectorI", "alphaA", "alphaB", "alphaI", "autoUpdateSelName", "commitOnChange"]
 
     def __init__(self, parent=None, signalManager = None):
-        print "__init__ S"
         OWWidget.__init__(self, parent, signalManager, 'ANOVA')
         # input / output data: [("name1", [orange.ExampleTable1a,...]), ("name2", [orange.ExampleTable2a,...])]
         self.inputs = [("Structured Data", DataFiles, self.onDataInput, 1)]
@@ -121,14 +120,12 @@ class OWANOVA(OWWidget):
         self.updateSelectorInfos()
         self.updateSelectorName()
         self.resize(350, self.sizeHint().height())
-        print "__init__ F"
 
 
     def onDataInput(self, structuredData):
         """handles input data; sets self.dataStructure, self.numExamples, self.attrNameList and self.ps;
         updates info, calls updateSettings(), runs ANOVA and sends out new data.
         """
-        print "onDataInput S"
         self.dataStructure = structuredData
         self.numExamples = 0
         self.attrNameList = []
@@ -176,7 +173,6 @@ class OWANOVA(OWWidget):
             self.runANOVA()
             self.senddata()
         self.updateSelectorInfos()
-        print "onDataInput F"
 
         
     def runANOVA(self):
@@ -184,7 +180,6 @@ class OWANOVA(OWWidget):
         with the following axes: 0: examples, 1: attributes, 2: ExampleTables;
         runs ANOVA computations and sets self.ps;
         """
-        print "runAnova S"
         if self.dataStructure and self.numExamples > 0:
             ma3d = MA.zeros((self.numExamples, len(self.attrNameList), reduce(lambda a,b: a+len(b[1]), self.dataStructure, 0)), MA.Float) * MA.masked
             groupLens = []
@@ -196,7 +191,7 @@ class OWANOVA(OWWidget):
                     if [attr.name for attr in et.domain.attributes] == self.attrNameList:
                         ma3d[:,:,etIdx] = etm
                     else:
-                        print dsName + ": data copied for individual attributes"
+##                        print dsName + ": data copied for individual attributes"
                         for attrIdx, attr in enumerate(et.domain.attributes):
                             ma3d[:,attrNameDict[attr.name],etIdx] = etm[:,attrIdx]
                     etIdx += 1
@@ -216,7 +211,6 @@ class OWANOVA(OWWidget):
             elif self.anovaType == 0:
                 self.ps[0] = self.anova1A(ma3d, repMeasures=False, callback=lambda: self.progressBarAdvance(pbStep))
             self.progressBarFinished()
-        print "runAnova F"
 
 
     def anova1A(self, ma3d, repMeasures, callback):
@@ -300,9 +294,6 @@ class OWANOVA(OWWidget):
             if Numeric.add.reduce(ma2dTakeInd) != ma2dTakeInd.shape[0]:
                 print "Warning: removing time indices %s for gene %i" % (str(Numeric.compress(ma2dTakeInd == 0, Numeric.arange(ma2dTakeInd.shape[0]))), eIdx)
                 ma2d = MA.compress(ma2dTakeInd, ma2d, 0)
-            # conduct ANOVA
-            # 2    def __init__(self, arr2d, groupLens, addInteraction=0, allowReductA=True, allowReductB=False):
-            # 2RM  def __init__(self, arr2d, groupLens, addInteraction=0, allowReductA=True, allowReductB=False):
             an = fAnova(ma2d, groupLens, addInteraction, allowReductA=True, allowReductB=True)
             ps[:,eIdx] = an.ps
             callback()
@@ -313,44 +304,45 @@ class OWANOVA(OWWidget):
         """enables/disables: - anova type selection box;
                              - two-way anova and interaction checkbox;
                              - example selection box;
-                             - factor A/B and interaction selectors
+                             - selectors A, B and I
                              - Commit button
         """
-        print "updateSettings S"
         if self.dataStructure and self.numExamples > 0:
             # enable anova type box, example selection box, commit button
             self.boxAnovaType.setEnabled(1)
             self.boxSelection.setEnabled(1)
             self.btnCommit.setEnabled(1)
-            # enable/disable: two-way anova radio button, interaction checkbox
+            # enable/disable: two-way anova radio button
             if len(self.dataStructure) == 1 and len(self.attrNameList) > 1:
                 # switch to single-factor (A) ANOVA, disable other ANOVAs
                 self.anovaType = 0
+                self.rbgAnovaType.buttons[0].setEnabled(1)
                 self.rbgAnovaType.buttons[1].setDisabled(1)
                 self.rbgAnovaType.buttons[2].setDisabled(1)
-                self.cbInteraction.setDisabled(1)
             elif len(self.dataStructure) > 1 and len(self.attrNameList) == 1:
                 # switch to single-factor (B) ANOVA, disable other ANOVAs
                 self.anovaType = 1
                 self.rbgAnovaType.buttons[0].setDisabled(1)
+                self.rbgAnovaType.buttons[1].setEnabled(1)
                 self.rbgAnovaType.buttons[2].setDisabled(1)
-                self.cbInteraction.setDisabled(1)
             elif len(self.dataStructure) > 1 and len(self.attrNameList) > 1:
                 # enable single and two-factor ANOVAs
                 self.rbgAnovaType.buttons[0].setEnabled(1)
                 self.rbgAnovaType.buttons[1].setEnabled(1)
                 self.rbgAnovaType.buttons[2].setEnabled(1)
-                self.cbInteraction.setEnabled(1)
-            # enable/disable selectors
+            # enable/disable interaction checkbox and selectors A, B and I
             if self.anovaType == 0:
+                self.cbInteraction.setDisabled(1)
                 self.boxSelectorA.setEnabled(1)
                 self.boxSelectorB.setDisabled(1)
                 self.boxSelectorI.setDisabled(1)
             elif self.anovaType == 1:
+                self.cbInteraction.setDisabled(1)
                 self.boxSelectorA.setDisabled(1)
                 self.boxSelectorB.setEnabled(1)
                 self.boxSelectorI.setDisabled(1)
             elif self.anovaType == 2:
+                self.cbInteraction.setEnabled(1)
                 self.boxSelectorA.setEnabled(1)
                 self.boxSelectorB.setEnabled(1)
                 self.boxSelectorI.setEnabled(self.interaction)
@@ -359,14 +351,12 @@ class OWANOVA(OWWidget):
             self.boxAnovaType.setDisabled(1)
             self.boxSelection.setDisabled(1)
             self.btnCommit.setDisabled(1)
-        print "updateSettings F"
 
 
     def updateSelectorInfos(self, selectorIdx=None):
         """updates the number of examples that match individual selectors;
         if selectorIdx is given, updates only the corresponding info.
         """
-        print "updateSelectorInfos S:" + str(selectorIdx)
         if not selectorIdx:
             selectorInd = range(3)
         else:
@@ -379,51 +369,36 @@ class OWANOVA(OWWidget):
             except:
                 alpha = None
                 ps = None
-            if ps !=None and alpha != None and self.selectorA and self.anovaType in [[0,2],[1,2],[2]][si] and (self.interaction or [1,1,0][si]):
+            if ps != None and alpha != None and self.anovaType in [[0,2],[1,2],[2]][si] and (self.interaction or [1,1,0][si]):
                 numSelected = Numeric.add.reduce(Numeric.less(self.ps[si], alpha))
                 self.lblNumGenes[si].setText('  (%d example%s)' % (numSelected, ['', 's'][numSelected!=1]))
             else:
                 self.lblNumGenes[si].setText('  (no examples)')
-        print "updateSelectorInfos F:" + str(selectorIdx)
 
 
     def senddata(self):
         """computes selectionList, partitions the examples and updates infoc;
         sends out selectionList and selected/other dataStructure or None;
         """
-        print "senddata S"
         if self.dataStructure and self.ps:
             # set selectionList
+            alphas = [self.alphaA, self.alphaB, self.alphaI]
+            selectors = [self.selectorA, self.selectorB, self.selectorI]
             selectionList = Numeric.ones((self.numExamples,))
-            print selectionList
-            if self.selectorA and self.anovaType in [0,2]:
+            for si in range(3):
                 try:
-                    alpha = float(self.alphaA)
+                    if selectors[si] and self.anovaType in [[0,2],[1,2],[2]][si] and (self.interaction or [1,1,0][si]):
+                        selectionList = Numeric.logical_and(selectionList, Numeric.less(self.ps[si], float(alphas[si])))
                 except:
-                    alpha = 0.0
-                selectionList = Numeric.logical_and(selectionList, Numeric.less(self.ps[0], alpha))
-                print selectionList
-            if self.selectorB and self.anovaType in [1,2]:
-                try:
-                    alpha = float(self.alphaA)
-                except:
-                    alpha = 0.0
-                selectionList = Numeric.logical_and(selectionList, Numeric.less(self.ps[1], alpha))
-                print selectionList
-            if self.selectorI and self.anovaType == 2 and self.interaction:
-                try:
-                    alpha = float(self.alphaA)
-                except:
-                    alpha = 0.0
-                selectionList = Numeric.logical_and(selectionList, Numeric.less(self.ps[2], alpha))
-                print selectionList
-            numExamples = Numeric.add.reduce(Numeric.greater(selectionList, 0))
-            self.infoc.setText('Total of %d example%s match criteria.' % (numExamples, ['', 's'][numExamples!=1]))
+                    pass
+            # partition dataStructure and send out data
+            self.infoc.setText('Sending out data...')
             selectionList = selectionList.tolist()
             self.send("Example Selection", (self.selectorName, selectionList))
-            # partition dataStructure
             dataStructS = []
             dataStructN = []
+            self.progressBarInit()
+            pbStep = 100./len(self.dataStructure)
             for (dsName, etList) in self.dataStructure:
                 etListS = [et.select(selectionList) for et in etList]
                 etListN = [et.select(selectionList, negate=1) for et in etList]
@@ -431,13 +406,17 @@ class OWANOVA(OWWidget):
                     etListS[i].name = etListN[i].name = etList[i].name
                 dataStructS.append((dsName, etListS))
                 dataStructN.append((dsName, etListN))
+                self.progressBarAdvance(pbStep)
             self.send("Selected Structured Data", dataStructS)
             self.send("Other Structured Data", dataStructN)
+            self.progressBarFinished()
+            # report the number of selected examples
+            numExamples = Numeric.add.reduce(Numeric.greater(selectionList, 0))
+            self.infoc.setText('Total of %d example%s match criteria.' % (numExamples, ['', 's'][numExamples!=1]))
         else:
             self.send("Example Selection", None)
             self.send("Selected Structured Data", None)
             self.send("Other Structured Data", None)
-        print "senddata F"
             
 
     def updateSelectorName(self):
@@ -467,7 +446,6 @@ class OWANOVA(OWWidget):
             - calls updateSelectorInfos()
         runs ANOVA and sends out new data;
         """
-        print "onAnovaType S"
         self.ps = None
         self.updateSettings()
         if self.autoUpdateSelName:
@@ -478,7 +456,6 @@ class OWANOVA(OWWidget):
         elif self.dataStructure and self.numExamples > 0:
             self.infoc.setText('Press Commit button to start ANOVA computation.')
         self.updateSelectorInfos()
-        print "onAnovaType F"
 
 
     def onInteraction(self):
@@ -488,7 +465,6 @@ class OWANOVA(OWWidget):
             - updates infoc
         runs ANOVA and sends out new data
         """
-        print "onInteraction S"
         self.ps = None
         self.boxSelectorI.setEnabled(self.interaction)
         if self.autoUpdateSelName:
@@ -499,32 +475,27 @@ class OWANOVA(OWWidget):
         elif self.dataStructure and self.numExamples > 0:
             self.infoc.setText('Press Commit button to start ANOVA computation.')
         self.updateSelectorInfos()
-        print "onInteraction F"
 
 
     def onSelectionChange(self):
         """handles changes in example selector checkboxes;
         sends out new data;
         """
-        print "onSelectionChange S"
         if self.autoUpdateSelName:
             self.updateSelectorName()
         if self.commitOnChange:
             self.senddata()
-        print "onSelectionChange F"
 
 
     def onAlphaChange(self, selectorIdx):
         """handles changes in example selector alphas;
         prints number of selected examples for individual selectors and sends out new data;
         """
-        print "onAlphaChange S"
         if self.autoUpdateSelName:
             self.updateSelectorName()
         if self.commitOnChange:
             self.senddata()
         self.updateSelectorInfos(selectorIdx)
-        print "onAlphaChange F"
 
 
     def onAutoUpdateSelNameChange(self):
@@ -536,14 +507,11 @@ class OWANOVA(OWWidget):
     def onCommit(self):
         """handles Commit clicks; runs ANOVA (if not already computed) and sends out data;
         """
-        print "onCommit S"
         if self.dataStructure:
             if not self.ps:
                 self.runANOVA()
             self.senddata()
         self.updateSelectorInfos()
-        print "onCommit F"
-        print self.height(), self.width()
 
 
 if __name__=="__main__":
@@ -554,9 +522,12 @@ if __name__=="__main__":
     a.setMainWidget(ow)
     ow.show()
     ds = OWDataFiles.OWDataFiles(signalManager = signalManager)
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA")
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato.sub100")
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato.sub1000")
+    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA")
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_time0")
-    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_time0_swappedAB")
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_time0_swappedAB")
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS")
     signalManager.addWidget(ow)
     signalManager.addWidget(ds)
     signalManager.setFreeze(1)
@@ -564,12 +535,3 @@ if __name__=="__main__":
     signalManager.setFreeze(0)
     a.exec_loop()
     ow.saveSettings()
-
-### test: compare 1-way and 2-way ANOVA
-##    d1d = Numeric.array([5,4,6, 4,7,6, 3,4,5])
-##    rgi = [[0,1,2],[3,4,5],[6,7,8]]
-##    a1 = Anova.Anova1wayLR(d1d, rgi)
-##
-##    d2d = Numeric.array([[5,4,6],[4,7,6],[3,4,5]])
-##    gl = [3]
-##    a2 = Anova.Anova2wayLR(d2d, gl, 1, False, False)
