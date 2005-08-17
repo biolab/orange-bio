@@ -146,7 +146,7 @@ def anova_on_genes(aETStruct, repMeasuresOnTime=False, callback = None):
             for tIdx in tInd2rem:
                 tInd2keep.remove(tIdx)
             ma2d = MA.take(ma2d, tInd2keep, 0)
-        # conduct anova ANOVA
+        # conduct ANOVA
         an = fAnova(ma2d, rgLens, 1)
         if callback:
             callback()
@@ -814,25 +814,28 @@ if __name__ == "__main__":
 ##    myPath = r"C:\Documents and Settings\peterjuv\My Documents\Transcriptional Phenotype\DictyData\orngDataStruct_Nancy"
     myPath = r"C:\Documents and Settings\peterjuv\My Documents\Transcriptional Phenotype\DictyData\orngDataStruct_Nancy_yakApufA"
 
-    def generateETStruct(path):
+    def generateETStruct(path, medaData, numGenes=None):
         ddbList = Dicty.DAnnotation.getDDBList()
         if not os.path.exists(path):
             os.mkdir(path)
-        DN = Dicty.DData.DData_Nancy()    
-        for st in DN.strains:
+        medaData = Dicty.DData.DData_Nancy()    
+        for st in medaData.strains:
             pathSt = path + "\\" + st
             if not os.path.exists(pathSt):
                 os.mkdir(pathSt)
-            for rep in DN.strain2replicaList(st):
-                ma2d = DN.getRaw2d(rep)
+            for rep in medaData.strain2replicaList(st):
+                ma2d = medaData.getRaw2d(rep)
                 et = Meda.Preproc.ma2orng(ma2d,Meda.Preproc.getTcDomain(ma2d.shape[1], False, [], None))
                 et.domain.addmeta(orange.newmetaid(), orange.StringVariable("DDB"))
                 for eIdx,e in enumerate(et):
                     e["DDB"] = ddbList[eIdx]
-                orange.saveTabDelimited(pathSt + "\\" + rep + ".tab", et)
+                if numGenes:
+                    orange.saveTabDelimited(pathSt + "\\" + rep + ".tab", orange.ExampleTable(et[:numGenes]))
+                else:
+                    orange.saveTabDelimited(pathSt + "\\" + rep + ".tab", et)
 
     # generate orange example table structure
-##    generateETStruct(myPath)
+##    generateETStruct(myPath, Dicty.DData.BR_ACS())
 
     # load data
 ##    etStruct = getETStruct(myPath)

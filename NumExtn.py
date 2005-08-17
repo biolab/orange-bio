@@ -9,6 +9,161 @@ import numarray.linear_algebra as LA
 
 
 #####################################################################################
+## Inverse permutation
+##  permutInverse([0,2,3,5,4,1])=[0,5,1,2,4,3,]
+##  permutInverse([0,5,1,2,4,3,])=[0,2,3,5,4,1]
+#####################################################################################
+
+def permutInverse(n):
+    """Returns inverse permutation given integers in range(len(n)),
+    such that permitInverse(permutInverse(range(4)))==range(4).
+    """
+    n = Numeric.asarray(n)
+    pInv = Numeric.argsort(n)
+    assert Numeric.equal(n, Numeric.argsort(pInv)), "Inverse not successful; input should be permutation of range(len(input))."
+    return pInv
+
+
+#####################################################################################
+## Ranks:
+##      - Numeric (instead of statc.rankdata), in range 1 ... shape[0]
+##      - MA: masked elements are not ranked; range: 1 ... #non-masked_values
+#####################################################################################
+
+def rankData(n, inverse=False):
+    """Returns ranks of 1D Numeric array in range 1...shape[0].
+    """
+    n = Numeric.asarray(n)
+    assert Numeric.rank(n) == 1
+    r = Numeric.zeros(n.shape[0], Numeric.Float)
+    Numeric.put(r, Numeric.argsort(n), Numeric.arange(n.shape[0]))
+    if inverse:
+        return -1*r+n.shape[0]
+    else:
+        return r+1
+
+def rankDataMA(m, inverse=False):
+    """Returns ranks of 1D masked array; masked values ignored, range 1...#non-masked_values.
+    """
+    m = MA.asarray(m)
+    assert MA.rank(m) == 1
+    fill_val = m.fill_value()
+    m.set_fill_value(MA.maximum(m) + 1)
+    r = MA.zeros(m.shape[0], MA.Float)
+    MA.put(r, MA.argsort(m), Numeric.arange(m.shape[0]))
+    m.set_fill_value(fill_val)
+    r = MA.array(r, mask=MA.getmaskarray(m))
+    if inverse:
+        return -1*r+MA.count(m)
+    else:
+        return r+1
+    
+
+
+#####################################################################################
+## Unary functions: a mask is set only in places where both a arrays are masked.
+##  e.g.:
+##    minus_unary(10,--)  -> 10
+##    minus_unary(--,--) -> --
+#####################################################################################
+
+def subtract_unary(a, b):
+    """Returns a-b with masked values only in places where both a and b are masked.
+    """
+    a = MA.asarray(a)
+    b = MA.asarray(b)
+    el = MA.subtract(a.filled(0), b.filled(0))
+    mask = Numeric.logical_and(MA.getmaskarray(a), MA.getmaskarray(b))
+    return MA.array(el, mask=mask)
+
+def add_unary(a, b):
+    """Returns a+b with masked values only in places where both a and b are masked.
+    """
+    a = MA.asarray(a)
+    b = MA.asarray(b)
+    el = MA.add(a.filled(0), b.filled(0))
+    mask = Numeric.logical_and(MA.getmaskarray(a), MA.getmaskarray(b))
+    return MA.array(el, mask=mask)
+
+def multiply_unary(a, b):
+    """Returns a*b with masked values only in places where both a and b are masked.
+    """
+    a = MA.asarray(a)
+    b = MA.asarray(b)
+    el = MA.multiply(a.filled(1), b.filled(1))
+    mask = Numeric.logical_and(MA.getmaskarray(a), MA.getmaskarray(b))
+    return MA.array(el, mask=mask)
+
+def divide_unary(a, b):
+    """Returns a*b with masked values only in places where both a and b are masked.
+    """
+    a = MA.asarray(a)
+    b = MA.asarray(b)
+    el = MA.divide(a.filled(1), b.filled(1))
+    mask = Numeric.logical_and(MA.getmaskarray(a), MA.getmaskarray(b))
+    return MA.array(el, mask=mask)
+
+
+#####################################################################################
+## Logical OR / AND of two masked arrays where:
+##  - the unary OR equals to the element: OR(0) == 0, OR(1) == 1
+##  - the mask equals to logical AND of the corresponding masks
+##
+## For example:
+##  m1 = MA.array([0,0,0,-,-,-,1,1,1], mask=[0,0,0,1,1,1,0,0,0])
+##  m2 = MA.array([0,-,1,0,-,1,0,-,1], mask=[0,1,0,0,1,0,0,1,0])
+##
+## logical_unary_or(m1,m2) =
+##       MA.array([0,0,1,0,-,1,1,1,1], mask=[0,0,0,0,1,0,0,0,0])
+## The built-in logical_or returns:
+##       MA.array([0,-,0,-,-,-,0,-,1], mask=[0,1,0,1,1,1,0,1,0])
+##
+## logical_unary_and(m1,m2) =
+##       MA.array([0,0,0,0,-,1,0,1,1], mask=[0,0,0,0,1,0,0,0,0])
+## The built-in logical_and returns:
+##       MA.array([0,-,0,-,-,-,0,-,1], mask=[0,1,0,1,1,1,0,1,0])
+#####################################################################################
+
+def logical_unary_or(m1, m2):
+    el = Numeric.logical_or(m1.filled(0), m2.filled(0))
+    mask = Numeric.logical_and(MA.getmaskarray(m1), MA.getmaskarray(m2))
+    return MA.array(el, mask=mask)    
+
+
+def logical_unary_and(m1, m2):
+    el = Numeric.logical_and(m1.filled(1), m2.filled(1))
+    mask = Numeric.logical_and(MA.getmaskarray(m1), MA.getmaskarray(m2))
+    return MA.array(el, mask=mask)    
+
+
+#####################################################################################
+## MA.dot fix:
+##  - MA.dot returns does not set the masked values (it places 0 instead)
+##  - MA.dot(x,y)[i,j] == MA.masked iff MA.add.reduce(x[i,:]*y[:,j]) == MA.masked
+##  - done faste enugh - it requires two matrix multiplications
+#####################################################################################
+
+def dotMA(a, b):
+    """Returns dot-product for MA arrays; fixed masked values.
+    """
+    a = MA.asarray(a)
+    b = MA.asarray(b)
+    ab = MA.dot(a,b)
+    # fix masked values in ab (MA.dot returns 0 instead of MA.masked)
+    nonMasked = Numeric.dot(1-MA.getmaskarray(a).astype(Numeric.Int), 1-MA.getmaskarray(b).astype(Numeric.Int))
+    return MA.where(Numeric.equal(nonMasked,0), MA.masked, ab)
+
+#####################################################################################
+## Apply a binary function on a sequence of arrays
+#####################################################################################
+
+def apply_binary(aFunction, *args):
+    assert len(args) > 1, "at least two arguments required"
+    return reduce(lambda x,y: aFunction(x,y), list(args[1:]), args[0])
+##    return reduce(lambda x,y: aFunction(x,y), list(args))
+        
+
+#####################################################################################
 ## Strictly upper (lower) triangular matrix <-> 1D array
 #####################################################################################
 
@@ -148,7 +303,7 @@ def swapaxesMA(ma, axis1, axis2):
 def compressIndices(ma):
     """Returns 1D compressed Numeric array and the indices of the non-masked places.
     usage:  nu,ind = compressIndices(ma)
-            nu = Numeric.f_elementwise(nu)
+            nu = Numeric.elementwise_function(nu)
             ma = MA.put(ma, ind, nu)
     """
     ma = MA.asarray(ma)
@@ -209,14 +364,14 @@ def minMA(m,axis=0):
     """slow: remove sorting"""
     m = MA.asarray(m, MA.Float)
     transList = [axis] + range(0,axis) + range(axis+1,MA.rank(m))
-    m = MA.transpose(m, transList)    # do not use swapaxes
+    m = MA.transpose(m, transList)    # do not use swapaxes: (0,1,2) -swap-> (2,1,0); (0,1,2) -transpose-> (2,0,1)
     return MA.sort(m, 0, fill_value=1e20)[0]
     
 def maxMA(m,axis=0):
     """slow: remove sorting"""
     m = MA.asarray(m, MA.Float)
     transList = [axis] + range(0,axis) + range(axis+1,MA.rank(m))
-    m = MA.transpose(m, transList)    # do not use swapaxes
+    m = MA.transpose(m, transList)    # do not use swapaxes: (0,1,2) -swap-> (2,1,0); (0,1,2) -transpose-> (2,0,1)
     return MA.sort(m, 0, fill_value=-1e20)[-1]
 
 ###################################################################################
@@ -225,32 +380,88 @@ def maxMA(m,axis=0):
 
 def median(m,axis=0):
     m = Numeric.asarray(m)
-    return MLab.median(Numeric.transpose(m, [axis]+range(axis)+range(axis+1,Numeric.rank(m))))  # do not use swapaxes
+    return MLab.median(Numeric.transpose(m, [axis]+range(axis)+range(axis+1,Numeric.rank(m))))  # do not use swapaxes: (0,1,2) -swap-> (2,1,0); (0,1,2) -transpose-> (2,0,1)
 
 
 def medianMA(m,axis=0):
     """Returns median of the given masked array along the given axis."""
-    return _nm2ma(_medianNM(_ma2nm(m),axis))
+    return _nm2ma(_percentilesNM(_ma2nm(m),0.5,axis))
 
 
 def _medianNA(m,axis=0):
     m = NA.asarray(m)
-    return LA.mlab.median(NA.transpose(m, [axis]+range(axis)+range(axis+1,m.rank)))   # do not use swapaxes
+    return LA.mlab.median(NA.transpose(m, [axis]+range(axis)+range(axis+1,m.rank)))   # do not use swapaxes: (0,1,2) -swap-> (2,1,0); (0,1,2) -transpose-> (2,0,1)
 
-def _medianNM(m,axis=0):
-    """Returns median of the given masked numarray along the given axis."""
+##def _medianNM(m,axis=0):
+##    """Returns median of the given masked numarray along the given axis."""
+##    m = NM.asarray(m, NM.Float)
+##    if len(m.shape) == 0:
+##        return m[0]
+##    elif len(m.shape) == 1:
+##        c = NM.count(m)
+##        mIndSort = NM.argsort(m,fill_value=1e20)
+##        return (m[mIndSort[(c-1)/2]] + m[mIndSort[c/2]]) / 2.
+##    else:
+##        # count the number of nonmasked indices along the given axis
+##        c = NM.count(m, axis=axis)
+##        # prepare indices for other axis (except for the given)
+##        cind = NA.indices(NA.shape(c))
+##        # indices of m sorted by increasing value at axis 0; masked values placed at the end;
+##        # use _argsortSwapNM() to get the shape same as m
+##        mtIndSort = _argsortSwapNM(m,axis,fill_value=1e20)
+##        # get indices to address median elements from m
+##        # tuple(takeInd1): all lists in the tuple must be of the same shape,
+##        #   the result mtIndSort[tuple(takeInd1)] is also of that shape
+##        takeInd1 = cind.tolist()
+##        takeInd1.insert(axis,((c-1)/2).tolist())
+##        medInd1 = mtIndSort[tuple(takeInd1)]
+##        takeInd2 = cind.tolist()
+##        takeInd2.insert(axis,(c/2).tolist())
+##        medInd2 = mtIndSort[tuple(takeInd2)]
+##        # get both median elements; if c[i] odd: med1[i] == med2[i]
+##        takeMed1 = cind.tolist()
+##        takeMed1.insert(axis,medInd1.tolist())
+##        med1 = m[tuple(takeMed1)]
+##        takeMed2 = cind.tolist()
+##        takeMed2.insert(axis,medInd2.tolist())
+##        med2 = m[tuple(takeMed2)]
+####        if __name__=="__main__":
+####            print "m\n",m.filled(-1)
+####            print "c", c
+####            print "[(c-1)/2,c/2]", [(c-1)/2,c/2]
+####            print "cind\n",cind
+####            print "mtIndSort\n",mtIndSort
+####            print "medInd1\n",medInd1
+####            print "medInd2\n",medInd2
+####            print "med1\n",med1
+####            print "med2\n",med2
+##        return (med1+med2)/2.
+
+
+def percentilesMA(m,perc,axis=0):
+    """Returns median of the given masked array along the given axis."""
+    return _nm2ma(_percentilesNM(_ma2nm(m),perc,axis))
+
+
+def _percentilesNM(m,perc,axis=0):
+    """Returns the percentiles of the given masked numarray along the given axis."""
+    assert 0 < perc < 1
     m = NM.asarray(m, NM.Float)
-    if len(m.shape) == 0:
+    if len(m.shape) == 0 or (len(m.shape)==1 and m.shape[0]==1):
         return m[0]
     elif len(m.shape) == 1:
-        c = NM.count(m)
+        _k = float(perc)*(NM.count(m)-1)
+        k = int(_k)
+        d = _k - k
         mIndSort = NM.argsort(m,fill_value=1e20)
-        return (m[mIndSort[(c-1)/2]] + m[mIndSort[c/2]]) / 2.
+        return m[mIndSort[k]] + d*(m[mIndSort[k+1]]-m[mIndSort[k]])
     else:
         # count the number of nonmasked indices along the given axis
-        c = NM.count(m, axis=axis)
+        _k = float(perc) * (NM.count(m, axis=axis)-1)
+        k = _k.astype(NM.Int)
+        d = _k - k
         # prepare indices for other axis (except for the given)
-        cind = NA.indices(NA.shape(c))
+        cind = NA.indices(NA.shape(k))
         # indices of m sorted by increasing value at axis 0; masked values placed at the end;
         # use _argsortSwapNM() to get the shape same as m
         mtIndSort = _argsortSwapNM(m,axis,fill_value=1e20)
@@ -258,10 +469,10 @@ def _medianNM(m,axis=0):
         # tuple(takeInd1): all lists in the tuple must be of the same shape,
         #   the result mtIndSort[tuple(takeInd1)] is also of that shape
         takeInd1 = cind.tolist()
-        takeInd1.insert(axis,((c-1)/2).tolist())
+        takeInd1.insert(axis,k.tolist())
         medInd1 = mtIndSort[tuple(takeInd1)]
         takeInd2 = cind.tolist()
-        takeInd2.insert(axis,(c/2).tolist())
+        takeInd2.insert(axis,(k+1).tolist())
         medInd2 = mtIndSort[tuple(takeInd2)]
         # get both median elements; if c[i] odd: med1[i] == med2[i]
         takeMed1 = cind.tolist()
@@ -280,7 +491,8 @@ def _medianNM(m,axis=0):
 ##            print "medInd2\n",medInd2
 ##            print "med1\n",med1
 ##            print "med2\n",med2
-        return (med1+med2)/2.
+        return med1 + d*(med2-med1).filled(0)
+
 
 def _argsortSwapNM(m,axis=0,fill_value=None):
     """Returns the indices along the given axis sorted by increasing value of the given masked numarray
@@ -308,7 +520,7 @@ def mad(m,axis=0):
     """
     m = Numeric.asarray(m)
     mx = Numeric.asarray(median(m,axis),Numeric.Float)
-    xt = Numeric.transpose(m, [axis]+range(axis)+range(axis+1,Numeric.rank(m))) # do not use swapaxes
+    xt = Numeric.transpose(m, [axis]+range(axis)+range(axis+1,Numeric.rank(m))) # do not use swapaxes: (0,1,2) -swap-> (2,1,0); (0,1,2) -transpose-> (2,0,1)
     return MLab.median(Numeric.absolute(xt-mx))
 
 def madMA(m,axis=0):
@@ -316,7 +528,7 @@ def madMA(m,axis=0):
     """
     m = MA.asarray(m)
     mx = MA.asarray(medianMA(m,axis),MA.Float)
-    xt = MA.transpose(m, [axis]+range(axis)+range(axis+1,MA.rank(m)))   # do not use swapaxes
+    xt = MA.transpose(m, [axis]+range(axis)+range(axis+1,MA.rank(m)))   # do not use swapaxes: (0,1,2) -swap-> (2,1,0); (0,1,2) -transpose-> (2,0,1)
     return medianMA(MA.absolute(xt-mx))
 
 def _madNA(m,axis=0):
@@ -337,40 +549,7 @@ def _madNM(m,axis=0):
     return _medianNM(NM.absolute(xt-mx),0)
 
 
-###################################################################################
-## binomial factors
-###################################################################################
 
-def binomial(n,r):
-    """Returns array of elementwise binomial factors: n[i]! / r[i]!(n[i]-r[i])!
-    type(n) & type(r) == int | Numeric.ArrayType of int
-    compute in floats to avoid overflow; max. n = 1029
-    """
-##    n = Numeric.asarray(n).astype(Numeric.Int)
-##    r = Numeric.asarray(r).astype(Numeric.Int)
-    n = Numeric.asarray(n)
-    r = Numeric.asarray(r)
-    assert Numeric.shape(n) == Numeric.shape(r), "binomial(n,r): n and r of different shape"
-    bin = Numeric.zeros(Numeric.shape(n), Numeric.Float)
-    for idx in xrange(len(n.flat)):
-        ni1 = n.flat[idx] + 1
-        b = Numeric.ones((ni1), Numeric.Float)
-        for i in xrange(1,ni1):
-            for j in xrange(i-1,0,-1):
-                b[j] += b[j-1]
-        bin.flat[idx] = b[r.flat[idx]]
-    return bin
-
-def __binomial_single(n,r):
-    """
-    DEPRICATED, see binomial(n,r)
-    returns n! / r!(n-r)!
-    """
-    b = Numeric.ones((n+1), Numeric.Float)
-    for i in xrange(1,n+1):
-        for j in xrange(i-1,0,-1):
-            b[j] += b[j-1]
-    return b[r]
 
 
 
@@ -452,4 +631,20 @@ if __name__ == "__main__":
 ##
 ##    m1u = triangularGet(m2ul)
 ##    m1l = triangularGet(m2ul, 0)
+
+    # logical unary OR
+##    m1 = MA.array([0,0,0,9,9,9,1,1,1], mask=[0,0,0,1,1,1,0,0,0])
+##    m2 = MA.array([0,9,1,0,9,1,0,9,1], mask=[0,1,0,0,1,0,0,1,0])
+##    m1uorm2 = logical_unary_or(m1,m2)
+##    print m1uorm2 == MA.array([0,0,1,0,9,1,1,1,1], mask=[0,0,0,0,1,0,0,0,0])
+##    m1uandm2 = logical_unary_and(m1,m2)
+##    print m1uandm2 == MA.array([0,0,0,0,9,1,0,1,1], mask=[0,0,0,0,1,0,0,0,0])
+
+    # apply binary
+##    m1 = MA.array([0,0,0,9,9,9,1,1,1], mask=[0,0,0,1,1,1,0,0,0])
+##    m2 = MA.array([0,9,1,0,9,1,0,9,1], mask=[0,1,0,0,1,0,0,1,0])
+##    m3 = MA.array([1,1,0,0,1,1,0,0,1], mask=[0,1,0,1,0,1,0,1,0])
+##    ors = apply_binary(logical_unary_or, m1,m2,m3)
+##    ands = apply_binary(logical_unary_and, m1,m2,m3)
+
     
