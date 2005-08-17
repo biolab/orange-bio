@@ -28,7 +28,6 @@ class OWEpistasisAnalysis(OWWidget):
     settingsList = ['distype']
 
     def __init__(self, parent=None, signalManager = None):
-        self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, signalManager, 'Epistasis Analysis') 
         
         self.inputs = [("Examples", ExampleTable, self.dataset, 0), ("Structured Chip Data", ChipData, self.chipdata, 1)]
