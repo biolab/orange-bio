@@ -54,7 +54,7 @@ class OWChipDistance(OWWidget):
         d = d / len(d1)
         return d
 
-    def computeMatrix(self):
+    def computeMatrix(self, pb):
         if not self.data:
             self.send("Distance Matrix", None)
             return
@@ -69,6 +69,7 @@ class OWChipDistance(OWWidget):
         for i in range(len(data)-1):
             for j in range(i+1, len(data)):
                 matrix[i, j] = self.computeDistance(data[i], data[j], dist)
+                pb.advance()
         self.send("Distance Matrix", matrix)
 
     def chipdata(self, data):
@@ -79,9 +80,11 @@ class OWChipDistance(OWWidget):
             for d in ds:
                 d.setattr("strain", strainname)
                 self.data.append(d)
+        pb = OWGUI.ProgressBar(self, iterations=len(self.data))
         self.infoa.setText('%d data file sets' % len(data))
         self.infob.setText('%d data files' % len(self.data))
-        self.computeMatrix()
+        self.computeMatrix(pb)
+        pb.finish()
 
 ##########################################################################
 # test script
