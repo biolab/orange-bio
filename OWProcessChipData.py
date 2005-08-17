@@ -7,7 +7,7 @@
 
 from OWWidget import *
 import OWGUI
-from OWChipDataFiles import ChipData
+from OWDataFiles import DataFiles
 import chipstat
 
 class OWProcessChipData(OWWidget):
@@ -17,8 +17,8 @@ class OWProcessChipData(OWWidget):
         OWWidget.__init__(self, parent, signalManager, 'Process Chip Data')
         self.callbackDeposit = []
 
-        self.inputs = [("Structured Chip Data", ChipData, self.chipdata)]
-        self.outputs = [("Structured Chip Data", ChipData)]
+        self.inputs = [("Structured Data", DataFiles, self.chipdata)]
+        self.outputs = [("Structured Data", DataFiles)]
 
         self.chipdata = None; self.datasets = None
         self.std = [("No preprocessing", None),
@@ -83,13 +83,13 @@ class OWProcessChipData(OWWidget):
             nfiles = 0
             for (n, d) in data:
                 nfiles += len(d)
-            self.infoa.setText("Microarray data, %d strains, total of %d data files" % (len(data), nfiles))
+            self.infoa.setText("Structured data, %d sets, total of %d data files" % (len(data), nfiles))
             d = data[0][1][0]
-            self.infob.setText("Each data file contains %d measurements of %d genes" % (len(d.domain.attributes), len(d)))
+            self.infob.setText("Each file contains %d attributes and %d examples" % (len(d.domain.attributes), len(d)))
 
             self.sendData()
         else:
-            self.send("Structured Chip Data", None)
+            self.send("Structured Data", None)
 
     # process arrays in the structure, returns new structure
     def processArrays(self, datastructure, method, *arg):
@@ -107,7 +107,7 @@ class OWProcessChipData(OWWidget):
     def sendData(self):
         if not self.data:
             return
-        self.send('Structured Chip Data', None) # this is required for other widgets not to mess up with two different datasets
+        self.send('Structured Data', None) # this is required for other widgets not to mess up with two different datasets
         self.progressBarInit()
         data = self.data
         # preprocessing
@@ -128,7 +128,7 @@ class OWProcessChipData(OWWidget):
                 for et in etList:
                     et.name = strain
         self.progressBarFinished()
-        self.send('Structured Chip Data', data)
+        self.send('Structured Data', data)
             
     def setBtnsState(self):
         self.preRobBtn.setEnabled(self.preStdMethod > 0)

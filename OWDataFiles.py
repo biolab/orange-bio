@@ -116,7 +116,7 @@ class OWDataFiles(OWWidget):
         if self.applyOnChange and self.okToCommit:
             self.sendData()
 
-    # checks which data has been selected, builds a chip data structure, and sends it out
+    # checks which data has been selected, builds a data structure, and sends it out
     def sendData(self):
         data = []
         dir = self.tree.firstChild()
@@ -144,7 +144,7 @@ class OWDataFiles(OWWidget):
             dir = dir.nextSibling()
         self.send("Structured Data", data)
 
-    # Loads the chip data from a root directory, sends the data to the output channels
+    # Loads the data from a root directory, sends the data to the output channels
     def loadData(self, root):
         self.okToCommit = 0
         if root == "(none)":
@@ -246,7 +246,7 @@ class OWDataFiles(OWWidget):
             startdir=os.path.split(self.recentDirs[0][:-1])[0]
         else:
             startdir ="."
-        dirname=str(QFileDialog.getExistingDirectory(startdir, None, '', 'Microarray Data Directory', 1))
+        dirname=str(QFileDialog.getExistingDirectory(startdir, None, '', 'Data Directory', 1))
         if len(dirname):
             self.loadData(str(dirname))
             self.addDirToList(dirname) # XXX do this only if loadData successfull
@@ -260,7 +260,6 @@ class OWDataFiles(OWWidget):
                 self.dircombo.insertItem(dirname)
         else:
             self.dircombo.insertItem("(none)")
-        self.dircombo.adjustSize() #doesn't work properly :(
 
     def addDirToList(self, dir):
         # Add a directory to the start of the file list. 

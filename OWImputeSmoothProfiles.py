@@ -9,7 +9,7 @@ import math
 import Numeric, MA
 from OWWidget import *
 import OWGUI
-from OWChipDataFiles import ChipData
+from OWDataFiles import DataFiles
 import chipstat
 import chipimpute
 
@@ -40,7 +40,7 @@ class OWImputeSmoothProfiles(OWWidget):
         self.infoa = QLabel("No examples on input", box)
         self.infob = QLabel("", box)
         OWGUI.separator(box, 300)
-        self.infoc = QLabel("No chip data on input", box)
+        self.infoc = QLabel("No structured data on input", box)
         self.infod = QLabel("", box)
         OWGUI.separator(self.controlArea)
         # KNN impute
@@ -64,8 +64,8 @@ class OWImputeSmoothProfiles(OWWidget):
         OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on selection change')
         self.commitBtn = OWGUI.button(box, self, "Commit", callback=self.senddata, disabled=1)
 
-        self.inputs = [("Examples", ExampleTable, self.data, 1), ("Structured Chip Data", ChipData, self.chipdata, 1)]
-        self.outputs = [("Examples", ExampleTable), ("Structured Chip Data", ChipData)]
+        self.inputs = [("Examples", ExampleTable, self.data, 1), ("Structured Data", DataFiles, self.chipdata, 1)]
+        self.outputs = [("Examples", ExampleTable), ("Structured Data", DataFiles)]
 
         # data dependent variables
         self.numRowsMissing = 0
@@ -163,7 +163,7 @@ class OWImputeSmoothProfiles(OWWidget):
                     self._chipdataMA[:,:,idx] = chipstat.orng2ma(et)
                     idx += 1
             # info text
-            self.infoc.setText("Chip Data: %i data files with %i profiles on %i points" % (shp[2], shp[0], shp[1]))
+            self.infoc.setText("Structured Data: %i data files with %i profiles on %i points" % (shp[2], shp[0], shp[1]))
             numTotalMissing = Numeric.multiply.reduce(self._chipdataMA.shape) - MA.count(self._chipdataMA)
             if numTotalMissing > 0:
                 numValsByCol = MA.count(self._chipdataMA, 0)
@@ -187,7 +187,7 @@ class OWImputeSmoothProfiles(OWWidget):
         else:
             self._chipdata = None
             self._chipdataMA = None
-            self.infoc.setText("No chip data on input")
+            self.infoc.setText("No structured data on input")
             self.infod.setText("")
             self.numRowsMissingChipData = 0
         self.setGuiCommonExpChip()
@@ -250,9 +250,9 @@ class OWImputeSmoothProfiles(OWWidget):
                     etListNew[-1].name = et.name
                     idxTotal += 1
                 chipdataNew.append((dirname, etListNew))
-            self.send("Structured Chip Data", chipdataNew)
+            self.send("Structured Data", chipdataNew)
         else:
-            self.send("Structured Chip Data", None)
+            self.send("Structured Data", None)
 
 
 if __name__=="__main__":

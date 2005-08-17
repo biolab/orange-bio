@@ -9,8 +9,7 @@ import orange, OWGUI, statc, math
 from qt import *
 from qtcanvas import *
 from OWWidget import *
-from OWChipDataFiles import ChipData
-from OWChipANOVA import GeneSelection
+from OWDataFiles import DataFiles, ExampleSelection
 
 ##############################################################################
 # parameters that determine the canvas layout
@@ -30,8 +29,8 @@ class OWEpistasisAnalysis(OWWidget):
     def __init__(self, parent=None, signalManager = None):
         OWWidget.__init__(self, parent, signalManager, 'Epistasis Analysis') 
         
-        self.inputs = [("Examples", ExampleTable, self.dataset, 0), ("Structured Chip Data", ChipData, self.chipdata, 1)]
-        self.outputs = [("Gene Selection", GeneSelection), ("Examples AB", ExampleTable), ("Examples BA", ExampleTable), ("Examples Parallel", ExampleTable)]
+        self.inputs = [("Examples", ExampleTable, self.dataset, 0), ("Structured  Data", DataFiles, self.chipdata, 1)]
+        self.outputs = [("Gene Selection", ExampleSelection), ("Examples A->B", ExampleTable), ("Examples B->A", ExampleTable), ("Examples A||B", ExampleTable)]
 
         self.data = []
         self.selectedFile = None
@@ -283,7 +282,7 @@ class OWEpistasisAnalysis(OWWidget):
                 self.send(channel, d, i)
         markers = [d.marker for d in self.data]
         datasets = [self.data[markers.index(x)] for x in range(3)]
-        channels= ["Examples AB", "Examples BA", "Examples Parallel"]
+        channels= ["Examples A->B", "Examples B->A", "Examples A||B"]
         for c in channels:
             for i in range(3): # this should be excluded, repear in heat map
                 self.send(c, None, i)

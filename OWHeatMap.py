@@ -14,7 +14,7 @@ from qtcanvas import *
 from OWWidget import *
 from OWOptions import *
 from qwt import *
-from OWChipDataFiles import ChipData
+from OWDataFiles import DataFiles
 
 # from OWChipANOVA import ANOVAResults
 
@@ -44,7 +44,7 @@ class OWHeatMap(OWWidget):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, signalManager, 'HeatMap') 
         
-        self.inputs = [("Examples", ExampleTable, self.dataset, 0), ("Structured Chip Data", ChipData, self.chipdata)]
+        self.inputs = [("Examples", ExampleTable, self.dataset, 0), ("Structured Data", DataFiles, self.chipdata)]
         self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
 
         #set default settings

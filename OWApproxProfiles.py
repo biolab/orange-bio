@@ -7,7 +7,7 @@
 
 from OWWidget import *
 import OWGUI
-from OWChipDataFiles import ChipData
+from OWDataFiles import DataFiles
 import Numeric
 import chipstat
 import chipappx
@@ -43,7 +43,7 @@ class OWApproxProfiles(OWWidget):
         box = QVGroupBox("Info", self.controlArea)
         self.infoa = QLabel("No examples on input", box)
         OWGUI.separator(box,250)
-        self.infob = QLabel("No chip data on input", box)
+        self.infob = QLabel("No structured data on input", box)
         OWGUI.separator(self.controlArea)
 
         # kernel selection
@@ -65,8 +65,8 @@ class OWApproxProfiles(OWWidget):
         OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on selection change')
         self.commitBtn = OWGUI.button(box, self, "Commit", callback=self.senddata, disabled=1)
 
-        self.inputs = [("Examples", ExampleTable, self.data, 1), ("Structured Chip Data", ChipData, self.chipdata, 1)]
-        self.outputs = [("Approximated Examples", ExampleTable), ("Approximation Coefficients", ExampleTable), ("Approximated Structured Chip Data", ChipData), ("Structured Chip Approximation Coefficients", ChipData)]
+        self.inputs = [("Examples", ExampleTable, self.data, 1), ("Structured Data", DataFiles, self.chipdata, 1)]
+        self.outputs = [("Approximated Examples", ExampleTable), ("Approximation Coefficients", ExampleTable), ("Approximated Structured Data", DataFiles), ("Structured Approximation Coefficients", DataFiles)]
         self.resize(200,100)
 
     def kernelChange(self):
@@ -158,11 +158,11 @@ class OWApproxProfiles(OWWidget):
                 for et in etList:
                     self._chipdataN[:,:,idx] = Numeric.asarray(chipstat.orng2ma(et))
                     idx += 1
-            self.infob.setText("Chip Data: %i data files with %i profiles on %i points" % (shp[2], shp[0], shp[1]))
+            self.infob.setText("Structured Data: %i data files with %i profiles on %i points" % (shp[2], shp[0], shp[1]))
         else:
             self._chipdata = None
             self._chipdataN = None
-            self.infob.setText("No chip data on input")
+            self.infob.setText("No structured data on input")
         self.setGuiCommonExpChip()
         if self.commitOnChange:
             self.senddata(2)
@@ -284,11 +284,11 @@ class OWApproxProfiles(OWWidget):
                     idxTotal += 1
                 chipcoefNew.append((dirname, etCoefListNew))
                 chipcurvesNew.append((dirname, etCurvesListNew))
-            self.send("Approximated Structured Chip Data", chipcurvesNew)
-            self.send("Structured Chip Approximation Coefficients", chipcoefNew)
+            self.send("Approximated Structured Data", chipcurvesNew)
+            self.send("Structured Approximation Coefficients", chipcoefNew)
         else:
-            self.send("Approximated Structured Chip Data", None)
-            self.send("Structured Chip Approximation Coefficients", None)
+            self.send("Approximated Structured Data", None)
+            self.send("Structured Approximation Coefficients", None)
 
 
 if __name__=="__main__":
