@@ -9,8 +9,7 @@ import Numeric, MA
 from OWWidget import *
 import OWGUI
 import qwt
-from OWStructuredData import DataStructure
-from OWStructuredData import Selector
+from OWDataFiles import DataFiles, ExampleSelection
 import Anova
 
 
@@ -21,8 +20,8 @@ class OWANOVA(OWWidget):
         print "__init__ S"
         OWWidget.__init__(self, parent, signalManager, 'ANOVA')
         # input / output data: [("name1", [orange.ExampleTable1a,...]), ("name2", [orange.ExampleTable2a,...])]
-        self.inputs = [("Structured Data", DataStructure, self.onDataInput, 1)]
-        self.outputs = [("Example Selection", Selector), ("Selected Structured Data", DataStructure), ("Other Structured Data", DataStructure)]
+        self.inputs = [("Structured Data", DataFiles, self.onDataInput, 1)]
+        self.outputs = [("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles), ("Other Structured Data", DataFiles)]
 
         # data, p-values, selected examples
         self.dataStructure = None   # input data
@@ -60,7 +59,7 @@ class OWANOVA(OWWidget):
         self.boxAnovaType = QVButtonGroup("ANOVA Type", ca)
         gl.addWidget(self.boxAnovaType,1,0)
         self.boxAnovaType.setDisabled(1)
-        self.rbgAnovaType = OWGUI.radioButtonsInBox(self.boxAnovaType, self, value="anovaType", btnLabels=["Single-factor (A)", "Single-factor (B)", "Two-factor"], callback=self.onAnovaType)
+        self.rbgAnovaType = OWGUI.radioButtonsInBox(self.boxAnovaType, self, value="anovaType", btnLabels=["Single-factor (A, attributes)", "Single-factor (B, data sets)", "Two-factor"], callback=self.onAnovaType)
         self.cbInteraction = OWGUI.checkBox(self.boxAnovaType, self, value="interaction", label="Test interaction", callback=self.onInteraction)
         
         # selection of examples
@@ -137,7 +136,7 @@ class OWANOVA(OWWidget):
         if structuredData:
             numFiles = reduce(lambda a,b: a+len(b[1]), structuredData, 0)
             lenSD = len(structuredData)
-            self.infoa.setText("Structured data, %d data set%s and total of %d data file%s." % (lenSD, ["","s"][lenSD!=1], numFiles, ["","s"][numFiles!=1]))
+            self.infoa.setText("%d set%s, total of %d data file%s." % (lenSD, ["","s"][lenSD!=1], numFiles, ["","s"][numFiles!=1]))
             numExamplesList = []
             # construct a list of ExampleTable lengths and a list of attribute names
             for (name, etList) in structuredData:
@@ -156,7 +155,7 @@ class OWANOVA(OWWidget):
             else:
                 self.numExamples = numExamplesList[0]
                 numAttributes = len(self.attrNameList)
-                self.infob.setText("Data consists of %d attribute%s, each file contains %d example%s." % (numAttributes, ["","s"][numAttributes!=1], self.numExamples, ["","s"][self.numExamples!=1]))
+                self.infob.setText("%d attribute%s, %d example%s in each file." % (numAttributes, ["","s"][numAttributes!=1], self.numExamples, ["","s"][self.numExamples!=1]))
                 if self.numExamples > 0:
                     self.infoc.setText('Press Commit button to start ANOVA computation.')
                 else:
@@ -547,32 +546,14 @@ class OWANOVA(OWWidget):
         print self.height(), self.width()
 
 
-####    def onInputAttributesCurrentChange(self, item):
-##    def onAlphaReturnPressed0(self):
-##        print "onAlphaReturnPressed"
-##
-##    def onAlphaReturnPressed1(self, qfe):
-##        print "onAlphaReturnPressed"
-
-##    def onCommitToggle(self):
-##        """handles (un)checking commit checkbox;
-##        fires commit if enabled.
-##        """
-##        if self.commitOnChange:
-##            if self.dataStructure:
-##                if not self.ps:
-##                    self.runANOVA()
-##                self.senddata()
-
-
 if __name__=="__main__":
-    import OWStructuredData, orngSignalManager
+    import OWDataFiles, orngSignalManager
     signalManager = orngSignalManager.SignalManager(0)
     a=QApplication(sys.argv)
     ow=OWANOVA(signalManager = signalManager)
     a.setMainWidget(ow)
     ow.show()
-    ds = OWStructuredData.OWStructuredData(signalManager = signalManager)
+    ds = OWDataFiles.OWDataFiles(signalManager = signalManager)
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA")
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_time0")
     ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_time0_swappedAB")
