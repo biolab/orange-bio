@@ -13,9 +13,6 @@ import os, os.path, orange
 class ChipData(orange.Orange):
     pass
 
-class Mico(orange.Orange):
-    pass
-
 class myCheckListItem(QCheckListItem):
     def __init__(self, *args):
         self.callback = None
