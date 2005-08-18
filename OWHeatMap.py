@@ -224,7 +224,7 @@ class OWHeatMap(OWWidget):
     # handling of input/output signals
 
     def dataset(self, data, id):
-        print 'GGG', data
+#        print 'GGG', data
         ids = [d.id for d in self.data]
         if not data:
             if id in ids:
@@ -263,7 +263,7 @@ class OWHeatMap(OWWidget):
         self.canvas.update()
 
     def chipdata(self, data):
-        print 'CHIPDATA'
+#        print 'CHIPDATA'
         self.data = [] # XXX should only remove the data from the same source, use id in this rutine
         self.fileLB.clear()
         self.refFile = 0
