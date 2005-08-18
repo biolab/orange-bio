@@ -658,10 +658,10 @@ class OWDisplayProfiles(OWWidget):
         self.graph.show()
         self.layout.activate() # this is needed to scale the widget correctly
 
-    def data(self, MAdata, id):
+    def data(self, MAdata, id=None):
         ## if there is no class attribute, create a dummy one
         if MAdata and MAdata.domain.classVar == None:
-            noClass = orange.EnumVariable('file', values=['n'])
+            noClass = orange.EnumVariable('file', values=['n', 'y'])
             newDomain = orange.Domain(MAdata.domain.attributes + [noClass])
             mname = MAdata.name ## remember name 
             MAdata = MAdata.select(newDomain) ## because select forgets it
