@@ -98,6 +98,8 @@ class OWDataDistance(OWWidget):
             # construct a list of ExampleTable lengths and a list of attribute names
             for (name, etList) in data:
                 for et in etList:
+                    setattr(et,"dirname",name)
+                    setattr(et,"strain",name)
                     self.data.append(et)
                     numExamplesList.append(len(et))
             if len(self.data)>1:
