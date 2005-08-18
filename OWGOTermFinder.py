@@ -15,6 +15,8 @@ from OWOptions import *
 from qttable import *
 from qwt import *
 
+from OWDataFiles import DataFiles, ExampleSelection
+
 DEBUG = 0
 
 class OWGOTermFinder(OWWidget):	
@@ -26,8 +28,8 @@ class OWGOTermFinder(OWWidget):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, signalManager, name) 
 
-        self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0)]
-        self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
+        self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0), ("Structured Data", DataFiles, self.chipdata, 1)]
+        self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass), ("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles)]
 
         #set default settings
         # annotation
@@ -60,6 +62,7 @@ class OWGOTermFinder(OWWidget):
 
         self.loadSettings()
         self.data = None
+        self.chipdata = None
         # check if files exist and remove those that don't
         # check that all files in directories "Annotation" and "GO" are already included
         self.RecentAnnotations = filter(os.path.exists, self.RecentAnnotations)
@@ -349,6 +352,20 @@ class OWGOTermFinder(OWWidget):
 
     ##########################################################################
     # handling of input/output signals
+    def chipdata(self, chipdata):
+        if chipdata:
+            self.chipdata = chipdata
+#            self.clusterData =  self.chipdata[0][1][0]
+            self.clusterDataset(self.chipdata[0][1][0], 0)
+        else:
+            self.chipdata = None
+            # chip
+            self.send("Example Selection", None)
+            self.send("Selected Structured Data", None)
+            # "regular" data
+            self.send("Examples", None)
+            self.send("Classified Examples", None)
+
     def clusterDataset(self, data, id):
         self.clusterData = data
         self.findMostAppropriateGeneIDandAnnotation()
@@ -442,23 +459,46 @@ class OWGOTermFinder(OWWidget):
                 newdomain.addmeta(key, metas[key])
             # new exampletable into where to put the filtered examples
             newdata = orange.ExampleTable(newdomain)
+            sel = []
+            selDescription = []
             for e in self.clusterData:
                 g = str(e[self.geneIDattr])
                 geneTermList = gtg.get(g, [])
                 if self.SelectDisjoint and len(geneTermList) > 1: ## this gene should be omitted, because belongs to many GOterms
+                    sel.append( 0)
                     continue
+                sel.append(int(g in gtg.keys()))
                 for goterm in geneTermList:
+                    if len(selDescription) < 6 and goterm not in selDescription:
+                        selDescription.append( goterm)
                     nex = orange.Example(newdomain, e)
                     if self.AddGOclass:
                         nex.setclass(goterm)
                     newdata.append( nex)
 
+            if self.chipdata:
+                P = []
+                for (strainname, tmpdata) in self.chipdata:
+                    dataP = [d.select(sel) for d in tmpdata]
+                    for i in range(len(tmpdata)):
+                        dataP[i].name = tmpdata[i].name
+                    P.append((strainname, dataP))
+                self.send("Selected Structured Data", P)
             if newdata.domain.classVar:
                 self.send("Classified Examples", newdata)
             else:
                 self.send("Classified Examples", None)
             self.send("Examples", newdata)
+            if self.chipdata:
+                if len(selDescription) == 6:
+            	    selDescription[-1] = "..."
+                self.send("Example Selection", ("GO: " + ", ".join(selDescription), sel))
+            else:
+                self.send("Selected Structured Data", None)
+                self.send("Example Selection", None) 
         else:
+            self.send("Example Selection", None)
+            self.send("Selected Structured Data", None)
             self.send("Classified Examples", None)
             self.send("Examples", None)
 
