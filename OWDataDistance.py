@@ -12,6 +12,10 @@ from qtcanvas import *
 from OWWidget import *
 from OWDataFiles import DataFiles
 
+import warnings
+warnings.filterwarnings("ignore", "'strain'", orange.AttributeWarning)
+warnings.filterwarnings("ignore", "'dirname'", orange.AttributeWarning)
+
 ##############################################################################
 # main class
 
@@ -263,27 +267,21 @@ def _distSpearmanW_MA(x,y,w):
     ranky = Numeric.array(statc.rankdata(MA.compress(cond, y).tolist()))
     return distPearsonW(rankx,ranky,MA.compress(cond,w))
 
-
-
 ###########################################################################
 # testing
 ###########################################################################
 
 if __name__=="__main__":
-
     import OWDataFiles, orngSignalManager
     signalManager = orngSignalManager.SignalManager(0)
     a=QApplication(sys.argv)
     ow=OWDataDistance(signalManager = signalManager)
+    signalManager.addWidget(ow)
     a.setMainWidget(ow)
     ow.show()
     ds = OWDataFiles.OWDataFiles(signalManager = signalManager)
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato.sub100")
-    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato.sub1000")
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_differentETs")
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_single")
-    signalManager.addWidget(ow)
     signalManager.addWidget(ds)
+    ds.loadData("potato.sub100")
     signalManager.setFreeze(1)
     signalManager.addLink(ds, ow, 'Structured Data', 'Structured Data', 1)
     signalManager.setFreeze(0)
