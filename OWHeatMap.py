@@ -22,7 +22,7 @@ from OWDataFiles import DataFiles
 # parameters that determine the canvas layout
 
 c_offsetX = 10; c_offsetY = 10  # top and left border
-c_spaceX = 10; c_spaceY = 10    # space btw graphical elements
+c_spaceY = 10    # space btw graphical elements
 c_legendHeight = 15             # height of the legend
 c_averageStripeWidth = 12       # width of the stripe with averages
 
@@ -32,10 +32,13 @@ z_heatmap = 5                   # layer with heatmaps
 # main class
 
 class OWHeatMap(OWWidget):	
-    settingsList = ["CellWidth", "CellHeight", "Merge", "Gamma", "CutLow", "CutHigh", "CutEnabled", 
-                    "ShowAnnotation", "LegendOnTop", "LegendOnBottom", "ShowAverageStripe", "ShowGroupLabel",
+    settingsList = ["CellWidth", "CellHeight", "SpaceX", "Merge",
+                    "Gamma", "CutLow", "CutHigh", "CutEnabled", 
+                    "ShowAnnotation", "LegendOnTop", "LegendOnBottom",
+                    "ShowAverageStripe", "ShowGroupLabel",
                     "MaintainArrayHeight",
-                    'BShowballoon', 'BShowColumnID', 'BShowSpotIndex', 'BShowAnnotation', 'BShowGeneExpression',
+                    "BShowballoon", "BShowColumnID", "BShowSpotIndex",
+                    "BShowAnnotation", 'BShowGeneExpression',
                     "BSpotVar", "ShowGeneAnnotations", "ShowDataFileNames", "BAnnotationVar",
                     "SelectionType",
                     "CurrentPalette", "SortGenes"]
@@ -49,11 +52,12 @@ class OWHeatMap(OWWidget):
 
         #set default settings
         self.CellWidth = 3; self.CellHeight = 3
+        self.SpaceX = 10
         self.Merge = 1; self.savedMerge = self.Merge
         self.Gamma = 1
         self.CutLow = 0; self.CutHigh = 0; self.CutEnabled = 0
         self.ShowAnnotation = 0
-        self.LegendOnTop = 1           # legend stripe on top (bottom)?
+        self.LegendOnTop = 0           # legend stripe on top (bottom)?
         self.LegendOnBottom = 1
         self.ShowGroupLabel = 1        # show class names in case of classified data?
         self.ShowAverageStripe = 0     # show the stripe with the evarage
@@ -82,6 +86,7 @@ class OWHeatMap(OWWidget):
         box = QVButtonGroup("Cell Size (Pixels)", settingsTab)
         OWGUI.qwtHSlider(box, self, "CellWidth", label='Width: ', labelWidth=38, minValue=1, maxValue=self.maxHSize, step=1, precision=0, callback=self.drawHeatMap)
         self.sliderVSize = OWGUI.qwtHSlider(box, self, "CellHeight", label='Height: ', labelWidth=38, minValue=1, maxValue=self.maxVSize, step=1, precision=0, callback=self.createHeatMap)
+        OWGUI.qwtHSlider(box, self, "SpaceX", label='Space: ', labelWidth=38, minValue=0, maxValue=50, step=2, precision=0, callback=self.drawHeatMap)
         OWGUI.qwtHSlider(settingsTab, self, "Gamma", box="Gamma", minValue=0.1, maxValue=1, step=0.1, callback=self.drawHeatMap)
 
         # define the color stripe to show the current palette
@@ -123,11 +128,14 @@ class OWHeatMap(OWWidget):
         self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationIndx", items=[], callback=lambda x='BAnnotationVar', y='BAnnotationIndx': self.setMetaID(x, y))
 
         box = QVButtonGroup("Balloon", tab)
-        OWGUI.checkBox(box, self, 'BShowballoon', "Show balloon", callback=lambda: self.balloonInfoBox.setDisabled(not self.BShowballoon))
+        OWGUI.checkBox(box, self, 'BShowballoon', "Show balloon", \
+            callback=lambda: self.balloonInfoBox.setDisabled(not self.BShowballoon))
         box = QVButtonGroup("Balloon Info", tab)
         OWGUI.checkBox(box, self, 'BShowColumnID', "Column ID")
-        self.spotIndxCB = OWGUI.checkBox(box, self, 'BShowSpotIndex', "Spot Index", callback=lambda: self.spotCombo.setDisabled(not self.BShowSpotIndex))
-        self.spotCombo = OWGUI.comboBox(box, self, "BSpotIndx", items=[], callback=lambda x='BSpotVar', y='BSpotIndx': self.setMetaID(x, y))
+        self.spotIndxCB = OWGUI.checkBox(box, self, 'BShowSpotIndex', "Spot Index", \
+            callback=lambda: self.spotCombo.setDisabled(not self.BShowSpotIndex))
+        self.spotCombo = OWGUI.comboBox(box, self, "BSpotIndx", items=[], \
+            callback=lambda x='BSpotVar', y='BSpotIndx': self.setMetaID(x, y))
         OWGUI.checkBox(box, self, 'BShowGeneExpression', "Gene expression")
         OWGUI.checkBox(box, self, 'BShowAnnotation', "Annotation")
         self.balloonInfoBox = box
@@ -143,14 +151,18 @@ class OWHeatMap(OWWidget):
         self.tabs.insertTab(self.filesTab, "Files")
         self.tabs.setTabEnabled(self.filesTab, 0)
         hbox = QHBox(box)
-        self.fileUp = OWGUI.button(hbox, self, 'Up', callback=lambda i=-1: self.fileOrderChange(i), disabled=1)
+        self.fileUp = OWGUI.button(hbox, self, 'Up', \
+            callback=lambda i=-1: self.fileOrderChange(i), disabled=1)
         self.fileRef = OWGUI.button(hbox, self, 'Ref', self.setFileReference, disabled=1)
-        self.fileDown = OWGUI.button(hbox, self, 'Down', callback=lambda i=1: self.fileOrderChange(i), disabled=1)
+        self.fileDown = OWGUI.button(hbox, self, 'Down', \
+            callback=lambda i=1: self.fileOrderChange(i), disabled=1)
         for btn in [self.fileUp, self.fileRef, self.fileDown]:
             btn.setMaximumWidth(45)
 
-        OWGUI.checkBox(self.filesTab, self, 'ShowDataFileNames', 'Show data file names', callback=self.drawHeatMap)
-        OWGUI.radioButtonsInBox(self.filesTab, self, 'SelectionType', ['Single data set', 'Multiple data sets'], box='Selection')
+        OWGUI.checkBox(self.filesTab, self, 'ShowDataFileNames', 'Show data file names',
+           callback=self.drawHeatMap)
+        OWGUI.radioButtonsInBox(self.filesTab, self, 'SelectionType', \
+           ['Single data set', 'Multiple data sets'], box='Selection')
 
         self.resize(700,400)
 
@@ -164,7 +176,8 @@ class OWHeatMap(OWWidget):
 
     def createColorStripe(self, palette):
         dx = 104; dy = 18
-        bmp = chr(252)*dx*2 + reduce(lambda x,y:x+y, [chr(i*250/dx) for i in range(dx)] * (dy-4)) + chr(252)*dx*2 
+        bmp = chr(252)*dx*2 + reduce(lambda x,y:x+y, \
+           [chr(i*250/dx) for i in range(dx)] * (dy-4)) + chr(252)*dx*2 
         image = QImage(bmp, dx, dy, 8, self.ColorPalettes[palette], 256, QImage.LittleEndian)
         pm = QPixmap()
         pm.convertFromImage(image, QPixmap.Color);
@@ -177,9 +190,13 @@ class OWHeatMap(OWWidget):
         white = qRgb(255,255,255)
         gray = qRgb(200,200,200)
         self.ColorPalettes = \
-          ([qRgb(255.*i/250., 255.*i/250., 255-(255.*i/250.)) for i in range(250)] + [white]*3 + [qRgb(0., 0., 255.), qRgb(255., 255., 0.), gray],
-           [qRgb(0, 255.*i*2/250., 0) for i in range(125, 0, -1)] + [qRgb(255.*i*2/250., 0, 0) for i in range(125)] + [white]*3 + [qRgb(0, 255., 0), qRgb(255., 0, 0), gray],
-           [qRgb(255.*i/250., 0, 0) for i in range(250)] + [white]*3 + [qRgb(0., 0, 0), qRgb(255., 0, 0), gray])
+          ([qRgb(255.*i/250., 255.*i/250., 255-(255.*i/250.)) \
+            for i in range(250)] + [white]*3 + [qRgb(0., 0., 255.), qRgb(255., 255., 0.), gray],
+           [qRgb(0, 255.*i*2/250., 0) for i in range(125, 0, -1)] \
+           + [qRgb(255.*i*2/250., 0, 0) for i in range(125)] + [white]*3 \
+           + [qRgb(0, 255., 0), qRgb(255., 0, 0), gray],
+           [qRgb(255.*i/250., 0, 0) for i in range(250)] + [white]*3 \
+           + [qRgb(0., 0, 0), qRgb(255., 0, 0), gray])
         self.SelectionColors = [QColor(0,0,0), QColor(255,255,128), QColor(0,255,255)]
         self.CurrentPalette = 0
         
@@ -217,14 +234,15 @@ class OWHeatMap(OWWidget):
 
     def setMetaCombos(self):
         self.meta = [m.name for m in self.data[0].domain.getmetas().values()]
-        self.BSpotVar, self.BSpotIndx = self.setMetaCombo(self.spotCombo, self.BSpotVar, enabled=self.BShowSpotIndex, default='RMI')
-        self.BAnnotationVar, self.BAnnotationIndx = self.setMetaCombo(self.annotationCombo, self.BAnnotationVar, enabled=self.BShowAnnotation, default='xannotation')
+        self.BSpotVar, self.BSpotIndx = self.setMetaCombo(self.spotCombo, self.BSpotVar, \
+            enabled=self.BShowSpotIndex, default='RMI')
+        self.BAnnotationVar, self.BAnnotationIndx = self.setMetaCombo(self.annotationCombo, \
+            self.BAnnotationVar, enabled=self.BShowAnnotation, default='xannotation')
 
     ##########################################################################
     # handling of input/output signals
 
-    def dataset(self, data, id):
-#        print 'GGG', data
+    def dataset(self, data, id, blockUpdate=0):
         ids = [d.id for d in self.data]
         if not data:
             if id in ids:
@@ -234,7 +252,8 @@ class OWHeatMap(OWWidget):
                 if self.refFile == k:
                     self.refFile = 0
                     if len(self.data):
-                        self.fileLB.changeItem(self.createListItem(self.data[0].name, self.refFile), self.refFile)
+                        self.fileLB.changeItem(self.createListItem(self.data[0].name, self.refFile), \
+                                               self.refFile)
         else:
             # check if the same length
             if data.domain.classVar:
@@ -249,21 +268,20 @@ class OWHeatMap(OWWidget):
             else:
                 self.fileLB.insertItem(self.createListItem(data.name, len(self.data)))
                 self.data.append(data)
-#                self.fileLB.insertItem(data.name)
 
             if len(self.data) > 1:
                 self.tabs.setTabEnabled(self.filesTab, 1)
             else:
                 self.tabs.setTabEnabled(self.filesTab, 0)
             self.setMetaCombos() # set the two combo widgets according to the data
-            
-        self.send('Classified Examples', None)
-        self.send('Examples', None)
-        self.constructHeatmap()
-        self.canvas.update()
+
+        if not blockUpdate:
+            self.send('Classified Examples', None)
+            self.send('Examples', None)
+            self.constructHeatmap()
+            self.canvas.update()
 
     def chipdata(self, data):
-#        print 'CHIPDATA'
         self.data = [] # XXX should only remove the data from the same source, use id in this rutine
         self.fileLB.clear()
         self.refFile = 0
@@ -275,21 +293,30 @@ class OWHeatMap(OWWidget):
         indx = 0
         for (strainname, ds) in data:
             for d in ds:
-                self.dataset(d, indx)
+                self.dataset(d, indx, blockUpdate=1)
                 indx += 1
-        self.createHeatMap()
+#        self.createHeatMap()
+
+        pb = OWGUI.ProgressBar(self, iterations=len(self.data))
+        self.constructHeatmap(callback=pb.advance)
         self.canvas.update()
+        pb.finish()
         
-    def constructHeatmap(self):
+    def constructHeatmap(self, callback=None):
         if len(self.data):
             self.heatmapconstructor = [None] * len(self.data)
             if self.SortGenes:
-                self.heatmapconstructor[self.refFile] = orangene.HeatmapConstructor(self.data[self.refFile])
+                self.heatmapconstructor[self.refFile] = \
+                    orangene.HeatmapConstructor(self.data[self.refFile])
             else:
-                self.heatmapconstructor[self.refFile] = orangene.HeatmapConstructor(self.data[self.refFile], None)
+                self.heatmapconstructor[self.refFile] = \
+                    orangene.HeatmapConstructor(self.data[self.refFile], None)
+            if callback: callback()
             for i in range(len(self.data)):
                 if i <> self.refFile:
-                    self.heatmapconstructor[i] = orangene.HeatmapConstructor(self.data[i], self.heatmapconstructor[self.refFile])
+                    self.heatmapconstructor[i] = orangene.HeatmapConstructor(self.data[i],
+                        self.heatmapconstructor[self.refFile])
+                    if callback: callback()
         else:
             self.heatmapconstructor = []
         self.createHeatMap()
@@ -442,13 +469,15 @@ class OWHeatMap(OWWidget):
         self.canvasView.heatmapParameters(self, self.CellWidth, self.CellHeight) # needed for event handling
 
         palette = self.ColorPalettes[self.CurrentPalette]
-        groups = (not self.data[0].domain.classVar and 1) or len(self.data[0].domain.classVar.values) # mercy! (just had to do this)
+        groups = (not self.data[0].domain.classVar and 1) or \
+                 len(self.data[0].domain.classVar.values) # mercy! (just had to do this)
 
         self.bmps = []; self.heights = []; self.imgStart = []; self.imgEnd = []
         for (i,hm) in enumerate(self.heatmaps):
             bmpl = []
             for g in range(groups):
-                bmp, self.imageWidth, imageHeight = hm[g].getBitmap(int(self.CellWidth), int(self.CellHeight), lo, hi, self.Gamma)
+                bmp, self.imageWidth, imageHeight = hm[g].getBitmap(int(self.CellWidth), \
+                    int(self.CellHeight), lo, hi, self.Gamma)
                 bmpl.append(bmp)
                 if not i: self.heights.append(imageHeight)
             self.bmps.append(bmpl)
@@ -464,18 +493,20 @@ class OWHeatMap(OWWidget):
         for i in range(len(self.data)):
             y = y0; y1 = y0
             if self.ShowDataFileNames and len(self.data)>1:
-                y1 = self.drawFileName(self.data[i].name, x, y, self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + c_spaceX))
+                y1 = self.drawFileName(self.data[i].name, x, y, \
+                    self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + self.SpaceX))
             x0 = x
             # plot the heatmap (and group label)
             ycoord = []
-            y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + c_spaceX)
+            y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + self.SpaceX)
             for g in range(groups):
               if self.heights[g]:
                 if self.ShowGroupLabel and groups>1:
                     y = self.drawGroupLabel(self.data[i][0].domain.classVar.values[g], x, y, self.imageWidth)
                 if not i: self.imgStart.append(y)
                 ycoord.append(y)
-                image = ImageItem(self.bmps[i][g], self.canvas, self.imageWidth, self.heights[g], palette, x=x, y=y, z=z_heatmap)
+                image = ImageItem(self.bmps[i][g], self.canvas, self.imageWidth, \
+                                  self.heights[g], palette, x=x, y=y, z=z_heatmap)
                 image.hm = self.heatmaps[i][g] # needed for event handling
                 image.height = self.heights[g]; image.width = self.imageWidth
                 if not i: self.imgEnd.append(y+self.heights[g]-1)
@@ -485,9 +516,11 @@ class OWHeatMap(OWWidget):
             # plot stripe with averages
             if self.ShowAverageStripe:
                 for g in range(groups):
-                    avg, avgWidth, avgHeight = self.heatmaps[i][g].getAverages(c_averageStripeWidth, int(self.CellHeight), lo, hi, self.Gamma)
+                    avg, avgWidth, avgHeight = self.heatmaps[i][g].getAverages(c_averageStripeWidth, \
+                        int(self.CellHeight), lo, hi, self.Gamma)
                     ImageItem(avg, self.canvas, avgWidth, avgHeight, palette, x=x, y=ycoord[g])
-            x += self.imageWidth + c_offsetX + self.ShowAverageStripe * (c_averageStripeWidth + c_spaceX)
+            x += self.imageWidth + self.SpaceX + self.ShowAverageStripe * \
+                (c_averageStripeWidth + self.SpaceX)
 
         # plot the gene annotation
         for g in range(groups):
@@ -547,7 +580,6 @@ class OWHeatMap(OWWidget):
         self.refFile = sel
         self.fileLB.changeItem(self.createListItem(self.data[sel].name, sel), sel)
         self.constructHeatmap()
-##        self.canvas.update()
 
     def fileSelectionChanged(self, sel):
         # self.fileRef.setDisabled(sel==0)
@@ -572,10 +604,8 @@ class OWHeatMap(OWWidget):
         listItem = QListBoxPixmap(pixmap)
         listItem.setText(text)
         return listItem
-##        return QListBoxText(text)
 
 
-##################################################################################################
 ##################################################################################################
 # color palette dialog
 
@@ -584,7 +614,9 @@ class OWDisplayColorOptions(OWOptions):
         OWOptions.__init__(self, "Color Palette", "OrangeWidgetsIcon.png", parent, name)
         self.master = master
         pms = [master.createColorStripe(i) for i in range(len(master.ColorPalettes))]
-        OWGUI.radioButtonsInBox(self.top, master, "Color Palettes", pms, "CurrentPalette", tooltips=None, callback=self.master.setCurrentPalette)
+        OWGUI.radioButtonsInBox(self.top, master, "Color Palettes", pms, \
+            "CurrentPalette", tooltips=None, callback=self.master.setCurrentPalette)
+
 
 ##################################################################################################
 # new canvas items
@@ -593,12 +625,12 @@ class ImageItem(QCanvasRectangle):
     def __init__(self, bitmap, canvas, width, height, palette, depth=8, numColors=256, x=0, y=0, z=0):
         QCanvasRectangle.__init__(self, canvas)
         self.image = QImage(bitmap, width, height, depth, palette, numColors, QImage.LittleEndian)
-        self.image.bitmap = bitmap # this is tricky: bitmap should not be freed, else we get mess. hence, we store it in the object
+        self.image.bitmap = bitmap # this is tricky: bitmap should not be freed,
+                                   # else we get mess. hence, we store it in the object
         #self.pixmap = QPixmap()
         #self.pixmap.convertFromImage(image, QPixmap.Color)
         self.canvas = canvas
         self.setSize(width, height)
-##        self.setSize(int(image.width()), int(image.height()))
         self.setX(x); self.setY(y); self.setZ(z)
         self.show()
 
@@ -623,8 +655,8 @@ class MyCanvasView(QCanvasView):
     def heatmapParameters(self, master, cellWidth, cellHeight):
         self.master = master
         self.dx, self.dy = cellWidth, cellHeight
-        self.selector = QCanvasRectangle(0, 0, self.dx + 2 * v_sel_width - 1, self.dy + 2 * v_sel_width - 1, self.canvas)
-#        self.selector.setPen(QPen(Qt.black, v_sel_width))
+        self.selector = QCanvasRectangle(0, 0, \
+            self.dx + 2 * v_sel_width - 1, self.dy + 2 * v_sel_width - 1, self.canvas)
         self.selector.setPen(QPen(self.master.SelectionColors[self.master.CurrentPalette], v_sel_width))
         self.selector.setZ(10)
         self.bubble = BubbleInfo(self.canvas)
@@ -669,7 +701,8 @@ class MyCanvasView(QCanvasView):
             self.bubble.head.setText(head)
             # bubble, construct body
             body = None
-            if (self.master.BShowSpotIndex and self.master.BSpotVar) or self.master.BShowAnnotation or self.master.BShowGeneExpression:
+            if (self.master.BShowSpotIndex and self.master.BSpotVar) or \
+                    self.master.BShowAnnotation or self.master.BShowGeneExpression:
                 for (i, e) in enumerate(ex):
                     if i>5:
                         body += "\n... (%d more)" % (len(ex)-5)
@@ -716,7 +749,8 @@ class SelectData:
         self.master = master
         self.add = FALSE
         self.squares = []; self.rows = []    # cumulative, used for multiple selection
-        self.cRows = []; self.cSquares = []  #workaround for when release(self) is called before any clicking at all has occured (maybe caused by a Qt bug?)
+        self.cRows = []; self.cSquares = []  # workaround for when release(self) is called
+                        # before any clicking at all has occured (maybe caused by a Qt bug?)
 
     # removes the selection and relate information
     def remove(self):
@@ -804,12 +838,13 @@ class SelectData:
     # draws rectangles around selected points
     def draw(self, rows):
         start = self.master.imgStart; end = self.master.imgEnd
-        x = c_offsetX + self.master.ShowAverageStripe * (c_averageStripeWidth + c_spaceX)
+        x = c_offsetX + self.master.ShowAverageStripe * (c_averageStripeWidth + self.SpaceX)
         lines = []
         for (g, r1, r2) in rows:
             y1 = start[g] + r1 * self.master.CellHeight
             y2 = start[g] + (r2+1) * self.master.CellHeight - 1
-            r = QCanvasRectangle(x-v_sel_width+1, y1-v_sel_width+1, self.master.imageWidth+2*v_sel_width-1, y2-y1+v_sel_width+2, self.canvas)
+            r = QCanvasRectangle(x-v_sel_width+1, y1-v_sel_width+1, \
+                    self.master.imageWidth+2*v_sel_width-1, y2-y1+v_sel_width+2, self.canvas)
             r.setPen(QPen(self.master.SelectionColors[self.master.CurrentPalette], v_sel_width))
             #r.setPen(QPen(Qt.red, v_sel_width))
             r.setZ(10)
@@ -853,7 +888,8 @@ class BubbleInfo(QCanvasRectangle):
         self.bubbleShadow.move(x+5, y+5)
         for item in self.items:
             item.setX(x + bubbleBorder)
-        w = max(100, self.head.boundingRect().width() + 2 * bubbleBorder, self.body.boundingRect().width() + 2 * bubbleBorder)
+        w = max(100, self.head.boundingRect().width() + 2 * bubbleBorder, \
+                self.body.boundingRect().width() + 2 * bubbleBorder)
         y += 2
         self.head.setY(y)
         y += self.head.boundingRect().height()
@@ -861,7 +897,8 @@ class BubbleInfo(QCanvasRectangle):
         self.line.setX(x); self.line.setY(y)
         y += 2
         self.body.setY(y)
-        h = 2 * (2 + (self.body.text()<>None)) + self.head.boundingRect().height() + (self.body.text()<>None) * self.body.boundingRect().height()
+        h = 2 * (2 + (self.body.text()<>None)) + self.head.boundingRect().height() \
+            + (self.body.text()<>None) * self.body.boundingRect().height()
         self.setSize(w,h)
         self.bubbleShadow.setSize(w,h)
         
@@ -883,12 +920,22 @@ class BubbleInfo(QCanvasRectangle):
 # test script
 
 if __name__=="__main__":
-    import orange
-    a = QApplication(sys.argv)
-    ow = OWHeatMap()
+    import OWDataFiles, orngSignalManager
+    signalManager = orngSignalManager.SignalManager(0)
+    a=QApplication(sys.argv)
+    ow=OWHeatMap(signalManager = signalManager)
+    signalManager.addWidget(ow)
     a.setMainWidget(ow)
-
     ow.show()
+    ds = OWDataFiles.OWDataFiles(signalManager = signalManager)
+    signalManager.addWidget(ds)
+    ds.loadData("potato.sub1000")
+    signalManager.setFreeze(1)
+    signalManager.addLink(ds, ow, 'Structured Data', 'Structured Data', 1)
+    signalManager.setFreeze(0)
+    a.exec_loop()
+    ow.saveSettings()
+    
 ##    d = orange.ExampleTable('wt'); d.name = 'wt'
 ##    d = orange.ExampleTable('wt-nometa'); d.name = 'wt'
 ##    ow.dataset(d, 2)
@@ -897,11 +944,11 @@ if __name__=="__main__":
 ##    ow.dataset(None, 1)
 ##    ow.dataset(None, 2)
 
-    names = ['wt1', 'wt2', 'wt3', 'wt4']
-    for i, s in enumerate(names): 
-        d = orange.ExampleTable(s); d.name = s
-        ow.dataset(d, i)
-    ow.dataset(None, 2)
+##    names = ['wt1', 'wt2', 'wt3', 'wt4']
+##    for i, s in enumerate(names): 
+##        d = orange.ExampleTable(s); d.name = s
+##        ow.dataset(d, i)
+##    ow.dataset(None, 2)
 
-    a.exec_loop()
-    ow.saveSettings()
+#    a.exec_loop()
+#    ow.saveSettings()
