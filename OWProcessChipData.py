@@ -2,7 +2,7 @@
 <name>Process Chip Data</name>
 <description>Pre- and post-processing of chip data.</description>
 <icon>icons/ProcessChipData.png</icon>
-<priority>1110</priority>
+<priority>1060</priority>
 """
 
 from OWWidget import *
