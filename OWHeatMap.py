@@ -1,4 +1,4 @@
-"
+"""
 <name>Heat Map</name>
 <description>Microarray Heat Map</description>
 <icon>icons/HeatMap.png</icon>
