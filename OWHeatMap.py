@@ -1,4 +1,4 @@
-"""
+"
 <name>Heat Map</name>
 <description>Microarray Heat Map</description>
 <icon>icons/HeatMap.png</icon>
@@ -311,7 +311,6 @@ class OWHeatMap(OWWidget):
         if len(self.data):
             self.heatmapconstructor = [None] * len(self.data)
 
-            print self.data, self.refFile
             if self.SortGenes:
                 self.heatmapconstructor[self.refFile] = \
                     orangene.HeatmapConstructor(self.data[self.refFile])
