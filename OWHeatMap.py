@@ -8,7 +8,6 @@
 import orange, math
 import orangene
 import OWGUI
-#from string import *
 from qt import *
 from qtcanvas import *
 from OWWidget import *
@@ -16,13 +15,17 @@ from OWOptions import *
 from qwt import *
 from OWDataFiles import DataFiles
 
+import warnings
+warnings.filterwarnings("ignore", "'strain'", orange.AttributeWarning)
+
 # from OWChipANOVA import ANOVAResults
 
 ##############################################################################
 # parameters that determine the canvas layout
 
 c_offsetX = 10; c_offsetY = 10  # top and left border
-c_spaceY = 10    # space btw graphical elements
+c_spaceY = 10                   # space btw graphical elements
+c_spaceAverageX = 5             # space btw stripe with average and microarray
 c_legendHeight = 15             # height of the legend
 c_averageStripeWidth = 12       # width of the stripe with averages
 
@@ -39,7 +42,8 @@ class OWHeatMap(OWWidget):
                     "MaintainArrayHeight",
                     "BShowballoon", "BShowColumnID", "BShowSpotIndex",
                     "BShowAnnotation", 'BShowGeneExpression',
-                    "BSpotVar", "ShowGeneAnnotations", "ShowDataFileNames", "BAnnotationVar",
+                    "BSpotVar", "ShowGeneAnnotations",
+                    "ShowDataFileNames", "BAnnotationVar",
                     "SelectionType",
                     "CurrentPalette", "SortGenes"]
 
@@ -47,8 +51,8 @@ class OWHeatMap(OWWidget):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, signalManager, 'HeatMap') 
         
-        self.inputs = [("Examples", ExampleTable, self.dataset, 0), ("Structured Data", DataFiles, self.chipdata)]
-        self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
+        self.inputs = [("Structured Data", DataFiles, self.chipdata), ("Examples", ExampleTable, self.dataset, 0)]
+        self.outputs = [("Structured Data", DataFiles), ("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
 
         #set default settings
         self.CellWidth = 3; self.CellHeight = 3
@@ -61,7 +65,7 @@ class OWHeatMap(OWWidget):
         self.LegendOnBottom = 1
         self.ShowGroupLabel = 1        # show class names in case of classified data?
         self.ShowAverageStripe = 0     # show the stripe with the evarage
-        self.MaintainArrayHeight = 1   # adjust cell height while changing the merge factor
+        self.MaintainArrayHeight = 0   # adjust cell height while changing the merge factor
         self.BShowballoon = 1          # balloon help
         self.ShowGeneAnnotations = 1   # show annotations for genes
         self.ShowDataFileNames = 1     # show the names of the data sets (only in case of multiple files)
@@ -162,7 +166,7 @@ class OWHeatMap(OWWidget):
         OWGUI.checkBox(self.filesTab, self, 'ShowDataFileNames', 'Show data file names',
            callback=self.drawHeatMap)
         OWGUI.radioButtonsInBox(self.filesTab, self, 'SelectionType', \
-           ['Single data set', 'Multiple data sets'], box='Selection')
+           ['Single data set', 'Multiple data sets'], box='Selection', callback=self.removeSelection)
 
         self.resize(700,400)
 
@@ -278,6 +282,7 @@ class OWHeatMap(OWWidget):
         if not blockUpdate:
             self.send('Classified Examples', None)
             self.send('Examples', None)
+            self.send('Structured Data', None)
             self.constructHeatmap()
             self.canvas.update()
 
@@ -305,6 +310,8 @@ class OWHeatMap(OWWidget):
     def constructHeatmap(self, callback=None):
         if len(self.data):
             self.heatmapconstructor = [None] * len(self.data)
+
+            print self.data, self.refFile
             if self.SortGenes:
                 self.heatmapconstructor[self.refFile] = \
                     orangene.HeatmapConstructor(self.data[self.refFile])
@@ -312,6 +319,7 @@ class OWHeatMap(OWWidget):
                 self.heatmapconstructor[self.refFile] = \
                     orangene.HeatmapConstructor(self.data[self.refFile], None)
             if callback: callback()
+
             for i in range(len(self.data)):
                 if i <> self.refFile:
                     self.heatmapconstructor[i] = orangene.HeatmapConstructor(self.data[i],
@@ -343,23 +351,53 @@ class OWHeatMap(OWWidget):
             return None
 
     # send out the data for selected rows, rows = [(group, from, to), ...]
-    def sendData(self, rows):
+    def prepareData(self, rows, indx):
         ex = []
         for (g,s,e) in rows:
-            hm = self.heatmaps[0][g]
+            hm = self.heatmaps[indx][g]
             ex += hm.examples[hm.exampleIndices[s] : hm.exampleIndices[e+1]]
 
         # Reduce the number of class values, if class is defined
-        newdomain = self.checkDomain(self.data[0], selection=ex)
+        newdomain = self.checkDomain(self.data[indx], selection=ex)
         if not newdomain:
-            newdomain = self.data[0].domain
+            newdomain = self.data[indx].domain
         selectedData = orange.ExampleTable(newdomain, ex)
-        if selectedData.domain.classVar:
-            self.send("Classified Examples", selectedData, 1)
+        return selectedData
+
+    def sendOne(self, data, indx):
+        if data.domain.classVar:
+            self.send("Classified Examples", data)
         else:
             self.send("Classified Examples", None)
-        self.send("Examples", selectedData, 1)
+        self.send("Examples", data)
+    
+    def sendData(self, rows, indxs):
+        indxs.sort()
 
+        newdata = [None] * (max(indxs) + 1)
+        for i in indxs:
+            newdata[i] = self.prepareData(rows, i)
+            newdata[i].name = self.data[i].name
+            if not hasattr(self.data[i], "strain"):
+                newdata[i].strain = "NoName (%d)" % i
+            else:
+                newdata[i].strain = self.data[i].strain
+            
+            self.sendOne(newdata[i], i)
+            
+        groups = {}
+        for i in indxs:
+            groups[newdata[i].strain] = []
+        for i in indxs:
+            groups[newdata[i].strain].append(i)
+        strains = groups.keys()
+        strains.sort()
+        datafiles = []
+        for s in strains:
+            datafiles.append( (s, [newdata[i] for i in groups[s]]) )
+        datafiles
+        self.send("Structured Data", datafiles)
+        
     ##########################################################################
     # callback functions
 
@@ -472,7 +510,7 @@ class OWHeatMap(OWWidget):
         groups = (not self.data[0].domain.classVar and 1) or \
                  len(self.data[0].domain.classVar.values) # mercy! (just had to do this)
 
-        self.bmps = []; self.heights = []; self.imgStart = []; self.imgEnd = []
+        self.bmps = []; self.heights = []; self.widths = []; self.imgStart = []; self.imgEnd = []
         for (i,hm) in enumerate(self.heatmaps):
             bmpl = []
             for g in range(groups):
@@ -481,6 +519,7 @@ class OWHeatMap(OWWidget):
                 bmpl.append(bmp)
                 if not i: self.heights.append(imageHeight)
             self.bmps.append(bmpl)
+            self.widths.append(self.imageWidth)
 
         totalHeight = max(reduce(lambda x,y:x+y, self.heights) + 500, 2000)
         self.canvas.resize(2000, totalHeight) # this needs adjustment
@@ -490,19 +529,21 @@ class OWHeatMap(OWWidget):
         if self.LegendOnTop:
             y0 = self.drawLegend(x, y0, self.imageWidth, c_legendHeight, palette)
 
+        self.heatmapPositionsX = [] # start and end positions of heatmaps
         for i in range(len(self.data)):
             y = y0; y1 = y0
             if self.ShowDataFileNames and len(self.data)>1:
                 y1 = self.drawFileName(self.data[i].name, x, y, \
-                    self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + self.SpaceX))
+                    self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + c_spaceAverageX))
             x0 = x
             # plot the heatmap (and group label)
             ycoord = []
-            y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + self.SpaceX)
+            y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + c_spaceAverageX)
+            self.heatmapPositionsX.append((x, x + self.widths[i]-1))
             for g in range(groups):
               if self.heights[g]:
                 if self.ShowGroupLabel and groups>1:
-                    y = self.drawGroupLabel(self.data[i][0].domain.classVar.values[g], x, y, self.imageWidth)
+                    y = self.drawGroupLabel(self.data[i][0].domain.classVar.values[g], x, y, self.imageWidth)          
                 if not i: self.imgStart.append(y)
                 ycoord.append(y)
                 image = ImageItem(self.bmps[i][g], self.canvas, self.imageWidth, \
@@ -520,14 +561,14 @@ class OWHeatMap(OWWidget):
                         int(self.CellHeight), lo, hi, self.Gamma)
                     ImageItem(avg, self.canvas, avgWidth, avgHeight, palette, x=x, y=ycoord[g])
             x += self.imageWidth + self.SpaceX + self.ShowAverageStripe * \
-                (c_averageStripeWidth + self.SpaceX)
+                (c_averageStripeWidth + c_spaceAverageX)
 
         # plot the gene annotation
         for g in range(groups):
             if self.ShowGeneAnnotations and self.CellHeight>4:
                 self.drawGeneAnnotation(x, ycoord[g], g)
 
-        self.selection.redraw()        
+        self.selection.redraw()
         self.canvas.update()
         
     def createHeatMap(self):
@@ -605,6 +646,11 @@ class OWHeatMap(OWWidget):
         listItem.setText(text)
         return listItem
 
+    # remove gene selection (when changing some of the options)
+    def removeSelection(self):
+        if self.selection:
+            self.selection.remove()
+            self.canvas.update()
 
 ##################################################################################################
 # color palette dialog
@@ -664,7 +710,7 @@ class MyCanvasView(QCanvasView):
     def contentsMouseMoveEvent(self, event):
         # handling of selection
         if self.clicked:
-            self.master.selection(self.clicked, event.y())
+            self.master.selection(self.clicked, (event.x(), event.y()))
 
         # balloon handling
         try:
@@ -732,25 +778,46 @@ class MyCanvasView(QCanvasView):
 
     def contentsMousePressEvent(self, event):
         # self.viewport().setMouseTracking(False)
-        self.clicked = event.y()
-        self.master.selection.start(self.clicked, event.y(), self.shiftPressed)
+        self.clicked = (event.x(), event.y())
+        if not self.master.selection.start(self.clicked, self.clicked, self.shiftPressed):
+            self.clicked = None
 
     def contentsMouseReleaseEvent(self, event):
-        self.clicked = False
-        self.canvas.update()
-        self.master.selection.release()
+        if self.clicked:
+            self.clicked = False
+            self.canvas.update()
+            self.master.selection.release()
 
 ##################################################################################################
 # data selection
+
+def interval_position(x, l, forced=None):
+    if forced:
+        for (i,(min,max)) in enumerate(l):
+            if x>=min and x<=max:
+                return i
+        return None
+    else:
+        for (i,(min,max)) in enumerate(l):
+            if x>=min and x<=max:
+                return i
+            if x<min:
+                if i>forced:
+                    if i-1>0: return i-1
+                    return 0
+                else:
+                    return i
+        return i
 
 class SelectData:
     def __init__(self, master, canvas):
         self.canvas = canvas
         self.master = master
-        self.add = FALSE
+        self.add = False
         self.squares = []; self.rows = []    # cumulative, used for multiple selection
         self.cRows = []; self.cSquares = []  # workaround for when release(self) is called
                         # before any clicking at all has occured (maybe caused by a Qt bug?)
+        self.startIndx = None; self.indxs = []
 
     # removes the selection and relate information
     def remove(self):
@@ -760,17 +827,47 @@ class SelectData:
 
     # starts the selection, called after the first click
     def start(self, p1, p2, add=False):
+        indx = interval_position(p1[0], self.master.heatmapPositionsX)
+        if indx == None:
+            self.remove()
+            self.indx = []; self.startIndx = None
+            return False
+        
         if not add:
             self.remove()
+            self.startIndx = indx
+            self.indxs = [indx]
+        else:
+            if self.master.SelectionType==0:
+                if self.startIndx<>None and self.startIndx<>indx:
+                    self.remove()
+                    self.indx = [indx]
+                    self.startIndx = indx                    
+            else:
+                self.startIndx = indx
+                if indx not in self.indxs:
+                    self.indxs.append(indx)
+
         self.cSquares = []; self.cRows = [] # current selection
         self.add = add
         self.__call__(p1, p2)
+        # determines which microarray was clicked
+        return True
  
     # called during dragging (extending the selection)
     def __call__(self, p1, p2):
         for r in self.cSquares:
             r.setCanvas(None)
-        y1 = min(p1, p2); y2 = max(p1, p2)
+        y1 = min(p1[1], p2[1]); y2 = max(p1[1], p2[1])
+        if self.master.SelectionType == 1:
+            indx = interval_position(p2[0], self.master.heatmapPositionsX)
+            if indx==None:
+                indx = interval_position(p2[0], self.master.heatmapPositionsX, forced=self.startIndx)
+            irange = range(min(indx, self.startIndx), max(indx, self.startIndx)+1)
+            for i in irange:
+                if indx not in self.indxs:
+                    self.indxs.append(indx)
+
         self.cRows = self.findSelectionRows([(y1,y2)])
         self.cSquares = self.draw(self.cRows)
 
@@ -814,7 +911,7 @@ class SelectData:
             self.rows = self.cRows
             self.squares = self.cSquares
         if self.rows:
-            self.master.sendData(self.rows)
+            self.master.sendData(self.rows, self.indxs)
 
     def findSelectionRows(self, points):
         start = self.master.imgStart; end = self.master.imgEnd
@@ -835,21 +932,32 @@ class SelectData:
                     rows.append((i,a,b))
         return rows
 
-    # draws rectangles around selected points
-    def draw(self, rows):
-        start = self.master.imgStart; end = self.master.imgEnd
-        x = c_offsetX + self.master.ShowAverageStripe * (c_averageStripeWidth + self.SpaceX)
+    # draws rectangles around selected points for a indx-th microarray
+    def drawOne(self, rows, indx):
         lines = []
+        start = self.master.imgStart; end = self.master.imgEnd
+        self.master.heatmapPositionsX[indx][0]
         for (g, r1, r2) in rows:
             y1 = start[g] + r1 * self.master.CellHeight
             y2 = start[g] + (r2+1) * self.master.CellHeight - 1
-            r = QCanvasRectangle(x-v_sel_width+1, y1-v_sel_width+1, \
-                    self.master.imageWidth+2*v_sel_width-1, y2-y1+v_sel_width+2, self.canvas)
+            r = QCanvasRectangle(self.master.heatmapPositionsX[indx][0]-v_sel_width+1, y1-v_sel_width+1, \
+                    self.master.widths[indx]+2*v_sel_width-1, y2-y1+v_sel_width+2, self.canvas)
             r.setPen(QPen(self.master.SelectionColors[self.master.CurrentPalette], v_sel_width))
             #r.setPen(QPen(Qt.red, v_sel_width))
             r.setZ(10)
             r.show()
             lines.append(r)
+        return lines
+            
+    # draws rectangles around selected points
+    def draw(self, rows):
+        if self.master.SelectionType==0: # selection on single data set
+            lines = self.drawOne(rows, self.startIndx)
+        else: # selection on multiple data set
+            lines = []
+            for i in self.indxs:
+                l = self.drawOne(rows, i)
+                lines += l
         self.canvas.update()
         return lines
 
@@ -927,9 +1035,12 @@ if __name__=="__main__":
     signalManager.addWidget(ow)
     a.setMainWidget(ow)
     ow.show()
-    ds = OWDataFiles.OWDataFiles(signalManager = signalManager)
+    ds = OWDataFiles.OWDataFiles(signalManager = signalManager, loaddata=0)
     signalManager.addWidget(ds)
-    ds.loadData("potato.sub1000")
+    ds.loadData("potato.sub100")
+#    ds.loadData("yakApufA")
+#    ds.loadData("smallchipdata")
+#    ds.loadData("testchip")
     signalManager.setFreeze(1)
     signalManager.addLink(ds, ow, 'Structured Data', 'Structured Data', 1)
     signalManager.setFreeze(0)
