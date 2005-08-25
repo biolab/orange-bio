@@ -10,6 +10,8 @@ from OWWidget import *
 import OWGUI
 import os, os.path, orange
 
+import warnings
+warnings.filterwarnings("ignore", "'strain'", orange.AttributeWarning)
 
 class DataFiles(orange.Orange):
     """Structure for communicating multiple ExampleTables:
@@ -27,7 +29,7 @@ class ExampleSelection(orange.Orange):
 class OWDataFiles(OWWidget):
     settingsList  = ["recentDirs", "selectedDirName", "applyOnChange"]
 
-    def __init__(self, parent=None, signalManager = None):
+    def __init__(self, parent=None, signalManager = None, loaddata=1):
         OWWidget.__init__(self, parent, signalManager, 'Data Files')
 
         self.callbackDeposit = []
@@ -91,7 +93,7 @@ class OWDataFiles(OWWidget):
         self.setDirlist()
         self.dircombo.setCurrentItem(0)
 
-        if self.recentDirs!=[]:
+        if self.recentDirs!=[] and loaddata:
             self.loadData(self.recentDirs[0])
 
 ##        self.commitBtn = OWGUI.button(box, self, "Test", callback=self.test)
@@ -144,7 +146,7 @@ class OWDataFiles(OWWidget):
             dir = dir.nextSibling()
         self.send("Structured Data", data)
 
-    # Loads the data from a root directory, sends the data to the output channels
+    # Loads the data from a root directory, sends the data to the output channels
     def loadData(self, root):
         self.okToCommit = 0
         if root == "(none)":
@@ -169,6 +171,7 @@ class OWDataFiles(OWWidget):
                             data = None
                             data = orange.ExampleTable(dirname+'\\'+f)
                             data.name = name
+                            data.strain = os.path.basename(dirname)
                             dirdata.append(data)
                         except orange.KernelException:
                             print 'Warning: file %s\\%s not in appropriate format' %(dirname, f)
