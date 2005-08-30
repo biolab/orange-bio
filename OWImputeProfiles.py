@@ -35,32 +35,37 @@ class OWImputeProfiles(OWWidget):
         self.loadSettings()
 
         # GUI
+        self.mainArea.setFixedWidth(0)
+        ca=QFrame(self.controlArea)
+        gl=QGridLayout(ca,4,1,5)
         # info
-        box = QVGroupBox("Info", self.controlArea)
+        box = QVGroupBox("Info", ca)
+        gl.addWidget(box, 0,0)
         self.infoa = QLabel("No examples on input", box)
         self.infob = QLabel("", box)
-        OWGUI.separator(box, 300)
+        QLabel("", box)
         self.infoc = QLabel("No structured data on input", box)
         self.infod = QLabel("", box)
-        OWGUI.separator(self.controlArea)
         # KNN impute
-        self.boxImpute = QVGroupBox("Impute missing values", self.controlArea)
+        self.boxImpute = QVGroupBox("Impute missing values", ca)
+        gl.addWidget(self.boxImpute, 1,0)
         OWGUI.checkBox(self.boxImpute, self, "impute", "KNN impute", tooltip="Impute missing values from values of K nearest neighbours.", callback=self.change)
 ##        self.sliderK = OWGUI.hSlider(self.boxImpute, self, "imputeK", box=None, minValue=1, maxValue=7744, step=1, callback=self.imputeChange, labelFormat=" K = %i", ticks=0)
 ##        self.sliderK = OWGUI.qwtHSlider(self.boxImpute, self, "imputeK", box=None, label="K", labelWidth=12, minValue=1, maxValue=7744, step=0.02, precision=0, callback=self.imputeChange, logarithmic=1, ticks=0, maxWidth=200)
-        self.sliderK = OWGUI.qwtHSlider(self.boxImpute, self, "imputeK", box=None, label="K", labelWidth=12, minValue=1, maxValue=100, step=1, precision=0, callback=self.imputeKChange, logarithmic=0, ticks=0, maxWidth=200)
+##        self.sliderK = OWGUI.qwtHSlider(self.boxImpute, self, "imputeK", box=None, label="K", labelWidth=12, minValue=1, maxValue=100, step=1, precision=0, callback=self.imputeKChange, logarithmic=0, ticks=0, maxWidth=200)
+        self.sliderK = OWGUI.qwtHSlider(self.boxImpute, self, "imputeK", box=None, label="K", labelWidth=15, minValue=1, maxValue=999, step=1, precision=0, callback=self.imputeKChange, logarithmic=0, ticks=0, maxWidth=None)
         self.boxImpute.setDisabled(1)
-        OWGUI.separator(self.controlArea)
         # loess
-        self.boxLoess = QVGroupBox("Smoothing", self.controlArea)
+        self.boxLoess = QVGroupBox("Smoothing", ca)
+        gl.addWidget(self.boxLoess, 2,0)
         OWGUI.checkBox(self.boxLoess, self, "smooth", "Loess smoothing", tooltip="Loess profiles, impute missing columns.", callback=self.change)
         lbl = QLabel("Window size (number of points)", self.boxLoess)
         lbl.setAlignment(Qt.AlignHCenter)
-        self.sliderW = OWGUI.qwtHSlider(self.boxLoess, self, "windowSize", box=None, label="W", labelWidth=12, minValue=1, maxValue=10, step=1, precision=0, callback=self.smoothWChange, logarithmic=0, ticks=0, maxWidth=200)
+        self.sliderW = OWGUI.qwtHSlider(self.boxLoess, self, "windowSize", box=None, label="W", labelWidth=15, minValue=1, maxValue=999, step=1, precision=0, callback=self.smoothWChange, logarithmic=0, ticks=0, maxWidth=None)
         self.boxLoess.setDisabled(1)
-        OWGUI.separator(self.controlArea)
         # output
-        box = QVGroupBox("Output", self.controlArea)
+        box = QVGroupBox("Output", ca)
+        gl.addWidget(box, 3,0)
         OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on selection change')
         self.commitBtn = OWGUI.button(box, self, "Commit", callback=self.senddata, disabled=1)
 
@@ -227,7 +232,9 @@ class OWImputeProfiles(OWWidget):
             if self.smooth:
                 ws = max(1.1, int(self.windowSize)) # fixes bug in statc.loess
                 ma2d = chipimpute.loessMA(ma2d, ws, 1, callback=lambda: self.progressBarAdvance(pbStep))
-            self.send("Examples", chipstat.ma2orng_keepClassMetas(ma2d, self._data))
+            et = chipstat.ma2orng_keepClassMetas(ma2d, self._data)
+            et.name = self._data.name
+            self.send("Examples", et)
         else:
             self.send("Examples", None)
 
@@ -260,6 +267,8 @@ if __name__=="__main__":
     ow=OWImputeProfiles()
     a.setMainWidget(ow)
     ow.show()
-    ow.data(orange.ExampleTable("meanExpr_ann_pkaC.tab"))
+##    ow.data(orange.ExampleTable("meanExpr_ann_pkaC.tab"))
+##    ow.data(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_100_yakApufA\pufA\pufA1.1.xls.tab"))
+    ow.data(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato\I\I_30m_1_1042_teh1.tab"))
     a.exec_loop()
     ow.saveSettings()
