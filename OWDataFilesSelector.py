@@ -71,8 +71,7 @@ class OWDataFilesSelector(OWWidget):
             for name, etList in dataStructure:
                 for et in etList:
                     self.datasets.append(et)
-            # enable commit, sumarize the data        
-            self.commitBtn.setEnabled(len(dataStructure))
+            # sumarize the data
             numSets = len(self.dataStructure)
             numFiles = len(self.datasets)
             self.infoa.setText("%d set%s, total of %d data file%s." % (numSets, ["", "s"][numSets!=1], numFiles, ["","s"][numFiles!=1]))
@@ -120,31 +119,37 @@ class OWDataFilesSelector(OWWidget):
             self.infoc.setText(infoc)
 
             # read data
-            self.setFileTree()
             self.okToCommit = 1
-            if self.applyOnChange:
-                self.sendData()
+            self.commitBtn.setEnabled(1)
         else:
             self.infoa.setText('No data on input.')
             self.infob.setText('')
             self.infoc.setText('')
+            self.okToCommit = 0
+            self.commitBtn.setEnabled(0)
+        # enable/disable commit
+        # read data
+        self.setFileTree()
+        if self.applyOnChange:
+            self.sendData()
 
 
     def setFileTree(self):
         self.tree.clear()
         self.listitems = []
-        for d in self.dataStructure:
-            (dirname, files) = d
-            diritem = myCheckListItem(self.tree, dirname, QCheckListItem.CheckBox)
-            diritem.callback = self.selectionChanged
-            self.listitems.append(diritem)
-            diritem.setOpen(1)
-            diritem.name = dirname
-            for f in files:
-                item = myCheckListItem(diritem, f.name, QCheckListItem.CheckBox)
-                item.callback = self.selectionChanged
-                self.listitems.append(item)
-                item.data = f
+        if self.dataStructure:
+            for d in self.dataStructure:
+                (dirname, files) = d
+                diritem = myCheckListItem(self.tree, dirname, QCheckListItem.CheckBox)
+                diritem.callback = self.selectionChanged
+                self.listitems.append(diritem)
+                diritem.setOpen(1)
+                diritem.name = dirname
+                for f in files:
+                    item = myCheckListItem(diritem, f.name, QCheckListItem.CheckBox)
+                    item.callback = self.selectionChanged
+                    self.listitems.append(item)
+                    item.data = f
 
     def selectionChanged(self):
         if self.applyOnChange and self.okToCommit:
