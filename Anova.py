@@ -218,8 +218,12 @@ class Anova1wayLR(AnovaLRBase):
 
         # run analysis
         LRA = MultLinReg(self.dummyA, self.y)
-        self.F = LRA.MSreg / LRA.MSres
-        self.Fprob = stats.fprob(LRA.DFreg, LRA.DFres, self.F)
+        try:
+            self.F = LRA.MSreg / LRA.MSres
+            self.Fprob = stats.fprob(LRA.DFreg, LRA.DFres, self.F)
+        except ZeroDivisionError:
+            self.F = 0
+            self.Fprob = 1
 
 
 class Anova1wayLR_2D(AnovaLRBase):
@@ -246,19 +250,21 @@ class Anova1wayLR_2D(AnovaLRBase):
 ##            self.dummyA = self.getDummyEE(numFactorLevels, arr2d.shape[0])
 ##            self.dummyA = Numeric.take(self.dummyA, takeInd, 0)
             # dummy variables
-##            print numFactorLevels, arr2d.shape[0], takeInd
             self.dummyA = self.getDummyEE(arr2d.shape[1], arr2d.shape[0])   # create all dummies
             for lev in zeroLengthFactorLevels:                              # reduce length of dummies to adjust for actual number of factor A levels
                 self.dummyA = Numeric.concatenate([self.dummyA[:,0:lev],self.dummyA[:,lev+1:]],1)
             if len(zeroLengthFactorLevels) > 0 and zeroLengthFactorLevels[-1] == arr2d.shape[1]-1:
                 self.dummyA[self.dummyA.shape[0]-arr2d.shape[1]-1:] = -1    # if the last factor level is missing, manually set the last dummies to matrix of -1's
             self.dummyA = Numeric.take(self.dummyA, takeInd, 0)             # take dummies where data is not masked
-##            print self.dummyA
 
             # run analysis
             LRA = MultLinReg(self.dummyA, self.y)
-            self.F = LRA.MSreg / LRA.MSres
-            self.Fprob = stats.fprob(LRA.DFreg, LRA.DFres, self.F)
+            try:
+                self.F = LRA.MSreg / LRA.MSres
+                self.Fprob = stats.fprob(LRA.DFreg, LRA.DFres, self.F)
+            except ZeroDivisionError:
+                self.F = 0
+                self.Fprob = 1
 
         else:
             print "Giving up ANOVA: a factor with a single level encountered."
@@ -650,15 +656,19 @@ class AnovaRM11LR(AnovaLRBase):
         self.dummyA = Numeric.take(self.dummyA, takeInd, 0)
 
         # run analysis (better: only 2 LR instead of 3)
-        LR_treat = MultLinReg(Numeric.concatenate((self.dummySubj, self.dummyA), 1), self.y)
-        if noMissing:
-            LR_A = MultLinReg(self.dummyA, self.y)
-            self.FA = LR_A.MSreg / LR_treat.MSres
-        else:
-            print "WARNING: missing data with 1-way repeated measures ANOVA"
-            LR_S = MultLinReg(self.dummySubj, self.y)
-            self.FA = (LR_treat.SSreg - LR_S.SSreg) / self.dummyA.shape[1] / LR_treat.MSres
-        self.FAprob = stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
+        try:
+            LR_treat = MultLinReg(Numeric.concatenate((self.dummySubj, self.dummyA), 1), self.y)
+            if noMissing:
+                LR_A = MultLinReg(self.dummyA, self.y)
+                self.FA = LR_A.MSreg / LR_treat.MSres
+            else:
+                print "WARNING: missing data with 1-way repeated measures ANOVA"
+                LR_S = MultLinReg(self.dummySubj, self.y)
+                self.FA = (LR_treat.SSreg - LR_S.SSreg) / self.dummyA.shape[1] / LR_treat.MSres
+            self.FAprob = stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
+        except ZeroDivisionError:
+            self.FA = 0
+            self.FAprob = 1
 
 
 class _AnovaRM12LR_bug_missing_factor_leves(AnovaLRBase):
@@ -1212,10 +1222,15 @@ class MultLinReg:
         self.SSreg = Numeric.add.reduce((self.y_hat - y_mean)**2)
         self.MSreg = self.SSreg / self.DFreg
         self.SSres = Numeric.add.reduce((y - self.y_hat)**2)
-        self.MSres = self.SSres / self.DFres                    # equals to square std. error: s^2_{y|x}
-        if self.MSres == 0.0:
-            print "Warning MultLinReg: MSres equals 0, replaced by 1e-20"
-            self.MSres = 1e-20
+##        self.MSres = self.SSres / self.DFres                    # equals to square std. error: s^2_{y|x}
+##        if self.MSres == 0.0:
+##            print "Warning MultLinReg: MSres equals 0, replaced by 1e-20"
+##            self.MSres = 1e-20
+        if self.DFres > 0:
+            self.MSres = self.SSres / self.DFres                    # equals to square std. error: s^2_{y|x}
+        else:
+            print "Warning MultLinReg: SSres=%f, DFres=%f" % (self.SSres, self.DFres)
+            self.MSres = 0
         self.SStot = self.SSreg + self.SSres                    # equal to: self.SStot = Numeric.add.reduce((y - y_mean)**2)
         self.MStot = self.SStot / self.DFtot
         # regression summary
