@@ -1105,8 +1105,8 @@ class OWGOGraphTermFinder(OWGOTermFinder):
                     "FilterPvalEnabled","FilterDepthEnabled","RBNodeColor","RBNodeAnnotation"]
     def __init__(self, parent=None, signalManager = None):
         OWGOTermFinder.__init__(self, parent, signalManager, 'OWGraphicGoTermFinder')
-        self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0)]
-        self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
+        self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0), ("Structured Data", DataFiles, self.chipdata, 1)]
+        self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass), ("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles)]
         self.goLV.reparent(None,0,QPoint(0,0),False) #remove the textual viewer of DAG
         self.sigTermsTable.reparent(None,0,QPoint(0,0),False) #remove table of significant GOids
         self.tabs.removePage(self.filterTab)
