@@ -12,7 +12,7 @@ from OWDataFiles import DataFiles, ExampleSelection
 import chipstat
 
 class OWExampleSelector(OWWidget):
-    settingsList  = ['negate', 'commitOnChange']
+    settingsList  = ['negate', 'commitOnChange', 'sendNotSelectedData']
 
     def __init__(self, parent=None, signalManager = None):
         OWWidget.__init__(self, parent, signalManager, 'Example Selector')
@@ -21,12 +21,14 @@ class OWExampleSelector(OWWidget):
         self.inputs = [("Example Selection", ExampleSelection, self.loadselection, 0), ("Structured Data", DataFiles, self.chipdata)]
         self.outputs = [("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles), ("Other Structured Data", DataFiles)]
 
+        # Settings
         self.negate = 0
+        self.commitOnChange = 1
+        self.sendNotSelectedData = 1
+        self.loadSettings()
+
         self.selectors = {}
         self.data = None
-        self.commitOnChange = 1
-        # Settings
-        self.loadSettings()
 
         # GUI
         # info
@@ -49,6 +51,7 @@ class OWExampleSelector(OWWidget):
 
         # output
         box = QVGroupBox("Output", self.controlArea)
+        OWGUI.checkBox(box, self, 'sendNotSelectedData', 'Send not selected data', callback=self.selectionChange)
         OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on change')
         self.commitBtn = OWGUI.button(box, self, "Commit", callback=self.senddata, disabled=1)
 
@@ -114,8 +117,6 @@ class OWExampleSelector(OWWidget):
     def senddata(self):
         if len(self.selectors):
             self.progressBarInit()
-##            s = self.selectors.values()
-
             sel = []
             for s in self.selectors.values():
                 if s[2]: # used?
@@ -137,7 +138,7 @@ class OWExampleSelector(OWWidget):
             self.infob.setText("%d genes (%4.1f%s) match criteria" % (nmatch, 100.*nmatch/len(self.selectors.values()[0][1]), '%'))
 
             self.match = match
-            self.progressBarSet(20)
+##            self.progressBarSet(20)
 
             self.send("Example Selection", self.match)
             if self.data:
@@ -149,21 +150,34 @@ class OWExampleSelector(OWWidget):
                 elif n==0:
                     self.progressBarFinished()
                     self.send("Selected Structured Data", None)
-                    self.send("Other Structured Data", self.data)
+                    if self.sendNotSelectedData:
+                        self.send("Other Structured Data", self.data)
+                    else:
+                        self.send("Other Structured Data", None)
                 else:
                     try:
                         P = []; N = []
-                        pbStep = 80. / len(self.data)
+                        if self.sendNotSelectedData:
+                            pbStep = 50. / len(self.data)
+                        else:
+                            pbStep = 100. / len(self.data)
                         for (strainname, data) in self.data:
                             dataP = [d.select(self.match) for d in data]
-                            dataN = [d.select(self.match, negate=1) for d in data]
                             for i in range(len(data)):
-                                dataP[i].name = dataN[i].name = data[i].name
+                                dataP[i].name = data[i].name
                             P.append((strainname, dataP))
-                            N.append((strainname, dataN))
                             self.progressBarAdvance(pbStep)
                         self.send("Selected Structured Data", P)
-                        self.send("Other Structured Data", N)
+                        if self.sendNotSelectedData:
+                            for (strainname, data) in self.data:
+                                dataN = [d.select(self.match, negate=1) for d in data]
+                                for i in range(len(data)):
+                                    dataN[i].name = data[i].name
+                                N.append((strainname, dataN))
+                                self.progressBarAdvance(pbStep)
+                            self.send("Other Structured Data", N)
+                        else:
+                            self.send("Other Structured Data", None)
                     except:
                         print "debug OWExampleSelector.senddata\n\tlen(d): %i\n\tlen(self.match): %i\n\t" % (len(d), len(self.match))
                         raise

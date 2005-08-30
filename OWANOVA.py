@@ -14,7 +14,7 @@ import Anova
 
 
 class OWANOVA(OWWidget):
-    settingsList  = ["anovaType", "interaction", "selectorA", "selectorB", "selectorI", "alphaA", "alphaB", "alphaI", "autoUpdateSelName", "commitOnChange"]
+    settingsList  = ["anovaType", "interaction", "selectorA", "selectorB", "selectorI", "alphaA", "alphaB", "alphaI", "autoUpdateSelName", "sendNotSelectedData", "commitOnChange"]
 
     def __init__(self, parent=None, signalManager = None):
         OWWidget.__init__(self, parent, signalManager, 'ANOVA')
@@ -39,6 +39,7 @@ class OWANOVA(OWWidget):
         self.alphaB = "0.05"
         self.alphaI = "0.05"
         self.autoUpdateSelName = 1
+        self.sendNotSelectedData = 1
         self.commitOnChange = 0
         self.loadSettings()
 
@@ -112,6 +113,7 @@ class OWANOVA(OWWidget):
         self.leSelectorName = OWGUI.lineEdit(box, self, 'selectorName', label='Selector Name: ')
         self.leSelectorName.setReadOnly(self.autoUpdateSelName)
         OWGUI.checkBox(box, self, 'autoUpdateSelName', 'Automatically update selector name', callback=self.onAutoUpdateSelNameChange)
+        OWGUI.checkBox(box, self, 'sendNotSelectedData', 'Send not selected data', callback=self.onSendNotSelectedChange)
         OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on selection change')
         self.btnCommit = OWGUI.button(box, self, "Commit", callback=self.onCommit)
 
@@ -398,17 +400,27 @@ class OWANOVA(OWWidget):
             dataStructS = []
             dataStructN = []
             self.progressBarInit()
-            pbStep = 100./len(self.dataStructure)
+            if self.sendNotSelectedData:
+                pbStep = 50./len(self.dataStructure)
+            else:
+                pbStep = 100./len(self.dataStructure)
             for (dsName, etList) in self.dataStructure:
                 etListS = [et.select(selectionList) for et in etList]
-                etListN = [et.select(selectionList, negate=1) for et in etList]
                 for i in range(len(etList)):
-                    etListS[i].name = etListN[i].name = etList[i].name
+                    etListS[i].name = etList[i].name
                 dataStructS.append((dsName, etListS))
-                dataStructN.append((dsName, etListN))
                 self.progressBarAdvance(pbStep)
             self.send("Selected Structured Data", dataStructS)
-            self.send("Other Structured Data", dataStructN)
+            if self.sendNotSelectedData:
+                for (dsName, etList) in self.dataStructure:
+                    etListN = [et.select(selectionList, negate=1) for et in etList]
+                    for i in range(len(etList)):
+                        etListN[i].name = etList[i].name
+                    dataStructN.append((dsName, etListN))
+                    self.progressBarAdvance(pbStep)
+                self.send("Other Structured Data", dataStructN)
+            else:
+                self.send("Other Structured Data", None)
             self.progressBarFinished()
             # report the number of selected examples
             numExamples = Numeric.add.reduce(Numeric.greater(selectionList, 0))
@@ -502,6 +514,13 @@ class OWANOVA(OWWidget):
         """handles clicks on auto update selector name checkbox
         """
         self.leSelectorName.setReadOnly(self.autoUpdateSelName)
+
+            
+    def onSendNotSelectedChange(self):
+        """handles clicks on sendNotSelectedData checkbox
+        """
+        if self.commitOnChange:
+            self.senddata()
 
             
     def onCommit(self):
