@@ -188,6 +188,7 @@ class OWGOTermFinder(OWWidget):
         self.goLV.setColumnWidth(0, 300)
         self.goLV.setColumnWidthMode(0, QListView.Manual)
         self.goLV.setColumnAlignment(0, QListView.AlignLeft)
+        self.goLV.setSorting(-1)
         for dagColumnTitle in self.DAGcolumns[1:]:
             col = self.goLV.addColumn(dagColumnTitle)
             self.goLV.setColumnWidth(col, 100)
@@ -491,7 +492,7 @@ class OWGOTermFinder(OWWidget):
             self.send("Examples", newdata)
             if self.chipdata:
                 if len(selDescription) == 6:
-            	    selDescription[-1] = "..."
+                    selDescription[-1] = "..."
                 self.send("Example Selection", ("GO: " + ", ".join(selDescription), sel))
             else:
                 self.send("Selected Structured Data", None)
