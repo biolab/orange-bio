@@ -23,8 +23,8 @@ class OWImputeProfiles(OWWidget):
 
         self._data = None       # exampleTable
         self._dataMA = None     # input 2d masked array
-        self._chipdata = None       # [(dirname0, [et0, et1, ...]), ...]
-        self._chipdataMA = None     # input 3d masked array
+        self._chipdata = None   # [(dirname0, [et0, et1, ...]), ...]
+        self._chipdataMA = []   # [(dirname0, [m2d0, m2d1, ...]), ...]
         self.impute = 1
         self.imputeK = 20
         self.smooth = 1
@@ -98,13 +98,13 @@ class OWImputeProfiles(OWWidget):
         if self._dataMA != None:
             maxK = min(max(self._dataMA.shape[0]/50, 50), self._dataMA.shape[0], maxK)
             maxW = min(self._dataMA.shape[1], maxW)
-        if self._chipdataMA != None:
-            maxK = min(max(self._chipdataMA.shape[0]/50, 50), self._chipdataMA.shape[0], maxK)
-            maxW = min(self._chipdataMA.shape[1], maxW)
+        if self._chipdataMA:
+            maxK = min(max(self._chipdataMA[0][1][0].shape[0]/50., 50), self._chipdataMA[0][1][0].shape[0], maxK)
+            maxW = min(self._chipdataMA[0][1][0].shape[1], maxW)
         if maxK == 1e9: maxK = 1
         if maxW == 1e9: maxW = 1
         # enable sliders and commit button
-        if self._dataMA != None or self._chipdataMA != None:        
+        if self._dataMA != None or self._chipdataMA:
             # set up sliders (only if data present)
             self.sliderK.setRange(1, maxK, 1)
             if self.imputeK > maxK:
@@ -125,7 +125,8 @@ class OWImputeProfiles(OWWidget):
     def data(self, data):
         if data != None:
             self._data = data
-            self._dataMA = chipstat.orng2ma(data)
+##            self._dataMA = chipstat.orng2ma(data)
+            self._dataMA = data.toMA("a")[0]
             # info text
             self.infoa.setText("Examples: %i profiles on %i points" % (self._dataMA.shape[0], self._dataMA.shape[1]))
             numTotalMissing = Numeric.multiply.reduce(self._dataMA.shape) - MA.count(self._dataMA)
@@ -152,52 +153,48 @@ class OWImputeProfiles(OWWidget):
         if self.commitOnChange:
             self.senddata(1)
 
+
     def chipdata(self, data):
         """Input data: [(dirname0, [et0, et1, ...]), ...]
         """
+        self.numRowsMissingChipData = 0
+        self._chipdataMA = []
         if data != None:
             self._chipdata = data
-            shp = [0,0,0]
-            shp[0] = len(data[0][1][0])
-            shp[1] = len(data[0][1][0].domain.attributes)
-            shp[2] = reduce(lambda x,y: x+len(y[1]), data, 0)
-            self._chipdataMA = MA.zeros(shp, MA.Float)
-            idx = 0
+            numValsAll = 0
+            numValsNonMasked = 0
+            numFiles = 0
+            numExamplesList = []
+            attribDict = {}
+            numColMissing = 0
             for (name, etList) in data:
+                numFiles += len(etList)
+                self._chipdataMA.append((name,[]))
                 for et in etList:
-                    self._chipdataMA[:,:,idx] = chipstat.orng2ma(et)
-                    idx += 1
+                    attribDict.update(dict(zip(map(lambda x: x.name, et.domain.attributes), et.domain.attributes)))
+                    numExamplesList.append(len(et))
+                    etm = et.toMA("a")[0]
+                    colNonMissingInd = Numeric.compress(Numeric.not_equal(MA.count(etm, 0), 0), Numeric.arange(etm.shape[1])) # indices of columns that are not completely missing
+                    numColMissing += etm.shape[1] - colNonMissingInd.shape[0]
+                    self.numRowsMissingChipData += Numeric.add.reduce(Numeric.less(MA.count(MA.take(etm, colNonMissingInd, 1), 1), etm.shape[1]))
+                    numValsAll += Numeric.multiply.reduce(etm.shape)
+                    numValsNonMasked += MA.count(etm)
+                    self._chipdataMA[-1][1].append(etm)
             # info text
-            self.infoc.setText("Structured Data: %i data files with %i profiles on %i points" % (shp[2], shp[0], shp[1]))
-            numTotalMissing = Numeric.multiply.reduce(self._chipdataMA.shape) - MA.count(self._chipdataMA)
+            self.infoc.setText("Structured Data: %i data files with %i profiles on %i points" % (numFiles, numExamplesList[0], len(attribDict)))
+            numTotalMissing = numValsAll-numValsNonMasked
             if numTotalMissing > 0:
-                numValsByCol = MA.count(self._chipdataMA, 0)
-                emptyColInd = Numeric.compress(Numeric.ravel(numValsByCol)==0, Numeric.arange(Numeric.multiply.reduce(numValsByCol.shape))) # 1d indices of empty columns
-                numEmptyCol = emptyColInd.shape[0]
-                # fill empty columns in order to count number of rows with missing values
-                dataFilledEmptyCol = MA.reshape(MA.array(self._chipdataMA), (self._chipdataMA.shape[0], self._chipdataMA.shape[1]*self._chipdataMA.shape[2]))
-                for idx in emptyColInd:
-                    dataFilledEmptyCol[:,idx] = 1e20
-                dataFilledEmptyCol = MA.reshape(dataFilledEmptyCol, self._chipdataMA.shape)
-                self.numRowsMissingChipData = 0
-                for idx2 in range(dataFilledEmptyCol.shape[2]):
-                    self.numRowsMissingChipData += Numeric.add.reduce(Numeric.where(MA.count(dataFilledEmptyCol[:,:,idx2], 1) < dataFilledEmptyCol.shape[1], 1, 0))
-                s1 = ""
-                s2 = ""
-                if numEmptyCol > 0: s1 = "s"
-                if self.numRowsMissingChipData > 0: s2 = "s"
-                self.infod.setText("missing %i values, %i column%s completely, %i row%s partially" % (numTotalMissing, numEmptyCol, s1, self.numRowsMissingChipData, s2))
+                self.infod.setText("missing %i values, %i column%s completely, %i row%s partially" % (numTotalMissing, numColMissing, ["","s"][numColMissing!=1], self.numRowsMissingChipData, ["","s"][self.numRowsMissingChipData!=1]))
             else:
                 self.infod.setText("")                
         else:
             self._chipdata = None
-            self._chipdataMA = None
             self.infoc.setText("No structured data on input")
             self.infod.setText("")
-            self.numRowsMissingChipData = 0
         self.setGuiCommonExpChip()
         if self.commitOnChange:
             self.senddata(2)
+
 
     def senddata(self, outputSelector=0):
         """outputSelector = [0: examples + chip data | 1: examples | 2: chip data]
@@ -213,8 +210,8 @@ class OWImputeProfiles(OWWidget):
         if outputSelector in [0,2]:
             if self.impute:
                 steps += self.numRowsMissingChipData
-            if self.smooth and self._chipdataMA != None:
-                steps += self._chipdataMA.shape[0] * self._chipdataMA.shape[2]
+            if self.smooth and self._chipdataMA:
+                steps += len(self._chipdataMA[0][1][0]) * reduce(lambda x,y: x+len(y[1]), self._chipdataMA, 0) #self._chipdataMA.shape[2]
         if steps == 0: steps = 1
         pbStep = 100./steps
         self.progressBarInit()
@@ -238,37 +235,52 @@ class OWImputeProfiles(OWWidget):
         else:
             self.send("Examples", None)
 
+
     def _sendchipdata(self, pbStep):
-        if self._chipdataMA != None:
-            ma3d = MA.array(self._chipdataMA)
-            if self.impute:
-                for idx in range(ma3d.shape[2]):
-                    ma3d[:,:,idx] = chipimpute.kNNimputeMA(ma3d[:,:,idx], int(self.imputeK), callback=lambda: self.progressBarAdvance(pbStep))
-            if self.smooth:
-                ws = max(1.1, int(self.windowSize)) # fixes bug in statc.loess
-                for idx in range(ma3d.shape[2]):
-                    ma3d[:,:,idx] = chipimpute.loessMA(ma3d[:,:,idx], ws, 1, callback=lambda: self.progressBarAdvance(pbStep))
+        if self._chipdataMA:
             chipdataNew = []    # [(dirname0, [et0, et1, ...]), ...]
-            idxTotal = 0
-            for (dirname, etList) in self._chipdata:
-                etListNew = []
-                for et in etList:
-                    etListNew.append(chipstat.ma2orng_keepClassMetas(ma3d[:,:,idxTotal], et))
-                    etListNew[-1].name = et.name
-                    idxTotal += 1
-                chipdataNew.append((dirname, etListNew))
+            ws = max(1.1, int(self.windowSize)) # fixes bug in statc.loess
+            for sIdx, (name, etmList) in enumerate(self._chipdataMA):
+                chipdataNew.append((name,[]))
+                for eIdx, etm in enumerate(etmList):
+                    if self.impute:
+                        etm = chipimpute.kNNimputeMA(etm, int(self.imputeK), callback=lambda: self.progressBarAdvance(pbStep))
+                    if self.smooth:
+                        etm = chipimpute.loessMA(etm, ws, 1, callback=lambda: self.progressBarAdvance(pbStep))
+##                   chipdataNew[-1][1].append(orange.ExampleTable(et.domain, etm))
+                    etNew = chipstat.ma2orng_keepClassMetas(etm, self._chipdata[sIdx][1][eIdx])
+                    etNew.name = self._chipdata[sIdx][1][eIdx].name
+                    chipdataNew[-1][1].append(etNew)
             self.send("Structured Data", chipdataNew)
         else:
             self.send("Structured Data", None)
 
 
+
 if __name__=="__main__":
+##    a=QApplication(sys.argv)
+##    ow=OWImputeProfiles()
+##    a.setMainWidget(ow)
+##    ow.show()
+####    ow.data(orange.ExampleTable("meanExpr_ann_pkaC.tab"))
+####    ow.data(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_100_yakApufA\pufA\pufA1.1.xls.tab"))
+##    ow.data(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato\I\I_30m_1_1042_teh1.tab"))
+##    a.exec_loop()
+##    ow.saveSettings()
+
+    import OWDataFiles, orngSignalManager
+    signalManager = orngSignalManager.SignalManager(0)
     a=QApplication(sys.argv)
-    ow=OWImputeProfiles()
+    ow=OWImputeProfiles(signalManager = signalManager)
     a.setMainWidget(ow)
     ow.show()
-##    ow.data(orange.ExampleTable("meanExpr_ann_pkaC.tab"))
-##    ow.data(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_100_yakApufA\pufA\pufA1.1.xls.tab"))
-    ow.data(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato\I\I_30m_1_1042_teh1.tab"))
+    ds = OWDataFiles.OWDataFiles(signalManager = signalManager)
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\2005-08 NIB Potato\potato.attrib")
+    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\2005-08 NIB Potato\potato.sub100.avg")
+    signalManager.addWidget(ow)
+    signalManager.addWidget(ds)
+    signalManager.setFreeze(1)
+    signalManager.addLink(ds, ow, 'Structured Data', 'Structured Data', 1)
+    signalManager.setFreeze(0)
     a.exec_loop()
     ow.saveSettings()
