@@ -3,6 +3,7 @@
 <description>Select examples based on input selectors.</description>
 <icon>icons/SelectGenes.png</icon>
 <priority>1070</priority>
+<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
 """
 
 from OWWidget import *
@@ -18,8 +19,8 @@ class OWExampleSelector(OWWidget):
         OWWidget.__init__(self, parent, signalManager, 'Example Selector')
         self.callbackDeposit = []
 
-        self.inputs = [("Example Selection", ExampleSelection, self.loadselection, 0), ("Structured Data", DataFiles, self.chipdata)]
-        self.outputs = [("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles), ("Other Structured Data", DataFiles)]
+        self.inputs = [("Example Selection", ExampleSelection, self.loadselection, Multiple), ("Structured Data", DataFiles, self.chipdata)]
+        self.outputs = [("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles, Default), ("Other Structured Data", DataFiles)]
 
         # Settings
         self.negate = 0

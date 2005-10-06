@@ -3,6 +3,7 @@
 <description>One/Two Way Analysis of Variance.</description>
 <icon>icons/ChipANOVA.png</icon>
 <priority>1070</priority>
+<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
 """
 
 import Numeric, MA
@@ -19,8 +20,8 @@ class OWANOVA(OWWidget):
     def __init__(self, parent=None, signalManager = None):
         OWWidget.__init__(self, parent, signalManager, 'ANOVA')
         # input / output data: [("name1", [orange.ExampleTable1a,...]), ("name2", [orange.ExampleTable2a,...])]
-        self.inputs = [("Structured Data", DataFiles, self.onDataInput, 1)]
-        self.outputs = [("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles), ("Other Structured Data", DataFiles)]
+        self.inputs = [("Structured Data", DataFiles, self.onDataInput)]
+        self.outputs = [("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles, Default), ("Other Structured Data", DataFiles)]
 
         # data, p-values, selected examples
         self.dataStructure = None   # input data

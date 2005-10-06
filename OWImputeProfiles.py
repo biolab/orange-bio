@@ -3,6 +3,7 @@
 <description>Imputation and non-parametric smoothing of expression profiles.</description>
 <icon>icons/ImputeProfiles.png</icon>
 <priority>1065</priority>
+<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
 """
 
 import math
@@ -69,7 +70,7 @@ class OWImputeProfiles(OWWidget):
         OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on selection change')
         self.commitBtn = OWGUI.button(box, self, "Commit", callback=self.senddata, disabled=1)
 
-        self.inputs = [("Examples", ExampleTable, self.data, 1), ("Structured Data", DataFiles, self.chipdata, 1)]
+        self.inputs = [("Examples", ExampleTable, self.data), ("Structured Data", DataFiles, self.chipdata)]
         self.outputs = [("Examples", ExampleTable), ("Structured Data", DataFiles)]
 
         # data dependent variables

@@ -4,6 +4,7 @@
 <category>Genomics</category>
 <icon>icons/ChipDataFiles.png</icon>
 <priority>1060</priority>
+<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
 """
 
 from OWWidget import *
@@ -19,8 +20,8 @@ class OWDataFilesSelector(OWWidget):
 
         self.callbackDeposit = []
 
-        self.inputs = [("Structured Data", DataFiles, self.onDataInput, 1)]
-        self.outputs = [("Structured Data", DataFiles), ("Examples", ExampleTable)]
+        self.inputs = [("Structured Data", DataFiles, self.onDataInput)]
+        self.outputs = [("Examples", ExampleTable), ("Structured Data", DataFiles)]
 
         self.dataStructure = None;
         self.datasets = None

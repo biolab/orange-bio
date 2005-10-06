@@ -3,6 +3,7 @@
 <description>Pre- and post-processing of chip data.</description>
 <icon>icons/ProcessChipData.png</icon>
 <priority>1060</priority>
+<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
 """
 
 from OWWidget import *

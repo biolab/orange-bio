@@ -3,6 +3,7 @@
 <description>Approximation of expression profiles by various kernel functions.</description>
 <icon>icons/Unknown.png</icon>
 <priority>310</priority>
+<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
 """
 
 from OWWidget import *
@@ -65,8 +66,8 @@ class OWApproxProfiles(OWWidget):
         OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on selection change')
         self.commitBtn = OWGUI.button(box, self, "Commit", callback=self.senddata, disabled=1)
 
-        self.inputs = [("Examples", ExampleTable, self.data, 1), ("Structured Data", DataFiles, self.chipdata, 1)]
-        self.outputs = [("Approximated Examples", ExampleTable), ("Approximation Coefficients", ExampleTable), ("Approximated Structured Data", DataFiles), ("Structured Approximation Coefficients", DataFiles)]
+        self.inputs = [("Examples", ExampleTable, self.data), ("Structured Data", DataFiles, self.chipdata)]
+        self.outputs = [("Approximated Examples", ExampleTable, Default), ("Approximation Coefficients", ExampleTable), ("Approximated Structured Data", DataFiles, Default), ("Structured Approximation Coefficients", DataFiles)]
         self.resize(200,100)
 
     def kernelChange(self):

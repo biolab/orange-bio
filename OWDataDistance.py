@@ -3,6 +3,7 @@
 <description>Computes a distance matrix between data files.</description>
 <icon>icons/ChipDistance.png</icon>
 <priority>1160</priority>
+<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
 """
 
 import MA, statc
@@ -25,7 +26,7 @@ class OWDataDistance(OWWidget):
     def __init__(self, parent=None, signalManager = None):
         OWWidget.__init__(self, parent, signalManager, 'Data Distance') 
         
-        self.inputs = [("Structured Data", DataFiles, self.chipdata, 1)]
+        self.inputs = [("Structured Data", DataFiles, self.chipdata)]
         self.outputs = [("Distance Matrix", orange.SymMatrix)]
 
         self.Metrics = 0
