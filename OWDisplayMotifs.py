@@ -1,7 +1,8 @@
 """
 <name>Display Motifs</name>
 <description>None.</description>
-<icon>icons\DisplayMotifs.png</icon>
+<author>Tomaz Curk</author>
+<icon>icons\GenomeMap.png</icon>
 """
 
 import orange
@@ -64,7 +65,7 @@ class OWDisplayMotifs(OWWidget):
 
         # inputs
         # data and graph temp variables
-        self.inputs = [("Examples", ExampleTable, self.cdata, 0), ("Genes", ExampleTable, self.newGeneList), ("Motifs", list, self.newMotifList)]
+        self.inputs = [("Examples", ExampleTable, self.cdata, Default), ("Genes", list, self.newGeneList, Default), ("Motifs", list, self.newMotifList, Default)]
 
         self.data = None
         self.motifLines = []
@@ -163,8 +164,7 @@ class OWDisplayMotifs(OWWidget):
 	self.geneList = []
 	
 	if list <> None:
-		for e in list:
-			self.geneList.append( str(e[0]))
+		self.geneList = list
         self.calcMotifsGraph()
         self.updateMotifsGraph()
  
@@ -176,7 +176,7 @@ class OWDisplayMotifs(OWWidget):
         self.calcMotifsGraph()
         self.updateMotifsGraph()
 
-    def cdata(self, data, id):
+    def cdata(self, data):
         self.data = data
         self.motifLines = []
         self.colorByCombo.clear()
@@ -234,7 +234,7 @@ class OWDisplayMotifs(OWWidget):
                     # print motifNumber, colorKey
                     # set the point x values
                     graphData[colorKey][0].append(motifDistToEnd)
-                    graphData[colorKey][0].append(motifDistToEnd + 3.0)
+                    graphData[colorKey][0].append(motifDistToEnd + 5.0)
                     # set the point y values
                     if dir == "1":
                         graphData[colorKey][1].append(lineCn + 0.0)

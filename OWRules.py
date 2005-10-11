@@ -1,6 +1,7 @@
 """
 <name>Rules</name>
 <description>Rules selects from input gene expression only those that match selected rule.</description>
+<author>Tomaz Curk</author>
 <icon>icons/Default.png</icon>
 <priority>600</priority>
 """
@@ -17,11 +18,11 @@ class OWRules(OWWidget):
     def __init__(self, parent=None, signalManager = None):
         OWWidget.__init__(self, parent, signalManager, "Rule Selection")
 
-        self.inputs = [("Rules", ExampleTable, self.ruledataset), ("Expression", ExampleTable, self.expressiondataset)]
-        self.outputs = [("Expression", ExampleTable), ("Genes", ExampleTable), ("Motifs", list)]
+        self.inputs = [("Rules", ExampleTable, self.ruledataset, Default), ("Expression", ExampleTable, self.expressiondataset, Default + Multiple)]
+        self.outputs = [("Expression", ExampleTable, Default), ("Genes", list, Default), ("Motifs", list, Default)]
         
         self.ShowClosestOther = FALSE
-        self.expression = None
+        self.expression = []
         self.rules = None
         self.showMetas = 1
 
@@ -48,9 +49,35 @@ class OWRules(OWWidget):
             self.set_table()
             self.progressBarFinished()
 
-    def expressiondataset(self, data):
-        self.expression = data
-        if not(self.rules and self.expression):
+    def expressiondataset(self, data, id):
+    	print "new data: %s %s" % (len(self.expression), id)
+        ids = [d.id for d in self.expression]
+        print "ids:" + str(ids)
+        if not data:
+            if id in ids:
+                k = ids.index(id)
+                del self.expression[k]
+        else:
+            # check if the same length
+            if data.domain.classVar:
+                domain = self.checkDomain(data)
+                if domain:
+                    data = orange.ExampleTable(domain, data)
+            data.setattr("id", id)          
+            if id in ids:
+                indx = ids.index(id)
+                self.expression[indx] = data
+                self.expression[indx].setattr("name", data.name)
+            else:
+                self.expression.append(data)
+                self.expression[-1].setattr("name", data.name)
+          
+        self.send('Expression', None)
+        self.send('Genes', None)
+        self.send('Motifs', None)
+    
+#        self.expression = data
+        if not(self.rules): # and len(self.expression) == 0:
             self.table.hide()
         else:
             self.progressBarInit()
@@ -149,56 +176,57 @@ class OWRules(OWWidget):
             if self.ShowClosestOther:
                 newcls = ['other'] + [str(self.table.text(i, 0)) for i in range(self.table.numRows()) if self.table.isRowSelected(i)]
                 newclvar = orange.EnumVariable('rule', values = newcls)
-                ndom = orange.Domain(self.expression.domain.attributes + [newclvar])
+                ndom = orange.Domain(self.expression[0].domain.attributes + [newclvar])
             else:
-                ndom = self.expression.domain
+                ndom = self.expression[0].domain
         else: ## otherwise create a new domain, where rule is class
             multi = 1
             newcls = [str(self.table.text(i, 0)) for i in range(self.table.numRows()) if self.table.isRowSelected(i)]
             newclvar = orange.EnumVariable('rule', values = newcls)
-            ndom = orange.Domain(self.expression.domain.attributes + [newclvar])
+            ndom = orange.Domain(self.expression[0].domain.attributes + [newclvar])
 
-        nt = orange.ExampleTable(ndom)
-        for cn in range(self.table.numRows()):
-            if self.table.isRowSelected(cn):
-                geneList = str(self.table.text(cn, geneListColumn)) ##self.rules[row]['geneList'])
-                geneList = eval(geneList)
-                if self.ShowClosestOther:
-                    otherGeneList = str(self.table.text(cn, otherGeneListColumn))
-                    otherGeneList = eval(otherGeneList)
-                for e in self.expression:
-                    DDB = str(e['DDB'])
-                    if DDB in geneList:
-                       if DDB not in genesToSend: genesToSend.append( DDB)
-                       ne = orange.Example(ndom, e)
-                       rule = str(self.table.text(cn, 0))
-                       motsInRule = rule.split(' and ')
-                       if multi:
-                           ne.setclass(str(rule))
-                       elif self.ShowClosestOther:
-                           ne.setclass(str(rule))
-
-                       for mot in motsInRule:
-                           if mot not in motifsToSend: motifsToSend.append( mot)
-                       nt.append( ne)
-                    if not(multi) and self.ShowClosestOther and DDB in otherGeneList:
-                       ne = orange.Example(ndom, e)
-                       ne.setclass("other")
-                       nt.append( ne)
+        
+        for (di, d) in enumerate(self.expression):
+            nt = orange.ExampleTable(ndom)
+            for cn in range(self.table.numRows()):
+                if self.table.isRowSelected(cn):
+                    geneList = str(self.table.text(cn, geneListColumn)) ##self.rules[row]['geneList'])
+                    geneList = eval(geneList)
+                    if self.ShowClosestOther:
+                        otherGeneList = str(self.table.text(cn, otherGeneListColumn))
+                        otherGeneList = eval(otherGeneList)
+	            for DDB in geneList:
+	                if DDB not in genesToSend: genesToSend.append( DDB)
+	                
+	            for e in d:
+	                DDB = str(e['DDB']) ##DDB']) ##ORF'])
+	                if DDB in geneList:
+	                   if DDB not in genesToSend: genesToSend.append( DDB)
+	                   ne = orange.Example(ndom, e)
+	                   rule = str(self.table.text(cn, 0))
+	                   motsInRule = rule.split(' and ')
+	                   if multi:
+	                       ne.setclass(str(rule))
+	                   elif self.ShowClosestOther:
+	                       ne.setclass(str(rule))
+		
+	                   for mot in motsInRule:
+	                       if mot not in motifsToSend: motifsToSend.append( mot)
+	                   nt.append( ne)
+	                       
+                        if not(multi) and self.ShowClosestOther and DDB in otherGeneList:
+                           ne = orange.Example(ndom, e)
+                           ne.setclass("other")
+                           nt.append( ne)
+	    print "sending: %s %s %s %s" % (di, d.id, len(nt), nt[0])
+            self.send("Expression", nt, d.id)
 
 	## make an ExampleTable containing the gene list
 	if len(genesToSend) > 0:
-		gvar = orange.EnumVariable("geneList", values = genesToSend)
-		gdom = orange.Domain([gvar])
-		gtable = orange.ExampleTable(orange.Domain(gdom, 0))
-		for g in genesToSend:
-			e = orange.Example(gdom)
-			e[0] = g
-			gtable.append( e)
+		gtable = genesToSend
 	else:
 		gtable = None
 
-        self.send("Expression", nt)
         self.send("Genes", gtable)
         self.send("Motifs", motifsToSend)
         print genesToSend

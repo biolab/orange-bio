@@ -1,6 +1,7 @@
 """
 <name>Heat Map</name>
 <description>Microarray Heat Map</description>
+<author>Blaz Zupan, Janez Demsar</author>
 <icon>icons/HeatMap.png</icon>
 <priority>50</priority>
 """
@@ -51,8 +52,8 @@ class OWHeatMap(OWWidget):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, signalManager, 'HeatMap') 
         
-        self.inputs = [("Structured Data", DataFiles, self.chipdata), ("Examples", ExampleTable, self.dataset, 0)]
-        self.outputs = [("Structured Data", DataFiles), ("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
+        self.inputs = [("Structured Data", DataFiles, self.chipdata, Single + NonDefault), ("Examples", ExampleTable, self.dataset, Default + Multiple)]
+        self.outputs = [("Structured Data", DataFiles, Single + NonDefault), ("Examples", ExampleTable, Default), ("Classified Examples", ExampleTableWithClass, Default)]
 
         #set default settings
         self.CellWidth = 3; self.CellHeight = 3

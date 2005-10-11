@@ -1,6 +1,7 @@
 """
 <name>Expression Profiles</name>
 <description>Displays gene expression profiles.</description>
+<author>Tomaz Curk</author>
 <icon>icons/ExpressionProfiles.png</icon>
 <priority>10</priority>
 """
@@ -438,8 +439,8 @@ class OWDisplayProfiles(OWWidget):
         # inputs
         # data and graph temp variables
         
-        self.inputs = [("Examples", ExampleTable, self.data, 0)]
-        self.outputs = [("Examples", ExampleTable)]
+        self.inputs = [("Examples", ExampleTable, self.data, Default + Multiple)]
+        self.outputs = [("Examples", ExampleTable, Default)]
 
         # temp variables
         self.MAdata = []

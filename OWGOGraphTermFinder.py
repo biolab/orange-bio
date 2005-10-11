@@ -1,6 +1,7 @@
 """
 <name>GO Graph</name>
 <description>GO Term Finder</description>
+<author>Janez Grudnik, Tomaz Curk</author>
 <icon>icons/GOGraph.png</icon>
 <priority>150</priority>
 """
@@ -1100,13 +1101,16 @@ class MyCanvasView(QCanvasView):
 
 DEBUG = 0
 
+from OWDataFiles import DataFiles, ExampleSelection
+
 class OWGOGraphTermFinder(OWGOTermFinder):
     settingsList = ["subNodes","CBLegend","CBGenes","FilterNumEnabled",
                     "FilterPvalEnabled","FilterDepthEnabled","RBNodeColor","RBNodeAnnotation"]
     def __init__(self, parent=None, signalManager = None):
         OWGOTermFinder.__init__(self, parent, signalManager, 'OWGraphicGoTermFinder')
-        self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0), ("Structured Data", DataFiles, self.chipdata, 1)]
-        self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass), ("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles)]
+        
+        self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, Default), ("Reference Examples", ExampleTable, self.referenceDataset, Single + NonDefault), ("Structured Data", DataFiles, self.chipdata, Single + NonDefault)]
+        self.outputs = [("Examples", ExampleTable, Default), ("Classified Examples", ExampleTableWithClass, Default), ("Example Selection", ExampleSelection, Default), ("Selected Structured Data", DataFiles, Single + NonDefault)]        
         self.goLV.reparent(None,0,QPoint(0,0),False) #remove the textual viewer of DAG
         self.sigTermsTable.reparent(None,0,QPoint(0,0),False) #remove table of significant GOids
         self.tabs.removePage(self.filterTab)
@@ -2047,7 +2051,7 @@ if __name__=="__main__":
     ow = OWGOGraphTermFinder()
     a.setMainWidget(ow)
     d = orange.ExampleTable('dicty2.tab', dontCheckStored=1)
-    ow.clusterDataset(d, 0)
+    ow.clusterDataset(d)
     ow.show()
     a.exec_loop()
     ow.saveSettings()

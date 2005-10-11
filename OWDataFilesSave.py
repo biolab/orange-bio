@@ -1,6 +1,7 @@
 """
 <name>Save Data Files</name>
 <description>Saves data to selected directory.</description>
+<author>Tomaz Curk</author>
 <category>Genomics</category>
 <icon>icons/DataFilesSave.png</icon>
 <priority>1055</priority>
@@ -18,7 +19,7 @@ class OWDataFilesSave(OWWidget):
     def __init__(self, parent=None, signalManager = None):
         OWWidget.__init__(self, parent, signalManager, "Save Data Files")
 
-        self.inputs = [("Structured Data", DataFiles, self.structuredData)]
+        self.inputs = [("Structured Data", DataFiles, self.structuredData, Default)]
         self.outputs = []
 
         self.dataStructure = None;

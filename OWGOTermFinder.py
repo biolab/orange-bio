@@ -1,6 +1,7 @@
 """
 <name>GO Term Finder</name>
 <description>GO Term Finder</description>
+<author>Tomaz Curk</author>
 <icon>icons/GOTermFinder.png</icon>
 <priority>100</priority>
 """
@@ -27,10 +28,8 @@ class OWGOTermFinder(OWWidget):
     def __init__(self, parent=None, signalManager = None, name='OWGoTermFinder'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, signalManager, name) 
-
-        self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, 0), ("Reference Examples", ExampleTable, self.referenceDataset, 0), ("Structured Data", DataFiles, self.chipdata, 1)]
-        self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass), ("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles)]
-
+        self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, Default), ("Reference Examples", ExampleTable, self.referenceDataset, Single + NonDefault), ("Structured Data", DataFiles, self.chipdata, Single + NonDefault)]
+        self.outputs = [("Examples", ExampleTable, Default), ("Classified Examples", ExampleTableWithClass, Default), ("Example Selection", ExampleSelection, Default), ("Selected Structured Data", DataFiles, Single + NonDefault)]
         #set default settings
         # annotation
         self.AnnotationFileName = self.GOaspectFileName = None # these are names of files
@@ -367,7 +366,7 @@ class OWGOTermFinder(OWWidget):
             self.send("Examples", None)
             self.send("Classified Examples", None)
 
-    def clusterDataset(self, data, id):
+    def clusterDataset(self, data):
         self.clusterData = data
         self.findMostAppropriateGeneIDandAnnotation()
         self.clusterDatasetChanged()
@@ -386,7 +385,7 @@ class OWGOTermFinder(OWWidget):
         if DEBUG: print "input cluster genes: " + str(len(self.clusterGenes))
         ## self.findTermsBuildDAG() need to call it, if you call clusterDatasetChanged directly
 
-    def referenceDataset(self, data, id):
+    def referenceDataset(self, data):
         self.referenceGenes = None
         self.referenceData = data
         self.referenceDatasetChanged()

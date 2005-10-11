@@ -1,6 +1,7 @@
 """
 <name>Genome Map</name>
 <description>Shows the locations of genes.</description>
+<author>Tomaz Curk</author>
 <icon>icons/GenomeMap.png</icon>
 <priority>200</priority>
 """
@@ -73,8 +74,8 @@ class OWGenomeMap(OWWidget):
         self.graph = ChromosomeGraph(self)
 
         # inputs and outputs
-        self.inputs=[("Examples", ExampleTable, self.dataset)]
-        self.outputs = [("Examples", ExampleTable), ("Classified Examples", ExampleTableWithClass)]
+        self.inputs=[("Examples", ExampleTable, self.dataset, Default)]
+        self.outputs = [("Examples", ExampleTable, Default), ("Classified Examples", ExampleTableWithClass, Default)]
 
         # GUI definition
         self.controls = QVGroupBox(self.controlArea)
