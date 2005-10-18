@@ -14,6 +14,7 @@ from qtcanvas import *
 from OWWidget import *
 from OWOptions import *
 from qwt import *
+from OWDlgs import OWChooseImageSizeDlg
 from OWDataFiles import DataFiles
 
 import warnings
@@ -50,7 +51,7 @@ class OWHeatMap(OWWidget):
 
     def __init__(self, parent=None, signalManager = None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, signalManager, 'HeatMap') 
+        OWWidget.__init__(self, parent, signalManager, 'HeatMap', TRUE) 
         
         self.inputs = [("Structured Data", DataFiles, self.chipdata, Single + NonDefault), ("Examples", ExampleTable, self.dataset, Default + Multiple)]
         self.outputs = [("Structured Data", DataFiles, Single + NonDefault), ("Examples", ExampleTable, Default), ("Classified Examples", ExampleTableWithClass, Default)]
@@ -84,6 +85,7 @@ class OWHeatMap(OWWidget):
         self.maxHSize = 15; self.maxVSize = 15
 
         # GUI definition
+        self.connect(self.graphButton, SIGNAL("clicked()"), self.saveFig)
         self.tabs = QTabWidget(self.controlArea, 'tabWidget')
 
         # SETTINGS TAB
@@ -243,6 +245,10 @@ class OWHeatMap(OWWidget):
             enabled=self.BShowSpotIndex, default='RMI')
         self.BAnnotationVar, self.BAnnotationIndx = self.setMetaCombo(self.annotationCombo, \
             self.BAnnotationVar, enabled=self.BShowAnnotation, default='xannotation')
+
+    def saveFig(self):
+        sizeDlg = OWChooseImageSizeDlg(self.canvas)
+        sizeDlg.exec_loop()
 
     ##########################################################################
     # handling of input/output signals
