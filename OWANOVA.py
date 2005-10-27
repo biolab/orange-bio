@@ -3,7 +3,7 @@
 <description>One/Two Way Analysis of Variance.</description>
 <icon>icons/ChipANOVA.png</icon>
 <priority>1070</priority>
-<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
+<contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
 import Numeric, MA

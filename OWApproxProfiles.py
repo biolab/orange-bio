@@ -3,7 +3,7 @@
 <description>Approximation of expression profiles by various kernel functions.</description>
 <icon>icons/Unknown.png</icon>
 <priority>310</priority>
-<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
+<contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
 from OWWidget import *

@@ -1,7 +1,7 @@
 """
 <name>Heat Map</name>
 <description>Microarray Heat Map</description>
-<author>Blaz Zupan, Janez Demsar</author>
+<contact>Blaz Zupan, Janez Demsar</contact>
 <icon>icons/HeatMap.png</icon>
 <priority>50</priority>
 """

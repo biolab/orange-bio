@@ -1,7 +1,7 @@
 """
 <name>Rules</name>
 <description>Rules selects from input gene expression only those that match selected rule.</description>
-<author>Tomaz Curk</author>
+<contact>Tomaz Curk</contact>
 <icon>icons/Default.png</icon>
 <priority>600</priority>
 """

@@ -1,7 +1,7 @@
 """
 <name>GO Graph</name>
 <description>GO Term Finder</description>
-<author>Janez Grudnik, Tomaz Curk</author>
+<contact>Janez Grudnik, Tomaz Curk</contact>
 <icon>icons/GOGraph.png</icon>
 <priority>150</priority>
 """

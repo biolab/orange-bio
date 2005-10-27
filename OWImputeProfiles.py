@@ -3,7 +3,7 @@
 <description>Imputation and non-parametric smoothing of expression profiles.</description>
 <icon>icons/ImputeProfiles.png</icon>
 <priority>1065</priority>
-<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
+<contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
 import math

@@ -1,7 +1,7 @@
 """
 <name>Save Data Files</name>
 <description>Saves data to selected directory.</description>
-<author>Tomaz Curk</author>
+<contact>Tomaz Curk</contact>
 <category>Genomics</category>
 <icon>icons/DataFilesSave.png</icon>
 <priority>1055</priority>

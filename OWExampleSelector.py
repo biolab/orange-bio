@@ -3,7 +3,7 @@
 <description>Select examples based on input selectors.</description>
 <icon>icons/SelectGenes.png</icon>
 <priority>1070</priority>
-<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
+<contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
 from OWWidget import *

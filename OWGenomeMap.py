@@ -1,7 +1,7 @@
 """
 <name>Genome Map</name>
 <description>Shows the locations of genes.</description>
-<author>Tomaz Curk</author>
+<contact>Tomaz Curk</contact>
 <icon>icons/GenomeMap.png</icon>
 <priority>200</priority>
 """

@@ -1,7 +1,7 @@
 """
 <name>Display Motifs</name>
 <description>None.</description>
-<author>Tomaz Curk</author>
+<contact>Tomaz Curk</contact>
 <icon>icons\GenomeMap.png</icon>
 """
 

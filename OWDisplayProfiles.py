@@ -1,7 +1,7 @@
 """
 <name>Expression Profiles</name>
 <description>Displays gene expression profiles.</description>
-<author>Tomaz Curk</author>
+<contact>Tomaz Curk</contact>
 <icon>icons/ExpressionProfiles.png</icon>
 <priority>10</priority>
 """

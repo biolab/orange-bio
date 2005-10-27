@@ -1,7 +1,7 @@
 """
 <name>GO Term Finder</name>
 <description>GO Term Finder</description>
-<author>Tomaz Curk</author>
+<contact>Tomaz Curk</contact>
 <icon>icons/GOTermFinder.png</icon>
 <priority>100</priority>
 """

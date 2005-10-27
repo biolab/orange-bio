@@ -3,7 +3,7 @@
 <description>Computes a distance matrix between data files.</description>
 <icon>icons/ChipDistance.png</icon>
 <priority>1160</priority>
-<author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
+<contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
 import MA, statc
