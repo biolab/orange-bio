@@ -433,18 +433,28 @@ def txtAnnotation2pickle(annotationFname, saveAsPickleFname, forDicty=0):
 
         if Aspect == 'P':
             Aspect = 'biological_process'
+            Aspect = 'process'
         if Aspect == 'F':
             Aspect = 'molecular_function'
+            Aspect = 'function'
         if Aspect == 'C':
             Aspect = 'cellular_component'
+            Aspect = 'component'
 
         tmpList = GOID2gene.get(GOID, [])
-        tmpList.append( (DB_Object_Symbol, NOT, Evidence, Aspect, DB_Object_Type))
+        orfList = [DB_Object_Symbol] + DB_Object_Synonym.split("|")
+        selectedORFs = []
+        for orf in orfList:
+        	orf = orf.strip()
+        	if len(orf) and orf[0] == 'Y' and (len(orf) == 7 or (len(orf) == 9 and orf[-2] == '-')):
+        		tmpList.append( (orf, NOT, Evidence, Aspect, DB_Object_Type)) #DB_Object_Symbol
+        		selectedORFs.append( orf)
         GOID2gene[GOID] = tmpList
 
-        tmpList = gene2GOID.get(DB_Object_Symbol, [])
-        tmpList.append( (GOID, NOT, Evidence, Aspect, DB_Object_Type))
-        gene2GOID[DB_Object_Symbol] = tmpList
+	for orf in selectedORFs:
+        	tmpList = gene2GOID.get(orf, []) #DB_Object_Symbol
+        	tmpList.append( (GOID, NOT, Evidence, Aspect, DB_Object_Type))
+        	gene2GOID[orf] = tmpList #DB_Object_Symbol
 
         ## count
         tmpcn = countByEvidenceType.get(Evidence, 0)
@@ -469,6 +479,7 @@ def txtAnnotation2pickle(annotationFname, saveAsPickleFname, forDicty=0):
     print
     print
 
+    print len(gene2GOID.keys())
 
     annotation = {'GOID2gene': GOID2gene, 'gene2GOID': gene2GOID, 'evidenceTypes': evidenceTypes}
     cPickle.dump(annotation, open(saveAsPickleFname, 'w'))
