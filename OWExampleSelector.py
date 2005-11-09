@@ -19,7 +19,7 @@ class OWExampleSelector(OWWidget):
         OWWidget.__init__(self, parent, signalManager, 'Example Selector')
         self.callbackDeposit = []
 
-        self.inputs = [("Example Selection", ExampleSelection, self.loadselection, Multiple), ("Structured Data", DataFiles, self.chipdata)]
+        self.inputs = [("Example Selection", ExampleSelection, self.loadselection, Multiple + Default), ("Structured Data", DataFiles, self.chipdata)]
         self.outputs = [("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles, Default), ("Other Structured Data", DataFiles)]
 
         # Settings
