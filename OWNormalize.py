@@ -890,7 +890,7 @@ if __name__=="__main__":
     ow=OWNormalize()
     a.setMainWidget(ow)
     ow.show()
-    ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\array-pro\experiments\Tadeja 2nd image analysis\10vs10mg raw data\chol 0560.tab"))
+    ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\array-pro\experiments\Tadeja 2nd image analysis\10vs10mg original data\0449.txt", DC="<NO DATA>"))
     ow.onProbesInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\OWNormalize\steroltalk v0 controlRatios.tab"))
     a.exec_loop()
     #save settings 
