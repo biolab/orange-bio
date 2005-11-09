@@ -21,7 +21,7 @@ class OWANOVA(OWWidget):
         OWWidget.__init__(self, parent, signalManager, 'ANOVA')
         # input / output data: [("name1", [orange.ExampleTable1a,...]), ("name2", [orange.ExampleTable2a,...])]
         self.inputs = [("Structured Data", DataFiles, self.onDataInput)]
-        self.outputs = [("Example Selection", ExampleSelection), ("Selected Structured Data", DataFiles, Default), ("Other Structured Data", DataFiles)]
+        self.outputs = [("Example Selection", ExampleSelection, Default), ("Selected Structured Data", DataFiles, Default), ("Other Structured Data", DataFiles)]
 
         # data, p-values, selected examples
         self.dataStructure = None   # input data
