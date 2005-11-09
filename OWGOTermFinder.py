@@ -542,7 +542,7 @@ class OWGOTermFinder(OWWidget):
     def loadAnnotation(self):
         if DEBUG: print "loadAnnotation"
         self.annotation, self.BAnnotationIndx = self.loadRemember(self.RecentAnnotations, self.annotationCombo, self.BAnnotationIndx)
-        fn = self.RecentAnnotations[0] ## the loaded one is (becomes) always moved to 0 position
+        fn = str(self.RecentAnnotations[0]) ## the loaded one is (becomes) always moved to 0 position
         self.genesInAnnotationFile[fn] = self.annotation['gene2GOID'].keys() ## update, in case the file content changed
         self.updateEvidences()
         self.findTermsBuildDAG()
@@ -573,7 +573,10 @@ class OWGOTermFinder(OWWidget):
         evidenceTypeCn = {}
         for (gene, geneAnns) in self.annotation['gene2GOID'].items():
             for (daGOID, daNOT, daEvidence, daAspect, daDB_Object_Type) in geneAnns:
-                if daAspect <> self.GO['aspect']: continue # skip annotations that are not for the loaded aspect
+                if daAspect <> self.GO['aspect']: 
+#                	print  daAspect, self.GO['aspect']
+                	continue # skip annotations that are not for the loaded aspect
+                	return
                 (cn, lst) = evidenceTypeCn.get(daEvidence, (0, []))
                 if gene not in lst:
                     lst = lst + [gene]
