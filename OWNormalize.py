@@ -17,118 +17,6 @@ from OWGraphTools import *      # color palletes, user defined curves, ...
 import ColorPalette             # ColorButton
 
 
-class Probe:
-    def __init__(self, ID, ratio, color=QColor(0,0,255), symbol=1):
-        """Probe name and its expected ratio;
-        curve represents normalization factors where color and symbol is used to plot the curve on the graph.
-        """
-        self.ID = ID                # string
-        self.ratio = ratio          # float
-        self.color = color          # QColor
-        self.symbol = symbol        # int (QwtSymbol.Style)
-        self._signalSmpl = None     # Numeric.arrays
-        self._signalRef = None
-        self._bgSmpl = None
-        self._bgRef = None
-        self.curve = None
-
-
-    def setData(self, data, varID, varSignalSmpl, varSignalRef, varBGSmpl, varBGRef):
-        """Input: orange.ExampleTable, orange.Variable representing ID, signal/background, sample/reference,
-        """
-##        print "setData: varID, varSignalSmpl, varSignalRef, varBGSmpl, varBGRef", map(lambda x: x.name, [varID, varSignalSmpl, varSignalRef, varBGSmpl, varBGRef])
-        pp = orange.Preprocessor_take()
-        pp.values[varID] = self.ID
-        etSub = pp(data)
-        if len(etSub) == 0:
-            self._signalSmpl = None
-            self._signalRef = None
-            self._bgSmpl = None
-            self._bgRef = None
-        else:
-            ma = etSub.toMA("a")[0]
-            self._signalSmpl = ma[:,data.domain.index(varSignalSmpl)]
-            self._signalRef = ma[:,data.domain.index(varSignalRef)]
-            self._bgSmpl = ma[:,data.domain.index(varBGSmpl)]
-            self._bgRef = ma[:,data.domain.index(varBGRef)]
-
-
-    def getSymbolPixmap(self, rect):
-        """Input: QRect instance; output: QPixmap instance.
-        """
-        # init pixmap for table item
-        symbolPixmap = QPixmap(rect.width(),rect.height())
-        symbolPixmap.fill(QColor(255,255,255))
-        painter = QPainter(symbolPixmap)
-        symbol = QwtSymbol(self.symbol, QBrush(self.color, QBrush.SolidPattern), QPen(QColor(0,0,0),1), QSize(8,8))
-        symbol.draw(painter, QPoint(rect.width()/2,rect.height()/2))
-        painter.end()
-        return symbolPixmap
-
-
-    def getA_NF(self, subtrBG):
-        print "TODO: use filters"
-##            if filterName:
-##                pp.values[n2v[filterName]] = "accept"
-        if self._signalSmpl and self._signalRef and self._bgSmpl and self._bgRef:
-            if subtrBG:
-                netSmpl = self._signalSmpl - self._bgSmpl
-                netRef =  self._signalRef  - self._bgRef
-            else:
-                netSmpl = self._signalSmpl
-                netRef =  self._signalRef
-            A = MA.sqrt(netSmpl*netRef)
-            NF = self.ratio / (netSmpl/netRef)
-            condition = Numeric.logical_not(Numeric.logical_or(MA.getmaskarray(A), MA.less_equal(A, 0).filled(1)))
-##            print "condition:\n", condition
-##            print "A:\n", A
-##            print "NF:\n", NF
-            return Numeric.asarray(MA.compress(condition,A)), Numeric.asarray(MA.compress(condition,NF))
-        else:
-            return Numeric.zeros((0,), Numeric.Float), Numeric.zeros((0,), Numeric.Float)
-
-
-    def removeCurve(self, graph, replot):
-        if self.curve:
-            graph.removeCurve(self.curve)
-            if replot:
-                graph.replot()
-
-
-    def replotCurve(self, graph, subtrBG, logAxisX, logAxisY, markerSize, replotProbeCurves, filters=None):
-        print "TODO: use filters"
-##            if filterName:
-##                pp.values[n2v[filterName]] = "accept"
-        if self.curve:
-            graph.removeCurve(self.curve)
-        self.curve = graph.insertCurve(self.ID)
-        A, NF = self.getA_NF(subtrBG)
-        if logAxisX:
-            A = Numeric.log(A) / math.log(math.e)
-        if logAxisY:
-            NF = Numeric.log(NF) / math.log(math.e)
-        graph.setCurveData(self.curve, A, NF)
-        graph.setCurveStyle(self.curve, QwtCurve.NoCurve)
-        qSymbol = QwtSymbol(self.symbol, QBrush(self.color, QBrush.SolidPattern), QPen(QColor(0,0,0),1), QSize(markerSize,markerSize))
-        graph.setCurveSymbol(self.curve, qSymbol)
-        if replotProbeCurves:
-            graph.replot()
-
-
-    def setCurveActive(self, graph, active):
-        oldSymbol = graph.curveSymbol(self.curve)
-        pen = oldSymbol.pen()
-        if (active and pen.width() != 2) or (not active and pen.width() != 1):
-            if active:
-                pen.setWidth(2)
-            else:
-                pen.setWidth(1)
-            newSymbol = QwtSymbol(oldSymbol.style(), oldSymbol.brush(), pen, oldSymbol.size())
-            graph.setCurveSymbol(self.curve, newSymbol)
-            graph.replot()
-        
-        
-
 
 class OWNormalize(OWWidget):
 
@@ -152,7 +40,7 @@ class OWNormalize(OWWidget):
         self.controlRatio = "1.0"
         self._probeSymbol = 0    # index for cmbProbeSymbol, equals to index+1 for QwtSymbol.Style
         self.probeColor = QColor(0,0,255)
-        self.subtrBG = True
+        self.subtrBG = False
         self.useCV = True
         self.CV = "0.5"
         self.useMinIntensity = True
@@ -162,9 +50,10 @@ class OWNormalize(OWWidget):
         self.normType = 0  #0: median, 1: LR, 2: LOESS
         # graph
         self.logAxisX = True
-        self.logAxisY = False
-        self.markerSize = 8
+        self.logAxisY = True
+        self.markerSize = 9
         self.mergeReplGraph = False
+        self.showLegend = False
         # output
         self.mergeRepl = True
         self.mergeReplType = 0     #0: mean, 1: median
@@ -192,8 +81,8 @@ class OWNormalize(OWWidget):
         self.inputContRatios = {}        # dict {controlName:ratio} filled from external exampleTable
         self.internContRatios = {}       # dict {controlName:ratio} updated together with self.tblControls
         self.probesExternal = {}        # dict {Probe.name: Probe} from external data
-        self.probesUsed = {}            # dict {Probe.name: Probe} updated together with self.tblControls
-        self.probeActive = None         # currently active probe
+        self.probesUsed = {}            # dict {Probe.name: Probe} probes, shown on graph; updated together with self.tblControls
+        self.probesActive = []          # currently active probe
 
         # GUI
         self.controlArea.setFixedWidth(240)
@@ -222,8 +111,9 @@ class OWNormalize(OWWidget):
         self.tblControls.setSelectionMode(QTable.Multi)
         self.tblControls.setNumCols(3)
         self.tblControls.setColumnWidth(2,self.tblControlsColumn2Width)
-        self.connect(self.tblControls, SIGNAL("valueChanged(int,int)"), self.tblControlsChange)
+        self.connect(self.tblControls, SIGNAL("valueChanged(int,int)"), self.tblControlsValueChange)
         self.connect(self.tblControls, SIGNAL("currentChanged(int, int)"), self.tblControlsCurrentChanged)
+        self.connect(self.tblControls , SIGNAL('selectionChanged()'), self.tblControlsSelectionChanged)        
         hheader=self.tblControls.horizontalHeader()
         hheader.setLabel(0, "Probe ID")
         hheader.setLabel(1, "Ratio")
@@ -244,7 +134,7 @@ class OWNormalize(OWWidget):
         OWGUI.button(boxBtns00, self, "Select", callback=self.selectControlsClick)
         boxBtns01 = QHBox(boxBtns0)
         OWGUI.button(boxBtns01, self, "Select all", callback=self.selectControlsAllClick)
-        OWGUI.button(boxBtns01, self, "Unselect all", callback=lambda repaint=True: self.tblControls.clearSelection(repaint))
+        OWGUI.button(boxBtns01, self, "Unselect all", callback=self.unselectControlsAllClick)
         # empty pixmap to fill self.tblControls column 2
         self.tblControls.setNumRows(1)
         rect = self.tblControls.cellGeometry(0,2)
@@ -283,37 +173,38 @@ class OWNormalize(OWWidget):
         self.cbsubtrBG = OWGUI.checkBox(boxFilters, self, "subtrBG", "Subtract background", callback=self.settingsFiltersChange)
         # tab 3: settings: filters: CV
         boxCV = QHBox(boxFilters)
-        self.cbCV = OWGUI.checkBox(boxCV, self, "useCV", "Coefficient of variation (CV):", callback=self.settingsFiltersChange)
-        self.leCV = OWGUI.lineEdit(boxCV, self, "CV", callback=self.settingsFiltersChange)
+        OWGUI.checkBox(boxCV, self, "useCV", "Coefficient of variation (CV):", callback=self.settingsFiltersChange)
+        OWGUI.lineEdit(boxCV, self, "CV", callback=self.settingsFiltersChange)
         # tab 3: settings: filters: min.intensity
         boxMinIntensity = QHBox(boxFilters)
-        self.cbMinIntensity = OWGUI.checkBox(boxMinIntensity, self, "useMinIntensity", "Min. intensity:", callback=self.settingsFiltersChange)
-        self.leMinIntensity = OWGUI.lineEdit(boxMinIntensity, self, "minIntensity", callback=self.settingsFiltersChange)
+        OWGUI.checkBox(boxMinIntensity, self, "useMinIntensity", "Min. intensity:", callback=self.settingsFiltersChange)
+        OWGUI.lineEdit(boxMinIntensity, self, "minIntensity", callback=self.settingsFiltersChange)
         QLabel(" times above bg.", boxMinIntensity)
         # tab 3: settings: filters: max.intensity
         boxMaxIntensity = QHBox(boxFilters)
-        self.cbMaxIntensity = OWGUI.checkBox(boxMaxIntensity, self, "useMaxIntensity", "Max. intensity:", callback=self.settingsFiltersChange)
-        self.leMaxIntensity = OWGUI.lineEdit(boxMaxIntensity, self, "maxIntensity", callback=self.settingsFiltersChange)
+        OWGUI.checkBox(boxMaxIntensity, self, "useMaxIntensity", "Max. intensity:", callback=self.settingsFiltersChange)
+        OWGUI.lineEdit(boxMaxIntensity, self, "maxIntensity", callback=self.settingsFiltersChange)
         # tab 3: settings: normalization type
         rbgNormalization = OWGUI.radioButtonsInBox(boxSettings, self, value="normType", btnLabels=["Median (intensity independent)", "Linear regression", "Loess"], box="Normalization Type", callback=self.settingsNormTypeChange)
         # tab 3: settings: graph
         boxGraph = QVGroupBox(boxSettings)
         boxGraph.setTitle('Graph')
-        self.cbLogAxisX = OWGUI.checkBox(boxGraph, self, "logAxisX", "Logarithmic X axis", callback=lambda ax=2: self.settingsGraphAxisChange(ax))
-        self.cbLogAxisY = OWGUI.checkBox(boxGraph, self, "logAxisY", "Logarithmic Y axis", callback=lambda ax=0: self.settingsGraphAxisChange(ax))
+        OWGUI.checkBox(boxGraph, self, "logAxisX", "Logarithmic X axis", callback=lambda ax=2: self.settingsGraphAxisChange(ax))
+        OWGUI.checkBox(boxGraph, self, "logAxisY", "Logarithmic Y axis", callback=lambda ax=0: self.settingsGraphAxisChange(ax))
         boxMSize = QHBox(boxGraph)
         QLabel("Marker size", boxMSize)
-        self.cmbMarkerSize = OWGUI.comboBox(boxMSize, self, "markerSize", callback=self.settingsGraphChange, sendSelectedValue=1, valueType=int)
-        for itemIdx, size in enumerate(range(1,16)):
-            self.cmbMarkerSize.insertItem(str(size))
+        cmbMarkerSize = OWGUI.comboBox(boxMSize, self, "markerSize", callback=self.settingsGraphChange, sendSelectedValue=1, valueType=int)
+        for itemIdx, size in enumerate(range(3,16)):
+            cmbMarkerSize.insertItem(str(size))
             if self.markerSize == size:
-                self.cmbMarkerSize.setCurrentItem(itemIdx)
-        self.cbMergeReplicasGraph = OWGUI.checkBox(boxGraph, self, value="mergeReplGraph", label="Merge replicas", callback=self.settingsGraphChange)
+                cmbMarkerSize.setCurrentItem(itemIdx)
+        OWGUI.checkBox(boxGraph, self, value="mergeReplGraph", label="Merge replicas", callback=self.settingsGraphChange)
+        OWGUI.checkBox(boxGraph, self, value="showLegend", label="Show legend", callback=self.settingsShowLegendChange)
         # tab 3: settings: replication
         boxOutput = QVGroupBox(boxSettings)
         boxOutput.setTitle('Output')
 ##        boxRepl = QVButtonGroup("Replication", boxSettings)
-        self.cbMergeReplicas = OWGUI.checkBox(boxOutput, self, value="mergeRepl", label="Merge replicas", callback=self.settingsReplicasChange)
+        OWGUI.checkBox(boxOutput, self, value="mergeRepl", label="Merge replicas", callback=self.settingsReplicasChange)
         self.rbgMergeReplType = OWGUI.radioButtonsInBox(boxOutput, self, value="mergeReplType", btnLabels=["Mean", "Median"], box="Merge intensities", callback=self.settingsReplicasChange)
         self.rbgMergeOtherType = OWGUI.radioButtonsInBox(boxOutput, self, value="mergeOtherType", btnLabels=["Use first value", "Concatenate values"], box="Merge other variables", callback=self.settingsReplicasChange)
         # tab 3: settings: other output
@@ -325,13 +216,15 @@ class OWNormalize(OWWidget):
         boxG = QVBox(self.mainArea)
         graphBoxLayout = QVBoxLayout(self.mainArea)
         graphBoxLayout.addWidget(boxG)
-        self.graph = OWGraph(boxG)
-        self.graph.setAutoLegend(False)
+        self.graph = OWGraphMA(boxG)
         self.graph.setAutoReplot(False)
-##        self.graph.setAxisAutoScale(False)
-##        self.graph.setAxisScale(0,0,7)
-##        self.graph.setAxisScale(2,0,9)
         self.setGraphAxes(axes=[0,2])
+        self.connect(self.graph, SIGNAL("plotMouseMoved(const QMouseEvent &)"), self.onMouseMoved)
+        self.connect(self.graph, SIGNAL("legendClicked(long)"), self.onLegendClicked)
+        self.graph.enableGraphLegend(self.showLegend)
+##        self.graph.statusBar = self.statusBar
+##        self.statusBar.message("text")
+        # save graph button
         self.connect(self.graphButton, SIGNAL("clicked()"), self.graph.saveToFile)
 
 
@@ -460,7 +353,7 @@ class OWNormalize(OWWidget):
     ###################################################################################
     ## EVENT HANDLERS: CONTROL ASSIGNMENT
 
-    def tblControlsChange(self, row, col):
+    def tblControlsValueChange(self, row, col):
         """Handles direct changes to self.tblControls;
         updates self.internContRatios and sends out data and control/ratios.
         """
@@ -478,6 +371,7 @@ class OWNormalize(OWWidget):
                 probe.symbol = self.getProbeSymbol()
             else:
                 probe = Probe(cName, ratio, self.probeColor, self.getProbeSymbol())
+                probe.tblRowIdx = row
                 probe.setData(self.data, self.varsEnum[self.varIdxID], self.varsFloat[self.varIdxSignalSmpl],
                               self.varsFloat[self.varIdxSignalRef], self.varsFloat[self.varIdxBGSmpl],
                               self.varsFloat[self.varIdxBGRef])
@@ -489,7 +383,7 @@ class OWNormalize(OWWidget):
                 probe = self.probesUsed.pop(cName)
                 probe.removeCurve(self.graph, True)
             else:
-                print "tblControlsChange: not resending data !!!!!!!"
+                print "tblControlsValueChange: not resending data !!!!!!!"
                 resendData=False
             self.updateProbeTable(row, None)
         if resendData:
@@ -499,34 +393,44 @@ class OWNormalize(OWWidget):
 
     def tblControlsCurrentChanged(self, row, col):
         """Handles changes of currently selected cell in self.tblControls;
-        makes markers of the selected probe thicker, sets self.probeActive.
+        makes markers of the selected probe thicker, sets self.probesActive.
         """
-        print "tblControlsCurrentChanged"
-        pName = str(self.tblControls.item(row, 0).text())
-        if self.probesUsed.has_key(pName):
-            probe = self.probesUsed[pName]
-            self.controlRatio = str(probe.ratio)
-            self.setProbeSymbol(probe.symbol)
-            self.probeColor = probe.color
-            # update color of button
-            self.btnProbeColor.pixmap().fill(self.probeColor)
-            self.btnProbeColor.repaint()
-            # activate currently selected probe markers
-            self.activateProbe(probe)
-        else:
-            self.activateProbe(None)
-        
+        print "tblControlsCurrentChanged: row, col:", row, col
+        if row>=0 and col>=0:
+            pName = str(self.tblControls.item(row, 0).text())
+            if self.probesUsed.has_key(pName):
+                probe = self.probesUsed[pName]
+                if not (probe in self.probesActive and len(self.probesActive)==1):
+                    # update GUI: controlRatio lineEdit, probeSymbol, probeColor
+                    self.controlRatio = str(probe.ratio)
+                    self.setProbeSymbol(probe.symbol)
+                    self.probeColor = probe.color
+                    # update color of button
+                    self.btnProbeColor.pixmap().fill(self.probeColor)
+                    self.btnProbeColor.repaint()
+##                # activate currently selected probe markers
+##                self.activateProbe2(probe)
 
+
+    def tblControlsSelectionChanged(self):
+        print "tblControlsSelectionChanged"
+        self.activateProbes()
+        
 
     def selectControlsClick(self):
         """Select probes where ID contains self.controlName.
         """
+        self.tblControls.setCurrentCell(-1,-1)
+        numSelectionsOld = self.tblControls.numSelections()
         for idx in range(self.tblControls.numRows()):
             if string.lower(self.controlName) in string.lower(self.tblControls.item(idx, 0).text()):
                 sel = QTableSelection()
                 sel.init(idx,0)
                 sel.expandTo(idx,0)
                 self.tblControls.addSelection(sel)
+        if self.tblControls.numSelections() <> numSelectionsOld:
+            self.activateProbes()
+
 
     def selectControlsAllClick(self):
         """Clears all selections and selects all probes.
@@ -536,6 +440,13 @@ class OWNormalize(OWWidget):
         sel.init(0,0)
         sel.expandTo(self.tblControls.numRows()-1,0)
         self.tblControls.addSelection(sel)
+
+
+    def unselectControlsAllClick(self):
+        """Clears all selections and selects all probes.
+        """
+        self.tblControls.setCurrentCell(-1,-1)
+        self.tblControls.clearSelection(True)
 
 
     def probeColorClick(self):
@@ -551,16 +462,14 @@ class OWNormalize(OWWidget):
         """
         self.setSelectedProbes(self.controlRatio, self.probeColor, self.getProbeSymbol())
         self.sendData()
-##        self.sendControlRatios()
         self.sendProbes()
 
 
     def clearRatiosClick(self):
         """Clears ratios for the selected controls
         """
-        self.setSelectedProbes("", None, None)
+        self.clearSelectedProbes()
         self.sendData()
-##        self.sendControlRatios()
         self.sendProbes()
 
 
@@ -603,12 +512,59 @@ class OWNormalize(OWWidget):
         self.replotProbeCurves()
 
 
+    def settingsShowLegendChange(self):
+        """Enables/disables legend.
+        """
+        self.graph.enableGraphLegend(self.showLegend)
+
+
     def settingsOutputChange(self):    
         """Handles changes of output settings; send out data.
         """
         self.sendData()
+        # DEBUG
+        for probe in self.probesUsed.values():
+            print probe.ID, probe.tblRowIdx
 
-    ###################################################################
+
+    ###################################################################################
+    ## EVENT HANDLERS: GRAPH
+
+    def onLegendClicked(self, key):
+        """Change active probe curve
+        """
+##        curve = self.graph.curve(key)
+        curveTitle = self.graph.curveTitle(key)
+        print "onLegendClicked: %s, %s" % (key, curveTitle)
+        probe = self.probesUsed.get(str(curveTitle), None)
+        self.tblControls.clearSelection(True)
+        self.tblControls.setCurrentCell(probe.tblRowIdx,0)
+##        sel = QTableSelection()
+##        sel.init(probe.tblRowIdx,0)
+##        sel.expandTo(probe.tblRowIdx,0)
+##        self.tblControls.addSelection(sel)
+        self.activateProbe2(probe)
+
+            
+
+    def onMouseMoved(self, e):
+        (curveKey, distPoints, x, y, pointKey) = self.graph.closestCurve(e.x(), e.y())
+        curveTitle = self.graph.curveTitle(curveKey)
+##        print "onMousemoved curve title: ", curveTitle
+        probe = self.probesUsed.get(str(curveTitle), None)
+        if distPoints<=self.markerSize/2:
+            xPoints = self.graph.transform(QwtPlot.xBottom, x)
+            yPoints = self.graph.transform(QwtPlot.yLeft, y)
+            if not (probe in self.probesActive and len(self.probesActive)==1):
+                self.activateProbe2(probe)
+            rect = QRect(xPoints+self.graph.canvas().frameGeometry().x()-self.markerSize/2, yPoints+self.graph.canvas().frameGeometry().y()-self.markerSize/2, self.markerSize, self.markerSize)
+##                MyQToolTip.tip(self.graph.tooltip, rect, probe.ID)
+            MyQToolTip.setRect(self.graph.tooltip, rect, probe.ID)
+
+
+    ###################################################################################
+    ###################################################################################
+    ###################################################################################
     ## UTILITY FUNCTIONS: GENERAL
 
     def getProbeSymbol(self):
@@ -710,6 +666,7 @@ class OWNormalize(OWWidget):
         # clear self.probesUsed and curves
         for probe in self.probesUsed.values():
             probe.removeCurve(self.graph, False)
+        print "replot: initProbes"
         self.graph.replot()
         self.probesUsed = {}
 ##        self.probeActive = None
@@ -719,20 +676,21 @@ class OWNormalize(OWWidget):
             # self.tblControls, set horizontal header labels
             self.tblControls.horizontalHeader().setLabel(0, self.varsEnum[self.varIdxID].name)
             self.tblControls.setNumRows(len(idList))
-            firstFilledRow = -1
+##            firstFilledRow = -1
             for row, id in enumerate(idList):
                 OWGUI.tableItem(self.tblControls, row, 0, id, editType=QTableItem.Never)#, background=QColor(160,160,160))
 ##                self.tblControls.setItem(row, 0, QTableItem(self.tblControls, QTableItem.Never, id, self.symbolPixmapEmpty))
                 probeExt = self.probesExternal.get(id, None)
                 if probeExt:
+                    probeExt.tblRowIdx = row
                     probeExt.setData(self.data, self.varsEnum[self.varIdxID], self.varsFloat[self.varIdxSignalSmpl],
                                      self.varsFloat[self.varIdxSignalRef], self.varsFloat[self.varIdxBGSmpl], self.varsFloat[self.varIdxBGRef])
                     self.probesUsed[probeExt.ID] = probeExt
                     # update self.tblControls
                     self.updateProbeTable(row, probeExt)
                     lastFilledRow = row
-                    if firstFilledRow == -1:
-                        firstFilledRow = row
+##                    if firstFilledRow == -1:
+##                        firstFilledRow = row
                     # plot curve
                     probeExt.replotCurve(self.graph, self.subtrBG, self.logAxisX, self.logAxisY, self.markerSize, False)
                 else:
@@ -740,20 +698,29 @@ class OWNormalize(OWWidget):
             # adjust table width and select a cell, replot graph
             self.tblControls.adjustColumn(0)
             self.tblControls.setColumnWidth(1, max(35, self.tblControls.visibleWidth() - self.tblControls.columnWidth(0) - self.tblControls.columnWidth(2)))
-            if firstFilledRow != -1:
+##            if firstFilledRow != -1:
 ##                print "setcurrcell start"
-                self.tblControls.setCurrentCell(firstFilledRow, 1)
-                self.tblControlsCurrentChanged(firstFilledRow, 1)
+##                self.tblControls.setCurrentCell(firstFilledRow, 1)
+##                self.tblControlsCurrentChanged(firstFilledRow, 1)
 ##                print "setcurrcell end"
 ##                self.activeProbe = self.probesUsed[str(self.tblControls.item(firstFilledRow, 0).text())]
 ##                self.activeProbe.setCurveActive(self.graph, True)
-                self.graph.replot()
-            elif len(idList) > 0:
-                self.tblControls.setCurrentCell(0, 1)
+##                print "replot: initProbes 2"
+##            elif len(idList) > 0:
+##                self.tblControls.setCurrentCell(0, 1)
         else:
             self.tblControls.horizontalHeader().setLabel(0, "Probe ID")
             self.tblControls.setNumRows(0)
-            
+        self.tblControls.setCurrentCell(-1,-1)
+        self.graph.replot()
+
+
+##    def getSelectedProbes(self):
+##        """Returns a list of currently selected probes: [(probeName, tblControls_rowIdx)]
+##        """
+##        nameInd = []
+##        
+##            
 
     def setSelectedProbes(self, ratioStr, color, symbol):
         """Updates self.probesUsed of the selected probes with a given ratio string, color and symbol;
@@ -770,35 +737,50 @@ class OWNormalize(OWWidget):
                     ratio = float(eval(ratioStr))
                 except:
                     ratio = None
-                if ratio:
-                    if self.probesUsed.has_key(cName):
-                        probe = self.probesUsed[cName]
-                        probe.ratio = ratio
-                        probe.color = color
-                        probe.symbol = symbol
-                    else:
-                        probe = Probe(cName, ratio, color, symbol)
-                        self.probesUsed[cName] = probe
-                        probe.setData(self.data, self.varsEnum[self.varIdxID], self.varsFloat[self.varIdxSignalSmpl],
-                                                   self.varsFloat[self.varIdxSignalRef], self.varsFloat[self.varIdxBGSmpl],
-                                                   self.varsFloat[self.varIdxBGRef])
-                    probe.replotCurve(self.graph, self.subtrBG, self.logAxisX, self.logAxisY, self.markerSize, False)
-                    self.updateProbeTable(row, self.probesUsed[cName])
+                if self.probesUsed.has_key(cName):
+                    probe = self.probesUsed[cName]
+                    probe.ratio = ratio
+                    probe.color = color
+                    probe.symbol = symbol
                 else:
-                    print "setSelectedProbes: remove probe & curve"
-                    if self.probesUsed.has_key(cName):
-                        probe = self.probesUsed.pop(cName)
-                        probe.removeCurve(self.graph, False)
-                        if self.probeActive == probe:
-                            self.activateProbe(None)
-                    self.updateProbeTable(row, None)
-        # activate probes (if there was no probe in the current row before)
-        cName = str(self.tblControls.item(self.tblControls.currentRow(), 0).text())
-        if self.probesUsed.has_key(cName):
-            self.activateProbe(self.probesUsed[cName])
+                    probe = Probe(cName, ratio, color, symbol)
+                    probe.tblRowIdx = row
+                    self.probesUsed[cName] = probe
+                    probe.setData(self.data, self.varsEnum[self.varIdxID], self.varsFloat[self.varIdxSignalSmpl],
+                                               self.varsFloat[self.varIdxSignalRef], self.varsFloat[self.varIdxBGSmpl],
+                                               self.varsFloat[self.varIdxBGRef])
+                probe.replotCurve(self.graph, self.subtrBG, self.logAxisX, self.logAxisY, self.markerSize, False)
+                self.updateProbeTable(row, self.probesUsed[cName])
+##        # activate probes (if there was no probe in the current row before)
+##        cName = str(self.tblControls.item(self.tblControls.currentRow(), 0).text())
+##        if self.probesUsed.has_key(cName):
+##            self.activateProbe(self.probesUsed[cName])
         # replot if there were any changes
         if self.tblControls.numSelections() > 0:
+            print "replot: setSelectedProbes"
             self.graph.replot()
+
+
+    def clearSelectedProbes(self):
+        """Removes selected probes from self.probesUsed;
+        calls updateProbeTable(row, probe), replots/removes curves
+        """
+        for selNum in range(self.tblControls.numSelections()):
+            sel = self.tblControls.selection(selNum)
+            for row in range(sel.topRow(), sel.bottomRow()+1):
+                cName = str(self.tblControls.item(row, 0).text())
+                if self.probesUsed.has_key(cName):
+                    probe = self.probesUsed.pop(cName)
+                    probe.removeCurve(self.graph, False)
+##                    if self.probeActive == probe:
+##                        self.activateProbe(None)
+                self.updateProbeTable(row, None)
+        # replot if there were any changes
+        if self.tblControls.numSelections() > 0:
+            self.activateProbes()
+            print "replot: setSelectedProbes"
+            self.graph.replot()
+
 
 
     def updateProbeTable(self, row, probe):
@@ -820,19 +802,52 @@ class OWNormalize(OWWidget):
         self.tblControls.setItem(row, 2, QTableItem(self.tblControls, QTableItem.Never, "", pxm))
 
 
-    def activateProbe(self, probe):
-        """Deactive currently activated probe;
+    def activateProbe2(self, probe):
+        """Deactive currently activated probes;
         activate new probe or None.
         """
-##        if self.probeActive != probe:
-        if self.probeActive:
-            self.probeActive.setCurveActive(self.graph, False)
+        print "activateProbe2"
+        if probe in self.probesActive:
+            probesActiveOld = list(self.probesActive)
+            probesActiveOld.remove(probe)
+        else:
+            probesActiveOld = self.probesActive
+        for p in probesActiveOld:
+            p.setCurveActive(self.graph, False)
         if probe:
-            probe.setCurveActive(self.graph, True)
-        self.probeActive = probe
+            if probe not in self.probesActive:
+                probe.setCurveActive(self.graph, True)
+            self.probesActive = [probe]
+        else:
+            self.probesActive = []
 
-    ###################################################################
-    ## UTILITY FUNCTIONS: NORMALIZATION
+
+    def activateProbes(self):
+        """Activate currently selected probes;
+        """
+        probesActiveOld = list(self.probesActive)
+        self.probesActive = []
+        print "activateProbes: self.tblControls.numSelections(): ", self.tblControls.numSelections()
+        for selNum in range(self.tblControls.numSelections()):
+            sel = self.tblControls.selection(selNum)
+##            print "  sel:", sel.topRow(), sel.bottomRow()+1
+            for row in range(sel.topRow(), sel.bottomRow()+1):
+##                OWGUI.tableItem(self.tblControls, row, 1, ratioStr, editType=QTableItem.Always, background=QColor(160,160,160))
+##                self.tblControls.setText(row, 1, ratioStr)
+                cName = str(self.tblControls.item(row, 0).text())
+                if self.probesUsed.has_key(cName):
+                    probe = self.probesUsed[cName]
+                    print "probe.ID, probe.tblRowIdx: ", probe.ID, probe.tblRowIdx
+                    if probe in probesActiveOld:
+                        probesActiveOld.remove(probe)
+                    else:
+                        probe.setCurveActive(self.graph, True)
+                    self.probesActive.append(probe)
+        for probe in probesActiveOld:
+            probe.setCurveActive(self.graph, False)
+        # replot if there were any changes
+        if self.tblControls.numSelections() > 0:
+            self.graph.replot()
 
 
     ###################################################################
@@ -842,7 +857,7 @@ class OWNormalize(OWWidget):
         """According to selected scaling sets up axis labels and scales;
         axis: 0: vertical left, 1: vertical right, 2: horizontal bottom, 3: horizontal top
         """
-        titles = {False: ["Normalization factor"]*2 + ["Average intensity"]*2, True: ["log2(normalization factor)"]*2 + ["log2(average intensity)"]*2}
+        titles = {False: ["Ratio"]*2 + ["Average intensity"]*2, True: ["Log2 ratio (M)"]*2 + ["Log2 average intensity (A)"]*2}
         useLog = [self.logAxisY]*2 + [self.logAxisX]*2
         if axes==None: axes = [0,2]
         for axis in axes:
@@ -853,11 +868,14 @@ class OWNormalize(OWWidget):
         """Replots all probe curves.
         """
         print "replotProbeCurves"
-        for pID, probe in self.probesUsed.items():
-            probe.replotCurve(self.graph, self.subtrBG, self.logAxisX, self.logAxisY, self.markerSize, False)
+        pIDs = self.probesUsed.keys()
+        pIDs.sort()
+        for pID in pIDs:
+            self.probesUsed[pID].replotCurve(self.graph, self.subtrBG, self.logAxisX, self.logAxisY, self.markerSize, False)
 ##        self.activateProbe(self.probeActive)
-        if self.probeActive:
-            self.probeActive.setCurveActive(self.graph, True)
+        for probe in self.probesActive:
+            probe.setCurveActive(self.graph, True)
+        print "replot: replotProbeCurve"
         self.graph.replot()
 
 
@@ -866,6 +884,19 @@ class OWNormalize(OWWidget):
         """
         print "TODO"
         
+    ###################################################################
+    ## UTILITY FUNCTIONS: NORMALIZATION
+
+##        et_f = filterConjunction(filterIntensity(filterCV(et)))
+##        et_f_nr = normIntensityBased(et_f, contAMBLUCs, "filter_conj", windowSize=0.8, verbose=not store, title=f)
+##        et_f_nr_a = averageReplicas(et_f_nr, ["Name"])
+##        if store: orange.saveTabDelimited(pth + subdir + f[:-4] + "-norm.tab", et_f_nr_a)
+##        # store data for ANOVA
+##        et_f_nr_sList = splitReplicas(et_f_nr, "ST_Mm", ["Name"])
+##        structData.append((f[:-4], et_f_nr_sList))
+##    if store: storeAnovaData(structData, pth + subdir)
+##    if store: biolQuestions(structData, pth + subdir)
+
 
 ##    lr = MultLinReg(Numeric.reshape(Numeric.asarray(As), (len(As),1)), SFs)
 ##    if verbose:
@@ -880,7 +911,146 @@ class OWNormalize(OWWidget):
 ##        # legend
 ##        P.figlegend(plotedItems, contUsed + ["loess", "lin.reg", "median"], 'upper right', numpoints=2, markerscale=1)
         
-    
+
+
+
+class Probe:
+    def __init__(self, ID, ratio, color=QColor(0,0,255), symbol=1):
+        """Probe name and its expected ratio;
+        curve represents normalization factors where color and symbol is used to plot the curve on the graph.
+        """
+        self.ID = ID                # string
+        self.ratio = ratio          # float / None
+        self.color = color          # QColor
+        self.symbol = symbol        # int (QwtSymbol.Style)
+        self._signalSmpl = None     # Numeric.arrays
+        self._signalRef = None
+        self._bgSmpl = None
+        self._bgRef = None
+        self.tblRowIdx = None       # row index in OWNormalize.tblControls
+        self.curve = None           # curve in OWNormalize.graph
+
+
+    def setData(self, data, varID, varSignalSmpl, varSignalRef, varBGSmpl, varBGRef):
+        """Input: orange.ExampleTable, orange.Variable representing ID, signal/background, sample/reference,
+        """
+##        print "setData: varID, varSignalSmpl, varSignalRef, varBGSmpl, varBGRef", map(lambda x: x.name, [varID, varSignalSmpl, varSignalRef, varBGSmpl, varBGRef])
+        pp = orange.Preprocessor_take()
+        pp.values[varID] = self.ID
+        etSub = pp(data)
+        if len(etSub) == 0:
+            self._signalSmpl = None
+            self._signalRef = None
+            self._bgSmpl = None
+            self._bgRef = None
+        else:
+            ma = etSub.toMA("a")[0]
+            self._signalSmpl = ma[:,data.domain.index(varSignalSmpl)]
+            self._signalRef = ma[:,data.domain.index(varSignalRef)]
+            self._bgSmpl = ma[:,data.domain.index(varBGSmpl)]
+            self._bgRef = ma[:,data.domain.index(varBGRef)]
+
+
+    def getSymbolPixmap(self, rect):
+        """Input: QRect instance; output: QPixmap instance.
+        """
+        # init pixmap for table item
+        symbolPixmap = QPixmap(rect.width(),rect.height())
+        symbolPixmap.fill(QColor(255,255,255))
+        painter = QPainter(symbolPixmap)
+        symbol = QwtSymbol(self.symbol, QBrush(self.color, QBrush.SolidPattern), QPen(QColor(0,0,0),1), QSize(8,8))
+        symbol.draw(painter, QPoint(rect.width()/2,rect.height()/2))
+        painter.end()
+        return symbolPixmap
+
+
+    def getMA(self, subtrBG):
+##            if filterName:
+##                pp.values[n2v[filterName]] = "accept"
+        if self._signalSmpl and self._signalRef and self._bgSmpl and self._bgRef:
+            if subtrBG:
+                netSmpl = self._signalSmpl - self._bgSmpl
+                netRef =  self._signalRef  - self._bgRef
+            else:
+                netSmpl = self._signalSmpl
+                netRef =  self._signalRef
+            A = MA.sqrt(netSmpl*netRef)
+            M = 1.*netSmpl/netRef
+            condition = Numeric.logical_not(Numeric.logical_or(MA.getmaskarray(A), MA.less_equal(A, 0).filled(1)))
+##            print "condition:\n", condition
+##            print "A:\n", A
+##            print "M:\n", M
+            return Numeric.asarray(MA.compress(condition,A)), Numeric.asarray(MA.compress(condition,M))
+        else:
+            return Numeric.zeros((0,), Numeric.Float), Numeric.zeros((0,), Numeric.Float)
+
+
+    def removeCurve(self, graph, replot):
+        if self.curve:
+            graph.removeCurve(self.curve)
+            if replot:
+                print "replot: removeCurve"
+                graph.replot()
+
+
+    def replotCurve(self, graph, subtrBG, logAxisX, logAxisY, markerSize, replotProbeCurves, filters=None):
+##            if filterName:
+##                pp.values[n2v[filterName]] = "accept"
+        if self.curve:
+            graph.removeCurve(self.curve)
+        self.curve = graph.insertCurve(self.ID)
+        A, M = self.getMA(subtrBG)
+        if logAxisX:
+            A = Numeric.log(A) / math.log(2)
+        if logAxisY:
+            M = Numeric.log(M) / math.log(2)
+        graph.setCurveData(self.curve, A, M)
+        graph.setCurveStyle(self.curve, QwtCurve.NoCurve)
+        qSymbol = QwtSymbol(self.symbol, QBrush(self.color, QBrush.SolidPattern), QPen(QColor(0,0,0),1), QSize(markerSize,markerSize))
+        graph.setCurveSymbol(self.curve, qSymbol)
+        if replotProbeCurves:
+            print "replot: replotCurve"
+            graph.replot()
+
+
+    def setCurveActive(self, graph, active):
+        oldSymbol = graph.curveSymbol(self.curve)
+        pen = oldSymbol.pen()
+        if (active and pen.width() != 2) or (not active and pen.width() != 1):
+            if active:
+                pen.setWidth(3)
+            else:
+                pen.setWidth(1)
+            newSymbol = QwtSymbol(oldSymbol.style(), oldSymbol.brush(), pen, oldSymbol.size())
+            graph.setCurveSymbol(self.curve, newSymbol)
+            print "replot: setCurveActive"
+            graph.replot()
+
+
+class OWGraphMA(OWGraph):
+    def zoomOut(self):
+        """Overridden in order to fix for autoscaling when there is no zoom.
+        """
+        if len(self.zoomStack):
+            (xmin, xmax, ymin, ymax) = self.zoomStack.pop()
+            if len(self.zoomStack):
+                self.setAxisScale(QwtPlot.xBottom, xmin, xmax)
+                self.setAxisScale(QwtPlot.yLeft, ymin, ymax)
+            else:
+                self.setAxisAutoScale(QwtPlot.xBottom)
+                self.setAxisAutoScale(QwtPlot.xTop)
+                self.setAxisAutoScale(QwtPlot.yLeft)
+                self.setAxisAutoScale(QwtPlot.yRight)
+            print "zoomOut: replot"
+            self.replot()
+            return 1
+        return 0
+
+##    def __init__(self, parent = None, name = None):
+##        OWGraph.__init__(self, parent, name)
+##        self.
+##        
+
 
 
                 
@@ -890,8 +1060,8 @@ if __name__=="__main__":
     ow=OWNormalize()
     a.setMainWidget(ow)
     ow.show()
-    ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\array-pro\experiments\Tadeja 2nd image analysis\10vs10mg original data\0449.txt", DC="<NO DATA>"))
-    ow.onProbesInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\OWNormalize\steroltalk v0 controlRatios.tab"))
+    ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\Tadeja 2nd image analysis\10vs10mg original data\0449.txt", DC="<NO DATA>"))
+    ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\sterolgene v.0 mouse controlRatios.tab"))
     a.exec_loop()
     #save settings 
     ow.saveSettings()
