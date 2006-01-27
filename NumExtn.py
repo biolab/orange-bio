@@ -8,6 +8,72 @@ import numarray.ma as NM
 import numarray.linear_algebra as LA
 
 
+def denary2Binary(n):
+    '''convert denary integer n to binary string bStr'''
+    bStr = ''
+    if n < 0:  raise ValueError, "must be a positive integer"
+    if n == 0: return '0'
+    while n > 0:
+        bStr = str(n % 2) + bStr
+        n = n >> 1
+    return bStr
+
+
+#####################################################################################
+## index2position:
+##  given the index of an element in a flat array
+##  get the position of that element in an array of given shape
+##
+## getIndicesList(m,val):
+##  Input: m=[[1,2],[2,3]], val=2
+##  Output: Numeric.array([(0,1),(1,0)])
+#####################################################################################
+
+def index2position(n, shape):
+    """index in a flat array, position in a array with arbitrary dimensions
+    """
+    bStr = ''
+    if n < 0:  raise ValueError, "must be a positive integer"
+    shapeL = list(shape)
+    shapeL.reverse()
+    pos = []
+    for shp in shapeL:
+        pos = [n % shp] + pos
+        n = int(n / shp)
+    return pos
+
+def getIndices(m, val):
+    """Input: arbitrary (masked) array and a value from that array;
+    Output: array of indices corresponding to positions of the given value in array m;
+    Output shape: (numb. of vals in m, len(m.shape)).
+    """
+    m = MA.asarray(m)
+    indFlat = Numeric.compress(MA.equal(MA.ravel(m),val), Numeric.arange(Numeric.multiply.reduce(m.shape)))
+    return Numeric.asarray(map(lambda x: index2position(x, m.shape), indFlat))    
+    
+
+#####################################################################################
+## Indices <-> Condition
+#####################################################################################
+
+def condition2indices(condition):
+    """Input: condition=[1,0,0,1]; output: indices=[0,3]
+    """
+    condition = Numeric.asarray(condition)
+    assert len(condition.shape) == 1
+    return Numeric.compress(condition, Numeric.arange(condition.shape[0]))
+
+
+def indices2condition(indices, length):
+    """Input: indices=[0,3]; output: condition=[1,0,0,1]
+    """
+    indices = Numeric.asarray(indices)
+    assert len(indices.shape) == 1
+    assert length >= indices.shape[0]
+    c = Numeric.zeros((length,), Numeric.Int)
+    Numeric.put(c, indices, 1)
+    return c
+
 #####################################################################################
 ## Inverse permutation
 ##  permutInverse([0,2,3,5,4,1])=[0,5,1,2,4,3,]
@@ -334,9 +400,22 @@ def _nu2na(a):
     return NA.array(a)
 
 def _ma2nm(m):
-    """MA -> numarray.ma"""
+    """MA -> numarray.ma
+    BUG: crashes with the following array:
+                      array(data =
+                 [[1,2,3,]
+                 [0,0,0,]
+                 [7,8,9,]],
+                      mask =
+                 [[0,0,0,]
+                 [1,1,1,]
+                 [0,0,0,]],
+                      fill_value=[0,])
+"""
     m = MA.asarray(m)
-    return NM.array(m.raw_data(), mask=m.raw_mask())
+    m = NM.array(m.raw_data(), mask=m.raw_mask())
+    m.tolist()  # execute this line in order to fix the discribed bug
+    return m
 
 
 ###################################################################################
@@ -352,7 +431,7 @@ def _na2nu(a):
 def _nm2ma(m):
     """numarray.ma -> MA"""
     m = NM.asarray(m)
-    return MA.array(m.raw_data(), mask=m.raw_mask())
+    return MA.array(m.raw_data(), m.typecode(), mask=m.raw_mask())
 
 
 ###################################################################################
@@ -439,22 +518,30 @@ def _medianNA(m,axis=0):
 
 
 def percentilesMA(m,perc,axis=0):
-    """Returns median of the given masked array along the given axis."""
+    """Returns the percentiles of the given masked array along the given axis."""
     return _nm2ma(_percentilesNM(_ma2nm(m),perc,axis))
 
 
 def _percentilesNM(m,perc,axis=0):
-    """Returns the percentiles of the given masked numarray along the given axis."""
+    """Returns the percentiles of the given masked numarray along the given axis.
+    """
     assert 0 < perc < 1
     m = NM.asarray(m, NM.Float)
     if len(m.shape) == 0 or (len(m.shape)==1 and m.shape[0]==1):
         return m[0]
     elif len(m.shape) == 1:
-        _k = float(perc)*(NM.count(m)-1)
-        k = int(_k)
-        d = _k - k
-        mIndSort = NM.argsort(m,fill_value=1e20)
-        return m[mIndSort[k]] + d*(m[mIndSort[k+1]]-m[mIndSort[k]])
+        # returns (1,) NM array or NM.masked
+        mCount = NM.count(m)
+        if mCount == 0:
+            return NM.masked
+        elif mCount == 1:
+            return m.compressed()[0]
+        else:
+            _k = float(perc)*(mCount-1)
+            k = int(_k)
+            d = _k - k
+            mIndSort = NM.argsort(m,fill_value=1e20)
+            return m[mIndSort[k]] + d*(m[mIndSort[k+1]]-m[mIndSort[k]])
     else:
         # count the number of nonmasked indices along the given axis
         _k = float(perc) * (NM.count(m, axis=axis)-1)
@@ -557,15 +644,16 @@ def _madNM(m,axis=0):
 
 
 if __name__ == "__main__":
+    pass
 
-    m1 = NM.array([4,3,6,8,54,1], mask=[1,1,0,1,1,1])
-    m2a = NM.array([[1,2,3],[4,5,6],[7,8,9]], NM.Float, mask=[[0,1,0],[0,1,0],[0,0,1]])
-    n2 = NA.array([[3,1,2],[4,3,6],[1,4,7],[4,3,6]])
-    n3 = NA.array([n2,n2])
-    m2 = NM.array([[5,7,3,3],[6,4,5,1],[2,6,1,4],[3,4,5,1],[3,4,5,1],[6,4,2,3]], NM.Int, mask=[[0,1,0,0],[0,1,0,0],[0,0,0,1],[0,0,0,0],[0,0,0,1],[1,1,1,1]])
-    m2s = NM.array([[5,7,3,3],[6,4,5,1],[2,6,1,4],[3,4,5,1],[3,4,5,1],[6,4,2,3],[6,4,2,3],[6,4,2,3],[6,4,2,3],[6,4,2,3]], NM.Int, mask=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]])
-    m2u = NM.array([[5,7,3,3],[6,4,5,1],[2,6,1,4],[3,4,5,1],[3,4,5,1],[6,4,2,3]], NM.Int, mask=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
-    m3 = NM.array([m2.raw_data(),10*m2.raw_data()],NM.Int, mask=[m2.raw_mask(),m2.raw_mask()], fill_value=-1)
+##    m1 = NM.array([4,3,6,8,54,1], mask=[1,1,0,1,1,1])
+##    m2a = NM.array([[1,2,3],[4,5,6],[7,8,9]], NM.Float, mask=[[0,1,0],[0,1,0],[0,0,1]])
+##    n2 = NA.array([[3,1,2],[4,3,6],[1,4,7],[4,3,6]])
+##    n3 = NA.array([n2,n2])
+##    m2 = NM.array([[5,7,3,3],[6,4,5,1],[2,6,1,4],[3,4,5,1],[3,4,5,1],[6,4,2,3]], NM.Int, mask=[[0,1,0,0],[0,1,0,0],[0,0,0,1],[0,0,0,0],[0,0,0,1],[1,1,1,1]])
+##    m2s = NM.array([[5,7,3,3],[6,4,5,1],[2,6,1,4],[3,4,5,1],[3,4,5,1],[6,4,2,3],[6,4,2,3],[6,4,2,3],[6,4,2,3],[6,4,2,3]], NM.Int, mask=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]])
+##    m2u = NM.array([[5,7,3,3],[6,4,5,1],[2,6,1,4],[3,4,5,1],[3,4,5,1],[6,4,2,3]], NM.Int, mask=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
+##    m3 = NM.array([m2.raw_data(),10*m2.raw_data()],NM.Int, mask=[m2.raw_mask(),m2.raw_mask()], fill_value=-1)
 
 ##    def test3D(m3):
 ##        print "median\n",_medianNM(m3,0).filled(-1)
@@ -647,4 +735,18 @@ if __name__ == "__main__":
 ##    ors = apply_binary(logical_unary_or, m1,m2,m3)
 ##    ands = apply_binary(logical_unary_and, m1,m2,m3)
 
+    
+    # DEBUG: _ma2nm
+##    d3 = MA.array([[1,2,3],[4,5,6],[7,8,9]])
+##    d2 = d3 / [1.,0.,1.]
+##    d1 = d3 / [0.,0.,1.]
+##    d0 = d3 / [0.,0.,0.]
+##    print "d3", _ma2nm(d3).tolist()
+##    print "d2", _ma2nm(d2).tolist()
+##    print "d1", _ma2nm(d1).tolist()
+##    print "d0", _ma2nm(d0).tolist()
+##    print _percentilesNM(_ma2nm(d3), 0.5, 0).tolist()
+##    print _percentilesNM(_ma2nm(d2), 0.5, 0).tolist()
+##    print _percentilesNM(_ma2nm(d1), 0.5, 0).tolist()
+##    print _percentilesNM(_ma2nm(d0), 0.5, 0).tolist()
     
