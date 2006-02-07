@@ -8,6 +8,77 @@ import numarray.ma as NM
 import numarray.linear_algebra as LA
 
 
+#####################################################################################
+## LOWESS (from Bippython, extended to interpolation/extrapolation)
+#####################################################################################
+
+def lowess2(x, y, xest, f=2./3., iter=3):
+    """
+    Lowess smoother: Robust locally weighted regression.
+    The lowess function fits a nonparametric regression curve to a scatterplot.
+    The arrays x and y contain an equal number of elements; each pair
+    (x[i], y[i]) defines a data point in the scatterplot. The function returns
+    the estimated (smooth) values of y.
+
+    The smoothing span is given by f. A larger value for f will result in a
+    smoother curve. The number of robustifying iterations is given by iter. The
+    function will run faster with a smaller number of iterations."""
+    x = Numeric.asarray(x, 'd')
+    y = Numeric.asarray(y, 'd')
+    xest = Numeric.asarray(xest, 'd')
+    #--------    
+    n = len(x)
+    nest = len(xest)
+    r = int(Numeric.ceil(f*n)) # radius: num. of points to take into LR
+    h = [Numeric.sort(abs(x-x[i]))[r] for i in range(n)]    # distance of the r-th point from x[i]
+    w = Numeric.clip(abs(([x]-Numeric.transpose([x]))/h),0.0,1.0)
+    w = 1-w*w*w
+    w = w*w*w
+    hest = [Numeric.sort(abs(x-xest[i]))[r] for i in range(nest)]    # r-th min. distance from xest[i] to x
+    west = Numeric.clip(abs(([xest]-Numeric.transpose([x]))/hest),0.0,1.0)  # shape: (len(x), len(xest)
+    west = 1-west*west*west
+    west = west*west*west
+    yest = Numeric.zeros(n,'d')
+    yest2 = Numeric.zeros(nest,'d')
+    delta = Numeric.ones(n,'d')
+    try:
+        for iteration in range(iter):
+            # fit xest
+            for i in range(nest):
+                weights = delta * west[:,i]
+                b = Numeric.array([sum(weights*y), sum(weights*y*x)])
+                A = Numeric.array([[sum(weights), sum(weights*x)], [sum(weights*x), sum(weights*x*x)]])
+                beta = LinearAlgebra.solve_linear_equations(A,b)
+                yest2[i] = beta[0] + beta[1]*xest[i]
+            # fit x (to calculate residuals and delta)
+            for i in range(n):
+                weights = delta * w[:,i]
+                b = Numeric.array([sum(weights*y), sum(weights*y*x)])
+                A = Numeric.array([[sum(weights), sum(weights*x)], [sum(weights*x), sum(weights*x*x)]])
+                beta = LinearAlgebra.solve_linear_equations(A,b)
+                yest[i] = beta[0] + beta[1]*x[i]
+            residuals = y-yest
+            s = MLab.median(abs(residuals))
+            delta = Numeric.clip(residuals/(6*s),-1,1)
+            delta = 1-delta*delta
+            delta = delta*delta
+    except LinearAlgebra.LinAlgError:
+        print "Warning: NumExtn.lowess2: LinearAlgebra.solve_linear_equations: Singular matrix"
+        yest2 = None
+    return yest2
+
+##x = Numeric.array([0,2.1,4.5, 6.], 'd')
+##xs = Numeric.array([0,1,2,3,4,5,6], 'd')
+##y = Numeric.array([0.8, 2.3, 2.9, 3.1], 'd')
+##f = 2./3.
+##iter=3
+##import Bio.Statistics.lowess
+##print Bio.Statistics.lowess.lowess(x, y, f, iter)
+##print lowess2(x, y, xs, f, iter)
+
+#####################################################################################
+#####################################################################################
+
 def denary2Binary(n):
     '''convert denary integer n to binary string bStr'''
     bStr = ''
