@@ -149,7 +149,7 @@ class OWNormalize(OWWidget):
 
         # GUI
         self.controlArea.setFixedWidth(265)
-        self.resize(1000, 900)
+        self.resize(1000, 752)
 
         # main area: graph
         boxG = QVBox(self.mainArea)
@@ -168,15 +168,15 @@ class OWNormalize(OWWidget):
         self.tabs = QTabWidget(self.controlArea, 'tabWidget')
         # tab 1: vars
         boxVars = QVGroupBox(self)
-        self.tabs.insertTab(boxVars, "Variables")
-        self.cmbVarID = OWGUI.comboBox(boxVars, self, "varNameID", "Probe ID", callback=self.varIDChange, sendSelectedValue=1, valueType=str)
-        self.cmbVarName = OWGUI.comboBox(boxVars, self, "varNameName", "Probe Name", callback=self.varIDChange, sendSelectedValue=1, valueType=str)
-        self.cmbVarSignalSmpl = OWGUI.comboBox(boxVars, self, "varNameSignalSmpl", "Sample foreground intensity", callback=lambda x="varSignalSmpl": self.varDataChange(x), sendSelectedValue=1, valueType=str)
-        self.cmbVarSignalRef = OWGUI.comboBox(boxVars, self, "varNameSignalRef", "Reference foreground intensity", callback=lambda x="varSignalRef": self.varDataChange(x), sendSelectedValue=1, valueType=str)
-        self.cmbVarBGSmpl = OWGUI.comboBox(boxVars, self, "varNameBGSmpl", "Sample background intensity", callback=lambda x="varBGSmpl": self.varDataChange(x), sendSelectedValue=1, valueType=str)
-        self.cmbVarBGRef = OWGUI.comboBox(boxVars, self, "varNameBGRef", "Reference background intensity", callback=lambda x="varBGRef": self.varDataChange(x), sendSelectedValue=1, valueType=str)
-        self.cmbVarBGSmplSD = OWGUI.comboBox(boxVars, self, "varNameBGSmplSD", "Sample background std. dev.", callback=lambda x="varBGSmplSD": self.varSDChange(x), sendSelectedValue=1, valueType=str)
-        self.cmbVarBGRefSD = OWGUI.comboBox(boxVars, self, "varNameBGRefSD", "Reference background std. dev.", callback=lambda x="varBGRefSD": self.varSDChange(x), sendSelectedValue=1, valueType=str)
+        self.tabs.insertTab(boxVars, "Var")
+        self.cmbVarID = OWGUI.comboBox(boxVars, self, "varNameID", label="Probe ID", callback=self.varIDChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarName = OWGUI.comboBox(boxVars, self, "varNameName", label="Probe Name", callback=self.varIDChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarSignalSmpl = OWGUI.comboBox(boxVars, self, "varNameSignalSmpl", label="Sample foreground intensity", callback=lambda x="varSignalSmpl": self.varDataChange(x), sendSelectedValue=1, valueType=str)
+        self.cmbVarSignalRef = OWGUI.comboBox(boxVars, self, "varNameSignalRef", label="Reference foreground intensity", callback=lambda x="varSignalRef": self.varDataChange(x), sendSelectedValue=1, valueType=str)
+        self.cmbVarBGSmpl = OWGUI.comboBox(boxVars, self, "varNameBGSmpl", label="Sample background intensity", callback=lambda x="varBGSmpl": self.varDataChange(x), sendSelectedValue=1, valueType=str)
+        self.cmbVarBGRef = OWGUI.comboBox(boxVars, self, "varNameBGRef", label="Reference background intensity", callback=lambda x="varBGRef": self.varDataChange(x), sendSelectedValue=1, valueType=str)
+        self.cmbVarBGSmplSD = OWGUI.comboBox(boxVars, self, "varNameBGSmplSD", label="Sample background std. dev.", callback=lambda x="varBGSmplSD": self.varSDChange(x), sendSelectedValue=1, valueType=str)
+        self.cmbVarBGRefSD = OWGUI.comboBox(boxVars, self, "varNameBGRefSD", label="Reference background std. dev.", callback=lambda x="varBGRefSD": self.varSDChange(x), sendSelectedValue=1, valueType=str)
         # tab 1: default var names
         boxDefaultNames = QVGroupBox('Default Variable Names', boxVars)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameID", label="Probe ID ", labelWidth=None, orientation='horizontal', box=None, tooltip=None)
@@ -192,7 +192,7 @@ class OWNormalize(OWWidget):
 
         # tab 2: table probe/ratio/marker
         boxProbes = QVGroupBox(boxVars)
-        self.tabs.insertTab(boxProbes, "Probes")
+        self.tabs.insertTab(boxProbes, "Probe")
         self.tblControls = QTable(boxProbes)
         self.tblControls.setNumCols(5)
         self.tblControls.setColumnWidth(OWNormalize.tcID, 15)
@@ -248,56 +248,55 @@ class OWNormalize(OWWidget):
         OWGUI.button(boxBtns12, self, "Set", callback=self.btnSetProbesClick)
         OWGUI.button(boxBtns12, self, "Clear", callback=self.btnClearProbesClick)
 
-        # tab 3: settings
-        boxSettings = QVGroupBox(self)
-        self.tabs.insertTab(boxSettings, "Settings")
-
-        # tab 3: settings: filters
-        boxFilters = QVGroupBox('Filters', boxSettings)
+        # tab 3: filters
+        boxFilters = QVGroupBox(self)
+        self.tabs.insertTab(boxFilters, "Filter")
+        # tab 3: filters: subtract BG
         self.cbSubtrBG = OWGUI.checkBox(boxFilters, self, "subtrBG", "Subtract background", callback=self.settingsSubstrBGChange)
-        # tab 3: settings: filters: CV
+        # tab 3: filters: CV
         self.boxMaxCV = QVGroupBox('Max. coeff. of variation (CV)', boxFilters)
         OWGUI.checkBox(self.boxMaxCV, self, "useCV", "Enabled", callback=self.settingsFilterMaxCVChange)
         sldMaxCV = OWGUI.qwtHSlider(self.boxMaxCV, self, "maxCV", minValue=0, maxValue=2, step=0.01, precision=2, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMaxCV, SIGNAL("sliderReleased()"), self.settingsFilterMaxCVChange)
         self.lblInfoFilterMaxCV = QLabel("\n", self.boxMaxCV)
-        # tab 3: settings: filters: minIntensityRatio
+        # tab 3: filters: minIntensityRatio
         boxMinIntRatio = QVGroupBox('Min. signal to background ratio', boxFilters)
         OWGUI.checkBox(boxMinIntRatio, self, "useMinIntensity", "Enabled", callback=self.settingsFilterMinIntRatioChange)
         sldMinInt = OWGUI.qwtHSlider(boxMinIntRatio, self, "minIntensityRatio", minValue=0, maxValue=5, step=0.01, precision=2, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMinInt, SIGNAL("sliderReleased()"), self.settingsFilterMinIntRatioChange)
         self.lblInfoFilterMinIntRatio = QLabel("\n", boxMinIntRatio)
-        # tab 3: settings: filters: maxIntensity
+        # tab 3: filters: maxIntensity
         boxMaxIntensity = QVGroupBox('Max. foreground intensity', boxFilters)
         OWGUI.checkBox(boxMaxIntensity, self, "useMaxIntensity", "Enabled", callback=self.settingsFilterMaxIntChange)
         sldMaxInt = OWGUI.qwtHSlider(boxMaxIntensity, self, "maxIntensity", minValue=0, maxValue=65536, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMaxInt, SIGNAL("sliderReleased()"), self.settingsFilterMaxIntChange)
         self.lblInfoFilterMaxInt = QLabel("\n", boxMaxIntensity)
+        # tab 3: default button
+        OWGUI.button(boxFilters, self, "Set &Default Values", callback=self.filtersAllChange)
 
-        # tab 3: settings: normalization
-        boxNorm = QVGroupBox('Normalization', boxSettings)
-        # tab 3: settings: normalization: range, type
+        # tab 4: normalization
+        boxNorm = QVGroupBox(self)
+        self.tabs.insertTab(boxNorm, "Norm")
+        # tab 4: normalization: range, type
         self.boxNormRange = OWGUI.radioButtonsInBox(boxNorm, self, value="normRange", box='Range', btnLabels=["Entire microarray", "Local, per probe name", "Combined (w.r.t. num. of control probes)"], callback=self.settingsNormalizationChange)
         sldMinNumControlProbes = OWGUI.qwtHSlider(self.boxNormRange, self, "minNumControlProbes", box="Min. number of control probes", minValue=2, maxValue=300, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMinNumControlProbes, SIGNAL("sliderReleased()"), self.settingsNormalizationChange)
         self.boxNormRange.setEnabled(False)
         boxNormType = OWGUI.radioButtonsInBox(boxNorm, self, value="normType", box='Approx. function', btnLabels=["Median (intensity independent)", "Linear regression", "Loess"], callback=self.settingsNormalizationChange)
-        # tab 3: settings: normalization type: loess settings
+        # tab 4: normalization type: loess settings
         sldLoessWindow = OWGUI.qwtHSlider(boxNormType, self, "loessWindow", box="Window size (% of points)", minValue=1, maxValue=99, step=1, precision=0, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldLoessWindow, SIGNAL("sliderReleased()"), self.settingsNormalizationChange)
         boxSldLoessWeight = QHBox(boxNormType)
         sldLoessWeight = OWGUI.qwtHSlider(boxSldLoessWeight, self, "loessWeight", box="Weight of non-control probes [0,1]", minValue=0, maxValue=1, step=0.01, precision=2, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldLoessWeight, SIGNAL("sliderReleased()"), self.settingsNormalizationChange)
         boxSldLoessWeight.setEnabled(False)
+        # tab 4: default button
+        OWGUI.button(boxNorm, self, "Set &Default Values", callback=self.normalizationAllChange)
 
-        # tab 3: settings: default button
-        OWGUI.button(boxSettings, self, "Set &Default Values", callback=self.settingsAllChange)
-
-        # tab 4: output
-        boxOutput = QVGroupBox(self)
-        self.tabs.insertTab(boxOutput, "Output")
-        # tab 4: settings: graph
-        boxGraph = QVGroupBox('Graph', boxOutput)
+        # tab 5: graph
+        boxGraph = QVGroupBox(self)
+        self.tabs.insertTab(boxGraph, "Graph")
+        # tab 5: graph: marker size
         boxMSize = QHBox(boxGraph)
         QLabel("Marker size", boxMSize)
         cmbMarkerSize = OWGUI.comboBox(boxMSize, self, "markerSize", callback=self.settingsGraphChange, sendSelectedValue=1, valueType=int)
@@ -312,21 +311,23 @@ class OWNormalize(OWWidget):
         OWGUI.checkBox(boxGraph, self, value="showLegend", label="Show legend", callback=self.settingsShowLegendChange)
         OWGUI.checkBox(boxGraph, self, value="tracking", label="Tracking", callback=self.settingsProbeTrackingChange)
         self.zoomSelectToolbar = OWToolbars.ZoomSelectToolbar(self, boxGraph, self.graph, self.autoSendSelection)
-        # tab 4: output: other variables
+
+        # tab 6: output
+        boxOutput = QVGroupBox(self)
+        self.tabs.insertTab(boxOutput, "Out")
+        # tab 6: output: other variables
         boxOtherVars = QVGroupBox('Other variables', boxOutput)
         self.lbVarOthers = QListBox(boxOtherVars)
         self.lbVarOthers.setSelectionMode(QListBox.Multi)
         self.connect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
-
-        # tab 4: output: merge replicas
+        # tab 6: output: merge replicas
 ##        self.rbgMergeReplType = OWGUI.radioButtonsInBox(boxOutput, self, value="mergeReplType", btnLabels=["None", "Mean", "Median"], box="Merge probe intensities", callback=self.settingsReplicasChange)
 ##        self.rbgMergeOtherType = OWGUI.radioButtonsInBox(boxOtherVars, self, value="mergeOtherType", btnLabels=["Use first value", "Concatenate values"], box="Merge other variables", callback=self.settingsReplicasChange)
         boxMerge = QVGroupBox('Merge replicas', boxOutput)
         OWGUI.radioButtonsInBox(boxMerge, self, value="mergeLevel", btnLabels=["None", "Per probe ID and name", "Per probe ID"], box="Level", callback=self.settingsReplicasChange)
         self.rbgMergeIntensitiesType = OWGUI.radioButtonsInBox(boxMerge, self, value="mergeIntensitiesType", btnLabels=["Mean", "Median"], box="Intensities", callback=self.settingsReplicasChange)
         self.rbgMergeOtherType = OWGUI.radioButtonsInBox(boxMerge, self, value="mergeOtherType", btnLabels=["Use first value", "Concatenate values"], box="Other variables", callback=self.settingsReplicasChange)
-
-        # tab 4: output: other additional variables
+        # tab 6: output: other additional variables
         self.cbOutNumProbes = OWGUI.checkBox(boxOutput, self, "outNumProbes", "Number of probes", callback=self.settingsOutputChange)
         OWGUI.checkBox(boxOutput, self, "outNetSignal", "Net intensities", callback=self.settingsOutputChange)
         OWGUI.checkBox(boxOutput, self, "outNonNormLogRatio", "Non-normalized log2 ratio", callback=self.settingsOutputChange)
@@ -1614,11 +1615,10 @@ class OWNormalize(OWWidget):
             self.probes.setNormalizationParameters(self.normRange, self.minNumControlProbes, self.normType, self.loessWindow, self.loessWeight, replot=True)
 
 
-    def settingsAllChange(self):
+    def filtersAllChange(self):
         """handles changes caused by Set Default Values button"""
         qApp.restoreOverrideCursor()
         qApp.setOverrideCursor(QWidget.waitCursor)
-        ################### FILTERS ###################
         chngF = False
         # subtract background
         if self.subtrBG <> self._def_subtrBG:
@@ -1646,7 +1646,21 @@ class OWNormalize(OWWidget):
         if self.maxIntensity <> self._def_maxIntensity:
             self.maxIntensity = self._def_maxIntensity
             chngF = True
-        #################### NORMALIZATION ####################
+        # refresh
+        if chngF:
+            self.setProbeFilters()
+            self.setInfoProbes()
+            self.setInfoFilterMaxCV()
+            self.setInfoFilterMinRatio()
+            self.setInfoFilterMaxInt()
+            self.sendData()
+        qApp.restoreOverrideCursor()
+
+
+    def normalizationAllChange(self):
+        """handles changes caused by Set Default Values button"""
+        qApp.restoreOverrideCursor()
+        qApp.setOverrideCursor(QWidget.waitCursor)
         chngN = False
         if self.normRange <> self._def_normRange:
             self.normRange = self._def_normRange
@@ -1663,16 +1677,9 @@ class OWNormalize(OWWidget):
         if self.loessWeight <> self._def_loessWeight:
             self.loessWeight = self._def_loessWeight
             chngN = True
-        ##################### refresh ####################
-        if chngF:
-            self.setProbeFilters()
-            self.setInfoProbes()
-            self.setInfoFilterMaxCV()
-            self.setInfoFilterMinRatio()
-            self.setInfoFilterMaxInt()
+        # refresh
         if chngN:
             self.setNormalization()
-        if chngF or chngN:
             self.sendData()
         qApp.restoreOverrideCursor()
 
