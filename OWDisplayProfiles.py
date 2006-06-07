@@ -11,7 +11,7 @@ from OWWidget import *
 from OWGraph import *
 import OWGUI
 
-from OWGraph import ColorPaletteHSV
+from OWGraph import ColorPaletteGenerator
 
 import statc
 
@@ -631,8 +631,8 @@ class OWDisplayProfiles(OWWidget):
                 self.numberOfClasses = len(self.MAdata[0].domain.classVar.values)
             else:
                 self.numberOfClasses = len(self.MAdata)
-            self.classColor = ColorPaletteHSV(self.numberOfClasses, 160)
-            self.classBrighterColor = ColorPaletteHSV(self.numberOfClasses, 255)
+            self.classColor = ColorPaletteGenerator(self.numberOfClasses)
+            self.classBrighterColor = [self.classColor[c, 160] for c in range(self.numberOfClasses)]
 
             self.calcGraph()
             ## update graphics
@@ -716,7 +716,8 @@ if __name__ == "__main__":
     a = QApplication(sys.argv)
     owdm = OWDisplayProfiles()
     a.setMainWidget(owdm)
-    d = orange.ExampleTable('wtclassed')
+    d = orange.ExampleTable('wt with class')
+    print len(d)
     owdm.data(d)
     owdm.show()
     a.exec_loop()
