@@ -119,7 +119,7 @@ class OWHeatMap(OWWidget):
             self.sliderCutHigh.box.setDisabled(1)
 
         box = QVButtonGroup("Merge", tab)
-        OWGUI.qwtHSlider(box, self, "Merge", label='Rows:', labelWidth=33, minValue=1, maxValue=900, step=1, callback=self.mergeChanged, precision=0, ticks=0)
+        OWGUI.qwtHSlider(box, self, "Merge", label='Rows:', labelWidth=33, minValue=1, maxValue=500, step=1, callback=self.mergeChanged, precision=0, ticks=0)
         OWGUI.checkBox(box, self, 'MaintainArrayHeight', "Maintain array height")
 
         self.tabs.insertTab(tab, "Filter")
