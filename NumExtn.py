@@ -9,11 +9,11 @@ import numarray.linear_algebra as LA
 
 
 #####################################################################################
-## LOWESS (from Bippython, extended to interpolation/extrapolation)
+## LOWESS (from Biopython, extended to interpolation/extrapolation)
 #####################################################################################
 
 def lowess2(x, y, xest, f=2./3., iter=3):
-    """
+    """Returns estimated values of y in data points xest (or None if estimation fails).
     Lowess smoother: Robust locally weighted regression.
     The lowess function fits a nonparametric regression curve to a scatterplot.
     The arrays x and y contain an equal number of elements; each pair
@@ -26,10 +26,9 @@ def lowess2(x, y, xest, f=2./3., iter=3):
     x = Numeric.asarray(x, 'd')
     y = Numeric.asarray(y, 'd')
     xest = Numeric.asarray(xest, 'd')
-    #--------    
     n = len(x)
     nest = len(xest)
-    r = int(Numeric.ceil(f*n)) # radius: num. of points to take into LR
+    r = min(int(Numeric.ceil(f*n)),n-1) # radius: num. of points to take into LR
     h = [Numeric.sort(abs(x-x[i]))[r] for i in range(n)]    # distance of the r-th point from x[i]
     w = Numeric.clip(abs(([x]-Numeric.transpose([x]))/h),0.0,1.0)
     w = 1-w*w*w
