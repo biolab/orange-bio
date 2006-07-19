@@ -1,6 +1,6 @@
 """
 <name>ANOVA</name>
-<description>One/Two Way Analysis of Variance.</description>
+<description>Single Sample T-test, One/Two Way Analysis of Variance.</description>
 <icon>icons/ChipANOVA.png</icon>
 <priority>1070</priority>
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
@@ -9,13 +9,13 @@
 import Numeric, MA
 from OWWidget import *
 import OWGUI
-import qwt
+import qt, qwt
 from OWDataFiles import DataFiles, ExampleSelection
-import Anova
+import Anova, stats
 
 
 class OWANOVA(OWWidget):
-    settingsList  = ["anovaType", "interaction", "selectorA", "selectorB", "selectorI", "alphaA", "alphaB", "alphaI", "autoUpdateSelName", "sendNotSelectedData", "commitOnChange"]
+    settingsList  = ["anovaType", "compareToValue", "_interaction", "selectorA", "selectorB", "selectorI", "alphaA", "alphaB", "alphaI", "autoUpdateSelName", "sendNotSelectedData", "commitOnChange"]
 
     def __init__(self, parent=None, signalManager = None):
         OWWidget.__init__(self, parent, signalManager, 'ANOVA')
@@ -26,13 +26,14 @@ class OWANOVA(OWWidget):
         # data, p-values, selected examples
         self.dataStructure = None   # input data
         self.numExamples = 0
-        self.attrNameList = []      # names of attributes
+        self.numVariables = 0
         self.ps = None              # p-values: 2D Numeric.array of shape (3, numExamples)
         self.selectorName = ""      # for Example Selection output: (self.selectorName, [0,1,0,...])
 
         # Settings
-        self.anovaType = 0      # 0: one-way (A), 1: one-way (B), 2: two-way
-        self.interaction = 0    # 0: no interaction, 1: test for interaction effect
+        self.anovaType = 0      # 0: single-sample t-test, 1: one-way (A), 2: one-way (B), 3: two-way (A,B), 4: ful factorial (A, B, A*B)
+        self.compareToValue = 0 # single sample t-test, value to compare to
+        self._interaction = 0    # 0: no interaction, 1: test for interaction effect (set this value manually !!!)
         self.selectorA = True
         self.selectorB = False
         self.selectorI = False
@@ -57,11 +58,21 @@ class OWANOVA(OWWidget):
         self.infoc = QLabel('', box)
 
         # ANOVA type
-        self.boxAnovaType = QVButtonGroup("ANOVA Type", ca)
+        self.boxAnovaType = QVButtonGroup("", ca)
         gl.addWidget(self.boxAnovaType,1,0)
         self.boxAnovaType.setDisabled(1)
-        self.rbgAnovaType = OWGUI.radioButtonsInBox(self.boxAnovaType, self, value="anovaType", btnLabels=["Single-factor (A, attributes)", "Single-factor (B, data sets)", "Two-factor"], callback=self.onAnovaType)
-        self.cbInteraction = OWGUI.checkBox(self.boxAnovaType, self, value="interaction", label="Test interaction", callback=self.onInteraction)
+
+        self.boxAnovaType.setRadioButtonExclusive(1)
+        self.boxAnovaType.buttons = []
+        for i,lbl in enumerate(["Single sample t-test", "Single-factor (A, variables)", "Single-factor (B, data sets)", "Two-factor", "Two-factor with interaction effect"]):
+            w = QRadioButton(lbl, self.boxAnovaType)
+            w.setOn(self.anovaType == i)
+            self.boxAnovaType.buttons.append(w)
+            if i == 0:
+                self.boxCompareTo = QHBox(self.boxAnovaType)
+                QLabel("             compare to  ", self.boxCompareTo)
+                OWGUI.lineEdit(self.boxCompareTo, self, "compareToValue", callback=self.onCompareToChange)
+        OWGUI.connectControl(self.boxAnovaType, self, "anovaType", self.onAnovaType, "clicked(int)", OWGUI.CallFront_radioButtons(self.boxAnovaType))
         
         # selection of examples
         self.boxSelection = QVGroupBox("Example Selection", ca)
@@ -69,22 +80,20 @@ class OWANOVA(OWWidget):
         self.lblNumGenes = []   # list of labels
         # selector A
         self.boxSelectorA = QVBox(self.boxSelection)
-        self.cbSelectorA = OWGUI.checkBox(self.boxSelectorA, self, "selectorA", "Factor A (attributes)", callback=self.onSelectionChange,
-                                          tooltip='H0: The mean does not depend on factor A (represented by attributes).')
+        self.cbSelectorA = OWGUI.checkBox(self.boxSelectorA, self, "selectorA", "Factor A (variables)", callback=self.onSelectionChange,
+                                          tooltip='H0: The mean does not depend on factor A (represented by variables).')
         frmA = QFrame(self.boxSelectorA)
         glA = QGridLayout(frmA,1,3,5)
         leA = OWGUI.lineEdit(frmA, self, "alphaA", orientation="horizontal", callback=lambda x=0: self.onAlphaChange(x))
         glA.addWidget(leA,0,1) # Qt.AlignRight
-##        le.setFixedSize(50, le.sizeHint().height())
-##        self.connect(le, SIGNAL("clearFocus()"), self.onAlpha)
         glA.addWidget(QLabel("     p < ", frmA), 0,0)
         self.lblNumGenes.append(QLabel('', frmA))
         glA.addWidget(self.lblNumGenes[-1],0,2) # Qt.AlignRight | 0x22
 
         # selector B
         self.boxSelectorB = QVBox(self.boxSelection)
-        self.cbSelectorB = OWGUI.checkBox(self.boxSelectorB, self, "selectorB", "Factor B (datasets)", callback=self.onSelectionChange,
-                                          tooltip='H0: The mean does not depend on factor B (represented by datasets).')
+        self.cbSelectorB = OWGUI.checkBox(self.boxSelectorB, self, "selectorB", "Factor B (data sets)", callback=self.onSelectionChange,
+                                          tooltip='H0: The mean does not depend on factor B (represented by data sets).')
         frmB = QFrame(self.boxSelectorB)
         glB = QGridLayout(frmB,1,3,5)
         leB = OWGUI.lineEdit(frmB, self, "alphaB", orientation="horizontal", callback=lambda x=1: self.onAlphaChange(x))
@@ -95,7 +104,7 @@ class OWANOVA(OWWidget):
         
         # selector I
         self.boxSelectorI = QVBox(self.boxSelection)
-        self.cbSelectorI = OWGUI.checkBox(self.boxSelectorI, self, "selectorI", "Interaction (attributes * datasets)", callback=self.onSelectionChange,
+        self.cbSelectorI = OWGUI.checkBox(self.boxSelectorI, self, "selectorI", "Interaction (variables * data sets)", callback=self.onSelectionChange,
                                           tooltip='H0: There is no interaction between factor A and factor B.')
         frmI = QFrame(self.boxSelectorI)
         glI = QGridLayout(frmI,1,3,5)
@@ -115,47 +124,51 @@ class OWANOVA(OWWidget):
         self.leSelectorName.setReadOnly(self.autoUpdateSelName)
         OWGUI.checkBox(box, self, 'autoUpdateSelName', 'Automatically update selector name', callback=self.onAutoUpdateSelNameChange)
         OWGUI.checkBox(box, self, 'sendNotSelectedData', 'Send not selected data', callback=self.onSendNotSelectedChange)
-        OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on selection change')
+        OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on selection change', callback=lambda: self.onCommit(self.commitOnChange))
         self.btnCommit = OWGUI.button(box, self, "Commit", callback=self.onCommit)
 
         # enable/disable anova type box, example selection box, commit button, update the number of examples for individual selectors
-        self.updateSettings()
+        self.updateAnovaTypeBox()
+        self.updateSelectorBox()
         self.updateSelectorInfos()
         self.updateSelectorName()
-        self.resize(350, self.sizeHint().height())
+        self.resize(283, self.sizeHint().height())
 
 
     def onDataInput(self, structuredData):
-        """handles input data; sets self.dataStructure, self.numExamples, self.attrNameList and self.ps;
-        updates info, calls updateSettings(), runs ANOVA and sends out new data.
+        """handles input data; sets self.dataStructure, self.numExamples, self.numVariables and self.ps;
+        updates info, calls updateAnovaTypeBox(), runs ANOVA and sends out new data.
         """
         self.dataStructure = structuredData
         self.numExamples = 0
-        self.attrNameList = []
+        self.numVariables = 0
         self.ps = None
         if structuredData:
             numFiles = reduce(lambda a,b: a+len(b[1]), structuredData, 0)
             lenSD = len(structuredData)
             self.infoa.setText("%d set%s, total of %d data file%s." % (lenSD, ["","s"][lenSD!=1], numFiles, ["","s"][numFiles!=1]))
             numExamplesList = []
-            # construct a list of ExampleTable lengths and a list of attribute names
+            numVariablesList = []
+            # construct a list of ExampleTable lengths and a list of number of variables
             for (name, etList) in structuredData:
                 for et in etList:
                     numExamplesList.append(len(et))
-                    for attr in et.domain.attributes:
-                        if attr.name not in self.attrNameList:
-                            self.attrNameList.append(attr.name)
-            # test that all ExampleTables consist of equal number of examples
+                    numVariablesList.append(len(et.domain.variables))
+            # test that all ExampleTables consist of equal number of examples and variables
             if len(numExamplesList) == 0 or Numeric.add.reduce(Numeric.equal(numExamplesList, numExamplesList[0])) != len(numExamplesList):
                 self.dataStructure = None
                 self.numExamples = -1
-                self.attrNameList = []
                 self.infob.setText("Error: data files contain unequal number of examples, aborting ANOVA computation.")
+                self.infoc.setText('')
+            elif len(numVariablesList) == 0 or Numeric.add.reduce(Numeric.equal(numVariablesList, numVariablesList[0])) != len(numVariablesList):
+                self.dataStructure = None
+                self.numVariables = -1
+                self.infob.setText("Error: data files contain unequal number of variables, aborting ANOVA computation.")
                 self.infoc.setText('')
             else:
                 self.numExamples = numExamplesList[0]
-                numAttributes = len(self.attrNameList)
-                self.infob.setText("%d attribute%s, %d example%s in each file." % (numAttributes, ["","s"][numAttributes!=1], self.numExamples, ["","s"][self.numExamples!=1]))
+                self.numVariables = numVariablesList[0]
+                self.infob.setText("%d variable%s, %d example%s in each file." % (self.numVariables, ["","s"][self.numVariables!=1], self.numExamples, ["","s"][self.numExamples!=1]))
                 if self.numExamples > 0:
                     self.infoc.setText('Press Commit button to start ANOVA computation.')
                 else:
@@ -168,7 +181,8 @@ class OWANOVA(OWWidget):
             self.infob.setText('')
             self.infoc.setText('')
         # enable/disable anova type selection depending on the type of input data
-        self.updateSettings()
+        self.updateAnovaTypeBox()
+        self.updateSelectorBox()
         if self.autoUpdateSelName:
             self.updateSelectorName()
         # run ANOVA
@@ -180,44 +194,62 @@ class OWANOVA(OWWidget):
         
     def runANOVA(self):
         """converts structured data [(name, [orngET1, orngET2, ...]),...] to a 3D masked array
-        with the following axes: 0: examples, 1: attributes, 2: ExampleTables;
+        with the following axes: 0: examples, 1: variables, 2: ExampleTables;
         runs ANOVA computations and sets self.ps;
         """
         if self.dataStructure and self.numExamples > 0:
-            ma3d = MA.zeros((self.numExamples, len(self.attrNameList), reduce(lambda a,b: a+len(b[1]), self.dataStructure, 0)), MA.Float) * MA.masked
+            ma3d = MA.zeros((self.numExamples, self.numVariables, reduce(lambda a,b: a+len(b[1]), self.dataStructure, 0)), MA.Float) * MA.masked
             groupLens = []
-            attrNameDict = dict(zip(self.attrNameList, range(len(self.attrNameList))))  # key: attrName, val: idx
             etIdx = 0
             for dsName, etList in self.dataStructure:
                 for et in etList:
-                    etm = et.toMA("a")[0]
-                    if [attr.name for attr in et.domain.attributes] == self.attrNameList:
-                        ma3d[:,:,etIdx] = etm
-                    else:
-##                        print dsName + ": data copied for individual attributes"
-                        for attrIdx, attr in enumerate(et.domain.attributes):
-                            ma3d[:,attrNameDict[attr.name],etIdx] = etm[:,attrIdx]
+                    ma3d[:,:,etIdx] = et.toMA("ac")[0]
                     etIdx += 1
                 groupLens.append(len(etList))
-
             # run ANOVA
             self.infoc.setText('ANOVA computation started...')
             self.progressBarInit()
             pbStep = 100./self.numExamples
             self.ps = Numeric.ones((3, self.numExamples), Numeric.Float)
-            if self.anovaType == 2:
-                ps = self.anova2(ma3d, groupLens, self.interaction, repMeasuresOnA=False, callback=lambda: self.progressBarAdvance(pbStep))
+            if self.anovaType >= 3:
+                ps = self.anova2(ma3d, groupLens, self.anovaType==4, repMeasuresOnA=False, callback=lambda: self.progressBarAdvance(pbStep))
                 for rIdx in range(ps.shape[0]):
                     self.ps[rIdx] = ps[rIdx]
-            elif self.anovaType == 1:
+            elif self.anovaType == 2:
                 self.ps[1] = self.anova1B(ma3d, groupLens, repMeasures=False, callback=lambda: self.progressBarAdvance(pbStep))
-            elif self.anovaType == 0:
+            elif self.anovaType == 1:
                 self.ps[0] = self.anova1A(ma3d, repMeasures=False, callback=lambda: self.progressBarAdvance(pbStep))
+            elif self.anovaType == 0:
+                try:
+                    compToVal = float(self.compareToValue)
+                except:
+                    print "Warning: cannot convert %s to float, using 0" % str(self.compareToValue)
+                    self.compareToValue = 0
+                    compToVal = 0
+                self.ps[0] = self.ttest_ssmpl(ma3d, compToVal, callback=lambda: self.progressBarAdvance(pbStep))
             self.progressBarFinished()
 
 
+    def ttest_ssmpl(self, ma3d, compToVal, callback):
+        """conducts single-sample t-test on individual examples wrt factor A (variables, ma3d axis 1);
+        returns Numeric array of p-values in shape (1, numExamples).
+        """
+        ps = -1*Numeric.ones((ma3d.shape[0],), Numeric.Float)
+        for eIdx in range(ma3d.shape[0]):
+            data = Numeric.asarray(MA.transpose(ma3d[eIdx]).compressed())
+            if len(data) >= 2:
+                try:
+                    ps[eIdx] = stats.ttest_1samp(data, compToVal)[1]
+                except:
+                    print "Warning: zero variance, check the example %i:" % eIdx, data
+                    ps[eIdx] = 1.0
+            else:
+                ps[eIdx] = 1.0
+            callback()
+        return ps
+
     def anova1A(self, ma3d, repMeasures, callback):
-        """conducts one-way ANOVA on individual examples wrt factor A (attributes, ma3d axis 1);
+        """conducts one-way ANOVA on individual examples wrt factor A (variables, ma3d axis 1);
         returns Numeric array of p-values in shape (1, numExamples).
         """
         ps = -1*Numeric.ones((ma3d.shape[0],), Numeric.Float)
@@ -232,7 +264,7 @@ class OWANOVA(OWWidget):
         return ps
 
     def anova1B(self, ma3d, groupLens, repMeasures, callback):
-        """conducts one-way ANOVA on individual examples wrt factor B (datasets);
+        """conducts one-way ANOVA on individual examples wrt factor B (data sets);
         ma3d axis 2 also contains replicas according to groupLens;
         returns Numeric array of p-values in shape (1, numExamples).
         WARNING: works slower than anova1A because it requires to copy 1D array to 2D array
@@ -303,57 +335,58 @@ class OWANOVA(OWWidget):
         return ps
 
 
-    def updateSettings(self):
+    def updateAnovaTypeBox(self):
         """enables/disables: - anova type selection box;
-                             - two-way anova and interaction checkbox;
                              - example selection box;
                              - selectors A, B and I
                              - Commit button
         """
         if self.dataStructure and self.numExamples > 0:
-            # enable anova type box, example selection box, commit button
+            # enable anova type box and commit button
             self.boxAnovaType.setEnabled(1)
-            self.boxSelection.setEnabled(1)
             self.btnCommit.setEnabled(1)
-            # enable/disable: two-way anova radio button
-            if len(self.dataStructure) == 1 and len(self.attrNameList) > 1:
-                # switch to single-factor (A) ANOVA, disable other ANOVAs
+            # select appropriate anova type
+            if len(self.dataStructure) == 1 and self.numVariables == 1:
+                # single-sample t-test (factor A)
                 self.anovaType = 0
-                self.rbgAnovaType.buttons[0].setEnabled(1)
-                self.rbgAnovaType.buttons[1].setDisabled(1)
-                self.rbgAnovaType.buttons[2].setDisabled(1)
-            elif len(self.dataStructure) > 1 and len(self.attrNameList) == 1:
-                # switch to single-factor (B) ANOVA, disable other ANOVAs
+            elif len(self.dataStructure) == 1 and self.numVariables > 1:
+                # single-factor (A) ANOVA
                 self.anovaType = 1
-                self.rbgAnovaType.buttons[0].setDisabled(1)
-                self.rbgAnovaType.buttons[1].setEnabled(1)
-                self.rbgAnovaType.buttons[2].setDisabled(1)
-            elif len(self.dataStructure) > 1 and len(self.attrNameList) > 1:
-                # enable single and two-factor ANOVAs
-                self.rbgAnovaType.buttons[0].setEnabled(1)
-                self.rbgAnovaType.buttons[1].setEnabled(1)
-                self.rbgAnovaType.buttons[2].setEnabled(1)
-            # enable/disable interaction checkbox and selectors A, B and I
-            if self.anovaType == 0:
-                self.cbInteraction.setDisabled(1)
-                self.boxSelectorA.setEnabled(1)
-                self.boxSelectorB.setDisabled(1)
-                self.boxSelectorI.setDisabled(1)
-            elif self.anovaType == 1:
-                self.cbInteraction.setDisabled(1)
-                self.boxSelectorA.setDisabled(1)
-                self.boxSelectorB.setEnabled(1)
-                self.boxSelectorI.setDisabled(1)
-            elif self.anovaType == 2:
-                self.cbInteraction.setEnabled(1)
-                self.boxSelectorA.setEnabled(1)
-                self.boxSelectorB.setEnabled(1)
-                self.boxSelectorI.setEnabled(self.interaction)
+            elif len(self.dataStructure) > 1 and self.numVariables == 1:
+                # single-factor (B) ANOVA
+                self.anovaType = 2
+            elif len(self.dataStructure) > 1 and self.numVariables > 1:
+                # two-factor ANOVA
+                self.anovaType = int(self._interaction) + 3
+            # enable/disable appropriate anova type radio buttons
+            if self.anovaType <= 2:
+                for i in range(5):
+                    self.boxAnovaType.buttons[i].setEnabled(self.anovaType == i)
+            else:
+                self.boxAnovaType.buttons[0].setEnabled(0)
+                for i in range(1,5):
+                    self.boxAnovaType.buttons[i].setEnabled(1)
+            # enable/disable compareTo lineEdit
+            self.boxCompareTo.setEnabled(self.anovaType == 0)
         else:
-            # disable anova type box, example selection box, commit button
+            # disable anova type box and commit button
             self.boxAnovaType.setDisabled(1)
-            self.boxSelection.setDisabled(1)
             self.btnCommit.setDisabled(1)
+
+
+    def updateSelectorBox(self):
+        """enables / disables individual selectors
+        """
+        if self.dataStructure and self.numExamples > 0:
+            # enable example selection box
+            self.boxSelection.setEnabled(1)
+            # enable/disable selectors A, B and I
+            self.boxSelectorA.setEnabled(self.anovaType != 2)
+            self.boxSelectorB.setEnabled(self.anovaType >= 2)
+            self.boxSelectorI.setEnabled(self.anovaType == 4)
+        else:
+            # disable example selection box
+            self.boxSelection.setDisabled(1)
 
 
     def updateSelectorInfos(self, selectorIdx=None):
@@ -372,7 +405,7 @@ class OWANOVA(OWWidget):
             except:
                 alpha = None
                 ps = None
-            if ps != None and alpha != None and self.anovaType in [[0,2],[1,2],[2]][si] and (self.interaction or [1,1,0][si]):
+            if ps != None and alpha != None and self.anovaType in [[0,1,3,4],[2,3,4],[4]][si]:
                 numSelected = Numeric.add.reduce(Numeric.less(self.ps[si], alpha))
                 self.lblNumGenes[si].setText('  (%d example%s)' % (numSelected, ['', 's'][numSelected!=1]))
             else:
@@ -390,7 +423,7 @@ class OWANOVA(OWWidget):
             selectionList = Numeric.ones((self.numExamples,))
             for si in range(3):
                 try:
-                    if selectors[si] and self.anovaType in [[0,2],[1,2],[2]][si] and (self.interaction or [1,1,0][si]):
+                    if selectors[si] and self.anovaType in [[0,1,3,4],[2,3,4],[4]][si]:
                         selectionList = Numeric.logical_and(selectionList, Numeric.less(self.ps[si], float(alphas[si])))
                 except:
                     pass
@@ -435,32 +468,58 @@ class OWANOVA(OWWidget):
     def updateSelectorName(self):
         """update selector name shown in selector edit box
         """
-        s = 'ANOVA'
         if self.dataStructure:
+            if self.anovaType == 0:
+                s = '1 smpl. t-test, compared to %s' % self.compareToValue
+            else:
+                s = 'ANOVA'
             s += " (%s)" % reduce(lambda a,b: a + ", " + b[0], self.dataStructure, "")[2:]
-            if self.selectorA and self.anovaType in [0,2]:
+            if self.selectorA and self.anovaType in [0,1,3,4]:
                 s += ", pA<%s" % self.alphaA
-            if self.selectorB and self.anovaType in [1,2]:
+            if self.selectorB and self.anovaType in [2,3,4]:
                 s += ", pB<%s" % self.alphaB
-            if self.selectorI and self.anovaType == 2 and self.interaction:
+            if self.selectorI and self.anovaType == 4:
                 s += ", pI<%s" % self.alphaI
-        self.selectorName = s.strip()
+            self.selectorName = s.strip()
+        else:
+            self.selectorName = ""
 
 
     #==========================================================================
     # Event handlers
     #==========================================================================
 
-    def onAnovaType(self):
+    def onCompareToChange(self):
         """handles changes of ANOVA type:
             - resets self.ps;
-            - calls updateSettings()
             - updates infoc
             - calls updateSelectorInfos()
         runs ANOVA and sends out new data;
         """
+        if self.anovaType == 0:
+            self.ps = None
+            if self.autoUpdateSelName:
+                self.updateSelectorName()
+            if self.commitOnChange:
+                self.runANOVA()
+                self.senddata()
+            elif self.dataStructure and self.numExamples > 0:
+                self.infoc.setText('Press Commit button to start ANOVA computation.')
+            self.updateSelectorInfos()
+
+
+    def onAnovaType(self):
+        """handles changes of ANOVA type:
+            - resets self.ps;
+            - calls updateSelectorBox()
+            - updates infoc
+            - calls updateSelectorInfos()
+        runs ANOVA and sends out new data;
+        """
+        print "self.anovaType", self.anovaType
+        self._interaction = self.anovaType == 4
         self.ps = None
-        self.updateSettings()
+        self.updateSelectorBox()
         if self.autoUpdateSelName:
             self.updateSelectorName()
         if self.commitOnChange:
@@ -524,14 +583,15 @@ class OWANOVA(OWWidget):
             self.senddata()
 
             
-    def onCommit(self):
+    def onCommit(self, commit=True):
         """handles Commit clicks; runs ANOVA (if not already computed) and sends out data;
         """
-        if self.dataStructure:
-            if not self.ps:
-                self.runANOVA()
-            self.senddata()
-        self.updateSelectorInfos()
+        if commit:
+            if self.dataStructure:
+                if not self.ps:
+                    self.runANOVA()
+                self.senddata()
+            self.updateSelectorInfos()
 
 
 if __name__=="__main__":
@@ -544,10 +604,16 @@ if __name__=="__main__":
     ds = OWDataFiles.OWDataFiles(signalManager = signalManager)
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato.sub100")
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato.sub1000")
-    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA")
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA")
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_time0")
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_time0_swappedAB")
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS")
+
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_one-sample t-test")
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_factor A")
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_factor B")
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_factors A and B")
+
     signalManager.addWidget(ow)
     signalManager.addWidget(ds)
     signalManager.setFreeze(1)
