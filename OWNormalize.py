@@ -22,12 +22,9 @@ from OWGraph import *
 from OWGraphTools import *      # color palletes, user defined curves, ...
 import ColorPalette             # ColorButton
 import types
-##import statc
-##import _lowess
 
 import chipstat
 
-##from Meda.Anova import MultLinReg
 
 
 # global debugging variables
@@ -40,8 +37,9 @@ D6 = False # Probes
 
 class OWNormalize(OWWidget):
 
-    settingsList = ["defNameID", "defNameName", "defNameSmpl", "defNameRef", "defNameForeground", "defNameBackground", "defNameMean", "defNameSD",
-                    "commitOnChange"]
+    settingsList = ["varNameA", "varNameB", "varNameSignalSmpl", "varNameSignalRef", "varNameBGSmpl", "varNameBGRef", "varNameBGSmplSD", "varNameBGRefSD",
+                    "defNameA", "defNameB", "defNameSmpl", "defNameRef", "defNameForeground", "defNameBackground", "defNameMean", "defNameSD",
+                    "displayVarAAliases", "commitOnChange"]
     # constants
     stylesIndices = zip(["<none>","Circle","Rect","Diamond","Triangle","DTriangle","UTriangle","LTriangle","RTriangle","Cross","XCross"], range(11))
     sizeButtonColor = 18
@@ -51,15 +49,17 @@ class OWNormalize(OWWidget):
     tcRatio = 2
     tcNPAll = 3         # number of all probes
     tcNPAccepted = 4    # number of non-filtered probes
-    tcID = 5
-    tcName = 6          # hidden if probe name is <none>
+    tcVarA = 5
+    tcVarAAlias = 6      # hidden if not self.displayVarAAliases
+    tcVarB = 7          # hidden if probe varB is <none>
     # merge level
     MergeLevelNone = 0
-    MergeLevelPerProbeIDName = 1
-    MergeLevelPerProbeID = 2
+    MergeLevelPerVarsAB = 1
+    MergeLevelPerVarA = 2
     # mergeOtherTypes
-    MergeOtherTypeFirst = 0
-    MergeOtherTypeConc = 1
+    MergeOtherTypeMean = 0
+    MergeOtherTypeMedian = 1
+    MergeOtherTypeConc = 2
     # normalization curve styles
     normCurveStyles = {0: QwtCurve.Lines, 1: QwtCurve.Spline}
 
@@ -69,8 +69,6 @@ class OWNormalize(OWWidget):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True, wantStatusBar=False)  #initialize base class
         # store original caption title for extending it with expression and probe data file names
         self.captionTitleBase = self.captionTitle
-####        self.captionTitleExprData = ""
-####        self.captionTitleProbeData = ""
 
         # set channels
         self.inputs = [("Expression Data", ExampleTable, self.onDataInput), ("Probe Data", ExampleTable, self.onProbesInput)]
@@ -86,7 +84,7 @@ class OWNormalize(OWWidget):
         self._def_maxIntensity = 60000
         # defaults: normalization
         self._def_arrayType = 0  # 0: whole-genome array, 1: custom array with control probes
-        self._def_normRange = 2  # 0: global, 1: local, per probe names, 2: combined
+        self._def_normRange = 2  # 0: global, 1: local, per var B values, 2: combined
         self._def_minNumControlProbes = 2
         self._def_approxFunction = 2   # 0: median, 1: LR, 2: LOESS
         self._def_loessWindow = 60
@@ -121,15 +119,16 @@ class OWNormalize(OWWidget):
         self.showLegend = False
         self.tracking = True
         self.normCurveStyleIdx = 0
+        self.displayVarAAliases = True
         self.commitOnChange = True
 
         # output
-##        self.mergeReplType = 1      #0: none, 1: mean, 2: median
-##        self.mergeOtherType = 0     #0: use first, 1: concatenate
-        self.mergeLevel = OWNormalize.MergeLevelPerProbeID             #0: none, 1: per probeID and probeName, 2: per probeID
+        self.mergeLevel = OWNormalize.MergeLevelPerVarA             #0: none, 1: per vars A & B, 2: per var A
         self.mergeIntensitiesType = 0   #0: mean, 1: median
-        self.mergeOtherType = OWNormalize.MergeOtherTypeFirst         #0: use first, 1: concatenate
+        self.mergeOtherType = OWNormalize.MergeOtherTypeMean        # Mean, Median, Concatenate
+        self.mergeOtherRemoveDupl = False                           # whether or not to remove duplicates from comma separated list of values
         
+        self.outVarAAliases = True
         self.outNumProbes = True
         self.outNetSignal = True
         self.outA = True
@@ -140,9 +139,11 @@ class OWNormalize(OWWidget):
         self.data = None
         self.dataProbes = None
         self.varsAll = {}
+        self.varsFloat = {}
+        self.varsEnumStr = {}
         # variable indices selected within combos
-        self.varNameID = None
-        self.varNameName = "<none>"
+        self.varNameA = None
+        self.varNameB = "<none>"
         self.varNameSignalSmpl = None
         self.varNameSignalRef = None
         self.varNameBGSmpl = None
@@ -150,16 +151,19 @@ class OWNormalize(OWWidget):
         self.varNameBGSmplSD = "<none>"
         self.varNameBGRefSD = "<none>"
         # default var names
-        self.defNameID = "id"
-        self.defNameName = ""
+        self.defNameA = "id"
+        self.defNameB = ""
         self.defNameSmpl = "smpl"
         self.defNameRef = "ref"
         self.defNameForeground = "raw"
         self.defNameBackground = "background"
         self.defNameMean = "med"
-        self.defNameSD = "st.dev"        
+        self.defNameSD = "st.dev"
         # names of selected vars from listBox
         self.varsOtherSelected = {}
+
+        # load previous settings
+        self.loadSettings()
 
         # GUI
         self.controlArea.setFixedWidth(265)
@@ -183,21 +187,21 @@ class OWNormalize(OWWidget):
         boxVars = QVGroupBox(self)
         self.tabs.insertTab(boxVars, "Var")
         boxGroupBy = QVGroupBox('Group probes by', boxVars)
-        self.cmbVarID = OWGUI.comboBox(boxGroupBy, self, "varNameID", label="Var A", labelWidth=31, orientation="horizontal", callback=self.varIDChange, sendSelectedValue=1, valueType=str)
-        self.cmbVarName = OWGUI.comboBox(boxGroupBy, self, "varNameName", label="Var B", labelWidth=31, orientation="horizontal", callback=self.varIDChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarA = OWGUI.comboBox(boxGroupBy, self, "varNameA", label="Var A", labelWidth=31, orientation="horizontal", callback=self.varABChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarB = OWGUI.comboBox(boxGroupBy, self, "varNameB", label="Var B", labelWidth=31, orientation="horizontal", callback=self.varABChange, sendSelectedValue=1, valueType=str)
         boxFGI = QVGroupBox('Average foreground intensity', boxVars)
-        self.cmbVarSignalSmpl = OWGUI.comboBox(boxFGI, self, "varNameSignalSmpl", label="Smpl", labelWidth=31, orientation="horizontal", callback=lambda x="varSignalSmpl": self.varDataChange(x), sendSelectedValue=1, valueType=str)
-        self.cmbVarSignalRef = OWGUI.comboBox(boxFGI, self, "varNameSignalRef", label="Ref", labelWidth=31, orientation="horizontal", callback=lambda x="varSignalRef": self.varDataChange(x), sendSelectedValue=1, valueType=str)
+        self.cmbVarSignalSmpl = OWGUI.comboBox(boxFGI, self, "varNameSignalSmpl", label="Smpl", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarSignalRef = OWGUI.comboBox(boxFGI, self, "varNameSignalRef", label="Ref", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         boxBGI = QVGroupBox('Average background intensity', boxVars)
-        self.cmbVarBGSmpl = OWGUI.comboBox(boxBGI, self, "varNameBGSmpl", label="Smpl", labelWidth=31, orientation="horizontal", callback=lambda x="varBGSmpl": self.varDataChange(x), sendSelectedValue=1, valueType=str)
-        self.cmbVarBGRef = OWGUI.comboBox(boxBGI, self, "varNameBGRef", label="Ref", labelWidth=31, orientation="horizontal", callback=lambda x="varBGRef": self.varDataChange(x), sendSelectedValue=1, valueType=str)
+        self.cmbVarBGSmpl = OWGUI.comboBox(boxBGI, self, "varNameBGSmpl", label="Smpl", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarBGRef = OWGUI.comboBox(boxBGI, self, "varNameBGRef", label="Ref", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         boxBGSD = QVGroupBox('Background std. deviation', boxVars)
-        self.cmbVarBGSmplSD = OWGUI.comboBox(boxBGSD, self, "varNameBGSmplSD", label="Smpl", labelWidth=31, orientation="horizontal", callback=lambda x="varBGSmplSD": self.varSDChange(x), sendSelectedValue=1, valueType=str)
-        self.cmbVarBGRefSD = OWGUI.comboBox(boxBGSD, self, "varNameBGRefSD", label="Ref", labelWidth=31, orientation="horizontal", callback=lambda x="varBGRefSD": self.varSDChange(x), sendSelectedValue=1, valueType=str)
+        self.cmbVarBGSmplSD = OWGUI.comboBox(boxBGSD, self, "varNameBGSmplSD", label="Smpl", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarBGRefSD = OWGUI.comboBox(boxBGSD, self, "varNameBGRefSD", label="Ref", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         # tab 1: default var names
         boxDefaultNames = QVGroupBox('Default variable names', boxVars)
-        OWGUI.lineEdit(boxDefaultNames, self, "defNameID", label="Var A", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
-        OWGUI.lineEdit(boxDefaultNames, self, "defNameName", label="Var B", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
+        OWGUI.lineEdit(boxDefaultNames, self, "defNameA", label="Var A", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
+        OWGUI.lineEdit(boxDefaultNames, self, "defNameB", label="Var B", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameSmpl", label="Sample", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameRef", label="Reference", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameForeground", label="Foreground", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
@@ -212,10 +216,9 @@ class OWNormalize(OWWidget):
         # tab 4: normalization: array type
         self.boxArrayType = OWGUI.radioButtonsInBox(boxNorm, self, value="arrayType", box='Expression array type', btnLabels=["Genome array", "Boutique array with control probes"], callback=self.settingsArrayTypeChange)
         # tab 4: normalization: range, type
-        self.boxNormRange = OWGUI.radioButtonsInBox(boxNorm, self, value="normRange", box='Normalization range', btnLabels=["Global, entire microarray", "Local, per Var B values", "Combined (w.r.t. num. of control probes)"], callback=self.settingsNormalizationChange)
+        self.boxNormRange = OWGUI.radioButtonsInBox(boxNorm, self, value="normRange", box='Normalization range', btnLabels=["Global, entire microarray", "Local, per var B values", "Combined (w.r.t. num. of control probes)"], callback=self.settingsNormalizationChange)
         sldMinNumControlProbes = OWGUI.qwtHSlider(self.boxNormRange, self, "minNumControlProbes", box="Min. number of control probes", minValue=2, maxValue=300, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMinNumControlProbes, SIGNAL("sliderReleased()"), self.settingsNormalizationChange)
-##        self.boxNormRange.setEnabled(False)
         boxapproxFunction = OWGUI.radioButtonsInBox(boxNorm, self, value="approxFunction", box='Approx. function', btnLabels=["Median (intensity independent)", "Linear regression", "Loess"], callback=self.settingsNormalizationChange)
         # tab 4: normalization type: loess settings
         sldLoessWindow = OWGUI.qwtHSlider(boxapproxFunction, self, "loessWindow", box="Window size (% of points)", minValue=1, maxValue=99, step=1, precision=0, logarithmic=0, ticks=0, maxWidth=110)
@@ -257,13 +260,14 @@ class OWNormalize(OWWidget):
         boxProbes = QVGroupBox(boxVars)
         self.tabs.insertTab(boxProbes, "Probe")
         self.tblControls = QTable(boxProbes)
-        self.tblControls.setNumCols(7)
+        self.tblControls.setNumCols(8)
         self.tblControls.setColumnWidth(OWNormalize.tcMarker, 20)
         self.tblControls.setColumnWidth(OWNormalize.tcRatio, 15)
         self.tblControls.setColumnWidth(OWNormalize.tcNPAll, 10)
         self.tblControls.setColumnWidth(OWNormalize.tcNPAccepted, 10)
-        self.tblControls.setColumnWidth(OWNormalize.tcID, 15)
-        self.tblControls.setColumnWidth(OWNormalize.tcName, 15)
+        self.tblControls.setColumnWidth(OWNormalize.tcVarA, 15)
+        self.tblControls.setColumnWidth(OWNormalize.tcVarAAlias, 0)
+        self.tblControls.setColumnWidth(OWNormalize.tcVarB, 0)
         self.connect(self.tblControls, SIGNAL("valueChanged(int,int)"), self.tblControlsValueChange)
         self.connect(self.tblControls, SIGNAL("currentChanged(int, int)"), self.tblControlsCurrentChanged)
         self.connect(self.tblControls , SIGNAL('selectionChanged()'), self.tblControlsSelectionChanged)
@@ -275,14 +279,16 @@ class OWNormalize(OWWidget):
         hheader.setLabel(OWNormalize.tcRatio, "Ratio")
         hheader.setLabel(OWNormalize.tcNPAll, "##")
         hheader.setLabel(OWNormalize.tcNPAccepted, "#")
-        hheader.setLabel(OWNormalize.tcID, "Probe ID")
-        hheader.setLabel(OWNormalize.tcName, "")
+        hheader.setLabel(OWNormalize.tcVarA, "Var A")
+        hheader.setLabel(OWNormalize.tcVarAAlias, "Alias")
+        hheader.setLabel(OWNormalize.tcVarB, "Var B")
         hheader.setMovingEnabled(False)
         # hide vertical header and columns pKey, name
         self.tblControls.setLeftMargin(0)
         self.tblControls.verticalHeader().hide()
         self.tblControls.hideColumn(OWNormalize.tcPKey)
-        self.tblControls.hideColumn(OWNormalize.tcName)
+        self.tblControls.hideColumn(OWNormalize.tcVarAAlias)
+        self.tblControls.hideColumn(OWNormalize.tcVarB)
         # tab 2: buttons
         boxBtns0 = QVGroupBox("Select probes where ID contains", boxProbes)
         boxBtns00 = QHBox(boxBtns0)
@@ -315,23 +321,28 @@ class OWNormalize(OWWidget):
         # tab 6: output
         boxOutput = QVGroupBox(self)
         self.tabs.insertTab(boxOutput, "Out")
+        # tab 6: output: merge replicas
+        boxMerge = QVGroupBox('Merge replicas', boxOutput)
+        OWGUI.radioButtonsInBox(boxMerge, self, value="mergeLevel", btnLabels=["None", "Per vars A and B", "Per var A"], box="By variable(s)", callback=self.settingsOutputReplicasChange)
+        self.rbgMergeIntensitiesType = OWGUI.radioButtonsInBox(boxMerge, self, value="mergeIntensitiesType", btnLabels=["Mean", "Median"], box="Average calculation", callback=self.settingsOutputReplicasChange)
+        # tab 6: output: additional info
+        boxAdditional = QVGroupBox('Additional info', boxOutput)
+        self.cbOutVarAAliases = OWGUI.checkBox(boxAdditional, self, "outVarAAliases", "Var A aliases", callback=self.settingsOutputChange)
+        self.cbOutNumProbes = OWGUI.checkBox(boxAdditional, self, "outNumProbes", "Number of probes", callback=self.settingsOutputChange)
+        OWGUI.checkBox(boxAdditional, self, "outNetSignal", "Net intensities", callback=self.settingsOutputChange)
+        OWGUI.checkBox(boxAdditional, self, "outA", "A (log2 average intensity)", callback=self.settingsOutputChange)
+        OWGUI.checkBox(boxAdditional, self, "outNonNormLogRatio", "Non-normalized log2 ratio", callback=self.settingsOutputChange)
         # tab 6: output: other variables
         boxOtherVars = QVGroupBox('Other variables', boxOutput)
         self.lbVarOthers = QListBox(boxOtherVars)
         self.lbVarOthers.setSelectionMode(QListBox.Multi)
         self.connect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
-        # tab 6: output: merge replicas
-##        self.rbgMergeReplType = OWGUI.radioButtonsInBox(boxOutput, self, value="mergeReplType", btnLabels=["None", "Mean", "Median"], box="Merge probe intensities", callback=self.settingsReplicasChange)
-##        self.rbgMergeOtherType = OWGUI.radioButtonsInBox(boxOtherVars, self, value="mergeOtherType", btnLabels=["Use first value", "Concatenate values"], box="Merge other variables", callback=self.settingsReplicasChange)
-        boxMerge = QVGroupBox('Merge replicas', boxOutput)
-        OWGUI.radioButtonsInBox(boxMerge, self, value="mergeLevel", btnLabels=["None", "Per probe ID and name", "Per probe ID"], box="By variable(s)", callback=self.settingsReplicasChange)
-        self.rbgMergeIntensitiesType = OWGUI.radioButtonsInBox(boxMerge, self, value="mergeIntensitiesType", btnLabels=["Mean", "Median"], box="Intensities", callback=self.settingsReplicasChange)
-        self.rbgMergeOtherType = OWGUI.radioButtonsInBox(boxMerge, self, value="mergeOtherType", btnLabels=["Use first value", "Concatenate values"], box="Other variables", callback=self.settingsReplicasChange)
-        # tab 6: output: other additional variables
-        self.cbOutNumProbes = OWGUI.checkBox(boxOutput, self, "outNumProbes", "Number of probes", callback=self.settingsOutputChange)
-        OWGUI.checkBox(boxOutput, self, "outNetSignal", "Net intensities", callback=self.settingsOutputChange)
-        OWGUI.checkBox(boxOutput, self, "outA", "A (log2 average intensity)", callback=self.settingsOutputChange)
-        OWGUI.checkBox(boxOutput, self, "outNonNormLogRatio", "Non-normalized log2 ratio", callback=self.settingsOutputChange)
+        self.boxMergeOtherType = QVGroupBox("Merge", boxOutput)
+        self.boxMergeOtherType.setEnabled(self.mergeLevel and len(self.varsOtherSelected) > 0)
+        rbgMergeOtherType = OWGUI.radioButtonsInBox(self.boxMergeOtherType, self, value="mergeOtherType", btnLabels=["Mean", "Median", "Concatenate values"], box="Continuous variables", callback=self.settingsOutputOtherChange)
+        boxMergeOtherTypeD = QVGroupBox('Non-continuous variables', self.boxMergeOtherType)
+        QLabel("Values are concatenated by default.", boxMergeOtherTypeD)
+        self.cbMergeOtherRemoveDupl = OWGUI.checkBox(self.boxMergeOtherType, self, "mergeOtherRemoveDupl", "Remove duplicate values", callback=self.settingsOutputOtherChange)
 
         # tab 5: settings
         boxSettings = QVGroupBox(self)
@@ -353,6 +364,9 @@ class OWNormalize(OWWidget):
         OWGUI.checkBox(boxGraph, self, value="tracking", label="Tracking", callback=self.settingsProbeTrackingChange)
         boxNormCurveStyle = OWGUI.radioButtonsInBox(boxGraph, self, box='Curve style', value="normCurveStyleIdx", btnLabels=["Line", "Spline"], callback=self.settingsGraphChange)
         self.zoomSelectToolbar = OWToolbars.ZoomSelectToolbar(self, boxGraph, self.graph, self.autoSendSelection)
+        # tab 5: settings: Probes
+        boxProbes = QVGroupBox("Probes", boxSettings)
+        OWGUI.checkBox(boxProbes, self, 'displayVarAAliases', 'Display var A aliases', callback=self.adjustProbeTableColumns)
         # tab 5: settings: commit
         boxCommit = QVGroupBox("Output", boxSettings)
         OWGUI.checkBox(boxCommit, self, 'commitOnChange', 'Commit data on selection change', callback=self.commitChange)
@@ -364,8 +378,6 @@ class OWNormalize(OWWidget):
 
         self.resize(1000, 752)
 
-        # load previous settings
-        self.loadSettings()
         # INITIALIZATION: controls/ratios, probe info, filters, filter info
         self.probes = Probes(self.graph, self.subtrBG, self.logAxisX, self.logAxisY, self.markerSize, OWNormalize.normCurveStyles[self.normCurveStyleIdx])
         self.setInfoProbes()
@@ -373,7 +385,6 @@ class OWNormalize(OWWidget):
         self.setInfoFilterMaxCV()
         self.setInfoFilterMinRatio()
         self.setInfoFilterMaxInt()
-##        self.setNormalization()
         self.probes.setNormalizationParameters(self.normRange, self.minNumControlProbes, self.approxFunction, self.loessWindow, self.loessWeight)
 
 
@@ -419,31 +430,21 @@ class OWNormalize(OWWidget):
         qApp.setOverrideCursor(QWidget.waitCursor)
         # move metas among normal variables, remove string variables and variables with duplicate names, store to self.data
         self.varsAll = {}
+        self.varsFloat = {}
+        self.varsEnumStr = {}
         self.data = None
         if data <> None:
-##            if len(data.domain.getmetas())>0:
-##                # domain with all variables + metas as attributes
-##                domNoMeta = orange.Domain(data.domain.variables + data.domain.getmetas().values(), None)
-##                self.data = orange.ExampleTable(domNoMeta, data)
-##            else:
-##                self.data = data
-##            # divide vars to Enum, Float and String
-##            for var in self.data.domain.variables:
-##                varName = var.name
-##                if self.varsAll.has_key(varName):
-##                    print "Warning: domain contains two variables with the same name: %s; the first one will be used"  % varName
-##                else:
-##                    self.varsAll[varName] = var
             # remove string variables and variables with duplicate names
             newVarList = []
             for var in data.domain.variables + data.domain.getmetas().values():
                 if self.varsAll.has_key(var.name):
                     print "Warning: domain contains two variables with the same name: %s; the first one will be used"  % var.name
                     continue
-                if var.varType == orange.VarTypes.String:
-                    print "Warning: string variable %s removed" % var.name
-                    continue
                 self.varsAll[var.name] = var
+                if var.varType == orange.VarTypes.Continuous:
+                    self.varsFloat[var.name] = var
+                else:
+                    self.varsEnumStr[var.name] = var
                 newVarList.append(var)
             domNoMeta = orange.Domain(newVarList, None)
             self.data = orange.ExampleTable(domNoMeta, data)
@@ -453,9 +454,8 @@ class OWNormalize(OWWidget):
         # fill combos and listBox with variables
         self.fillCmbVars()
         self.fillLbVarOthers()
-        self.setDefaultVarAssignment()
+        self.updateVarAssignment()
         self.initProbes()
-##        self.setNormalization()
         # send data
         if self.commitOnChange:
             self.sendData()
@@ -472,7 +472,6 @@ class OWNormalize(OWWidget):
             qApp.setOverrideCursor(QWidget.waitCursor)
             self.setDefaultVarAssignment()
             self.initProbes()
-##            self.setNormalization()
             # send data
             if self.commitOnChange:
                 self.sendData()
@@ -484,17 +483,14 @@ class OWNormalize(OWWidget):
         """ Fills combos with variables; add "<none>":None for 2nd Probe combo.
         """
         if D1: print "OWNormalize.fillCmbVars"
-        cmbNamesAllVars = ["cmbVarID", "cmbVarName"]
+        cmbNamesAllVars = ["cmbVarA", "cmbVarB"]
         cmbNamesFloatVars = ["cmbVarSignalSmpl", "cmbVarSignalRef", "cmbVarBGSmpl", "cmbVarBGRef", "cmbVarBGSmplSD", "cmbVarBGRefSD"]
         if self.data:
             varNamesAllVars = zip(map(lambda x: x.lower(), self.varsAll.keys()), self.varsAll.keys())
             varNamesAllVars.sort()
-            varNamesFloatVars = []
-            for varName, var in self.varsAll.items():
-                if var.varType == orange.VarTypes.Continuous:
-                    varNamesFloatVars.append((varName.lower(),varName))
+            varNamesFloatVars = zip(map(lambda x: x.lower(), self.varsFloat.keys()), self.varsFloat.keys())
             varNamesFloatVars.sort()
-            # fill Probe ID & Probe Name combos
+            # fill VarA & VarB combos
             for cmbName in cmbNamesAllVars:
                 self.__dict__[cmbName].clear()
                 self.__dict__[cmbName].insertStrList(map(lambda x: x[1], varNamesAllVars))
@@ -508,229 +504,207 @@ class OWNormalize(OWWidget):
         # add "<none>"
         if self.varsAll.has_key("<none>"):
             print "Warning: doman consists of discrete variable named '<none>'; this name is reserved and should not be used"
-        self.cmbVarName.insertItem("<none>", 0)
+        self.cmbVarB.insertItem("<none>", 0)
         self.cmbVarBGSmplSD.insertItem("<none>", 0)
         self.cmbVarBGRefSD.insertItem("<none>", 0)
 
 
-##    def setDefaultVarAssignment(self):
-##        """Select default variables in combos based on their names.
-##        """
-##        if D1 or D2: print "OWNormalize.setDefaultVarAssignment"
-##        if self.data and len(self.varsAll) > 0:
-##            # separate continuous and float variables
-##            varsFloat = {}
-##            varsEnum = {}
-##            for varName, var in self.varsAll.items():
-##                if var.varType == orange.VarTypes.Continuous:
-##                    varsFloat[varName] = var
-##                elif var.varType == orange.VarTypes.Discrete:
-##                    varsEnum[varName] = var
-##            # smart variable assignment: ID
-##            self.varNameID = None
-##            for name in varsEnum.keys():
-##                if "id" in name.lower():
-##                    self.varNameID = name
-##                    break
-##            if self.varNameID == None:
-##                for name in self.varsAll.keys():
-##                    if "id" in name.lower():
-##                        self.varNameID = name
-##                        break
-##            if self.varNameID == None:
-##                if len(varsEnum) > 0:
-##                    self.varNameID = varsEnum.keys()[0]
-##                else:
-##                    self.varNameID = self.varsAll.keys()[0]
-##            # smart variable assignment: Name
-##            self.varNameName = "<none>"
-##            for name in varsEnum.keys():
-##                if "grid" in name.lower():
-##                    self.varNameName = name
-##                    break
-##            if self.varNameName == "<none>":
-##                for name in self.varsAll.keys():
-##                    if "grid" in name.lower():
-##                        self.varNameName = name
-##                        break
-##            # smart variable assignment: signal, background, background s.d. (smpl & ref)
-##            colNames = ["raw intensity (med) {smpl}", "raw intensity (med) {ref}", "background (med) {smpl}", "background (med) {ref}", "background (st.dev.) {smpl}", "background (st.dev.) {ref}"]
-##            vars = [None, None, None, None, None, None]
-##            varsFloatNames = varsFloat.keys()
-##            for cIdx, cName in enumerate(colNames):
-##                for name in varsFloatNames:
-##                    if cName in name.lower():
-##                        vars[cIdx] = name
-##                        varsFloatNames.remove(name)
-##                        break
-##                if vars[cIdx] == None:
-##                    if len(varsFloatNames) > 0:
-##                        vars[cIdx] = varsFloatNames[0]
-##                        varsFloatNames.pop(0)
-##                    else:
-##                        vars[cIdx] = self.varsAll.keys()[0]
-##            # select vars in combos, update listbox with other variables
-##            self.varNameSignalSmpl = vars[0]
-##            self.varNameSignalRef = vars[1]
-##            self.varNameBGSmpl = vars[2]
-##            self.varNameBGRef = vars[3]
-##            self.varNameBGSmplSD = vars[4]
-##            self.varNameBGRefSD = vars[5]
-##            # enable/disable subtract BG checkbox & Max. CV slider
-####            self.cbSubtrBG.setEnabled(self.varNameBGSmplSD != "<none>" and self.varNameBGRefSD != "<none>")
-##            self.boxMaxCV.setEnabled(self.varNameBGSmplSD != "<none>" and self.varNameBGRefSD != "<none>")
-##            # select other variables where name contains "name"
-##            self.disconnect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
-##            for idx in range(self.lbVarOthers.count()):
-##                if "name" in self.lbVarOthers.item(idx).text().lower():
-##                    self.lbVarOthers.setSelected(idx, True)
-##            self.fillVarsOtherSelected()
-##            self.connect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
+    def updateVarAssignment(self):
+        """check that the current var names are present in the data
+        if not, set to the first variable;
+        othervise rewrite the value of the member variable so that the right item in the combo is shown
+        """
+        if D1 or D2: print "OWNormalize.updateVarAssignment"
+        if self.data and len(self.varsAll) > 0:
+            varsAllNames = self.varsAll.keys()
+            varsAllNames.sort()
+            varsEnumStrNames = self.varsEnumStr.keys()
+            varsEnumStrNames.sort()
+            varsFloatNames = self.varsFloat.keys()
+            varsFloatNames.sort()
+
+            # test variable names if exist in the data; rewrite if exist, reset if not
+            if not self.varNameA in varsAllNames:
+                self._setDefaultVarAssignment_varA(varsEnumStrNames + varsFloatNames)
+            else:
+                self.varNameA = self.varNameA
+            if not self.varNameSignalSmpl in varsAllNames:
+                self._setDefaultVarAssignment_varSignalSmpl(varsFloatNames)
+            else:
+                self.varNameSignalSmpl = self.varNameSignalSmpl
+            if not self.varNameSignalRef in varsAllNames:
+                self._setDefaultVarAssignment_varSignalRef(varsFloatNames)
+            else:
+                self.varNameSignalRef = self.varNameSignalRef
+            if not self.varNameBGSmpl in varsAllNames:
+                self._setDefaultVarAssignment_varBGSmpl(varsFloatNames)
+            else:
+                self.varNameBGSmpl = self.varNameBGSmpl
+            if not self.varNameBGRef in varsAllNames:
+                self._setDefaultVarAssignment_varBGRef(varsFloatNames)
+            else:
+                self.varNameBGRef = self.varNameBGRef
+            if not self.varNameB in varsAllNames:
+                self._setDefaultVarAssignment_varB(varsEnumStrNames + varsFloatNames)
+            else:
+                self.varNameB = self.varNameB
+            if not self.varNameBGSmplSD in varsAllNames:
+                self._setDefaultVarAssignment_varBGSmplSD(varsFloatNames)
+            else:
+                self.varNameBGSmplSD = self.varNameBGSmplSD
+            if not self.varNameBGRefSD in varsAllNames:
+                self._setDefaultVarAssignment_varBGRefSD(varsFloatNames)
+            else:
+                self.varNameBGRefSD = self.varNameBGRefSD
+        
 
     def setDefaultVarAssignment(self):
         """Select default variables in combos based on their names.
         """
         if D1 or D2: print "OWNormalize.setDefaultVarAssignment"
         if self.data and len(self.varsAll) > 0:
-            # separate continuous and float variables
-            varsFloat = {}
-            varsEnum = {}
-            for varName, var in self.varsAll.items():
-                if var.varType == orange.VarTypes.Continuous:
-                    varsFloat[varName] = var
-                elif var.varType == orange.VarTypes.Discrete:
-                    varsEnum[varName] = var
-            # smart variable assignment: ID (first, search among EnumVars, than among all vars)
-            self.varNameID = None
-            if self.defNameID:
-                for name in varsEnum.keys():
-                    if self.defNameID.lower() in name.lower():
-                        self.varNameID = name
+            varsAllNames = self.varsAll.keys()
+            varsAllNames.sort()
+            varsEnumStrNames = self.varsEnumStr.keys()
+            varsEnumStrNames.sort()
+            varsFloatNames = self.varsFloat.keys()
+            varsFloatNames.sort()
+            self._setDefaultVarAssignment_varA(varsEnumStrNames + varsFloatNames)
+            self._setDefaultVarAssignment_varB(varsEnumStrNames + varsFloatNames)
+            self._setDefaultVarAssignment_varSignalSmpl(varsFloatNames)
+            self._setDefaultVarAssignment_varSignalRef(varsFloatNames)
+            self._setDefaultVarAssignment_varBGSmpl(varsFloatNames)
+            self._setDefaultVarAssignment_varBGRef(varsFloatNames)
+            self._setDefaultVarAssignment_varBGSmplSD(varsFloatNames)
+            self._setDefaultVarAssignment_varBGRefSD(varsFloatNames)
+
+
+    def _setDefaultVarAssignment_varA(self, dataVarNames):
+        self.varNameA = None
+        if self.data and len(dataVarNames) > 0:
+            # first search variables with equal name, then by substrings, then all variables
+            if self.defNameA:
+                for name in dataVarNames:
+                    if self.defNameA == name:
+                        self.varNameA = name
                         break
-                if self.varNameID == None:
-                    for name in self.varsAll.keys():
-                        if self.defNameID.lower() in name.lower():
-                            self.varNameID = name
-                            break
-            if self.varNameID == None:
-                if len(varsEnum) > 0:
-                    self.varNameID = varsEnum.keys()[0]
-                else:
-                    self.varNameID = self.varsAll.keys()[0]
-            # smart variable assignment: Name
-            self.varNameName = "<none>"
-            if self.defNameName:
-                for name in varsEnum.keys():
-                    if self.defNameName.lower() in name.lower():
-                        self.varNameName = name
+                if self.varNameA == None:
+                    candVarsLenName = []    # list of tuples (len, varName)
+                    for name in dataVarNames:
+                        if self.defNameA in name:
+                            candVarsLenName.append((len(name),name))
+                    if len(candVarsLenName) > 0:
+                        candVarsLenName.sort()
+                        self.varNameA = candVarsLenName[0][1]
+            if self.varNameA == None:
+                self.varNameA = dataVarNames[0]
+
+
+    def _setDefaultVarAssignment_varB(self, dataVarNames):
+        self.varNameB = "<none>"
+        if self.data and len(dataVarNames) > 0:
+            # first search variables with equal name, then by substrings, then all variables
+            if self.defNameB:
+                for name in dataVarNames:
+                    if self.defNameB == name:
+                        self.varNameB = name
                         break
-                if self.varNameName == "<none>":
-                    for name in self.varsAll.keys():
-                        if self.defNameName.lower() in name.lower():
-                            self.varNameName = name
-                            break
+                if self.varNameB == "<none>":
+                    candVarsLenName = []    # list of tuples (len, varName)
+                    for name in dataVarNames:
+                        if self.defNameB in name:
+                            candVarsLenName.append((len(name),name))
+                    if len(candVarsLenName) > 0:
+                        candVarsLenName.sort()
+                        self.varNameB = candVarsLenName[0][1]
+            if self.varNameB <> "<none>":
+                # select self.varNameB among the other variables (tab Output)
+                self.disconnect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
+                for idx in range(self.lbVarOthers.count()):
+                    if self.varNameB == self.lbVarOthers.item(idx).text():
+                        self.lbVarOthers.setSelected(idx, True)
+                self.fillVarsOtherSelected()
+                self.connect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
 
-            ############################################
-            # smart variable assignment: signal, background, background s.d. (smpl & ref)
-            ############################################
-            varsFloatNames = self.varsAll.keys()
-            for vName in varsFloatNames:
-                if vName and self.defNameSmpl.lower() in vName.lower() and self.defNameForeground.lower() in vName.lower() and self.defNameMean.lower() in vName.lower():
-                    self.varNameSignalSmpl = vName
-                    varsFloatNames.remove(vName)
-                    break
-            if self.varNameSignalSmpl == None:
-##                print vName.lower(), "break"
-                if len(varsFloatNames) > 0:
-##                    print vName.lower(), "break if"
-                    self.varNameSignalSmpl = varsFloatNames[0]
-                    varsFloatNames.pop(0)
-                else:
-                    self.varNameSignalSmpl = self.varsAll.keys()[0]
-##                    print vName.lower(), "break else"
+
+    def _setDefaultVarAssignment_varSignalSmpl(self, dataVarNames):
+        self.varNameSignalSmpl = None
+        if self.data and len(dataVarNames) > 0:
+            candVarsLenName = []    # list of tuples (len, varName)
+            for vName in dataVarNames:
+                if vName and self.defNameSmpl in vName and self.defNameForeground in vName and self.defNameMean in vName:
+                    candVarsLenName.append((len(vName),vName))
+            if len(candVarsLenName) > 0:
+                candVarsLenName.sort()
+                self.varNameSignalSmpl = candVarsLenName[0][1]
+            else:
+                self.varNameSignalSmpl = dataVarNames[0]
+
+    def _setDefaultVarAssignment_varSignalRef(self, dataVarNames):
+        self.varNameSignalRef = None
+        if self.data and len(dataVarNames) > 0:
+            candVarsLenName = []    # list of tuples (len, varName)
+            for vName in dataVarNames:
+                if vName and self.defNameRef in vName and self.defNameForeground in vName and self.defNameMean in vName:
+                    candVarsLenName.append((len(vName),vName))
+            if len(candVarsLenName) > 0:
+                candVarsLenName.sort()
+                self.varNameSignalRef = candVarsLenName[0][1]
+            else:
+                self.varNameSignalRef = dataVarNames[0]
+
+    def _setDefaultVarAssignment_varBGSmpl(self, dataVarNames):
+        self.varNameBGSmpl = None
+        if self.data and len(dataVarNames) > 0:
+            candVarsLenName = []    # list of tuples (len, varName)
+            for vName in dataVarNames:
+                if vName and self.defNameSmpl in vName and self.defNameBackground in vName and self.defNameMean in vName:
+                    candVarsLenName.append((len(vName),vName))
+            if len(candVarsLenName) > 0:
+                candVarsLenName.sort()
+                self.varNameBGSmpl = candVarsLenName[0][1]
+            else:
+                self.varNameBGSmpl = dataVarNames[0]
+
+    def _setDefaultVarAssignment_varBGRef(self, dataVarNames):
+        self.varNameBGRef = None
+        if self.data and len(dataVarNames) > 0:
+            candVarsLenName = []    # list of tuples (len, varName)
+            for vName in dataVarNames:
+                if vName and self.defNameRef in vName and self.defNameBackground in vName and self.defNameMean in vName:
+                    candVarsLenName.append((len(vName),vName))
+            if len(candVarsLenName) > 0:
+                candVarsLenName.sort()
+                self.varNameBGRef = candVarsLenName[0][1]
+            else:
+                self.varNameBGRef = dataVarNames[0]
+
+    def _setDefaultVarAssignment_varBGSmplSD(self, dataVarNames):
+        self.varNameBGSmplSD = "<none>"
+        if self.data and len(dataVarNames) > 0:
+            candVarsLenName = []    # list of tuples (len, varName)
+            for vName in dataVarNames:
+                if vName and self.defNameSmpl in vName and self.defNameBackground in vName and self.defNameSD in vName and self.defNameSmpl and self.defNameBackground and self.defNameSD:
+                    candVarsLenName.append((len(vName),vName))
+            if len(candVarsLenName) > 0:
+                candVarsLenName.sort()
+                self.varNameBGSmplSD = candVarsLenName[0][1]
+        # enable/disable Max. CV slider
+        self.boxMaxCV.setEnabled(self.varNameBGSmplSD != "<none>" and self.varNameBGRefSD != "<none>")
+
+    def _setDefaultVarAssignment_varBGRefSD(self, dataVarNames):
+        self.varNameBGRefSD = "<none>"
+        if self.data and len(dataVarNames) > 0:
+            candVarsLenName = []    # list of tuples (len, varName)
+            for vName in dataVarNames:
+                if vName and self.defNameRef in vName and self.defNameBackground in vName and self.defNameSD in vName and self.defNameRef and self.defNameBackground and self.defNameSD:
+                    candVarsLenName.append((len(vName),vName))
+            if len(candVarsLenName) > 0:
+                candVarsLenName.sort()
+                self.varNameBGRefSD = candVarsLenName[0][1]
+        # enable/disable Max. CV slider
+        self.boxMaxCV.setEnabled(self.varNameBGSmplSD != "<none>" and self.varNameBGRefSD != "<none>")
                     
-            for vName in varsFloatNames:
-                if vName and self.defNameRef.lower() in vName.lower() and self.defNameForeground.lower() in vName.lower() and self.defNameMean.lower() in vName.lower():
-                    self.varNameSignalRef = vName
-                    varsFloatNames.remove(vName)
-                    break
-            if self.varNameSignalRef == None:
-                if len(varsFloatNames) > 0:
-                    self.varNameSignalRef = varsFloatNames[0]
-                    varsFloatNames.pop(0)
-                else:
-                    self.varNameSignalRef = self.varsAll.keys()[0]
-                    
-            for vName in varsFloatNames:
-                if vName and self.defNameSmpl.lower() in vName.lower() and self.defNameBackground.lower() in vName.lower() and self.defNameMean.lower() in vName.lower():
-                    self.varNameBGSmpl = vName
-                    varsFloatNames.remove(vName)
-                    break
-            if self.varNameBGSmpl == None:
-                if len(varsFloatNames) > 0:
-                    self.varNameBGSmpl = varsFloatNames[0]
-                    varsFloatNames.pop(0)
-                else:
-                    self.varNameBGSmpl = self.varsAll.keys()[0]
-
-            for vName in varsFloatNames:
-                if vName and self.defNameRef.lower() in vName.lower() and self.defNameBackground.lower() in vName.lower() and self.defNameMean.lower() in vName.lower():
-                    self.varNameBGRef = vName
-                    varsFloatNames.remove(vName)
-                    break
-            if self.varNameBGRef == None:
-                if len(varsFloatNames) > 0:
-                    self.varNameBGRef = varsFloatNames[0]
-                    varsFloatNames.pop(0)
-                else:
-                    self.varNameBGRef = self.varsAll.keys()[0]
-
-            for vName in varsFloatNames:
-                if vName and self.defNameSmpl.lower() in vName.lower() and self.defNameBackground.lower() in vName.lower() and self.defNameSD in vName.lower():
-                    self.varNameBGSmplSD = vName
-                    varsFloatNames.remove(vName)
-                    break
-            if self.varNameBGSmplSD == "<none>":
-                if len(varsFloatNames) > 0:
-                    self.varNameBGSmplSD = varsFloatNames[0]
-                    varsFloatNames.pop(0)
-                else:
-                    self.varNameBGSmplSD = self.varsAll.keys()[0]
-
-            for vName in varsFloatNames:
-                if vName and self.defNameRef.lower() in vName.lower() and self.defNameBackground.lower() in vName.lower() and self.defNameSD in vName.lower():
-                    self.varNameBGRefSD = vName
-                    varsFloatNames.remove(vName)
-                    break
-            if self.varNameBGRefSD == "<none>":
-                if len(varsFloatNames) > 0:
-                    self.varNameBGRefSD = varsFloatNames[0]
-                    varsFloatNames.pop(0)
-                else:
-                    self.varNameBGRefSD = self.varsAll.keys()[0]
-
-            # enable/disable subtract BG checkbox & Max. CV slider
-##            self.cbSubtrBG.setEnabled(self.varNameBGSmplSD != "<none>" and self.varNameBGRefSD != "<none>")
-            self.boxMaxCV.setEnabled(self.varNameBGSmplSD != "<none>" and self.varNameBGRefSD != "<none>")
-            # select other variables where name contains "name"
-            self.disconnect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
-            for idx in range(self.lbVarOthers.count()):
-                if self.defNameName and self.defNameName in self.lbVarOthers.item(idx).text().lower():
-                    self.lbVarOthers.setSelected(idx, True)
-            self.fillVarsOtherSelected()
-            self.connect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
-
-        else:
-            # variable indices selected within combos
-            self.varNameID = None
-            self.varNameName = "<none>"
-            self.varNameSignalSmpl = None
-            self.varNameSignalRef = None
-            self.varNameBGSmpl = None
-            self.varNameBGRef = None
-            self.varNameBGSmplSD = "<none>"
-            self.varNameBGRefSD = "<none>"
-
 
     def fillLbVarOthers(self):
         """Fills listBox with variables not selected by combos
@@ -759,7 +733,7 @@ class OWNormalize(OWWidget):
         if self.data:
             pbStep = 100./len(self.data)
             self.progressBarInit()
-            self.probes.initProbes(self.data, self.varNameID, self.varNameName, self.varNameSignalSmpl, self.varNameSignalRef, self.varNameBGSmpl, self.varNameBGRef,
+            self.probes.initProbes(self.data, self.varNameA, self.varNameB, self.varNameSignalSmpl, self.varNameSignalRef, self.varNameBGSmpl, self.varNameBGRef,
                                    self.varNameBGSmplSD, self.varNameBGRefSD, callback=lambda: self.progressBarAdvance(pbStep))
             self.progressBarFinished()
         else:
@@ -780,129 +754,75 @@ class OWNormalize(OWWidget):
         """
         if D1 or D2 or D6: print "OWNormalize.sendData"
         if self.data:
-            # normalized log2 ratios -> new example table
-            varList = [orange.FloatVariable("Log2 ratio")]
-##            print "l2r = self.probes.getNormalizedLog2Ratio_masked(self.mergeLevel, self.mergeIntensitiesType)"
+            # etNum, varListNum: normalized log2 ratios, num. probes, net intensities, A, non-norm M;
+            varListNum = [orange.FloatVariable("Log2 ratio")]
             self.progressBarInit()
             l2r = self.probes.getNormalizedLog2Ratio_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance)
             self.progressBarFinished()
-##            print "l2r", l2r
             maData = MA.reshape(l2r, (l2r.shape[0], 1))
-##            print "if self.outNumProbes:"
             if self.outNumProbes:
                 self.progressBarInit()
-                varList += [orange.FloatVariable("Num. probes"), orange.FloatVariable("Num. accepted probes")]
+                varListNum += [orange.FloatVariable("Num. probes"), orange.FloatVariable("Num. accepted probes")]
                 maData = MA.concatenate([maData, self.probes.getNumReplicas_nonFiltered(self.mergeLevel, self.progressBarAdvance)], 1)
                 self.progressBarFinished()
-##            print "if self.outNetSignal:"
             if self.outNetSignal:
                 self.progressBarInit()
-                varList += [orange.FloatVariable("Net intensity (Smpl)"), orange.FloatVariable("Net intensity (Ref)")]
+                varListNum += [orange.FloatVariable("Net intensity (Smpl)"), orange.FloatVariable("Net intensity (Ref)")]
                 maData = MA.concatenate([maData, self.probes.getNetIntensity_smpl_ref(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance)], 1)
                 self.progressBarFinished()
-##            print "if self.outNonNormLogRatio:"
             if self.outA:
                 self.progressBarInit()
-                varList.append(orange.FloatVariable("A"))
+                varListNum.append(orange.FloatVariable("A"))
                 maData = MA.concatenate([maData, MA.reshape(self.probes.getA_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance), (maData.shape[0], 1))], 1)
                 self.progressBarFinished()
             if self.outNonNormLogRatio:
                 self.progressBarInit()
-                varList.append(orange.FloatVariable("Non-normalized M (log2 ratio)"))
+                varListNum.append(orange.FloatVariable("Non-normalized M (log2 ratio)"))
                 maData = MA.concatenate([maData, MA.reshape(self.probes.getRawLog2Ratio_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance), (maData.shape[0], 1))], 1)
                 self.progressBarFinished()
-##            print "etNew = chipstat.ma2orng(maData, orange.Domain(varList, None))"
-            etNew = chipstat.ma2orng(maData, orange.Domain(varList, None))
-##            print "maData", maData[0:20]
+            etNum = chipstat.ma2orng(maData, orange.Domain(varListNum, None))
 
-            # data table with pKey, ID and name
-            self.progressBarInit()
-            varList = [orange.StringVariable("pKey"), self.data.domain[self.varNameID]]
-##            print "IDList = self.probes.getIDs(self.mergeLevel)"
-            IDList = self.probes.getIDs(self.mergeLevel)
-            if self.varNameName <> "<none>" and self.mergeLevel <> OWNormalize.MergeLevelPerProbeID:
-                # cannot get unique pKeys and names if self.mergeLevel == OWNormalize.MergeLevelPerProbeID
-                varList.append(self.data.domain[self.varNameName])
-                nameList = self.probes.getNames(self.mergeLevel)
-                valListList = map(lambda i,n: [str(i)+str(n), i, n], IDList, nameList)
-            else:
-                valListList = map(lambda i: [str(i), i], IDList)
-##            print "etPKeyIDName = orange.ExampleTable(orange.Domain(varList, None), valListList)"
-            etPKeyIDName = orange.ExampleTable(orange.Domain(varList, None), valListList)
+            # valListList_byAttr: list of lists of values of individual attributes from varListNames + varListOtherCSV; needs to be transposed before converted to ExampleTable
+            # varListNames: data table with varA values, varB values and varA aliases
+            varListNames = [self.data.domain[self.varNameA]]
+            valListList_byAttr = [self.probes.getValsA(self.mergeLevel)]
+            if self.outVarAAliases:
+                varListNames.append(orange.StringVariable(self.varNameA + " alias"))
+                valListList_byAttr.append(self.probes.getValsAAlias(self.mergeLevel))
+            if self.varNameB <> "<none>" and self.mergeLevel <> OWNormalize.MergeLevelPerVarA:
+                # cannot get unique varB values if self.mergeLevel == OWNormalize.MergeLevelPerVarA
+                varListNames.append(self.data.domain[self.varNameB])
+                valListList_byAttr.append(self.probes.getValsB(self.mergeLevel))
 
-            # etSubset: subset of examples/attributes from self.data
-            domainOtherVars = orange.Domain(self.varsOtherSelected.values(), None)
-            if self.mergeLevel == OWNormalize.MergeLevelNone:
-                etOtherVars = orange.ExampleTable(domainOtherVars, self.data)
-                self.progressBarAdvance(100.)
-            elif self.mergeLevel == OWNormalize.MergeLevelPerProbeIDName:
-                if self.mergeOtherType == OWNormalize.MergeOtherTypeFirst:
-                    # use first value: subset of examples
-                    etSubset = orange.ExampleTable(self.data.domain)
-                    pbStep = 100./len(etPKeyIDName)
-                    for e in etPKeyIDName:
-                        dataIdx0 = self.probes[str(e["pKey"])].getDataIndices()[0]
-                        etSubset.append(self.data[dataIdx0])
-                        self.progressBarAdvance(pbStep)
-                    # subset of attributes
-                    etOtherVars = orange.ExampleTable(domainOtherVars, etSubset)
-                elif self.mergeOtherType == OWNormalize.MergeOtherTypeConc:
-                    # create new string attributes, concatenate values
-                    strDomain = orange.Domain(map(lambda varName: orange.StringVariable(varName+" List"), self.varsOtherSelected.keys()), None)
-                    etOtherVars = orange.ExampleTable(strDomain)
-                    pbStep = 100./len(self.probes)
-                    for probe in self.probes.values():
-                        vals = map(lambda i: {}, range(len(self.varsOtherSelected)))
-                        for eIdx in probe.getDataIndices():
-                            for vIdx, vName in enumerate(self.varsOtherSelected.keys()):
-                                vals[vIdx][str(self.data[eIdx][vName].native())] = eIdx
-                        for i, d in enumerate(vals):
-                            vals[i] = d.keys()
-                            vals[i].sort()
-                            vals[i] = string.join(vals[i], ",")
-                        etOtherVars.append(orange.Example(strDomain, vals))
-                        self.progressBarAdvance(pbStep)
-                else:
-                    raise AttributeError, "unknown mergeOtherType: %s" % str(self.mergeOtherType)
-            elif self.mergeLevel == OWNormalize.MergeLevelPerProbeID:
-                pbStep = 100./len(etPKeyIDName)
-                if self.mergeOtherType == OWNormalize.MergeOtherTypeFirst:
-                    # use first value: subset of examples
-                    etSubset = orange.ExampleTable(self.data.domain)
-                    for e in etPKeyIDName:
-                        dataIdx0 = self.probes._ID2ind[e["pKey"].native()][0]
-                        etSubset.append(self.data[dataIdx0])
-                        self.progressBarAdvance(pbStep)
-                    # subset of attributes
-                    etOtherVars = orange.ExampleTable(domainOtherVars, etSubset)
-                elif self.mergeOtherType == OWNormalize.MergeOtherTypeConc:
-                    # create new string attributes, concatenate values
-                    strDomain = orange.Domain(map(lambda varName: orange.StringVariable(varName+" List"), self.varsOtherSelected.keys()), None)
-                    etOtherVars = orange.ExampleTable(strDomain)
-                    for e in etPKeyIDName:
-                        dataInd = self.probes._ID2ind[e["pKey"].native()]
-                        vals = map(lambda i: {}, range(len(self.varsOtherSelected)))
-                        for eIdx in dataInd:
-                            for vIdx, vName in enumerate(self.varsOtherSelected.keys()):
-                                vals[vIdx][str(self.data[eIdx][vName].native())] = eIdx
-                        for i, d in enumerate(vals):
-                            vals[i] = d.keys()
-                            vals[i].sort()
-                            vals[i] = string.join(vals[i], ",")
-                        etOtherVars.append(orange.Example(strDomain, vals))
-                        self.progressBarAdvance(pbStep)
-                else:
-                    raise AttributeError, "unknown mergeOtherType: %s" % str(self.mergeOtherType)
-            else:
-                raise AttributeError, "unknown self.mergeLevel: %s" % str(self.mergeLevel)
-            # final example table (leave out pKey)
-            etOut = orange.ExampleTable([orange.ExampleTable(orange.Domain(varList[1:], None), etPKeyIDName), etNew, etOtherVars])
+            # varListOtherCSV: subset of examples/attributes from self.data where non-continuous vars are replaced by String vars named as var.name + " list"
+            varListOtherCSV = []
+            if len(self.varsOtherSelected) > 0:
+                domainOtherVars = orange.Domain(self.varsOtherSelected.values(), None)
+                lstLstOtherVars = list(orange.ExampleTable(domainOtherVars, self.data))
+                for varIdx, var in enumerate(domainOtherVars):
+                    vals = map(lambda x: x[varIdx].native(), lstLstOtherVars)
+                    if var.varType == orange.VarTypes.Continuous and self.mergeOtherType <> OWNormalize.MergeOtherTypeConc:
+                        valListList_byAttr.append(self.probes._mergeFunc[self.mergeLevel](MA.asarray(vals, MA.Float), Probes.mergeTypes[self.mergeOtherType], lambda x: None))
+                        varListOtherCSV.append(var)
+                        var.numberOfDecimals = 3    # by default it is set to zero because usually all values are integers; after merging we need higher precision (3 is the default value)
+                    else:
+                        valListList_byAttr.append(self.probes._concatFunc[self.mergeLevel](vals, removeDupl=self.mergeOtherRemoveDupl))
+                        varListOtherCSV.append(orange.StringVariable(var.name + " list"))
+
+            # etNamesOtherCSV: ExampleTable with variables from varListNames + varListOtherCSV, data from valListList_byAttr
+            etNamesOtherCSV = orange.ExampleTable(orange.Domain(varListNames+varListOtherCSV, None), Numeric.transpose(Numeric.asarray(valListList_byAttr, Numeric.PyObject)).tolist())
+
+            # final example table: Log2 ratio first, then metas with names, then CSV of other selected attributes
+            domOut = orange.Domain([varListNum[0]], None)
+            for var in varListNames + varListNum[1:] + varListOtherCSV:
+                domOut.addmeta(orange.newmetaid(), var)
+            etOut = orange.ExampleTable(domOut, orange.ExampleTable([etNum, etNamesOtherCSV]))
             etOut.name = (self.data.name + " normalized").strip()
-            self.progressBarFinished()
+
         else:
             etOut = None
         self.send("Expression Data", etOut)
-                
+
 
     ###################################################################################
     ## PROBE DATA IN / OUT
@@ -939,42 +859,54 @@ class OWNormalize(OWWidget):
         if D1 or D2 or D6: print "OWNormalize.processDataProbes"
         if self.dataProbes:
             varNames = map(lambda var: var.name, self.dataProbes.domain.variables)
-            if "Probe ID" in varNames and "ColorRGB" in varNames and "Ratio" in varNames and "Symbol" in varNames:
+            if "Var A" in varNames and "ColorRGB" in varNames and "Ratio" in varNames and "Symbol" in varNames:
                 # list of probe keys
-                if self.varNameName <> "<none>" and "Probe Name" in varNames:
-                    pKeysIDsNames = map(lambda e: (str(e["Probe ID"].native()) + str(e["Probe Name"].native()), str(e["Probe ID"].native()), str(e["Probe Name"].native())), self.dataProbes)
+                if self.varNameB <> "<none>" and "Var B" in varNames:
+                    pKeysIDsNames = map(lambda e: (str(e["Var A"].native()) + str(e["Var B"].native()), str(e["Var A"].native()), str(e["Var B"].native())), self.dataProbes)
                 else:
-                    pKeysIDsNames = map(lambda e: (str(e["Probe ID"].native()), str(e["Probe ID"].native()), ""), self.dataProbes)
+                    pKeysIDsNames = map(lambda e: (str(e["Var A"].native()), str(e["Var A"].native()), ""), self.dataProbes)
                 # get color, symbol and ratio of probes
                 for e, (pKey, pID, pName) in zip(self.dataProbes, pKeysIDsNames):
                     c = str(e["ColorRGB"])
                     try:
                         color = QColor(int(c[0:2],16), int(c[2:4],16), int(c[4:6],16), QColor.Rgb)
                     except ValueError:
-                        color = ProbeSet.NoColor
+                        # this test is here because Excel changes "000000" to "0"
+                        if c=="0":
+                            color = QColor(0,0,0)
+                        else:
+                            color = ProbeSet.NoColor
                     try:
                         symbol = int(e["Symbol"].native())
                     except TypeError:
                         symbol = QwtSymbol.None
                     ratio = str(e["Ratio"])
+                    # read optional name for varA and varB values
+                    try:
+                        valAAlias = str(e["Var A alias"].native())
+                    except TypeError:
+                        valAAlias = None
+                    ###########################################################
                     # if pKey exists
                     probe = self.probes.get(pKey)
                     if probe:
-##                        print "self.probes.has_key(%s)" %pKey
                         self.probes.setMarker(probe, symbol, color, refresh=False)
                         self.probes.setRatio(probe, ratio, recalc=False, refresh=False)
+                        if valAAlias:
+                            probe.valAAlias = valAAlias
                     # if pKey does not exist
                     else:
-##                        print "getKeysFromIDsNames(%s, %s): %s" % (pID, pName, self.probes.getKeysFromIDsNames(pID, pName))
-                        for pk in self.probes.getKeysFromIDsNames(pID, pName):
+                        for pk in self.probes.getKeysFromValAValB(pID, pName):
                             probe = self.probes.get(pk)
                             self.probes.setMarker(probe, symbol, color, refresh=False)
                             self.probes.setRatio(probe, ratio, recalc=False, refresh=False)
+                            if valAAlias:
+                                probe.valAAlias = valAAlias
                 if len(self.dataProbes) > 0:
                     self.probes.replotProbeCurves(refresh=False)
                     self.probes.updateReplotNormCurves(refresh=True)
             else:
-                print "Warning: probe data must consist of attributes 'Probe ID', 'Ratio', 'ColorRGB' and 'Symbol'; 'Probe Name' is optional"
+                print "Warning: probe data must consist of attributes 'Var A', 'Ratio', 'ColorRGB' and 'Symbol'; optional attributes: 'Var B' and 'Var A alias'"
 
 
     def sendProbes(self):
@@ -987,19 +919,21 @@ class OWNormalize(OWWidget):
             pKeys.sort()
             for pKey in pKeys:
                 probe = self.probes[pKey]
-                vals.append([probe.ID, probe.name, probe.ratioExpr, probe.getColorRgbStr(), probe.symbol])
-            # create domain, clone and rename variables to "Probe ID" and "Probe Name"
-            if self.varNameName <> "<none>":
-                varName = self.varsAll[self.varNameName].clone()
-                varName.name = "Probe Name"
+                vals.append([probe.valA, probe.valAAlias, probe.valB, probe.ratioExpr, probe.getColorRgbStr(), probe.symbol])
+            # create domain, clone and rename variables to "Var A" and "Var B"
+            if self.varNameB <> "<none>":
+                varB = self.varsAll[self.varNameB].clone()
+                varB.name = "Var B"
             else:
-                varName = orange.StringVariable("Probe Name")
-            domain = orange.Domain([self.varsAll[self.varNameID].clone(), varName, orange.StringVariable("Ratio"), orange.StringVariable("ColorRGB"), orange.FloatVariable("Symbol")], None)
-            domain[0].name = "Probe ID"
+                varB = orange.StringVariable("Var B")
+            varAAlias = orange.StringVariable("Var A alias")
+            domain = orange.Domain([self.varsAll[self.varNameA].clone(), varAAlias, varB, orange.StringVariable("Ratio"), orange.StringVariable("ColorRGB"), orange.FloatVariable("Symbol")], None)
+            domain[0].name = "Var A"
+            # copy values into example table
             et = orange.ExampleTable(domain, vals)
-            # remove 'Probe Name' if <none>
-            if self.varNameName == "<none>":
-                et = orange.ExampleTable(orange.Domain([et.domain[0]] + et.domain[2:], None), et)
+            # remove 'Var B' if selv.varNameB == "<none>"
+            if self.varNameB == "<none>":
+                et = orange.ExampleTable(orange.Domain(et.domain[0:2] + et.domain[3:], None), et)
             if self.dataProbes:
                 et.name = self.dataProbes.name
             else:
@@ -1013,14 +947,13 @@ class OWNormalize(OWWidget):
     ## SELECTION OF VARIABLES
     ###################################################################################
 
-    def varIDChange(self):
+    def varABChange(self):
         """Refresh listbox containing other variables and refill self.tblControls.
         """
-        if D1: print "OWNormalize.varIDChange"
+        if D1: print "OWNormalize.varABChange"
         qApp.restoreOverrideCursor()
         qApp.setOverrideCursor(QWidget.waitCursor)
         self.initProbes()
-##        self.setNormalization()
         # send data
         if self.commitOnChange:
             self.sendData()
@@ -1028,33 +961,16 @@ class OWNormalize(OWWidget):
         qApp.restoreOverrideCursor()
 
 
-    def varDataChange(self, memberVarName):
-        """Refresh listbox containing other variables.
+    def varFBChange(self):
+        """Refresh listbox containing other variables (tab Out);
+        enables/disables Max. CV slider (tab Filter).
         """
-        if D1 or D6: print "OWNormalize.varDataChange"
+        if D1 or D6: print "OWNormalize.varFBChange"
         qApp.restoreOverrideCursor()
         qApp.setOverrideCursor(QWidget.waitCursor)
-        self.probes.updateProbeData(self.data, self.varNameSignalSmpl, self.varNameSignalRef, self.varNameBGSmpl, self.varNameBGRef, self.varNameBGSmplSD, self.varNameBGRefSD, recalc=True)
-        # update info
-        self.setInfoProbes()
-        self.setInfoFilterMaxCV()
-        self.setInfoFilterMinRatio()
-        self.setInfoFilterMaxInt()
-        if self.commitOnChange:
-            self.sendData()
-        qApp.restoreOverrideCursor()
-
-
-    def varSDChange(self, memberVarName):
-        """Refresh listbox containing other variables; enables/disables Subtract BG checkbox and Max. CV slider.
-        """
-        if D1 or D6: print "OWNormalize.varSDChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
-        # enable/disable subtract BG checkbox & Max. CV slider
-##        self.cbSubtrBG.setEnabled(self.varNameBGSmplSD != "<none>" and self.varNameBGRefSD != "<none>")
+        # enable/disable Max. CV slider
         self.boxMaxCV.setEnabled(self.varNameBGSmplSD != "<none>" and self.varNameBGRefSD != "<none>")
-        # update
+        # update data
         self.probes.updateProbeData(self.data, self.varNameSignalSmpl, self.varNameSignalRef, self.varNameBGSmpl, self.varNameBGRef, self.varNameBGSmplSD, self.varNameBGRefSD, recalc=True)
         # update info
         self.setInfoProbes()
@@ -1067,9 +983,11 @@ class OWNormalize(OWWidget):
 
 
     def varOthersChange(self):
-        """Updates list of selected other vars (lbVarOthers -> self.varsOtherSelected).
+        """Updates list of selected other vars (lbVarOthers -> self.varsOtherSelected);
+        enables merge options for other variables.
         """
         self.fillVarsOtherSelected()
+        self.boxMergeOtherType.setEnabled(self.mergeLevel and len(self.varsOtherSelected) > 0)
         if self.commitOnChange:
             self.sendData()
 
@@ -1096,18 +1014,22 @@ class OWNormalize(OWWidget):
             allProbes = self.probes.values()
             numProbes = len(allProbes)
             self.tblControls.setNumRows(numProbes)
-            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcID, self.varNameID)
+            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcVarA, self.varNameA)
             sortKeyLen = int(math.log(numProbes, 10))+1
             pbStep = 100./len(self.probes)
             self.progressBarInit()
-            if self.varNameName <> "<none>":
-                # generate sorting keys: (ID, name)
-                idIdx = zip(map(lambda pr: (pr.ID, pr.name), allProbes), range(numProbes))
-                idIdx.sort()
-                idRank = dict(zip([x[1] for x in idIdx], range(numProbes)))
-                nameIdx = zip(map(lambda pr: (pr.name, pr.ID), allProbes), range(numProbes))
-                nameIdx.sort()
-                nameRank = dict(zip([x[1] for x in nameIdx], range(numProbes)))
+            # generate sorting keys: varA, varAAlias
+            valAIdx = zip(map(lambda pr: (pr.valA, pr.valAAlias, pr.valB), allProbes), range(numProbes))
+            valAIdx.sort()
+            valARank = dict(zip([x[1] for x in valAIdx], range(numProbes)))
+            valAAliasIdx = zip(map(lambda pr: (pr.valAAlias, pr.valA, pr.valB), allProbes), range(numProbes))
+            valAAliasIdx.sort()
+            valAAliasRank = dict(zip([x[1] for x in valAAliasIdx], range(numProbes)))
+            if self.varNameB <> "<none>":
+                # generate sorting keys: varB)
+                valBIdx = zip(map(lambda pr: (pr.valB, pr.valA, pr.valAAlias), allProbes), range(numProbes))
+                valBIdx.sort()
+                valBRank = dict(zip([x[1] for x in valBIdx], range(numProbes)))
                 # fill rows
                 for row, (key,pr) in enumerate(self.probes.items()):
                     # store the table row index of the probe
@@ -1116,27 +1038,14 @@ class OWNormalize(OWWidget):
                     numProbesAcc = self.probes.getNumProbes_nonFiltered(pr)
                     OWGUI.tableItem(self.tblControls, row, OWNormalize.tcNPAll, str(numProbesAll), editType=QTableItem.Never, sortingKey="%05d%05d"%(numProbesAll,numProbesAcc))#, background=QColor(160,160,160))
                     OWGUI.tableItem(self.tblControls, row, OWNormalize.tcNPAccepted, str(numProbesAcc), editType=QTableItem.Never, sortingKey="%05d%05d"%(numProbesAcc,numProbesAll))#, background=QColor(160,160,160))
-                    OWGUI.tableItem(self.tblControls, row, OWNormalize.tcID, str(pr.ID), editType=QTableItem.Never, sortingKey=self.sortingKey(idRank[row], 20))#, background=QColor(160,160,160))
-                    OWGUI.tableItem(self.tblControls, row, OWNormalize.tcName, str(pr.name), editType=QTableItem.Never, sortingKey=self.sortingKey(nameRank[row], 20))#, background=QColor(160,160,160))
+                    OWGUI.tableItem(self.tblControls, row, OWNormalize.tcVarA, str(pr.valA), editType=QTableItem.Never, sortingKey=self.sortingKey(valARank[row], 20))#, background=QColor(160,160,160))
+                    OWGUI.tableItem(self.tblControls, row, OWNormalize.tcVarAAlias, str(pr.valAAlias), editType=QTableItem.OnTyping, sortingKey=self.sortingKey(valAAliasRank[row], 20))#, background=QColor(160,160,160))
+                    OWGUI.tableItem(self.tblControls, row, OWNormalize.tcVarB, str(pr.valB), editType=QTableItem.Never, sortingKey=self.sortingKey(valBRank[row], 20))#, background=QColor(160,160,160))
                     OWGUI.tableItem(self.tblControls, row, OWNormalize.tcPKey, key)
                     self.fillProbeTableItemMarkerRatio(row, pr)
                     self.progressBarAdvance(pbStep)
-                # show, label and adjust column tcName
-                self.tblControls.showColumn(OWNormalize.tcName)
-                self.tblControls.horizontalHeader().setLabel(OWNormalize.tcName, self.varNameName)
-                # adjust columns' width
-                self.tblControls.adjustColumn(OWNormalize.tcRatio)
-                self.tblControls.adjustColumn(OWNormalize.tcNPAll)
-                self.tblControls.adjustColumn(OWNormalize.tcNPAccepted)
-                self.tblControls.adjustColumn(OWNormalize.tcID)
-                self.tblControls.adjustColumn(OWNormalize.tcName)
-                self.tblControls.setColumnWidth(OWNormalize.tcName, max(self.tblControls.columnWidth(OWNormalize.tcName), self.tblControls.visibleWidth() - self.tblControls.columnWidth(OWNormalize.tcRatio) - self.tblControls.columnWidth(OWNormalize.tcMarker) - self.tblControls.columnWidth(OWNormalize.tcID) - self.tblControls.columnWidth(OWNormalize.tcNPAll) - self.tblControls.columnWidth(OWNormalize.tcNPAccepted)))
+                self.tblControls.horizontalHeader().setLabel(OWNormalize.tcVarB, self.varNameB)
             else:
-                # generate sorting keys: ID
-                idIdx = zip(map(lambda pr: pr.ID, allProbes), range(numProbes))
-                idIdx.sort()
-                idRank = dict(zip([x[1] for x in idIdx], range(numProbes)))
-                nameRank = range(numProbes)
                 # fill rows
                 for row, (key,pr) in enumerate(self.probes.items()):
                     # store the table row index of the probe
@@ -1145,23 +1054,48 @@ class OWNormalize(OWWidget):
                     numProbesAcc = self.probes.getNumProbes_nonFiltered(pr)
                     OWGUI.tableItem(self.tblControls, row, OWNormalize.tcNPAll, str(numProbesAll), editType=QTableItem.Never, sortingKey="%05d%05d"%(numProbesAll,numProbesAcc))#, background=QColor(160,160,160))
                     OWGUI.tableItem(self.tblControls, row, OWNormalize.tcNPAccepted, str(numProbesAcc), editType=QTableItem.Never, sortingKey="%05d%05d"%(numProbesAcc,numProbesAll))#, background=QColor(160,160,160))
-                    OWGUI.tableItem(self.tblControls, row, OWNormalize.tcID, str(pr.ID), editType=QTableItem.Never, sortingKey=self.sortingKey(idRank[row], 20))#, background=QColor(160,160,160))
+                    OWGUI.tableItem(self.tblControls, row, OWNormalize.tcVarA, str(pr.valA), editType=QTableItem.Never, sortingKey=self.sortingKey(valARank[row], 20))#, background=QColor(160,160,160))
+                    OWGUI.tableItem(self.tblControls, row, OWNormalize.tcVarAAlias, str(pr.valAAlias), editType=QTableItem.OnTyping, sortingKey=self.sortingKey(valAAliasRank[row], 20))#, background=QColor(160,160,160))
                     OWGUI.tableItem(self.tblControls, row, OWNormalize.tcPKey, key)
                     self.fillProbeTableItemMarkerRatio(row, pr)
                     self.progressBarAdvance(pbStep)
-                # hide column tcName
-                self.tblControls.hideColumn(OWNormalize.tcName)
-                # adjust columns' width
-                self.tblControls.adjustColumn(OWNormalize.tcRatio)
-                self.tblControls.adjustColumn(OWNormalize.tcNPAll)
-                self.tblControls.adjustColumn(OWNormalize.tcNPAccepted)
-                self.tblControls.adjustColumn(OWNormalize.tcID)
-                self.tblControls.setColumnWidth(OWNormalize.tcID, max(self.tblControls.columnWidth(OWNormalize.tcID), self.tblControls.visibleWidth() - self.tblControls.columnWidth(OWNormalize.tcRatio) - self.tblControls.columnWidth(OWNormalize.tcMarker) - self.tblControls.columnWidth(OWNormalize.tcNPAll) - self.tblControls.columnWidth(OWNormalize.tcNPAccepted)))
             self.progressBarFinished()
         else:
-            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcID, "Probe ID")
-            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcName, "Probe Name")
+            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcVarA, "Var A")
+            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcVarB, "Var B")
             self.tblControls.setNumRows(0)
+        self.adjustProbeTableColumns()
+
+
+    def adjustProbeTableColumns(self):
+        """shows/hides appropriate columns, adjusts their widths
+        """
+        # show/hide columns with aliases and varB values and adjust their widths
+        lastColumn = OWNormalize.tcVarA
+        if self.displayVarAAliases:
+            self.tblControls.showColumn(OWNormalize.tcVarAAlias)
+            self.tblControls.adjustColumn(OWNormalize.tcVarAAlias)
+            lastColumn = OWNormalize.tcVarAAlias
+        else:
+            self.tblControls.hideColumn(OWNormalize.tcVarAAlias)
+            self.tblControls.setColumnWidth(OWNormalize.tcVarAAlias, 0)
+
+        if self.varNameB <> "<none>":
+            self.tblControls.showColumn(OWNormalize.tcVarB)
+            self.tblControls.adjustColumn(OWNormalize.tcVarB)
+            lastColumn = OWNormalize.tcVarB
+        else:
+            self.tblControls.hideColumn(OWNormalize.tcVarB)
+            self.tblControls.setColumnWidth(OWNormalize.tcVarB, 0)
+        # adjust other columns' width
+        self.tblControls.adjustColumn(OWNormalize.tcRatio)
+        self.tblControls.adjustColumn(OWNormalize.tcNPAll)
+        self.tblControls.adjustColumn(OWNormalize.tcNPAccepted)
+        self.tblControls.adjustColumn(OWNormalize.tcVarA)
+        # calculate the width of the last column
+        colWidthSum = self.tblControls.columnWidth(OWNormalize.tcMarker) + self.tblControls.columnWidth(OWNormalize.tcRatio) + self.tblControls.columnWidth(OWNormalize.tcNPAll) + self.tblControls.columnWidth(OWNormalize.tcNPAccepted) + self.tblControls.columnWidth(OWNormalize.tcVarA) + self.tblControls.columnWidth(OWNormalize.tcVarAAlias) + self.tblControls.columnWidth(OWNormalize.tcVarB)
+        lastColWidth = max(self.tblControls.columnWidth(lastColumn), self.tblControls.visibleWidth() - colWidthSum + self.tblControls.columnWidth(lastColumn))
+        self.tblControls.setColumnWidth(lastColumn, lastColWidth)
 
 
     def fillProbeTableItemMarkerRatio(self, row, probe):
@@ -1169,12 +1103,7 @@ class OWNormalize(OWWidget):
         """
         pxm = self.probes.getSymbolPixmap(probe, self.tblControls.cellGeometry(row, OWNormalize.tcMarker))
         ratioSortKey = self.probes.getRatioSortingKey(probe)
-##        if probe.color <> ProbeSet.NoColor:
         markerSortKey = probe.getMarkerSortKey()
-##        ch = probe.color.hsv()
-##        markerSortKey = "%02d%03d%03d%03d" % (probe.symbol, ch[0], ch[1], ch[2])
-##        else:
-##            markerSortKey = "%02d" % probe.symbol
         OWGUI.tableItem(self.tblControls, row, OWNormalize.tcRatio, self.probes.getRatioStr(probe), editType=QTableItem.OnTyping, sortingKey=ratioSortKey+markerSortKey) #, background=QColor(160,160,160))
         OWGUI.tableItem(self.tblControls, row, OWNormalize.tcMarker, "", editType=QTableItem.Never, sortingKey=markerSortKey+ratioSortKey, pixmap=pxm)#, background=QColor(160,160,160))
 
@@ -1219,35 +1148,37 @@ class OWNormalize(OWWidget):
 
     def tblControlsValueChange(self, row, col):
         """Handles direct changes to self.tblControls;
-        updates self.internContRatios and sends out data and control/ratios.
+        if col == tcRatio: updates self.internContRatios and sends out expression and probe data;
+        if col == tcVarAAlias: updates probe.valAAlias and sends out probe data;
         """
         if D1 or D3: print "OWNormalize.tblControlsValueChange"
-        pKey = str(self.tblControls.item(row, OWNormalize.tcPKey).text())
-        ratio = str(self.tblControls.item(row, OWNormalize.tcRatio).text())
-        if ratio <> self.probes[pKey].ratioExpr:
-            # set ratio
-            probe = self.probes[pKey]
-            newRatio = self.probes.setRatio(probe, ratio, recalc=True)
-########            # if ratio and no marker: set marker
-########            if newRatio:
-########                if probe.symbol == QwtSymbol.None:
-########                    symbol = self.probeSymbolIdx
-########                else:
-########                    symbol = probe.symbol
-########                if probe.color == ProbeSet.NoColor:
-########                    color = self.probeColor
-########                else:
-########                    color = probe.color
-########                self.probes.setMarker(pKey, symbol, color, refresh=True)
-            # update table & info
-            self.fillProbeTableItemMarkerRatio(row, probe)
-            self.setInfoProbes()
-            self.setInfoFilterMaxCV()
-            self.setInfoFilterMinRatio()
-            self.setInfoFilterMaxInt()
-            if self.commitOnChange:
-                self.sendData()
-                self.sendProbes()
+        if col == OWNormalize.tcRatio:
+            pKey = str(self.tblControls.item(row, OWNormalize.tcPKey).text())
+            ratio = str(self.tblControls.item(row, OWNormalize.tcRatio).text())
+            if ratio <> self.probes[pKey].ratioExpr:
+                # set ratio
+                probe = self.probes[pKey]
+                newRatio = self.probes.setRatio(probe, ratio, recalc=True)
+                # update table & info
+                self.fillProbeTableItemMarkerRatio(row, probe)
+                self.setInfoProbes()
+                self.setInfoFilterMaxCV()
+                self.setInfoFilterMinRatio()
+                self.setInfoFilterMaxInt()
+                if self.commitOnChange:
+                    self.sendData()
+                    self.sendProbes()
+        if col == OWNormalize.tcVarAAlias:
+            pKey = str(self.tblControls.item(row, OWNormalize.tcPKey).text())
+            alias = str(self.tblControls.item(row, OWNormalize.tcVarAAlias).text())
+            if alias <> self.probes[pKey].valAAlias:
+                self.probes[pKey].valAAlias = alias
+                if self.commitOnChange:
+                    if self.outVarAAliases:
+                        self.sendData()
+                    self.sendProbes()
+                
+                
 
 
     def tblControlsCurrentChanged(self, row, col):
@@ -1258,7 +1189,6 @@ class OWNormalize(OWWidget):
         if row >= 0 and col >= 0:
             pKey = str(self.tblControls.item(row, OWNormalize.tcPKey).text())
             self.probes.setCurveActive(pKey, True, refresh=True)
-##            self.probes.activate(pKey, True)
 
 
     def tblControlsSelectionChanged(self):
@@ -1274,7 +1204,6 @@ class OWNormalize(OWWidget):
             pKey = str(self.tblControls.item(row, OWNormalize.tcPKey).text())
             probe = self.probes[pKey]
             # update GUI: ratio lineEdit, probeSymbol, probeColor
-##            if probe.symbol <> QwtSymbol.None:
             self.probeSymbolIdx = probe.symbol
             self.ratioStr = probe.ratioExpr
             if probe.color <> ProbeSet.NoColor:
@@ -1297,10 +1226,10 @@ class OWNormalize(OWWidget):
         self.tblControls.setCurrentCell(-1,-1)
         numSelectionsOld = self.tblControls.numSelections()
         for idx in range(self.tblControls.numRows()):
-            if string.lower(self.controlName) in string.lower(self.tblControls.item(idx, OWNormalize.tcID).text()):
+            if string.lower(self.controlName) in string.lower(self.tblControls.item(idx, OWNormalize.tcVarA).text()):
                 sel = QTableSelection()
-                sel.init(idx,OWNormalize.tcID)
-                sel.expandTo(idx,OWNormalize.tcID)
+                sel.init(idx,OWNormalize.tcVarA)
+                sel.expandTo(idx,OWNormalize.tcVarA)
                 self.tblControls.addSelection(sel)
         if self.tblControls.numSelections() <> numSelectionsOld:
             self.activateSelectedProbes()
@@ -1316,7 +1245,7 @@ class OWNormalize(OWWidget):
         self.tblControls.clearSelection(False)
         sel = QTableSelection()
         sel.init(0,OWNormalize.tcMarker)
-        sel.expandTo(self.tblControls.numRows()-1,OWNormalize.tcName)
+        sel.expandTo(self.tblControls.numRows()-1,OWNormalize.tcVarB)
         self.tblControls.addSelection(sel)
         self.activateSelectedProbes()
         qApp.restoreOverrideCursor()
@@ -1340,7 +1269,6 @@ class OWNormalize(OWWidget):
         qApp.restoreOverrideCursor()
         qApp.setOverrideCursor(QWidget.waitCursor)
         self.updateSelectedProbes(self.ratioStr, self.probeColor, self.probeSymbolIdx, True, False, False)
-##        self.updateSelectedProbes(self.ratioStr, self.probeColor, self.probeSymbolIdx, True, True, True)
         self.setInfoProbes()
         self.setInfoFilterMaxCV()
         self.setInfoFilterMinRatio()
@@ -1356,28 +1284,10 @@ class OWNormalize(OWWidget):
         """
         if D1: print "OWNormalize.probeColorCick"
         probeColor = QColorDialog.getColor(self.probeColor, self)
-##        qApp.restoreOverrideCursor()
-##        qApp.setOverrideCursor(QWidget.waitCursor)
         if probeColor.isValid():
             self.probeColor = probeColor
         self.btnProbeColor.pixmap().fill(self.probeColor)
         self.btnProbeColor.repaint()
-##        self.updateSelectedProbes(self.ratioStr, self.probeColor, self.probeSymbolIdx, False, True, False)
-##        if self.commitOnChange:
-##            self.sendData()
-##            self.sendProbes()
-##        qApp.restoreOverrideCursor()
-
-
-##    def cmbProbeSymbolActivated(self):
-##        """Update symbol for the selected probes.
-##        """
-##        if D1: print "OWNormalize.cmbProbeSymbolActivated"
-##        self.updateSelectedProbes(self.ratioStr, self.probeColor, self.probeSymbolIdx, False, False, True)
-##        # update infos (if probe gets plotted)
-##        self.setInfoProbes()
-##        self.sendData()
-##        self.sendProbes()
 
         
     def btnSetProbesClick(self):
@@ -1463,11 +1373,6 @@ class OWNormalize(OWWidget):
     def setInfoProbes(self):
         if D4: print "OWNormalize.setInfoProbes"
         if self.probes:
-##            self.lblProbeInfo.setText("%d probes, %d plotted, %d controls." % (self.probes.getNumProbes(), self.probes.getNumProbesPlotted_nonFiltered(), self.probes.getNumProbesControls_nonFiltered()))
-##            self.lblProbeInfo.setText("In total:\t%d control and %d other probes.\nAccepted:\t%d control and %d other probes.\nPlotted:\t%d control and %d other probes." %
-##                                      (self.probes.getNumProbesControls(), self.probes.getNumProbesOthers(),
-##                                       self.probes.getNumProbesControls_nonFiltered(), self.probes.getNumProbesOthers_nonFiltered(),
-##                                       self.probes.getNumProbesControls_nonFiltered_plotted(), self.probes.getNumProbesOthers_nonFiltered_plotted()))
             self.lblProbeInfo.setText("Probes in total:\t%d control,\t%d other.\nAccepted:\t%d control,\t%d other.\nPlotted:\t\t%d control,\t%d other." %
                                       (self.probes.getNumProbesControls(), self.probes.getNumProbesOthers(),
                                        self.probes.getNumProbesControls_nonFiltered(), self.probes.getNumProbesOthers_nonFiltered(),
@@ -1523,19 +1428,6 @@ class OWNormalize(OWWidget):
                 self.probes.setCurveActiveList([], refresh=True)
 
 
-##    def onMousePressed(self, e):
-##        """If left button is pressed, the active control is made current in self.tblControls;
-##        first, OWGraph.onMousePressed(e) is executed (by default), followed by this code.
-##        """
-##        if D1: print "OWNormalize.onMousePressed"
-##        aProbes = self.probes.getActiveProbes()
-##        if e.button() == Qt.LeftButton and len(aProbes) > 0:
-##            # clear selections from tblControls (without fireing events)
-##            self.disconnect(self.tblControls , SIGNAL('selectionChanged()'), self.tblControlsSelectionChanged)
-##            self.tblControls.clearSelection(True)
-##            self.connect(self.tblControls , SIGNAL('selectionChanged()'), self.tblControlsSelectionChanged)
-##            # set current cell to the active probe (hopefully there is only one active)
-##            self.tblControls.setCurrentCell(aProbes[aProbes.keys()[0]].tblRowIdx, OWNormalize.tcID)
     def onMousePressed(self, e):
         """If left button is pressed, the active control is made current in self.tblControls;
         first, OWGraph.onMousePressed(e) is executed (by default), followed by this code.
@@ -1553,8 +1445,8 @@ class OWNormalize(OWWidget):
                     selectedRows.append(probe.tblRowIdx)
                     # select appropriate table cells
                     sel = QTableSelection()
-                    sel.init(probe.tblRowIdx,OWNormalize.tcID)
-                    sel.expandTo(probe.tblRowIdx,OWNormalize.tcID)
+                    sel.init(probe.tblRowIdx,OWNormalize.tcVarA)
+                    sel.expandTo(probe.tblRowIdx,OWNormalize.tcVarA)
                     self.tblControls.addSelection(sel)
             # set current cell
             selectedRows.sort()
@@ -1690,26 +1582,6 @@ class OWNormalize(OWWidget):
             self.lblInfoFilterMaxInt.setText("No data on input.\n")
 
 
-##    def setInfoFiltersAll(self):
-##        if D4: print "OWNormalize.setInfoFiltersAll"
-##        if self.probes:
-##            numC = self.probes.getNumProbesControls()
-##            numC_filtered = self.probes.getNumProbesControls_filtered()
-##            if numC > 0:
-##                ratioControls = 100. * numC_filtered / numC
-##            else:
-##                ratioControls = 0
-##            numO = self.probes.getNumProbesOthers()
-##            numO_filtered = self.probes.getNumProbesOthers_filtered()
-##            if self.probes.getNumProbesOthers() > 0:
-##                ratioOthers = 100. * numO_filtered / numO
-##            else:
-##                ratioOthers = 0
-##            self.lblInfoFiltersAll.setText("Total of %d control and %d other probes.\n%d (%.2f%s) control probes removed.\n%d (%.2f%s) other probes removed." % (numC, numO, numC_filtered, ratioControls, "%", numO_filtered, ratioOthers, "%"))
-##        else:
-##            self.lblInfoFiltersAll.setText("No data on input.\n\n")
-
-
     def settingsArrayTypeChange(self):
         """Handles changes of array type (0: genome array, 1: boutique array)
         """
@@ -1723,19 +1595,10 @@ class OWNormalize(OWWidget):
         if D1: print "OWNormalize.settingsNormalizationChange"
         qApp.restoreOverrideCursor()
         qApp.setOverrideCursor(QWidget.waitCursor)
-##        self.setNormalization()
         self.probes.setNormalizationParameters(self.normRange, self.minNumControlProbes, self.approxFunction, self.loessWindow, self.loessWeight)
         if self.commitOnChange:
             self.sendData()
         qApp.restoreOverrideCursor()
-
-
-##    def setNormalization(self):        
-##        if D1: print "OWNormalize.setNormalization"
-####        if self.varNameName == "<none>":
-####            self.normRange = 0
-##        self.boxNormRange.setEnabled(self.varNameName <> "<none>")
-##        self.probes.setNormalizationParameters(self.normRange, self.minNumControlProbes, self.approxFunction, self.loessWindow, self.loessWeight)
 
 
     def filtersAllChange(self):
@@ -1803,7 +1666,6 @@ class OWNormalize(OWWidget):
             chngN = True
         # refresh
         if chngN:
-##            self.setNormalization()
             self.probes.setNormalizationParameters(self.normRange, self.minNumControlProbes, self.approxFunction, self.loessWindow, self.loessWeight)
             if self.commitOnChange:
                 self.sendData()
@@ -1815,19 +1677,42 @@ class OWNormalize(OWWidget):
     ###################################################################################
 
 
-    def settingsReplicasChange(self):
-        """Handles changes of replicas settings, which affects output data.
+    def settingsOutputReplicasChange(self):
+        """Handles changes of replicas settings, which affect output data;
+        enables / disables some output options.
         """
-        if D1: print "OWNormalize.settingsReplicasChange"
+        if D1: print "OWNormalize.settingsOutputReplicasChange"
         qApp.restoreOverrideCursor()
         qApp.setOverrideCursor(QWidget.waitCursor)
         self.rbgMergeIntensitiesType.setEnabled(self.mergeLevel)
-        self.rbgMergeOtherType.setEnabled(self.mergeLevel)
+        self.boxMergeOtherType.setEnabled(self.mergeLevel and len(self.varsOtherSelected) > 0)
         if self.commitOnChange:
             self.sendData()
         qApp.restoreOverrideCursor()
 
 
+    def settingsOutputOtherChange(self):        
+        """Handles changes of output settings, which affect output data only if other variables are selected.
+        """
+        if D1: print "OWNormalize.settingsOutputChange"
+        if len(self.varsOtherSelected) > 0:
+            qApp.restoreOverrideCursor()
+            qApp.setOverrideCursor(QWidget.waitCursor)
+            if self.commitOnChange:
+                self.sendData()
+            qApp.restoreOverrideCursor()
+
+
+    def settingsOutputChange(self): 
+        """Handles changes of output settings; send out data.
+        """
+        if D1: print "OWNormalize.settingsOutputChange"
+        qApp.restoreOverrideCursor()
+        qApp.setOverrideCursor(QWidget.waitCursor)
+        if self.commitOnChange:
+            self.sendData()
+        qApp.restoreOverrideCursor()
+        
     def settingsGraphAxisChange(self, axis):
         """Handles changes of graph axis settings; replot axes and curves.
         """
@@ -1869,7 +1754,7 @@ class OWNormalize(OWWidget):
         else:
             self.disconnect(self.graph, signal1, self.onMouseMoved)
             self.disconnect(self.graph, signal2, self.onMousePressed)
-
+            
 
     def commitChange(self):
         self.btnCommit.setEnabled(not self.commitOnChange)
@@ -1888,20 +1773,6 @@ class OWNormalize(OWWidget):
         qApp.restoreOverrideCursor()
 
 
-    def settingsOutputChange(self):    
-        """Handles changes of output settings; send out data.
-        """
-        if D1: print "OWNormalize.settingsOutputChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
-        if self.commitOnChange:
-            self.sendData()
-##        # D1
-##        for probe in self.probes.values():
-##            pass
-        qApp.restoreOverrideCursor()
-
-
 
 class QwtPlotKeyCurve(QwtPlotCurve):
     """QwtPlotCurve with additional member variable: key.
@@ -1917,27 +1788,6 @@ class OWGraphMA(OWGraph):
     """OWGraph for MA plot with curves of type QwtPlotKeyCurve;
     additionally handles zooming and mouse clicks.
     """
-
-##    def __init__(self, parent = None, name = "None"):
-##        OWGraph.__init__(self, parent, name)
-##        self._normCurveKeys2Curves = {}
-##
-##
-##    def insertProbeCurve(self, title, key, A, M):
-##        curve = QwtPlotKeyCurve(self, title, key)
-##        curve.setAxis(QwtPlot.xBottom, QwtPlot.yLeft)
-##        curve.setStyle(QwtCurve.NoCurve)
-##        curve.setData(A, M)
-##        return OWGraph.insertCurve(self, curve)
-##
-##
-##    def insertNormCurve(self, title, key, A, M):
-##        curve = QwtPlotKeyCurve(self, title, key)
-##        curve.setAxis(QwtPlot.xBottom, QwtPlot.yLeft)
-##        curve.setStyle(QwtCurve.NoCurve)
-##        curve.setData(A, M)
-##        return OWGraph.insertCurve(self, curve)
-
 
     def insertCurve(self, title, key, xAxis=QwtPlot.xBottom, yAxis=QwtPlot.yLeft):
         curve = QwtPlotKeyCurve(self, title, key)
@@ -2057,20 +1907,19 @@ class ProbeSet:
     PenWidthInactiveCurve = 1
     PenWidths = {False:PenWidthInactiveCurve,
                  True: PenWidthActiveCurve}
-##    NoSymbol = 0
     NoColor = QColor(0,0,0)
     
-    def __init__(self, ID, name, pKey):
+    def __init__(self, valA, valB, pKey):
         if D1: print "ProbeSet.__init__"
-        self.ID = ID                # string
-        self.name = name            # string
+        self.valA = valA            # string
+        self.valAAlias = valA        # string that is shown in the probe table
+        self.valB = valB            # string
         self.pKey = pKey            # ID / ID+name
         # ratio
         self.ratioExpr = ""         # string from which ratio is evaluated
         # marker
         self.color = ProbeSet.NoColor           # QColor
         self.symbol = QwtSymbol.None         # int (QwtSymbol.Style)
-##        self._penColor = QColor(255,255,255)    # color of symbols from table
         # table, gaph
         self.tblRowIdx = None       # row index in OWNormalize.tblControls
         self.curve = None           # curve in OWNormalize.graph
@@ -2130,7 +1979,7 @@ class ProbeSet:
 
 
 class Probes(dict):
-    """Dictionary of ProbeSet items; key: pKey (probe ID + optionally probe name, item: ProbeSet
+    """Dictionary of ProbeSet items; key: pKey (probe varA + optionally probe varB, item: ProbeSet
     Technical issues:
         recalc: recalculate l2r-s
         refresh: self.graph.replot()
@@ -2147,7 +1996,7 @@ class Probes(dict):
     NormRangeCombined = 2
 
     # global normalization curve key
-    # local norm. curve names equal probe names
+    # local norm. curve names equal varB values
     NormCurveNameGlobal = "NormCurveNameGlobal"
 
     def __init__(self, graph, subtrBG, logAxisX, logAxisY, markerSize, normCurveStyle):
@@ -2161,11 +2010,11 @@ class Probes(dict):
         self.markerSize = markerSize
         self.normCurveStyle = normCurveStyle
         # var names
-        self.varNameID = None
-        self.varNameName = "<none>"
-        # IDs, names
-        self._IDList = []   # consecutive list of IDs (replicated)
-        self._nameList = [] # consecutive list of names (replicated)
+        self.varNameA = None
+        self.varNameB = "<none>"
+        # var A values, var A aliases, var B values
+        self._valAList = []         # consecutive list of varA values (replicated)
+        self._valBList = []         # consecutive list of varB values (replicated)
         # data: Numeric arrays
         self.__sigSmpl = MA.zeros((0,), MA.Float)
         self.__sigRef = MA.zeros((0,), MA.Float)
@@ -2190,23 +2039,26 @@ class Probes(dict):
         # normalization curves
         self._ncdd = NormCurveDataDict()
         # default parameters
-        self._normRange = None  # 0: NormRangeGlobal, 1: NormRangeLocal (per probe name); 2: NormRangeCombined
+        self._normRange = None  # 0: NormRangeGlobal, 1: NormRangeLocal (per var B values); 2: NormRangeCombined
         self._minNumControlProbes = 0
         self.maxCV = Probes.bigVal
         self.minIntensityRatio = 0
         self.maxIntensity = Probes.bigVal
         self.loessWindow = 60
         self.loessWeight = 0
-        # for normalization per probe name
-        self._name2ind = {}     # {name1:[indices1], name2:[indices2]}; key: probe name; value: list of data indices
-        self._name2probes = {}  # {name1:[probes1],  name2:[probes2]};  key: probe name; value: list of ProbeSets
-        self._ID2ind = {}       # {ID1:[indices1],   ID2:[indices2]};   key: probe ID; value: list of data indices
+        # for normalization per varB values
+        self._valB2ind = {}     # {valB1:[indices1], valB2:[indices2]}; key: probe valB; value: list of data indices
+        self._valB2probes = {}  # {valB1:[probes1],  valB2:[probes2]};  key: probe valB; value: list of ProbeSets
+        self._valA2ind = {}       # {valA1:[indices1], valA2:[indices2]}; key: probe valA; value: list of data indices
         # normalized log2 ratio
         self._Mnorm = MA.zeros((0,), MA.Float)
         # different levels of merging
-        self._mergeLevels = {OWNormalize.MergeLevelNone:self.__mergeReplicasNone,
-                             OWNormalize.MergeLevelPerProbeIDName:self.__mergeReplicasPerPKey,
-                             OWNormalize.MergeLevelPerProbeID:self.__mergeReplicasPerID}
+        self._mergeFunc = {OWNormalize.MergeLevelNone:self.__mergeReplicasNone,
+                           OWNormalize.MergeLevelPerVarsAB:self.__mergeReplicasPerVarsAB,
+                           OWNormalize.MergeLevelPerVarA:self.__mergeReplicasPerVarA}
+        self._concatFunc = {OWNormalize.MergeLevelNone:self.__concatReplicasNone,
+                            OWNormalize.MergeLevelPerVarsAB:self.__concatReplicasPerVarsAB,
+                            OWNormalize.MergeLevelPerVarA:self.__concatReplicasPerVarA}
         # dictionary of marker pixmaps
         self.__markerPixmapDict = {}    # key: ProbeSet.getMarkerSortKey(), item: pixmap
 
@@ -2217,8 +2069,8 @@ class Probes(dict):
         self._removeAllProbeCurves(refresh)
         dict.clear(self)
         self._active = {}
-        self._IDList = []
-        self._nameList = []
+        self._valAList = []
+        self._valBList = []
         self.__sigSmpl = MA.zeros((0,), MA.Float)
         self.__sigRef = MA.zeros((0,), MA.Float)
         self.__bgSmpl = MA.zeros((0,), MA.Float)
@@ -2233,10 +2085,10 @@ class Probes(dict):
         self.__filterMaxInt = None
         self._control = Numeric.zeros((0,), Numeric.Int)
         self.__plotted = Numeric.zeros((0,), Numeric.Int)
-        # for normalization per probe name
-        self._name2ind = {}
-        self._name2probes = {}
-        self._ID2ind = {}
+        # for normalization per varB values
+        self._valB2ind = {}
+        self._valB2probes = {}
+        self._valA2ind = {}
         # normalized log2 ratio
         self._Mnorm = MA.zeros((0,), MA.Float)
         # dictionary of marker pixmaps
@@ -2257,8 +2109,7 @@ class Probes(dict):
 
 
     def setNormalizationParameters(self, normRange, minNumControlProbes, approxFunction, loessWindow, loessWeight):
-        """ normRange: 0: global, 1: per probe name, 2: combined
-            approxFunction: 0: median, 1: LR, 2: LOESS
+        """approxFunction: 0: median, 1: LR, 2: LOESS
         """
         if D1 or D2 or D6: print "Probes.setNormalizationParameters"
         change = False
@@ -2297,57 +2148,57 @@ class Probes(dict):
             self.updateReplotNormCurves(refresh)
 
 
-    def initProbes(self, data, varNameID, varNameName, varNameSignalSmpl, varNameSignalRef, varNameBGSmpl, varNameBGRef, varNameBGSmplSD, varNameBGRefSD, callback):
+    def initProbes(self, data, varNameA, varNameB, varNameSignalSmpl, varNameSignalRef, varNameBGSmpl, varNameBGRef, varNameBGSmplSD, varNameBGRefSD, callback):
         """Input: orange.ExampleTable, orange.Variable.names;
-        stores self.varNameID and self.varNameName.
+        stores self.varNameA and self.varNameB.
         """
         if D1 or D2 or D6: print "Probes.initProbes"
         self.clear(refresh=True)
-        self.varNameID = varNameID
-        self.varNameName = varNameName
+        self.varNameA = varNameA
+        self.varNameB = varNameB
         self._control = Numeric.zeros((len(data),), Numeric.Int)
         self.__plotted = Numeric.zeros((len(data),), Numeric.Int)
+        self.__ratio = Numeric.ones((len(data),), Numeric.Float)
         # update data and probe data indices
         self.updateProbeData(data, varNameSignalSmpl, varNameSignalRef, varNameBGSmpl, varNameBGRef, varNameBGSmplSD, varNameBGRefSD, recalc=False)
-        # set varNamePKey and add varNameName (if necessary)
+        # set varPKey and add varNameB (if necessary)
         domainNew = orange.Domain(data.domain)
-        if self.varNameName <> "<none>":
-            # add varPKey with values from varNameID + varNameName
-            varPKey = orange.StringVariable(self.varNameID + self.varNameName)
-            varPKey.getValueFrom = lambda example, returnWhat: orange.Value(varPKey, str(example[self.varNameID].native()) + str(example[self.varNameName].native()))
-            domainNew.addmeta(orange.newmetaid(), varPKey)
-            varNamePKey = varPKey.name
+        # add var 'pKey(varNameAvarNameB)' with string values from varNameA (+ varNameB)
+        varPKey = orange.StringVariable("pKey(" + self.varNameA + self.varNameB + ")")
+        domainNew.addmeta(orange.newmetaid(), varPKey)
+        if self.varNameB <> "<none>":
+            varPKey.getValueFrom = lambda example, returnWhat: orange.Value(varPKey, str(example[self.varNameA].native()) + str(example[self.varNameB].native()))
         else:
-            # add varNameName with unknown values
+            varPKey.getValueFrom = lambda example, returnWhat: orange.Value(varPKey, str(example[self.varNameA].native()))
+            # add varNameB with unknown values
             domainNew.addmeta(orange.newmetaid(), orange.StringVariable("<none>"))
-            varNamePKey = self.varNameID
         data = orange.ExampleTable(domainNew, data)
-        # create / update ProbeSets, update self._IDList, self._nameList, self._name2ind, self._name2probes, self._ID2ind
+        # create / update ProbeSets, update self._valAList, self._valBList, self._valB2ind, self._valB2probes, self._valA2ind
         for eIdx, e in enumerate(data):
-            pKey = e[varNamePKey].native()
-            ID = e[varNameID].native()
-            name = e[varNameName].native()
-            # update self._IDList, self._nameList
-            self._IDList.append(ID)
-            self._nameList.append(name)
+            pKey = e[varPKey].native()
+            valA = e[varNameA].native()
+            valB = e[varNameB].native()
+            # update self._valAList, self._valBList
+            self._valAList.append(valA)
+            self._valBList.append(valB)
             # add/update ProbeSet
             if dict.has_key(self, pKey):
                 ps = dict.get(self, pKey)
             else:
-                ps = ProbeSet(ID, name, pKey)
+                ps = ProbeSet(valA, valB, pKey)
                 dict.__setitem__(self, pKey, ps)
             ps.addProbeIdx(eIdx)
-            # store probes/data indices for normalization per probe name
-            if self._name2ind.has_key(name):
-                self._name2ind[name].append(eIdx)
-                self._name2probes[name].append(ps)
+            # store probes/data indices for normalization per valB values
+            if self._valB2ind.has_key(valB):
+                self._valB2ind[valB].append(eIdx)
+                self._valB2probes[valB].append(ps)
             else:
-                self._name2ind[name] = [eIdx]
-                self._name2probes[name] = [ps]
-            if self._ID2ind.has_key(ID):
-                self._ID2ind[ID].append(eIdx)
+                self._valB2ind[valB] = [eIdx]
+                self._valB2probes[valB] = [ps]
+            if self._valA2ind.has_key(valA):
+                self._valA2ind[valA].append(eIdx)
             else:
-                self._ID2ind[ID] = [eIdx]
+                self._valA2ind[valA] = [eIdx]
             # progressbar callback
             callback()
         self.replotProbeCurves(False)
@@ -2359,12 +2210,20 @@ class Probes(dict):
         """
         if D1 or D2 or D6: print "Probes.updateProbeData"
         if data:
+            # keep only the variables that you need
+            domVarList = [data.domain[varNameSignalSmpl], data.domain[varNameSignalRef], data.domain[varNameBGSmpl], data.domain[varNameBGRef]]
+            if varNameBGSmplSD <> "<none>":
+                domVarList.append(data.domain[varNameBGSmplSD])
+            if varNameBGRefSD <> "<none>":
+                domVarList.append(data.domain[varNameBGRefSD])
+            dom = orange.Domain(domVarList, None)
+            data = orange.ExampleTable(dom, data)
+            # convert to MA
             dataMA = data.toMA("a")[0]
             self.__sigSmpl = dataMA[:,data.domain.index(varNameSignalSmpl)]
             self.__sigRef = dataMA[:,data.domain.index(varNameSignalRef)]
             self.__bgSmpl = dataMA[:,data.domain.index(varNameBGSmpl)]
             self.__bgRef = dataMA[:,data.domain.index(varNameBGRef)]
-            self.__ratio = Numeric.ones((len(data),), Numeric.Float)
             if varNameBGSmplSD <> "<none>":
                 self.__bgSmplSD = dataMA[:,data.domain.index(varNameBGSmplSD)]
             else:
@@ -2392,23 +2251,23 @@ class Probes(dict):
 
 
 
-    def getKeysFromIDsNames(self, IDSub, nameSub):
-        """Return a list of probe keys which contain a given part of ID and name (optionally);
+    def getKeysFromValAValB(self, valASub, valBSub):
+        """Return a list of probe keys which contain a given part of valA and valB (optionally);
         """
-        if D1: print "Probes.getKeysFromIDsNames"
-        probesIdName = {}   # probes where both ID and name matches
-        probesId = {}       # probes where only ID matches
-        IDSub = str(IDSub)
-        nameSub = str(nameSub)
+        if D1: print "Probes.getKeysFromValAValB"
+        probesValAValB = {}   # probes where both valA and valB matches
+        probesValA = {}       # probes where only valA matches
+        valASub = str(valASub)
+        valBSub = str(valBSub)
         for pKey, probe in self.items():
-            if IDSub and (IDSub in str(probe.ID)):
-                probesId[pKey] = probe
-                if nameSub and (nameSub in str(probe.name)):
-                    probesIdName[pKey] = probe
-        if len(probesIdName) > 0:
-            return probesIdName.keys()
+            if valASub and (valASub in str(probe.valA)):
+                probesValA[pKey] = probe
+                if valBSub and (valBSub in str(probe.valB)):
+                    probesValAValB[pKey] = probe
+        if len(probesValAValB) > 0:
+            return probesValAValB.keys()
         else:
-            return probesId.keys()
+            return probesValA.keys()
 
 
     ############################################
@@ -2421,7 +2280,7 @@ class Probes(dict):
             1: number of non-filtered probes
         """
         na = Numeric.transpose(Numeric.asarray([Numeric.ones(self.getFilter().shape), Numeric.logical_not(self.getFilter())]))
-        return self._mergeLevels[mergeLevel](na, Numeric.add.reduce, callback)
+        return self._mergeFunc[mergeLevel](na, Numeric.add.reduce, callback)
 
     def getNumFilteredControlsMaxCV(self):
         if type(self.__filterMaxCV) == types.NoneType:
@@ -2510,7 +2369,7 @@ class Probes(dict):
     ############################################
 
     def setMarker(self, probe, symbol, color, refresh=True):
-        """Set symbol or color to None to remove probe set from the graph.
+        """Set symbol or color to None to remove probe set from the graph;
         """
         if D1 or D2 or D3: print "Probes.setMarker"
         probe.symbol = symbol
@@ -2520,7 +2379,7 @@ class Probes(dict):
 
     def setRatio(self, probe, ratioExpr, recalc, refresh=True):
         """Sets self.__ratio, self._control and dict[pKey].ratioExpr;
-        ratioExpr should be None in order not to use probe set as control.
+        ratioExpr should be None in order not to use probeSet as a control.
         """
         if D1 or D2 or D3: print "Probes.setRatio"
         try:
@@ -2597,7 +2456,7 @@ class Probes(dict):
             self._removeProbeCurve(probe, False)
             change = True
         if probe.symbol <> QwtSymbol.None:
-            probe.curve = self.graph.insertCurve(probe.ID, probe.pKey)
+            probe.curve = self.graph.insertCurve(probe.valA, probe.pKey)
             Numeric.put(self.__plotted, probe.getDataIndices(), 1)
             M,A = self.getMA(probe.pKey)
             self.graph.setCurveData(probe.curve, A, M)
@@ -2645,14 +2504,14 @@ class Probes(dict):
             if self._normRange == Probes.NormRangeGlobal:
                 self._ncdd.add(Probes.NormCurveNameGlobal, range(len(self.__sigSmpl)), range(len(self.__sigSmpl)), self.values())
             elif self._normRange == Probes.NormRangeLocal:
-                for name, ind in self._name2ind.items():
-                    self._ncdd.add(name, ind, ind, self._name2probes[name])
+                for valB, ind in self._valB2ind.items():
+                    self._ncdd.add(valB, ind, ind, self._valB2probes[valB])
             elif self._normRange == Probes.NormRangeCombined:
-                for name, ind in self._name2ind.items():
+                for valB, ind in self._valB2ind.items():
                     if self.getNumProbesControls_nonFiltered_indexed(ind) < self._minNumControlProbes:
-                        self._ncdd.add(Probes.NormCurveNameGlobal, range(len(self.__sigSmpl)), ind, self._name2probes[name])
+                        self._ncdd.add(Probes.NormCurveNameGlobal, range(len(self.__sigSmpl)), ind, self._valB2probes[valB])
                     else:
-                        self._ncdd.add(name, ind, ind, self._name2probes[name])
+                        self._ncdd.add(valB, ind, ind, self._valB2probes[valB])
             else:
                 raise ValueError, "Unknown Probes._normRange: %s" % str(self._normRange)
             # cycle all norm curve data, normalize and plot norm. curves
@@ -2660,12 +2519,7 @@ class Probes(dict):
                 Ac, Mc, An_masked, Mn_masked = self._getNormData_AcMc_AM_masked(ncData.computInd)
                 # condition for plotting ticks
                 condTicks = NumExtn.indices2condition(ncData.normInd, An_masked.shape[0])
-##                print "Ac", Ac
-##                print "Mc", Mc
-##                print An_masked
-##                print Mn_masked
                 if len(Ac) <= 0:
-##                    print "break curveName:", ncKey
                     continue
                 minAc = min(Ac)
                 maxAc = max(Ac)
@@ -2675,13 +2529,11 @@ class Probes(dict):
                 condList =  [MA.logical_and(MA.logical_and(MA.greater_equal(An_masked, minAc), MA.less_equal(An_masked, maxAc)), notMask_AnMn),
                              MA.logical_and(MA.less_equal(An_masked, minAc), notMask_AnMn),
                              MA.logical_and(MA.greater_equal(An_masked, maxAc), notMask_AnMn)]
-##                print "curveName:", ncKey, len(ncData.computInd), len(ncData.normInd), minAc, maxAc, len(Ac), MA.add.reduce(MA.asarray(notMask_AnMn, MA.Float))
                 # add curveLists to self._ncdd items
                 for condIdx, cond in enumerate(condList):
                     if MA.add.reduce(MA.asarray(cond, MA.Float)) > 1:
                         # plot normalization curve
                         normCurve = self.graph.insertCurve("Norm. curve %i: %s" % (condIdx, str(ncKey)), ncKey)
-##                        print "Norm. curve %i: %s" % (condIdx, str(ncKey))
                         ncData.curveList.append(normCurve)
                         Aplot = Numeric.asarray(MA.compress(cond, An_masked))
                         Aargsort = Numeric.argsort(Aplot)
@@ -2690,9 +2542,6 @@ class Probes(dict):
                         pen = QPen(condColors[condIdx],ProbeSet.PenWidthInactiveCurve)
                         self.graph.setCurvePen(normCurve, pen)
                         self.graph.setCurveStyle(normCurve, self.normCurveStyle)
-##                        # add markers: 5x5 circles
-##                        qSymbol = QwtSymbol(1, QBrush(QColor(255,255,255), QBrush.SolidPattern), pen, QSize(5,5))
-##                        self.graph.setCurveSymbol(normCurve, qSymbol)
 
                         # plot a normalization curve consisting only of ticks corresponding to the "right" probes
                         normCurveTicks = self.graph.insertCurve("Norm. curve ticks %i: %s" % (condIdx, str(ncKey)), ncKey)
@@ -2786,7 +2635,6 @@ class Probes(dict):
             # activate probe
             self._setProbeCurveActive(self[curveKey], active, refresh)
         else:
-##            raise ValueError, "Unknown curveKey: %s, known %s" % (str(curveKey), str(self._ncdd.keys()))
             # do not raise error, this can occur on mouseOver when self._ncdd is being updated
             print "Warning: unknown curveKey: %s, known %s" % (str(curveKey), str(self._ncdd.keys()))
 
@@ -2840,11 +2688,7 @@ class Probes(dict):
             # maxCV: bgSD / sig <= self.maxCV
             if self.__bgSmplSD <> None and self.__bgRefSD <> None:
                 self.__filterMaxCV = MA.asarray(self.__bgSmplSD / self.__sigSmpl).filled(Probes.midVal) > self.maxCV
-##                print Numeric.add.reduce(Numeric.take(Numeric.logical_not(self.__filter), self.get("ST_sbspotting_solution").getDataIndices())),
-##                print MA.add.reduce(MA.take(MA.logical_not(self.__bgSmplSD / self.__sigSmpl), self.get("ST_sbspotting_solution").getDataIndices()))
                 self.__filterMaxCV += MA.asarray(self.__bgRefSD / self.__sigRef).filled(Probes.midVal) > self.maxCV
-##                print Numeric.add.reduce(Numeric.take(Numeric.logical_not(self.__filter), self.get("ST_sbspotting_solution").getDataIndices())),
-##                print MA.add.reduce(MA.take(MA.logical_not(self.__bgRefSD / self.__sigRef), self.get("ST_sbspotting_solution").getDataIndices()))
                 # convert to 0/1
                 self.__filterMaxCV = self.__filterMaxCV > 0
             else:
@@ -2856,8 +2700,6 @@ class Probes(dict):
             # minIntRatio: sig / bg >= self.max
             self.__filterMinRatio = MA.asarray(self.__sigSmpl < self.minIntensityRatio * self.__bgSmpl).filled(1)
             self.__filterMinRatio += MA.asarray(self.__sigRef < self.minIntensityRatio * self.__bgRef).filled(1)
-##            print Numeric.add.reduce(Numeric.take(Numeric.logical_not(self.__filter), self.get("ST_sbspotting_solution").getDataIndices()))
-##            print MA.add.reduce(MA.take(MA.logical_not(self.__bgRefSD / self.__sigRef), self.get("ST_sbspotting_solution").getDataIndices()))
             # convert to 0/1
             self.__filterMinRatio = self.__filterMinRatio > 0
 
@@ -2866,12 +2708,9 @@ class Probes(dict):
         if self.__sigSmpl:
             # maxIntensity: sig <= maxIntensity
             self.__filterMaxInt = MA.asarray(self.__sigSmpl > self.maxIntensity).filled(1)
-##            print Numeric.add.reduce(Numeric.take(Numeric.logical_not(self.__filter), self.get("ST_sbspotting_solution").getDataIndices()))
             self.__filterMaxInt += MA.asarray(self.__sigRef > self.maxIntensity).filled(1)
-##            print Numeric.add.reduce(Numeric.take(Numeric.logical_not(self.__filter), self.get("ST_sbspotting_solution").getDataIndices()))
             # convert to 0/1
             self.__filterMaxInt = self.__filterMaxInt > 0
-##            print Numeric.add.reduce(Numeric.take(Numeric.logical_not(self.__filter), self.get("ST_sbspotting_solution").getDataIndices()))
 
 
     ############################################
@@ -3013,14 +2852,17 @@ class Probes(dict):
         # curve represents a probeSet, curveKey corresponds to probe.pKey
         if self.has_key(curveKey):
             probe = self.get(curveKey)
-            out = str(probe.ID) + ", " + str(probe.name) + "\nSmpl (signal - bg = net) / Ref (signal - bg = net)\n"
+            out = "%s (%s)" % (str(probe.valA), str(probe.valAAlias))
+            if self.varNameB <> "<none>":
+                out += ", " + str(probe.valB)
+            out += "\nSmpl (signal - bg = net) / Ref (signal - bg = net)\n"
             for ss,sr,bs,br in zip(self.sigSmpl(curveKey), self.sigRef(curveKey), self.bgSmpl(curveKey), self.bgRef(curveKey)):
                 out += "%5.f - %5.f = %5.f  /  %5.f - %5.f = %5.f\n" % (ss,bs,ss-bs, sr,br,sr-br)
         # curve represents one of the normalization curves, curveKey corresponds to curve.key
         elif self._ncdd.has_key(curveKey):
             indices = self._ncdd[curveKey].normInd
             out = "%s: %s\nProbes in total:\t%d control,\t%d other.\nAccepted:\t%d control,\t%d other.\nNormalized:\t%d control,\t%d other." % \
-                  (self.varNameName, curveKey,
+                  (self.varNameB, curveKey,
                    self.getNumProbesControls_indexed(self._ncdd[curveKey].computInd), self.getNumProbesOthers_indexed(self._ncdd[curveKey].computInd),
                    self.getNumProbesControls_nonFiltered_indexed(self._ncdd[curveKey].computInd), self.getNumProbesOthers_nonFiltered_indexed(self._ncdd[curveKey].computInd),
                    self.getNumProbesControls_nonFiltered_indexed(self._ncdd[curveKey].normInd), self.getNumProbesOthers_nonFiltered_indexed(self._ncdd[curveKey].normInd))
@@ -3046,32 +2888,19 @@ class Probes(dict):
         if  D6: print "Probes._getNormData_AcMc_AM_masked"
         condName = NumExtn.indices2condition(nameInd, self.__sigSmpl.shape[0])
         condControlName = Numeric.logical_and(self._control, condName)
-##        print "condName", MA.add.reduce(MA.asarray(condName, MA.Float)), "condControlName", MA.add.reduce(MA.asarray(condControlName, MA.Float))
         Mc,Ac = self._getMA(condControlName)
         # if A not given, then it should equal to all probes which correspond to name
-##        print "name: ", name
-##        print "Mc: ", Mc
-##        print "Ac: ", Ac
         A = self._getA_masked(condName)
-##        print "A", A
         M = MA.zeros(A.shape, MA.Float) * MA.masked
-############        if Mc.shape[0] >= self._minNumControlProbes:
         # proceed if we have at least one control probe (we account for _minNumControlProbes in _getNormCurveName2Ind())
         if Mc.shape[0] >= 1:
             Mcompressed = self._approxFunction(A.compressed(), Mc, Ac)
             if Mcompressed:
                 MA.put(M, NumExtn.condition2indices(Numeric.logical_not(MA.getmaskarray(A))), Mcompressed)
-##            print "Acompressed", A.compressed().shape[0], A.compressed()
-##            print "Mcompressed", Mcompressed.shape[0], Mcompressed
-##            M = MA.where(MA.getmaskarray(A), M, Mcompressed)
-##            print "M", M
-##        print "M: ", M
         return  Ac, Mc, A, M
 
 
     def _getNormCurveLoess(self, A, Mc, Ac):
-##        return Numeric.asarray(statc.loess(zip(Ac, Mc), Numeric.asarray(A).tolist(), self.loessWindow/100.))[:,1]
-##        lowess.fit(x=X, y=Y, F=F, NSTEPS=NSTEPS, DELTA=DELTA)
         return NumExtn.lowess2(Ac, Mc, A, f=self.loessWindow/100.)
 
 
@@ -3095,17 +2924,22 @@ class Probes(dict):
         return Numeric.resize(NumExtn.median(Mc), A.shape)
         
 
-    ############################################
-    # MERGE REPLICAS
-    ############################################
+    #################################################
+    # MERGE REPLICAS, CONCATENATE LISTS OF STRINGS
+    #################################################
 
     def __mergeReplicasNone(self, ma, mergeFunction, callback):
         callback(100)
         return ma
 
+    def __concatReplicasNone(self, lst, removeDupl):
+        return lst
 
-    def __mergeReplicasPerPKey(self, ma, mergeFunction, callback):
-        """merge by pKey"""
+
+    def __mergeReplicasPerVarsAB(self, ma, mergeFunction, callback):
+        """merge by pKey (varA and varB)
+        """
+        if D1: print "Probes.__mergeReplicasPerVarsAB"
         shp = list(ma.shape)
         shp[0] = len(self.values())
         maMerged = MA.zeros(shp, ma.typecode())
@@ -3115,48 +2949,60 @@ class Probes(dict):
             callback(pbStep)
         return maMerged
 
+    def __concatReplicasPerVarsAB(self, lst, removeDupl):
+        """concatenate list of strings by pKey (var A and var B)
+        """
+        if D1: print "Probes.__concatReplicasPerVarsAB"
+        lstMerged = [""]*len(self.values())
+        for idx, probe in enumerate(self.values()):
+            # remove duplicates, sort, merge as CSV
+            subLst = Numeric.take(Numeric.asarray(lst, Numeric.PyObject), probe.getDataIndices()).tolist()
+            if removeDupl:
+                subLst = dict(zip(subLst,subLst)).keys()
+            subLst.sort()
+            lstMerged[idx] = reduce(lambda a,b: "%s, %s" % (a,b), subLst, "")[2:]
+        return lstMerged
 
-    def __mergeReplicasPerID(self, ma, mergeFunction, callback):
-        """merge by ID"""
+
+    def __mergeReplicasPerVarA(self, ma, mergeFunction, callback):
+        """merge by var A
+        """
+        if D1: print "Probes.__mergeReplicasPerVarA"
         shp = list(ma.shape)
-        shp[0] = len(self._ID2ind)
+        shp[0] = len(self._valA2ind)
         maMerged = MA.zeros(shp, ma.typecode())
-##        print "self._ID2ind.items()", self._ID2ind.items()
-##        print "ma.shape", ma.shape, "self.__sigSmpl.shape", self.__sigSmpl.shape
-        pbStep = 100./len(self._ID2ind)
-        for idx, dataInd in enumerate(self._ID2ind.values()):
+        pbStep = 100./len(self._valA2ind)
+        for idx, dataInd in enumerate(self._valA2ind.values()):
             maMerged[idx] = mergeFunction(MA.take(ma, dataInd))
             callback(pbStep)
         return maMerged
+
+    def __concatReplicasPerVarA(self, lst, removeDupl):
+        """concatenate list of strings by var A
+        """
+        if D1: print "Probes.__concatReplicasPerVarA"
+        lstMerged = [""]*len(self._valA2ind)
+        for idx, dataInd in enumerate(self._valA2ind.values()):
+            # remove duplicates, sort, merge as CSV
+            subLst = Numeric.take(Numeric.asarray(lst, Numeric.PyObject), dataInd).tolist()
+            if removeDupl:
+                subLst = dict(zip(subLst,subLst)).keys()
+            subLst.sort()
+            lstMerged[idx] = reduce(lambda a,b: "%s, %s" % (a,b), subLst, "")[2:]
+        return lstMerged
 
 
     ############################################
     # NORMALIZED DATA for output
     ############################################
 
-##    def getNormalizedLog2Ratio_masked(self, mergeLevel, mergeType, callback):
-##        """Returns masked array of log2ratio of individual probes;
-##        accounts for filters, but NOT for ratios;
-##        mergeType: 0:None, 1:mean, 2:median
-##        """
-##        # merge l2rGlobal & l2rLocal
-##        if self.varNameName == "<none>" or self._normRange == Probes.NormRangeGlobal:
-##            l2r = self._l2rGlobal
-##        elif self._normRange == Probes.NormRangeLocal:
-##            l2r = self._l2rLocal
-##        elif self._normRange == Probes.NormRangeCombined:
-##            # global where there are to few probes for local
-##            print "TODO: test if combined works"
-##            l2r = MA.where(MA.getmaskarray(self._l2rLocal), self._l2rGlobal, self._l2rLocal)
-##        # merge and return
-##        return self._mergeLevels[mergeLevel](l2r, Probes.mergeTypes[mergeType], callback)
     def getNormalizedLog2Ratio_masked(self, mergeLevel, mergeType, callback):
         """Returns masked array of log2ratio of individual probes;
         accounts for filters, but NOT for ratios;
         mergeType: 0:None, 1:mean, 2:median
         """
         if D6: print "Probes.getNormalizedLog2Ratio_masked"
-        return self._mergeLevels[mergeLevel](self._Mnorm, Probes.mergeTypes[mergeType], callback)
+        return self._mergeFunc[mergeLevel](self._Mnorm, Probes.mergeTypes[mergeType], callback)
     
 
 
@@ -3164,12 +3010,11 @@ class Probes(dict):
         """For output, return MA array (#probes, 2) where columns correspond to sample & reference signals.
         """
         if D6: print "Probes.getNetIntensity_smpl_ref"
-##        netS, netR = self._getNet_masked(1)
         netS = self._netSmpl_masked(1)
         netR = self._netRef_masked(1)
         iSR = MA.concatenate([MA.reshape(netS, (netS.shape[0], 1)), MA.reshape(netR, (netR.shape[0], 1))], 1)
         # merge and return
-        return self._mergeLevels[mergeLevel](iSR, Probes.mergeTypes[mergeType], callback)
+        return self._mergeFunc[mergeLevel](iSR, Probes.mergeTypes[mergeType], callback)
     
 
     def getRawLog2Ratio_masked(self, mergeLevel, mergeType, callback):
@@ -3178,7 +3023,7 @@ class Probes(dict):
         if D6: print "Probes.getRawLog2Ratio_masked"
         l2r = MA.log(self._netSmpl_masked(1) / self._netRef_masked(1)) / math.log(2)
         # merge and return
-        return self._mergeLevels[mergeLevel](l2r, Probes.mergeTypes[mergeType], callback)
+        return self._mergeFunc[mergeLevel](l2r, Probes.mergeTypes[mergeType], callback)
 
 
     def getA_masked(self, mergeLevel, mergeType, callback):
@@ -3187,31 +3032,41 @@ class Probes(dict):
         if D6: print "Probes.getA_masked"
         A = MA.log(MA.sqrt(self._netSmpl_masked(1)*self._netRef_masked(1))) / math.log(2)
         # merge and return
-        return self._mergeLevels[mergeLevel](A, Probes.mergeTypes[mergeType], callback)
+        return self._mergeFunc[mergeLevel](A, Probes.mergeTypes[mergeType], callback)
 
 
     ############################################
-    # IDs, NAMEs
+    # valsA, valsB
     ############################################
 
-    def getIDs(self, mergeLevel):
+    def getValsA(self, mergeLevel):
+        if D1: print "Probes.getValsA"
         if mergeLevel == OWNormalize.MergeLevelNone:
-            return self._IDList
-        elif mergeLevel == OWNormalize.MergeLevelPerProbeIDName:
-            return map(lambda x: x.ID, self.values())
-        elif mergeLevel == OWNormalize.MergeLevelPerProbeID:
-            return self._ID2ind.keys()
+            return self._valAList
+        elif mergeLevel == OWNormalize.MergeLevelPerVarsAB:
+            return map(lambda x: x.valA, self.values())
+        elif mergeLevel == OWNormalize.MergeLevelPerVarA:
+            return self._valA2ind.keys()
         else:
             raise AttributeError, "unknown merge level: %s" % str(mergeLevel)
 
 
-    def getNames(self, mergeLevel):
+    def getValsAAlias(self, mergeLevel):
+        if D1: print "Probes.getValsAAlias"
+        aliasList = list(self._valAList)
+        for pr in self.values():
+            for idx in pr.getDataIndices():
+                aliasList[idx] = pr.valAAlias
+        return self._concatFunc[mergeLevel](aliasList, removeDupl=True)
+
+
+    def getValsB(self, mergeLevel):
         if mergeLevel == OWNormalize.MergeLevelNone:
-            return self._nameList
-        elif mergeLevel == OWNormalize.MergeLevelPerProbeIDName:
-            return map(lambda x: x.name, self.values())
-        elif mergeLevel ==OWNormalize.MergeLevelPerProbeID:
-            raise ValueError, "cannot return probe names if mergeLevel == %i" % OWNormalize.MergeLevelPerProbeID
+            return self._valBList
+        elif mergeLevel == OWNormalize.MergeLevelPerVarsAB:
+            return map(lambda x: x.valB, self.values())
+        elif mergeLevel ==OWNormalize.MergeLevelPerVarA:
+            raise ValueError, "cannot return probe vals B if mergeLevel == %i" % OWNormalize.MergeLevelPerVarA
         else:
             raise AttributeError, "unknown merge level: %s" % str(mergeLevel)
 
@@ -3254,10 +3109,10 @@ if __name__=="__main__":
 ##        ow.approxFunction = 0
 
         # DATA 1: horizontal line in the middle of the slide
-        ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\PB, cholesterol\Tadeja 2nd image analysis\10vs10mg original data\0449yPos.txt", DC="<NO DATA>"))
-####        ow.varNameName = "yPos"
-####        ow.varIDChange()
-        ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\sterolgene v.0 mouse probeRatios.tab"))
+##        ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\PB, cholesterol\Tadeja 2nd image analysis\10vs10mg original data\0449yPos.txt", DC="<NO DATA>"))
+####        ow.varNameB = "yPos"
+####        ow.varABChange()
+##        ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\Sterolgene v0 mouse probeRatios (ID v0).tab"))
 
 ##        # DATA 2: extremely low signal (only few genes pass the filters)
 ##        ow.onDataInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\PB, cholesterol\Tadeja drago\05vs10mg\chol.diet\2537.txt"))
@@ -3288,15 +3143,19 @@ if __name__=="__main__":
 ##        ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 human\Sterolgene v1 ControlGeneRatios 2.tab"))
 
 ##        # DATA 9: Jana, 28.6.2006
-##        ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\Jana\13229069 top.txt"))
-##        ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\Sterolgene v.1 mouse probes (name).tab"))
+##        ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\Jana\2006-07-11 data\PMEA\13221205bottom.txt"))
+##        ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\Sterolgene v1 mouse probeRatios (ID).tab"))
+
+        # DATA 10: Viola, 2006-07-27
+        ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\2006-07-26 Viola Tamasi\data\CAR-KO\\13221239-PB1-CARko_cy3-45-cy-5-55.tab", DK="Error"))
+        ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\Sterolgene v1 mouse probeRatios (ID) noLUC.tab"))
 
         # OWDataTable
         dt = OWDataTable.OWDataTable(signalManager = signalManager)
         signalManager.addWidget(ow)
         signalManager.addWidget(dt)
         signalManager.setFreeze(1)
-        signalManager.addLink(ow, dt, "Probe Data", "Examples", 1)
+##        signalManager.addLink(ow, dt, "Probe Data", "Examples", 1)
         signalManager.addLink(ow, dt, "Expression Data", "Examples", 1)
         signalManager.setFreeze(0)
         dt.show()
