@@ -2,7 +2,7 @@
 <name>Data Files Selector</name>
 <description>Selects a subset of data files.</description>
 <category>Genomics</category>
-<icon>icons/ChipDataFiles.png</icon>
+<icon>icons/DataFilesSelector.png</icon>
 <priority>1060</priority>
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
