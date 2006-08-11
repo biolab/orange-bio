@@ -1,5 +1,5 @@
 ## problem je v tem, da moras steti gen veckrat, za vsak tip Evidence enkrat
-import cPickle, math
+import cPickle, math, sys
 
 ### misc
 # need to replace with a "standard" function
@@ -328,7 +328,7 @@ def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None,
         ## so we don't have to do it next time, the clusterGenes set changes, because it takes a lot of time anyway
         refSetUniq = []
         for g in referenceSet:
-            if g not in refSetUniq: refSetUniq.append( g)    
+            if g not in refSetUniq: refSetUniq.append( g)
             
         refGenesGOIDdirect, refGenesGOIDindirect, refGenesGOID = populateGO(refSetUniq, annotation, GO, clusterGenesGOID.keys(), progressBar, progressStart + progressPart / 5.0, 4.0 * progressPart / 5.0)
         lastFindTermsReference = [resID, refGenesGOID, referenceSet]
@@ -391,6 +391,7 @@ def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None,
 ##
 ##   dicty
 ##     GOlib.txtAnnotation2pickle('20040203-gene_association.ddb', 'dID.Dictyostelium discoideum.annotation', forDicty=1)
+allIDs = {}
 def txtAnnotation2pickle(annotationFname, saveAsPickleFname, forDicty=0):
     GOID2gene = {}
     gene2GOID = {}
@@ -431,30 +432,37 @@ def txtAnnotation2pickle(annotationFname, saveAsPickleFname, forDicty=0):
         Date              = lineSplit[13]
         Assigned_by       = lineSplit[14]
 
+	if not(forDicty): # for yeast, use ORFs
+		DB_Object_Symbol = DB_Object_Synonym.split('|')[0]
+
+	allIDs[DB_Object_Symbol] = True
+
         if Aspect == 'P':
             Aspect = 'biological_process'
-            Aspect = 'process'
+#            Aspect = 'process'
         if Aspect == 'F':
             Aspect = 'molecular_function'
-            Aspect = 'function'
+#            Aspect = 'function'
         if Aspect == 'C':
             Aspect = 'cellular_component'
-            Aspect = 'component'
+#            Aspect = 'component'
 
         tmpList = GOID2gene.get(GOID, [])
         orfList = [DB_Object_Symbol] + DB_Object_Synonym.split("|")
-        selectedORFs = []
-        for orf in orfList:
-        	orf = orf.strip()
-        	if len(orf) and orf[0] == 'Y' and (len(orf) == 7 or (len(orf) == 9 and orf[-2] == '-')):
-        		tmpList.append( (orf, NOT, Evidence, Aspect, DB_Object_Type)) #DB_Object_Symbol
-        		selectedORFs.append( orf)
+#        selectedORFs = []
+#        for orf in orfList:
+#        	orf = orf.strip()
+#        	if len(orf) and orf[0] == 'Y' and (len(orf) == 7 or (len(orf) == 9 and orf[-2] == '-')):
+#        		tmpList.append( (orf, NOT, Evidence, Aspect, DB_Object_Type)) #DB_Object_Symbol
+#        		selectedORFs.append( orf)
+        tmpList.append( (DB_Object_Symbol, NOT, Evidence, Aspect, DB_Object_Type)) #DB_Object_Symbol
         GOID2gene[GOID] = tmpList
 
-	for orf in selectedORFs:
-        	tmpList = gene2GOID.get(orf, []) #DB_Object_Symbol
-        	tmpList.append( (GOID, NOT, Evidence, Aspect, DB_Object_Type))
-        	gene2GOID[orf] = tmpList #DB_Object_Symbol
+#	for orf in selectedORFs:
+	orf = DB_Object_Symbol
+	tmpList = gene2GOID.get(orf, []) #DB_Object_Symbol
+	tmpList.append( (GOID, NOT, Evidence, Aspect, DB_Object_Type))
+	gene2GOID[orf] = tmpList #DB_Object_Symbol
 
         ## count
         tmpcn = countByEvidenceType.get(Evidence, 0)
@@ -485,6 +493,10 @@ def txtAnnotation2pickle(annotationFname, saveAsPickleFname, forDicty=0):
     cPickle.dump(annotation, open(saveAsPickleFname, 'w'))
     print "saved into", saveAsPickleFname
 
+    f = open('allIDs.txt', 'wt')
+    for k in allIDs.keys():
+        f.write('%s\n' % k)
+    f.close()
 
 ## GO txt to pickle
 ## reads in GO and creates three pickle files (one for each aspect) for the GOTermFinder widget
@@ -544,12 +556,14 @@ def txtGO2pickle(GOver = '200312', putIntoDir='.'):
     GOIDtoGOID = {} ## consists of dictionaries, created from the children of root node ('Gene_Ontology')
     rGOIDtoGOID = {} ## prepare the "Reverse" GO DAG
     ## each of the dictionaries is also a dictionary, where for each GO
+
+    rootGOIDs = []
     f = open(dataDir + 'term2term.txt')
     line = f.readline()
     while line:
         line = line.replace('\n', '').replace('\r', '')
         lineSplit = line.split('\t')
-        assert( len(lineSplit) == 4)
+        assert( len(lineSplit) == 5)
 
         autoInc = int(lineSplit[0])
         relType = int(lineSplit[1])
@@ -562,24 +576,45 @@ def txtGO2pickle(GOver = '200312', putIntoDir='.'):
             term1name, term1IDaspect, term1isroot = term[GOID1] ## get the aspect
             term2name, term2IDaspect, term2isroot = term[GOID2] ## get the aspect
 
-            if term1name == term1IDaspect:
-                GOID1 = 'root'
-
             if term1isroot:
-                assert( not(term2isroot))
-                assert( GOIDtoGOID.get(term2name, None) == None)
-                GOIDtoGOID[term2name] = {}
-                rGOIDtoGOID[term2name] = {}
+                rootGOIDs.append( GOID2)
             else:
-                assert( term1IDaspect == term2IDaspect) ## should be in same aspect
+		if term1IDaspect <> term2IDaspect:
+			print term1ID, GOID1, term1name, term1IDaspect
+			print term2ID, GOID2, term2name, term2IDaspect
+			print
+			line = f.readline()
+			continue
+		
+                assert(term1IDaspect == term2IDaspect)
+
+                if rGOIDtoGOID.get(term1IDaspect, None) == None:
+                    rGOIDtoGOID[term1IDaspect] = {}
+
+                if GOIDtoGOID.get(term1IDaspect, None) == None:
+                    GOIDtoGOID[term1IDaspect] = {}
+
+                if GOIDtoGOID.get(term2IDaspect, None) == None:
+                    GOIDtoGOID[term2IDaspect] = {}
+
                 childrenList = GOIDtoGOID[term1IDaspect].get(GOID1, [])
                 childrenList.append( (GOID2, relType))
                 GOIDtoGOID[term1IDaspect][GOID1] = childrenList
 
         line = f.readline()
+
+    for aspect in GOIDtoGOID.keys():
+        for GOID in rootGOIDs:
+            if GOID in GOIDtoGOID[aspect].keys():
+                l = GOIDtoGOID[aspect][GOID]
+                #print "renaming node", GOID, " to root", l
+                del GOIDtoGOID[aspect][GOID]
+                GOIDtoGOID[aspect]['root'] = l
     f.close()
 
-    ## build the "Reverse" GOIDtoGOID by reading the transitive closure of in reverse (switching parent and child nodes)
+    print "root GOIDs:", rootGOIDs
+
+    ## build the "Reverse" GOIDtoGOID by reading the transitive closure in reverse (switching parent and child nodes)
     f = open(dataDir + 'graph_path.txt')
     line = f.readline()
     while line:
@@ -598,18 +633,21 @@ def txtGO2pickle(GOver = '200312', putIntoDir='.'):
             term1name, term1IDaspect, term1isroot = term[GOID1] ## get the aspect
             term2name, term2IDaspect, term2isroot = term[GOID2] ## get the aspect
 
-            if term1name == term1IDaspect:
+            if GOID1 in rootGOIDs:
                 GOID1 = 'root'
 
             if term1isroot:
                 line = f.readline()
                 continue
 
-            assert( term1IDaspect == term2IDaspect) ## should be in same aspect
-            parentList = rGOIDtoGOID[term1IDaspect].get(GOID2, [])
-            if GOID1 not in parentList:
-                parentList.append( GOID1)
-            rGOIDtoGOID[term1IDaspect][GOID2] = parentList
+            if ( term1IDaspect == term2IDaspect):
+#            assert( term1IDaspect == term2IDaspect) ## should be in same aspect
+                parentList = rGOIDtoGOID[term1IDaspect].get(GOID2, [])
+                if GOID1 not in parentList:
+                    parentList.append( GOID1)
+                rGOIDtoGOID[term1IDaspect][GOID2] = parentList
+            else:
+                print term1IDaspect, term2IDaspect
 
         line = f.readline()
     f.close()
@@ -621,8 +659,9 @@ def txtGO2pickle(GOver = '200312', putIntoDir='.'):
         print "\t%d %s nodes" % (len(GOIDtoGOID[aspect].keys()), aspect)
         print "\t%d %s nodes in reverse GO" % (len(rGOIDtoGOID[aspect].keys()), aspect)
         GO = {'aspect': aspect, 'term': term, 'relationTypes': termRelTypes, 'GO': GOIDtoGOID[aspect], 'rGO': rGOIDtoGOID[aspect]}
-        fname = putIntoDir + '\\' + GOver + '-' + aspect + '.go'
+        fname = putIntoDir + '/' + GOver + '-' + aspect + '.go'
         cPickle.dump(GO, open(fname, 'w'))
+        print "dumped into file:", fname
     print
     print
 
@@ -644,6 +683,8 @@ def txtGO2pickle(GOver = '200312', putIntoDir='.'):
                     print
     if errors:
         print "some errors in the reverse GO!"
+    else:
+        print "ok"
     print
 
 
