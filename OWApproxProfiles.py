@@ -1,7 +1,7 @@
 """
 <name>Approximate Profiles</name>
 <description>Approximation of expression profiles by various kernel functions.</description>
-<icon>icons/Unknown.png</icon>
+<icon>icons/ApproximateProfiles.png</icon>
 <priority>310</priority>
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
