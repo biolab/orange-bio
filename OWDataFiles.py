@@ -38,12 +38,12 @@ class OWDataFiles(OWWidget):
         self.inputs = []
         self.outputs = [("Examples", ExampleTable), ("Structured Data", DataFiles)]
 
-        self.dataStructure = None;
+        self.dataStructure = []
         self.datasets = None
         self.lastSentIds = []
 
         # Settings
-        self.recentDirs=[]
+        self.recentDirs=[]  
         self.selectedDirName = "None"
         self.applyOnChange = 0
         self.loadSettings()
@@ -116,7 +116,7 @@ class OWDataFiles(OWWidget):
                 item.data = f
                 
     def selectionChanged(self):
-        if self.applyOnChange and self.okToCommit:
+        if self.applyOnChange:
             self.sendData()
 
     # checks which data has been selected, builds a data structure, and sends it out
@@ -149,10 +149,6 @@ class OWDataFiles(OWWidget):
 
     # Loads the data from a root directory, sends the data to the output channels
     def loadData(self, root):
-        self.okToCommit = 0
-        if root == "(none)":
-            self.send("Structured Data", None)
-            self.send("Examples", None)
         dataStructure = [] # structured [(dirname0, [d00, d01, ...]), ...]
         datasets = []  # flat list containing all the data sets
         dirs = os.listdir(root)
@@ -182,11 +178,15 @@ class OWDataFiles(OWWidget):
             self.progressBarAdvance(pbStep)
         if lenDirs:
             self.progressBarFinished()
-        # enable commit, sumarize the data        
+
+        # enable commit, set file tree
         self.commitBtn.setEnabled(len(dataStructure))
+        self.dataStructure = dataStructure
+        self.datasets = datasets
+        self.setFileTree()
+
+        # set infos (sumarize the data)
         if len(dataStructure):
-            self.dataStructure = dataStructure
-            self.datasets = datasets
             numSets = len(self.dataStructure)
             numFiles = len(self.datasets)
             self.infoa.setText("%d set%s, total of %d data file%s." % (numSets, ["", "s"][numSets!=1], numFiles, ["","s"][numFiles!=1]))
@@ -233,16 +233,22 @@ class OWDataFiles(OWWidget):
                 infoc = "Files contain no examples."
             self.infoc.setText(infoc)
 
-            # read data
-            self.setFileTree()
-            self.okToCommit = 1
-            if self.applyOnChange:
-                self.sendData()
+            # Add a directory to the start of the file list. 
+            # If it exists, move it to the start of the list
+            if root in self.recentDirs:
+                self.recentDirs.remove(root)
+            self.recentDirs.insert(0, root)
+            self.setDirlist()
+            self.selectedDirName = root
+                
         else:
             self.infoa.setText('No data on input.')
             self.infob.setText('')
             self.infoc.setText('')
 
+        # read data
+        if self.applyOnChange:
+            self.sendData()
 
     # displays a file dialog and selects a directory
     def browseDirectory(self):
@@ -253,7 +259,7 @@ class OWDataFiles(OWWidget):
         dirname=str(QFileDialog.getExistingDirectory(startdir, None, '', 'Data Directory', 1))
         if len(dirname):
             self.loadData(str(dirname))
-            self.addDirToList(dirname) # XXX do this only if loadData successfull
+##            self.addDirToList(dirname) # XXX do this only if loadData successfull
 
     def setDirlist(self):
         self.dircombo.clear()
@@ -265,20 +271,20 @@ class OWDataFiles(OWWidget):
         else:
             self.dircombo.insertItem("(none)")
 
-    def addDirToList(self, dir):
-        # Add a directory to the start of the file list. 
-        # If it exists, move it to the start of the list
-        if dir in self.recentDirs:
-            self.recentDirs.remove(dir)
-        self.recentDirs.insert(0, str(dir))
-        self.setDirlist()
-        self.selectedDirName = dir
+##    def addDirToList(self, dir):
+##        # Add a directory to the start of the file list. 
+##        # If it exists, move it to the start of the list
+##        if dir in self.recentDirs:
+##            self.recentDirs.remove(dir)
+##        self.recentDirs.insert(0, str(dir))
+##        self.setDirlist()
+##        self.selectedDirName = dir
 
     # called when user makes a selection from the drop-down menu
     def selectDir(self, n):
         if self.recentDirs:
             self.loadData(self.recentDirs[n])
-            self.addDirToList(self.recentDirs[n])
+##            self.addDirToList(self.recentDirs[n])
         else:
             self.loadData("(none)")
 
