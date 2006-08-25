@@ -620,8 +620,10 @@ def _percentilesNM(m,perc,axis=0):
         # prepare indices for other axis (except for the given)
         cind = NA.indices(NA.shape(k))
         # indices of m sorted by increasing value at axis 0; masked values placed at the end;
-        # use _argsortSwapNM() to get the shape same as m
-        mtIndSort = _argsortSwapNM(m,axis,fill_value=1e20)
+##        2006-08-25: PJ: _argsortSwapNM replaced by NM.argsort
+##        # use _argsortSwapNM() to get the shape same as m
+##        mtIndSort = _argsortSwapNM(m,axis,fill_value=1e20)
+        mtIndSort = NM.argsort(m,axis,fill_value=1e20)
         # get indices to address median elements from m
         # tuple(takeInd1): all lists in the tuple must be of the same shape,
         #   the result mtIndSort[tuple(takeInd1)] is also of that shape
@@ -651,11 +653,14 @@ def _percentilesNM(m,perc,axis=0):
         return med1 + d*(med2-med1).filled(0)
 
 
-def _argsortSwapNM(m,axis=0,fill_value=None):
-    """Returns the indices along the given axis sorted by increasing value of the given masked numarray
-    e.g. m=[[.5,.2],[.3,.6]], _argsortSwapNM(m,0)->[[1,0],[0,1]]"""
-    m = NM.asarray(m)
-    return NA.swapaxes(NA.asarray(NM.argsort(m, axis, fill_value)), -1, axis)
+##def _argsortSwapNM(m,axis=0,fill_value=None):
+##    """Returns the indices along the given axis sorted by increasing value of the given masked numarray
+##    e.g. m=[[.5,.2],[.3,.6]], _argsortSwapNM(m,0)->[[1,0],[0,1]]
+##
+##    Used only for numarray ver. 0.9 to correct a BUG in function argsort(...)
+##    """
+##    m = NM.asarray(m)
+##    return NA.swapaxes(NA.asarray(NM.argsort(m, axis, fill_value)), -1, axis)
 
 
 ###################################################################################
