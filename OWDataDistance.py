@@ -34,7 +34,7 @@ class OWDataDistance(OWWidget):
         self.data = []
 ##        self.metrics = [("Euclidean", orange.ExamplesDistanceConstructor_Euclidean),
 ##            ("Manhattan", orange.ExamplesDistanceConstructor_Manhattan),
-##            ("Hamiltonian", orange.ExamplesDistanceConstructor_Hamiltonian)]
+##            ("Hamming", orange.ExamplesDistanceConstructor_Hamming)]
         self.metrics = [("Manhattan", distManhattan), ("Euclidean", distEuclidean), ("1 - (Pearson correlation coefficient)", distPearson), ("1 - (Spearman rank correlation coefficient)", distSpearman)]
 
         # GUI
