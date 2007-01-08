@@ -1229,7 +1229,7 @@ class OWGOGraphTermFinder(OWGOTermFinder):
             x= 0
             value = self.RBNodeAnnotation  #simulating switch statement
             result = {
-                0: lambda x: 'p='+str(i.PVal)[0:5],
+                0: lambda x: 'p=%.4g' % (i.PVal),
                 1: lambda x: 'Dir.='+str(i.direct),
                 2: lambda x: 'Dir&Indir.='+str(i.directIndirect),
                 3: lambda x: 'Ref.='+str(i.reference),
@@ -1682,13 +1682,13 @@ class OWGOGraphTermFinder(OWGOTermFinder):
         x=''
         value = self.RBNodeColor  #simulating switch statement
         result = {
-            0: lambda x: node.PVal,
+            0: lambda x: "%.4g" % (node.PVal),
             1: lambda x: node.direct,
             2: lambda x: node.directIndirect,
             3: lambda x: node.reference,
             4: lambda x: '0'
             }[value](x)
-        self.activeMarkText.setText(str(result)[0:8])
+        self.activeMarkText.setText(str(result))
         self.activeMarkText.move((stripePos[0]+r*(stripeSize[0]/255))-(((self.activeMarkText.boundingRect().right()-self.activeMarkText.boundingRect().left())/2)),stripePos[1]-13)
         self.activeMarkText.show()
         self.canvas.update()
