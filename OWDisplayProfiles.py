@@ -45,11 +45,12 @@ class boxPlotQwtPlotCurve(QwtPlotCurve):
             if f % 6 <> 0: f -= f % 6
             if t % 6 <> 0:  t += 6 - (t % 6)
 
-            ## first connect medians            
+            ## first connect averages
             first = 1
             if self.connectPoints: 
                 for i in range(f, t, 6):
-                    py = yqM = yMap.transform(self.y(i + 3))
+#                    py = yqM = yMap.transform(self.y(i + 3))
+                    py = yavg = yMap.transform(self.y(i + 2))
                     px = xMap.transform(self.x(i))
                     if first:
                         first = 0
