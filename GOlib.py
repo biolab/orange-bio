@@ -167,96 +167,54 @@ def DAGdepth(dag):
 ##
 ## used: for cluster and reference frequencies of GO terms
 ##
-def populateGO(geneList, Lann, Lgo, LonlyGOIDs=None, progressBar = None, progressStart = 0.0, progressPart = 100.0):
-    if (LonlyGOIDs <> None and len(LonlyGOIDs) == 0) or (geneList <> None and len(geneList) == 0):
-        return {}, {}, {}
-
+def populateGO(evid, geneList, Lann, Lgo, progressBar = None, progressStart = 0.0, progressPart = 100.0):
     genesGOIDdirect = {}
     genesGOIDindirect = {}
     genesGOIDboth = {}
 
     pcn = 0.0
-    if LonlyGOIDs:
-        ## go over only the GOIDs in list
-        for daGOID in LonlyGOIDs:
+    ## go over all genes and find the apropriate GOIDs
+    for gene in geneList: ## go over genes
+        if progressBar:
+            pcn += 1.0
+            progressBar(progressStart + progressPart * pcn / len(geneList))
+
+        geneAnn = Lann['gene2GOID'].get(gene, None)
+        if not(geneAnn): continue
+
+        ppcn = 0.0
+        for (daGOID, daNOT, daEvidence, daAspect, daDB_Object_Type) in geneAnn:
             if progressBar:
-                pcn += 1.0
-                progressBar(progressStart + progressPart * pcn / len(LonlyGOIDs))
-            geneAnn = Lann['GOID2gene'].get(daGOID, None)
-            if not(geneAnn): continue
+                ppcn += 1
+                progressBar(progressStart + (pcn + (ppcn / len(geneAnn))) * (progressPart / len(geneList)))
+            if daAspect <> Lgo['aspect']: continue ## skip annotations different from the loaded GO aspect
+##            if daNOT <> '': continue ## should we skip those annotations that tell when a gene is not part of a specific GO term?
 
-            ppcn = 0.0
-            for (daGene, daNOT, daEvidence, daAspect, daDB_Object_Type) in geneAnn:
-                if progressBar:
-                    ppcn += 1
-                    progressBar(progressStart + (pcn + ppcn / len(geneAnn)) * (progressPart/len(LonlyGOIDs)))
-                if daAspect <> Lgo['aspect']: continue ## skip annotations different from the loaded GO aspect
-                if daGene not in geneList:
-                    continue
+            ## first include the direct annotation
+            tmpd = genesGOIDdirect.get(daGOID, {})
+            if evid.get(daEvidence, False):
+                tmpd[gene] = True
+                genesGOIDdirect[daGOID] = tmpd ## update only if GO term in list of terms to return, or list None
 
-                ## first include the direct annotation
-                tmpl = genesGOIDdirect.get(daGOID, [])
-                if (daGene, daEvidence) not in tmpl:
-                    genesGOIDdirect[daGOID] = tmpl + [(daGene, daEvidence)] ## update only if GO term in list of terms to return, or list None
+            ## update both
+            tmpd = genesGOIDboth.get(daGOID, {})
+            if evid.get(daEvidence, False):
+                tmpd[gene] = True
+                genesGOIDboth[daGOID] = tmpd ## update only if GO term in list of terms to return, or list None
 
-                ## update both
-                tmpl = genesGOIDboth.get(daGOID, [])
-                if (daGene, daEvidence) not in tmpl:
-                    genesGOIDboth[daGOID] = tmpl + [(daGene, daEvidence)] ## update only if GO term in list of terms to return, or list None
+            ## then all the indirect: by going over all parents of the daGOID, and make indirect annotations to those GO terms
+            for GOID in Lgo['rGO'].get(daGOID, []): ##.get(daGOID, []): ## use the reverse GO info to go to all parents
+##                if GOID == 'root': continue
 
-                ## then all the indirect: by going over all parents of the daGOID, and make indirect annotations to those GO terms
-                for GOID in Lgo['rGO'].get(daGOID, []): ##.get(daGOID, []): ## use the reverse GO info to go to all parents
-    ##                if GOID == 'root': continue
+                tmpd = genesGOIDindirect.get(GOID, {})
+                if evid.get(daEvidence, False):
+                    tmpd[gene] = True
+                    genesGOIDindirect[GOID] = tmpd
 
-                    if GOID not in LonlyGOIDs:
-                        continue
-
-                    tmpl = genesGOIDindirect.get(GOID, [])
-                    if (daGene, daEvidence) not in tmpl:
-                        genesGOIDindirect[GOID] = tmpl + [(daGene, daEvidence)]
-
-                    tmpl = genesGOIDboth.get(GOID, [])
-                    if (daGene, daEvidence) not in tmpl:
-                        genesGOIDboth[GOID] = tmpl + [(daGene, daEvidence)]
-    else:
-        ## go over all genes and find the apropriate GOIDs
-        for gene in geneList: ## go over genes
-            if progressBar:
-                pcn += 1.0
-                progressBar(progressStart + progressPart * pcn / len(geneList))
-
-            geneAnn = Lann['gene2GOID'].get(gene, None)
-            if not(geneAnn): continue
-
-            ppcn = 0.0
-            for (daGOID, daNOT, daEvidence, daAspect, daDB_Object_Type) in geneAnn:
-                if progressBar:
-                    ppcn += 1
-                    progressBar(progressStart + (pcn + (ppcn / len(geneAnn))) * (progressPart / len(geneList)))
-                if daAspect <> Lgo['aspect']: continue ## skip annotations different from the loaded GO aspect
-    ##            if daNOT <> '': continue ## should we skip those annotations that tell when a gene is not part of a specific GO term?
-
-                ## first include the direct annotation
-                tmpl = genesGOIDdirect.get(daGOID, [])
-                if (gene, daEvidence) not in tmpl:
-                    genesGOIDdirect[daGOID] = tmpl + [(gene, daEvidence)] ## update only if GO term in list of terms to return, or list None
-
-                ## update both
-                tmpl = genesGOIDboth.get(daGOID, [])
-                if (gene, daEvidence) not in tmpl:
-                    genesGOIDboth[daGOID] = tmpl + [(gene, daEvidence)] ## update only if GO term in list of terms to return, or list None
-
-                ## then all the indirect: by going over all parents of the daGOID, and make indirect annotations to those GO terms
-                for GOID in Lgo['rGO'].get(daGOID, []): ##.get(daGOID, []): ## use the reverse GO info to go to all parents
-    ##                if GOID == 'root': continue
-
-                    tmpl = genesGOIDindirect.get(GOID, [])
-                    if (gene, daEvidence) not in tmpl:
-                        genesGOIDindirect[GOID] = tmpl + [(gene, daEvidence)]
-
-                    tmpl = genesGOIDboth.get(GOID, [])
-                    if (gene, daEvidence) not in tmpl:
-                        genesGOIDboth[GOID] = tmpl + [(gene, daEvidence)]
+                tmpd = genesGOIDboth.get(GOID, {})
+                if evid.get(daEvidence, False):
+                    tmpd[gene] = True
+                    genesGOIDboth[GOID] = tmpd
 
     return genesGOIDdirect, genesGOIDindirect, genesGOIDboth
 
@@ -292,19 +250,21 @@ def populateGO(geneList, Lann, Lgo, LonlyGOIDs=None, progressBar = None, progres
 ##    genesInReferenceSet
 ##    (the last two are used to calculate the relative frequencies)
 ##
-lastFindTermsReference = [0, None, None]
-def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None, progressBar = None, progressStart = 0.0, progressPart = 100.0):
-    global lastFindTermsReference
+def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = {}, progressBar = None, progressStart = 0.0, progressPart = 100.0):
     if evidences and len(evidences) == 0:
-        evidences = None
+        evidences = []
+    evid = {}
+    for e in evidences:
+       evid[e] = True
 
     ## CLUSTER GENE FREQUENCIES
     ## count the direct and indirect annotations for cluster genes
     n = len(clusterSet) ## number of genes in cluster; used in the calculation of the p value
-    clSetUniq = []
+    clSetUniq = {}
     for g in clusterSet:
-        if g not in clSetUniq: clSetUniq.append( g)
-    clusterGenesGOIDdirect, clusterGenesGOIDindirect, clusterGenesGOID = populateGO(clSetUniq, annotation, GO, None, progressBar, progressStart, progressPart / 5.0)
+        clSetUniq[g] = True
+    clSetUniq = clSetUniq.keys()
+    clusterGenesGOIDdirect, clusterGenesGOIDindirect, clusterGenesGOID = populateGO(evid, clSetUniq, annotation, GO, progressBar, progressStart, progressPart / 5.0)
     ## when calculating the p value we use both, the direct and indirect count
     ## but when selecting a node or a subtree we can use the direct and/or indirect
 
@@ -315,23 +275,17 @@ def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None,
 
     ## referenceSet can be None: whole genome
     ##              can be a list of genes that need to be used for reference
-    resID = str(id(clusterSet)) + str(id(referenceSet)) + str(id(annotation)) + str(id(GO))
-    prevID, prevRefGenesGOID, prevReferenceSet = lastFindTermsReference
-    if resID == prevID:
-        refGenesGOID = prevRefGenesGOID ## same inputs, we can use old results
-        referenceSet = prevReferenceSet
-    else:
-        ## input changed, new references need to be calculated
-        if referenceSet == None:
-            referenceSet = annotation['gene2GOID'].keys() ## use all genes in the annotation
-        ## calculate frequencies for all GO terms
-        ## so we don't have to do it next time, the clusterGenes set changes, because it takes a lot of time anyway
-        refSetUniq = []
-        for g in referenceSet:
-            if g not in refSetUniq: refSetUniq.append( g)
-            
-        refGenesGOIDdirect, refGenesGOIDindirect, refGenesGOID = populateGO(refSetUniq, annotation, GO, clusterGenesGOID.keys(), progressBar, progressStart + progressPart / 5.0, 4.0 * progressPart / 5.0)
-        lastFindTermsReference = [resID, refGenesGOID, referenceSet]
+    ## input changed, new references need to be calculated
+    if referenceSet == None:
+        referenceSet = annotation['gene2GOID'].keys() ## use all genes in the annotation
+    ## calculate frequencies for all GO terms
+    ## so we don't have to do it next time, the clusterGenes set changes, because it takes a lot of time anyway
+    refSetUniq = {}
+    for g in referenceSet:
+        refSetUniq[g] = True
+    refSetUniq = refSetUniq.keys()
+        
+    refGenesGOIDdirect, refGenesGOIDindirect, refGenesGOID = populateGO(evid, refSetUniq, annotation, GO, progressBar, progressStart + progressPart / 5.0, 4.3 * progressPart / 5.0) #clusterGenesGOID.keys()
 
     N = len(referenceSet) ## number of genes in reference; used in the calculation of the p value
     ## the reference set for the whole genome should be calculated at the time of data loading (GO or annotation)
@@ -343,23 +297,13 @@ def findTerms(annotation, GO, clusterSet, referenceSet = None, evidences = None,
         for (GOID, genesInGOID) in clusterGenesGOID.items(): ## calculate values
             ## count the number of different genes in reference
             lst = refGenesGOID.get(GOID, [])
-            genesInRef = []
-            for (gene, daEvidence) in lst:
-                if (not(evidences) or daEvidence in evidences) and gene not in genesInRef:
-                    genesInRef.append( gene)
+            genesInRef = lst.keys()
 
             ## count the number of different genes in cluster; direct and indirect annotation type
-            genesInCluster = []
-            for (gene, daEvidence) in genesInGOID:
-                if (not(evidences) or daEvidence in evidences) and gene not in genesInCluster:
-                    genesInCluster.append( gene)
+            genesInCluster = genesInGOID.keys()
             ##
             ## count the number of different genes in cluster; direct annotation only
-            genesInClusterDirect = []
-            genesInGOIDdirect = clusterGenesGOIDdirect.get(GOID, [])
-            for (gene, daEvidence) in genesInGOIDdirect:
-                if (not(evidences) or daEvidence in evidences) and gene not in genesInClusterDirect:
-                    genesInClusterDirect.append( gene)
+            genesInClusterDirect = clusterGenesGOIDdirect.get(GOID, {}).keys()
 
             G = len(genesInRef) ## reference frequency = all genes in reference for the selected GO term
             p = float(G) / float(N)

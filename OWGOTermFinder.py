@@ -667,7 +667,7 @@ class OWGOTermFinder(OWWidget):
             for gene in genesInGOID[1:]:
                 genesInGOIDstr += ", " + str(gene)
 
-            if pval: pval = "%.4g" % pval
+            if pval: pval = "%.5f" % pval
             vals = [GOterm, x, G, pval, genesInGOIDstr]
             for i in range(len(vals)):
                 listviewitem.setText(i, str(vals[i]))
@@ -716,7 +716,7 @@ class OWGOTermFinder(OWWidget):
             for gene in genesInGOID[1:]:
                 genesInGOIDstr += ", " + str(gene)
 
-            if pval: pval = "%.4g" % pval
+            if pval: pval = "%.5f" % pval
             vals = [GOterm, x, G, pval, genesInGOIDstr]
             for j in range(len(vals)):
                 self.sigTermsTable.setText(i, j, str(vals[j]))
