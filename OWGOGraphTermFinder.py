@@ -1155,7 +1155,7 @@ class OWGOGraphTermFinder(OWGOTermFinder):
         if not self.FilterNumEnabled:
             self.sliderFilterNumValue.box.setDisabled(1)
         #
-        OWGUI.checkBox(box, self, 'FilterPvalEnabled', "p. value", callback=self.setFilterPvalEnabled)
+        OWGUI.checkBox(box, self, 'FilterPvalEnabled', "P-Value", callback=self.setFilterPvalEnabled)
         self.sliderFilterPvalue = OWGUI.qwtHSlider(box, self, 'FilterPvalue', label='#:', labelWidth=33, minValue=0.0, maxValue=1.0, step=0.001, precision=3.0, ticks=0, maxWidth=80, callback=self.runMyFilters)
         if not self.FilterPvalEnabled:
             self.sliderFilterPvalue.box.setDisabled(1)
@@ -2055,3 +2055,4 @@ if __name__=="__main__":
     ow.show()
     a.exec_loop()
     ow.saveSettings()
+
