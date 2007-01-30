@@ -7,7 +7,7 @@
 """
 
 import orange, math, glob
-import GOlib ## function needed to handle the GO and annotation
+#import GOlib ## function needed to handle the GO and annotation
 import OWGUI
 from qt import *
 from qtcanvas import *
@@ -15,8 +15,16 @@ from OWWidget import *
 from OWOptions import *
 from qttable import *
 from qwt import *
+from sets import Set
 
 from OWDataFiles import DataFiles, ExampleSelection
+
+#import pywin.debugger
+
+try:
+    import go
+except:
+    QMessageBox.warning( None, "Missing GOLib", "GOLib libray for handling GO ontology not found.\nYou can get it at ..." , QMessageBox.Ok)
 
 DEBUG = 0
 
@@ -25,9 +33,9 @@ class OWGOTermFinder(OWWidget):
                     "FilterNumEnabled", "FilterNumValue", "FilterPvalEnabled", "FilterPvalue", "FilterDepthEnabled", "FilterDepthValue",
                     "SelectMode", "SelectDisjoint", "AddGOclass"]
 
-    def __init__(self, parent=None, signalManager = None, name='OWGoTermFinder'):
+    def __init__(self, parent=None, signalManager = None, name='OWGOTermFinder'):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
-        OWWidget.__init__(self, parent, signalManager, name) 
+        OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Cluster Examples", ExampleTable, self.clusterDataset, Default), ("Reference Examples", ExampleTable, self.referenceDataset, Single + NonDefault), ("Structured Data", DataFiles, self.chipdata, Single + NonDefault)]
         self.outputs = [("Examples", ExampleTable, Default), ("Classified Examples", ExampleTableWithClass, Default), ("Example Selection", ExampleSelection, Default), ("Selected Structured Data", DataFiles, Single + NonDefault)]
         #set default settings
@@ -36,6 +44,7 @@ class OWGOTermFinder(OWWidget):
         self.RecentAnnotations = []
         self.BAnnotationIndx = 0
         self.genesInAnnotationFile = {}
+        self.organizmCodes=go.listDownloadedOrganizms()
         # reference
         self.ReferenceType = 0 ## get the reference from the annotation
         # GO
@@ -53,7 +62,7 @@ class OWGOTermFinder(OWWidget):
         self.SelectDisjoint = False # output inclusive
         self.AddGOclass = False
         # check usage of all evidences
-        for etype in GOlib.evidenceTypesOrdered:
+        for etype in go.evidenceTypesOrdered:
             varName = "UseEvidence"+etype 
 ##            self.settingsList.append( varName)
             code = compile("self.%s = True" % (varName), ".", "single")
@@ -82,7 +91,8 @@ class OWGOTermFinder(OWWidget):
 
         # tmp structures - loaded by user
         self.annotation = None
-        self.GO = None
+        self.GO = {}
+        self.GO["relationTypes"]=dict([("is_a",0),("part_of",1)])
 
         # received by signals
         self.candidateGeneIDsFromSignal = [] ## list of discrete attributes present in clusterSet data signal
@@ -114,29 +124,24 @@ class OWGOTermFinder(OWWidget):
         # annotation
         self.annotationCombo = OWGUI.comboBox(box2, self, "BAnnotationIndx", items=[], callback=self.loadAnnotation)
         self.annotationCombo.setMaximumSize(150, 20)
-        self.setFilelist(self.annotationCombo, self.RecentAnnotations)
+        #self.setFilelist(self.annotationCombo, self.RecentAnnotations)
 ##        box2.hide()
 ##        box2.show()
-        self.annotationBrowse = OWGUI.button(box2, self, 'Browse', callback=self.browseAnnotation)
-        self.annotationBrowse.setMaximumSize(50, 30)
+        #self.annotationBrowse = OWGUI.button(box2, self, 'Browse', callback=self.browseAnnotation)
+        self.annotationDownload = OWGUI.button(box2, self, "Download", callback=self.downloadAnnotation)
+        self.annotationDownload.setMaximumSize(60, 40)
         self.evidencesBox = QVButtonGroup("Evidence codes in annotation", box)
         self.evidenceCheckBoxes = {}
-        for etype in GOlib.evidenceTypesOrdered:
+        for etype in go.evidenceTypesOrdered:
             varName = "UseEvidence"+etype
-            tmpCB = OWGUI.checkBox(self.evidencesBox, self, varName, etype, box='', tooltip=GOlib.evidenceTypes.get(etype, '?unknown?'), callback=self.findTermsBuildDAG)
+            tmpCB = OWGUI.checkBox(self.evidencesBox, self, varName, etype, box='', tooltip=go.evidenceTypes.get(etype, '?unknown?'), callback=self.findTermsBuildDAG)
             tmpCB.setEnabled(False)
             self.evidenceCheckBoxes[etype] = tmpCB
 
         # reference
         OWGUI.radioButtonsInBox(self.inputTab, self, 'ReferenceType', ['Annotation', 'Signal'], box='Reference from', callback=self.findTermsBuildDAG)
-        # GO aspects
-        box = QHButtonGroup("GO Aspect", self.inputTab)
-        box.setMaximumSize(250, 50)
-        self.GOaspectCombo = OWGUI.comboBox(box, self, 'BGOaspectIndx', items=[], callback=self.loadGOaspect)
-        self.GOaspectCombo.setMaximumSize(160, 20)
-        self.setFilelist(self.GOaspectCombo, self.RecentGOaspects)
-        self.GOaspectBrowse = OWGUI.button(box, self, 'Browse', callback=self.browseGOaspect)
-        self.GOaspectBrowse.setMaximumSize(50, 30)
+        self.GOAspectRadioBoxButtons=OWGUI.radioButtonsInBox(self.inputTab, self, "BGOaspectIndx", ["Biological process", "Cellular component", "Molecular function"], box="GO aspect", callback=self.loadGOaspect)
+        OWGUI.button(self.inputTab, self, "Download latest GO", callback=self.downloadGO)
         # gene name attribute
         box = QHButtonGroup("Gene ID Attribute", self.inputTab)
         box.setMaximumSize(250, 50)
@@ -215,6 +220,9 @@ class OWGOTermFinder(OWWidget):
         self.resize(1000, 800)
         self.layout.activate() # this is needed to scale the widget correctly
 
+        self.organizmGenes={}
+        self.setAnnotationCodesList()
+
     def geneIDchanged(self):
         if len(self.candidateGeneIDsFromSignal) > self.BgeneIDattrIndx:
             self.geneIDAttrCombo.setCurrentItem(self.BgeneIDattrIndx)
@@ -234,6 +242,12 @@ class OWGOTermFinder(OWWidget):
             self.geneIDAttrCombo.insertItem(str(f.name))
         self.geneIDAttrCombo.setDisabled(len(self.candidateGeneIDsFromSignal) == 0)
 
+    def setAnnotationCodesList(self):
+        self.organizmCodes=go.listDownloadedOrganizms()
+        self.annotationCombo.clear()
+        for o in self.organizmCodes:
+            self.annotationCombo.insertItem(o)
+        
     def updateGeneID2annotationfile(self):
         ## geneID is key, item is list of indexes in self.RecentAnnotations that have that geneID
         self.progressBarInit()
@@ -272,83 +286,20 @@ class OWGOTermFinder(OWWidget):
         self.setGeneIDAttributeList()
         self.geneIDAttrCombo.setDisabled(1)
 
-        ## check if there are new annotation files present
-        ## remove from self.geneID2annotationfile those not present in the RecentAnnotations list
-        self.updateGeneID2annotationfile()
-
-        ## for each attribute look how many genesID are there, that are also present in geneID2annotationfile
-        ## if current self.geneIDattr has count 0
-        ## then select attribute with highest count
-        ## else keep self.geneIDattr
-
-        ## when best attribute selected, check if the loaded annotation is ok
-        ## otherwise suggest the most appropriate annotation
-        bestAttr = '' ## key is attribute, item is number of recognized geneIDs
-        bestCn = 0
-        bestAnnotation = 0
-        lst = self.candidateGeneIDsFromSignal
-        if self.geneIDattr <> None and self.geneIDattr in self.candidateGeneIDsFromSignal: lst = [self.geneIDattr] + lst
-
-        for attr in lst:
-            vals = [ex[attr] for ex in self.clusterData]
-
-            ## calculate the frequency of each annotation file to which this geneID belongs to
-            annotationFrequency = {}
-            cn = 0
-            for v in vals:
-                v = str(v)
-                i = self.geneID2annotationfile.get(v, -1) ## -1, not present
-                if i <> -1:
-                    for ai in i:
-                        af = annotationFrequency.get(ai, 0)
-                        annotationFrequency[ai] = af + 1
-                    cn += 1
-            if cn > bestCn or (cn > 0 and attr == self.geneIDattr):
-                bestAttr = attr
-                bestCn = cn
-                afs = [(f, anindex) for (anindex, f) in annotationFrequency.items()]
-                if len(afs) > 0:
-                    afs.sort()
-                    afs.reverse() ## most frequent first
-                    bestAnnotation = afs[0][1]
-                else:
-                    bestAnnotation = 0 ## keep current
-        if DEBUG: print "best attribute: " + str(bestAttr) + " with " + str(bestCn) + " gene IDs from annotations"
-        if DEBUG: print "bestAnnotation: " + str(self.RecentAnnotations[bestAnnotation])
-
-        self.geneIDattr = bestAttr
-        try:
-            self.BgeneIDattrIndx = self.candidateGeneIDsFromSignal.index(self.geneIDattr)
-        except:
-            self.BgeneIDattrIndx = 0
-
-        ## load annotation if a better one found
-        if bestAnnotation <> 0 or self.annotation == None:
-            self.BAnnotationIndx = bestAnnotation
-            self.annotation, self.BAnnotationIndx = self.loadRemember(self.RecentAnnotations, self.annotationCombo, self.BAnnotationIndx)
-            fn = self.RecentAnnotations[0] ## the loaded one is (becomes) always moved to 0 position
-            try:
-                self.genesInAnnotationFile[fn] = self.annotation['gene2GOID'].keys() ## update, in case the file content changed
-            except:
-                self.genesInAnnotationFile[fn] = []
-##            self.annotationCombo.setCurrentItem(self.BAnnotationIndx)
-
-        ## select the geneID, and rerun the GO term finding
-
+        if not self.organizmGenes:        
+            self.organizmGenes=dict([(o,Set(go.getCachedGeneNames(o))) for o in self.organizmCodes])
+        cn={}
+        for attr in self.candidateGeneIDsFromSignal:
+            vals=[str(e[attr]) for e in self.clusterData]
+            for organizm, set in self.organizmGenes.items():
+                l=filter(lambda a: a in set, vals)
+                cn[(attr,organizm)]=len(l)
+        cn=cn.items()
+        cn.sort(lambda a,b:-cmp(a[1],b[1]))
+        bestAttr, organizm=cn[0][0]
+        self.BAnnotationIndx=self.organizmCodes.index(organizm)
+        self.BgeneIDattrIndx=self.candidateGeneIDsFromSignal.index(bestAttr)
         self.geneIDchanged()
-
-    def setFilelist(self, filecombo, fileList):
-        filecombo.clear()
-        if fileList != []:
-            for file in fileList:
-                (dir, filename) = os.path.split(file)
-                #leave out the path
-                fnToDisp = filename
-                filecombo.insertItem(fnToDisp)
-            filecombo.setDisabled(False)
-        else:
-            filecombo.insertItem("(none)")
-            filecombo.setDisabled(True)
 
     ##########################################################################
     # handling of input/output signals
@@ -370,6 +321,7 @@ class OWGOTermFinder(OWWidget):
         self.clusterData = data
         self.findMostAppropriateGeneIDandAnnotation()
         self.clusterDatasetChanged()
+        #pywin.debugger.set_trace()
         self.loadGOaspect(forced=0) ## usually only at the first run, the GO aspect is not loaded
 ##        self.findTermsBuildDAG()
 
@@ -429,6 +381,7 @@ class OWGOTermFinder(OWWidget):
                 GOterm, x, G, pval, genesInGOID, genesInGOIDdirect = self.GOtermValues.get(GOID, (GOID+'?', '', '', '', [], []))
                 if GOID == 'root': ## put real aspect instead of 'root'
                     GOterm = self.GO.get('aspect', GOID+'?')
+                
                 if GOterm not in allGOterms:
                     allGOterms.append( GOterm)
 
@@ -504,94 +457,64 @@ class OWGOTermFinder(OWWidget):
 
     ##########################################################################
     # callback functions
-    def browseRemember(self, lst, indx, loadMethod, dialogText, dialogTitle):
-        if lst == []:
-            startfile = "."
-        else:
-            startfile = lst[0]
-        filename = QFileDialog.getOpenFileName(startfile, dialogText, None, dialogTitle)
-        fn = str(filename)
-        fn = os.path.abspath(fn)
-        if fn in lst: # if already in list, remove it
-            lst.remove(fn)
-        lst.insert(0, fn)
-        indx = 0
-        loadMethod()
-
-    def loadRemember(self, lst, filecombo, indx):
-        loadedData = None
-        if indx < len(lst):
-            fn = lst[indx]
-            if fn != "(none)":
-                # remember the recent file list
-                if fn in lst: # if already in list, remove it
-                    lst.remove(fn)
-                lst.insert(0, fn) # add to beginning of list
-                self.setFilelist(filecombo, lst) # update combo
-                try:
-                    loadedData = cPickle.load(open(fn, 'r'))
-                except:
-                    loadedData = None
-                indx = 0
-        return loadedData, indx
-
-    def browseAnnotation(self):
-        self.browseRemember(self.RecentAnnotations, self.BAnnotationIndx, self.loadAnnotation, 'Annotation files (*.annotation)\nAll files(*.*)', 'Annotation Pickle File')
-        self.BAnnotationIndx = 0
-
+    
     def loadAnnotation(self):
         if DEBUG: print "loadAnnotation"
+        """
         self.annotation, self.BAnnotationIndx = self.loadRemember(self.RecentAnnotations, self.annotationCombo, self.BAnnotationIndx)
         fn = str(self.RecentAnnotations[0]) ## the loaded one is (becomes) always moved to 0 position
         self.genesInAnnotationFile[fn] = self.annotation['gene2GOID'].keys() ## update, in case the file content changed
+        self.updateEvidences()"""
+        self.progressBarInit()
+        go.loadAnnotation(self.organizmCodes[self.BAnnotationIndx], progressCallback=self.progressBarSet)
+        self.progressBarFinished()
         self.updateEvidences()
-        self.findTermsBuildDAG()
-
-    def browseGOaspect(self):
-        self.browseRemember(self.RecentGOaspects, self.BGOaspectIndx, self.loadGOaspect, 'GO files (*.go)\nAll files(*.*)', 'Gene Ontology Pickle File')
-        self.BGOaspectIndx = 0
+        self.findTermsBuildDAG()        
 
     def loadGOaspect(self, forced=1):
         if DEBUG: print "loadGOaspect"
         ## load if forced, or if index has changed
         ## if forced = 0 and index has not changed (still is 0) then don't reload the annotation data
-        if forced == 1 or self.BGOaspectIndx <> 0 or self.GO == None:
+        """if forced == 1 or self.BGOaspectIndx <> 0 or self.GO == None:
             if DEBUG: print "1:", str(self.RecentGOaspects) + "," + str(self.BGOaspectIndx)
             self.GO, self.BGOaspectIndx = self.loadRemember(self.RecentGOaspects, self.GOaspectCombo, self.BGOaspectIndx)
             if DEBUG: print "2:", str(self.RecentGOaspects) + "," + str(self.BGOaspectIndx)
             self.updateEvidences()
-            self.findTermsBuildDAG()
+            """
+        self.progressBarInit()
+        go.loadGO(progressCallback=self.progressBarSet)
+        go.loadAnnotation(self.organizmCodes[self.BAnnotationIndx], progressCallback=self.progressBarSet)
+        self.progressBarFinished()
+        self.updateEvidences()
+        self.findTermsBuildDAG()
 
     def updateEvidences(self):
+        """
         if not(self.annotation) or not(self.GO): ## if data missing, just disable everything
             for (etype, tmpCB) in self.evidenceCheckBoxes.items():
                 tmpCB.setText(etype)
                 tmpCB.setEnabled(False)
             return
+        """
+        if not go.loadedAnnotation:
+            for (etype, tmpCB) in self.evidenceCheckBoxes.items():
+                tmpCB.setText(etype)
+                tmpCB.setEnabled(False)
+            return
 
-        # count the number of evidence in each type and number of genes with evidence; update the checkboxes
-        evidenceTypeCn = {}
-        for (gene, geneAnns) in self.annotation['gene2GOID'].items():
-            for (daGOID, daNOT, daEvidence, daAspect, daDB_Object_Type) in geneAnns:
-                if daAspect <> self.GO['aspect']: 
-#                	print  daAspect, self.GO['aspect']
-                	continue # skip annotations that are not for the loaded aspect
-                	return
-                (cn, lst) = evidenceTypeCn.get(daEvidence, (0, []))
-                if gene not in lst:
-                    lst = lst + [gene]
-                evidenceTypeCn[daEvidence] = (cn + 1, lst)
-
+        evidenceCount=dict([(etype,0) for etype in go.evidenceDict.keys()])
+        evidenceGenes=dict([(etype,Set()) for etype in go.evidenceDict.keys()])
+        for ann in go.loadedAnnotation.annotationList:
+            evidenceCount[ann.evidence]+=1
+            evidenceGenes[ann.evidence].add(ann.geneName)
         for (etype, tmpCB) in self.evidenceCheckBoxes.items():
-            eCnLst = evidenceTypeCn.get(etype, None)
-            if eCnLst:
-                cn, lst = eCnLst
+            if evidenceCount[etype]:
                 tmpCB.setEnabled(True)
-                tmpCB.setText('%s: %d annots (%d genes)' % (etype, cn, len(lst)))
+                tmpCB.setText('%s: %d annots (%d genes)' % (etype, evidenceCount[etype], len(evidenceGenes[etype])))
             else:
                 tmpCB.setEnabled(False)
                 tmpCB.setText(etype)
-
+            
     def setFilterNumEnabled(self):
         self.sliderFilterNumValue.box.setDisabled(not self.FilterNumEnabled)
         self.runFilters()
@@ -604,6 +527,15 @@ class OWGOTermFinder(OWWidget):
         self.sliderFilterDepthValue.box.setDisabled(not self.FilterDepthEnabled)
         self.runFilters()
 
+    def downloadAnnotation(self):
+        organizmList=go.listOrganizms()
+        w=DownloadDialog(self, None, "", organizmList)
+
+    def downloadGO(self):
+        self.progressBarInit()
+        go.downloadGO(self.progressBarSet)
+        self.progressBarFinished()
+
     ##########################################################################
     # GO DAG calculations and filtering
     def runFilters(self):
@@ -613,36 +545,91 @@ class OWGOTermFinder(OWWidget):
                 break ## end of significant GO terms reached
             if self.FilterNumEnabled and x < self.FilterNumValue:
                 continue ## not worth mentioning
-            self.significantGOIDs.append( GOID)
+            self.significantGOIDs.append(GOID)
 
-        self.dag = GOlib.createGODAGtoDisplay(self.GO, self.GOtermValues.keys(), self.significantGOIDs)
+        ##self.dag = GOlib.createGODAGtoDisplay(self.GO, self.GOtermValues.keys(), self.significantGOIDs)
+        daglist=go.extractGODAG(self.GOTermFinderResult.keys())
         if self.FilterDepthEnabled:
-            self.dag = GOlib.DAGfilterForDepth(self.dag, 'root', self.FilterDepthValue)
+            daglist=go.DAGFilterForDepth(daglist, self.FilterDepthValue)
+            daglist=go.extractGODAG([t.id for t in daglist])
+        self.dag={"root":[("","")]}
+        if not daglist:
+            self.updateDAG()
+            return
+        self.dag=dict([(term.id,[]) for term in daglist])
+        for term in daglist:
+            if term.parents:
+                for parent in term.parents:
+                    rType=term.rType[parent]
+                    if parent in self.dag:
+                        self.dag[parent].append((term.id, rType))
+                    else:
+                        print "er 1!", parent
+                        self.dag[parent]=[(term.id, rType)]
+            else:
+                root=term
+        self.dag["root"]=self.dag[root.id]
+        for term in daglist:
+            if term.id not in self.dag:
+                print "er 2",term.id
+                self.dag[term.id]=[]
+        del self.dag[root.id]
+            
+        """if self.FilterDepthEnabled:
+            self.dag = GOlib.DAGfilterForDepth(self.dag, 'root', self.FilterDepthValue)"""
         self.updateDAG()
 
     def findTermsBuildDAG(self):
         self.dag = {}
         if DEBUG: print "findTermsBuildDAG, self.annotation: " + str(self.annotation <> None)
         if DEBUG: print "findTermsBuildDAG, self.GO: " + str(self.GO <> None)
-        if self.annotation <> None and self.GO <> None:
+        if not self.clusterData:
+            self.significantGOIDs=[]
+            self.updateDAG()
+            return
+        if go.loadedAnnotation and go.loadedGO:
             self.progressBarInit()
             evidences = [etype for (etype, tmpCB) in self.evidenceCheckBoxes.items() if tmpCB.isChecked()]
-            if self.ReferenceType == 0: # from annotation
-                ## for reference use the whole genome
-                self.GOIDsFound, self.GOtermValues, clusterSet, referenceSet = GOlib.findTerms(self.annotation, self.GO, self.clusterGenes, None, evidences, self.progressBarSet, 0.0, 75.0)
-            else: # from the given set of genes - received by signal
-                ## for reference use genes in the reference list
-                self.GOIDsFound, self.GOtermValues, clusterSet, referenceSet = GOlib.findTerms(self.annotation, self.GO, self.clusterGenes, self.referenceGenes, evidences, self.progressBarSet, 0.0, 75.0)
-            n = len(clusterSet); N = len(referenceSet) # needed if relative frequencies need to be displayed
+            
+            aspect=["biological_process","cellular_component","molecular_function"][self.BGOaspectIndx]
+            self.GO["aspect"]=aspect
+            #pywin.debugger.set_trace()
+            if self.ReferenceType==0:
+                referenceGenesSet=[]    #will use all the genes in the loaded annotation
+            else:
+                referenceGenesSet=self.referenceGenes
+            for g in self.clusterGenes:
+                print g
+            self.GOTermFinderResult=result=go.GOTermFinder(self.clusterGenes, referenceGenesSet, evidences, False, aspect, self.progressBarSet)
+            directAnnotations=go.findTerms(self.clusterGenes, aspect=[aspect], directAnnotationOnly=True, evidenceCodes=evidences, reportEvidence=False, progressCallback=self.progressBarSet)
+            if not self.GOTermFinderResult:
+                self.significantGOIDs=[]
+                self.dag={}
+                print "no GO terms"
+                self.updateDAG()
+                return 
+            self.GOtermValues=dict([(GOID,(go.loadedGO.termDict[GOID].name, len(genes), numRef, pvalue, genes, directAnnotations.get(GOID,[]))) for GOID,(genes, pvalue, numRef) in self.GOTermFinderResult.items()])
+            root=filter(lambda t:not go.loadedGO.termDict[t].parents, self.GOtermValues.keys())[0]
+            #print root, go.loadedGO.termDict[root]
+            self.GOtermValues["root"]=self.GOtermValues[root]
+            #del self.GOtermValues[root]
+            ##fill in sorted GOIDsFound (pValue, i, ID)
+            self.GOIDsFound=[(value[1],len(value[0]), GOID) for GOID,value in result.items()]
+            self.GOIDsFound.sort()
+            
+            n=len(self.clusterGenes); N=self.referenceGenes and len(self.referenceGenes) or len(go.loadedAnnotation.geneNames)
 ##            print n, N
 
             ## find the max number of cluster gene istances in a GO term
-            maxNumIstances = max( [1] + [x for (GOterm, x, G, pval, genesInGOID, genesInGOIDdirect) in self.GOtermValues.values()])
+            maxNumIstances=max([len(t[0]) for t in result.values()])
             ## create a DAG with all the possible nodes
             ## and find the max depth of the DAG
             sigGOIDs = [goid for (_, _, goid) in self.GOIDsFound]
-            tmpdag = GOlib.createGODAGtoDisplay(self.GO, self.GOtermValues.keys(), sigGOIDs)
-            maxDepth = GOlib.DAGdepth(tmpdag)
+            dag=go.extractGODAG(sigGOIDs)
+            
+            #pywin.debugger.set_trace()
+            maxDepth=go.DAGDepth(dag)
+                              
             ## update the filter controls
             self.sliderFilterNumValue.setRange(1, maxNumIstances, 1)
             self.sliderFilterDepthValue.setRange(0, maxDepth, 1)
@@ -666,9 +653,9 @@ class OWGOTermFinder(OWWidget):
                 genesInGOIDstr = ''
             for gene in genesInGOID[1:]:
                 genesInGOIDstr += ", " + str(gene)
-
-            if pval: pval = "%.5f" % pval
-            vals = [GOterm, x, G, pval, genesInGOIDstr]
+        
+            if pval: pval = "%.4g" % pval
+            vals = [GOterm, len(genesInGOID), G, pval, genesInGOIDstr] 
             for i in range(len(vals)):
                 listviewitem.setText(i, str(vals[i]))
 
@@ -685,10 +672,10 @@ class OWGOTermFinder(OWWidget):
                 self.goLVitem2GOID[li] = childNode
                 walkcreate(childNode, li)
 
-        if not(self.dag):
+        if not(self.dag):           
             self.goLV.clear()
             return
-
+        
         self.goLV.setRootIsDecorated(1)
         if not updateonly:
             self.goLV.clear()
@@ -703,6 +690,7 @@ class OWGOTermFinder(OWWidget):
 
         # update table of significant/filtered Terms
         self.sigTermsTable.setNumRows(len(self.significantGOIDs))
+        #print self.significantGOIDs
         for i in range(len(self.significantGOIDs)): ## sorted by the p value
             GOID = self.significantGOIDs[i]
             GOterm, x, G, pval, genesInGOID, genesInGOIDdirect = self.GOtermValues.get(GOID, (GOID+'?', '', '', '', [], []))
@@ -715,12 +703,29 @@ class OWGOTermFinder(OWWidget):
                 genesInGOIDstr = ''
             for gene in genesInGOID[1:]:
                 genesInGOIDstr += ", " + str(gene)
-
-            if pval: pval = "%.5f" % pval
-            vals = [GOterm, x, G, pval, genesInGOIDstr]
+            
+            if pval: pval = "%.4g" % pval
+            vals = [GOterm, len(genesInGOID), G, pval, genesInGOIDstr]
             for j in range(len(vals)):
                 self.sigTermsTable.setText(i, j, str(vals[j]))
 
+class DownloadDialog(OWWidget):
+    def __init__(self, parent=None, signalManager=None, name="Download annotations", codes=[]):
+        OWWidget.__init__(self, parent, signalManager, name)
+        self.codesInd=0
+        self.codes=codes
+        self.master=parent
+        self.rBox=OWGUI.comboBox(self.controlArea, self, "codesInd", items=codes, box="Organizm Codes")
+        OWGUI.button(self.controlArea, self, "OK", callback=self.download)
+        self.resize(100,100)
+        self.show()
+
+    def download(self):
+        self.progressBarInit()
+        go.downloadAnnotation(self.codes[self.codesInd], self.progressBarSet)
+        self.progressBarFinished()
+        self.master.setAnnotationCodesList()
+        
 if __name__=="__main__":
     import orange
     a = QApplication(sys.argv)
@@ -730,7 +735,9 @@ if __name__=="__main__":
 ##    d = orange.ExampleTable('testClusterSet.tab', dontCheckStored=1)
 ##    d = orange.ExampleTable('hjSmall.tab', dontCheckStored=1)
     d = orange.ExampleTable('dicty2.tab', dontCheckStored=1)
-    ow.clusterDataset(d, 0)
     ow.show()
+    #pywin.debugger.set_trace()
+    ow.clusterDataset(d)
+    #ow.clusterDataset(None)
     a.exec_loop()
     ow.saveSettings()
