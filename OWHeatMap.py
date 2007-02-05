@@ -777,10 +777,16 @@ class MyCanvasView(QCanvasView):
             self.canvas.update()
 
     def keyPressEvent(self, e):
-        self.shiftPressed = e.key() == 4128
+        if e.key() == 4128:
+            self.shiftPressed = True
+        else:
+            OWWidget.keyPressEvent(self, e)
 
     def keyReleaseEvent(self, e):        
-        self.shiftPressed = False
+        if e.key() == 4128:
+            self.shiftPressed = False
+        else:
+            OWWidget.keyReleaseEvent(self, e)
 
     def contentsMousePressEvent(self, event):
         # self.viewport().setMouseTracking(False)
