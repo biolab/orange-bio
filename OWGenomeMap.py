@@ -637,13 +637,13 @@ class ChromosomeGraphView(QCanvasView):
         if e.key() == 4128:
             self.shiftPressed = True
         else:
-            OWWidget.keyPressEvent(self, e)
+            QCanvasView.keyPressEvent(self, e)
 
     def keyReleaseEvent(self, e):        
         if e.key() == 4128:
             self.shiftPressed = False
         else:
-            OWWidget.keyReleaseEvent(self, e)
+            QCanvasView.keyReleaseEvent(self, e)
 
     def drawZoom(self, left, right):
         self.zoomRect.setX(left)
