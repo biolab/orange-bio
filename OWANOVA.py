@@ -15,7 +15,7 @@ import Anova, stats
 
 
 class OWANOVA(OWWidget):
-    settingsList  = ["anovaType", "compareToValue", "_interaction", "selectorA", "selectorB", "selectorI", "alphaA", "alphaB", "alphaI", "autoUpdateSelName", "sendNotSelectedData", "commitOnChange"]
+    settingsList  = ["anovaType", "compareToValue", "_interaction", "selectorA", "selectorB", "selectorI", "alphaA", "alphaB", "alphaI", "autoUpdateSelName", "sendNotSelectedData", "sendProbabilities", "commitOnChange"]
 
     def __init__(self, parent=None, signalManager = None):
         OWWidget.__init__(self, parent, signalManager, 'ANOVA')
@@ -42,6 +42,7 @@ class OWANOVA(OWWidget):
         self.alphaI = "0.05"
         self.autoUpdateSelName = 1
         self.sendNotSelectedData = 1
+        self.sendProbabilities = 0
         self.commitOnChange = 0
         self.loadSettings()
 
@@ -86,7 +87,7 @@ class OWANOVA(OWWidget):
         glA = QGridLayout(frmA,1,3,5)
         leA = OWGUI.lineEdit(frmA, self, "alphaA", orientation="horizontal", callback=lambda x=0: self.onAlphaChange(x))
         glA.addWidget(leA,0,1) # Qt.AlignRight
-        glA.addWidget(QLabel("     p < ", frmA), 0,0)
+        glA.addWidget(QLabel("     p <= ", frmA), 0,0)
         self.lblNumGenes.append(QLabel('', frmA))
         glA.addWidget(self.lblNumGenes[-1],0,2) # Qt.AlignRight | 0x22
 
@@ -98,7 +99,7 @@ class OWANOVA(OWWidget):
         glB = QGridLayout(frmB,1,3,5)
         leB = OWGUI.lineEdit(frmB, self, "alphaB", orientation="horizontal", callback=lambda x=1: self.onAlphaChange(x))
         glB.addWidget(leB,0,1)
-        glB.addWidget(QLabel("     p < ", frmB), 0,0)
+        glB.addWidget(QLabel("     p <= ", frmB), 0,0)
         self.lblNumGenes.append(QLabel('', frmB))
         glB.addWidget(self.lblNumGenes[-1],0,2)
         
@@ -113,7 +114,7 @@ class OWANOVA(OWWidget):
         ##        self.alphaIf = 0.05
         ##        leI = OWGUI.qwtHSlider(self.boxSelectorI, self, "alphaIf", box="", label="      p < ", labelWidth=None, minValue=0.0001, maxValue=1.0, step=0.1, precision=3, callback=lambda x=2: self.onAlphaChange(x), logarithmic=1, ticks=0, maxWidth=None)
         glI.addWidget(leI,0,1)
-        glI.addWidget(QLabel("     p < ", frmI), 0,0)
+        glI.addWidget(QLabel("     p <= ", frmI), 0,0)
         self.lblNumGenes.append(QLabel('', frmI))
         glI.addWidget(self.lblNumGenes[-1],0,2)
         
@@ -124,6 +125,7 @@ class OWANOVA(OWWidget):
         self.leSelectorName.setReadOnly(self.autoUpdateSelName)
         OWGUI.checkBox(box, self, 'autoUpdateSelName', 'Automatically update selector name', callback=self.onAutoUpdateSelNameChange)
         OWGUI.checkBox(box, self, 'sendNotSelectedData', 'Send not selected data', callback=self.onSendNotSelectedChange)
+        OWGUI.checkBox(box, self, 'sendProbabilities', 'Show p-values', callback=self.onSendProbabilitiesChange)
         OWGUI.checkBox(box, self, 'commitOnChange', 'Commit data on selection change', callback=lambda: self.onCommit(self.commitOnChange))
         self.btnCommit = OWGUI.button(box, self, "Commit", callback=self.onCommit)
 
@@ -406,7 +408,7 @@ class OWANOVA(OWWidget):
                 alpha = None
                 ps = None
             if ps != None and alpha != None and self.anovaType in [[0,1,3,4],[2,3,4],[4]][si]:
-                numSelected = Numeric.add.reduce(Numeric.less(self.ps[si], alpha))
+                numSelected = Numeric.add.reduce(Numeric.less_equal(self.ps[si], alpha))
                 self.lblNumGenes[si].setText('  (%d example%s)' % (numSelected, ['', 's'][numSelected!=1]))
             else:
                 self.lblNumGenes[si].setText('  (no examples)')
@@ -424,37 +426,61 @@ class OWANOVA(OWWidget):
             for si in range(3):
                 try:
                     if selectors[si] and self.anovaType in [[0,1,3,4],[2,3,4],[4]][si]:
-                        selectionList = Numeric.logical_and(selectionList, Numeric.less(self.ps[si], float(alphas[si])))
+                        selectionList = Numeric.logical_and(selectionList, Numeric.less_equal(self.ps[si], float(alphas[si])))
                 except:
                     pass
-            # partition dataStructure and send out data
             self.infoc.setText('Sending out data...')
+            
+            if self.sendProbabilities:
+                # create example table with probabilities
+                print self.ps
+                print Numeric.transpose(self.ps).shape
+                etProb = orange.ExampleTable(orange.Domain([orange.FloatVariable("Factor A p-val"),orange.FloatVariable("Factor B p-val"),orange.FloatVariable("Interaction p-val")]), Numeric.transpose(self.ps))
+                # in etProb, convert p-val to meta attribute
+                domProb = orange.Domain([])
+                domProb.addmetas(dict(zip([orange.newmetaid(),orange.newmetaid(),orange.newmetaid()], etProb.domain.variables)))
+                etProb = orange.ExampleTable(domProb, etProb)
+            else:
+                # create new etProb without attributes/metas and of length equal to etProb
+                etProb = orange.ExampleTable(orange.Domain([]), Numeric.zeros((selectionList.shape[0],0)))
+
+            # partition dataStructure and send out data
             selectionList = selectionList.tolist()
             self.send("Example Selection", (self.selectorName, selectionList))
             dataStructS = []
             dataStructN = []
             self.progressBarInit()
+
             if self.sendNotSelectedData:
                 pbStep = 50./len(self.dataStructure)
             else:
                 pbStep = 100./len(self.dataStructure)
+
             for (dsName, etList) in self.dataStructure:
                 etListS = [et.select(selectionList) for et in etList]
                 for i in range(len(etList)):
+                    # append probabilities (if etProb not empty)
+                    etListS[i] = orange.ExampleTable([etListS[i], etProb.select(selectionList)])
+                    # add name
                     etListS[i].name = etList[i].name
                 dataStructS.append((dsName, etListS))
                 self.progressBarAdvance(pbStep)
             self.send("Selected Structured Data", dataStructS)
+
             if self.sendNotSelectedData:
                 for (dsName, etList) in self.dataStructure:
                     etListN = [et.select(selectionList, negate=1) for et in etList]
                     for i in range(len(etList)):
+                        # append probabilities (if etProb not empty)
+                        etListN[i] = orange.ExampleTable([etListN[i], etProb.select(selectionList, negate=1)])
+                        # add name
                         etListN[i].name = etList[i].name
                     dataStructN.append((dsName, etListN))
                     self.progressBarAdvance(pbStep)
                 self.send("Other Structured Data", dataStructN)
             else:
                 self.send("Other Structured Data", None)
+
             self.progressBarFinished()
             # report the number of selected examples
             numExamples = Numeric.add.reduce(Numeric.greater(selectionList, 0))
@@ -582,6 +608,11 @@ class OWANOVA(OWWidget):
         if self.commitOnChange:
             self.senddata()
 
+    def onSendProbabilitiesChange(self):            
+        """handles clicks on show p-values checkbox
+        """
+        if self.commitOnChange:
+            self.senddata()
             
     def onCommit(self, commit=True):
         """handles Commit clicks; runs ANOVA (if not already computed) and sends out data;
@@ -595,13 +626,13 @@ class OWANOVA(OWWidget):
 
 
 if __name__=="__main__":
-    import OWDataFiles, orngSignalManager
+    import OWDataFiles, OWDataFilesSelector, OWDataTable, orngSignalManager
     signalManager = orngSignalManager.SignalManager(0)
     a=QApplication(sys.argv)
-    ow=OWANOVA(signalManager = signalManager)
-    a.setMainWidget(ow)
-    ow.show()
-    ds = OWDataFiles.OWDataFiles(signalManager = signalManager)
+    an=OWANOVA(signalManager = signalManager)
+    a.setMainWidget(an)
+    an.show()
+    df = OWDataFiles.OWDataFiles(signalManager = signalManager)
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato.sub100")
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato.sub1000")
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA")
@@ -612,12 +643,22 @@ if __name__=="__main__":
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_one-sample t-test")
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_factor A")
 ##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_factor B")
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_factors A and B")
+    df.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_factors A and B")
 
-    signalManager.addWidget(ow)
-    signalManager.addWidget(ds)
+    signalManager.addWidget(an)
+    signalManager.addWidget(df)
     signalManager.setFreeze(1)
-    signalManager.addLink(ds, ow, 'Structured Data', 'Structured Data', 1)
+    signalManager.addLink(df, an, 'Structured Data', 'Structured Data', 1)
+
+    # data files selector, data table
+    dfs = OWDataFilesSelector.OWDataFilesSelector(signalManager = signalManager)
+    signalManager.addWidget(dfs)
+    signalManager.addLink(an, dfs, 'Selected Structured Data', 'Structured Data', 1)
+    dt = OWDataTable.OWDataTable(signalManager = signalManager)
+    signalManager.addWidget(dt)
+    signalManager.addLink(dfs, dt, 'Examples', 'Examples', 1)
     signalManager.setFreeze(0)
+    dt.show()
+
     a.exec_loop()
-    ow.saveSettings()
+    an.saveSettings()
