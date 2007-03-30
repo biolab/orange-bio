@@ -38,7 +38,7 @@ D6 = False # Probes
 class OWNormalize(OWWidget):
 
     settingsList = ["varNameA", "varNameB", "varNameSignalSmpl", "varNameSignalRef", "varNameBGSmpl", "varNameBGRef", "varNameBGSmplSD", "varNameBGRefSD",
-                    "defNameA", "defNameB", "defNameSmpl", "defNameRef", "defNameForeground", "defNameBackground", "defNameMean", "defNameSD",
+                    "defNameA", "defNameB", "defNameSmpl1", "defNameSmpl2", "defNameRef1", "defNameRef2", "defNameForeground", "defNameBackground", "defNameMean", "defNameSD",
                     "displayVarAAliases", "commitOnChange"]
     # constants
     stylesIndices = zip(["<none>","Circle","Rect","Diamond","Triangle","DTriangle","UTriangle","LTriangle","RTriangle","Cross","XCross"], range(11))
@@ -80,14 +80,16 @@ class OWNormalize(OWWidget):
         self._def_maxCV = 0.5
         self._def_useMinIntensity = True
         self._def_minIntensityRatio = 1.5
-        self._def_useMaxIntensity = True
-        self._def_maxIntensity = 60000
+        self._def_useMaxFGIntensity = True
+        self._def_maxFGIntensity = 60000
+        self._def_useMaxBGIntensity = False
+        self._def_maxBGIntensity = 400
         # defaults: normalization
         self._def_arrayType = 0  # 0: whole-genome array, 1: custom array with control probes
         self._def_normRange = 2  # 0: global, 1: local, per var B values, 2: combined
         self._def_minNumControlProbes = 2
         self._def_approxFunction = 2   # 0: median, 1: LR, 2: LOESS
-        self._def_loessWindow = 60
+        self._def_loessWindow = 80
         self._def_loessWeight = 0.0
 
         # general settings
@@ -101,8 +103,10 @@ class OWNormalize(OWWidget):
         self.maxCV = self._def_maxCV
         self.useMinIntensity = self._def_useMinIntensity
         self.minIntensityRatio = self._def_minIntensityRatio
-        self.useMaxIntensity = self._def_useMaxIntensity
-        self.maxIntensity = self._def_maxIntensity
+        self.useMaxFGIntensity = self._def_useMaxFGIntensity
+        self.maxFGIntensity = self._def_maxFGIntensity
+        self.useMaxBGIntensity = self._def_useMaxBGIntensity
+        self.maxBGIntensity = self._def_maxBGIntensity
         # general settings: normalization
         self.arrayType = self._def_arrayType
         self.normRange = self._def_normRange
@@ -124,8 +128,8 @@ class OWNormalize(OWWidget):
 
         # output
         self.mergeLevel = OWNormalize.MergeLevelPerVarA             #0: none, 1: per vars A & B, 2: per var A
-        self.mergeIntensitiesType = 0   #0: mean, 1: median
-        self.mergeOtherType = OWNormalize.MergeOtherTypeMean        # Mean, Median, Concatenate
+        self.mergeIntensitiesType = 1   #0: mean, 1: median
+        self.mergeOtherType = OWNormalize.MergeOtherTypeMedian        # Mean, Median, Concatenate
         self.mergeOtherRemoveDupl = False                           # whether or not to remove duplicates from comma separated list of values
         
         self.outVarAAliases = True
@@ -133,6 +137,7 @@ class OWNormalize(OWWidget):
         self.outNetSignal = True
         self.outA = True
         self.outNonNormLogRatio = False
+        self.outNonNormLogRatioCentered = False
         self.autoSendSelection = 1
 
         # context-specific settings
@@ -153,8 +158,10 @@ class OWNormalize(OWWidget):
         # default var names
         self.defNameA = "id"
         self.defNameB = ""
-        self.defNameSmpl = "smpl"
-        self.defNameRef = "ref"
+        self.defNameSmpl1 = "smpl"
+        self.defNameSmpl2 = ""
+        self.defNameRef1 = "ref"
+        self.defNameRef2 = ""
         self.defNameForeground = "raw"
         self.defNameBackground = "background"
         self.defNameMean = "med"
@@ -202,8 +209,10 @@ class OWNormalize(OWWidget):
         boxDefaultNames = QVGroupBox('Default variable names', boxVars)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameA", label="Var A", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameB", label="Var B", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
-        OWGUI.lineEdit(boxDefaultNames, self, "defNameSmpl", label="Sample", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
-        OWGUI.lineEdit(boxDefaultNames, self, "defNameRef", label="Reference", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
+        OWGUI.lineEdit(boxDefaultNames, self, "defNameSmpl1", label="Smpl 1", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
+        OWGUI.lineEdit(boxDefaultNames, self, "defNameSmpl2", label="Smpl 2", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
+        OWGUI.lineEdit(boxDefaultNames, self, "defNameRef1", label="Ref 1", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
+        OWGUI.lineEdit(boxDefaultNames, self, "defNameRef2", label="Ref 2", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameForeground", label="Foreground", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameBackground", label="Background", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameMean", label="Average", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
@@ -247,12 +256,18 @@ class OWNormalize(OWWidget):
         sldMinInt = OWGUI.qwtHSlider(boxMinIntRatio, self, "minIntensityRatio", minValue=0, maxValue=5, step=0.01, precision=2, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMinInt, SIGNAL("sliderReleased()"), self.settingsFilterMinIntRatioChange)
         self.lblInfoFilterMinIntRatio = QLabel("\n", boxMinIntRatio)
-        # tab 3: filters: maxIntensity
-        boxMaxIntensity = QVGroupBox('Max. foreground intensity', boxFilters)
-        OWGUI.checkBox(boxMaxIntensity, self, "useMaxIntensity", "Enabled", callback=self.settingsFilterMaxIntChange)
-        sldMaxInt = OWGUI.qwtHSlider(boxMaxIntensity, self, "maxIntensity", minValue=0, maxValue=65536, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
-        self.connect(sldMaxInt, SIGNAL("sliderReleased()"), self.settingsFilterMaxIntChange)
-        self.lblInfoFilterMaxInt = QLabel("\n", boxMaxIntensity)
+        # tab 3: filters: maxFGIntensity
+        boxMaxFGIntensity = QVGroupBox('Max. foreground intensity', boxFilters)
+        OWGUI.checkBox(boxMaxFGIntensity, self, "useMaxFGIntensity", "Enabled", callback=self.settingsFilterMaxFGIntChange)
+        sldMaxFGInt = OWGUI.qwtHSlider(boxMaxFGIntensity, self, "maxFGIntensity", minValue=0, maxValue=65536, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
+        self.connect(sldMaxFGInt, SIGNAL("sliderReleased()"), self.settingsFilterMaxFGIntChange)
+        self.lblInfoFilterMaxFGInt = QLabel("\n", boxMaxFGIntensity)
+        # tab 3: filters: maxBGIntensity
+        boxMaxBGIntensity = QVGroupBox('Max. background intensity', boxFilters)
+        OWGUI.checkBox(boxMaxBGIntensity, self, "useMaxBGIntensity", "Enabled", callback=self.settingsFilterMaxBGIntChange)
+        sldMaxBGInt = OWGUI.qwtHSlider(boxMaxBGIntensity, self, "maxBGIntensity", minValue=0, maxValue=4096, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
+        self.connect(sldMaxBGInt, SIGNAL("sliderReleased()"), self.settingsFilterMaxBGIntChange)
+        self.lblInfoFilterMaxBGInt = QLabel("\n", boxMaxBGIntensity)
         # tab 3: default button
         OWGUI.button(boxFilters, self, "Set &Default Values", callback=self.filtersAllChange)
 
@@ -331,7 +346,8 @@ class OWNormalize(OWWidget):
         self.cbOutNumProbes = OWGUI.checkBox(boxAdditional, self, "outNumProbes", "Number of probes", callback=self.settingsOutputChange)
         OWGUI.checkBox(boxAdditional, self, "outNetSignal", "Net intensities", callback=self.settingsOutputChange)
         OWGUI.checkBox(boxAdditional, self, "outA", "A (log2 average intensity)", callback=self.settingsOutputChange)
-        OWGUI.checkBox(boxAdditional, self, "outNonNormLogRatio", "Non-normalized log2 ratio", callback=self.settingsOutputChange)
+        OWGUI.checkBox(boxAdditional, self, "outNonNormLogRatio", "Non-normalized M (log2 ratio)", callback=self.settingsOutputChange)
+        OWGUI.checkBox(boxAdditional, self, "outNonNormLogRatioCentered", "Non-normalized centered M (log2 ratio)", callback=self.settingsOutputChange)
         # tab 6: output: other variables
         boxOtherVars = QVGroupBox('Other variables', boxOutput)
         self.lbVarOthers = QListBox(boxOtherVars)
@@ -342,7 +358,7 @@ class OWNormalize(OWWidget):
         rbgMergeOtherType = OWGUI.radioButtonsInBox(self.boxMergeOtherType, self, value="mergeOtherType", btnLabels=["Mean", "Median", "Concatenate values"], box="Continuous variables", callback=self.settingsOutputOtherChange)
         boxMergeOtherTypeD = QVGroupBox('Non-continuous variables', self.boxMergeOtherType)
         QLabel("Values are concatenated by default.", boxMergeOtherTypeD)
-        self.cbMergeOtherRemoveDupl = OWGUI.checkBox(self.boxMergeOtherType, self, "mergeOtherRemoveDupl", "Remove duplicate values", callback=self.settingsOutputOtherChange)
+        self.cbMergeOtherRemoveDupl = OWGUI.checkBox(boxMergeOtherTypeD, self, "mergeOtherRemoveDupl", "Remove duplicate values", callback=self.settingsOutputOtherChange)
 
         # tab 5: settings
         boxSettings = QVGroupBox(self)
@@ -384,7 +400,8 @@ class OWNormalize(OWWidget):
         self.setProbeFilters()
         self.setInfoFilterMaxCV()
         self.setInfoFilterMinRatio()
-        self.setInfoFilterMaxInt()
+        self.setInfoFilterMaxFGInt()
+        self.setInfoFilterMaxBGInt()
         self.probes.setNormalizationParameters(self.normRange, self.minNumControlProbes, self.approxFunction, self.loessWindow, self.loessWeight)
 
 
@@ -625,14 +642,16 @@ class OWNormalize(OWWidget):
                         self.lbVarOthers.setSelected(idx, True)
                 self.fillVarsOtherSelected()
                 self.connect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
-
+            # enable/disable self.boxMergeOtherType
+            self.boxMergeOtherType.setEnabled(self.mergeLevel and len(self.varsOtherSelected) > 0)
+        
 
     def _setDefaultVarAssignment_varSignalSmpl(self, dataVarNames):
         self.varNameSignalSmpl = None
         if self.data and len(dataVarNames) > 0:
             candVarsLenName = []    # list of tuples (len, varName)
             for vName in dataVarNames:
-                if vName and self.defNameSmpl in vName and self.defNameForeground in vName and self.defNameMean in vName:
+                if vName and self.defNameSmpl1 in vName and self.defNameSmpl2 in vName and self.defNameForeground in vName and self.defNameMean in vName:
                     candVarsLenName.append((len(vName),vName))
             if len(candVarsLenName) > 0:
                 candVarsLenName.sort()
@@ -645,7 +664,7 @@ class OWNormalize(OWWidget):
         if self.data and len(dataVarNames) > 0:
             candVarsLenName = []    # list of tuples (len, varName)
             for vName in dataVarNames:
-                if vName and self.defNameRef in vName and self.defNameForeground in vName and self.defNameMean in vName:
+                if vName and self.defNameRef1 in vName and self.defNameRef2 in vName and self.defNameForeground in vName and self.defNameMean in vName:
                     candVarsLenName.append((len(vName),vName))
             if len(candVarsLenName) > 0:
                 candVarsLenName.sort()
@@ -658,7 +677,7 @@ class OWNormalize(OWWidget):
         if self.data and len(dataVarNames) > 0:
             candVarsLenName = []    # list of tuples (len, varName)
             for vName in dataVarNames:
-                if vName and self.defNameSmpl in vName and self.defNameBackground in vName and self.defNameMean in vName:
+                if vName and self.defNameSmpl1 in vName and self.defNameSmpl2 in vName and self.defNameBackground in vName and self.defNameMean in vName:
                     candVarsLenName.append((len(vName),vName))
             if len(candVarsLenName) > 0:
                 candVarsLenName.sort()
@@ -671,7 +690,7 @@ class OWNormalize(OWWidget):
         if self.data and len(dataVarNames) > 0:
             candVarsLenName = []    # list of tuples (len, varName)
             for vName in dataVarNames:
-                if vName and self.defNameRef in vName and self.defNameBackground in vName and self.defNameMean in vName:
+                if vName and self.defNameRef1 in vName and self.defNameRef2 in vName and self.defNameBackground in vName and self.defNameMean in vName:
                     candVarsLenName.append((len(vName),vName))
             if len(candVarsLenName) > 0:
                 candVarsLenName.sort()
@@ -684,7 +703,8 @@ class OWNormalize(OWWidget):
         if self.data and len(dataVarNames) > 0:
             candVarsLenName = []    # list of tuples (len, varName)
             for vName in dataVarNames:
-                if vName and self.defNameSmpl in vName and self.defNameBackground in vName and self.defNameSD in vName and self.defNameSmpl and self.defNameBackground and self.defNameSD:
+##                if vName and self.defNameSmpl1 in vName and self.defNameSmpl2 in vName and self.defNameBackground in vName and self.defNameSD in vName and self.defNameSmpl and self.defNameBackground and self.defNameSD:
+                if vName and self.defNameSmpl1 in vName and self.defNameSmpl2 in vName and self.defNameBackground in vName and self.defNameSD in vName:
                     candVarsLenName.append((len(vName),vName))
             if len(candVarsLenName) > 0:
                 candVarsLenName.sort()
@@ -697,7 +717,8 @@ class OWNormalize(OWWidget):
         if self.data and len(dataVarNames) > 0:
             candVarsLenName = []    # list of tuples (len, varName)
             for vName in dataVarNames:
-                if vName and self.defNameRef in vName and self.defNameBackground in vName and self.defNameSD in vName and self.defNameRef and self.defNameBackground and self.defNameSD:
+##                if vName and self.defNameRef1 in vName and self.defNameRef2 in vName and self.defNameBackground in vName and self.defNameSD in vName and self.defNameRef and self.defNameBackground and self.defNameSD:
+                if vName and self.defNameRef1 in vName and self.defNameRef2 in vName and self.defNameBackground in vName and self.defNameSD in vName:
                     candVarsLenName.append((len(vName),vName))
             if len(candVarsLenName) > 0:
                 candVarsLenName.sort()
@@ -746,7 +767,8 @@ class OWNormalize(OWWidget):
         # filter info
         self.setInfoFilterMaxCV()
         self.setInfoFilterMinRatio()
-        self.setInfoFilterMaxInt()
+        self.setInfoFilterMaxFGInt()
+        self.setInfoFilterMaxBGInt()
 
 
     def sendData(self):
@@ -755,7 +777,7 @@ class OWNormalize(OWWidget):
         if D1 or D2 or D6: print "OWNormalize.sendData"
         if self.data:
             # etNum, varListNum: normalized log2 ratios, num. probes, net intensities, A, non-norm M;
-            varListNum = [orange.FloatVariable("Log2 ratio")]
+            varListNum = [orange.FloatVariable("M (centered log2 ratio)")]
             self.progressBarInit()
             l2r = self.probes.getNormalizedLog2Ratio_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance)
             self.progressBarFinished()
@@ -772,13 +794,18 @@ class OWNormalize(OWWidget):
                 self.progressBarFinished()
             if self.outA:
                 self.progressBarInit()
-                varListNum.append(orange.FloatVariable("A"))
+                varListNum.append(orange.FloatVariable("A (log2 average intensity)"))
                 maData = MA.concatenate([maData, MA.reshape(self.probes.getA_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance), (maData.shape[0], 1))], 1)
                 self.progressBarFinished()
             if self.outNonNormLogRatio:
                 self.progressBarInit()
-                varListNum.append(orange.FloatVariable("Non-normalized M (log2 ratio)"))
+                varListNum.append(orange.FloatVariable("Non-normalized M"))
                 maData = MA.concatenate([maData, MA.reshape(self.probes.getRawLog2Ratio_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance), (maData.shape[0], 1))], 1)
+                self.progressBarFinished()
+            if self.outNonNormLogRatioCentered:
+                self.progressBarInit()
+                varListNum.append(orange.FloatVariable("Non-normalized centered M"))
+                maData = MA.concatenate([maData, MA.reshape(self.probes.getCenteredLog2Ratio_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance), (maData.shape[0], 1))], 1)
                 self.progressBarFinished()
             etNum = chipstat.ma2orng(maData, orange.Domain(varListNum, None))
 
@@ -845,7 +872,8 @@ class OWNormalize(OWWidget):
         # filters info
         self.setInfoFilterMaxCV()
         self.setInfoFilterMinRatio()
-        self.setInfoFilterMaxInt()
+        self.setInfoFilterMaxFGInt()
+        self.setInfoFilterMaxBGInt()
         # send data and probes data
         if self.commitOnChange:
             self.sendData()
@@ -976,7 +1004,8 @@ class OWNormalize(OWWidget):
         self.setInfoProbes()
         self.setInfoFilterMaxCV()
         self.setInfoFilterMinRatio()
-        self.setInfoFilterMaxInt()
+        self.setInfoFilterMaxFGInt()
+        self.setInfoFilterMaxBGInt()
         if self.commitOnChange:
             self.sendData()
         qApp.restoreOverrideCursor()
@@ -1164,7 +1193,8 @@ class OWNormalize(OWWidget):
                 self.setInfoProbes()
                 self.setInfoFilterMaxCV()
                 self.setInfoFilterMinRatio()
-                self.setInfoFilterMaxInt()
+                self.setInfoFilterMaxFGInt()
+                self.setInfoFilterMaxBGInt()
                 if self.commitOnChange:
                     self.sendData()
                     self.sendProbes()
@@ -1272,7 +1302,8 @@ class OWNormalize(OWWidget):
         self.setInfoProbes()
         self.setInfoFilterMaxCV()
         self.setInfoFilterMinRatio()
-        self.setInfoFilterMaxInt()
+        self.setInfoFilterMaxFGInt()
+        self.setInfoFilterMaxBGInt()
         if self.commitOnChange:
             self.sendData()
             self.sendProbes()
@@ -1300,7 +1331,8 @@ class OWNormalize(OWWidget):
         self.setInfoProbes()
         self.setInfoFilterMaxCV()
         self.setInfoFilterMinRatio()
-        self.setInfoFilterMaxInt()
+        self.setInfoFilterMaxFGInt()
+        self.setInfoFilterMaxBGInt()
         if self.commitOnChange:
             self.sendData()
             self.sendProbes()
@@ -1317,7 +1349,8 @@ class OWNormalize(OWWidget):
         self.setInfoProbes()
         self.setInfoFilterMaxCV()
         self.setInfoFilterMinRatio()
-        self.setInfoFilterMaxInt()
+        self.setInfoFilterMaxFGInt()
+        self.setInfoFilterMaxBGInt()
         if self.commitOnChange:
             self.sendData()
             self.sendProbes()
@@ -1390,7 +1423,7 @@ class OWNormalize(OWWidget):
         axis: 0: vertical left, 1: vertical right, 2: horizontal bottom, 3: horizontal top
         """
         if D1: print "OWNormalize.setGraphAxes"
-        titles = {False: ["Ratio"]*2 + ["Average intensity"]*2, True: ["M: log2 ratio"]*2 + ["A: log2 average intensity"]*2}
+        titles = {False: ["Centered ratio"]*2 + ["Average intensity"]*2, True: ["M: centered log2 ratio"]*2 + ["A: log2 average intensity"]*2}
         useLog = [self.logAxisY]*2 + [self.logAxisX]*2
         if axes==None: axes = [0,2]
         for axis in axes:
@@ -1466,7 +1499,8 @@ class OWNormalize(OWWidget):
         self.setInfoProbes()
         self.setInfoFilterMaxCV()
         self.setInfoFilterMinRatio()
-        self.setInfoFilterMaxInt()
+        self.setInfoFilterMaxFGInt()
+        self.setInfoFilterMaxBGInt()
         if self.commitOnChange:
             self.sendData()
         qApp.restoreOverrideCursor()
@@ -1502,15 +1536,30 @@ class OWNormalize(OWWidget):
         qApp.restoreOverrideCursor()
 
 
-    def settingsFilterMaxIntChange(self):
+    def settingsFilterMaxFGIntChange(self):
         """Handles changes of filter settings, which affects graph curves and ouput data.
         """
-        if D1: print "OWNormalize.settingsFiltersChange"
+        if D1: print "OWNormalize.settingsFilterMaxFGIntChange"
         qApp.restoreOverrideCursor()
         qApp.setOverrideCursor(QWidget.waitCursor)
         self.setProbeFilters()
         self.setInfoProbes()
-        self.setInfoFilterMaxInt()
+        self.setInfoFilterMaxFGInt()
+        self.updateProbeTableNumAcceptedProbes()
+        if self.commitOnChange:
+            self.sendData()
+        qApp.restoreOverrideCursor()
+
+
+    def settingsFilterMaxBGIntChange(self):
+        """Handles changes of filter settings, which affects graph curves and ouput data.
+        """
+        if D1: print "OWNormalize.settingsFilterMaxBGIntChange"
+        qApp.restoreOverrideCursor()
+        qApp.setOverrideCursor(QWidget.waitCursor)
+        self.setProbeFilters()
+        self.setInfoProbes()
+        self.setInfoFilterMaxBGInt()
         self.updateProbeTableNumAcceptedProbes()
         if self.commitOnChange:
             self.sendData()
@@ -1527,11 +1576,15 @@ class OWNormalize(OWWidget):
             minIntensityRatio = self.minIntensityRatio
         else:
             minIntensityRatio = 0
-        if self.useMaxIntensity:
-            maxIntensity = self.maxIntensity
+        if self.useMaxFGIntensity:
+            maxFGIntensity = self.maxFGIntensity
         else:
-            maxIntensity = Probes.bigVal
-        self.probes.setFilterParameters(maxCV, minIntensityRatio, maxIntensity)
+            maxFGIntensity = Probes.bigVal
+        if self.useMaxBGIntensity:
+            maxBGIntensity = self.maxBGIntensity
+        else:
+            maxBGIntensity = Probes.bigVal
+        self.probes.setFilterParameters(maxCV, minIntensityRatio, maxFGIntensity, maxBGIntensity)
 
 
     def setInfoFilterMaxCV(self):
@@ -1566,20 +1619,36 @@ class OWNormalize(OWWidget):
             self.lblInfoFilterMinIntRatio.setText("No data on input.\n")
 
 
-    def setInfoFilterMaxInt(self):
-        if D4: print "OWNormalize.setInfoFilterMaxInt"
+    def setInfoFilterMaxFGInt(self):
+        if D4: print "OWNormalize.setInfoFilterMaxFGInt"
         if self.probes:
             if self.probes.getNumProbesControls() > 0:
-                ratioControls = 100. * self.probes.getNumFilteredControlsMaxInt() / self.probes.getNumProbesControls()
+                ratioControls = 100. * self.probes.getNumFilteredControlsMaxFGInt() / self.probes.getNumProbesControls()
             else:
                 ratioControls = 0
             if self.probes.getNumProbesOthers() > 0:
-                ratioOthers = 100. * self.probes.getNumFilteredOthersMaxInt() / self.probes.getNumProbesOthers()
+                ratioOthers = 100. * self.probes.getNumFilteredOthersMaxFGInt() / self.probes.getNumProbesOthers()
             else:
                 ratioOthers = 0
-            self.lblInfoFilterMaxInt.setText("%d (%.2f%s) control probes removed.\n%d (%.2f%s) other probes removed." % (self.probes.getNumFilteredControlsMaxInt(), ratioControls, "%", self.probes.getNumFilteredOthersMaxInt(), ratioOthers, "%"))
+            self.lblInfoFilterMaxFGInt.setText("%d (%.2f%s) control probes removed.\n%d (%.2f%s) other probes removed." % (self.probes.getNumFilteredControlsMaxFGInt(), ratioControls, "%", self.probes.getNumFilteredOthersMaxFGInt(), ratioOthers, "%"))
         else:
-            self.lblInfoFilterMaxInt.setText("No data on input.\n")
+            self.lblInfoFilterMaxFGInt.setText("No data on input.\n")
+
+
+    def setInfoFilterMaxBGInt(self):
+        if D4: print "OWNormalize.setInfoFilterMaxBGInt"
+        if self.probes:
+            if self.probes.getNumProbesControls() > 0:
+                ratioControls = 100. * self.probes.getNumFilteredControlsMaxBGInt() / self.probes.getNumProbesControls()
+            else:
+                ratioControls = 0
+            if self.probes.getNumProbesOthers() > 0:
+                ratioOthers = 100. * self.probes.getNumFilteredOthersMaxBGInt() / self.probes.getNumProbesOthers()
+            else:
+                ratioOthers = 0
+            self.lblInfoFilterMaxBGInt.setText("%d (%.2f%s) control probes removed.\n%d (%.2f%s) other probes removed." % (self.probes.getNumFilteredControlsMaxBGInt(), ratioControls, "%", self.probes.getNumFilteredOthersMaxBGInt(), ratioOthers, "%"))
+        else:
+            self.lblInfoFilterMaxBGInt.setText("No data on input.\n")
 
 
     def settingsArrayTypeChange(self):
@@ -1625,12 +1694,19 @@ class OWNormalize(OWWidget):
         if self.minIntensityRatio <> self._def_minIntensityRatio:
             self.minIntensityRatio = self._def_minIntensityRatio
             chngF = True
-        # max intensity
-        if self.useMaxIntensity <> self._def_useMaxIntensity:
-            self.useMaxIntensity = self._def_useMaxIntensity
+        # max FG intensity
+        if self.useMaxFGIntensity <> self._def_useMaxFGIntensity:
+            self.useMaxFGIntensity = self._def_useMaxFGIntensity
             chngF = True
-        if self.maxIntensity <> self._def_maxIntensity:
-            self.maxIntensity = self._def_maxIntensity
+        if self.maxFGIntensity <> self._def_maxFGIntensity:
+            self.maxFGIntensity = self._def_maxFGIntensity
+            chngF = True
+        # max BG intensity
+        if self.useMaxBGIntensity <> self._def_useMaxBGIntensity:
+            self.useMaxBGIntensity = self._def_useMaxBGIntensity
+            chngF = True
+        if self.maxBGIntensity <> self._def_maxBGIntensity:
+            self.maxBGIntensity = self._def_maxBGIntensity
             chngF = True
         # refresh
         if chngF:
@@ -1638,7 +1714,8 @@ class OWNormalize(OWWidget):
             self.setInfoProbes()
             self.setInfoFilterMaxCV()
             self.setInfoFilterMinRatio()
-            self.setInfoFilterMaxInt()
+            self.setInfoFilterMaxFGInt()
+            self.setInfoFilterMaxBGInt()
             if self.commitOnChange:
                 self.sendData()
         qApp.restoreOverrideCursor()
@@ -2030,7 +2107,8 @@ class Probes(dict):
         # Numeric array: 0: OK, 1: filtered out
         self.__filterMaxCV = None
         self.__filterMinRatio = None
-        self.__filterMaxInt = None
+        self.__filterMaxFGInt = None
+        self.__filterMaxBGInt = None
         self._control = Numeric.zeros((0,), Numeric.Int)
         self.__plotted = Numeric.zeros((0,), Numeric.Int)
         # normalization functions
@@ -2043,7 +2121,8 @@ class Probes(dict):
         self._minNumControlProbes = 0
         self.maxCV = Probes.bigVal
         self.minIntensityRatio = 0
-        self.maxIntensity = Probes.bigVal
+        self.maxFGIntensity = Probes.bigVal
+        self.maxBGIntensity = Probes.bigVal
         self.loessWindow = 60
         self.loessWeight = 0
         # for normalization per varB values
@@ -2082,7 +2161,8 @@ class Probes(dict):
         # Numeric array: 0: OK, 1: filtered out
         self.__filterMaxCV = None
         self.__filterMinRatio = None
-        self.__filterMaxInt = None
+        self.__filterMaxFGInt = None
+        self.__filterMaxBGInt = None
         self._control = Numeric.zeros((0,), Numeric.Int)
         self.__plotted = Numeric.zeros((0,), Numeric.Int)
         # for normalization per varB values
@@ -2095,15 +2175,17 @@ class Probes(dict):
         self.__markerPixmapDict = {}
 
 
-    def setFilterParameters(self, maxCV, minIntensityRatio, maxIntensity):
+    def setFilterParameters(self, maxCV, minIntensityRatio, maxFGIntensity, maxBGIntensity):
         if D1 or D2 or D6: print "Probes.setFilterParameters"
-        if maxCV <> self.maxCV or minIntensityRatio <> self.minIntensityRatio or maxIntensity <> self.maxIntensity:
+        if maxCV <> self.maxCV or minIntensityRatio <> self.minIntensityRatio or maxFGIntensity <> self.maxFGIntensity or maxBGIntensity <> self.maxBGIntensity:
             self.maxCV = maxCV                        
             self.minIntensityRatio = minIntensityRatio
-            self.maxIntensity = maxIntensity
+            self.maxFGIntensity = maxFGIntensity
+            self.maxBGIntensity = maxBGIntensity
             self.__filterMaxCV = None
             self.__filterMinRatio = None
-            self.__filterMaxInt = None
+            self.__filterMaxFGInt = None
+            self.__filterMaxBGInt = None
             self.replotProbeCurves(False)
             self.updateReplotNormCurves(True)
 
@@ -2234,7 +2316,8 @@ class Probes(dict):
                 self.__bgRefSD = None
             self.__filterMaxCV = None
             self.__filterMinRatio = None
-            self.__filterMaxInt = None
+            self.__filterMaxFGInt = None
+            self.__filterMaxBGInt = None
             if recalc:
                 self.replotProbeCurves(False)
                 self.updateReplotNormCurves(True)
@@ -2302,15 +2385,25 @@ class Probes(dict):
             self._setFilterMinRatio()
         return Numeric.add.reduce(Numeric.logical_and(self.__filterMinRatio, Numeric.logical_not(self._control)))
 
-    def getNumFilteredControlsMaxInt(self):
-        if type(self.__filterMaxInt) == types.NoneType:
-            self._setFilterMaxInt()
-        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxInt, self._control))
+    def getNumFilteredControlsMaxFGInt(self):
+        if type(self.__filterMaxFGInt) == types.NoneType:
+            self._setFilterMaxFGInt()
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxFGInt, self._control))
     
-    def getNumFilteredOthersMaxInt(self):
-        if type(self.__filterMaxInt) == types.NoneType:
-            self._setFilterMaxInt()
-        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxInt, Numeric.logical_not(self._control)))
+    def getNumFilteredOthersMaxFGInt(self):
+        if type(self.__filterMaxFGInt) == types.NoneType:
+            self._setFilterMaxFGInt()
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxFGInt, Numeric.logical_not(self._control)))
+
+    def getNumFilteredControlsMaxBGInt(self):
+        if type(self.__filterMaxBGInt) == types.NoneType:
+            self._setFilterMaxBGInt()
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxBGInt, self._control))
+    
+    def getNumFilteredOthersMaxBGInt(self):
+        if type(self.__filterMaxBGInt) == types.NoneType:
+            self._setFilterMaxBGInt()
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxBGInt, Numeric.logical_not(self._control)))
 
 
     def getNumProbes(self):
@@ -2677,9 +2770,11 @@ class Probes(dict):
             self._setFilterMaxCV()
         if type(self.__filterMinRatio) == types.NoneType:
             self._setFilterMinRatio()
-        if type(self.__filterMaxInt) == types.NoneType:
-            self._setFilterMaxInt()
-        return Numeric.logical_or(Numeric.logical_or(self.__filterMaxCV, self.__filterMinRatio), self.__filterMaxInt)
+        if type(self.__filterMaxFGInt) == types.NoneType:
+            self._setFilterMaxFGInt()
+        if type(self.__filterMaxBGInt) == types.NoneType:
+            self._setFilterMaxBGInt()
+        return Numeric.logical_or(Numeric.logical_or(Numeric.logical_or(self.__filterMaxCV, self.__filterMinRatio), self.__filterMaxFGInt), self.__filterMaxBGInt)
 
 
     def _setFilterMaxCV(self):
@@ -2703,14 +2798,23 @@ class Probes(dict):
             # convert to 0/1
             self.__filterMinRatio = self.__filterMinRatio > 0
 
-    def _setFilterMaxInt(self):
-        if D1 or D2 or D4: print "Probes._setFilterMaxInt"
+    def _setFilterMaxFGInt(self):
+        if D1 or D2 or D4: print "Probes._setFilterMaxFGInt"
         if self.__sigSmpl:
-            # maxIntensity: sig <= maxIntensity
-            self.__filterMaxInt = MA.asarray(self.__sigSmpl > self.maxIntensity).filled(1)
-            self.__filterMaxInt += MA.asarray(self.__sigRef > self.maxIntensity).filled(1)
+            # maxFGIntensity: sig <= maxFGIntensity
+            self.__filterMaxFGInt = MA.asarray(self.__sigSmpl > self.maxFGIntensity).filled(1)
+            self.__filterMaxFGInt += MA.asarray(self.__sigRef > self.maxFGIntensity).filled(1)
             # convert to 0/1
-            self.__filterMaxInt = self.__filterMaxInt > 0
+            self.__filterMaxFGInt = self.__filterMaxFGInt > 0
+
+    def _setFilterMaxBGInt(self):
+        if D1 or D2 or D4: print "Probes._setFilterMaxBGInt"
+        if self.__bgSmpl:
+            # maxBGIntensity: bg <= maxBGIntensity
+            self.__filterMaxBGInt = MA.asarray(self.__bgSmpl > self.maxBGIntensity).filled(1)
+            self.__filterMaxBGInt += MA.asarray(self.__bgRef > self.maxBGIntensity).filled(1)
+            # convert to 0/1
+            self.__filterMaxBGInt = self.__filterMaxBGInt > 0
 
 
     ############################################
@@ -3022,6 +3126,15 @@ class Probes(dict):
         """
         if D6: print "Probes.getRawLog2Ratio_masked"
         l2r = MA.log(self._netSmpl_masked(1) / self._netRef_masked(1)) / math.log(2)
+        # merge and return
+        return self._mergeFunc[mergeLevel](l2r, Probes.mergeTypes[mergeType], callback)
+
+
+    def getCenteredLog2Ratio_masked(self, mergeLevel, mergeType, callback):
+        """returns non-normalized centered log2 ratio, accounts for filters
+        """
+        if D6: print "Probes.getCenteredLog2Ratio_masked"
+        l2r = MA.log(self._netSmpl_masked(1) / self._netRef_masked(1) / self._ratio_masked(1)) / math.log(2)
         # merge and return
         return self._mergeFunc[mergeLevel](l2r, Probes.mergeTypes[mergeType], callback)
 
