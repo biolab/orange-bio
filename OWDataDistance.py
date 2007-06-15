@@ -96,6 +96,7 @@ class OWDataDistance(OWWidget):
     def chipdata(self, data):
         self.data = []
         if data:
+            self.infob.setText("")
             numFiles = reduce(lambda a,b: a+len(b[1]), data, 0)
             lenSD = len(data)
             self.infoa.setText("%d set%s, total of %d data file%s." % (lenSD, ["","s"][lenSD!=1], numFiles, ["","s"][numFiles!=1]))
@@ -115,7 +116,7 @@ class OWDataDistance(OWWidget):
                 for et in self.data[1:]:
                     attrSorted2 = et.domain.attributes
                     attrSorted2.sort()
-                    if attrSorted != attrSorted2:
+                    if map(lambda x: x.name, attrSorted) != map(lambda x: x.name, attrSorted2):
                         self.data = []
                         self.infob.setText("Error: data files contain different attributes, aborting distance computation.")
                         return
