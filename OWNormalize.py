@@ -89,7 +89,7 @@ class OWNormalize(OWWidget):
         self._def_normRange = 2  # 0: global, 1: local, per var B values, 2: combined
         self._def_minNumControlProbes = 2
         self._def_approxFunction = 2   # 0: median, 1: LR, 2: LOESS
-        self._def_loessWindow = 80
+        self._def_loessWindow = 60
         self._def_loessWeight = 0.0
 
         # general settings
@@ -127,7 +127,7 @@ class OWNormalize(OWWidget):
         self.commitOnChange = True
 
         # output
-        self.mergeLevel = OWNormalize.MergeLevelPerVarA             #0: none, 1: per vars A & B, 2: per var A
+        self.mergeLevel = OWNormalize.MergeLevelPerVarA             #0: none, 1: per vars A & B (ID & Type), 2: per var A (ID)
         self.mergeIntensitiesType = 1   #0: mean, 1: median
         self.mergeOtherType = OWNormalize.MergeOtherTypeMedian        # Mean, Median, Concatenate
         self.mergeOtherRemoveDupl = False                           # whether or not to remove duplicates from comma separated list of values
@@ -136,8 +136,9 @@ class OWNormalize(OWWidget):
         self.outNumProbes = True
         self.outNetSignal = True
         self.outA = True
-        self.outNonNormLogRatio = False
-        self.outNonNormLogRatioCentered = False
+        self.outMRaw = True
+        self.outMCentered = True
+##        self.outNormLogRatioCentered = False
         self.autoSendSelection = 1
 
         # context-specific settings
@@ -194,21 +195,22 @@ class OWNormalize(OWWidget):
         boxVars = QVGroupBox(self)
         self.tabs.insertTab(boxVars, "Var")
         boxGroupBy = QVGroupBox('Group probes by', boxVars)
-        self.cmbVarA = OWGUI.comboBox(boxGroupBy, self, "varNameA", label="Var A", labelWidth=31, orientation="horizontal", callback=self.varABChange, sendSelectedValue=1, valueType=str)
-        self.cmbVarB = OWGUI.comboBox(boxGroupBy, self, "varNameB", label="Var B", labelWidth=31, orientation="horizontal", callback=self.varABChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarA = OWGUI.comboBox(boxGroupBy, self, "varNameA", label="ID", labelWidth=33, orientation="horizontal", callback=self.varABChange, sendSelectedValue=1, valueType=str)
+        ### Var B, Type, Other, Additional, Optional, Opt.var, Extra, Alternative var, Alt.var 
+        self.cmbVarB = OWGUI.comboBox(boxGroupBy, self, "varNameB", label="Alt.var", labelWidth=33, orientation="horizontal", callback=self.varABChange, sendSelectedValue=1, valueType=str)
         boxFGI = QVGroupBox('Average foreground intensity', boxVars)
-        self.cmbVarSignalSmpl = OWGUI.comboBox(boxFGI, self, "varNameSignalSmpl", label="Smpl", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
-        self.cmbVarSignalRef = OWGUI.comboBox(boxFGI, self, "varNameSignalRef", label="Ref", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarSignalSmpl = OWGUI.comboBox(boxFGI, self, "varNameSignalSmpl", label="Smpl", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarSignalRef = OWGUI.comboBox(boxFGI, self, "varNameSignalRef", label="Ref", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         boxBGI = QVGroupBox('Average background intensity', boxVars)
-        self.cmbVarBGSmpl = OWGUI.comboBox(boxBGI, self, "varNameBGSmpl", label="Smpl", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
-        self.cmbVarBGRef = OWGUI.comboBox(boxBGI, self, "varNameBGRef", label="Ref", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarBGSmpl = OWGUI.comboBox(boxBGI, self, "varNameBGSmpl", label="Smpl", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarBGRef = OWGUI.comboBox(boxBGI, self, "varNameBGRef", label="Ref", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         boxBGSD = QVGroupBox('Background std. deviation', boxVars)
-        self.cmbVarBGSmplSD = OWGUI.comboBox(boxBGSD, self, "varNameBGSmplSD", label="Smpl", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
-        self.cmbVarBGRefSD = OWGUI.comboBox(boxBGSD, self, "varNameBGRefSD", label="Ref", labelWidth=31, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarBGSmplSD = OWGUI.comboBox(boxBGSD, self, "varNameBGSmplSD", label="Smpl", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
+        self.cmbVarBGRefSD = OWGUI.comboBox(boxBGSD, self, "varNameBGRefSD", label="Ref", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         # tab 1: default var names
         boxDefaultNames = QVGroupBox('Default variable names', boxVars)
-        OWGUI.lineEdit(boxDefaultNames, self, "defNameA", label="Var A", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
-        OWGUI.lineEdit(boxDefaultNames, self, "defNameB", label="Var B", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
+        OWGUI.lineEdit(boxDefaultNames, self, "defNameA", label="ID", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
+        OWGUI.lineEdit(boxDefaultNames, self, "defNameB", label="Alt.var", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameSmpl1", label="Smpl 1", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameSmpl2", label="Smpl 2", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameRef1", label="Ref 1", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
@@ -225,7 +227,7 @@ class OWNormalize(OWWidget):
         # tab 4: normalization: array type
         self.boxArrayType = OWGUI.radioButtonsInBox(boxNorm, self, value="arrayType", box='Expression array type', btnLabels=["Genome array", "Boutique array with control probes"], callback=self.settingsArrayTypeChange)
         # tab 4: normalization: range, type
-        self.boxNormRange = OWGUI.radioButtonsInBox(boxNorm, self, value="normRange", box='Normalization range', btnLabels=["Global, entire microarray", "Local, per var B values", "Combined (w.r.t. num. of control probes)"], callback=self.settingsNormalizationChange)
+        self.boxNormRange = OWGUI.radioButtonsInBox(boxNorm, self, value="normRange", box='Normalization range', btnLabels=["Global, entire microarray", "Per type of probe", "Combined (w.r.t. num. of control probes)"], callback=self.settingsNormalizationChange)
         sldMinNumControlProbes = OWGUI.qwtHSlider(self.boxNormRange, self, "minNumControlProbes", box="Min. number of control probes", minValue=2, maxValue=300, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMinNumControlProbes, SIGNAL("sliderReleased()"), self.settingsNormalizationChange)
         boxapproxFunction = OWGUI.radioButtonsInBox(boxNorm, self, value="approxFunction", box='Approx. function', btnLabels=["Median (intensity independent)", "Linear regression", "Loess"], callback=self.settingsNormalizationChange)
@@ -294,9 +296,9 @@ class OWNormalize(OWWidget):
         hheader.setLabel(OWNormalize.tcRatio, "Ratio")
         hheader.setLabel(OWNormalize.tcNPAll, "##")
         hheader.setLabel(OWNormalize.tcNPAccepted, "#")
-        hheader.setLabel(OWNormalize.tcVarA, "Var A")
+        hheader.setLabel(OWNormalize.tcVarA, "ID")
         hheader.setLabel(OWNormalize.tcVarAAlias, "Alias")
-        hheader.setLabel(OWNormalize.tcVarB, "Var B")
+        hheader.setLabel(OWNormalize.tcVarB, "Alt.var")
         hheader.setMovingEnabled(False)
         # hide vertical header and columns pKey, name
         self.tblControls.setLeftMargin(0)
@@ -338,16 +340,17 @@ class OWNormalize(OWWidget):
         self.tabs.insertTab(boxOutput, "Out")
         # tab 6: output: merge replicas
         boxMerge = QVGroupBox('Merge replicas', boxOutput)
-        OWGUI.radioButtonsInBox(boxMerge, self, value="mergeLevel", btnLabels=["None", "Per vars A and B", "Per var A"], box="By variable(s)", callback=self.settingsOutputReplicasChange)
+        OWGUI.radioButtonsInBox(boxMerge, self, value="mergeLevel", btnLabels=["None", "ID &  Alt.var", "ID"], box="Group probes by matching variable(s)", callback=self.settingsOutputReplicasChange)
         self.rbgMergeIntensitiesType = OWGUI.radioButtonsInBox(boxMerge, self, value="mergeIntensitiesType", btnLabels=["Mean", "Median"], box="Average calculation", callback=self.settingsOutputReplicasChange)
         # tab 6: output: additional info
         boxAdditional = QVGroupBox('Additional info', boxOutput)
-        self.cbOutVarAAliases = OWGUI.checkBox(boxAdditional, self, "outVarAAliases", "Var A aliases", callback=self.settingsOutputChange)
+        self.cbOutVarAAliases = OWGUI.checkBox(boxAdditional, self, "outVarAAliases", "ID alias", callback=self.settingsOutputChange)
         self.cbOutNumProbes = OWGUI.checkBox(boxAdditional, self, "outNumProbes", "Number of probes", callback=self.settingsOutputChange)
         OWGUI.checkBox(boxAdditional, self, "outNetSignal", "Net intensities", callback=self.settingsOutputChange)
         OWGUI.checkBox(boxAdditional, self, "outA", "A (log2 average intensity)", callback=self.settingsOutputChange)
-        OWGUI.checkBox(boxAdditional, self, "outNonNormLogRatio", "Non-normalized M (log2 ratio)", callback=self.settingsOutputChange)
-        OWGUI.checkBox(boxAdditional, self, "outNonNormLogRatioCentered", "Non-normalized centered M (log2 ratio)", callback=self.settingsOutputChange)
+        OWGUI.checkBox(boxAdditional, self, "outMRaw", "M raw", callback=self.settingsOutputChange)
+        OWGUI.checkBox(boxAdditional, self, "outMCentered", "M centered", callback=self.settingsOutputChange)
+##        OWGUI.checkBox(boxAdditional, self, "outNormLogRatioCentered", "M normalized centered", callback=self.settingsOutputChange)
         # tab 6: output: other variables
         boxOtherVars = QVGroupBox('Other variables', boxOutput)
         self.lbVarOthers = QListBox(boxOtherVars)
@@ -382,7 +385,7 @@ class OWNormalize(OWWidget):
         self.zoomSelectToolbar = OWToolbars.ZoomSelectToolbar(self, boxGraph, self.graph, self.autoSendSelection)
         # tab 5: settings: Probes
         boxProbes = QVGroupBox("Probes", boxSettings)
-        OWGUI.checkBox(boxProbes, self, 'displayVarAAliases', 'Display var A aliases', callback=self.adjustProbeTableColumns)
+        OWGUI.checkBox(boxProbes, self, 'displayVarAAliases', 'Display ID aliases', callback=self.adjustProbeTableColumns)
         # tab 5: settings: commit
         boxCommit = QVGroupBox("Output", boxSettings)
         OWGUI.checkBox(boxCommit, self, 'commitOnChange', 'Commit data on selection change', callback=self.commitChange)
@@ -777,11 +780,16 @@ class OWNormalize(OWWidget):
         if D1 or D2 or D6: print "OWNormalize.sendData"
         if self.data:
             # etNum, varListNum: normalized log2 ratios, num. probes, net intensities, A, non-norm M;
-            varListNum = [orange.FloatVariable("M (centered log2 ratio)")]
+            varListNum = [orange.FloatVariable("M normalized")]
             self.progressBarInit()
-            l2r = self.probes.getNormalizedLog2Ratio_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance)
+            l2r = self.probes.getLog2Ratio_norm_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance, False)
             self.progressBarFinished()
             maData = MA.reshape(l2r, (l2r.shape[0], 1))
+            # control ratios
+            self.progressBarInit()
+            varListNum.append(orange.FloatVariable("Control ratio"))
+            maData = MA.concatenate([maData, MA.reshape(self.probes.getControlRatios(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance), (maData.shape[0], 1))], 1)
+            self.progressBarFinished()
             if self.outNumProbes:
                 self.progressBarInit()
                 varListNum += [orange.FloatVariable("Num. probes"), orange.FloatVariable("Num. accepted probes")]
@@ -794,27 +802,35 @@ class OWNormalize(OWWidget):
                 self.progressBarFinished()
             if self.outA:
                 self.progressBarInit()
-                varListNum.append(orange.FloatVariable("A (log2 average intensity)"))
+                varListNum.append(orange.FloatVariable("A"))
                 maData = MA.concatenate([maData, MA.reshape(self.probes.getA_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance), (maData.shape[0], 1))], 1)
                 self.progressBarFinished()
-            if self.outNonNormLogRatio:
+            if self.outMRaw:
                 self.progressBarInit()
-                varListNum.append(orange.FloatVariable("Non-normalized M"))
-                maData = MA.concatenate([maData, MA.reshape(self.probes.getRawLog2Ratio_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance), (maData.shape[0], 1))], 1)
+                varListNum.append(orange.FloatVariable("M raw"))
+                maData = MA.concatenate([maData, MA.reshape(self.probes.getLog2Ratio_raw_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance, False), (maData.shape[0], 1))], 1)
                 self.progressBarFinished()
-            if self.outNonNormLogRatioCentered:
+            if self.outMRaw and self.outMCentered:
                 self.progressBarInit()
-                varListNum.append(orange.FloatVariable("Non-normalized centered M"))
-                maData = MA.concatenate([maData, MA.reshape(self.probes.getCenteredLog2Ratio_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance), (maData.shape[0], 1))], 1)
+                varListNum.append(orange.FloatVariable("M raw centered"))
+                maData = MA.concatenate([maData, MA.reshape(self.probes.getLog2Ratio_raw_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance, True), (maData.shape[0], 1))], 1)
+                self.progressBarFinished()
+            if self.outMCentered:
+                self.progressBarInit()
+                varListNum.append(orange.FloatVariable("M normalized centered"))
+                maData = MA.concatenate([maData, MA.reshape(self.probes.getLog2Ratio_norm_masked(self.mergeLevel, self.mergeIntensitiesType, self.progressBarAdvance, True), (maData.shape[0], 1))], 1)
                 self.progressBarFinished()
             etNum = chipstat.ma2orng(maData, orange.Domain(varListNum, None))
 
             # valListList_byAttr: list of lists of values of individual attributes from varListNames + varListOtherCSV; needs to be transposed before converted to ExampleTable
-            # varListNames: data table with varA values, varB values and varA aliases
-            varListNames = [self.data.domain[self.varNameA]]
+            # varListNames: data table with varA (cloned and renamed to "ID"), varA aliases ("ID alias") and varB
+            varAclone = self.data.domain[self.varNameA].clone()
+            varAclone.name = "ID"
+            varAclone.getValueFrom = lambda e,r: e[self.varNameA]
+            varListNames = [varAclone]
             valListList_byAttr = [self.probes.getValsA(self.mergeLevel)]
             if self.outVarAAliases:
-                varListNames.append(orange.StringVariable(self.varNameA + " alias"))
+                varListNames.append(orange.StringVariable("ID alias"))
                 valListList_byAttr.append(self.probes.getValsAAlias(self.mergeLevel))
             if self.varNameB <> "<none>" and self.mergeLevel <> OWNormalize.MergeLevelPerVarA:
                 # cannot get unique varB values if self.mergeLevel == OWNormalize.MergeLevelPerVarA
@@ -1043,7 +1059,7 @@ class OWNormalize(OWWidget):
             allProbes = self.probes.values()
             numProbes = len(allProbes)
             self.tblControls.setNumRows(numProbes)
-            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcVarA, self.varNameA)
+            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcVarA, "ID")
             sortKeyLen = int(math.log(numProbes, 10))+1
             pbStep = 100./len(self.probes)
             self.progressBarInit()
@@ -1090,8 +1106,8 @@ class OWNormalize(OWWidget):
                     self.progressBarAdvance(pbStep)
             self.progressBarFinished()
         else:
-            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcVarA, "Var A")
-            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcVarB, "Var B")
+            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcVarA, "ID")
+            self.tblControls.horizontalHeader().setLabel(OWNormalize.tcVarB, "Alt.var")
             self.tblControls.setNumRows(0)
         self.adjustProbeTableColumns()
 
@@ -1935,7 +1951,7 @@ class NormCurveDataDict(dict):
         def __init__(self, key, computInd, normInd, probeList):
             self._key = key                     # a key for NormCurveDataDict, equal to QwtPlotKeyCurve.key
             self.computInd = computInd          # data indices for computing the normalization curve
-            self.normInd = normInd      # data indices for plotting tick marks; they indicate the probes which are normalized by this curve
+            self.normInd = normInd              # data indices for plotting tick marks; they indicate the probes which are normalized by this curve
             self.probeList = probeList          # list of ProbeSet
             self.curveList = []                 # list of long key returned by OWGraphMA.insertCurve, i.e. QwtPlot.insertCurve
 
@@ -1989,14 +2005,14 @@ class ProbeSet:
     def __init__(self, valA, valB, pKey):
         if D1: print "ProbeSet.__init__"
         self.valA = valA            # string
-        self.valAAlias = valA        # string that is shown in the probe table
+        self.valAAlias = valA       # string that is shown in the probe table
         self.valB = valB            # string
         self.pKey = pKey            # ID / ID+name
         # ratio
         self.ratioExpr = ""         # string from which ratio is evaluated
         # marker
-        self.color = ProbeSet.NoColor           # QColor
-        self.symbol = QwtSymbol.None         # int (QwtSymbol.Style)
+        self.color = ProbeSet.NoColor       # QColor
+        self.symbol = QwtSymbol.None        # int (QwtSymbol.Style)
         # table, gaph
         self.tblRowIdx = None       # row index in OWNormalize.tblControls
         self.curve = None           # curve in OWNormalize.graph
@@ -2103,13 +2119,13 @@ class Probes(dict):
         self.__netSmpl_masked_func = {0: lambda cond: self._sigSmpl_masked(cond), 1: lambda cond: self._sigSmpl_masked(cond) - self._bgSmpl_masked(cond)}
         self.__netRef_masked_func =  {0: lambda cond: self._sigRef_masked(cond),  1: lambda cond: self._sigRef_masked(cond) -  self._bgRef_masked(cond) }
         # ratios
-        self.__ratio = None
+        self.__ratio = None     # MA array with control ratios and masked non-controls
         # Numeric array: 0: OK, 1: filtered out
         self.__filterMaxCV = None
         self.__filterMinRatio = None
         self.__filterMaxFGInt = None
         self.__filterMaxBGInt = None
-        self._control = Numeric.zeros((0,), Numeric.Int)
+##        self._control = Numeric.zeros((0,), Numeric.Int)
         self.__plotted = Numeric.zeros((0,), Numeric.Int)
         # normalization functions
         self._approxFunctionDict = {0:self._getNormCurveMedian, 1:self._getNormCurveLinReg, 2:self._getNormCurveLoess}
@@ -2163,7 +2179,7 @@ class Probes(dict):
         self.__filterMinRatio = None
         self.__filterMaxFGInt = None
         self.__filterMaxBGInt = None
-        self._control = Numeric.zeros((0,), Numeric.Int)
+##        self._control = Numeric.zeros((0,), Numeric.Int)
         self.__plotted = Numeric.zeros((0,), Numeric.Int)
         # for normalization per varB values
         self._valB2ind = {}
@@ -2238,9 +2254,9 @@ class Probes(dict):
         self.clear(refresh=True)
         self.varNameA = varNameA
         self.varNameB = varNameB
-        self._control = Numeric.zeros((len(data),), Numeric.Int)
+##        self._control = Numeric.zeros((len(data),), Numeric.Int)
         self.__plotted = Numeric.zeros((len(data),), Numeric.Int)
-        self.__ratio = Numeric.ones((len(data),), Numeric.Float)
+        self.__ratio = MA.ones((len(data),), MA.Float) * MA.masked
         # update data and probe data indices
         self.updateProbeData(data, varNameSignalSmpl, varNameSignalRef, varNameBGSmpl, varNameBGRef, varNameBGSmplSD, varNameBGRefSD, recalc=False)
         # set varPKey and add varNameB (if necessary)
@@ -2357,6 +2373,17 @@ class Probes(dict):
     # NUMBER OF PROBES
     ############################################
 
+    def _isControlArr(self):
+        """returns array of len(data) where 1 for controls and 0 for others
+        """
+        return Numeric.asarray(Numeric.logical_not(MA.getmaskarray(self.__ratio)), Numeric.Int)
+
+    def _isOtherArr(self):
+        """returns array of len(data) where 0 for controls and 1 for others
+        """
+        return Numeric.asarray(MA.getmaskarray(self.__ratio), Numeric.Int)
+
+
     def getNumReplicas_nonFiltered(self, mergeLevel, callback):
         """Returns (..., 2) Numeric array where rows represent different probes and columns:
             0: number of all probes
@@ -2368,65 +2395,65 @@ class Probes(dict):
     def getNumFilteredControlsMaxCV(self):
         if type(self.__filterMaxCV) == types.NoneType:
             self._setFilterMaxCV()
-        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxCV, self._control))
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxCV, self._isControlArr()))
 
     def getNumFilteredOthersMaxCV(self):
         if type(self.__filterMaxCV) == types.NoneType:
             self._setFilterMaxCV()
-        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxCV, Numeric.logical_not(self._control)))
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxCV, self._isOtherArr()))
 
     def getNumFilteredControlsMinRatio(self):
         if type(self.__filterMinRatio) == types.NoneType:
             self._setFilterMinRatio()
-        return Numeric.add.reduce(Numeric.logical_and(self.__filterMinRatio, self._control))
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMinRatio, self._isControlArr()))
 
     def getNumFilteredOthersMinRatio(self):
         if type(self.__filterMinRatio) == types.NoneType:
             self._setFilterMinRatio()
-        return Numeric.add.reduce(Numeric.logical_and(self.__filterMinRatio, Numeric.logical_not(self._control)))
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMinRatio, self._isOtherArr()))
 
     def getNumFilteredControlsMaxFGInt(self):
         if type(self.__filterMaxFGInt) == types.NoneType:
             self._setFilterMaxFGInt()
-        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxFGInt, self._control))
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxFGInt, self._isControlArr()))
     
     def getNumFilteredOthersMaxFGInt(self):
         if type(self.__filterMaxFGInt) == types.NoneType:
             self._setFilterMaxFGInt()
-        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxFGInt, Numeric.logical_not(self._control)))
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxFGInt, self._isOtherArr()))
 
     def getNumFilteredControlsMaxBGInt(self):
         if type(self.__filterMaxBGInt) == types.NoneType:
             self._setFilterMaxBGInt()
-        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxBGInt, self._control))
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxBGInt, self._isControlArr()))
     
     def getNumFilteredOthersMaxBGInt(self):
         if type(self.__filterMaxBGInt) == types.NoneType:
             self._setFilterMaxBGInt()
-        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxBGInt, Numeric.logical_not(self._control)))
+        return Numeric.add.reduce(Numeric.logical_and(self.__filterMaxBGInt, self._isOtherArr()))
 
 
     def getNumProbes(self):
-        return self._control.shape[0]
+        return self.__ratio.shape[0]
 
     def getNumProbesControls(self):
-        return Numeric.add.reduce(Numeric.greater(self._control, 0))
+        return Numeric.add.reduce(Numeric.greater(self._isControlArr(), 0))
 
     def getNumProbesOthers(self):
-        return Numeric.add.reduce(Numeric.logical_not(self._control))
+        return Numeric.add.reduce(self._isOtherArr())
 
 
     def getNumProbesControls_filtered(self):
-        return Numeric.add.reduce(Numeric.logical_and(self._control, self.getFilter()))
+        return Numeric.add.reduce(Numeric.logical_and(self._isControlArr(), self.getFilter()))
 
     def getNumProbesControls_nonFiltered(self):
-        return Numeric.add.reduce(Numeric.logical_and(self._control, Numeric.logical_not(self.getFilter())))
+        return Numeric.add.reduce(Numeric.logical_and(self._isControlArr(), Numeric.logical_not(self.getFilter())))
 
     def getNumProbesOthers_filtered(self):
-        return Numeric.add.reduce(Numeric.logical_and(Numeric.logical_not(self._control), self.getFilter()))
+        return Numeric.add.reduce(Numeric.logical_and(self._isOtherArr(), self.getFilter()))
 
     def getNumProbesOthers_nonFiltered(self):
-        return Numeric.add.reduce(Numeric.logical_and(Numeric.logical_not(self._control), Numeric.logical_not(self.getFilter())))
+        return Numeric.add.reduce(Numeric.logical_and(self._isOtherArr(), Numeric.logical_not(self.getFilter())))
 
 
     def getNumProbes_nonFiltered(self, probe):
@@ -2437,24 +2464,24 @@ class Probes(dict):
         return Numeric.add.reduce(Numeric.logical_and(self.__plotted, Numeric.logical_not(self.getFilter())))
 
     def getNumProbesControls_nonFiltered_plotted(self):
-        return Numeric.add.reduce(Numeric.logical_and(self._control, Numeric.logical_and(self.__plotted, Numeric.logical_not(self.getFilter()))))
+        return Numeric.add.reduce(Numeric.logical_and(self._isControlArr(), Numeric.logical_and(self.__plotted, Numeric.logical_not(self.getFilter()))))
 
     def getNumProbesOthers_nonFiltered_plotted(self):
-        return Numeric.add.reduce(Numeric.logical_and(Numeric.logical_not(self._control), Numeric.logical_and(self.__plotted, Numeric.logical_not(self.getFilter()))))
+        return Numeric.add.reduce(Numeric.logical_and(self._isOtherArr(), Numeric.logical_and(self.__plotted, Numeric.logical_not(self.getFilter()))))
 
 
     def getNumProbesControls_indexed(self, indices):
-        return Numeric.add.reduce(Numeric.logical_and(self._control, NumExtn.indices2condition(indices, self.__sigSmpl.shape[0])))
+        return Numeric.add.reduce(Numeric.logical_and(self._isControlArr(), NumExtn.indices2condition(indices, self.__sigSmpl.shape[0])))
 
     def getNumProbesOthers_indexed(self, indices):
-        return Numeric.add.reduce(Numeric.logical_and(Numeric.logical_not(self._control), NumExtn.indices2condition(indices, self.__sigSmpl.shape[0])))
+        return Numeric.add.reduce(Numeric.logical_and(self._isOtherArr(), NumExtn.indices2condition(indices, self.__sigSmpl.shape[0])))
 
     def getNumProbesControls_nonFiltered_indexed(self, indices):
-        if D6: print "getNumProbesControls_nonFiltered_indexed", Numeric.add.reduce(self._control), Numeric.add.reduce(self.getFilter())
-        return Numeric.add.reduce(Numeric.logical_and(self._control, Numeric.logical_and(NumExtn.indices2condition(indices, self.__sigSmpl.shape[0]), Numeric.logical_not(self.getFilter()))))
+        if D6: print "getNumProbesControls_nonFiltered_indexed", Numeric.add.reduce(self._isControlArr()), Numeric.add.reduce(self.getFilter())
+        return Numeric.add.reduce(Numeric.logical_and(self._isControlArr(), Numeric.logical_and(NumExtn.indices2condition(indices, self.__sigSmpl.shape[0]), Numeric.logical_not(self.getFilter()))))
 
     def getNumProbesOthers_nonFiltered_indexed(self, indices):
-        return Numeric.add.reduce(Numeric.logical_and(Numeric.logical_not(self._control), Numeric.logical_and(NumExtn.indices2condition(indices, self.__sigSmpl.shape[0]), Numeric.logical_not(self.getFilter()))))
+        return Numeric.add.reduce(Numeric.logical_and(self._isOtherArr(), Numeric.logical_and(NumExtn.indices2condition(indices, self.__sigSmpl.shape[0]), Numeric.logical_not(self.getFilter()))))
 
 
     ############################################
@@ -2471,7 +2498,7 @@ class Probes(dict):
 
 
     def setRatio(self, probe, ratioExpr, recalc, refresh=True):
-        """Sets self.__ratio, self._control and dict[pKey].ratioExpr;
+        """Sets self.__ratio and dict[pKey].ratioExpr;
         ratioExpr should be None in order not to use probeSet as a control.
         """
         if D1 or D2 or D3: print "Probes.setRatio"
@@ -2488,9 +2515,9 @@ class Probes(dict):
         # if self.__ratio different from ratio
         if probe.ratioExpr <> newRatioExpr:
             probe.ratioExpr = newRatioExpr
-            Numeric.put(self.__ratio, probe.getDataIndices(), ratio)
-            # if we succeed in setting the ratio: put probe among controls
-            Numeric.put(self._control, probe.getDataIndices(), probe.ratioExpr <> "")
+            MA.put(self.__ratio, probe.getDataIndices(), ratio)
+##            # if we succeed in setting the ratio: put probe among controls
+##            Numeric.put(self._control, probe.getDataIndices(), probe.ratioExpr <> "")
             self._replotProbeCurve(probe, refresh and not recalc)
             # recalc and replot norm. curves
             if recalc:                    
@@ -2501,7 +2528,7 @@ class Probes(dict):
     def getRatioStr(self, probe):
         if D1: print "Probes.getRatioStr"
         if probe.ratioExpr and len(probe.getDataIndices())>0:
-            return "%.2f" % self.__ratio[probe.getDataIndices()[0]]
+            return "%.2f" % self.__ratio.filled(1)[probe.getDataIndices()[0]]
         else:
             return ""
 
@@ -2509,7 +2536,7 @@ class Probes(dict):
     def getRatioSortingKey(self, probe):
         """Returns a string with leading spaces followed by str(val), whose length is at least len."""
         if probe.ratioExpr and len(probe.getDataIndices())>0:
-            return "%15.7f" % self.__ratio[probe.getDataIndices()[0]]
+            return "%15.7f" % self.__ratio.filled(1)[probe.getDataIndices()[0]]
         else:
             return ""
 
@@ -2551,7 +2578,7 @@ class Probes(dict):
         if probe.symbol <> QwtSymbol.None:
             probe.curve = self.graph.insertCurve(probe.valA, probe.pKey)
             Numeric.put(self.__plotted, probe.getDataIndices(), 1)
-            M,A = self.getMA(probe.pKey)
+            M,A = self.getMA(probe.pKey, True)
             self.graph.setCurveData(probe.curve, A, M)
             self.graph.setCurveStyle(probe.curve, QwtCurve.NoCurve)
             self._setProbeCurveSymbol(probe, False)
@@ -2609,7 +2636,7 @@ class Probes(dict):
                 raise ValueError, "Unknown Probes._normRange: %s" % str(self._normRange)
             # cycle all norm curve data, normalize and plot norm. curves
             for ncKey, ncData in self._ncdd.items():
-                Ac, Mc, An_masked, Mn_masked = self._getNormData_AcMc_AM_masked(ncData.computInd)
+                Ac, Mc, An_masked, Mn_masked = self._getNormData_ActrlMctrl_AM_masked(ncData.computInd)
                 # condition for plotting ticks
                 condTicks = NumExtn.indices2condition(ncData.normInd, An_masked.shape[0])
                 if len(Ac) <= 0:
@@ -2652,7 +2679,7 @@ class Probes(dict):
                         self.graph.setCurveSymbol(normCurveTicks, qSymbol)
 
                 # compute normalized log2 ratio for indices ncData.normInd
-                Mdata, Adata = self._getMA_masked_indexed(ncData.normInd)
+                Mdata, Adata = self._getMA_masked_indexed(ncData.normInd, False)
                 if self.logAxisY:
                     Mdata -= Mn_masked
                 else:
@@ -2817,11 +2844,11 @@ class Probes(dict):
             self.__filterMaxBGInt = self.__filterMaxBGInt > 0
 
 
-    ############################################
+    ##############################################
     # DATA (accounts for filters)
-    # _get..._masked: returns MA array
-    # _get...: returns compressed Numeric array
-    ############################################
+    # _get..._masked(): returns MA array
+    # _get...(): returns compressed Numeric array
+    ##############################################
 
     def _sigSmpl_masked(self, condition):
         return MA.masked_where(Numeric.logical_or(Numeric.logical_not(condition), self.getFilter()), self.__sigSmpl)
@@ -2836,7 +2863,7 @@ class Probes(dict):
         return MA.masked_where(Numeric.logical_or(Numeric.logical_not(condition), self.getFilter()), self.__bgRef)
 
     def _ratio_masked(self, condition):
-        return MA.masked_where(Numeric.logical_or(Numeric.logical_not(condition), self.getFilter()), self.__ratio)
+        return MA.masked_where(Numeric.logical_or(Numeric.logical_not(condition), self.getFilter()), self.__ratio.filled(1))
 
 
     def _netSmpl_masked(self, condition):
@@ -2889,14 +2916,14 @@ class Probes(dict):
             M = MA.log(M) / math.log(2)
         return M
 
-    def _getM_masked(self, condition):
-        netSmpl = self._netSmpl_masked(condition)
-        netRef = self._netRef_masked(condition)
-        ratios = self._ratio_masked(condition)
-        return self.__compM_masked(netSmpl, netRef, ratios)
-
-    def _getM(self, condition):
-        return Numeric.asarray(self._getM_masked(condition).compressed())
+##    def _getM_masked(self, condition):
+##        netSmpl = self._netSmpl_masked(condition)
+##        netRef = self._netRef_masked(condition)
+##        ratios = self._ratio_masked(condition)
+##        return self.__compM_masked(netSmpl, netRef, ratios)
+##
+##    def _getM(self, condition):
+##        return Numeric.asarray(self._getM_masked(condition).compressed())
 
 
 
@@ -2913,36 +2940,40 @@ class Probes(dict):
         netRef = self._netRef_masked(condition)
         return self.__compA_masked(netSmpl, netRef)
 
-    def _getA(self, condition):
-        return Numeric.asarray(self._getA_masked(condition).compressed())
+##    def _getA(self, condition):
+##        return Numeric.asarray(self._getA_masked(condition).compressed())
 
 
 
-    def _getMA_masked(self, condition):
-        """Returns MA arrays: M/ratio, A (masked by filter and condition).
+    def _getMA_masked(self, condition, center):
+        """Returns MA arrays: M/ratio, A (masked by filter and condition);
+        if center: center M by ratios.
         """
         if D1 or D2: print "Probes._getMA_masked"
         netSmpl = self._netSmpl_masked(condition)
         netRef = self._netRef_masked(condition)
-        ratios = self._ratio_masked(condition)
+        if center:
+            ratios = self._ratio_masked(condition)
+        else:
+            ratios = Numeric.ones(condition.shape)
         return self.__compM_masked(netSmpl, netRef, ratios), self.__compA_masked(netSmpl, netRef)
 
-    def _getMA_masked_indexed(self, indices):
-        return self._getMA_masked(NumExtn.indices2condition(indices, self.__sigSmpl.shape[0]))
+    def _getMA_masked_indexed(self, indices, center):
+        return self._getMA_masked(NumExtn.indices2condition(indices, self.__sigSmpl.shape[0]), center)
 
-    def _getMA(self, condition):
+    def _getMA_compressed(self, condition, center):
         """Returns Numeric arrays: M/ratio, A (compressed by filter, mask and condition).
         """
-        M,A = self._getMA_masked(condition)
+        M,A = self._getMA_masked(condition, center)
         noMask = Numeric.logical_not(Numeric.logical_or(MA.getmaskarray(A), MA.getmaskarray(M)))
         return Numeric.asarray(MA.compress(noMask, M)), Numeric.asarray(MA.compress(noMask, A))
 
-    def getMA(self, pKey):
+    def getMA(self, pKey, center):
         """Returns Numeric arrays: M/ratio, A (compressed by filter, condition and mask)
         """
         if D1 or D2: print "Probes.getMA"
         cond = NumExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__sigSmpl.shape[0])
-        return self._getMA(cond)
+        return self._getMA_compressed(cond, center)
 
 
     ############################################
@@ -2984,15 +3015,15 @@ class Probes(dict):
     # NORMALIZED DATA for plotting curves
     ############################################
 
-    def _getNormData_AcMc_AM_masked(self, nameInd):
+    def _getNormData_ActrlMctrl_AM_masked(self, nameInd):
         """returns A and M of controls (Ac, Mc), A of all named probes and normalized M in points A;
         Ac, Mc: compressed; values of controls
         A, M masked; normalization curve computed in all "named" probes (or numPoints from min(Aprobes), max(Aprobes)
         """
-        if  D6: print "Probes._getNormData_AcMc_AM_masked"
+        if  D6: print "Probes._getNormData_ActrlMctrl_AM_masked"
         condName = NumExtn.indices2condition(nameInd, self.__sigSmpl.shape[0])
-        condControlName = Numeric.logical_and(self._control, condName)
-        Mc,Ac = self._getMA(condControlName)
+        condControlName = Numeric.logical_and(self._isControlArr(), condName)
+        Mc,Ac = self._getMA_compressed(condControlName, True)
         # if A not given, then it should equal to all probes which correspond to name
         A = self._getA_masked(condName)
         M = MA.zeros(A.shape, MA.Float) * MA.masked
@@ -3100,14 +3131,26 @@ class Probes(dict):
     # NORMALIZED DATA for output
     ############################################
 
-    def getNormalizedLog2Ratio_masked(self, mergeLevel, mergeType, callback):
-        """Returns masked array of log2ratio of individual probes;
+##    def getLog2Ratio_normCentered_masked(self, mergeLevel, mergeType, callback):
+##        """Returns masked array of normalized and centered log2ratio of individual probes;
+##        accounts for filters and for ratios;
+##        mergeType: 0:None, 1:mean, 2:median
+##        """
+##        if D6: print "Probes.getLog2Ratio_normCentered_masked"
+##        return self._mergeFunc[mergeLevel](self._MnormCentered, Probes.mergeTypes[mergeType], callback)
+    
+
+    def getLog2Ratio_norm_masked(self, mergeLevel, mergeType, callback, center):
+        """Returns masked array of normalized log2ratio of individual probes;
         accounts for filters, but NOT for ratios;
         mergeType: 0:None, 1:mean, 2:median
         """
-        if D6: print "Probes.getNormalizedLog2Ratio_masked"
-        return self._mergeFunc[mergeLevel](self._Mnorm, Probes.mergeTypes[mergeType], callback)
-    
+        if D6: print "Probes.getLog2Ratio_norm_masked"
+        if center:
+            Mnorm = self._Mnorm - MA.log(self.__ratio.filled(1))/math.log(2)
+        else:
+            Mnorm = self._Mnorm
+        return self._mergeFunc[mergeLevel](Mnorm, Probes.mergeTypes[mergeType], callback)
 
 
     def getNetIntensity_smpl_ref(self, mergeLevel, mergeType, callback):
@@ -3121,23 +3164,25 @@ class Probes(dict):
         return self._mergeFunc[mergeLevel](iSR, Probes.mergeTypes[mergeType], callback)
     
 
-    def getRawLog2Ratio_masked(self, mergeLevel, mergeType, callback):
+    def getLog2Ratio_raw_masked(self, mergeLevel, mergeType, callback, center):
         """returns non-normalized log2 ratio, accounts for filters
         """
-        if D6: print "Probes.getRawLog2Ratio_masked"
-        l2r = MA.log(self._netSmpl_masked(1) / self._netRef_masked(1)) / math.log(2)
+        if D6: print "Probes.getLog2Ratio_raw_masked"
+        if center:
+            l2r = MA.log(self._netSmpl_masked(1) / self._netRef_masked(1) / self._ratio_masked(1)) / math.log(2)
+        else:
+            l2r = MA.log(self._netSmpl_masked(1) / self._netRef_masked(1)) / math.log(2)
         # merge and return
         return self._mergeFunc[mergeLevel](l2r, Probes.mergeTypes[mergeType], callback)
 
 
-    def getCenteredLog2Ratio_masked(self, mergeLevel, mergeType, callback):
-        """returns non-normalized centered log2 ratio, accounts for filters
-        """
-        if D6: print "Probes.getCenteredLog2Ratio_masked"
-        l2r = MA.log(self._netSmpl_masked(1) / self._netRef_masked(1) / self._ratio_masked(1)) / math.log(2)
-        # merge and return
-        return self._mergeFunc[mergeLevel](l2r, Probes.mergeTypes[mergeType], callback)
-
+##    def getLog2Ratio_rawCentered_masked(self, mergeLevel, mergeType, callback):
+##        """returns non-normalized centered log2 ratio, accounts for filters
+##        """
+##        if D6: print "Probes.getLog2Ratio_rawCentered_masked"
+##        # merge and return
+##        return self._mergeFunc[mergeLevel](l2r, Probes.mergeTypes[mergeType], callback)
+##
 
     def getA_masked(self, mergeLevel, mergeType, callback):
         """returns log2 average (net) intensity, accounts for filters
@@ -3146,6 +3191,13 @@ class Probes(dict):
         A = MA.log(MA.sqrt(self._netSmpl_masked(1)*self._netRef_masked(1))) / math.log(2)
         # merge and return
         return self._mergeFunc[mergeLevel](A, Probes.mergeTypes[mergeType], callback)
+
+
+    def getControlRatios(self, mergeLevel, mergeType, callback):
+        """returns ratios of controls, DK for others; does not account for filters
+        """
+        return self._mergeFunc[mergeLevel](self.__ratio, Probes.mergeTypes[mergeType], callback)
+        
 
 
     ############################################
@@ -3260,8 +3312,18 @@ if __name__=="__main__":
 ##        ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\Sterolgene v1 mouse probeRatios (ID).tab"))
 
         # DATA 10: Viola, 2006-07-27
-        ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\2006-07-26 Viola Tamasi\data\CAR-KO\\13221239-PB1-CARko_cy3-45-cy-5-55.tab", DK="Error"))
-        ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\Sterolgene v1 mouse probeRatios (ID) noLUC.tab"))
+        ow.defNameA = "SteroltalkID"
+        ow.defNameB = ""
+        ow.defNameSmpl1 = "635"
+        ow.defNameSmpl2 = ""
+        ow.defNameRef1 = "532"
+        ow.defNameRef2 = ""
+        ow.defNameForeground = "F"
+        ow.defNameBackground = "B"
+        ow.defNameMean = "Median"
+        ow.defNameSD = "SD"
+        ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\2006-07-26 Viola Tamasi\2007-03 data from Viola\PB CAR- 01.tab", DK="Error"))
+        ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.1 mouse\ST1m probeRatios Lucidea Luty1,2.tab"))
 
         # OWDataTable
         dt = OWDataTable.OWDataTable(signalManager = signalManager)
