@@ -6,6 +6,7 @@ import MLab, LinearAlgebra
 import numarray as NA
 import numarray.ma as NM
 import numarray.linear_algebra as LA
+import numpy
 
 
 #####################################################################################
@@ -90,37 +91,73 @@ def denary2Binary(n):
 
 
 #####################################################################################
-## index2position:
-##  given the index of an element in a flat array
-##  get the position of that element in an array of given shape
+## position2index:
+##  given the position of an element in a flat array
+##  get the indices of that element in an array of given shape
 ##
-## getIndicesList(m,val):
+## getIndices(m,val):
 ##  Input: m=[[1,2],[2,3]], val=2
 ##  Output: Numeric.array([(0,1),(1,0)])
 #####################################################################################
 
-def index2position(n, shape):
-    """index in a flat array, position in a array with arbitrary dimensions
+def position2index(n, shape):
+    """Given a position in a flat array (n), returns indices in an array of given shape.
     """
-    bStr = ''
+    raise DeprecationWarning, "Depricated, use positions2indices(pos, shape) instead."
     if n < 0:  raise ValueError, "must be a positive integer"
     shapeL = list(shape)
     shapeL.reverse()
-    pos = []
+    ind = []
     for shp in shapeL:
-        pos = [n % shp] + pos
+        ind = [n % shp] + ind
         n = int(n / shp)
-    return pos
+    return ind
+
+
+def positions2indices(pos, shape):
+    """Given postions and shape, returns indices shaped (numPositions, len(shape));
+    e.g.: pos=[0,2,8], shape=(3,3) ->  [[0,0],[2,0],[2,2]]
+    """
+    lenShape = len(shape)
+    pos = numpy.asarray(pos)
+    posMax = numpy.max(pos)
+    assert posMax < numpy.multiply.reduce(shape), "Error: Position too large for a given shape."
+    assert numpy.min(pos) >= 0, "Error, position cannot be negative."
+    ind = numpy.ones((pos.shape[0], lenShape))
+    for dim in range(lenShape-1,-1,-1):
+        ind[:,dim] = numpy.mod(pos, shape[dim])
+        pos = numpy.divide(pos, shape[dim])
+    return numpy.asarray(ind, numpy.int)
+
+
+def indices2positions(ind, shape):
+    """Given indices shaped (numPositions, len(shape)), returns corresponding positions in a falt array; output shape = (ind.shape[0],);
+    e.g.: ind=[[0,0],[2,0],[2,2]] , shape=(3,3) -> [0,6,8]
+    """
+    ind = numpy.asarray(ind)
+    assert len(ind.shape) == 2 and ind.shape[1] == len(shape), "Error: ind should be 2D array, ind.shape[1] should match len(shape)."
+    assert numpy.less(numpy.max(ind,0),numpy.asarray(shape)).all(), "Error: indices do not fit the shape."
+    pos = numpy.zeros((ind.shape[0],))
+    for i,shp in enumerate(shape):
+        pos += ind[:,i]*numpy.multiply.reduce(shape[i+1:])
+    return numpy.asarray(pos,numpy.int)
+    
+
+def getPositions(m, val):
+    """Input: arbitrary (masked) array and a value from that array;
+    Output: array of positions of the given value in a flat m;
+    """
+    m = MA.asarray(m)
+    return Numeric.compress(MA.equal(MA.ravel(m),val), Numeric.arange(Numeric.multiply.reduce(m.shape)))
 
 def getIndices(m, val):
     """Input: arbitrary (masked) array and a value from that array;
     Output: array of indices corresponding to positions of the given value in array m;
-    Output shape: (numb. of vals in m, len(m.shape)).
+    Output shape: (numb. of val values in m, len(m.shape)).
     """
-    m = MA.asarray(m)
-    indFlat = Numeric.compress(MA.equal(MA.ravel(m),val), Numeric.arange(Numeric.multiply.reduce(m.shape)))
-    return Numeric.asarray(map(lambda x: index2position(x, m.shape), indFlat))    
-    
+    posFlat = getPositions(m, val)
+    return positions2indices(posFlat, m.shape)
+
 
 #####################################################################################
 ## Indices <-> Condition
@@ -146,9 +183,11 @@ def indices2condition(indices, length):
 
 #####################################################################################
 ## Inverse permutation
-##  permutInverse([0,2,3,5,4,1])=[0,5,1,2,4,3,]
-##  permutInverse([0,5,1,2,4,3,])=[0,2,3,5,4,1]
+##  permutInverse([0,2,3,5,4,1]) -> [0,5,1,2,4,3,]
+##  permutInverse([0,5,1,2,4,3,]) -> [0,2,3,5,4,1]
 #####################################################################################
+
+from Permutation import *
 
 def permutInverse(n):
     """Returns inverse permutation given integers in range(len(n)),
@@ -158,6 +197,22 @@ def permutInverse(n):
     pInv = Numeric.argsort(n)
     assert Numeric.equal(n, Numeric.argsort(pInv)), "Inverse not successful; input should be permutation of range(len(input))."
     return pInv
+
+###################################################################################################################################
+## Generator of random matrix of permutations
+## where each row and each column represents a permutation of n elements.
+###################################################################################################################################
+
+def getRandomMtrxPermut(n):
+    """Generator of random matrix of permutations;
+    input: number of elements;
+    returns a matrix where each row and each column represents a permutation of n elements.
+    """
+    mx = numpy.zeros((n,n), numpy.int)
+    pArr = numpy.random.permutation(n)
+    for i in range(n):
+        mx[i] = numpy.concatenate((pArr[i:], pArr[:i]))
+    return numpy.take(mx,numpy.random.permutation(n),0)   
 
 
 #####################################################################################
