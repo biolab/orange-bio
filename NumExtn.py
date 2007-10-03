@@ -557,6 +557,8 @@ def _nm2ma(m):
     """numarray.ma -> MA"""
     m = NM.asarray(m)
     return MA.array(m.raw_data(), m.typecode(), mask=m.raw_mask())
+##    # 2007-08-29: m.typecode() replaced by m.dtype.char (a change in numarray.ma ???)
+##    return MA.array(m.raw_data(), m.dtype.char, mask=m.raw_mask())
 
 
 ###################################################################################
@@ -651,7 +653,7 @@ def _percentilesNM(m,perc,axis=0):
     """Returns the percentiles of the given masked numarray along the given axis.
     """
     assert 0 < perc < 1
-    m = NM.asarray(m, NM.Float)
+    m = NM.asarray(m, NA.Float)
     if len(m.shape) == 0 or (len(m.shape)==1 and m.shape[0]==1):
         return m[0]
     elif len(m.shape) == 1:
@@ -670,7 +672,7 @@ def _percentilesNM(m,perc,axis=0):
     else:
         # count the number of nonmasked indices along the given axis
         _k = float(perc) * (NM.count(m, axis=axis)-1)
-        k = _k.astype(NM.Int)
+        k = _k.astype(NA.Int)
         d = _k - k
         # prepare indices for other axis (except for the given)
         cind = NA.indices(NA.shape(k))
@@ -695,16 +697,16 @@ def _percentilesNM(m,perc,axis=0):
         takeMed2 = cind.tolist()
         takeMed2.insert(axis,medInd2.tolist())
         med2 = m[tuple(takeMed2)]
-##        if __name__=="__main__":
-##            print "m\n",m.filled(-1)
-##            print "c", c
-##            print "[(c-1)/2,c/2]", [(c-1)/2,c/2]
-##            print "cind\n",cind
-##            print "mtIndSort\n",mtIndSort
-##            print "medInd1\n",medInd1
-##            print "medInd2\n",medInd2
-##            print "med1\n",med1
-##            print "med2\n",med2
+        if __name__=="__main__":
+            print "m\n",m.filled(-1)
+            print "k", k
+            print "[(k-1)/2,k/2]", [(k-1)/2,k/2]
+            print "cind\n",cind
+            print "mtIndSort\n",mtIndSort
+            print "medInd1\n",medInd1
+            print "medInd2\n",medInd2
+            print "med1\n",med1
+            print "med2\n",med2
         return med1 + d*(med2-med1).filled(0)
 
 
