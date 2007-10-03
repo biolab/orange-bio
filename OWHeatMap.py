@@ -54,7 +54,7 @@ class OWHeatMap(OWWidget):
         OWWidget.__init__(self, parent, signalManager, 'HeatMap', TRUE) 
         
         self.inputs = [("Structured Data", DataFiles, self.chipdata, Single + NonDefault), ("Examples", ExampleTable, self.dataset, Default + Multiple)]
-        self.outputs = [("Structured Data", DataFiles, Single + NonDefault), ("Examples", ExampleTable, Default), ("Classified Examples", ExampleTableWithClass, Default)]
+        self.outputs = [("Structured Data", DataFiles, Single + NonDefault), ("Examples", ExampleTable, Default)]
 
         #set default settings
         self.CellWidth = 3; self.CellHeight = 3
@@ -287,7 +287,6 @@ class OWHeatMap(OWWidget):
             self.setMetaCombos() # set the two combo widgets according to the data
 
         if not blockUpdate:
-            self.send('Classified Examples', None)
             self.send('Examples', None)
             self.send('Structured Data', None)
             self.constructHeatmap()
@@ -371,10 +370,6 @@ class OWHeatMap(OWWidget):
         return selectedData
 
     def sendOne(self, data, indx):
-        if data.domain.classVar:
-            self.send("Classified Examples", data)
-        else:
-            self.send("Classified Examples", None)
         self.send("Examples", data)
     
     def sendData(self, rows, indxs):
