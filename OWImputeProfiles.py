@@ -1,3 +1,5 @@
+## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
+
 """
 <name>Impute Profiles</name>
 <description>Imputation and non-parametric smoothing of expression profiles.</description>
@@ -7,7 +9,7 @@
 """
 
 import math
-import Numeric, MA
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
 from OWWidget import *
 import OWGUI
 from OWDataFiles import DataFiles

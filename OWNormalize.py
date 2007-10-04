@@ -1,3 +1,5 @@
+## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
+
 """
 <name>Normalize Expression Array Data</name>
 <description>Normalization of expression array data.</description>
@@ -11,9 +13,10 @@ TODO: settingsList
 """
 
 import string, math
-import Numeric, MA, MLab
-import LinearAlgebra
-import NumExtn
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
+import numpy.oldnumeric.mlab as MLab
+import numpy.oldnumeric.linear_algebra as LinearAlgebra
+import numpyExtn
 import orange
 from qttable import *
 from OWWidget import *
@@ -845,7 +848,7 @@ class OWNormalize(OWWidget):
                 for varIdx, var in enumerate(domainOtherVars):
                     vals = map(lambda x: x[varIdx].native(), lstLstOtherVars)
                     if var.varType == orange.VarTypes.Continuous and self.mergeOtherType <> OWNormalize.MergeOtherTypeConc:
-                        valListList_byAttr.append(self.probes._mergeFunc[self.mergeLevel](MA.asarray(vals, MA.Float), Probes.mergeTypes[self.mergeOtherType], lambda x: None))
+                        valListList_byAttr.append(self.probes._mergeFunc[self.mergeLevel](MA.asarray(vals, Numeric.Float), Probes.mergeTypes[self.mergeOtherType], lambda x: None))
                         varListOtherCSV.append(var)
                         var.numberOfDecimals = 3    # by default it is set to zero because usually all values are integers; after merging we need higher precision (3 is the default value)
                     else:
@@ -2080,7 +2083,7 @@ class Probes(dict):
         - setFilterParameters: divide into three functions, one for each parameter
     """
 
-    mergeTypes = {0:MA.average, 1:NumExtn.medianMA}
+    mergeTypes = {0:MA.average, 1:numpyExtn.medianMA}
     bigVal = 1e20
     midVal = 1e10
 
@@ -2109,12 +2112,12 @@ class Probes(dict):
         self._valAList = []         # consecutive list of varA values (replicated)
         self._valBList = []         # consecutive list of varB values (replicated)
         # data: Numeric arrays
-        self.__sigSmpl = MA.zeros((0,), MA.Float)
-        self.__sigRef = MA.zeros((0,), MA.Float)
-        self.__bgSmpl = MA.zeros((0,), MA.Float)
-        self.__bgRef = MA.zeros((0,), MA.Float)
-        self.__bgSmplSD = MA.zeros((0,), MA.Float)
-        self.__bgRefSD = MA.zeros((0,), MA.Float)
+        self.__sigSmpl = MA.zeros((0,), Numeric.Float)
+        self.__sigRef = MA.zeros((0,), Numeric.Float)
+        self.__bgSmpl = MA.zeros((0,), Numeric.Float)
+        self.__bgRef = MA.zeros((0,), Numeric.Float)
+        self.__bgSmplSD = MA.zeros((0,), Numeric.Float)
+        self.__bgRefSD = MA.zeros((0,), Numeric.Float)
         # net intensity function dict (indexed by self.subtrBG)
         self.__netSmpl_masked_func = {0: lambda cond: self._sigSmpl_masked(cond), 1: lambda cond: self._sigSmpl_masked(cond) - self._bgSmpl_masked(cond)}
         self.__netRef_masked_func =  {0: lambda cond: self._sigRef_masked(cond),  1: lambda cond: self._sigRef_masked(cond) -  self._bgRef_masked(cond) }
@@ -2146,7 +2149,7 @@ class Probes(dict):
         self._valB2probes = {}  # {valB1:[probes1],  valB2:[probes2]};  key: probe valB; value: list of ProbeSets
         self._valA2ind = {}       # {valA1:[indices1], valA2:[indices2]}; key: probe valA; value: list of data indices
         # normalized log2 ratio
-        self._Mnorm = MA.zeros((0,), MA.Float)
+        self._Mnorm = MA.zeros((0,), Numeric.Float)
         # different levels of merging
         self._mergeFunc = {OWNormalize.MergeLevelNone:self.__mergeReplicasNone,
                            OWNormalize.MergeLevelPerVarsAB:self.__mergeReplicasPerVarsAB,
@@ -2166,12 +2169,12 @@ class Probes(dict):
         self._active = {}
         self._valAList = []
         self._valBList = []
-        self.__sigSmpl = MA.zeros((0,), MA.Float)
-        self.__sigRef = MA.zeros((0,), MA.Float)
-        self.__bgSmpl = MA.zeros((0,), MA.Float)
-        self.__bgRef = MA.zeros((0,), MA.Float)
-        self.__bgSmplSD = MA.zeros((0,), MA.Float)
-        self.__bgRefSD = MA.zeros((0,), MA.Float)
+        self.__sigSmpl = MA.zeros((0,), Numeric.Float)
+        self.__sigRef = MA.zeros((0,), Numeric.Float)
+        self.__bgSmpl = MA.zeros((0,), Numeric.Float)
+        self.__bgRef = MA.zeros((0,), Numeric.Float)
+        self.__bgSmplSD = MA.zeros((0,), Numeric.Float)
+        self.__bgRefSD = MA.zeros((0,), Numeric.Float)
         # ratio
         self.__ratio = None
         # Numeric array: 0: OK, 1: filtered out
@@ -2186,7 +2189,7 @@ class Probes(dict):
         self._valB2probes = {}
         self._valA2ind = {}
         # normalized log2 ratio
-        self._Mnorm = MA.zeros((0,), MA.Float)
+        self._Mnorm = MA.zeros((0,), Numeric.Float)
         # dictionary of marker pixmaps
         self.__markerPixmapDict = {}
 
@@ -2256,7 +2259,7 @@ class Probes(dict):
         self.varNameB = varNameB
 ##        self._control = Numeric.zeros((len(data),), Numeric.Int)
         self.__plotted = Numeric.zeros((len(data),), Numeric.Int)
-        self.__ratio = MA.ones((len(data),), MA.Float) * MA.masked
+        self.__ratio = MA.ones((len(data),), Numeric.Float) * MA.masked
         # update data and probe data indices
         self.updateProbeData(data, varNameSignalSmpl, varNameSignalRef, varNameBGSmpl, varNameBGRef, varNameBGSmplSD, varNameBGRefSD, recalc=False)
         # set varPKey and add varNameB (if necessary)
@@ -2471,17 +2474,17 @@ class Probes(dict):
 
 
     def getNumProbesControls_indexed(self, indices):
-        return Numeric.add.reduce(Numeric.logical_and(self._isControlArr(), NumExtn.indices2condition(indices, self.__sigSmpl.shape[0])))
+        return Numeric.add.reduce(Numeric.logical_and(self._isControlArr(), numpyExtn.indices2condition(indices, self.__sigSmpl.shape[0])))
 
     def getNumProbesOthers_indexed(self, indices):
-        return Numeric.add.reduce(Numeric.logical_and(self._isOtherArr(), NumExtn.indices2condition(indices, self.__sigSmpl.shape[0])))
+        return Numeric.add.reduce(Numeric.logical_and(self._isOtherArr(), numpyExtn.indices2condition(indices, self.__sigSmpl.shape[0])))
 
     def getNumProbesControls_nonFiltered_indexed(self, indices):
         if D6: print "getNumProbesControls_nonFiltered_indexed", Numeric.add.reduce(self._isControlArr()), Numeric.add.reduce(self.getFilter())
-        return Numeric.add.reduce(Numeric.logical_and(self._isControlArr(), Numeric.logical_and(NumExtn.indices2condition(indices, self.__sigSmpl.shape[0]), Numeric.logical_not(self.getFilter()))))
+        return Numeric.add.reduce(Numeric.logical_and(self._isControlArr(), Numeric.logical_and(numpyExtn.indices2condition(indices, self.__sigSmpl.shape[0]), Numeric.logical_not(self.getFilter()))))
 
     def getNumProbesOthers_nonFiltered_indexed(self, indices):
-        return Numeric.add.reduce(Numeric.logical_and(self._isOtherArr(), Numeric.logical_and(NumExtn.indices2condition(indices, self.__sigSmpl.shape[0]), Numeric.logical_not(self.getFilter()))))
+        return Numeric.add.reduce(Numeric.logical_and(self._isOtherArr(), Numeric.logical_and(numpyExtn.indices2condition(indices, self.__sigSmpl.shape[0]), Numeric.logical_not(self.getFilter()))))
 
 
     ############################################
@@ -2617,7 +2620,7 @@ class Probes(dict):
         """
         if D1 or D2 or D6: print "Probes.updateReplotNormCurves"
         self._clearNormCurves(False)
-        self._Mnorm = MA.zeros(self.__sigSmpl.shape, MA.Float) * MA.masked  # log2ratio
+        self._Mnorm = MA.zeros(self.__sigSmpl.shape, Numeric.Float) * MA.masked  # log2ratio
         if self.__sigSmpl:
             condColors = [QColor(0,0,0), QColor(0,0,255), QColor(0,255,0)]
             # fill self._ncdd (NormCurveDataDict)
@@ -2638,7 +2641,7 @@ class Probes(dict):
             for ncKey, ncData in self._ncdd.items():
                 Ac, Mc, An_masked, Mn_masked = self._getNormData_ActrlMctrl_AM_masked(ncData.computInd)
                 # condition for plotting ticks
-                condTicks = NumExtn.indices2condition(ncData.normInd, An_masked.shape[0])
+                condTicks = numpyExtn.indices2condition(ncData.normInd, An_masked.shape[0])
                 if len(Ac) <= 0:
                     continue
                 minAc = min(Ac)
@@ -2651,7 +2654,7 @@ class Probes(dict):
                              MA.logical_and(MA.greater_equal(An_masked, maxAc), notMask_AnMn)]
                 # add curveLists to self._ncdd items
                 for condIdx, cond in enumerate(condList):
-                    if MA.add.reduce(MA.asarray(cond, MA.Float)) > 1:
+                    if MA.add.reduce(MA.asarray(cond, Numeric.Float)) > 1:
                         # plot normalization curve
                         normCurve = self.graph.insertCurve("Norm. curve %i: %s" % (condIdx, str(ncKey)), ncKey)
                         ncData.curveList.append(normCurve)
@@ -2686,7 +2689,7 @@ class Probes(dict):
                     Mdata /= Mn_masked
                     Mdata = MA.log(Mdata) / math.log(2)
                 # store self._Mnorm
-                self._Mnorm = MA.where(NumExtn.indices2condition(ncData.normInd, self._Mnorm.shape[0]), Mdata, self._Mnorm)
+                self._Mnorm = MA.where(numpyExtn.indices2condition(ncData.normInd, self._Mnorm.shape[0]), Mdata, self._Mnorm)
         if refresh: self.graph.replot()
 
 
@@ -2890,23 +2893,23 @@ class Probes(dict):
 
 
     def sigSmpl(self, pKey):
-        cond = NumExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__sigSmpl.shape[0])
+        cond = numpyExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__sigSmpl.shape[0])
         return self._sigSmpl(cond)
 
     def sigRef(self, pKey):
-        cond = NumExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__sigRef.shape[0])
+        cond = numpyExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__sigRef.shape[0])
         return self._sigRef(cond)
 
     def bgSmpl(self, pKey):
-        cond = NumExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__bgSmpl.shape[0])
+        cond = numpyExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__bgSmpl.shape[0])
         return self._bgSmpl(cond)
 
     def bgRef(self, pKey):
-        cond = NumExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__bgRef.shape[0])
+        cond = numpyExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__bgRef.shape[0])
         return self._bgRef(cond)
 
     def ratio(self, pKey):
-        cond = NumExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__ratio.shape[0])
+        cond = numpyExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__ratio.shape[0])
         return self._ratio(cond)
 
 
@@ -2959,7 +2962,7 @@ class Probes(dict):
         return self.__compM_masked(netSmpl, netRef, ratios), self.__compA_masked(netSmpl, netRef)
 
     def _getMA_masked_indexed(self, indices, center):
-        return self._getMA_masked(NumExtn.indices2condition(indices, self.__sigSmpl.shape[0]), center)
+        return self._getMA_masked(numpyExtn.indices2condition(indices, self.__sigSmpl.shape[0]), center)
 
     def _getMA_compressed(self, condition, center):
         """Returns Numeric arrays: M/ratio, A (compressed by filter, mask and condition).
@@ -2972,7 +2975,7 @@ class Probes(dict):
         """Returns Numeric arrays: M/ratio, A (compressed by filter, condition and mask)
         """
         if D1 or D2: print "Probes.getMA"
-        cond = NumExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__sigSmpl.shape[0])
+        cond = numpyExtn.indices2condition(dict.__getitem__(self, pKey).getDataIndices(), self.__sigSmpl.shape[0])
         return self._getMA_compressed(cond, center)
 
 
@@ -3021,22 +3024,22 @@ class Probes(dict):
         A, M masked; normalization curve computed in all "named" probes (or numPoints from min(Aprobes), max(Aprobes)
         """
         if  D6: print "Probes._getNormData_ActrlMctrl_AM_masked"
-        condName = NumExtn.indices2condition(nameInd, self.__sigSmpl.shape[0])
+        condName = numpyExtn.indices2condition(nameInd, self.__sigSmpl.shape[0])
         condControlName = Numeric.logical_and(self._isControlArr(), condName)
         Mc,Ac = self._getMA_compressed(condControlName, True)
         # if A not given, then it should equal to all probes which correspond to name
         A = self._getA_masked(condName)
-        M = MA.zeros(A.shape, MA.Float) * MA.masked
+        M = MA.zeros(A.shape, Numeric.Float) * MA.masked
         # proceed if we have at least one control probe (we account for _minNumControlProbes in _getNormCurveName2Ind())
         if Mc.shape[0] >= 1:
             Mcompressed = self._approxFunction(A.compressed(), Mc, Ac)
             if Mcompressed:
-                MA.put(M, NumExtn.condition2indices(Numeric.logical_not(MA.getmaskarray(A))), Mcompressed)
+                MA.put(M, numpyExtn.condition2indices(Numeric.logical_not(MA.getmaskarray(A))), Mcompressed)
         return  Ac, Mc, A, M
 
 
     def _getNormCurveLoess(self, A, Mc, Ac):
-        return NumExtn.lowess2(Ac, Mc, A, f=self.loessWindow/100.)
+        return numpyExtn.lowess2(Ac, Mc, A, f=self.loessWindow/100.)
 
 
     def _getNormCurveLinReg(self, A, Mc, Ac):
@@ -3055,8 +3058,8 @@ class Probes(dict):
 
 
     def _getNormCurveMedian(self, A, Mc, Ac):
-        if D4 or D5: print "Probes._getNormCurveMedian, value:", NumExtn.median(Mc)
-        return Numeric.resize(NumExtn.median(Mc), A.shape)
+        if D4 or D5: print "Probes._getNormCurveMedian, value:", numpyExtn.median(Mc)
+        return Numeric.resize(numpyExtn.median(Mc), A.shape)
         
 
     #################################################
@@ -3077,7 +3080,7 @@ class Probes(dict):
         if D1: print "Probes.__mergeReplicasPerVarsAB"
         shp = list(ma.shape)
         shp[0] = len(self.values())
-        maMerged = MA.zeros(shp, ma.typecode())
+        maMerged = MA.zeros(shp, ma.dtype.char)
         pbStep = 100./len(self)
         for idx, probe in enumerate(self.values()):
             maMerged[idx] = mergeFunction(MA.take(ma, probe.getDataIndices()))
@@ -3105,7 +3108,7 @@ class Probes(dict):
         if D1: print "Probes.__mergeReplicasPerVarA"
         shp = list(ma.shape)
         shp[0] = len(self._valA2ind)
-        maMerged = MA.zeros(shp, ma.typecode())
+        maMerged = MA.zeros(shp, ma.dtype.char)
         pbStep = 100./len(self._valA2ind)
         for idx, dataInd in enumerate(self._valA2ind.values()):
             maMerged[idx] = mergeFunction(MA.take(ma, dataInd))
@@ -3241,7 +3244,7 @@ class Probes(dict):
 if __name__=="__main__":
 
     def test_minNumControlProbes(numC):
-        import Numeric, LinearAlgebra, statc
+        import numpy.oldnumeric as Numeric, numpy.oldnumeric.linear_algebra as LinearAlgebra, statc
         A = [-1,0,0.5,1,1.5, 3]
         Mc = Numeric.arange(0,numC,1.)
         Ac = Numeric.arange(0,numC,1.)

@@ -1,4 +1,6 @@
-import Numeric, MA
+## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
+
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
 import statc
     
 
@@ -61,8 +63,8 @@ def loessMA(m, windowSize, axis=0, approxMasked=True, verbose=False, callback=No
     """
     assert 0 < windowSize <= m.shape[axis]+0.1, "0 < windowSize[%s] <= 1 OR windowSize in range(1.1,m.shape[axis]+1) expected, got %f" % ("%", windowSize)
     m = MA.asarray(m)
-    if m.typecode() <> MA.Float:
-        m = m.astype(MA.Float)
+    if m.dtype.char <> Numeric.Float:
+        m = m.astype(Numeric.Float)
     shp_other = list(m.shape)
     shp_other.pop(axis)
     # get a transposed and reshaped mask and data from m; if m.mask() == None, construct a new array of zeros
@@ -86,7 +88,7 @@ def loessMA(m, windowSize, axis=0, approxMasked=True, verbose=False, callback=No
 
 
 if __name__=="__main__":
-    import RandomArray, time
+    import numpy.oldnumeric.random_array as RandomArray, time
 
 #   10x4 array    
 ##    m2 = MA.asarray(RandomArray.random((10, 4)))

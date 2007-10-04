@@ -1,8 +1,9 @@
+## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
+
 import math
-import Numeric, MA
-import LinearAlgebra
-import stats
-import NumExtn
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
+import numpy.oldnumeric.linear_algebra as LinearAlgebra
+import numpyExtn
 import os, os.path
 import orange
 
@@ -48,16 +49,16 @@ def merge_replicas(aETStruct, type):
     if type == "mean":
         merge_func = MA.average
     elif type == "median":
-        merge_func = NumExtn.medianMA
+        merge_func = numpyExtn.medianMA
     elif type == "min":
-        merge_func = NumExtn.minMA
+        merge_func = numpyExtn.minMA
     elif type == "max":
-        merge_func = NumExtn.maxMA
+        merge_func = numpyExtn.maxMA
     else:
         raise AttributeError, "type = ['mean' | 'median' | 'min' | 'max']"
     for st, etList in aETStruct:
         shape[2] = len(etList)
-        ma3d = MA.zeros(shape, MA.Float)
+        ma3d = MA.zeros(shape, Numeric.Float)
         for idx, et in enumerate(etList):
             ma3d[:,:,idx] = orng2ma(et)
         mergedETStruct.append((st, [ma2orng_keepClassMetas(merge_func(ma3d, 2), etList[0])]))
@@ -70,25 +71,25 @@ def merge_replicas(aETStruct, type):
 
 def scaleStd(nm, axis=0):
     """Returns new masked numarray with values scaled by dividing by Median Absolute Difference: MAD = median(|val(i)-median(val(i))|)."""
-    nm = NumExtn.swapaxesMA(MA.asarray(nm, MA.Float), 0, axis)
-    return NumExtn.swapaxesMA(nm / NumExtn.stdMA(nm,0), 0, axis)
+    nm = numpyExtn.swapaxesMA(MA.asarray(nm, Numeric.Float), 0, axis)
+    return numpyExtn.swapaxesMA(nm / numpyExtn.stdMA(nm,0), 0, axis)
 
 def scaleMad(nm, axis=0):
     """Returns new masked numarray with values scaled by dividing by Median Absolute Difference: MAD = median(|val(i)-median(val(i))|)."""
-    nm = NumExtn.swapaxesMA(MA.asarray(nm, MA.Float), 0, axis)
-    return NumExtn.swapaxesMA(nm / NumExtn.madMA(nm,0), 0, axis)
+    nm = numpyExtn.swapaxesMA(MA.asarray(nm, Numeric.Float), 0, axis)
+    return numpyExtn.swapaxesMA(nm / numpyExtn.madMA(nm,0), 0, axis)
 
 
 def centerMean(nm, axis=0):
     """Returns new masked numarray with values centered by subtracting Median."""
-    nm = NumExtn.swapaxesMA(MA.asarray(nm, MA.Float), 0, axis)
-    return NumExtn.swapaxesMA(nm - MA.average(nm,0), 0, axis)
+    nm = numpyExtn.swapaxesMA(MA.asarray(nm, Numeric.Float), 0, axis)
+    return numpyExtn.swapaxesMA(nm - MA.average(nm,0), 0, axis)
 
 
 def centerMed(nm, axis=0):
     """Returns new masked numarray with values centered by subtracting Median."""
-    nm = NumExtn.swapaxesMA(MA.asarray(nm, MA.Float), 0, axis)
-    return NumExtn.swapaxesMA(nm - NumExtn.medianMA(nm,0), 0, axis)
+    nm = numpyExtn.swapaxesMA(MA.asarray(nm, Numeric.Float), 0, axis)
+    return numpyExtn.swapaxesMA(nm - numpyExtn.medianMA(nm,0), 0, axis)
 
 
 def getETStruct(path):
@@ -114,7 +115,7 @@ def etStruct2ma3d(aETStruct):
     shape[0] = len(et0)                                                 # number of examples (genes)
     shape[1] = len(et0.domain.attributes)                               # number of attributes (time points)
     shape[2] = Numeric.add.reduce(map(lambda x: len(x[1]), aETStruct))  # number of ETs (replicas over all strains)
-    ma3d = MA.zeros(shape, MA.Float)
+    ma3d = MA.zeros(shape, Numeric.Float)
     k = 0
     for st, etList in aETStruct:
         for et in etList:
@@ -136,7 +137,7 @@ def orng2ma(aExampleTable):
     for varIdx, var in enumerate(aExampleTable.domain.attributes):
         if type(var) != orange.FloatVariable:
             mask[:,varIdx] = Numeric.ones(len(aExampleTable))
-    return MA.array(MA.array(ma, MA.PyObject, mask=mask).filled(1e20), MA.Float, mask=mask)
+    return MA.array(MA.array(ma, MA.PyObject, mask=mask).filled(1e20), Numeric.Float, mask=mask)
 
 
 def ma2orng(arr2d, aDomain):

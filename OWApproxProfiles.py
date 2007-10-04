@@ -1,3 +1,5 @@
+## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
+
 """
 <name>Approximate Profiles</name>
 <description>Approximation of expression profiles by various kernel functions.</description>
@@ -9,7 +11,7 @@
 from OWWidget import *
 import OWGUI
 from OWDataFiles import DataFiles
-import Numeric
+import numpy.oldnumeric as Numeric
 import chipstat
 import chipappx
 

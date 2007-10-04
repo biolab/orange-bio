@@ -1,3 +1,5 @@
+## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
+
 """
 <name>Data Distance</name>
 <description>Computes a distance matrix between data files.</description>
@@ -6,7 +8,7 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-import MA, statc
+import numpy.oldnumeric.ma as MA, statc
 import orange, OWGUI
 from qt import *
 from qtcanvas import *
@@ -152,7 +154,7 @@ def distManhattan(x,y):
     x = MA.asarray(x)
     y = MA.asarray(y)
     assert MA.rank(x) == MA.rank(y) == 1
-    sumWeights = MA.add.reduce(MA.logical_not(MA.logical_or(MA.getmaskarray(x), MA.getmaskarray(y))).astype(MA.Float))
+    sumWeights = MA.add.reduce(MA.logical_not(MA.logical_or(MA.getmaskarray(x), MA.getmaskarray(y))).astype(Numeric.Float))
     return MA.add.reduce(MA.absolute(x-y)) / sumWeights
 
 
@@ -163,7 +165,7 @@ def distManhattanW(x,y,w):
     y = MA.asarray(y)
     w = MA.asarray(w)
     assert MA.rank(x) == MA.rank(y) == MA.rank(w) == 1
-    sumWeights = MA.add.reduce(w * MA.logical_not(MA.logical_or(MA.getmaskarray(x), MA.getmaskarray(y))).astype(MA.Float))
+    sumWeights = MA.add.reduce(w * MA.logical_not(MA.logical_or(MA.getmaskarray(x), MA.getmaskarray(y))).astype(Numeric.Float))
     return MA.add.reduce(w * MA.absolute(x-y)) / sumWeights
 
 
@@ -173,7 +175,7 @@ def distEuclidean(x,y):
     x = MA.asarray(x)
     y = MA.asarray(y)
     assert MA.rank(x) == MA.rank(y) == 1
-    sumWeights = MA.add.reduce(MA.logical_not(MA.logical_or(MA.getmaskarray(x), MA.getmaskarray(y))).astype(MA.Float))
+    sumWeights = MA.add.reduce(MA.logical_not(MA.logical_or(MA.getmaskarray(x), MA.getmaskarray(y))).astype(Numeric.Float))
     return MA.sqrt(MA.add.reduce((x-y)**2) / sumWeights)
 
 
@@ -184,7 +186,7 @@ def distEuclideanW(x,y,w):
     y = MA.asarray(y)
     w = MA.asarray(w)
     assert MA.rank(x) == MA.rank(y) == MA.rank(w) == 1
-    sumWeights = MA.add.reduce(w * MA.logical_not(MA.logical_or(MA.getmaskarray(x), MA.getmaskarray(y))).astype(MA.Float))
+    sumWeights = MA.add.reduce(w * MA.logical_not(MA.logical_or(MA.getmaskarray(x), MA.getmaskarray(y))).astype(Numeric.Float))
     return MA.sqrt(MA.add.reduce(w * (x-y)**2) / sumWeights)
 
 
