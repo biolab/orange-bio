@@ -1,7 +1,9 @@
+## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
+
 import math
-import Numeric, MLab
-import LinearAlgebra
-import stats
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.mlab as MLab
+import numpy.oldnumeric.linear_algebra as LinearAlgebra
+import scipy.stats
 
 class ApproxOrthPolyBasis:
     """Approximation of expression profiles with orthogonal polynomials."""
@@ -112,7 +114,7 @@ class ApproxOrthPolyBasis:
             SSE2 = Numeric.add.reduce((arr2d-curvek)**2,1)
             MSdrop =(SSE2-SSE1) / (maxNumCoef-k)
             F = MSdrop / MSE1
-            pvals[:,k] = stats.afprob((maxNumCoef-k), arr2d.shape[1]-maxNumCoef, F)
+            pvals[:,k] = scipy.stats.afprob((maxNumCoef-k), arr2d.shape[1]-maxNumCoef, F)
         return pvals
 
 
@@ -144,7 +146,7 @@ class ApproxOrthPolyBasis:
             SSE2 = Numeric.add.reduce((arr2d-curvek)**2,1)
             MSdrop =(SSE2-SSE1) / (maxNumCoef-k)
             F = MSdrop / MSE1
-            pvals[:,k] = stats.afprob((maxNumCoef-k), arr2d.shape[1]-maxNumCoef, F)
+            pvals[:,k] = scipy.stats.afprob((maxNumCoef-k), arr2d.shape[1]-maxNumCoef, F)
         pvals = Numeric.where(pvals > alpha, Numeric.resize(Numeric.arange(pvals.shape[1]),pvals.shape), pvals.shape[1])    # MAX where significant, idx where nonsignificant
         firstNonSignIdx = MLab.min(pvals, 1)    # idx of the first non-significant coef.
         coefSign = Numeric.zeros(coefMax.shape, Numeric.Float)

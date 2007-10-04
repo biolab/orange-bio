@@ -1,3 +1,5 @@
+## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
+
 """
 <name>ANOVA</name>
 <description>Single Sample T-test, One/Two Way Analysis of Variance.</description>
@@ -6,12 +8,12 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-import Numeric, MA
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
 from OWWidget import *
 import OWGUI
 import qt, qwt
 from OWDataFiles import DataFiles, ExampleSelection
-import Anova, stats
+import Anova, scipy.stats
 
 
 class OWANOVA(OWWidget):
@@ -200,7 +202,7 @@ class OWANOVA(OWWidget):
         runs ANOVA computations and sets self.ps;
         """
         if self.dataStructure and self.numExamples > 0:
-            ma3d = MA.zeros((self.numExamples, self.numVariables, reduce(lambda a,b: a+len(b[1]), self.dataStructure, 0)), MA.Float) * MA.masked
+            ma3d = MA.zeros((self.numExamples, self.numVariables, reduce(lambda a,b: a+len(b[1]), self.dataStructure, 0)), Numeric.Float) * MA.masked
             groupLens = []
             etIdx = 0
             for dsName, etList in self.dataStructure:
@@ -241,7 +243,7 @@ class OWANOVA(OWWidget):
             data = Numeric.asarray(MA.transpose(ma3d[eIdx]).compressed())
             if len(data) >= 2:
                 try:
-                    ps[eIdx] = stats.ttest_1samp(data, compToVal)[1]
+                    ps[eIdx] = scipy.stats.ttest_1samp(data, compToVal)[1]
                 except:
                     print "Warning: zero variance, check the example %i:" % eIdx, data
                     ps[eIdx] = 1.0
@@ -282,7 +284,7 @@ class OWANOVA(OWWidget):
         grpLensAcc = Numeric.concatenate([[0],Numeric.add.accumulate(groupLens)])
         grpInd = map(lambda i,j: range(i, j), grpLensAcc[:-1], grpLensAcc[1:])
         for eIdx in range(ma3d.shape[0]):
-            m2 = MA.zeros((max(groupLens)*ma3d.shape[1], len(groupLens)), MA.Float) * MA.masked # axis0: replicas, axis1: factor B levels
+            m2 = MA.zeros((max(groupLens)*ma3d.shape[1], len(groupLens)), Numeric.Float) * MA.masked # axis0: replicas, axis1: factor B levels
             for groupIdx,takeInd in enumerate(grpInd):
                 m2[:groupLens[groupIdx]*ma3d.shape[1], groupIdx] = MA.ravel(MA.take(ma3d[eIdx], takeInd, 1))
             an = fAnova(m2)

@@ -1,8 +1,10 @@
+## Automatically adapted for numpy.oldnumeric Oct 03, 2007 by 
+
 import math
-import Numeric, MA
-import LinearAlgebra
-import stats
-import NumExtn
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
+import numpy.oldnumeric.linear_algebra as LinearAlgebra
+import scipy.stats
+import numpyExtn
 
 
 #######################################################################################
@@ -17,7 +19,7 @@ class AnovaLRBase:
     def getDummyRC(self, numVars, numReplicas=1):
         """Returns 2D array of reference cell encoded dummy variables.
         """
-        if not type(numReplicas) == int:
+        if not isinstance(numReplicas, int):
             numReplicas = Numeric.asarray(numReplicas)
             assert len(numReplicas) == numVars, "numReplicas: int or argument of length numVars expected"
         return Numeric.repeat(Numeric.concatenate((Numeric.zeros((1,numVars-1), Numeric.Float), Numeric.identity(numVars-1, Numeric.Float)), 0), numReplicas, 0)
@@ -29,7 +31,7 @@ class AnovaLRBase:
         numReplicas = int | list | array of shape (numVars,): the number (or list) of observations per cell.
         """
         assert numVars > 0, "numVars <= 0"
-        if type(numReplicas) == int:
+        if isinstance(numReplicas, int):
             numReplicas = Numeric.ones((numVars,)) * numReplicas
         else:
             numReplicas = Numeric.asarray(numReplicas)
@@ -47,7 +49,7 @@ class AnovaLRBase:
         """
         numSubjList = Numeric.asarray(numSubjList)
         assert len(numSubjList.shape) == 1, "len(numSubjList.shape) != 1"
-        if type(numReplicas) == int:
+        if isinstance(numReplicas, int):
             numReplicas = Numeric.ones((numSubjList.shape[0],)) * numReplicas
         else:
             numReplicas = Numeric.asarray(numReplicas)
@@ -113,7 +115,7 @@ class Anova2wayLRBase(AnovaLRBase):
         sum_count_x_2 = Numeric.resize(sum_count_x, (sum_count_x.shape[0],sum_count_x.shape[0]))
         tstat = (MA.transpose(x_avrg_2) - x_avrg_2) * self._arr2d.shape[0] / Numeric.sqrt(self._MSpool * (Numeric.transpose(sum_count_x_2) + sum_count_x_2))
         ##tstat = (MA.transpose(x_avrg_2) - x_avrg_2) / Numeric.sqrt(self._MSpool * (Numeric.transpose(sum_count_x_2) + sum_count_x_2))     # this is how Statistica computes it, but it is WRONG!
-        tprob = NumExtn.triangularPut(stats.abetai(0.5*self._DFpool, 0.5, float(self._DFpool) / (self._DFpool + NumExtn.triangularGet(tstat**2))),1,1)
+        tprob = numpyExtn.triangularPut(scipy.stats.abetai(0.5*self._DFpool, 0.5, float(self._DFpool) / (self._DFpool + numpyExtn.triangularGet(tstat**2))),1,1)
         return tstat, tprob
 
 
@@ -122,13 +124,13 @@ class Anova2wayLRBase(AnovaLRBase):
         Returns (b,b) matrix indicating significant differences between levels of factor B and the direction of changes [-1|0|1].
         """
         tstat, pvals = self.posthoc_tstat_B()
-        pvals = NumExtn.triangularGet(pvals)
+        pvals = numpyExtn.triangularGet(pvals)
         sortInd = Numeric.argsort(pvals)
         k = pvals.shape[0]
         isSignif = -1*Numeric.ones((k,), Numeric.Int)
         for j in range(k):
             isSignif[sortInd[j]] = pvals[sortInd[j]] < float(alpha) / (k-j)
-        return NumExtn.triangularPut(isSignif, upper=1, lower=1) * (MA.greater(tstat,0) - MA.less(tstat,0))
+        return numpyExtn.triangularPut(isSignif, upper=1, lower=1) * (MA.greater(tstat,0) - MA.less(tstat,0))
 
 
     def posthoc_tstat_BbyA(self):
@@ -156,7 +158,7 @@ class Anova2wayLRBase(AnovaLRBase):
         # get p-values for each level of factor a separately (axis 1)
         tprob = MA.array(-1*Numeric.ones(tstat.shape, Numeric.Float), mask=Numeric.ones(tstat.shape))
         for idx1 in range(tprob.shape[1]):
-            tprob[:,idx1,:] = NumExtn.triangularPut(stats.abetai(0.5*self._DFpool, 0.5, float(self._DFpool) / (self._DFpool + NumExtn.triangularGet(tstat[:,idx1,:]**2))),1,1)
+            tprob[:,idx1,:] = numpyExtn.triangularPut(scipy.stats.abetai(0.5*self._DFpool, 0.5, float(self._DFpool) / (self._DFpool + numpyExtn.triangularGet(tstat[:,idx1,:]**2))),1,1)
         return tstat, tprob
 
 
@@ -173,12 +175,12 @@ class Anova2wayLRBase(AnovaLRBase):
         if self._addInteraction != 1:
             raise "Error: posthoc_anova can be conducted only when the interaction effect has been tested"
         b = self._groupLens.shape[0]
-        FA = MA.masked * MA.ones((b,b), MA.Float)
-        FAprob = MA.masked * MA.ones((b,b), MA.Float)
-        FB = MA.masked * MA.ones((b,b), MA.Float)
-        FBprob = MA.masked * MA.ones((b,b), MA.Float)
-        FAB = MA.masked * MA.ones((b,b), MA.Float)
-        FABprob = MA.masked * MA.ones((b,b), MA.Float)
+        FA = MA.masked * MA.ones((b,b), Numeric.Float)
+        FAprob = MA.masked * MA.ones((b,b), Numeric.Float)
+        FB = MA.masked * MA.ones((b,b), Numeric.Float)
+        FBprob = MA.masked * MA.ones((b,b), Numeric.Float)
+        FAB = MA.masked * MA.ones((b,b), Numeric.Float)
+        FABprob = MA.masked * MA.ones((b,b), Numeric.Float)
         groupLensAcc0 = Numeric.array([0] + Numeric.add.accumulate(self._groupLens).tolist())
         groupInd = map(lambda i,j: range(i,j), groupLensAcc0[:-1],groupLensAcc0[1:])
         for i in range(b):
@@ -210,7 +212,7 @@ class Anova1wayLR(AnovaLRBase):
 
         # remove missing observations and the corresponding dummy variable codes
         self.y = MA.asarray(arr1d)
-        self.y, takeInd = NumExtn.compressIndices(self.y)
+        self.y, takeInd = numpyExtn.compressIndices(self.y)
 
         # dummy variables
         self.dummyA = self.getDummyEE(len(replicaGroupLens), replicaGroupLens)
@@ -220,7 +222,7 @@ class Anova1wayLR(AnovaLRBase):
         LRA = MultLinReg(self.dummyA, self.y)
         try:
             self.F = LRA.MSreg / LRA.MSres
-            self.Fprob = stats.fprob(LRA.DFreg, LRA.DFres, self.F)
+            self.Fprob = scipy.stats.fprob(LRA.DFreg, LRA.DFres, self.F)
         except ZeroDivisionError:
             self.F = 0
             self.Fprob = 1
@@ -238,7 +240,7 @@ class Anova1wayLR_2D(AnovaLRBase):
 
         # remove missing observations and the corresponding dummy variable codes
         self.y = MA.ravel(MA.transpose(arr2d))
-        self.y, takeInd = NumExtn.compressIndices(self.y)
+        self.y, takeInd = numpyExtn.compressIndices(self.y)
 
         # adjust degrees of freedom for factor-leves that contain no data
         numFactorLevels = MA.add.reduce(MA.greater(arr2d.count(0), 0))[0]
@@ -261,7 +263,7 @@ class Anova1wayLR_2D(AnovaLRBase):
             LRA = MultLinReg(self.dummyA, self.y)
             try:
                 self.F = LRA.MSreg / LRA.MSres
-                self.Fprob = stats.fprob(LRA.DFreg, LRA.DFres, self.F)
+                self.Fprob = scipy.stats.fprob(LRA.DFreg, LRA.DFres, self.F)
             except ZeroDivisionError:
                 self.F = 0
                 self.Fprob = 1
@@ -301,7 +303,7 @@ class _Anova2wayLR_bug_missing_factor_leves(AnovaLRBase):
         # remove missing observations and the corresponding dummy variable codes
         self.y = MA.ravel(arr2d) # [a0b0, a0b1, .., a1b0, ...]
         noMissing = MA.count(self.y) == self.y.shape[0]
-        self.y, takeInd = NumExtn.compressIndices(self.y)
+        self.y, takeInd = numpyExtn.compressIndices(self.y)
 
         # dummy variables
         self.dummyA = self.getDummyEE(arr2d.shape[0], 1)
@@ -341,10 +343,10 @@ class _Anova2wayLR_bug_missing_factor_leves(AnovaLRBase):
                 self.FA = (LR_treat.SSreg - LR_B.SSreg) / self.dummyA.shape[1] / LR_treat.MSres
                 self.FB = (LR_treat.SSreg - LR_A.SSreg) / self.dummyB.shape[1] / LR_treat.MSres
 
-        self.FAprob = stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
-        self.FBprob = stats.fprob(self.dummyB.shape[1], LR_treat.DFres, self.FB)
+        self.FAprob = scipy.stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
+        self.FBprob = scipy.stats.fprob(self.dummyB.shape[1], LR_treat.DFres, self.FB)
         if addInteraction:
-            self.FABprob = stats.fprob(self.dummyAB.shape[1], LR_treat.DFres, self.FAB)
+            self.FABprob = scipy.stats.fprob(self.dummyAB.shape[1], LR_treat.DFres, self.FAB)
 
         # store variables needed for posthoc tests
         self._arr2d = arr2d
@@ -373,7 +375,7 @@ class _Anova2wayLR_bug_missing_factor_leves(AnovaLRBase):
         sum_count_x_2 = Numeric.resize(sum_count_x, (sum_count_x.shape[0],sum_count_x.shape[0]))
         tstat = (MA.transpose(x_avrg_2) - x_avrg_2) * self._arr2d.shape[0] / Numeric.sqrt(self._LR_treat_MSres * (Numeric.transpose(sum_count_x_2) + sum_count_x_2))
         ##tstat = (MA.transpose(x_avrg_2) - x_avrg_2) / Numeric.sqrt(self._LR_treat_MSres * (Numeric.transpose(sum_count_x_2) + sum_count_x_2))     # this is how Statistica computes it, but it is WRONG!
-        tprob = NumExtn.triangularPut(stats.abetai(0.5*self._LR_treat_DFres, 0.5, float(self._LR_treat_DFres) / (self._LR_treat_DFres + NumExtn.triangularGet(tstat**2))),1,1)
+        tprob = numpyExtn.triangularPut(scipy.stats.abetai(0.5*self._LR_treat_DFres, 0.5, float(self._LR_treat_DFres) / (self._LR_treat_DFres + numpyExtn.triangularGet(tstat**2))),1,1)
         return tstat, tprob
 
 
@@ -382,13 +384,13 @@ class _Anova2wayLR_bug_missing_factor_leves(AnovaLRBase):
         Returns (b,b) matrix indicating significant differences between levels of factor B and the direction of changes [-1|0|1].
         """
         tstat, pvals = self.posthoc_tstat_B()
-        pvals = NumExtn.triangularGet(pvals)
+        pvals = numpyExtn.triangularGet(pvals)
         sortInd = Numeric.argsort(pvals)
         k = pvals.shape[0]
         isSignif = -1*Numeric.ones((k,), Numeric.Int)
         for j in range(k):
             isSignif[sortInd[j]] = pvals[sortInd[j]] < float(alpha) / (k-j)
-        return NumExtn.triangularPut(isSignif, upper=1, lower=1) * (MA.greater(tstat,0) - MA.less(tstat,0))
+        return numpyExtn.triangularPut(isSignif, upper=1, lower=1) * (MA.greater(tstat,0) - MA.less(tstat,0))
 
 
     def posthoc_tstat_BbyA(self):
@@ -416,7 +418,7 @@ class _Anova2wayLR_bug_missing_factor_leves(AnovaLRBase):
         # get p-values for each level of factor a separately (axis 1)
         tprob = MA.array(-1*Numeric.ones(tstat.shape, Numeric.Float), mask=Numeric.ones(tstat.shape))
         for idx1 in range(tprob.shape[1]):
-            tprob[:,idx1,:] = NumExtn.triangularPut(stats.abetai(0.5*self._LR_treat_DFres, 0.5, float(self._LR_treat_DFres) / (self._LR_treat_DFres + NumExtn.triangularGet(tstat[:,idx1,:]**2))),1,1)
+            tprob[:,idx1,:] = numpyExtn.triangularPut(scipy.stats.abetai(0.5*self._LR_treat_DFres, 0.5, float(self._LR_treat_DFres) / (self._LR_treat_DFres + numpyExtn.triangularGet(tstat[:,idx1,:]**2))),1,1)
         return tstat, tprob
 
 
@@ -429,10 +431,10 @@ class _Anova2wayLR_bug_missing_factor_leves(AnovaLRBase):
             (b,b) matrix of p-values for interaction effect
         """
         b = len(self._replicaGroupInd)
-        FB = MA.masked * MA.ones((b,b), MA.Float)
-        FBprob = MA.masked * MA.ones((b,b), MA.Float)
-        FAB = MA.masked * MA.ones((b,b), MA.Float)
-        FABprob = MA.masked * MA.ones((b,b), MA.Float)
+        FB = MA.masked * MA.ones((b,b), Numeric.Float)
+        FBprob = MA.masked * MA.ones((b,b), Numeric.Float)
+        FAB = MA.masked * MA.ones((b,b), Numeric.Float)
+        FABprob = MA.masked * MA.ones((b,b), Numeric.Float)
         for i in range(b):
             for j in range(i+1,b):
                 rglSub = [self._replicaGroupInd[i], self._replicaGroupInd[j]]
@@ -537,7 +539,7 @@ class Anova2wayLR(Anova2wayLRBase):
         # remove missing observations and the corresponding dummy variable codes
         self.y = MA.ravel(arr2d) # [a0b0, a0b1, .., a1b0, ...]
         noMissing = MA.count(self.y) == self.y.shape[0]
-        self.y, takeInd = NumExtn.compressIndices(self.y)
+        self.y, takeInd = numpyExtn.compressIndices(self.y)
 
         # dummy variables
         self.dummyA = self.getDummyEE(arr2d.shape[0], 1)
@@ -589,17 +591,17 @@ class Anova2wayLR(Anova2wayLRBase):
             return
 
         try:
-            self.FAprob = stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
+            self.FAprob = scipy.stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
         except ValueError:
             self.FAprob = 1
         try:
-            self.FBprob = stats.fprob(self.dummyB.shape[1], LR_treat.DFres, self.FB)
+            self.FBprob = scipy.stats.fprob(self.dummyB.shape[1], LR_treat.DFres, self.FB)
         except ValueError:
             self.FBprob = 1
         self.ps = [self.FAprob, self.FBprob]
         if addInteraction:
             try:
-                self.FABprob = stats.fprob(self.dummyAB.shape[1], LR_treat.DFres, self.FAB)
+                self.FABprob = scipy.stats.fprob(self.dummyAB.shape[1], LR_treat.DFres, self.FAB)
             except ValueError:
                 self.FABprob = 1
             self.ps.append(self.FABprob)
@@ -646,7 +648,7 @@ class AnovaRM11LR(AnovaLRBase):
         # remove missing observations and the corresponding dummy variable codes
         self.y = MA.ravel(arr2d)
         noMissing = MA.count(self.y) == self.y.shape[0]
-        self.y, takeInd = NumExtn.compressIndices(self.y)
+        self.y, takeInd = numpyExtn.compressIndices(self.y)
 
         # dummy variables for coding subjects and factor-levels
         self.dummySubj = self.getDummyEE(arr2d.shape[0], 1)
@@ -665,7 +667,7 @@ class AnovaRM11LR(AnovaLRBase):
                 print "WARNING: missing data with 1-way repeated measures ANOVA"
                 LR_S = MultLinReg(self.dummySubj, self.y)
                 self.FA = (LR_treat.SSreg - LR_S.SSreg) / self.dummyA.shape[1] / LR_treat.MSres
-            self.FAprob = stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
+            self.FAprob = scipy.stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
         except ZeroDivisionError:
             self.FA = 0
             self.FAprob = 1
@@ -693,7 +695,7 @@ class _AnovaRM12LR_bug_missing_factor_leves(AnovaLRBase):
         # remove missing observations and the corresponding dummy variable codes
         self.y = MA.ravel(arr2d) # [a0b0, a0b1, .., a1b0, ...]
         noMissing = MA.count(self.y) == self.y.shape[0]
-        self.y, takeInd = NumExtn.compressIndices(self.y)
+        self.y, takeInd = numpyExtn.compressIndices(self.y)
 
         # check if data is balanced
         rgLens = Numeric.array(map(lambda x: len(x), groupInd), Numeric.Int)
@@ -763,10 +765,10 @@ class _AnovaRM12LR_bug_missing_factor_leves(AnovaLRBase):
                 # store variables needed for posthoc tests
                 MS_SubjInB = (LR_treat.SSreg - LR_A_B.SSreg) / self.dummySubjInB.shape[1]
 
-        self.FBprob = stats.fprob(self.dummyB.shape[1], self.dummySubjInB.shape[1], self.FB)
-        self.FAprob = stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
+        self.FBprob = scipy.stats.fprob(self.dummyB.shape[1], self.dummySubjInB.shape[1], self.FB)
+        self.FAprob = scipy.stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
         if addInteraction:
-            self.FABprob = stats.fprob(self.dummyAB.shape[1], LR_treat.DFres, self.FAB)
+            self.FABprob = scipy.stats.fprob(self.dummyAB.shape[1], LR_treat.DFres, self.FAB)
 
         # store variables needed for posthoc tests
         self._arr2d = arr2d
@@ -802,7 +804,7 @@ class _AnovaRM12LR_bug_missing_factor_leves(AnovaLRBase):
         sum_count_x_2 = Numeric.resize(sum_count_x, (sum_count_x.shape[0],sum_count_x.shape[0]))
         tstat = (MA.transpose(x_avrg_2) - x_avrg_2) * self._arr2d.shape[0] / Numeric.sqrt(self._MSpool * (Numeric.transpose(sum_count_x_2) + sum_count_x_2))
         ##tstat = (MA.transpose(x_avrg_2) - x_avrg_2) / Numeric.sqrt(self._MSpool * (Numeric.transpose(sum_count_x_2) + sum_count_x_2))     # this is how Statistica computes it, but it is WRONG!
-        tprob = NumExtn.triangularPut(stats.abetai(0.5*self._DFpool, 0.5, float(self._DFpool) / (self._DFpool + NumExtn.triangularGet(tstat**2))),1,1)
+        tprob = numpyExtn.triangularPut(scipy.stats.abetai(0.5*self._DFpool, 0.5, float(self._DFpool) / (self._DFpool + numpyExtn.triangularGet(tstat**2))),1,1)
         return tstat, tprob
         
             
@@ -831,7 +833,7 @@ class _AnovaRM12LR_bug_missing_factor_leves(AnovaLRBase):
         # get p-values for each level of factor a separately (axis 1)
         tprob = MA.array(-1*Numeric.ones(tstat.shape, Numeric.Float), mask=Numeric.ones(tstat.shape))
         for idx1 in range(tprob.shape[1]):
-            tprob[:,idx1,:] = NumExtn.triangularPut(stats.abetai(0.5*self._DFpool, 0.5, float(self._DFpool) / (self._DFpool + NumExtn.triangularGet(tstat[:,idx1,:]**2))),1,1)
+            tprob[:,idx1,:] = numpyExtn.triangularPut(scipy.stats.abetai(0.5*self._DFpool, 0.5, float(self._DFpool) / (self._DFpool + numpyExtn.triangularGet(tstat[:,idx1,:]**2))),1,1)
         return tstat, tprob
 
     def posthoc_anova_B_AB(self):
@@ -843,10 +845,10 @@ class _AnovaRM12LR_bug_missing_factor_leves(AnovaLRBase):
             (b,b) matrix of p-values for interaction effect
         """
         b = len(self._groupInd)
-        FB = MA.masked * MA.ones((b,b), MA.Float)
-        FBprob = MA.masked * MA.ones((b,b), MA.Float)
-        FAB = MA.masked * MA.ones((b,b), MA.Float)
-        FABprob = MA.masked * MA.ones((b,b), MA.Float)
+        FB = MA.masked * MA.ones((b,b), Numeric.Float)
+        FBprob = MA.masked * MA.ones((b,b), Numeric.Float)
+        FAB = MA.masked * MA.ones((b,b), Numeric.Float)
+        FABprob = MA.masked * MA.ones((b,b), Numeric.Float)
         for i in range(b):
             for j in range(i+1,b):
                 rglSub = [self._groupInd[i], self._groupInd[j]]
@@ -942,7 +944,7 @@ class AnovaRM12LR(Anova2wayLRBase):
         # remove other missing observations and the corresponding dummy variable codes
         self.y = MA.ravel(arr2d) # [a0b0, a0b1, .., a1b0, ...]
         noMissing = MA.count(self.y) == self.y.shape[0]
-        self.y, takeInd = NumExtn.compressIndices(self.y)
+        self.y, takeInd = numpyExtn.compressIndices(self.y)
 
         # check if data is balanced
         isBalanced = (1. * Numeric.add.reduce((1.*groupLens/groupLens[0]) == Numeric.ones(groupLens.shape[0])) / groupLens.shape[0]) == 1
@@ -1022,17 +1024,17 @@ class AnovaRM12LR(Anova2wayLRBase):
             return
         
         try:
-            self.FBprob = stats.fprob(self.dummyB.shape[1], self.dummySubjInB.shape[1], self.FB)
+            self.FBprob = scipy.stats.fprob(self.dummyB.shape[1], self.dummySubjInB.shape[1], self.FB)
         except ValueError:
             self.FBprob = 1
         try:
-            self.FAprob = stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
+            self.FAprob = scipy.stats.fprob(self.dummyA.shape[1], LR_treat.DFres, self.FA)
         except ValueError:
             self.FAprob = 1
         self.ps = [self.FAprob, self.FBprob]
         if addInteraction:
             try:
-                self.FABprob = stats.fprob(self.dummyAB.shape[1], LR_treat.DFres, self.FAB)
+                self.FABprob = scipy.stats.fprob(self.dummyAB.shape[1], LR_treat.DFres, self.FAB)
             except ValueError:
                 self.FABprob = 1
             self.ps.append(self.FABprob)
@@ -1122,11 +1124,11 @@ class Anova2way:
 
     def _init_F(self):
         self.FA = (self.SSA / self.dfA) / (self.SSE / self.dfError)
-        self.FAprob = stats.fprob(self.dfA, self.dfError, self.FA)
+        self.FAprob = scipy.stats.fprob(self.dfA, self.dfError, self.FA)
         self.FB = (self.SSB / self.dfB) / (self.SSE / self.dfError)
-        self.FBprob = stats.fprob(self.dfB, self.dfError, self.FB)
+        self.FBprob = scipy.stats.fprob(self.dfB, self.dfError, self.FB)
         self.FAB = (self.SSAB / self.dfAB) / (self.SSE / self.dfError)
-        self.FABprob = stats.fprob(self.dfAB, self.dfError, self.FAB)
+        self.FABprob = scipy.stats.fprob(self.dfAB, self.dfError, self.FAB)
         
         
 class Anova3way:
@@ -1168,7 +1170,7 @@ class Anova3way:
             self.dfError = self.dfTotal - self.dfA - self.dfB - self.dfC - self.dfAB
 
             self.FAB = (self.SSAB / self.dfAB) / (self.SSE / self.dfError)
-            self.FABprob = stats.fprob(self.dfAB, self.dfError, self.FAB)
+            self.FABprob = scipy.stats.fprob(self.dfAB, self.dfError, self.FAB)
 
         else:            
 
@@ -1176,11 +1178,11 @@ class Anova3way:
             self.dfError = self.dfTotal - self.dfA - self.dfB - self.dfC
 
         self.FA = (self.SSA / self.dfA) / (self.SSE / self.dfError)
-        self.FAprob = stats.fprob(self.dfA, self.dfError, self.FA)
+        self.FAprob = scipy.stats.fprob(self.dfA, self.dfError, self.FA)
         self.FB = (self.SSB / self.dfB) / (self.SSE / self.dfError)
-        self.FBprob = stats.fprob(self.dfB, self.dfError, self.FB)
+        self.FBprob = scipy.stats.fprob(self.dfB, self.dfError, self.FB)
         self.FC = (self.SSC / self.dfC) / (self.SSE / self.dfError)
-        self.FCprob = stats.fprob(self.dfC, self.dfError, self.FC)
+        self.FCprob = scipy.stats.fprob(self.dfC, self.dfError, self.FC)
 
 
 #######################################################################################
@@ -1251,12 +1253,12 @@ class MultLinReg:
         self.VarCovar = self.MSres * self._XTXinv                   # variance-covariance matrix: s^2_b
         self.b_se = Numeric.sqrt(Numeric.diagonal(self.VarCovar))   # std. error of regression coef.: s_b_i
         self.b_t = self.b / self.b_se                               # t-test whether each regression coef. is significantly different from 0
-        self.b_tprob = stats.abetai(0.5*self.DFres, 0.5, float(self.DFres)/(self.DFres + self.b_t**2))
+        self.b_tprob = scipy.stats.abetai(0.5*self.DFres, 0.5, float(self.DFres)/(self.DFres + self.b_t**2))
         # correlation between coefficients (b's)
         # ERROR in Glantz et al.: self.Corr = Numeric.sqrt(self.VarCovar) / Numeric.sqrt(Numeric.dot(self.b_se[:,Numeric.NewAxis],self.b_se[Numeric.NewAxis,:]))
         self.Corr = self.VarCovar / Numeric.dot(self.b_se[:,Numeric.NewAxis],self.b_se[Numeric.NewAxis,:])
         self.F = self.MSreg / self.MSres        # overall goodness of fit 
-        self.Fprob = stats.fprob(self.DFreg, self.DFres, self.F)
+        self.Fprob = scipy.stats.fprob(self.DFreg, self.DFres, self.F)
         self.R2 = self.SSreg/self.SStot         # coef. of determination: fraction of variance explained by regression plane
         self.R2_adj = 1-(self.MSres/self.MStot) # adjusted coef. of determination (unbiased estimator of population R2; larget the better)
         self.R = math.sqrt(self.R2)             # multiple correlation coefficeint: how tight the data points cluster around the regression plane
@@ -1284,7 +1286,7 @@ def qVals(pVals, estimatePi0=False, verbose=False):
     """
     assert estimatePi0 in [False, "spline", "loess"]
     pValsMA = MA.asarray(pVals)
-    qVals = MA.ones(pValsMA.shape, MA.Float) * MA.masked
+    qVals = MA.ones(pValsMA.shape, Numeric.Float) * MA.masked
     putInd = Numeric.compress(Numeric.logical_not(MA.getmaskarray(pValsMA)), Numeric.arange(pValsMA.shape[0]))
     pValsMA = pValsMA.compressed()
     minp = min(pValsMA); maxp = max(pValsMA)
@@ -1357,7 +1359,7 @@ if __name__=="__main__":
 ##    lr1 = orange.LinRegLearner(et1)
 
     # mlr: test with random numbers
-##    import RandomArray
+##    import numpy.oldnumeric.random_array as RandomArray
 ##    xy2 = RandomArray.random((5,4))
 ##    ml2 = MultLinReg(xy2[:,:-1],xy2[:,-1],1)
 ##    et2 = Meda.Preproc.ma2orng(xy2, Meda.Preproc.getTcDomain(4,False,[]))
