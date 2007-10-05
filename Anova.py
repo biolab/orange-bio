@@ -105,7 +105,7 @@ class Anova2wayLRBase(AnovaLRBase):
         groupLensAcc0 = Numeric.array([0] + Numeric.add.accumulate(self._groupLens).tolist())
         for idx in range(b):
             groupInd = range(groupLensAcc0[idx], groupLensAcc0[idx+1])
-            xi = MA.take(self._arr2d, groupInd, 1)
+            xi = self._arr2d.take(groupInd, 1)
             x_avrg[idx] = MA.average(MA.average(xi,1))                  # first average over replicas to obtain cell mean, then over factor A
             sum_count_x[idx] = Numeric.add.reduce(1./MA.count(xi,1))    # first count the number of measurements within cells, then sum inverses over factor A
             ##x_avrg[idx] = MA.average(MA.ravel(xi))                    # this is how Statistica computes it, but it is WRONG!
@@ -148,7 +148,7 @@ class Anova2wayLRBase(AnovaLRBase):
         groupLensAcc0 = Numeric.array([0] + Numeric.add.accumulate(self._groupLens).tolist())
         for idx in range(b):
             groupInd = range(groupLensAcc0[idx], groupLensAcc0[idx+1])
-            xi = MA.take(self._arr2d, groupInd, 1)
+            xi = self._arr2d.take(groupInd, 1)
             x_avrg[:,idx] = MA.average(xi, 1)
             sum_count_x[:,idx] = 1. / MA.count(xi, 1)
         # t-statistics
@@ -186,7 +186,7 @@ class Anova2wayLRBase(AnovaLRBase):
         for i in range(b):
             for j in range(i+1,b):
                 takeInd = groupInd[i] + groupInd[j]
-                an = self.__class__(MA.take(self._arr2d, takeInd, 1), [self._groupLens[i],self._groupLens[j]], addInteraction=1)
+                an = self.__class__(self._arr2d.take(takeInd, 1), [self._groupLens[i],self._groupLens[j]], addInteraction=1)
                 FA[i,j] = FA[j,i] = an.FA
                 FAprob[i,j] = FAprob[j,i] = an.FAprob
                 FB[i,j] = FB[j,i] = an.FB
@@ -243,7 +243,7 @@ class Anova1wayLR_2D(AnovaLRBase):
         self.y, takeInd = numpyExtn.compressIndices(self.y)
 
         # adjust degrees of freedom for factor-leves that contain no data
-        numFactorLevels = MA.add.reduce(MA.greater(arr2d.count(0), 0))[0]
+        numFactorLevels = int(MA.add.reduce(MA.greater(arr2d.count(0), 0)))
         zeroLengthFactorLevels = Numeric.compress(MA.equal(arr2d.count(0), 0), range(arr2d.shape[1]))
         if numFactorLevels > 1:
 
@@ -365,7 +365,7 @@ class _Anova2wayLR_bug_missing_factor_leves(AnovaLRBase):
         x_avrg = Numeric.zeros((b,), Numeric.Float)         # mean of cell means over factor A
         sum_count_x = Numeric.zeros((b,), Numeric.Float)
         for idx, replicaInd in enumerate(self._replicaGroupInd):
-            xi = MA.take(self._arr2d, replicaInd, 1)
+            xi = self._arr2d.take(replicaInd, 1)
             x_avrg[idx] = MA.average(MA.average(xi,1))                  # first average over replicas to obtain cell mean, then over factor A
             sum_count_x[idx] = Numeric.add.reduce(1./MA.count(xi,1))    # first count the number of measurements within cells, then sum inverses over factor A
             ##x_avrg[idx] = MA.average(MA.ravel(xi))                    # this is how Statistica computes it, but it is WRONG!
@@ -406,7 +406,7 @@ class _Anova2wayLR_bug_missing_factor_leves(AnovaLRBase):
         x_avrg = Numeric.zeros((a,b), Numeric.Float)
         sum_count_x = Numeric.zeros((a,b), Numeric.Float)
         for idx, replicaInd in enumerate(self._replicaGroupInd):
-            xi = MA.take(self._arr2d, replicaInd, 1)
+            xi = self._arr2d.take(replicaInd, 1)
             x_avrg[:,idx] = MA.average(xi, 1)
             sum_count_x[:,idx] = 1. / MA.count(xi, 1)
         
@@ -439,7 +439,7 @@ class _Anova2wayLR_bug_missing_factor_leves(AnovaLRBase):
             for j in range(i+1,b):
                 rglSub = [self._replicaGroupInd[i], self._replicaGroupInd[j]]
                 takeInd = self._replicaGroupInd[i] + self._replicaGroupInd[j]
-                an = Anova2wayLR(MA.take(self._arr2d, takeInd, 1), rglSub, addInteraction=1)
+                an = Anova2wayLR(self._arr2d.take(takeInd, 1), rglSub, addInteraction=1)
                 FB[i,j] = FB[j,i] = an.FB
                 FBprob[i,j] = FBprob[j,i] = an.FBprob
                 FAB[i,j] = FAB[j,i] = an.FAB
@@ -470,7 +470,7 @@ class Anova2wayLR(Anova2wayLRBase):
             if allowReductA:
                 print "Warning: removig factor A level(s) %s" % str(missIndA.tolist())
                 takeIndA = Numeric.compress(MA.count(arr2d, 1) != 0, Numeric.arange(arr2d.shape[0]))
-                arr2d = MA.take(arr2d, takeIndA, 0)
+                arr2d = arr2d.take(takeIndA, 0)
             else:
                 self._giveUp(arr2d, groupLens, addInteraction, output="Giving up ANOVA: the following level(s) of factor A have no values: %s" % str(missIndA.tolist()))
                 return
@@ -486,7 +486,7 @@ class Anova2wayLR(Anova2wayLRBase):
             for subjIdx in missIndSubj:
                 groupLens[mapSubj2Group[subjIdx]] -= 1
             # remove data columns that are missing all the values
-            arr2d = MA.take(arr2d, takeIndSubj, 1)
+            arr2d = arr2d.take(takeIndSubj, 1)
         # fix number of factor B levels (if the length of any group became 0 due to removed subjects)
         missIndB = Numeric.compress(groupLens <= 0, Numeric.arange(groupLens.shape[0]))
         if missIndB.shape[0] > 0:
@@ -794,7 +794,7 @@ class _AnovaRM12LR_bug_missing_factor_leves(AnovaLRBase):
         x_avrg = Numeric.zeros((b,), Numeric.Float)
         sum_count_x = Numeric.zeros((b,), Numeric.Float)
         for idx, replicaInd in enumerate(self._groupInd):
-            xi = MA.take(self._arr2d, replicaInd, 1)
+            xi = self._arr2d.take(replicaInd, 1)
             x_avrg[idx] = MA.average(MA.average(xi,1))                  # first average over replicas to obtain cell mean, then over factor A
             sum_count_x[idx] = Numeric.add.reduce(1./MA.count(xi,1))    # first count the number of measurements within cells, then sum inverses over factor A
             ##x_avrg[idx] = MA.average(MA.ravel(xi))                    # this is how Statistica computes it, but it is WRONG!
@@ -821,7 +821,7 @@ class _AnovaRM12LR_bug_missing_factor_leves(AnovaLRBase):
         x_avrg = Numeric.zeros((a,b), Numeric.Float)
         sum_count_x = Numeric.zeros((a,b), Numeric.Float)
         for idx, replicaInd in enumerate(self._groupInd):
-            xi = MA.take(self._arr2d, replicaInd, 1)
+            xi = self._arr2d.take(replicaInd, 1)
             x_avrg[:,idx] = MA.average(xi, 1)
             sum_count_x[:,idx] = 1. / MA.count(xi, 1)
         
@@ -853,7 +853,7 @@ class _AnovaRM12LR_bug_missing_factor_leves(AnovaLRBase):
             for j in range(i+1,b):
                 rglSub = [self._groupInd[i], self._groupInd[j]]
                 takeInd = self._groupInd[i] + self._groupInd[j]
-                an = AnovaRM12LR(MA.take(self._arr2d, takeInd, 1), rglSub, addInteraction=1)
+                an = AnovaRM12LR(self._arr2d.take(takeInd, 1), rglSub, addInteraction=1)
                 FB[i,j] = FB[j,i] = an.FB
                 FBprob[i,j] = FBprob[j,i] = an.FBprob
                 FAB[i,j] = FAB[j,i] = an.FAB
@@ -890,7 +890,7 @@ class AnovaRM12LR(Anova2wayLRBase):
             if allowReductA:
                 print "Warning: removig factor A level(s) %s" % str(missIndA.tolist())
                 takeIndA = Numeric.compress(MA.count(arr2d, 1) != 0, Numeric.arange(arr2d.shape[0]))
-                arr2d = MA.take(arr2d, takeIndA, 0)
+                arr2d = arr2d.take(takeIndA, 0)
             else:
                 self._giveUp(arr2d, groupLens, addInteraction, output="Giving up ANOVA: the following level(s) of factor A have no values: %s" % str(missIndA.tolist()))
                 return
@@ -907,7 +907,7 @@ class AnovaRM12LR(Anova2wayLRBase):
             for subjIdx in missIndSubj:
                 groupLens[mapSubj2Group[subjIdx]] -= 1
             # remove data columns that are missing all the values
-            arr2d = MA.take(arr2d, takeIndSubj, 1)
+            arr2d = arr2d.take(takeIndSubj, 1)
         # fix number of factor B levels (if the length of any group became 0 due to removed subjects)
         missIndB = Numeric.compress(groupLens <= 0, Numeric.arange(groupLens.shape[0]))
         if missIndB.shape[0] > 0:

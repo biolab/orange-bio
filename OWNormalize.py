@@ -2320,7 +2320,7 @@ class Probes(dict):
             dom = orange.Domain(domVarList, None)
             data = orange.ExampleTable(dom, data)
             # convert to MA
-            dataMA = data.toMA("a")[0]
+            dataMA = data.toNumpyMA("a")[0]
             self.__sigSmpl = dataMA[:,data.domain.index(varNameSignalSmpl)]
             self.__sigRef = dataMA[:,data.domain.index(varNameSignalRef)]
             self.__bgSmpl = dataMA[:,data.domain.index(varNameBGSmpl)]
@@ -3083,7 +3083,7 @@ class Probes(dict):
         maMerged = MA.zeros(shp, ma.dtype.char)
         pbStep = 100./len(self)
         for idx, probe in enumerate(self.values()):
-            maMerged[idx] = mergeFunction(MA.take(ma, probe.getDataIndices()))
+            maMerged[idx] = mergeFunction(ma.take(probe.getDataIndices()))
             callback(pbStep)
         return maMerged
 
@@ -3111,7 +3111,7 @@ class Probes(dict):
         maMerged = MA.zeros(shp, ma.dtype.char)
         pbStep = 100./len(self._valA2ind)
         for idx, dataInd in enumerate(self._valA2ind.values()):
-            maMerged[idx] = mergeFunction(MA.take(ma, dataInd))
+            maMerged[idx] = mergeFunction(ma.take(dataInd))
             callback(pbStep)
         return maMerged
 

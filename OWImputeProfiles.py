@@ -129,15 +129,15 @@ class OWImputeProfiles(OWWidget):
         if data != None:
             self._data = data
 ##            self._dataMA = chipstat.orng2ma(data)
-            self._dataMA = data.toMA("a")[0]
+            self._dataMA = data.toNumpyMA("a")[0]
             # info text
             self.infoa.setText("Examples: %i profiles on %i points" % (self._dataMA.shape[0], self._dataMA.shape[1]))
-            numTotalMissing = Numeric.multiply.reduce(self._dataMA.shape) - MA.count(self._dataMA)
+            numTotalMissing = int(Numeric.multiply.reduce(self._dataMA.shape) - MA.count(self._dataMA))
             if numTotalMissing > 0:
                 numValsByCol = MA.count(self._dataMA, 0)
                 numEmptyCol = Numeric.add.reduce(Numeric.where(numValsByCol==0, 1, 0))
                 colNonEmpty = Numeric.compress(numValsByCol!=0, Numeric.arange(self._dataMA.shape[1]))
-                dataRemEmptyCol = MA.take(self._dataMA, colNonEmpty, 1)
+                dataRemEmptyCol = self._dataMA.take(colNonEmpty, 1)
                 self.numRowsMissing = Numeric.add.reduce(Numeric.where(MA.count(dataRemEmptyCol, 1) < dataRemEmptyCol.shape[1], 1, 0))
                 s1 = ""
                 s2 = ""
@@ -176,17 +176,19 @@ class OWImputeProfiles(OWWidget):
                 for et in etList:
                     attribDict.update(dict(zip(map(lambda x: x.name, et.domain.attributes), et.domain.attributes)))
                     numExamplesList.append(len(et))
-                    etm = et.toMA("a")[0]
+                    etm = et.toNumpyMA("a")[0]
                     colNonMissingInd = Numeric.compress(Numeric.not_equal(MA.count(etm, 0), 0), Numeric.arange(etm.shape[1])) # indices of columns that are not completely missing
                     numColMissing += etm.shape[1] - colNonMissingInd.shape[0]
-                    self.numRowsMissingChipData += Numeric.add.reduce(Numeric.less(MA.count(MA.take(etm, colNonMissingInd, 1), 1), etm.shape[1]))
-                    numValsAll += Numeric.multiply.reduce(etm.shape)
-                    numValsNonMasked += MA.count(etm)
+                    self.numRowsMissingChipData += int(Numeric.add.reduce(Numeric.less(MA.count(etm.take(colNonMissingInd, 1), 1), etm.shape[1])))
+                    numValsAll += int(Numeric.multiply.reduce(etm.shape))
+                    numValsNonMasked += int(MA.count(etm))
                     self._chipdataMA[-1][1].append(etm)
             # info text
             self.infoc.setText("Structured Data: %i data files with %i profiles on %i points" % (numFiles, numExamplesList[0], len(attribDict)))
             numTotalMissing = numValsAll-numValsNonMasked
             if numTotalMissing > 0:
+                print numTotalMissing, numColMissing, self.numRowsMissingChipData
+                print type(numTotalMissing), type(numColMissing), type(self.numRowsMissingChipData)
                 self.infod.setText("missing %i values, %i column%s completely, %i row%s partially" % (numTotalMissing, numColMissing, ["","s"][numColMissing!=1], self.numRowsMissingChipData, ["","s"][self.numRowsMissingChipData!=1]))
             else:
                 self.infod.setText("")                
@@ -261,29 +263,30 @@ class OWImputeProfiles(OWWidget):
 
 
 if __name__=="__main__":
-##    a=QApplication(sys.argv)
-##    ow=OWImputeProfiles()
-##    a.setMainWidget(ow)
-##    ow.show()
-####    ow.data(orange.ExampleTable("meanExpr_ann_pkaC.tab"))
-####    ow.data(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_100_yakApufA\pufA\pufA1.1.xls.tab"))
-##    ow.data(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato\I\I_30m_1_1042_teh1.tab"))
-##    a.exec_loop()
-##    ow.saveSettings()
-
-    import OWDataFiles, orngSignalManager
-    signalManager = orngSignalManager.SignalManager(0)
     a=QApplication(sys.argv)
-    ow=OWImputeProfiles(signalManager = signalManager)
+    ow=OWImputeProfiles()
     a.setMainWidget(ow)
     ow.show()
-    ds = OWDataFiles.OWDataFiles(signalManager = signalManager)
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\2005-08 NIB Potato\potato.attrib")
-    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\2005-08 NIB Potato\potato.sub100.avg")
-    signalManager.addWidget(ow)
-    signalManager.addWidget(ds)
-    signalManager.setFreeze(1)
-    signalManager.addLink(ds, ow, 'Structured Data', 'Structured Data', 1)
-    signalManager.setFreeze(0)
+##    ow.data(orange.ExampleTable("meanExpr_ann_pkaC.tab"))
+##    ow.data(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_100_yakApufA\pufA\pufA1.1.xls.tab"))
+##    ow.data(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato\I\I_30m_1_1042_teh1.tab"))
+    ow.data(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Data Hs\2007-08-29 Banjo\- data\untr maxAbsDiff.tab"))
     a.exec_loop()
     ow.saveSettings()
+
+##    import OWDataFiles, orngSignalManager
+##    signalManager = orngSignalManager.SignalManager(0)
+##    a=QApplication(sys.argv)
+##    ow=OWImputeProfiles(signalManager = signalManager)
+##    a.setMainWidget(ow)
+##    ow.show()
+##    ds = OWDataFiles.OWDataFiles(signalManager = signalManager)
+####    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\2005-08 NIB Potato\potato.attrib")
+##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\2005-08 NIB Potato\potato.sub100.avg")
+##    signalManager.addWidget(ow)
+##    signalManager.addWidget(ds)
+##    signalManager.setFreeze(1)
+##    signalManager.addLink(ds, ow, 'Structured Data', 'Structured Data', 1)
+##    signalManager.setFreeze(0)
+##    a.exec_loop()
+##    ow.saveSettings()

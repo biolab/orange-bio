@@ -28,9 +28,9 @@ def kNNimputeMA(arr2d, K=20, callback=None):
         distances = MA.sqrt(MA.add.reduce((diff)**2, 1) / MA.count(diff, axis=1))
         # nearest neighbours row indices (without the current row index)
         indSorted = MA.argsort(distances)[1:]
-        distSorted = MA.take(distances, indSorted)
+        distSorted = distances.take(indSorted)
         # number of distances different from MA.masked
-        numNonMasked = distSorted.shape[0] - Numeric.add.reduce(MA.asarray(MA.getmaskarray(distSorted), MA.Int))
+        numNonMasked = distSorted.shape[0] - Numeric.add.reduce(Numeric.asarray(MA.getmaskarray(distSorted), Numeric.Int))
         # number of distances to account for (K or less)
         if numNonMasked > 1:
             weightsSorted = MA.power(1-MA.power(distSorted/distSorted[numNonMasked-1],3),3) # tricubic distribution of all weights
@@ -40,7 +40,7 @@ def kNNimputeMA(arr2d, K=20, callback=None):
         colInd4CurrRow = Numeric.compress(Numeric.logical_and(MA.getmaskarray(arr2d[rowIdx]), columnCond), columnIndAll)
         for colIdx in colInd4CurrRow:
             # column values sorted by distances
-            columnVals = MA.take(arr2d[:,colIdx], indSorted)
+            columnVals = arr2d[:,colIdx].take(indSorted)
             # take only those weights where columnVals does not equal MA.masked
             weightsSortedCompressed = MA.compress(1-MA.getmaskarray(columnVals), weightsSorted)
             # impute from K (or possibly less) values

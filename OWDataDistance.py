@@ -8,7 +8,8 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-import numpy.oldnumeric.ma as MA, statc
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
+import statc
 import orange, OWGUI
 from qt import *
 from qtcanvas import *
@@ -71,7 +72,7 @@ class OWDataDistance(OWWidget):
     def computeDistance(self, d1, d2):
         """employs MA to cumpute distances (faster)
         """
-        return dist(d1.toMA("a")[0], d2.toMA("a")[0])
+        return dist(d1.toNumpyMA("a")[0], d2.toNumpyMA("a")[0])
 
 
     def computeMatrix(self):
@@ -89,7 +90,7 @@ class OWDataDistance(OWWidget):
         for i in range(len(self.data)-1):
             for j in range(i+1, len(self.data)):
 ##                matrix[i, j] = self.computeDistance(self.data[i], self.data[j], dist)
-                matrix[i, j] = self.metrics[self.Metrics][1](MA.ravel(self.data[i].toMA("a")[0]), MA.ravel(self.data[j].toMA("a")[0]))
+                matrix[i, j] = self.metrics[self.Metrics][1](MA.ravel(self.data[i].toNumpyMA("a")[0]), MA.ravel(self.data[j].toNumpyMA("a")[0]))
                 self.progressBarAdvance(pbStep)
         self.progressBarFinished()
         self.send("Distance Matrix", matrix)

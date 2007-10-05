@@ -130,14 +130,14 @@ def orng2ma(aExampleTable):
     missing values and attributes of types other than orange.FloatVariable are masked
     """
     vals = aExampleTable.native(0, substituteDK="?", substituteDC="?", substituteOther="?")
-    ma = MA.array(vals, MA.PyObject)
+    ma = MA.array(vals, Numeric.PyObject)
     if aExampleTable.domain.classVar != None:
         ma = ma[:,:-1]
     mask = MA.where(MA.equal(ma, "?"), 1, 0)
     for varIdx, var in enumerate(aExampleTable.domain.attributes):
         if type(var) != orange.FloatVariable:
             mask[:,varIdx] = Numeric.ones(len(aExampleTable))
-    return MA.array(MA.array(ma, MA.PyObject, mask=mask).filled(1e20), Numeric.Float, mask=mask)
+    return MA.array(MA.array(ma, Numeric.PyObject, mask=mask).filled(1e20), Numeric.Float, mask=mask)
 
 
 def ma2orng(arr2d, aDomain):
@@ -146,7 +146,7 @@ def ma2orng(arr2d, aDomain):
     arr2d.shape[1] must be equal to the number of the attributes of the given domain
     domain attributes mut be of type orange.FloatVariable
     """
-    arr2d = MA.asarray(arr2d, MA.PyObject)
+    arr2d = MA.asarray(arr2d, Numeric.PyObject)
     assert MA.rank(arr2d) == 2, "2d array expected"
     assert len(aDomain.attributes) == arr2d.shape[1], "the shape of the array incompatible with the given domain"
     if aDomain.classVar != None:
@@ -159,7 +159,7 @@ def ma2orng(arr2d, aDomain):
 def ma2orng_keepClassMetas(arr2d, aExampleTable):
     """Creates new example table where attribute values correspond to the given 2D array, class and meta attributes remain unchanged.
     """
-    arr2d = MA.asarray(arr2d, MA.PyObject)
+    arr2d = MA.asarray(arr2d, Numeric.PyObject)
     assert MA.rank(arr2d) == 2, "2D array expected"
     assert arr2d.shape[0] == len(aExampleTable), "arr2d.shape[0] != len(aExampleTable)"
     assert arr2d.shape[1] == len(aExampleTable.domain.attributes), "arr2d.shape[1] != len(aExampleTable.domain.attributes)"

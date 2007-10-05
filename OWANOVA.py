@@ -207,7 +207,7 @@ class OWANOVA(OWWidget):
             etIdx = 0
             for dsName, etList in self.dataStructure:
                 for et in etList:
-                    ma3d[:,:,etIdx] = et.toMA("ac")[0]
+                    ma3d[:,:,etIdx] = et.toNumpyMA("ac")[0]
                     etIdx += 1
                 groupLens.append(len(etList))
             # run ANOVA
@@ -286,7 +286,7 @@ class OWANOVA(OWWidget):
         for eIdx in range(ma3d.shape[0]):
             m2 = MA.zeros((max(groupLens)*ma3d.shape[1], len(groupLens)), Numeric.Float) * MA.masked # axis0: replicas, axis1: factor B levels
             for groupIdx,takeInd in enumerate(grpInd):
-                m2[:groupLens[groupIdx]*ma3d.shape[1], groupIdx] = MA.ravel(MA.take(ma3d[eIdx], takeInd, 1))
+                m2[:groupLens[groupIdx]*ma3d.shape[1], groupIdx] = MA.ravel(ma3d[eIdx].take(takeInd, 1))
             an = fAnova(m2)
             ps[eIdx] = an.Fprob
             callback()
@@ -321,12 +321,12 @@ class OWANOVA(OWWidget):
             tInd2keep = range(ma3d.shape[1])
             for aIdx in tInd2rem:
                 tInd2keep.remove(aIdx)
-            ma3d = MA.take(ma3d, tInd2keep, 1)
+            ma3d = ma3d.take(tInd2keep, 1)
         # for each gene...
         for eIdx in range(ma3d.shape[0]):
             # faster check for empty cells for that gene -> remove time indices with empty cells
             ma2d = ma3d[eIdx]
-            cellCount = MA.zeros((ma2d.shape[0], groupLens.shape[0]), MA.Int)
+            cellCount = MA.zeros((ma2d.shape[0], groupLens.shape[0]), Numeric.Int)
             for g,(i0,i1) in enumerate(zip(ax2Ind[:-1], ax2Ind[1:])):
                 cellCount[:,g] = MA.count(ma2d[:,i0:i1], 1)
             ma2dTakeInd = Numeric.logical_not(Numeric.add.reduce(Numeric.equal(cellCount,0),1)) # 1 where to take, 0 where not to take
@@ -420,7 +420,8 @@ class OWANOVA(OWWidget):
         """computes selectionList, partitions the examples and updates infoc;
         sends out selectionList and selected/other dataStructure or None;
         """
-        if self.dataStructure and self.ps:
+##        if self.dataStructure and self.ps:
+        if self.dataStructure and self.ps.shape[1]:
             # set selectionList
             alphas = [self.alphaA, self.alphaB, self.alphaI]
             selectors = [self.selectorA, self.selectorB, self.selectorI]

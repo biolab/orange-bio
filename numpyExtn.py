@@ -493,7 +493,7 @@ def triangularGet(m2d, upper=1):
         takeInd = Numeric.compress(Numeric.ravel(Numeric.fromfunction(lambda i,j: i<j, m2d.shape)), Numeric.arange(0, Numeric.multiply.reduce(m2d.shape), typecode=Numeric.Int))
     else:
         takeInd = Numeric.compress(Numeric.ravel(Numeric.fromfunction(lambda i,j: i>j, m2d.shape)), Numeric.arange(0, Numeric.multiply.reduce(m2d.shape), typecode=Numeric.Int))
-    return MA.take(MA.ravel(m2d), takeInd)
+    return MA.ravel(m2d).take(takeInd)
 
 
 #####################################################################################
@@ -550,7 +550,7 @@ def diagonalPut(m1d, m2d):
 ##        elif idx == idxNext-1:                                                      # the last element is masked
 ##            maflat[idx] = maflat[idxFirst:idx].compressed()[-1]
 ##        else:
-##            maflat[idx] = MA.average([MA.take(maflat,range(idx-1,idxFirst-1,-1)).compressed(), maflat[idx+1:idxNext].compressed(), MA.masked])
+##            maflat[idx] = MA.average([maflat.take(range(idx-1,idxFirst-1,-1)).compressed(), maflat[idx+1:idxNext].compressed(), MA.masked])
 ####            maflat[idx] = (maflat[idxFirst:idx].compressed()[-1] + maflat[idx+1:idxNext].compressed()[0]) / 2.
 ##    return MA.reshape(maflat, ma.shape)
 ##
