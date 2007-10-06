@@ -2582,7 +2582,9 @@ class Probes(dict):
             probe.curve = self.graph.insertCurve(probe.valA, probe.pKey)
             Numeric.put(self.__plotted, probe.getDataIndices(), 1)
             M,A = self.getMA(probe.pKey, True)
-            self.graph.setCurveData(probe.curve, A, M)
+## 2007-10-06 Numeric->numpy: PyQwt supports only Numeric, not numpy
+##            self.graph.setCurveData(probe.curve, A, M)
+            self.graph.setCurveData(probe.curve, list(A), list(M))
             self.graph.setCurveStyle(probe.curve, QwtCurve.NoCurve)
             self._setProbeCurveSymbol(probe, False)
             change = True
@@ -2661,7 +2663,9 @@ class Probes(dict):
                         Aplot = Numeric.asarray(MA.compress(cond, An_masked))
                         Aargsort = Numeric.argsort(Aplot)
                         Mplot = Numeric.asarray(MA.compress(cond, Mn_masked))
-                        self.graph.setCurveData(normCurve, Numeric.take(Aplot, Aargsort), Numeric.take(Mplot, Aargsort))
+## 2007-10-06 Numeric->numpy: PyQwt supports only Numeric, not numpy
+##                        self.graph.setCurveData(normCurve, Numeric.take(Aplot, Aargsort), Numeric.take(Mplot, Aargsort))
+                        self.graph.setCurveData(normCurve, list(Numeric.take(Aplot, Aargsort)), list(Numeric.take(Mplot, Aargsort)))
                         pen = QPen(condColors[condIdx],ProbeSet.PenWidthInactiveCurve)
                         self.graph.setCurvePen(normCurve, pen)
                         self.graph.setCurveStyle(normCurve, self.normCurveStyle)
@@ -2673,7 +2677,9 @@ class Probes(dict):
                         Aplot = Numeric.asarray(MA.compress(cond_condTicks, An_masked))
                         Aargsort = Numeric.argsort(Aplot)
                         Mplot = Numeric.asarray(MA.compress(cond_condTicks, Mn_masked))
-                        self.graph.setCurveData(normCurveTicks, Numeric.take(Aplot, Aargsort), Numeric.take(Mplot, Aargsort))
+## 2007-10-06 Numeric->numpy: PyQwt supports only Numeric, not numpy
+##                        self.graph.setCurveData(normCurveTicks, Numeric.take(Aplot, Aargsort), Numeric.take(Mplot, Aargsort))
+                        self.graph.setCurveData(normCurveTicks, list(Numeric.take(Aplot, Aargsort)), list(Numeric.take(Mplot, Aargsort)))
                         pen = QPen(condColors[condIdx],ProbeSet.PenWidthInactiveCurve)
                         self.graph.setCurvePen(normCurveTicks, pen)
                         self.graph.setCurveStyle(normCurveTicks, QwtCurve.NoCurve)
@@ -3033,7 +3039,7 @@ class Probes(dict):
         # proceed if we have at least one control probe (we account for _minNumControlProbes in _getNormCurveName2Ind())
         if Mc.shape[0] >= 1:
             Mcompressed = self._approxFunction(A.compressed(), Mc, Ac)
-            if Mcompressed:
+            if Mcompressed <> None:
                 MA.put(M, numpyExtn.condition2indices(Numeric.logical_not(MA.getmaskarray(A))), Mcompressed)
         return  Ac, Mc, A, M
 
