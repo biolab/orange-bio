@@ -280,7 +280,7 @@ def indices2condition(indices, length):
 ##  permutInverse([0,5,1,2,4,3,]) -> [0,2,3,5,4,1]
 #####################################################################################
 
-from Permutation import *
+#from Permutation import *
 
 def permutInverse(n):
     """Returns inverse permutation given integers in range(len(n)),
@@ -288,7 +288,7 @@ def permutInverse(n):
     """
     n = Numeric.asarray(n)
     pInv = Numeric.argsort(n)
-    assert Numeric.equal(n, Numeric.argsort(pInv)), "Inverse not successful; input should be permutation of range(len(input))."
+    assert Numeric.all(Numeric.equal(n, Numeric.argsort(pInv))), "Inverse not successful; input should be permutation of range(len(input))."
     return pInv
 
 ###################################################################################################################################
