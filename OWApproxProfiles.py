@@ -121,7 +121,7 @@ class OWApproxProfiles(OWWidget):
         numPoints = self._getMinDataShape1()
         # set up comboKernelSize
         self.comboKernelSize.clear()
-        print "numPoints:", numPoints
+        # print "numPoints:", numPoints
         if numPoints > 0:
             for i in range(0,numPoints):
                 self.comboKernelSize.insertItem(self.kernelSizes[self.kernel][i])
@@ -205,12 +205,16 @@ class OWApproxProfiles(OWWidget):
             elif self.kernel == 1:
                 appx = chipappx.TrigonomerticBasis(self._dataN.shape[1], self.kernelSize+1)
                 self.progressBarAdvance(pbStep)
-##                if self.useSignificance and self.cbUseSignificance.isEnabled():
-##                    coef = appx.getAppxCoef2d_significant(self._dataN, self.kernelSize+1, self.alphas[self.alpha])
-##                else:
+                # 2007-10-11: trigonometric functions do not use getAppxCoef2d_significant
+                #if self.useSignificance and self.cbUseSignificance.isEnabled():
+                #    coef = appx.getAppxCoef2d_significant(self._dataN, self.kernelSize+1, self.alphas[self.alpha])
+                #else:
                 coef = appx.getAppxCoef(self._dataN)
+##                print self._dataN
+##                print "coef", coef
                 self.progressBarAdvance(pbStep)
                 curve = appx.getAppxCurve(coef)
+##                print "curve", curve
                 self.progressBarAdvance(pbStep)
             # domain with class and metas
             if self._data.domain.classVar != None:
@@ -253,9 +257,10 @@ class OWApproxProfiles(OWWidget):
                 appx = chipappx.TrigonomerticBasis(self._chipdataN.shape[1], self.kernelSize+1)
                 self.progressBarAdvance(pbStep)
                 for idx2 in range(self._chipdataN.shape[2]):
-##                    if self.useSignificance and self.cbUseSignificance.isEnabled():
-##                        coefs[:,:,idx2] = appx.getAppxCoef2d_significant(self._chipdataN[:,:,idx2], self.kernelSize+1, self.alphas[self.alpha])
-##                    else:
+                    # 2007-10-11: trigonometric functions do not use getAppxCoef2d_significant
+                    #if self.useSignificance and self.cbUseSignificance.isEnabled():
+                    #    coefs[:,:,idx2] = appx.getAppxCoef2d_significant(self._chipdataN[:,:,idx2], self.kernelSize+1, self.alphas[self.alpha])
+                    #else:
                     coefs[:,:,idx2] = appx.getAppxCoef(self._chipdataN[:,:,idx2])
                     self.progressBarAdvance(pbStep)
                     curves[:,:,idx2] = appx.getAppxCurve(coefs[:,:,idx2])
