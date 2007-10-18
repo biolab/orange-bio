@@ -8,6 +8,9 @@ import scipy.stats
 class ApproxOrthPolyBasis:
     """Approximation of expression profiles with orthogonal polynomials."""
 
+    # for filling missing values in F statistcs (0->p=0, 1e9->p=1)
+    _F_fillValue = 1e9
+
     def __init__(self, points, k=None):
         """sets the points for which the k polynomials of max. degree=k-1 are orthogonal
         default k = number of points
@@ -114,7 +117,8 @@ class ApproxOrthPolyBasis:
             SSE2 = Numeric.add.reduce((arr2d-curvek)**2,1)
             MSdrop =(SSE2-SSE1) / (maxNumCoef-k)
             F = MSdrop / MSE1
-            pvals[:,k] = scipy.stats.afprob((maxNumCoef-k), arr2d.shape[1]-maxNumCoef, F)
+            #2007-10-11: F -> F.filled(???)
+            pvals[:,k] = scipy.stats.fprob((maxNumCoef-k), arr2d.shape[1]-maxNumCoef, F.filled(ApproxOrthPolyBasis._F_fillValue))
         return pvals
 
 
@@ -146,7 +150,8 @@ class ApproxOrthPolyBasis:
             SSE2 = Numeric.add.reduce((arr2d-curvek)**2,1)
             MSdrop =(SSE2-SSE1) / (maxNumCoef-k)
             F = MSdrop / MSE1
-            pvals[:,k] = scipy.stats.afprob((maxNumCoef-k), arr2d.shape[1]-maxNumCoef, F)
+            #2007-10-11: F -> F.filled(???)
+            pvals[:,k] = scipy.stats.fprob((maxNumCoef-k), arr2d.shape[1]-maxNumCoef, F.filled(ApproxOrthPolyBasis._F_fillValue))
         pvals = Numeric.where(pvals > alpha, Numeric.resize(Numeric.arange(pvals.shape[1]),pvals.shape), pvals.shape[1])    # MAX where significant, idx where nonsignificant
         firstNonSignIdx = MLab.min(pvals, 1)    # idx of the first non-significant coef.
         coefSign = Numeric.zeros(coefMax.shape, Numeric.Float)
@@ -245,6 +250,11 @@ class OrthPolyBasis:
         self.basisCoef = self._getBasisCoef(self.x, self.T)
         self._normalization = normalization
         self._checkOrth(self.T, self.TT, output = self._force)
+##        print "self.T", self.T
+##        print "self.TT", self.TT
+##        print "self.TTinv", self.TTinv
+##        print "self.TTinvT", self.TTinvT
+        
         
 
     def _checkOrth(self, T, TT, eps=0.0001, output=False):
@@ -289,6 +299,14 @@ class OrthPolyBasis:
 
     def getApproxCoeff(self, curves):
         """curves: 1d or 2d array where each curve in separate line, e.g. curves[curveIdx,timePoints]"""
+##        print "curves"
+##        print curves
+##        print
+##        print "Numeric.transpose(self.TTinvT)"
+##        print Numeric.transpose(self.TTinvT)
+##        print
+##        print "Numeric.matrixmultiply(curves, Numeric.transpose(self.TTinvT))"
+##        print Numeric.matrixmultiply(curves, Numeric.transpose(self.TTinvT))
         return Numeric.matrixmultiply(curves, Numeric.transpose(self.TTinvT))
 
 
