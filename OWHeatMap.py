@@ -12,7 +12,6 @@ import OWGUI
 from qt import *
 from qtcanvas import *
 from OWWidget import *
-from OWOptions import *
 from qwt import *
 from OWDlgs import OWChooseImageSizeDlg
 from OWDataFiles import DataFiles
@@ -652,18 +651,6 @@ class OWHeatMap(OWWidget):
         if self.selection:
             self.selection.remove()
             self.canvas.update()
-
-##################################################################################################
-# color palette dialog
-
-class OWDisplayColorOptions(OWOptions):
-    def __init__(self, parent=None, name=None, master=None):
-        OWOptions.__init__(self, "Color Palette", "OrangeWidgetsIcon.png", parent, name)
-        self.master = master
-        pms = [master.createColorStripe(i) for i in range(len(master.ColorPalettes))]
-        OWGUI.radioButtonsInBox(self.top, master, "Color Palettes", pms, \
-            "CurrentPalette", tooltips=None, callback=self.master.setCurrentPalette)
-
 
 ##################################################################################################
 # new canvas items
