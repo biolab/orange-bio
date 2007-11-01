@@ -1,4 +1,24 @@
+###################################################################################
+## numpy extension by PJ (peter.juvan@fri.uni-lj.si)
+##
+## TODO: fix default axis asignment (in several funcions 0 is the dedault):
+##      - for numpy default is None
+##      - for numpy.me default is still -1 (will this be fixed in future releases?)
+###################################################################################
+
 import numpy
+
+
+###################################################################################
+## argmaxMA(m,axis=-1)
+## replacement for numpy.ma.argmax which does not work with masked arrays:
+##  numpy.ma.argmax(numpy.ma.asarray([1,2])*numpy.ma.masked) => 0
+##  numpyextn.argmax(numpy.ma.asarray([1,2])*numpy.ma.masked) => numpy.ma.masked
+###################################################################################
+
+def argmaxMA(m,axis=-1):
+    return numpy.ma.where(numpy.all(numpy.ma.getmaskarray(m),axis), numpy.ma.masked, numpy.ma.argmax(m,axis))
+
 
 ###################################################################################
 ## write to tab delimited file, replace masked data by "?" by default
@@ -213,6 +233,8 @@ def positions2indices(pos, shape):
     """
     lenShape = len(shape)
     pos = numpy.asarray(pos)
+    if pos.shape[0] == 0:
+        return numpy.empty([0] + list(shape[1:]))
     posMax = numpy.max(pos)
     assert posMax < numpy.multiply.reduce(shape), "Error: Position too large for a given shape."
     assert numpy.min(pos) >= 0, "Error, position cannot be negative."
@@ -228,6 +250,8 @@ def indices2positions(ind, shape):
     e.g.: ind=[[0,0],[2,0],[2,2]] , shape=(3,3) -> [0,6,8]
     """
     ind = numpy.asarray(ind)
+    if ind.shape[0] == 0:
+        return numpy.empty((0,))
     assert len(ind.shape) == 2 and ind.shape[1] == len(shape), "Error: ind should be 2D array, ind.shape[1] should match len(shape)."
     assert numpy.less(numpy.max(ind,0),numpy.asarray(shape)).all(), "Error: indices do not fit the shape."
     pos = numpy.zeros((ind.shape[0],))
@@ -650,50 +674,62 @@ def madMA(m,axis=0):
 
 
 if __name__ == "__main__":
-    n2 = numpy.asarray([[1,2],[3,4],[5,6]], numpy.float)    #shape (3,2)
-    n3 = numpy.asarray([n2, 2*n2, 3*n2, 4*n2])              #shape (4,3,2)
+##    n2 = numpy.asarray([[1,2],[3,4],[5,6]], numpy.float)    #shape (3,2)
+##    n3 = numpy.asarray([n2, 2*n2, 3*n2, 4*n2])              #shape (4,3,2)
+##
+##    m2 = numpy.ma.asarray(n2)
+##    m2[0,0] = numpy.ma.masked
+##    m2[1,1] = numpy.ma.masked
+##
+##    m3 = numpy.ma.asarray(n3)
+##    m3[0,0,0] = 10000
+##    m3[1,1,1] = 10000
+##    m3[2,2,0] = 10000
+##    m3[3,0,1] = 10000
+##    m3[0,0,0] = numpy.ma.masked
+##    m3[1,1,1] = numpy.ma.masked
+##    m3[2,2,0] = numpy.ma.masked
+##    m3[3,0,1] = numpy.ma.masked
+##
+##    mm3 = numpy.ma.ones((4,3,2), numpy.float) * numpy.ma.masked
+##    mm3[0,0,0] = 33
+##    mm3[1,1,1] = 333
+##    mm3[2,2,0] = 3333
+##    mm3[3,0,1] = 33333
+##
+##    # compare to Numeric
+##    import Numeric, MA
+##    n2n = Numeric.asarray([[1,2],[3,4],[5,6]], Numeric.Float)    #shape (3,2)
+##    n3n = Numeric.asarray([n2n, 2*n2n, 3*n2n, 4*n2n])              #shape (4,3,2)
+##
+##    m2n = MA.asarray(n2n)
+##    m2n[0,0] = MA.masked
+##    m2n[1,1] = MA.masked
+##
+##    m3n = MA.asarray(n3n)
+##    m3n[0,0,0] = 10000
+##    m3n[1,1,1] = 10000
+##    m3n[2,2,0] = 10000
+##    m3n[3,0,1] = 10000
+##    m3n[0,0,0] = MA.masked
+##    m3n[1,1,1] = MA.masked
+##    m3n[2,2,0] = MA.masked
+##    m3n[3,0,1] = MA.masked
+##
+##    mm3n = MA.ones((4,3,2), Numeric.Float) * MA.masked
+##    mm3n[0,0,0] = 33
+##    mm3n[1,1,1] = 333
+##    mm3n[2,2,0] = 3333
+##    mm3n[3,0,1] = 33333
 
-    m2 = numpy.ma.asarray(n2)
-    m2[0,0] = numpy.ma.masked
-    m2[1,1] = numpy.ma.masked
-
-    m3 = numpy.ma.asarray(n3)
-    m3[0,0,0] = 10000
-    m3[1,1,1] = 10000
-    m3[2,2,0] = 10000
-    m3[3,0,1] = 10000
-    m3[0,0,0] = numpy.ma.masked
-    m3[1,1,1] = numpy.ma.masked
-    m3[2,2,0] = numpy.ma.masked
-    m3[3,0,1] = numpy.ma.masked
-
-    mm3 = numpy.ma.ones((4,3,2), numpy.float) * numpy.ma.masked
-    mm3[0,0,0] = 33
-    mm3[1,1,1] = 333
-    mm3[2,2,0] = 3333
-    mm3[3,0,1] = 33333
-
-    # compare to Numeric
-    import Numeric, MA
-    n2n = Numeric.asarray([[1,2],[3,4],[5,6]], Numeric.Float)    #shape (3,2)
-    n3n = Numeric.asarray([n2n, 2*n2n, 3*n2n, 4*n2n])              #shape (4,3,2)
-
-    m2n = MA.asarray(n2n)
-    m2n[0,0] = MA.masked
-    m2n[1,1] = MA.masked
-
-    m3n = MA.asarray(n3n)
-    m3n[0,0,0] = 10000
-    m3n[1,1,1] = 10000
-    m3n[2,2,0] = 10000
-    m3n[3,0,1] = 10000
-    m3n[0,0,0] = MA.masked
-    m3n[1,1,1] = MA.masked
-    m3n[2,2,0] = MA.masked
-    m3n[3,0,1] = MA.masked
-
-    mm3n = MA.ones((4,3,2), Numeric.Float) * MA.masked
-    mm3n[0,0,0] = 33
-    mm3n[1,1,1] = 333
-    mm3n[2,2,0] = 3333
-    mm3n[3,0,1] = 33333
+    # argmaxMA    
+    m2 = numpy.ma.asarray([[1,2,3],[4,5,6]])*numpy.ma.masked
+    m2[1,2] = 10    
+##    print "orig, axis None\t", numpy.ma.argmax(m2, None)
+##    print "extn, axis None\t", argmaxMA(m2, None)
+##    print "orig, axis 0\t", numpy.ma.argmax(m2,0)
+##    print "extn, axis 0\t", argmaxMA(m2,0)
+##    print "orig, axis 1\t", numpy.ma.argmax(m2,1)
+##    print "extn, axis 1\t", argmaxMA(m2,1)
+    ma = numpy.ma.argmax(m2,1)
+    mb = argmaxMA(m2,1)
