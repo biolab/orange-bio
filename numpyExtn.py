@@ -8,6 +8,29 @@
 
 import numpy
 
+###################################################################################
+## spearman r / pearson r between values which are present in both arrays
+## uses scipy.stats
+###################################################################################
+
+def spearmanrMA(m1, m2):
+    # calculate spearmanr between values which are present in both arrays
+    try:
+        import scipy.stats
+    except ImportError:
+        print "scipy.stats not found; you can download it from www.scipy.org"
+    nomask12 = numpy.logical_not(numpy.logical_or(numpy.ma.getmaskarray(m1), numpy.ma.getmaskarray(m2)))
+    return scipy.stats.spearmanr(m1.compress(nomask12), m2.compress(nomask12))
+
+def pearsonrMA(m1, m2):
+    # calculate pearson between values which are present in both arrays
+    try:
+        import scipy.stats
+    except ImportError:
+        print "scipy.stats not found; you can download it from www.scipy.org"
+    nomask12 = numpy.logical_not(numpy.logical_or(numpy.ma.getmaskarray(m1), numpy.ma.getmaskarray(m2)))
+    return scipy.stats.pearsonr(m1.compress(nomask12), m2.compress(nomask12))
+
 
 ###################################################################################
 ## argmaxMA(m,axis=-1)
