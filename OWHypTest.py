@@ -301,7 +301,8 @@ class OWHypTest(OWWidget):
                     print "Warning: zero variance, check the example %i:" % eIdx, data
                     ps[eIdx] = 1.0
             else:
-                print "Warning: removing example %i:\n%s\n%s\n" % (eIdx, str(data))
+##                print "Warning: removing example %i:\n%s\n%s\n" % (eIdx, str(data))
+                print "Warning: removing example %i:" % eIdx, str(data)
                 ps[eIdx] = 1.0
             callback()
         return ps
@@ -555,7 +556,7 @@ class OWHypTest(OWWidget):
 ##            if ps != None and alpha != None and self.anovaType in [[0,1,3,4],[2,3,4],[4]][si]:
             if ps != None and alpha != None and boxSelectors[si].isEnabled():                
                 numSelected = Numeric.add.reduce(Numeric.less(self.ps[si], alpha))
-                self.lblNumGenes[si].setText('  (%d example%s)' % (numSelected, ['', 's'][numSelected!=1]))
+                self.lblNumGenes[si].setText('  (%d example%s)' % (numSelected, ['', 's'][int(numSelected!=1)]))
             else:
                 self.lblNumGenes[si].setText('  (no examples)')
 
@@ -633,7 +634,7 @@ class OWHypTest(OWWidget):
             self.progressBarFinished()
             # report the number of selected examples
             numExamples = Numeric.add.reduce(Numeric.greater(selectionList, 0))
-            self.infoc.setText('Total of %d example%s match criteria.' % (numExamples, ['', 's'][numExamples!=1]))
+            self.infoc.setText('Total of %d example%s match criteria.' % (numExamples, ['', 's'][int(numExamples!=1)]))
         else:
             self.send("Example Selection", None)
             self.send("Selected Structured Data", None)
