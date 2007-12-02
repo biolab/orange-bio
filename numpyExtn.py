@@ -9,6 +9,43 @@
 import numpy
 
 ###################################################################################
+## pretty print
+###################################################################################
+
+def strSimMtrx(m, names, numPos=None, sort=False):
+    """ print similarity matrix with fixed number of positions,
+    appends names, optionally sorts names and m
+    """
+    assert len(names) == m.shape[0]
+    assert len(m.shape) == 2
+    m = numpy.asarray(m)
+    if sort == True:
+        nameIndList = zip(names, range(len(names)))
+        nameIndList.sort()
+        names = map(lambda x: x[0], nameIndList)
+        sortArgs = map(lambda x: x[1], nameIndList)
+        m = m[sortArgs][:,sortArgs]
+    out = ""
+    if numPos == None:
+        numPos = max(map(lambda n: len(n), names))
+    # number of decimal places
+    numWhole = len(str(int(numpy.max(m))))
+    numDec = numPos - numWhole - 1
+    if numDec < 0:
+        numDec = 0
+    # print header row
+    printStr = "%%s %%%is" % numPos
+    out += reduce(lambda a,b: printStr % (a, b[:numPos]), names, " "*numPos)
+    # print other rows
+    printStrName = "%%%is" % numPos
+    printStrMtrx2 = "%%.%if" % numDec
+    for rowIdx,row in enumerate(m):
+        rowStr = map(lambda x: printStrMtrx2 % x, row)
+        out += "\n%s" % reduce(lambda a,b: printStr % (a, b[:numPos]), rowStr, printStrName % names[rowIdx][:numPos])
+    return out
+
+
+###################################################################################
 ## spearman r / pearson r between values which are present in both arrays
 ## uses scipy.stats
 ###################################################################################
