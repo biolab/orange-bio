@@ -278,7 +278,7 @@ class OWNormalize(OWWidget):
         # tab 3: filters: maxFGIntensity
         boxMaxFGIntensity = QVGroupBox('Max. foreground intensity', boxFilters)
         OWGUI.checkBox(boxMaxFGIntensity, self, "useMaxFGIntensity", "Enabled", callback=self.settingsFilterMaxFGIntChange)
-        sldMaxFGInt = OWGUI.qwtHSlider(boxMaxFGIntensity, self, "maxFGIntensity", minValue=0, maxValue=65536, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
+        sldMaxFGInt = OWGUI.qwtHSlider(boxMaxFGIntensity, self, "maxFGIntensity", minValue=0, maxValue=65536, step=100, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMaxFGInt, SIGNAL("sliderReleased()"), self.settingsFilterMaxFGIntChange)
         self.lblInfoFilterMaxFGInt = QLabel("\n", boxMaxFGIntensity)
         # tab 3: filters: maxBGIntensity
@@ -2506,7 +2506,7 @@ class Probes(dict):
 
 
     def getNumProbes_nonFiltered(self, probe):
-        return Numeric.add.reduce(Numeric.take(Numeric.logical_not(self.getFilter()), probe.getDataIndices()))
+        return Numeric.add.reduce(Numeric.take(Numeric.logical_not(self.getFilter()), probe.getDataIndices(), 0))   # added 2008-01-22
 
 
     def getNumProbes_nonFiltered_plotted(self):
@@ -2736,7 +2736,7 @@ class Probes(dict):
                         Aargsort = Numeric.argsort(Aplot)
                         Mplot = Numeric.asarray(MA.compress(cond, Mn_masked))
                         ## 2007-10-06 Numeric->numpy: PyQwt supports only Numeric, not numpy, therefore list() is used
-                        self.graphMAnonNorm.setCurveData(normCurve, list(Numeric.take(Aplot, Aargsort)), list(Numeric.take(Mplot, Aargsort)))
+                        self.graphMAnonNorm.setCurveData(normCurve, list(Numeric.take(Aplot, Aargsort, 0)), list(Numeric.take(Mplot, Aargsort, 0)))    # added 2008-01-22
                         pen = QPen(condColors[condIdx],ProbeSet.PenWidthInactiveCurve)
                         self.graphMAnonNorm.setCurvePen(normCurve, pen)
                         self.graphMAnonNorm.setCurveStyle(normCurve, self.normCurveStyle)
@@ -2749,7 +2749,7 @@ class Probes(dict):
                         Aargsort = Numeric.argsort(Aplot)
                         Mplot = Numeric.asarray(MA.compress(cond_condTicks, Mn_masked))
                         ## 2007-10-06 Numeric->numpy: PyQwt supports only Numeric, not numpy, therefore list() is used
-                        self.graphMAnonNorm.setCurveData(normCurveTicks, list(Numeric.take(Aplot, Aargsort)), list(Numeric.take(Mplot, Aargsort)))
+                        self.graphMAnonNorm.setCurveData(normCurveTicks, list(Numeric.take(Aplot, Aargsort, 0)), list(Numeric.take(Mplot, Aargsort, 0)))    # added 2008-01-22
                         pen = QPen(condColors[condIdx],ProbeSet.PenWidthInactiveCurve)
                         self.graphMAnonNorm.setCurvePen(normCurveTicks, pen)
                         self.graphMAnonNorm.setCurveStyle(normCurveTicks, QwtCurve.NoCurve)
@@ -3173,7 +3173,7 @@ class Probes(dict):
         maMerged = MA.zeros(shp, ma.dtype.char)
         pbStep = 100./len(self)
         for idx, probe in enumerate(self.values()):
-            maMerged[idx] = mergeFunction(ma.take(probe.getDataIndices()))
+            maMerged[idx] = mergeFunction(ma.take(probe.getDataIndices(), 0))    # FIXED 2008-01-22
             callback(pbStep)
         return maMerged
 
@@ -3184,7 +3184,7 @@ class Probes(dict):
         lstMerged = [""]*len(self.values())
         for idx, probe in enumerate(self.values()):
             # remove duplicates, sort, merge as CSV
-            subLst = Numeric.take(Numeric.asarray(lst, Numeric.PyObject), probe.getDataIndices()).tolist()
+            subLst = Numeric.take(Numeric.asarray(lst, Numeric.PyObject), probe.getDataIndices(), 0).tolist()   # added 2008-01-22
             if removeDupl:
                 subLst = dict(zip(subLst,subLst)).keys()
             subLst.sort()
@@ -3201,7 +3201,7 @@ class Probes(dict):
         maMerged = MA.zeros(shp, ma.dtype.char)
         pbStep = 100./len(self._valA2ind)
         for idx, dataInd in enumerate(self._valA2ind.values()):
-            maMerged[idx] = mergeFunction(ma.take(dataInd))
+            maMerged[idx] = mergeFunction(ma.take(dataInd, 0))          # FIXED 2008-01-22
             callback(pbStep)
         return maMerged
 
@@ -3212,7 +3212,7 @@ class Probes(dict):
         lstMerged = [""]*len(self._valA2ind)
         for idx, dataInd in enumerate(self._valA2ind.values()):
             # remove duplicates, sort, merge as CSV
-            subLst = Numeric.take(Numeric.asarray(lst, Numeric.PyObject), dataInd).tolist()
+            subLst = Numeric.take(Numeric.asarray(lst, Numeric.PyObject), dataInd, 0).tolist()   # added 2008-01-22
             if removeDupl:
                 subLst = dict(zip(subLst,subLst)).keys()
             subLst.sort()
