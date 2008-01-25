@@ -11,7 +11,6 @@ import sys
 import OWGUI
 
 from OWWidget import *
-from OWUpdateGODataBase import OWUpdateGODataBase
 from qt import *
 from qttable import *
 
