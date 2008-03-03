@@ -2,11 +2,12 @@ import Image
 import cStringIO
 import urllib
 import ftplib
+import os
 
 from pickle import load, dump
 from collections import defaultdict
 
-default_database_path = "./data/kegg/"
+default_database_path = os.path.split(__file__)[0]+"/data/kegg/"
 
 base_ftp_path = "ftp://ftp.genome.jp/pub/kegg/"
 
@@ -15,7 +16,7 @@ class HTMLImageCollector(htmllib.HTMLParser):
     def __init__(self):
         self.images = []
     def handle_image(self, source, *args):
-        self.images.appned(source)
+        self.images.append(source)
 
 def _image_from_file(f):
     imgstr = f.read()
@@ -198,7 +199,7 @@ class DBGeneEntry(DBEntry):
         return e and e[0].strip() or "unknown"
     def get_alt_names(self):
         lines = self.get_by_lines("DBLINKS")
-        return [line.split()[1] for line in lines if len(line.split())>=2]
+        return [line.split()[1] for line in lines if len(line.split())>=2] + self.get_by_list("NAME")
 
 class GenesDatabaseProxy(defaultdict):
     def __init__(self, interface, *args, **argskw):
@@ -285,9 +286,8 @@ class KEGGInterfaceLocal(object):
         self._gene_alias[org] = {}
         self._gene_alias_conflicting[org] = set()
         for id, gene in self._genes[org].items():
-            aliases = gene.get_alt_names() + [gene.get_by_list("NAME")[0].strip()]
- 
-            for alias in aliases:
+            aliases = gene.get_alt_names()
+            for alias in set(aliases):
                 if alias in self._gene_alias[org]:
                     self._gene_alias_conflicting[org].add(alias)
                 else:
@@ -524,7 +524,7 @@ class KEGGPathway(object):
         return self.api.get_pathway_image(self.pathway_id)
 
     def get_colored_image(self, objects):
-        return self.api.get_colored_image(objects)
+        return self.api.get_colored_image(self.pathway_id, objects)
 
     def get_bounding_box(self, object_id):
         return self.api.get_bounding_box(self.pathway_id, object_id)
