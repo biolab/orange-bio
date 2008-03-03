@@ -286,6 +286,7 @@ class KEGGInterfaceLocal(object):
         self._gene_alias_conflicting[org] = set()
         for id, gene in self._genes[org].items():
             aliases = gene.get_alt_names() + [gene.get_by_list("NAME")[0].strip()]
+ 
             for alias in aliases:
                 if alias in self._gene_alias[org]:
                     self._gene_alias_conflicting[org].add(alias)
@@ -445,8 +446,8 @@ class KEGGInterfaceLocal(object):
                 unique.append(gene)
             elif gene in self._gene_alias_conflicting[org]:
                 conflicting.append(gene)
-            elif gene in self._gene_alias:
-                unique.appned(self._gene_alias[gene])
+            elif gene in self._gene_alias[org]:
+                unique.append(self._gene_alias[org][gene])
             else:
                 unknown.append(gene)
         return unique, conflicting, unknown
