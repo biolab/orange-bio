@@ -3,14 +3,12 @@ import cStringIO
 import urllib
 import ftplib
 
-from cPickle import load, dump
+from pickle import load, dump
 from collections import defaultdict
 
 default_database_path = "./data/kegg/"
 
 base_ftp_path = "ftp://ftp.genome.jp/pub/kegg/"
-
-from pywin.debugger import set_trace
 
 import htmllib
 class HTMLImageCollector(htmllib.HTMLParser):
@@ -244,7 +242,9 @@ class KEGGInterfaceLocal(object):
         files = [rel_path+id+ext for id in ids for ext in ends]
         for file in files:
             self._retrieve(file)
-        self._retrieve("/genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent")
+        self._retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent")
+        geneNames = __collect(self._genes[org].items, lambda a:[a[0]]+a[1].get_alt_names())
+        dump(set(geneNames), open(self.local_database_path+org+"genenames.pickle", "w"))
 
     def __getattr__(self, name):
         if name=="_enzymes" or name=="_from_gene_to_enzymes" :
@@ -285,7 +285,7 @@ class KEGGInterfaceLocal(object):
         self._gene_alias[org] = {}
         self._gene_alias_conflicting[org] = set()
         for id, gene in self._genes[org].items():
-            aliases = gene.get_alt_names()
+            aliases = gene.get_alt_names() + [gene.get_by_list("NAME")[0].strip()]
             for alias in aliases:
                 if alias in self._gene_alias[org]:
                     self._gene_alias_conflicting[org].add(alias)
@@ -479,6 +479,16 @@ class KEGGOrganism(object):
 
     def get_pathways_by_genes(self, genes):
         return self.api.get_pathways_by_genes(genes)
+
+    def get_enriched_pathways_by_genes(self, genes, reference=None):
+        allPathways = defaultdict(lambda :([], 1.0, 0))
+        for gene in genes:
+            pathways = self.get_pathways_by_genes([gene])
+            for pathway in pathways:
+                allPathways[pathway][0].append(gene)
+        for p_id, entry in allPathways.items():
+            entry[2]+=self.get_genes_by_pathway(p_id)
+        return dict([(p_id, (genes, p, ref)) for pid, (genes, p, ref) in allPathways]) #TODO: calculate p
 
     def get_pathways_by_enzymes(self, enzymes):
         return self.api.get_pathways_by_enzymes(enzymes)
