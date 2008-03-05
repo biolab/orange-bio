@@ -19,6 +19,19 @@ class TreeNode(object):
         self.tuple = tuple
         self.children = children
 
+def paintSection(self, painter, index, fr):
+    print self
+    if index!=5:
+        QHeader.paintSection(self, painter, index, fr)
+    else:
+        pass
+
+class MyListView(QListView):
+    def __init__(self, parent):
+        apply(QListView.__init__,(self, parent))
+
+    #def paintEvent(self, event):
+    
 class OWGOEnrichmentAnalysis(OWWidget):
     settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex",
                     "filterByNumOfInstances", "minNumOfInstances", "filterByPValue", "maxPValue", "selectionDirectAnnotation", "selectionDisjoint",
@@ -45,6 +58,15 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##            self.settingsList.append( varName)
             code = compile("self.%s = True" % (varName), ".", "single")
             exec(code)
+
+        self.updateGODataBaseWidget = None
+        try:
+            from OWUpdateGODataBase import OWUpdateGODataBase
+            self.updateGODataBaseWidget = OWUpdateGODataBase()
+            self.connect(w, PYSIGNAL("closed()"), self.UpdateAnnotationComboBox)
+        except:
+            pass
+        
         self.annotationCodes = go.listDownloadedOrganisms()
         #############
         ##GUI
@@ -54,7 +76,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.inputTab = QVGroupBox(self)
         box = OWGUI.widgetBox(self.inputTab, "Organism annotation", addSpace=True)
         self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.SetAnnotationCallback)
-        box = OWGUI.widgetBox(box, "Evidence codes in annotation", addSpace=True)
+        #box = OWGUI.widgetBox(box, "Evidence codes in annotation", addSpace=True)
+        box = OWGUI.widgetBox(self.inputTab, "Evidence codes in annotation", addSpace=True)
         box.setMaximumWidth(150)
         self.evidenceCheckBoxDict = {}
         for etype in go.evidenceTypesOrdered:
@@ -63,9 +86,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process", "Cellular component", "Molecular function"], box="Aspect", callback=self.Update)
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene attribute", callback=self.Update)
         self.tabs.insertTab(self.inputTab, "Input")
-        #box = OWGUI.widgetBox(self.inputTab, "GO update")
-        #b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
-        #box.setMaximumWidth(150)
+        box = OWGUI.widgetBox(self.inputTab, "GO update")
+        b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
+        box.setMaximumWidth(150)
         
         ##Filter tab
         self.filterTab = QVGroupBox(self)
@@ -78,9 +101,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
         ##Select tab
         self.selectTab=QVGroupBox(self)
-        box = OWGUI.widgetBox(self.selectTab, "Annotated genes", addSpace=True)
-        OWGUI.radioButtonsInBox(box, self, "selectionDirectAnnotation", ["Directly or Indirectly", "Directly"], box="Annotated genes", callback=self.ExampleSelection)
-        box= OWGUI.widgetBox(self.selectTab, "Output", addSpace=True)
+        #box = OWGUI.widgetBox(self.selectTab, "Annotated genes", addSpace=True)
+        box = OWGUI.radioButtonsInBox(self.selectTab, self, "selectionDirectAnnotation", ["Directly or Indirectly", "Directly"], box="Annotated genes", callback=self.ExampleSelection)
+        box = OWGUI.widgetBox(self.selectTab, "Output", addSpace=True)
         OWGUI.checkBox(box, self, "selectionDisjoint", "Disjoint/Inclusive", callback=self.ExampleSelection)
         OWGUI.checkBox(box, self, "selectionAddTermAsClass", "Add GO Term as class", callback=self.ExampleSelection)
         self.tabs.insertTab(self.selectTab, "Select")
@@ -92,7 +115,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.layout.add(self.splitter)
 
         # list view
-        self.listView = QListView(self.splitter)
+        self.listView = MyListView(self.splitter)
         self.listView.setMultiSelection(1)
         self.listView.setAllColumnsShowFocus(1)
         self.listView.addColumn(self.DAGcolumns[0])
@@ -125,7 +148,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.connect(self.sigTermsTable, SIGNAL("selectionChanged()"), self.TableSelectionChanged)
         self.splitter.show()
 
-        self.resize(800, 600)        
+        self.sigTableTermsSorted = []
+        self.graph = {}
+        #header = self.listView.header()
+        #from new import instancemethod
+        #print(dir(header))
+        #header.paintSection = instancemethod(paintSection, header, type(header))
+        self.resize(900, 800)
         
     def SetAnnotationCallback(self):
         self.LoadAnnotation()
@@ -148,24 +177,51 @@ class OWGOEnrichmentAnalysis(OWWidget):
         from OWUpdateGODataBase import OWUpdateGODataBase
         w = OWUpdateGODataBase()
         w.show()
-        
+        self.connect(w, PYSIGNAL("closed()"), self.UpdateAnnotationComboBox)
+
+    def UpdateAnnotationComboBox(self):
+        curr = self.annotationCodes[self.annotationIndex]
+        self.annotationCodes = go.listDownloadedOrganisms()
+        index = self.annotationCodes.index(curr)
+        self.annotationComboBox.clear()
+        self.annotationComboBox.insertStrList(self.annotationCodes)
+        self.annotationComboBox.setCurrentItem(index)
+        #print go.getDataDir()
 
     def SetGenesComboBox(self):
         self.candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
-        self.candidateGeneAttrs = filter(lambda v: type(v)==orange.StringVariable, self.candidateGeneAttrs)
+        self.candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, self.candidateGeneAttrs)
         self.geneAttrIndexCombo.clear()
         self.geneAttrIndexCombo.insertStrList([a.name for a in  self.candidateGeneAttrs])
+
+    def FindBestGeneAttrAndOrganism(self):
+        organismGenes = dict([(o,set(go.getCachedGeneNames(o))) for o in self.annotationCodes])
+        candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
+        candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, candidateGeneAttrs)
+        cn = {}
+        for attr in candidateGeneAttrs:
+            vals = [str(e[attr]) for e in self.clusterDataset]
+            for organizm, s in organismGenes.items():
+                l = filter(lambda a: a in s, vals)
+                cn[(attr,organizm)] = len(l)
+        cn = cn.items()
+        cn.sort(lambda a,b:-cmp(a[1],b[1]))
+        bestAttr, organizm = cn[0][0]
+        self.annotationIndex = self.annotationCodes.index(organizm)
+        self.geneAttrIndex = candidateGeneAttrs.index(bestAttr)
     
     def SetClusterDataset(self, data=None):
         self.clusterDataset = data
         if data:
+            self.SetGenesComboBox()
             if not go.loadedGO:
                 self.LoadGO()
+            self.FindBestGeneAttrAndOrganism()
             if not go.loadedAnnotation:
                 self.LoadAnnotation()
-            self.SetGenesComboBox()
             self.FilterUnknownGenes()
             graph = self.Enrichment()
+            #print graph
             self.SetGraph(graph)
         else:
             self.ClearGraph()
@@ -226,7 +282,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 evidences.append(etype)
         aspect = ["P", "F", "C"][self.aspectIndex]
         self.progressBarInit()
-        self.terms = terms = go.GOTermFinder(clusterGenes, referenceGenes, evidences, aspect=aspect, progressCallback=self.progressBarSet)
+        if clusterGenes:
+            self.terms = terms = go.GOTermFinder(clusterGenes, referenceGenes, evidences, aspect=aspect, progressCallback=self.progressBarSet)
+        else:
+            self.terms = terms = {}
         self.progressBarFinished()
         self.treeStructDict = {}
         ids = self.terms.keys()
@@ -253,12 +312,14 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if graph:
             self.FilterAndDisplayGraph()
         else:
+            print self.annotationCodes[self.annotationIndex], self.candidateGeneAttrs[self.geneAttrIndex]
+            self.graph = {}
             self.ClearGraph()
 
     def ClearGraph(self):
         self.listView.clear()
         self.listViewItems=[]
-        #self.sigTermsTable.clear()
+        self.sigTermsTable.setNumRows(0)
         #self.sigTableItems=[]
 
     def DisplayGraph(self):
@@ -266,7 +327,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.termListViewItemDict = {}
         self.listViewItems=[]
         enrichment = lambda t:float(len(t[0])) / t[2] * (float(len(self.referenceGenes))/len(self.clusterGenes))
-        maxFoldEnrichment = max([enrichment(term) for term in self.graph.values()])
+        maxFoldEnrichment = max([enrichment(term) for term in self.graph.values()] or [1])
         def addNode(term, parent, parentDisplayNode):
             if (parent, term) in fromParentDict:
                 return
@@ -315,9 +376,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
             if selected:
                 self.selectedTerms.append(term)
             for lvi in self.termListViewItemDict[term]:
-                lvi.setSelected(selected)
-                self.listView.repaintItem(lvi)
-                if selected: lvi.setOpen(True)
+                try:
+                    lvi.setSelected(selected)
+                    self.listView.repaintItem(lvi)
+                    if selected: lvi.setOpen(True)
+                except RuntimeError:    ##Underlying C/C++ object deleted (why??)
+                    pass
         self.listView.triggerUpdate()
         self.ExampleSelection()
             
@@ -328,8 +392,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
         selectedGenes = []
         if self.selectionDirectAnnotation:
-            s = filter(lambda anno: anno.go in self.selectedTerms, go.loadedAnnotation.annotationList)
-            selectedGenes = set([anno.geneName for anno in s])
+            s = filter(lambda anno: anno.GOId in self.selectedTerms, go.loadedAnnotation.annotationList)
+            selectedGenes = [anno.geneName for anno in s]
         else:        
             map(selectedGenes.extend, [v[0] for id, v in self.graph.items() if id in self.selectedTerms])
             
@@ -338,11 +402,16 @@ class OWGOEnrichmentAnalysis(OWWidget):
             for term in self.selectedTerms:
                 for g in self.graph[term][0]:
                     count[g]+=1
-            selectedGenes = [gene for gene, c in count.items() if c==1]
-        else:
-            map(selectedGenes.extend, [v[0] for id, v in self.graph.items() if id in self.selectedTerms])
+            selectedGenes = [gene for gene, c in count.items() if c==1 and gene in selectedGenes]
+            
+        newClass = orange.EnumVariable("GO Term", values=list(self.selectedTerms))
+        newDomain = orange.Domain(self.clusterDataset.domain.variables, newClass)
         for ex in self.clusterDataset:
             if not ex[geneAttr].isSpecial() and str(ex[geneAttr]) in selectedGenes:
+                if self.selectionDisjoint and self.selectionAddTermAsClass:
+                    c = filter(lambda term: str(ex[geneAttr]) in self.graph[term][0], self.selectedTerms)[0]
+                    ex =  orange.Example(newDomain, ex)
+                    ex.setclass(newClass(c))
                 selectedExamples.append(ex)
             else:
                 unselectedExamples.append(ex)
@@ -363,6 +432,7 @@ class MyListViewItem(QListViewItem):
 
     def width(self):
         return 100
+    
 if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
