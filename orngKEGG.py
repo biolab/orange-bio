@@ -1,4 +1,4 @@
-import Image
+import Image, ImageDraw, ImageMath
 import cStringIO
 import urllib
 import ftplib
@@ -7,7 +7,7 @@ import os
 from pickle import load, dump
 from collections import defaultdict
 
-default_database_path = os.path.split(__file__)[0]+"/data/kegg/"
+default_database_path = (os.path.split(__file__)[0] or ".") +"/data/kegg/"
 
 base_ftp_path = "ftp://ftp.genome.jp/pub/kegg/"
 
@@ -199,7 +199,7 @@ class DBGeneEntry(DBEntry):
         return e and e[0].strip() or "unknown"
     def get_alt_names(self):
         lines = self.get_by_lines("DBLINKS")
-        return [line.split()[1] for line in lines if len(line.split())>=2] + self.get_by_list("NAME")
+        return [line.split()[1] for line in lines if len(line.split())>=2] + self.get_by_list("NAME") +[self.get_name()]
 
 class GenesDatabaseProxy(defaultdict):
     def __init__(self, interface, *args, **argskw):
@@ -216,12 +216,6 @@ class KEGGInterfaceLocal(object):
         self.updated_files = set()
         self._gene_alias = {}
         self._gene_alias_conflicting = {}
-        try:
-            self.ftp = ftplib.FTP("ftp.genome.jp")
-            self.ftp.login()
-            self.ftp.cwd("/pub/kegg")
-        except IOError, er:
-            print er
 
     def download_organism_data(self, org):
         rel_path = "pathway/organisms/"+org+"/"
@@ -244,8 +238,6 @@ class KEGGInterfaceLocal(object):
         for file in files:
             self._retrieve(file)
         self._retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent")
-        geneNames = __collect(self._genes[org].items, lambda a:[a[0]]+a[1].get_alt_names())
-        dump(set(geneNames), open(self.local_database_path+org+"genenames.pickle", "w"))
 
     def __getattr__(self, name):
         if name=="_enzymes" or name=="_from_gene_to_enzymes" :
@@ -292,7 +284,7 @@ class KEGGInterfaceLocal(object):
                     self._gene_alias_conflicting[org].add(alias)
                 else:
                     self._gene_alias[org][alias] = id
-            
+        dump(set(self._gene_alias[org].keys() + self._genes[org].keys()), open(self.local_database_path+org+"_genenames.pickle","w"))
         return self._genes[org]
 
     def _load_taxonomy(self):
@@ -325,8 +317,14 @@ class KEGGInterfaceLocal(object):
 
     def _ftp_retrieve(self, filename):
         if not getattr(self, "ftp", None):
-            self._url_retrieve(filename)
-            return
+            try:
+                self.ftp = ftplib.FTP("ftp.genome.jp")
+                self.ftp.login()
+                self.ftp.cwd("/pub/kegg")
+            except Exception, er:
+                print er
+                self._url_retrieve(filename)
+                return
         print "ftp: RETR "+filename
         file = open(self.local_database_path+filename, "wb")
         self.ftp.retrbinary("RETR "+filename, file.write)
@@ -366,10 +364,6 @@ class KEGGInterfaceLocal(object):
         else:
             genes = self.get_genes_by_pathway(pathway_id)
             return list(set(_collect(map(self.get_enzymes_by_gene, genes))))
-            """r = []
-            for g in genes:
-                r.extend(self.get_enzymes_by_gene(g))
-            return r"""
 
     def get_compounds_by_pathway(self, pathway_id):
         return _collect(self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".cpd").readlines(), lambda s:s.split()[:1])
@@ -387,10 +381,6 @@ class KEGGInterfaceLocal(object):
         for enzyme in enzyme_list[1:]:
             pathways&=set(self._enzymes.get(enzyme, DBEnzymeEntry(" ")).get_pathways())
         return list(pathways)
-        """pathways = set(self._enzymes.values()[0].get_pathways())
-        for enzyme in self._enzymes.values()[1:]:
-            pathways&=set(enzyme.get_pathways())
-        return list(pathways)"""
 
     def get_pathways_by_compounds(self, compound_list):
         pathways = compound_list and set(self._compounds.get(compound_list[0], DBCompoundEntry(" ")).get_pathways()) or []
@@ -406,11 +396,6 @@ class KEGGInterfaceLocal(object):
     
     def get_compounds_by_enzyme(self, enzyme_id):
         return self._from_enzyme_to_compounds.get(enzyme_id, [])
-        """compounds = []
-        for cid, c in self._compounds.items():
-            if enzyme_id in c.get_enzymes():
-                compounds.append(cid)
-        return compounds"""
     
     def get_genes_by_enzyme(self, enzyme_id, org=None):
         if enzyme_id in self._enzymes:
@@ -420,34 +405,51 @@ class KEGGInterfaceLocal(object):
     
     def get_enzymes_by_gene(self, gene_id):
         return self._from_gene_to_enzymes.get(gene_id, [])
-        """enzymes = []
-        for eid, e in self._enzymes.items():
-            if gene_id in e.get_genes():
-                enzymes.append(eid)
-        return enzymes"""
 
     def get_pathway_image(self, pathway_id):
-        f = self._retrieve(_rel_path(pathway_id)+pathway_id+".gif")
-        return _image_from_file(f)
+        f = self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
+        return Image.open(self.local_database_path+_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
 
     def get_colored_pathway_image(self, pathway_id, objects):
-        pass
+        color = (255, 0, 0)
+        image = self.get_pathway_image(pathway_id)
+        image = image.convert("RGB")
+        tmp = Image.new("RGB", image.size)
+        draw = ImageDraw.Draw(tmp)
+        bb = self.get_bounding_box_dict(pathway_id)
+        for object_id in objects:
+            t = bb.get(object_id, None)
+            if t:
+                draw.rectangle([(float(t[1]), float(t[2])), (float(t[3]), float(t[4]))], outline=color)
+        del draw
+        i1, i2, i3 = image.split()
+        t1, t2, t3 = tmp.split()
+        i1 = ImageMath.eval("a+b", a=i1, b=t1)
+        i2 = ImageMath.eval("a+b", a=i2, b=t2)
+        i3 = ImageMath.eval("a+b", a=i3, b=t3)
+        return Image.merge("RGB", (i1.convert("L"), i2.convert("L"), i3.convert("L")))
 
-    def get_bounding_box(self, pathway_id, object_id):
-        pass
+    def get_bounding_box_dict(self, pathway_id):
+        org = pathway_id.split(":")[-1][:-5]
+        d = map(lambda line:(org+":"+line.split()[0], ("rect",) + tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_gene.coord").readlines())
+        d.extend(map(lambda line:("cpd:"+line.split()[0], ("circle",) + tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_cpd.coord").readlines()))
+        d = [(key, (t[0],)+tuple(map(int, t[1:]))) for key, t in d]
+        d = dict(d)
+        return d
+        
 
     def get_unique_gene_ids(self, org, genes):
         allGenes = self._genes[org]
-        unique = []
+        unique = {} #[]
         conflicting = []
         unknown = []
         for gene in genes:
             if gene in allGenes:
-                unique.append(gene)
+                unique[gene]=gene #unique.append(gene)
             elif gene in self._gene_alias_conflicting[org]:
                 conflicting.append(gene)
             elif gene in self._gene_alias[org]:
-                unique.append(self._gene_alias[org][gene])
+                unique[self._gene_alias[org][gene]]=gene #unique.append(self._gene_alias[org][gene])
             else:
                 unknown.append(gene)
         return unique, conflicting, unknown
@@ -481,15 +483,17 @@ class KEGGOrganism(object):
     def get_pathways_by_genes(self, genes):
         return self.api.get_pathways_by_genes(genes)
 
-    def get_enriched_pathways_by_genes(self, genes, reference=None):
-        allPathways = defaultdict(lambda :([], 1.0, 0))
-        for gene in genes:
+    def get_enriched_pathways_by_genes(self, genes, reference=None, callback=None):
+        allPathways = defaultdict(lambda :([], 1.0, []))
+        for i, gene in enumerate(genes):
             pathways = self.get_pathways_by_genes([gene])
             for pathway in pathways:
                 allPathways[pathway][0].append(gene)
+            if callback:
+                callback(i*100.0/len(genes))
         for p_id, entry in allPathways.items():
-            entry[2]+=self.get_genes_by_pathway(p_id)
-        return dict([(p_id, (genes, p, ref)) for pid, (genes, p, ref) in allPathways]) #TODO: calculate p
+            entry[2].extend(self.get_genes_by_pathway(p_id))
+        return dict([(pid, (genes, p, len(ref))) for pid, (genes, p, ref) in allPathways.items()]) #TODO: calculate p
 
     def get_pathways_by_enzymes(self, enzymes):
         return self.api.get_pathways_by_enzymes(enzymes)
@@ -524,10 +528,13 @@ class KEGGPathway(object):
         return self.api.get_pathway_image(self.pathway_id)
 
     def get_colored_image(self, objects):
-        return self.api.get_colored_image(self.pathway_id, objects)
+        return self.api.get_colored_pathway_image(self.pathway_id, objects)
 
     def get_bounding_box(self, object_id):
         return self.api.get_bounding_box(self.pathway_id, object_id)
+
+    def get_bounding_box_dict(self):
+        return self.api.get_bounding_box_dict(self.pathway_id)
 
     def get_genes(self):
         return self.api.get_genes_by_pathway(self.pathway_id)
