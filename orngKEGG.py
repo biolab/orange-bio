@@ -2,6 +2,7 @@ import Image, ImageDraw, ImageMath
 import cStringIO
 import urllib
 import ftplib
+import math
 import os
 
 from pickle import load, dump
@@ -167,6 +168,9 @@ class DBEntry(object):
             else:
                 d[-1][1].append(s)
         return d
+
+    def get_string(self, title):
+        return " ".join(self.get_by_list(title))
         
 class DBEnzymeEntry(DBEntry):
     def get_genes(self, org=None):
@@ -197,6 +201,12 @@ class DBGeneEntry(DBEntry):
     def get_name(self):
         e = self.get_by_list("ENTRY")
         return e and e[0].strip() or "unknown"
+
+    def get_enzymes(self):
+        import re
+        s = self.get_by_string("DEFINITION")
+        return map(lambda t:"ec:"+".".join(t), s)
+        
     def get_alt_names(self):
         lines = self.get_by_lines("DBLINKS")
         return [line.split()[1] for line in lines if len(line.split())>=2] + self.get_by_list("NAME") +[self.get_name()]
@@ -454,6 +464,32 @@ class KEGGInterfaceLocal(object):
                 unknown.append(gene)
         return unique, conflicting, unknown
 
+class p_value(object):
+    def __init__(self, max=1000):
+        self.max = max
+        self.lookup = [0]*(max+1)
+        for i in xrange(2, max+1):
+            self.lookup[i] = self.lookup[i-1] + math.log(i)
+            
+    def logbin(self, n ,r):
+        return self.lookup[n] - self.lookup[n-r] - self.lookup[r]
+    
+    def binomial(self, n, r, p):
+        if p==0.0:
+            if r==0:
+                return 0.0
+            else:
+                return 1.0
+        elif p==1.0:
+            if n==r:
+                return 0.0
+            else:
+                return 1.0
+        return math.exp(self.logbin(n, r) + r*math.log(p) + (n + r)*math.log(1.0-p))
+    
+    def __call__(self, p, mapped, all):
+        return reduce(lambda sum, i: sum+self.binomial(all, i, p), range(mapped, all+1), 0.0)
+    
 class KEGGOrganism(object):
     def __init__(self, org, update=False, local_database_path=None):
         self.org = org
@@ -484,15 +520,19 @@ class KEGGOrganism(object):
         return self.api.get_pathways_by_genes(genes)
 
     def get_enriched_pathways_by_genes(self, genes, reference=None, callback=None):
-        allPathways = defaultdict(lambda :([], 1.0, []))
+        allPathways = defaultdict(lambda :[[], 1.0, []])
+        if not reference:
+            reference = self.get_genes()
         for i, gene in enumerate(genes):
             pathways = self.get_pathways_by_genes([gene])
             for pathway in pathways:
                 allPathways[pathway][0].append(gene)
             if callback:
                 callback(i*100.0/len(genes))
+        _p = p_value(len(genes))
         for p_id, entry in allPathways.items():
             entry[2].extend(self.get_genes_by_pathway(p_id))
+            entry[1] = _p(float(len(entry[2]))/len(reference), len(entry[0]), len(genes)) 
         return dict([(pid, (genes, p, len(ref))) for pid, (genes, p, ref) in allPathways.items()]) #TODO: calculate p
 
     def get_pathways_by_enzymes(self, enzymes):
@@ -519,6 +559,7 @@ class KEGGOrganism(object):
 class KEGGPathway(object):
     def __init__(self, pathway_id, update=False, local_database_path=None):
         self.pathway_id = pathway_id
+        self.org = pathway_id.split(":")[-1][:-5]
         self.local_database_path = local_database_path or default_database_path
         self.api = KEGGInterfaceLocal(update, self.local_database_path)
         if update:
