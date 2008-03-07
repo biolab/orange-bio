@@ -20,7 +20,8 @@ class PathwayToolTip(QToolTip):
     def maybeTip(self, p):
         objs = self.parent.GetObjects(p.x() ,p.y())
         if objs:
-            text = "<br>".join(dict(objs).keys())
+            genes = map(self.parent.master.uniqueGenesDict.get, dict(objs).keys())
+            text = "<br>".join(genes)
             self.tip(QRect(p.x()-2, p.y()-2, 4, 4), text)
 
 class PathwayView(QScrollView):
@@ -119,7 +120,7 @@ class PathwayView(QScrollView):
             self.popup.objs = objs
             self.popup.popup(self.mapToGlobal(event.pos()))            
 
-    def viewportMouseDoubleClickEvent(self, event):
+    """def viewportMouseDoubleClickEvent(self, event):
         x, y = event.x(), event.y()
         objs = self.GetObjects(x, y)
         if objs:
@@ -129,7 +130,7 @@ class PathwayView(QScrollView):
             try:
                 webbrowser.open("http://www.genome.jp/dbget-bin/www_bget?"+org+"+"+"+".join(genes))
             except:
-                pass
+                pass"""
 
     def resizeEvent(self, event):
         QScrollView.resizeEvent(self, event)
@@ -151,17 +152,18 @@ class PathwayView(QScrollView):
             pass
     
 class OWKEGGPathwayBrowser(OWWidget):
-    settingsList = ["organismIndex", "geneAttrIndex", "autoCommit", "autoResize"]
+    settingsList = ["organismIndex", "geneAttrIndex", "autoCommit", "autoResize", "useReference"]
     contextHandlers = {"":DomainContextHandler("",[ContextField("organismIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
                                                    ContextField("geneAttrIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes)])}
     def __init__(self, parent=None, signalManager=None, name="KEGG Pathway browser"):
         OWWidget.__init__(self, parent, signalManager, name)
-        self.inputs = [("Examples", ExampleTable, self.setData)]
+        self.inputs = [("Examples", ExampleTable, self.SetData), ("Reference", ExampleTable, self.SetRefData)]
         self.outputs = [("Selected Examples", ExampleTable), ("Unselected Examples", ExampleTable)]
         self.organismIndex = 0
         self.geneAttrIndex = 0
         self.autoCommit = False
         self.autoResize = True
+        self.useReference = False
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
@@ -172,6 +174,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         cb = OWGUI.comboBox(self.controlArea, self, "organismIndex", box="Organism", items=items, callback=self.Update, addSpace=True)
         cb.setMaximumWidth(200)
         self.geneAttrCombo = OWGUI.comboBox(self.controlArea, self, "geneAttrIndex", box="Gene attribute", callback=self.Update, addSpace=True)
+        OWGUI.checkBox(self.controlArea, self, "useReference", "From signal", box="Reference", callback=self.Update)
 
         self.listView = QListView(self.controlArea)
         for header in ["Pathway", "Genes", "P value"]:
@@ -191,8 +194,9 @@ class OWKEGGPathwayBrowser(OWWidget):
 
         self.ctrlPressed=False
         self.selectedObjects = defaultdict(list)
+        self.refData = None
         
-    def setData(self, data=None):
+    def SetData(self, data=None):
         self.closeContext()
         self.data = data
         if data:
@@ -205,6 +209,11 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.pathwayView.SetPathway(None)
             self.send("Selected Examples", None)
             self.send("Unselected Examples", None)
+
+    def SetRefData(self, data=None):
+        self.refData = data
+        if self.useReference and self.data:
+            self.Update()
 
     def SetBestGeneAttrAndOrganism(self):
         self.geneAttrCandidates = self.data.domain.attributes + self.data.domain.getmetas().values()
@@ -263,11 +272,17 @@ class OWKEGGPathwayBrowser(OWWidget):
             print "Conflicting genes:", conflicting
         if unknown:
             print "Unknown genes:", unknown
+        if self.useReference and self.refData:
+            reference = [str(e[geneAttr]) for e in self.refData if not e[geneAttr].isSpecial()]
+            uniqueRefGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(reference))
+            reference = uniqueRefGenes.keys()
+        else:
+            reference = None
         self.uniqueGenesDict = uniqueGenes
         self.genes = uniqueGenes.keys()
         self.revUniqueGenesDict = dict([(val, key) for key, val in self.uniqueGenesDict.items()])
         self.progressBarInit()
-        self.pathways = self.org.get_enriched_pathways_by_genes(self.genes, callback=self.progressBarSet)
+        self.pathways = self.org.get_enriched_pathways_by_genes(self.genes, reference, callback=self.progressBarSet)
         self.progressBarFinished()
         self.UpdateListView()
         self.UpdatePathwayView()
@@ -322,6 +337,6 @@ if __name__=="__main__":
     w = OWKEGGPathwayBrowser()
     app.setMainWidget(w)
     w.show()
-    w.setData(data)
+    w.SetData(data)
     app.exec_loop()
     w.saveSettings()

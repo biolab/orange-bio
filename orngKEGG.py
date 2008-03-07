@@ -211,6 +211,10 @@ class DBGeneEntry(DBEntry):
         lines = self.get_by_lines("DBLINKS")
         return [line.split()[1] for line in lines if len(line.split())>=2] + self.get_by_list("NAME") +[self.get_name()]
 
+    def get_pathways(self):
+        lines = self.get_by_lines("PATHWAY")
+        return ["path:"+line.split()[1] for line in lines if len(line.split())>=2]
+
 class GenesDatabaseProxy(defaultdict):
     def __init__(self, interface, *args, **argskw):
         defaultdict.__init__(self, lambda :None, *args, **argskw)
@@ -383,8 +387,19 @@ class KEGGInterfaceLocal(object):
         orgs = set([g.split(":")[0] for g in genes_list])
         if len(orgs)!=1:
             return []
-        pathways = self.list_pathways(orgs.pop())
-        return filter(lambda p:genes.issubset(self.get_genes_by_pathway(p)), pathways)
+        org = orgs.pop()
+        s = set()
+        for gene in genes:
+            pathways = self._genes[org][gene].get_pathways()
+            for path in pathways:
+                if genes.issubset(self.get_genes_by_pathway(path)):
+                    s.add(path)
+        return s
+        """d = dict(_collect(self._retrieve("pathway/organisms/"+org+"/"+org+"_gene_map.tab").readlines(), lambda line:(lambda li:(org+":"+li[0], li[1:]))(line.split())))
+        s = set(_collect(genes, lambda gene:d.get(gene, [])))
+        return list(s)"""
+        """pathways = self.list_pathways(orgs.pop())
+        return filter(lambda p:genes.issubset(self.get_genes_by_pathway(p)), pathways)"""
 
     def get_pathways_by_enzymes(self, enzyme_list):
         pathways = enzyme_list and set(self._enzymes.get(enzyme_list[0], DBEnzymeEntry(" ")).get_pathways()) or []
@@ -530,9 +545,10 @@ class KEGGOrganism(object):
             if callback:
                 callback(i*100.0/len(genes))
         _p = p_value(len(genes))
+        reference = set(reference)
         for p_id, entry in allPathways.items():
-            entry[2].extend(self.get_genes_by_pathway(p_id))
-            entry[1] = _p(float(len(entry[2]))/len(reference), len(entry[0]), len(genes)) 
+            entry[2].extend(reference.intersection(self.get_genes_by_pathway(p_id)))
+            entry[1] = _p(float(len(entry[2]))/len(reference), len(entry[0]), len(genes))
         return dict([(pid, (genes, p, len(ref))) for pid, (genes, p, ref) in allPathways.items()]) #TODO: calculate p
 
     def get_pathways_by_enzymes(self, enzymes):
