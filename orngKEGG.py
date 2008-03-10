@@ -5,7 +5,7 @@ import ftplib
 import math
 import os
 
-from pickle import load, dump
+from cPickle import load, dump
 from collections import defaultdict
 
 default_database_path = (os.path.split(__file__)[0] or ".") +"/data/kegg/"
@@ -129,6 +129,7 @@ def _tabspliter(file):
     return [tuple(l.split("\t")) for t in file.readlines()]    
 
 class DBEntry(object):
+    cache = []
     def __init__(self, text):
         self.text = text
         self.section = {}
@@ -173,20 +174,22 @@ class DBEntry(object):
         return " ".join(self.get_by_list(title))
         
 class DBEnzymeEntry(DBEntry):
-    def get_genes(self, org=None):
+    cache = ["genes", "pathways", "name"]
+    def get_genes(self):
         d = dict(self.get_subsections("GENES"))
-        if org:
-            return [org.lower()+":"+g.split("(")[0] for g in d.get(org.upper(), [])]
-        else:
-            return _collect(d.items(), lambda (org,genes):[org.lower()+":"+g.split("(")[0] for g in genes])
+##        if org:
+##            return [org.lower()+":"+g.split("(")[0] for g in d.get(org.upper(), [])]
+##        else:
+        return _collect(d.items(), lambda (org,genes):[org.lower()+":"+g.split("(")[0] for g in genes])
     def get_pathways(self):
         d = self.get_by_lines("PATHWAY")
         return ["path:"+line.split()[1] for line in d if len(line.split())>=2]
     def get_name(self):
         e = self.get_by_list("ENTRY")
-        return e and e[0].lower()+":"+e[1] or "unknown"    
+        return e and e[0].lower()+":"+e[1] or "unknown"
     
 class DBCompoundEntry(DBEntry):
+    cache = ["pathways", "enzymes", "name"]
     def get_pathways(self):
         d = self.get_by_lines("PATHWAY")
         return ["path:"+line.split()[1] for line in d if len(line.split())>=2]
@@ -198,22 +201,34 @@ class DBCompoundEntry(DBEntry):
         return e and "cpd:"+e[0] or "unknown"
 
 class DBGeneEntry(DBEntry):
+    cache = ["name", "enzymes", "alt_names", "pathways"]
     def get_name(self):
         e = self.get_by_list("ENTRY")
         return e and e[0].strip() or "unknown"
 
     def get_enzymes(self):
         import re
-        s = self.get_by_string("DEFINITION")
+        s = self.get_string("DEFINITION")
+        s = re.findall("\[EC:([1-9]+|-)\.([1-9]+|-)\.([1-9]+|-)\.([1-9]+|-)\]", s)
         return map(lambda t:"ec:"+".".join(t), s)
         
     def get_alt_names(self):
         lines = self.get_by_lines("DBLINKS")
-        return [line.split()[1] for line in lines if len(line.split())>=2] + self.get_by_list("NAME") +[self.get_name()]
+        return [line.split()[1] for line in lines if len(line.split())>=2] + [n.strip(",\t \n") for n in self.get_by_list("NAME")] +[self.get_name()]
 
     def get_pathways(self):
         lines = self.get_by_lines("PATHWAY")
         return ["path:"+line.split()[1] for line in lines if len(line.split())>=2]
+
+class DBEntryWrapper(object):
+    def __init__(self, wrapped):
+        for name in wrapped.cache:
+            setattr(self, name, getattr(wrapped, "get_"+name)())
+    def __getattr__(self, name):
+        if name.startswith("get_") and name[4:] in self.__dict__:
+            return lambda :self.__dict__[name[4:]]
+        else:
+            raise AttributeError(name)
 
 class GenesDatabaseProxy(defaultdict):
     def __init__(self, interface, *args, **argskw):
@@ -230,6 +245,10 @@ class KEGGInterfaceLocal(object):
         self.updated_files = set()
         self._gene_alias = {}
         self._gene_alias_conflicting = {}
+        self._filenames = {"_enzymes":"ligand/enzyme/_enzymes.pickle",
+                           "_from_gene_to_enzymes":"ligand/enzyme/_from_gene_to_enzymes.pickle",
+                           "_compounds":"ligand/compound/_compounds.pickle",
+                           "_from_enzyme_to_compounds":"ligand/compound/_from_enzyme_to_compounds.pickle"}
 
     def download_organism_data(self, org):
         rel_path = "pathway/organisms/"+org+"/"
@@ -270,25 +289,60 @@ class KEGGInterfaceLocal(object):
         else:
             raise AttributeError(name)
 
+    def _load_pickled(self, filename=None, name=None):
+        if not filename and name:
+            return load(open(self.local_database_path+self._filenames[name]))
+        else:
+            return load(open(self.local_database_path+filename))
+
+    def _dump_pickled(self, object, filename=None, name=None):
+        if not  filename and name:
+            dump(object, open(self.local_database_path+self._filenames[name], "w"))
+        else:
+            dump(object, open(self.local_database_path+filename, "w"))
+    
     def _load_enzyme_database(self):
-        enzymes = map(DBEnzymeEntry, filter(bool, self._retrieve("ligand/enzyme/enzyme").read().split("///\n")))
-        self._enzymes = dict([(e.get_name(), e) for e in enzymes])
-        self._from_gene_to_enzymes = defaultdict(list)
-        for id, e in self._enzymes.items():
-            for g in e.get_genes():
-                self._from_gene_to_enzymes[g].append(id)
+        try:
+            self._enzymes = self._load_pickled(name="_enzymes")
+        except Exception, ex:
+            print ex
+            enzymes = map(DBEnzymeEntry, filter(bool, self._retrieve("ligand/enzyme/enzyme").read().split("///\n")))
+            self._enzymes = dict([(e.get_name(), DBEntryWrapper(e)) for e in enzymes])
+            self._dump_pickled(self._enzymes, name="_enzymes")
+        try:
+            self._from_gene_to_enzymes = self._load_pickled(name="_from_gene_to_enzymes")
+        except Exception, ex:
+            print ex
+            self._from_gene_to_enzymes = defaultdict(list)
+            for id, e in self._enzymes.items():
+                for g in e.get_genes():
+                    self._from_gene_to_enzymes[g].append(id)
+            self._dump_pickled(self._from_gene_to_enzymes, name="_from_gene_to_enzymes")
         
     def _load_compound_database(self):
-        compounds = map(DBCompoundEntry, filter(bool, self._retrieve("ligand/compound/compound").read().strip().split("///\n")))
-        self._compounds = dict([(c.get_name(), c) for c in compounds])
-        self._from_enzyme_to_compounds = defaultdict(list)
-        for id, c in self._compounds.items():
-            for e in c.get_enzymes():
-                self._from_enzyme_to_compounds[e].append(id)
+        try:
+            self._compounds = self._load_pickled(name="_compounds")
+        except:
+            compounds = map(DBCompoundEntry, filter(bool, self._retrieve("ligand/compound/compound").read().strip().split("///\n")))
+            self._compounds = dict([(c.get_name(), DBEntryWrapper(c)) for c in compounds])
+            self._dump_pickled(self._compounds, name="_compounds")
+        try:
+            self._from_enzyme_to_compounds = self._load_pickled(name="_from_enzyme_to_compounds")
+        except:
+            self._from_enzyme_to_compounds = defaultdict(list)
+            for id, c in self._compounds.items():
+                for e in c.get_enzymes():
+                    self._from_enzyme_to_compounds[e].append(id)
+            self._dump_pickled(self._from_enzyme_to_compounds, name="_from_enzyme_to_compounds")
 
     def _load_gene_database(self, org):
-        genes = map(DBGeneEntry, filter(bool ,self._retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent").read().split("///\n")))
-        self._genes[org] = dict([(org+":"+g.get_name(), g) for g in genes])
+        try:
+            self._genes[org] = self._load_pickled("genes/organisms/"+org+"/_genes.pickle")
+        except Exception, ex:
+            print ex    
+            genes = map(DBGeneEntry, filter(bool ,self._retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent").read().split("///\n")))
+            self._genes[org] = dict([(org+":"+g.get_name(), DBEntryWrapper(g)) for g in genes])
+            self._dump_pickled(self._genes[org], "genes/organisms/"+org+"/_genes.pickle")
         self._gene_alias[org] = {}
         self._gene_alias_conflicting[org] = set()
         for id, gene in self._genes[org].items():
@@ -424,7 +478,11 @@ class KEGGInterfaceLocal(object):
     
     def get_genes_by_enzyme(self, enzyme_id, org=None):
         if enzyme_id in self._enzymes:
-            return self._enzymes[enzyme_id].get_genes(org)
+            genes = self._enzymes[enzyme_id].get_genes()
+            if org:
+                return filter(lambda g:g.startswith(org), genes)
+            else:
+                return genes
         else:
             return []
     
@@ -655,7 +713,7 @@ if __name__=="__main__":
              ("get_genes_by_pathway", ("path:ddi00010",)),
              ("get_pathways_by_genes", (["ddi:DDB_0191256"],)),
              ("get_pathways_by_enzymes", (["ec:1.1.1.1"],)),
-             ("get_pathways_by_compounds", (["C00001"],)),
+             ("get_pathways_by_compounds", (["cpd:C00001"],)),
              ("get_linked_pathways", ("path:ddi00010",)),
              ("list_pathways", ()),
              ("get_compounds_by_enzyme", ("ec:1.1.1.1",)),
@@ -666,6 +724,10 @@ if __name__=="__main__":
     for name, args in tests:
         s1 = set(getattr(org1, name)(*args))
         s2 = set(getattr(org2, name)(*args))
-        print name
-        print s1-s2
-        print s2-s1
+        if s1 and s2:
+            print name
+            print s1-s2
+            print s2-s1
+        else:
+            print name
+            print "both empty"

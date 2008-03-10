@@ -38,7 +38,7 @@ class PathwayView(QScrollView):
         self.image = None
         self.popup = QPopupMenu()
         self.popup.insertItem("View genes on KEGG website", 0, 0)
-        self.popup.insertItem("View enzyme on KEGG website", 1, 1)
+        self.popup.insertItem("View pathway on KEGG website", 1, 1)
         self.connect(self.popup, SIGNAL("activated ( int ) "), self.PopupAction)
         
     def SetPathway(self, pathway=None, objects=[]):
@@ -118,7 +118,7 @@ class PathwayView(QScrollView):
                 self.updateContents(x1-1, y1-1, x2-x1+2, y2-y1+2)
         elif event.button()==Qt.RightButton:
             self.popup.objs = objs
-            self.popup.popup(self.mapToGlobal(event.pos()))            
+            self.popup.popup(self.mapToGlobal(event.pos()))
 
     """def viewportMouseDoubleClickEvent(self, event):
         x, y = event.x(), event.y()
@@ -143,9 +143,11 @@ class PathwayView(QScrollView):
             genes = [s.split(":")[-1].strip() for s, t in self.popup.objs]
             address = "http://www.genome.jp/dbget-bin/www_bget?"+self.pathway.org+"+"+"+".join(genes)
         elif id==1:
-            genes = [s for s, t in self.popup.objs]
-            s = reduce(lambda s,g:s.union(self.master.org.get_enzymes_by_gene(g)), genes, set())
-            address = "http://www.genome.jp/dbget-bin/www_bget?enzyme+"+"+".join([e.split(":")[-1] for e in s])
+##            genes = [s for s, t in self.popup.objs]
+##            s = reduce(lambda s,g:s.union(self.master.org.get_enzymes_by_gene(g)), genes, set())
+##            address = "http://www.genome.jp/dbget-bin/www_bget?enzyme+"+"+".join([e.split(":")[-1] for e in s])
+            genes = [s.split(":")[-1].strip() for s, t in self.popup.objs]
+            address = "http://www.genome.jp/dbget-bin/show_pathway?"+self.pathway.pathway_id.split(":")[-1]+"+"+"+".join(genes)
         try:
             webbrowser.open(address)
         except:
@@ -255,11 +257,11 @@ class OWKEGGPathwayBrowser(OWWidget):
             item.pathway_id = id
 
     def UpdatePathwayView(self, item=None):
+        self.selectedObjects = defaultdict(list)
+        self.Commit()
         item = item and self.listView.selectedItem()
         if not item:
             return  #TODO clear image
-        self.selectedObjects = defaultdict(list)
-        self.Commit()
         self.pathway = orngKEGG.KEGGPathway(item.pathway_id)
         self.pathwayView.SetPathway(self.pathway, self.pathways[item.pathway_id][0])
         
