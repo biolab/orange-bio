@@ -118,6 +118,7 @@ class PathwayView(QScrollView):
                 self.updateContents(x1-1, y1-1, x2-x1+2, y2-y1+2)
         elif event.button()==Qt.RightButton:
             self.popup.objs = objs
+            self.popup.setItemEnabled(0, bool(objs))
             self.popup.popup(self.mapToGlobal(event.pos()))
 
     """def viewportMouseDoubleClickEvent(self, event):
