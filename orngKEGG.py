@@ -266,7 +266,7 @@ class KEGGInterfaceLocal(object):
             dump(organisms, open(self.local_database_path+"list_organisms.pickle", "w"))
         dump(dict([("path:"+org+num, descr[num]) for num in pathway_nums]), open(self.local_database_path+"list_pathways_"+org+".pickle","w"))
         
-        ends = [".conf", ".cpd", ".gene", ".gif", ".map"] #, "_cpd.coord", "_gene.coord"]
+        ends = [".cpd", ".gene", ".gif", ".map", "_cpd.coord", "_gene.coord"]
         files = [rel_path+id+ext for id in ids for ext in ends]
         for file in files:
             self._retrieve(file)
@@ -312,7 +312,6 @@ class KEGGInterfaceLocal(object):
         try:
             self._from_gene_to_enzymes = self._load_pickled(name="_from_gene_to_enzymes")
         except Exception, ex:
-            print ex
             self._from_gene_to_enzymes = defaultdict(list)
             for id, e in self._enzymes.items():
                 for g in e.get_genes():
@@ -339,7 +338,6 @@ class KEGGInterfaceLocal(object):
         try:
             self._genes[org] = self._load_pickled("genes/organisms/"+org+"/_genes.pickle")
         except Exception, ex:
-            print ex    
             genes = map(DBGeneEntry, filter(bool ,self._retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent").read().split("///\n")))
             self._genes[org] = dict([(org+":"+g.get_name(), DBEntryWrapper(g)) for g in genes])
             self._dump_pickled(self._genes[org], "genes/organisms/"+org+"/_genes.pickle")
@@ -490,20 +488,21 @@ class KEGGInterfaceLocal(object):
         return self._from_gene_to_enzymes.get(gene_id, [])
 
     def get_pathway_image(self, pathway_id):
-        f = self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
-        return Image.open(self.local_database_path+_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
+        #f = self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
+        image = Image.open(self.local_database_path+_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
+        return image.convert("RGB")
 
     def get_colored_pathway_image(self, pathway_id, objects):
         color = (255, 0, 0)
         image = self.get_pathway_image(pathway_id)
-        image = image.convert("RGB")
+        #image = image.convert("RGB")
         tmp = Image.new("RGB", image.size)
         draw = ImageDraw.Draw(tmp)
         bb = self.get_bounding_box_dict(pathway_id)
         for object_id in objects:
-            t = bb.get(object_id, None)
-            if t:
-                draw.rectangle([(float(t[1]), float(t[2])), (float(t[3]), float(t[4]))], outline=color)
+            t = bb.get(object_id, [])
+            for x1, y1, x2, y2 in t:
+                draw.rectangle([x1, y1, x2, y2], outline=color)
         del draw
         i1, i2, i3 = image.split()
         t1, t2, t3 = tmp.split()
@@ -514,13 +513,14 @@ class KEGGInterfaceLocal(object):
 
     def get_bounding_box_dict(self, pathway_id):
         org = pathway_id.split(":")[-1][:-5]
-        d = map(lambda line:(org+":"+line.split()[0], ("rect",) + tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_gene.coord").readlines())
-        d.extend(map(lambda line:("cpd:"+line.split()[0], ("circle",) + tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_cpd.coord").readlines()))
-        d = [(key, (t[0],)+tuple(map(int, t[1:]))) for key, t in d]
-        d = dict(d)
-        return d
+        d = map(lambda line:(org+":"+line.split()[0], tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_gene.coord").readlines())
+        d.extend(map(lambda line:("cpd:"+line.split()[0], tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_cpd.coord").readlines()))
+        d = [(id, tuple(map(int, t))) for id, t in d]
+        bbDict = defaultdict(list)
+        for id, bb in d:
+            bbDict[id].append(bb)
+        return bbDict
         
-
     def get_unique_gene_ids(self, org, genes):
         allGenes = self._genes[org]
         unique = {} #[]
@@ -528,15 +528,24 @@ class KEGGInterfaceLocal(object):
         unknown = []
         for gene in genes:
             if gene in allGenes:
-                unique[gene]=gene #unique.append(gene)
+                unique[gene] = gene #unique.append(gene)
             elif gene in self._gene_alias_conflicting[org]:
                 conflicting.append(gene)
             elif gene in self._gene_alias[org]:
-                unique[self._gene_alias[org][gene]]=gene #unique.append(self._gene_alias[org][gene])
+                unique[self._gene_alias[org][gene]] = gene #unique.append(self._gene_alias[org][gene])
             else:
                 unknown.append(gene)
         return unique, conflicting, unknown
 
+    def get_unique_gene_ids_ci(self, org, genes):
+        unique, conflicting, unknown = self.get_unique_gene_ids(org, genes)
+
+class NameTranslator(dict):
+    def __init__(self):
+        dict.__init__(self)
+    def __getitem__(self, key, hint=None):
+        pass
+        
 class p_value(object):
     def __init__(self, max=1000):
         self.max = max

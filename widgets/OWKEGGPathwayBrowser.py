@@ -45,7 +45,7 @@ class PathwayView(QScrollView):
         self.pathway = pathway
         self.objects = objects
         if pathway:
-            self.image = image = self.pathway.get_colored_image(objects)
+            self.image = image = self.pathway.get_image()
             self.bbDict = self.pathway.get_bounding_box_dict()
             self.ShowImage()
 ##            image.save(self.pathway.local_database_path+"TmpPathwayImage.png")
@@ -80,27 +80,34 @@ class PathwayView(QScrollView):
             ch = ch!=-1 and ch or self.viewport().height()
             painter.drawPixmap(cx, cy, self.pixmap, cx, cy, min(cw, self.pixmap.width()-cx), min(ch, self.pixmap.height()-cy))
             painter.save()
-            
-            painter.setPen(QPen(Qt.black, 2, Qt.DashDotLine))
+
+            painter.setPen(QPen(Qt.blue, 2, Qt.SolidLine))
             painter.setBrush(QBrush(Qt.NoBrush))
+            for rect in reduce(lambda a,b:a.union(b), [bbList for id, bbList in self.bbDict.items() if id in self.objects], set()):
+                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect)
+                painter.drawRect(x1+1, y1+1, x2-x1, y2-y1)
+                
+            painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
             for rect in self.master.selectedObjects.keys():
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect[1:])
-                painter.drawRect(x1, y1, x2-x1, y2-y1)
+                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect)
+                painter.drawRect(x1+1, y1+1, x2-x1, y2-y1)
             painter.restore()
 
     def GetObjects(self, x, y):
         def _in(x, y, bb):
-            if bb[0]=="rect":
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), bb[1:])
-                return x>=x1 and y>=y1 and x<=x2 and y<=y2
-            else:
-                x1, y1, r = map(lambda x:int(self.resizeFactor*x), bb[1:])
-                return abs(x1-x)<=r and abs(y1-y)<=r
+##            if bb[0]=="rect":
+            x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), bb)
+            return x>=x1 and y>=y1 and x<x2 and y<y2
+##            else:
+##                x1, y1, r = map(lambda x:int(self.resizeFactor*x), bb[1:])
+##                return abs(x1-x)<=r and abs(y1-y)<=r
         x, y = self.viewportToContents(x, y)
         objs = []
-        for id, bb in self.bbDict.items():
-            if id in self.objects and _in(x, y, bb):
-                objs.append((id, bb))
+        for id, bbList in self.bbDict.items():
+            if id in self.objects:
+                for bb in bbList:
+                    if _in(x, y, bb):
+                        objs.append((id, bb))
         return objs
     
     def viewportMouseMoveEvent(self, event):
@@ -114,7 +121,7 @@ class PathwayView(QScrollView):
         if event.button()==Qt.LeftButton:
             self.master.SelectObjects(objs)
             for rect in set(self.master.selectedObjects.keys()).union(old):
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect[1:])
+                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect)
                 self.updateContents(x1-1, y1-1, x2-x1+2, y2-y1+2)
         elif event.button()==Qt.RightButton:
             self.popup.objs = objs
@@ -157,7 +164,8 @@ class PathwayView(QScrollView):
 class OWKEGGPathwayBrowser(OWWidget):
     settingsList = ["organismIndex", "geneAttrIndex", "autoCommit", "autoResize", "useReference"]
     contextHandlers = {"":DomainContextHandler("",[ContextField("organismIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
-                                                   ContextField("geneAttrIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes)])}
+                                                   ContextField("geneAttrIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
+                                                   ContextField("useAttrNames", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes)])}
     def __init__(self, parent=None, signalManager=None, name="KEGG Pathway browser"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Examples", ExampleTable, self.SetData), ("Reference", ExampleTable, self.SetRefData)]
@@ -167,6 +175,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.autoCommit = False
         self.autoResize = True
         self.useReference = False
+        self.useAttrNames = False
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
@@ -176,7 +185,10 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.organismCodes = [code for code, desc in self.organismCodes]
         cb = OWGUI.comboBox(self.controlArea, self, "organismIndex", box="Organism", items=items, callback=self.Update, addSpace=True)
         cb.setMaximumWidth(200)
-        self.geneAttrCombo = OWGUI.comboBox(self.controlArea, self, "geneAttrIndex", box="Gene attribute", callback=self.Update, addSpace=True)
+        box = OWGUI.widgetBox(self.controlArea, "Gene attribure")
+        self.geneAttrCombo = OWGUI.comboBox(box, self, "geneAttrIndex", callback=self.Update, addSpace=True)
+        OWGUI.checkBox(box, self, "useAttrNames", "Use variable names", callback=self.UseAttrNamesCallback)
+        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
         OWGUI.checkBox(self.controlArea, self, "useReference", "From signal", box="Reference", callback=self.Update)
 
         self.listView = QListView(self.controlArea)
@@ -218,6 +230,10 @@ class OWKEGGPathwayBrowser(OWWidget):
         if self.useReference and self.data:
             self.Update()
 
+    def UseAttrNamesCallback(self):
+        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
+        self.Update()
+
     def SetBestGeneAttrAndOrganism(self):
         self.geneAttrCandidates = self.data.domain.attributes + self.data.domain.getmetas().values()
         self.geneAttrCandidates = filter(lambda v:v.varType in [orange.VarTypes.Discrete ,orange.VarTypes.String], self.geneAttrCandidates)
@@ -229,6 +245,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         from cPickle import load
         score = {}
         self.progressBarInit()
+        attrNames = [str(v.name).strip() for v in self.data.domain.attributes]
         for i, org in enumerate(self.organismCodes):
             try:
                 geneNames = load(open(orngKEGG.default_database_path+org+"_genenames.pickle"))
@@ -238,11 +255,18 @@ class OWKEGGPathwayBrowser(OWWidget):
                 vals = [str(e[attr]).strip() for e in data if not e[attr].isSpecial()]
                 match = filter(lambda v:v in geneNames, vals)
                 score[(attr, org)] = len(match)
+            match = [v for v in attrNames if v in geneNames]
+            score[("_var_names_", org)] = len(match)
             self.progressBarSet(i*100.0/len(self.organismCodes))
         self.progressBarFinished()
         score = [(s, attr, org) for (attr, org), s in score.items()]
         score.sort()
-        self.geneAttrIndex = self.geneAttrCandidates.index(score[-1][1])
+        if score[-1][1]=="_var_names_":
+            self.useAttrNames = True
+            self.geneAttrIndex = 0 #self.geneAttrCandidates.index(score[-2][1])
+            self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
+        else:
+            self.geneAttrIndex = self.geneAttrCandidates.index(score[-1][1])
         self.organismIndex = self.organismCodes.index(score[-1][2])
                 
     def UpdateListView(self):
@@ -262,13 +286,20 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.Commit()
         item = item and self.listView.selectedItem()
         if not item:
-            return  #TODO clear image
+            return
         self.pathway = orngKEGG.KEGGPathway(item.pathway_id)
         self.pathwayView.SetPathway(self.pathway, self.pathways[item.pathway_id][0])
         
     def Update(self):
-        geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
-        genes = [str(e[geneAttr]) for e in self.data if not e[geneAttr].isSpecial()]
+        self.error(0)
+        if self.useAttrNames:
+            genes = [str(v.name).strip() for v in self.data.domain.attributes]
+        elif self.geneAttrCandidates:
+            geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
+            genes = [str(e[geneAttr]) for e in self.data if not e[geneAttr].isSpecial()]
+        else:
+            self.error(0, "Cannot extact gene names from input")
+            genes = []
         self.org = orngKEGG.KEGGOrganism(self.organismCodes[self.organismIndex])
         uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes))
         if conflicting:
@@ -276,7 +307,11 @@ class OWKEGGPathwayBrowser(OWWidget):
         if unknown:
             print "Unknown genes:", unknown
         if self.useReference and self.refData:
-            reference = [str(e[geneAttr]) for e in self.refData if not e[geneAttr].isSpecial()]
+            if self.useAttrNames:
+                reference = [str(v.name).strip() for v in self.refData]
+            else:
+                geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
+                reference = [str(e[geneAttr]) for e in self.refData if not e[geneAttr].isSpecial()]
             uniqueRefGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(reference))
             reference = uniqueRefGenes.keys()
         else:
@@ -309,18 +344,24 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.Commit()
 
     def Commit(self):
-        geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
-        selectedExamples = []
-        otherExamples = []
-        selectedGenes = reduce(lambda s,b:s.union(b), self.selectedObjects.values(), set())
-        for ex in self.data:
-            name = self.revUniqueGenesDict.get(str(ex[geneAttr]).strip(), None)
-            if name and name in selectedGenes:
-                selectedExamples.append(ex)
-            else:
-                otherExamples.append(ex)
-        self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
-        self.send("Unselected Examples", otherExamples and orange.ExampleTable(otherExamples) or None)
+        if self.useAttrNames:
+            selectedGenes = reduce(lambda s,b:s.union(b), self.selectedObjects.values(), set())
+            selectedVars = [self.data.domain[self.uniqueGenesDict[gene]] for gene in selectedGenes]
+            newDomain = orange.Domain(selectedVars ,0)
+            self.send("Selected Examples", orange.ExampleTable(newDomain, self.data))
+        else:
+            geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
+            selectedExamples = []
+            otherExamples = []
+            selectedGenes = reduce(lambda s,b:s.union(b), self.selectedObjects.values(), set())
+            for ex in self.data:
+                name = self.revUniqueGenesDict.get(str(ex[geneAttr]).strip(), None)
+                if name and name in selectedGenes:
+                    selectedExamples.append(ex)
+                else:
+                    otherExamples.append(ex)
+            self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
+            self.send("Unselected Examples", otherExamples and orange.ExampleTable(otherExamples) or None)
         
     def keyPressEvent(self, key):
         if key.key()==Qt.Key_Control:
