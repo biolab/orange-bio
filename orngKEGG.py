@@ -540,24 +540,44 @@ class KEGGInterfaceLocal(object):
                 unknown.append(gene)
         return unique, conflicting, unknown
 
+
+    def constructAliasMapper(self):
+        try:
+            len(self._cigenes)
+        except:
+            self._cigenes = {}
+
+        conf = set(self._gene_alias_conflicting[org])
+
+        try:
+            len(self._cigenes[org])
+        except:
+            _1 = self._genes[org] #just to load the database
+
+            for id, entry in self._genes[org].items():
+                if allGenes.get(id.upper(), id)!=id:
+                    conf.add(id.upper())
+                else:
+                    allGenes[id.upper()] = id
+
+            for alias, id in self._gene_alias[org].items():
+                if aliasMapper.get(alias.upper(), id)!=id:
+                    conf.add(alias.upper())
+                else:
+                    aliasMapper[alias.upper()]=id
+
+            self._cigenes[org] = (allGenes,aliasMapper,conf)
+
     def get_unique_gene_ids_ci(self, org, genes):
+
+        self.constructAliasMapper()
+
         unique = {}
         conflicting = []
         unknown = []
-        allGenes = {}
-        aliasMapper = {}
-        _1 = self._genes[org] #just to load the database
-        conf = set(self._gene_alias_conflicting[org])
-        for id, entry in self._genes[org].items():
-            if allGenes.get(id.upper(), id)!=id:
-                conf.add(id.upper())
-            else:
-                allGenes[id.upper()] = id
-        for alias, id in self._gene_alias[org].items():
-            if aliasMapper.get(alias.upper(), id)!=id:
-                conf.add(alias.upper())
-            else:
-                aliasMapper[alias.upper()]=id
+    
+        allGenes,aliasMapper,conf = self._cigenes[org]
+
         for gene in genes:
             if gene.upper() in conf:
                 conflicting.append(gene)
