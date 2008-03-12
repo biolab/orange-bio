@@ -35,7 +35,7 @@ class MyListView(QListView):
 class OWGOEnrichmentAnalysis(OWWidget):
     settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex",
                     "filterByNumOfInstances", "minNumOfInstances", "filterByPValue", "maxPValue", "selectionDirectAnnotation", "selectionDisjoint",
-                    "selectionAddTermAsClass"]
+                    "selectionAddTermAsClass", "useAttrNames"]
     def __init__(self, parent=None, signalManager=None, name="GO Enrichment Analysis"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Cluster Examples", ExampleTable, self.SetClusterDataset, Default), ("Reference Examples", ExampleTable, self.SetReferenceDataset, Single + NonDefault)] #, ("Structured Data", DataFiles, self.chipdata, Single + NonDefault)]
@@ -45,6 +45,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.useReferenceDataset  = 0
         self.aspectIndex = 0
         self.geneAttrIndex = 0
+        self.useAttrNames = False
         self.filterByNumOfInstances = False
         self.minNumOfInstances = 1
         self.filterByPValue = True
@@ -85,6 +86,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Annotation", "Signal"], box="Reference From", callback=self.Update)
         OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process", "Cellular component", "Molecular function"], box="Aspect", callback=self.Update)
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene attribute", callback=self.Update)
+        OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use attribute names", callback=self.SetUseAttrNamesCallback)
         self.tabs.insertTab(self.inputTab, "Input")
         box = OWGUI.widgetBox(self.inputTab, "GO update")
         b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
@@ -170,6 +172,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def SetAspectCallback(self):
         self.SetClusterDataset(self.clusterDataset)
 
+    def SetUseAttrNamesCallback(self):
+        self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
+        self.Update()
+
     def Update(self):
         self.SetClusterDataset(self.clusterDataset)
 
@@ -198,17 +204,29 @@ class OWGOEnrichmentAnalysis(OWWidget):
         organismGenes = dict([(o,set(go.getCachedGeneNames(o))) for o in self.annotationCodes])
         candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
         candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, candidateGeneAttrs)
+        attrNames = [v.name for v in self.clusterDataset.domain.variables]
         cn = {}
         for attr in candidateGeneAttrs:
             vals = [str(e[attr]) for e in self.clusterDataset]
-            for organizm, s in organismGenes.items():
+            for organism, s in organismGenes.items():
                 l = filter(lambda a: a in s, vals)
-                cn[(attr,organizm)] = len(l)
+                cn[(attr,organism)] = len(l)
+        for organism, s in organismGenes.items():
+            l = filter(lambda a: a in s, attrNames)
+            cn[("_var_names_", organism)] = len(l)
+            
         cn = cn.items()
         cn.sort(lambda a,b:-cmp(a[1],b[1]))
         bestAttr, organizm = cn[0][0]
         self.annotationIndex = self.annotationCodes.index(organizm)
-        self.geneAttrIndex = candidateGeneAttrs.index(bestAttr)
+        if bestAttr=="_var_names_":
+            self.useAttrNames = True
+            self.geneAttrIndexCombo.setDisabled(True)
+            self.geneAttrIndex = 0
+        else:
+            self.useAttrNames = False
+            self.geneAttrIndexCombo.setDisabled(False)
+            self.geneAttrIndex = candidateGeneAttrs.index(bestAttr)
     
     def SetClusterDataset(self, data=None):
         self.clusterDataset = data
@@ -236,12 +254,15 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.SetGraph(graph)
 
     def FilterUnknownGenes(self):
-        geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
-        examples = []
-        for ex in self.clusterDataset:
-            if str(ex[geneAttr]) not in go.loadedAnnotation.aliasMapper:
-                examples.append(ex)
-        self.send("Example With Unknown Genes", examples and orange.ExampleTable(examples) or None)
+        if not self.useAttrNames:
+            geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
+            examples = []
+            for ex in self.clusterDataset:
+                if str(ex[geneAttr]) not in go.loadedAnnotation.aliasMapper:
+                    examples.append(ex)
+            self.send("Example With Unknown Genes", examples and orange.ExampleTable(examples) or None)
+        else:
+            self.send("Example With Unknown Genes", None)
 
     def LoadGO(self):
         self.progressBarInit()
@@ -262,13 +283,19 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
         
     def Enrichment(self):
-        geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
-        clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset if not ex[geneAttr].isSpecial()]
+        if self.useAttrNames:
+            clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
+        else:
+            geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
+            clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset if not ex[geneAttr].isSpecial()]
         self.clusterGenes = clusterGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, clusterGenes)
         referenceGenes = None
         if self.useReferenceDataset:
             try:
-                referenceGenes = [str(ex[geneAttr]) for ex in self.referenceDataset if not ex[geneAttr].isSpecial()]
+                if self.useAttrNames:
+                    referenceGenes = [v.name for v in self.referenceDataset.domain.variables]
+                else:
+                    referenceGenes = [str(ex[geneAttr]) for ex in self.referenceDataset if not ex[geneAttr].isSpecial()]
                 referenceGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, referenceGenes)
                 self.information()
             except Exception, er:
@@ -389,7 +416,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def ExampleSelection(self):
         selectedExamples = []
         unselectedExamples = []
-        geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
         selectedGenes = []
         if self.selectionDirectAnnotation:
             s = filter(lambda anno: anno.GOId in self.selectedTerms, go.loadedAnnotation.annotationList)
@@ -403,20 +429,27 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 for g in self.graph[term][0]:
                     count[g]+=1
             selectedGenes = [gene for gene, c in count.items() if c==1 and gene in selectedGenes]
-            
-        newClass = orange.EnumVariable("GO Term", values=list(self.selectedTerms))
-        newDomain = orange.Domain(self.clusterDataset.domain.variables, newClass)
-        for ex in self.clusterDataset:
-            if not ex[geneAttr].isSpecial() and str(ex[geneAttr]) in selectedGenes:
-                if self.selectionDisjoint and self.selectionAddTermAsClass:
-                    c = filter(lambda term: str(ex[geneAttr]) in self.graph[term][0], self.selectedTerms)[0]
-                    ex =  orange.Example(newDomain, ex)
-                    ex.setclass(newClass(c))
-                selectedExamples.append(ex)
-            else:
-                unselectedExamples.append(ex)
-        self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
-        self.send("Unselected Examples", unselectedExamples and orange.ExampleTable(unselectedExamples) or None)
+
+        if self.useAttrNames:
+            vars = [self.clusterDataset.domain[gene] for gene in set(selectedGenes)]
+            newDomain = orange.Domain(vars, 0)
+            self.send("Selected Examples", orange.ExampleTable(newDomain, self.clusterDataset))
+            self.send("Unselected Examples", None)
+        else:
+            geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]            
+            newClass = orange.EnumVariable("GO Term", values=list(self.selectedTerms))
+            newDomain = orange.Domain(self.clusterDataset.domain.variables, newClass)
+            for ex in self.clusterDataset:
+                if not ex[geneAttr].isSpecial() and str(ex[geneAttr]) in selectedGenes:
+                    if self.selectionDisjoint and self.selectionAddTermAsClass:
+                        c = filter(lambda term: str(ex[geneAttr]) in self.graph[term][0], self.selectedTerms)[0]
+                        ex =  orange.Example(newDomain, ex)
+                        ex.setclass(newClass(c))
+                    selectedExamples.append(ex)
+                else:
+                    unselectedExamples.append(ex)
+            self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
+            self.send("Unselected Examples", unselectedExamples and orange.ExampleTable(unselectedExamples) or None)
             
 class MyListViewItem(QListViewItem):
     enrichmentColumn = 5
