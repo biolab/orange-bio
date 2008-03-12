@@ -25,8 +25,8 @@ class PathwayToolTip(QToolTip):
             self.tip(QRect(p.x()-2, p.y()-2, 4, 4), text)
 
 class PathwayView(QScrollView):
-    def __init__(self, master, *args, **argkw):
-        QScrollView.__init__(self, *args, **argkw)
+    def __init__(self, master, *args):
+        QScrollView.__init__(self, *args)
         self.master = master
         self.toolTip = PathwayToolTip(self)
         self.setHScrollBarMode(QScrollView.Auto)
@@ -152,7 +152,7 @@ class PathwayView(QScrollView):
             pass
     
 class OWKEGGPathwayBrowser(OWWidget):
-    settingsList = ["organismIndex", "geneAttrIndex", "autoCommit", "autoResize", "useReference"]
+    settingsList = ["organismIndex", "geneAttrIndex", "autoCommit", "autoResize", "useReference", "useAttrNames", "caseSensitive"]
     contextHandlers = {"":DomainContextHandler("",[ContextField("organismIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
                                                    ContextField("geneAttrIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
                                                    ContextField("useAttrNames", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes)])}
@@ -166,6 +166,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.autoResize = True
         self.useReference = False
         self.useAttrNames = False
+        self.caseSensitive = True
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
@@ -178,6 +179,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         box = OWGUI.widgetBox(self.controlArea, "Gene attribure")
         self.geneAttrCombo = OWGUI.comboBox(box, self, "geneAttrIndex", callback=self.Update, addSpace=True)
         OWGUI.checkBox(box, self, "useAttrNames", "Use variable names", callback=self.UseAttrNamesCallback)
+        OWGUI.checkBox(box, self, "caseSensitive", "Case sensitive gene matching", callback=self.Update)
         self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
         OWGUI.checkBox(self.controlArea, self, "useReference", "From signal", box="Reference", callback=self.Update)
 
@@ -185,6 +187,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         for header in ["Pathway", "P value", "Genes", "Reference"]:
             self.listView.addColumn(header)
         self.listView.setSelectionMode(QListView.Single)
+        self.listView.setSorting(1)
         self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.UpdatePathwayView)
 
         self.pathwayLayout = QVBoxLayout(self.mainArea, QVBoxLayout.TopToBottom)
@@ -200,6 +203,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.ctrlPressed=False
         self.selectedObjects = defaultdict(list)
         self.refData = None
+        self.loadedOrganism = None
         
     def SetData(self, data=None):
         self.closeContext()
@@ -263,7 +267,8 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.listView.clear()
         pathways = self.pathways.items()
         allPathways = self.org.list_pathways()
-        pathways.sort(lambda a,b:-cmp(a[1][1], b[1][1]))
+        pathways.sort(lambda a,b:cmp(a[1][1], b[1][1]))
+        items = []
         for id, (genes, p_value, ref) in pathways:
             item = QListViewItem(self.listView)
             item.setText(0, allPathways.get(id, id))
@@ -271,11 +276,13 @@ class OWKEGGPathwayBrowser(OWWidget):
             item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
             item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
             item.pathway_id = id
+            items.append(item)
+        self.bestPValueItem = items and items[0] or None
 
     def UpdatePathwayView(self, item=None):
         self.selectedObjects = defaultdict(list)
         self.Commit()
-        item = item and self.listView.selectedItem()
+        item = item or self.bestPValueItem
         if not item:
             self.pathwayView.SetPathway(None)
             return
@@ -292,8 +299,10 @@ class OWKEGGPathwayBrowser(OWWidget):
         else:
             self.error(0, "Cannot extact gene names from input")
             genes = []
-        self.org = orngKEGG.KEGGOrganism(self.organismCodes[self.organismIndex])
-        uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes))
+        if self.loadedOrganism!=self.organismCodes[self.organismIndex]:
+            self.org = orngKEGG.KEGGOrganism(self.organismCodes[self.organismIndex])
+            self.loadedOrganism = self.organismCodes[self.organismIndex]
+        uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes), self.caseSensitive)
         if conflicting:
             print "Conflicting genes:", conflicting
         if unknown:
@@ -304,7 +313,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             else:
                 geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
                 reference = [str(e[geneAttr]) for e in self.refData if not e[geneAttr].isSpecial()]
-            uniqueRefGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(reference))
+            uniqueRefGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(reference), self.caseSensitive)
             self.referenceGenes = reference = uniqueRefGenes.keys()
         else:
             self.referenceGenes = reference = self.org.get_genes()
@@ -315,7 +324,8 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.pathways = self.org.get_enriched_pathways_by_genes(self.genes, reference, callback=self.progressBarSet)
         self.progressBarFinished()
         self.UpdateListView()
-        self.UpdatePathwayView()
+        self.listView.setSelected(self.bestPValueItem, True)
+        #self.UpdatePathwayView()
 
     def SelectObjects(self, objs):
         if (not self.selectedObjects or self.ctrlPressed) and not objs:

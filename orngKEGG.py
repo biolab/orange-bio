@@ -521,7 +521,10 @@ class KEGGInterfaceLocal(object):
             bbDict[id].append(bb)
         return bbDict
         
-    def get_unique_gene_ids(self, org, genes):
+    def get_unique_gene_ids(self, org, genes, caseSensitive=True):
+        if not caseSensitive:
+            return self.get_unique_gene_ids_ci(org, genes)
+        
         allGenes = self._genes[org]
         unique = {} #[]
         conflicting = []
@@ -538,8 +541,34 @@ class KEGGInterfaceLocal(object):
         return unique, conflicting, unknown
 
     def get_unique_gene_ids_ci(self, org, genes):
-        unique, conflicting, unknown = self.get_unique_gene_ids(org, genes)
-
+        unique = {}
+        conflicting = []
+        unknown = []
+        allGenes = {}
+        aliasMapper = {}
+        _1 = self._genes[org] #just to load the database
+        conf = set(self._gene_alias_conflicting[org])
+        for id, entry in self._genes[org].items():
+            if allGenes.get(id.upper(), id)!=id:
+                conf.add(id.upper())
+            else:
+                allGenes[id.upper()] = id
+        for alias, id in self._gene_alias[org].items():
+            if aliasMapper.get(alias.upper(), id)!=id:
+                conf.add(alias.upper())
+            else:
+                aliasMapper[alias.upper()]=id
+        for gene in genes:
+            if gene.upper() in conf:
+                conflicting.append(gene)
+            elif gene.upper() in allGenes:
+                unique[allGenes[gene.upper()]] = gene
+            elif gene.upper() in aliasMapper:
+                unique[aliasMapper[gene.upper()]] = gene
+            else:
+                unknown.append(gene)
+        return unique, conflicting, unknown
+    
 class NameTranslator(dict):
     def __init__(self):
         dict.__init__(self)
@@ -636,8 +665,8 @@ class KEGGOrganism(object):
     def get_enzymes_by_gene(self, gene_id):
         return self.api.get_enzymes_by_gene(gene_id)
 
-    def get_unique_gene_ids(self, genes):
-        return self.api.get_unique_gene_ids(self.org, genes)
+    def get_unique_gene_ids(self, genes, caseSensitive=True):
+        return self.api.get_unique_gene_ids(self.org, genes, caseSensitive)
 
 class KEGGPathway(object):
     def __init__(self, pathway_id, update=False, local_database_path=None):
