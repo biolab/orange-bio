@@ -488,7 +488,7 @@ class KEGGInterfaceLocal(object):
         return self._from_gene_to_enzymes.get(gene_id, [])
 
     def get_pathway_image(self, pathway_id):
-        #f = self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
+        f = self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
         image = Image.open(self.local_database_path+_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
         return image.convert("RGB")
 

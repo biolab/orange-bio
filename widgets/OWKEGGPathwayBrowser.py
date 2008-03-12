@@ -127,18 +127,8 @@ class PathwayView(QScrollView):
             self.popup.objs = objs
             self.popup.setItemEnabled(0, bool(objs))
             self.popup.popup(self.mapToGlobal(event.pos()))
-
-    """def viewportMouseDoubleClickEvent(self, event):
-        x, y = event.x(), event.y()
-        objs = self.GetObjects(x, y)
-        if objs:
-            org = objs[0][0].split(":")[0]
-            genes = [s.split(":")[-1].strip() for s, t in objs]
-            import webbrowser
-            try:
-                webbrowser.open("http://www.genome.jp/dbget-bin/www_bget?"+org+"+"+"+".join(genes))
-            except:
-                pass"""
+        else:
+            QScrollView.viewportMousePressEvent(self, event)
 
     def resizeEvent(self, event):
         QScrollView.resizeEvent(self, event)
@@ -192,7 +182,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         OWGUI.checkBox(self.controlArea, self, "useReference", "From signal", box="Reference", callback=self.Update)
 
         self.listView = QListView(self.controlArea)
-        for header in ["Pathway", "Genes", "P value"]:
+        for header in ["Pathway", "P value", "Genes", "Reference"]:
             self.listView.addColumn(header)
         self.listView.setSelectionMode(QListView.Single)
         self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.UpdatePathwayView)
@@ -277,8 +267,9 @@ class OWKEGGPathwayBrowser(OWWidget):
         for id, (genes, p_value, ref) in pathways:
             item = QListViewItem(self.listView)
             item.setText(0, allPathways.get(id, id))
-            item.setText(1, "%i of %i" %(len(genes), len(self.genes)))
-            item.setText(2, "%.4f" % p_value)
+            item.setText(1, "%.4f" % p_value)
+            item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
+            item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
             item.pathway_id = id
 
     def UpdatePathwayView(self, item=None):
@@ -286,6 +277,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.Commit()
         item = item and self.listView.selectedItem()
         if not item:
+            self.pathwayView.SetPathway(None)
             return
         self.pathway = orngKEGG.KEGGPathway(item.pathway_id)
         self.pathwayView.SetPathway(self.pathway, self.pathways[item.pathway_id][0])
@@ -313,9 +305,9 @@ class OWKEGGPathwayBrowser(OWWidget):
                 geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
                 reference = [str(e[geneAttr]) for e in self.refData if not e[geneAttr].isSpecial()]
             uniqueRefGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(reference))
-            reference = uniqueRefGenes.keys()
+            self.referenceGenes = reference = uniqueRefGenes.keys()
         else:
-            reference = None
+            self.referenceGenes = reference = self.org.get_genes()
         self.uniqueGenesDict = uniqueGenes
         self.genes = uniqueGenes.keys()
         self.revUniqueGenesDict = dict([(val, key) for key, val in self.uniqueGenesDict.items()])
