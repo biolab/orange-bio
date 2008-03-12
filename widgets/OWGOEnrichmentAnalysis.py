@@ -152,6 +152,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         self.sigTableTermsSorted = []
         self.graph = {}
+        self.loadedAnnotationCode = "---"
         #header = self.listView.header()
         #from new import instancemethod
         #print(dir(header))
@@ -235,8 +236,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             if not go.loadedGO:
                 self.LoadGO()
             self.FindBestGeneAttrAndOrganism()
-            if not go.loadedAnnotation:
-                self.LoadAnnotation()
+            #if not go.loadedAnnotation:
+            self.LoadAnnotation()
             self.FilterUnknownGenes()
             graph = self.Enrichment()
             #print graph
@@ -270,17 +271,19 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.progressBarFinished()
         
     def LoadAnnotation(self):
-        self.progressBarInit()
-        go.loadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
-        self.progressBarFinished()
-        count = dict([(etype, 0) for etype in go.evidenceTypesOrdered])
-        geneSets = dict([(etype, set()) for etype in go.evidenceTypesOrdered])
-        for anno in go.loadedAnnotation.annotationList:
-            count[anno.evidence]+=1
-            geneSets[anno.evidence].add(anno.geneName)
-        for etype in go.evidenceTypesOrdered:
-            self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
-            self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
+        if self.annotationCodes[self.annotationIndex]!= self.loadedAnnotationCode:
+            self.progressBarInit()
+            go.loadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
+            self.progressBarFinished()
+            count = dict([(etype, 0) for etype in go.evidenceTypesOrdered])
+            geneSets = dict([(etype, set()) for etype in go.evidenceTypesOrdered])
+            for anno in go.loadedAnnotation.annotationList:
+                count[anno.evidence]+=1
+                geneSets[anno.evidence].add(anno.geneName)
+            for etype in go.evidenceTypesOrdered:
+                self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
+                self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
+            self.loadedAnnotationCode=self.annotationCodes[self.annotationIndex]
         
     def Enrichment(self):
         if self.useAttrNames:
@@ -339,7 +342,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if graph:
             self.FilterAndDisplayGraph()
         else:
-            print self.annotationCodes[self.annotationIndex], self.candidateGeneAttrs[self.geneAttrIndex]
             self.graph = {}
             self.ClearGraph()
 
