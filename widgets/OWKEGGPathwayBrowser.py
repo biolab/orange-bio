@@ -255,13 +255,19 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.progressBarFinished()
         score = [(s, attr, org) for (attr, org), s in score.items()]
         score.sort()
-        if score[-1][1]=="_var_names_":
+        if not score:
+            self.useAttrNames = False
+            self.geneAttrIndex = len(self.geneAttrCandidates)-1
+            self.organismIndex = 0
+        elif score[-1][1]=="_var_names_":
             self.useAttrNames = True
             self.geneAttrIndex = 0 #self.geneAttrCandidates.index(score[-2][1])
-            self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
+            self.organismIndex = self.organismCodes.index(score[-1][2])
         else:
+            self.useAttrNames = False
             self.geneAttrIndex = self.geneAttrCandidates.index(score[-1][1])
-        self.organismIndex = self.organismCodes.index(score[-1][2])
+            self.organismIndex = self.organismCodes.index(score[-1][2])
+        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
                 
     def UpdateListView(self):
         self.listView.clear()
