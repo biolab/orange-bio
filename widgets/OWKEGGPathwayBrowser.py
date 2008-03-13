@@ -167,6 +167,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.useReference = False
         self.useAttrNames = False
         self.caseSensitive = True
+        self.showOntology = True
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
@@ -176,30 +177,43 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.organismCodes = [code for code, desc in self.organismCodes]
         cb = OWGUI.comboBox(self.controlArea, self, "organismIndex", box="Organism", items=items, callback=self.Update, addSpace=True)
         cb.setMaximumWidth(200)
+        
         box = OWGUI.widgetBox(self.controlArea, "Gene attribure")
-        self.geneAttrCombo = OWGUI.comboBox(box, self, "geneAttrIndex", callback=self.Update, addSpace=True)
+        self.geneAttrCombo = OWGUI.comboBox(box, self, "geneAttrIndex", callback=self.Update)
         OWGUI.checkBox(box, self, "useAttrNames", "Use variable names", callback=self.UseAttrNamesCallback)
         OWGUI.checkBox(box, self, "caseSensitive", "Case sensitive gene matching", callback=self.Update)
+        OWGUI.separator(self.controlArea)
+        
         self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
+        
         OWGUI.checkBox(self.controlArea, self, "useReference", "From signal", box="Reference", callback=self.Update)
+        OWGUI.separator(self.controlArea)
 
-        self.listView = QListView(self.controlArea)
-        for header in ["Pathway", "P value", "Genes", "Reference"]:
-            self.listView.addColumn(header)
-        self.listView.setSelectionMode(QListView.Single)
-        self.listView.setSorting(1)
-        self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.UpdatePathwayView)
-
-        self.pathwayLayout = QVBoxLayout(self.mainArea, QVBoxLayout.TopToBottom)
-        self.pathwayView = PathwayView(self, self.mainArea)
-        self.pathwayLayout.addWidget(self.pathwayView)
-
+        OWGUI.checkBox(self.controlArea, self, "showOntology", "Show pathways in full ontology", box="Ontology", callback=self.UpdateListView)
+        
         OWGUI.checkBox(self.controlArea, self, "autoResize", "Resize to fit", box="Image", callback=lambda :self.pathwayView.image and self.pathwayView.ShowImage())
+        OWGUI.separator(self.controlArea)
 
         box = OWGUI.widgetBox(self.controlArea, "Selection")
         OWGUI.checkBox(box, self, "autoCommit", "Commit on update")
         OWGUI.button(box, self, "Commit", callback=self.Commit)
+        OWGUI.rubber(self.controlArea)
 
+        self.mainAreaLayout = QVBoxLayout(self.mainArea, QVBoxLayout.TopToBottom)
+        spliter = QSplitter(Qt.Vertical, self.mainArea)
+        self.pathwayView = PathwayView(self, spliter)
+        self.mainAreaLayout.addWidget(spliter)
+
+        self.listView = QListView(spliter)
+        for header in ["Pathway", "P value", "Genes", "Reference"]:
+            self.listView.addColumn(header)
+        self.listView.setSelectionMode(QListView.Single)
+        self.listView.setSorting(1)
+        #self.listView.setAllColumnsShowFocus(1)
+        self.listView.setMaximumHeight(200)
+        
+        self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.UpdatePathwayView)
+        
         self.ctrlPressed=False
         self.selectedObjects = defaultdict(list)
         self.refData = None
@@ -271,29 +285,75 @@ class OWKEGGPathwayBrowser(OWWidget):
                 
     def UpdateListView(self):
         self.listView.clear()
-        pathways = self.pathways.items()
         allPathways = self.org.list_pathways()
-        pathways.sort(lambda a,b:cmp(a[1][1], b[1][1]))
+        allRefPathways = orngKEGG.KEGGInterfaceLocal().list_pathways(org="map")
         items = []
-        for id, (genes, p_value, ref) in pathways:
-            item = QListViewItem(self.listView)
-            item.setText(0, allPathways.get(id, id))
-            item.setText(1, "%.4f" % p_value)
-            item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
-            item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
-            item.pathway_id = id
-            items.append(item)
+        if self.showOntology:
+            self.koOrthology = orngKEGG.KEGGInterfaceLocal().get_ko_orthology()
+            self.listView.setRootIsDecorated(True)
+            path_ids = set([s[-5:] for s in self.pathways.keys()])
+            def _walkCollect(koClass):
+                if koClass.ko_class_id in path_ids:
+                    return [koClass]
+                else:
+                    c = reduce(lambda li,c:li+_walkCollect(c), [child for child in koClass.children], [])
+                    return c + (c and [koClass] or [])
+            allClasses = reduce(lambda li1, li2: li1+li2, [_walkCollect(c) for c in self.koOrthology], [])
+            print allClasses
+            def _walkCreate(koClass, lvItem):
+                item = QListViewItem(lvItem)
+                id = "path:"+self.organismCodes[self.organismIndex]+koClass.ko_class_id
+                if koClass.ko_class_id in path_ids:
+                    genes, p_value, ref = self.pathways[id]
+                    item.setText(0, allPathways.get(id, id))
+                    item.setText(1, "%.5f" % p_value)
+                    item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
+                    item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
+                    item.pathway_id = id
+                else:
+                    item.setText(0, allPathways.get(id, koClass.class_name))
+                    if id in allPathways:
+                        item.pathway_id = id
+                    elif "path:map"+koClass.ko_class_id in allRefPathways:
+                        item.pathway_id = "path:map"+koClass.ko_class_id
+                    else:
+                        item.pathway_id = None
+                
+                for child in koClass.children:
+                    if child in allClasses:
+                        _walkCreate(child, item)
+                item.setOpen(True)                        
+            
+            for koClass in self.koOrthology:
+                if koClass in allClasses:
+                    _walkCreate(koClass, self.listView)
+            self.listView.triggerUpdate()
+        else:
+            self.listView.setRootIsDecorated(False)
+            pathways = self.pathways.items()
+            pathways.sort(lambda a,b:cmp(a[1][1], b[1][1]))
+            for id, (genes, p_value, ref) in pathways:
+                item = QListViewItem(self.listView)
+                item.setText(0, allPathways.get(id, id))
+                item.setText(1, "%.5f" % p_value)
+                item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
+                item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
+                item.pathway_id = id
+                items.append(item)
         self.bestPValueItem = items and items[0] or None
 
     def UpdatePathwayView(self, item=None):
         self.selectedObjects = defaultdict(list)
         self.Commit()
         item = item or self.bestPValueItem
-        if not item:
+        if not item or not item.pathway_id:
             self.pathwayView.SetPathway(None)
             return
         self.pathway = orngKEGG.KEGGPathway(item.pathway_id)
-        self.pathwayView.SetPathway(self.pathway, self.pathways[item.pathway_id][0])
+        self.pathway.api.download_start_callbacl = self.progressBarInit
+        self.pathway.api.download_progress_callback = self.progressBarSet
+        self.pathway.api.download_end_callback = self.progressBarFinished
+        self.pathwayView.SetPathway(self.pathway, self.pathways.get(item.pathway_id, [[]])[0])
         
     def Update(self):
         self.error(0)
@@ -307,6 +367,9 @@ class OWKEGGPathwayBrowser(OWWidget):
             genes = []
         if self.loadedOrganism!=self.organismCodes[self.organismIndex]:
             self.org = orngKEGG.KEGGOrganism(self.organismCodes[self.organismIndex])
+            self.org.api.download_start_callback=self.progressBarInit
+            self.org.api.download_progress_callback=self.progressBarSet
+            self.org.api.download_end_callback=self.progressBarFinished
             self.loadedOrganism = self.organismCodes[self.organismIndex]
         uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes), self.caseSensitive)
         if conflicting:

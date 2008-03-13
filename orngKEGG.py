@@ -126,7 +126,7 @@ def _rel_dir(pathway_id):
         return "pathway/organisms/"+pathway_id.split(":")[-1][:-5]+"/"
 
 def _tabspliter(file):
-    return [tuple(l.split("\t")) for t in file.readlines()]    
+    return [tuple(l.split("\t")) for t in file.readlines()]  
 
 class DBEntry(object):
     cache = []
@@ -239,9 +239,12 @@ class GenesDatabaseProxy(defaultdict):
         return self.get(key)
     
 class KEGGInterfaceLocal(object):
-    def __init__(self, update=False, local_database_path=None):
+    def __init__(self, update=False, local_database_path=None, download_start_callback=None, download_progress_callback=None, download_end_callback=None):
         self.local_database_path = local_database_path or default_database_path
         self.update = update
+        self.download_start_callback = download_start_callback
+        self.download_progress_callback = download_progress_callback
+        self.download_end_callback = download_end_callback
         self.updated_files = set()
         self._gene_alias = {}
         self._gene_alias_conflicting = {}
@@ -374,8 +377,14 @@ class KEGGInterfaceLocal(object):
             pass
         file = None
         try:
-            #urllib.urlretrieve(base_ftp_path+filename, local_filename)
-            self._ftp_retrieve(filename)
+            if self.download_progress_callback:
+                if self.download_start_callback:
+                    self.download_start_callback()
+                urllib.urlretrieve(base_ftp_path+filename, local_filename, lambda bc,bs,s:self.download_progress_callback(100*bc*bs/s))
+                if self.download_end_callback:
+                    self.download_end_callback()
+            else:
+                self._ftp_retrieve(filename)
             file = open(local_filename)
         except IOError:
             file = open(local_filename)
@@ -588,6 +597,20 @@ class KEGGInterfaceLocal(object):
             else:
                 unknown.append(gene)
         return unique, conflicting, unknown
+
+    def get_ko_orthology(self):
+        r = []
+        f = self._retrieve("brite/ko/ko00001.keg")
+        for l in f.readlines():
+            if not l.strip("ABCD\n"):
+                continue
+            if l.startswith("A"):
+                r.append(KOClass(l))
+            elif l.startswith("B"):
+                r[-1].children.append(KOClass(l))
+            elif l.startswith("C"):
+                r[-1].children[-1].children.append(KOClass(l))
+        return r
     
 class NameTranslator(dict):
     def __init__(self):
@@ -652,6 +675,9 @@ class KEGGOrganism(object):
 
     def get_enriched_pathways_by_genes(self, genes, reference=None, callback=None):
         allPathways = defaultdict(lambda :[[], 1.0, []])
+        tmp_callback = self.api.download_progress_callback
+        if callback:
+            self.api.download_progress_callback = None
         if not reference:
             reference = self.get_genes()
         for i, gene in enumerate(genes):
@@ -660,6 +686,10 @@ class KEGGOrganism(object):
                 allPathways[pathway][0].append(gene)
             if callback:
                 callback(i*100.0/len(genes))
+        if callback and self.api.download_progress_callback:
+            tmp_callback = self.api.download_progress_callback
+            self.api.download_progress_callback = None
+        self.api.download_progress_callback = tmp_callback
         _p = p_value(len(genes))
         reference = set(reference)
         for p_id, entry in allPathways.items():
@@ -720,7 +750,7 @@ class KEGGPathway(object):
         
 class KOClass(object):
     def __init__(self, text=None):
-        self.subclasses = []
+        self.children = []
         self.ko_class_id = "?"
         self.class_name = "?"
         if text:
@@ -728,22 +758,16 @@ class KOClass(object):
             
     def _parse_line(self, text):
         if text.startswith("A"):
-            self.class_name = text.strip("<>AB/ ")
+            self.class_name = text.strip("<>AB/ \n")
         elif text.startswith("B"):
-            self.class_name = text.strip("<>B/ ")
+            self.class_name = text.strip("<>B/ \n")
         elif text.startswith("C"):
-            self.class_name = text.strip("C ")
+            self.class_name = text.strip("C \n")
             try:
                 self.class_name = self.class_name[:self.class_name.index("[")]
             except:
                 pass
         self.ko_class_id = self.class_name[:5]
-        
-    def __repr__(self):
-        return self.class_name
-
-    def get_pathway_image(org="map"):
-        return get_pathway_image_ex(org,self.ko_class_id)
 
 def update_local_ko(local_filename="ko00001.keg"):
     from urllib import urlretrieve
