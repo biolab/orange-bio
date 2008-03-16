@@ -550,24 +550,27 @@ class KEGGInterfaceLocal(object):
         return unique, conflicting, unknown
 
 
-    def constructAliasMapper(self):
+    def constructAliasMapper(self, org):
         try:
             len(self._cigenes)
         except:
             self._cigenes = {}
 
-        conf = set(self._gene_alias_conflicting[org])
 
         try:
             len(self._cigenes[org])
         except:
-            _1 = self._genes[org] #just to load the database
+            allGenes = self._genes[org] #just to load the database
 
             for id, entry in self._genes[org].items():
                 if allGenes.get(id.upper(), id)!=id:
                     conf.add(id.upper())
                 else:
                     allGenes[id.upper()] = id
+
+            conf = set(self._gene_alias_conflicting[org])
+
+            aliasMapper = {}
 
             for alias, id in self._gene_alias[org].items():
                 if aliasMapper.get(alias.upper(), id)!=id:
@@ -579,7 +582,7 @@ class KEGGInterfaceLocal(object):
 
     def get_unique_gene_ids_ci(self, org, genes):
 
-        self.constructAliasMapper()
+        self.constructAliasMapper(org)
 
         unique = {}
         conflicting = []
