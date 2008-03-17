@@ -7,6 +7,6 @@ setup(name = "Genomics",
       author_email="tomaz.curk@fri.uni-lj.si",
       packages = [ 'widgets', 'data', 'doc' ],
       extra_path="Genomics",
-      py_modules = [ 'orngKEGG' ],
+      py_modules = [ 'orngKEGG', 'orngGsea', 'orngGeneMatcher' ],
       scripts=["registerWidgets.py"]
       )

@@ -4,6 +4,7 @@ import numpy
 import stats
 #import mOrngData
 import random
+import time
 
 """
 Gene set enrichment analysis.
@@ -24,7 +25,7 @@ def rankingFromOrangeMeas(meas):
     results in a list. Ranking function is build out of 
     orange.MeasureAttribute.
     """
-    return lambda d: [ meas(i,d) for i in range(len(data.domain.attributes)) ]
+    return lambda d: [ meas(i,d) for i in range(len(d.domain.attributes)) ]
 
 class MA_pearsonCorrelation:
     """
@@ -50,6 +51,7 @@ class MA_signalToNoise:
 
     def __call__(self, i, data):
         cv = data.domain.classVar
+        #print data.domain
 
         #for faster computation. to save dragging many attributes along
         dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
@@ -179,7 +181,7 @@ def enrichmentScore(data, subset, rankingf):
     return es,l
 
 def gseaE(data, subsets, rankingf=rankingFromOrangeMeas(MA_signalToNoise()), \
-        n=100, permutation="class", *kwargs):
+        n=100, permutation="class", **kwargs):
     """
     Run GSEA algorithm on an example table.
 
@@ -228,7 +230,6 @@ def gseaE(data, subsets, rankingf=rankingFromOrangeMeas(MA_signalToNoise()), \
 
         runOptCallbacks(kwargs)
 
-
     return gseaSignificance(enrichmentScores, enrichmentNulls)
 
 
@@ -244,6 +245,9 @@ def runOptCallbacks(rargs):
 def gseaR(rankings, subsets, n=100, **kwargs):
     """
     """
+
+    if "permutation" in kwargs:
+        raise Exception("Only gene permutation possible")
 
     enrichmentScores = []
  
@@ -303,7 +307,7 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
         nEnrichmentNulls.append(nenrNull)
  
     #create a histogram of all NES(S,pi) over all S and pi
-    vals = reduce(lambda x,y: x+y, nEnrichmentNulls)
+    vals = reduce(lambda x,y: x+y, nEnrichmentNulls, [])
     
     """
     Use this null distribution to compute an FDR q value, for a given NES(S) =
@@ -342,61 +346,16 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
     
     return zip(enrichmentScores, nEnrichmentScores, enrichmentPVals, fdrs)
 
-import orngKEGG
-#orngKEGG.default_database_path = "/home/marko/cached/data/kegg/"
+import orngGeneMatcher
 
 def nth(l,n): return [ a[n] for a in l ]
-
-def inverseDic(dic):
-    item = dic.items()
-    return dict(zip(nth(item,1),nth(item,0)))
-
-class GeneMatcher(object):
-
-    def __init__(self, caseSensitive=False):
-        pass
-
-    def setTargets(self, targets):
-        pass
-
-    def match(self, genes):
-        pass
 
 class GSEA(object):
 
     def __init__(self, organism="hsa"):
         self.a = "blabla"
-        self.trans = {}
-        self.keggorg = orngKEGG.KEGGOrganism(organism) #to do translation
         self.genesets = {}
-        self.attrnames = []
-
-    def addTransl(self, trans):
-        self.trans.update(trans)
-        
-    def _translate(self, a):
-        if a not in self.trans:
-            uid,_,_ = self.keggorg.get_unique_gene_ids([a], caseSensitive=True) #unique id
-            if len(uid) > 0:
-                return uid[uid.keys()[0]]
-            else:
-                return None
-        else:
-            return self.trans[a]
-
-    def translate(self, a):
-        return (a.lower(), self._translate(a.lower())) #both a.lower !!
-
-    def matchTargets(self):
-        td = [ self.translate(a) for a in self.attrnames]
-
-        def leaveOne(x):
-            if x[1] == None:
-                return x[0]
-            else:
-                return x[1]
-
-        return map(leaveOne, td)
+        self.organism = organism
 
     def keepOnlyMeanAttrs(self, data):
 
@@ -419,81 +378,26 @@ class GSEA(object):
     def setData(self, data):
 
         data = self.keepOnlyMeanAttrs(data)
-
         self.data = data
-
         attrnames = [ a.name for a in data.domain.attributes ]
-
-        #to from lowercase names to real names
-        trn = {}
-        for a in attrnames:
-            trn[a.lower()] = a #first a.lower !!
-        self.toRealNames = trn
-        
-        translations = [ self.translate(a) for a in attrnames ]
-        translations = filter(lambda x: x[1] != None, translations)
-
-        self.addTransl(translations)
-
-        self.attrnames = attrnames
-        self.targets = self.matchTargets()
-
-    def genecompare(self, gene):
-        gene = gene.lower() #loweeq
-        transl =  self.translate(gene)[1]
-        if transl != None:
-            return transl
-        else:
-            return gene
-
-    def dataMatch(self, genes):
-        """
-        Function returns a dictionary of an old value: matching data
-        """
-        targets = self.targets
-        #print targets
-
-        targetmap = dict(zip(targets,[1]*len(targets)))
-       
-        def matchingTarget(gene):
-            """
-            Find a match in input data for a given gene.
-            """
-            if self.genecompare(gene) in targetmap:
-                return self.genecompare(gene)
-            else:
-                return None
-
-        matches = [ (gene,matchingTarget(gene)) for gene in genes if matchingTarget(gene) ]
-
-        def reverse(gene):
-            id = inverseDic(self.trans)
-            if gene in id:
-                return id[gene]
-            else:
-                return gene
-
-        matches = [ (a,reverse(b)) for a,b in matches ]
-
-        return matches
-
-    class AddGenesetException(Exception): pass
-
+        self.gm = orngGeneMatcher.GeneMatcher(attrnames, organism=self.organism, caseSensitive=False)
+ 
     def addGeneset(self, genesetname, genes):
+
+        #t = time.time()
+
         if genesetname in self.genesets:
-            raise GenesetNameException("Geneset with the name " + \
+            raise Exception("Geneset with the name " + \
                 + genesetname + " is already in genesets.")
         else:
             #print genesetname, genes
             #matching to unified gene names
-            datamatch = self.dataMatch(genes)
+            datamatch = self.gm.match(genes)
     
             #print "Matched", len(datamatch), "of", len(genes)
-
-            #calulate coverage
             self.genesets[genesetname] = ( genes, datamatch )
 
-            #print self.genesets
+        #print "allf", time.time() - t
 
     def compute(self, minSize=3, maxSize=1000, minPart=0.1, n=100, **kwargs):
 
@@ -522,8 +426,8 @@ class GSEA(object):
 
         for subset in subsetsok:
             nsubsets.append( \
-                [namesToIndices[self.toRealNames[b]] for a,b in subset[1][1]])
-            nsubsetsNames.append([self.toRealNames[b] for a,b in subset[1][1]])
+                [namesToIndices[b] for a,b in subset[1][1]])
+            nsubsetsNames.append([b for a,b in subset[1][1]])
 
         #print nsubsets
 
@@ -534,7 +438,7 @@ class GSEA(object):
             gseal = gseaR(rankings, nsubsets, n=n, **kwargs)
 
         res = {}
-    
+
         for i,subset in enumerate(subsetsok):
             name = subset[0]
             oSize = len(subset[1][0])
@@ -545,15 +449,15 @@ class GSEA(object):
 
 if  __name__=="__main__":
 
-    import mOrngData
+    #import mOrngData
 
-    data = orange.ExampleTable("iris.tab")
-    data = orange.ExampleTable("DLBCL.tab")
-    data = mOrngData.getAttributes(data, range(100))
+    #data = orange.ExampleTable("iris.tab")
+    #data = orange.ExampleTable("DLBCL.tab")
+    #data = mOrngData.getAttributes(data, range(100))
 
-    subsets = [[2,3], [1,4,5,6], [3,4,5], [7,8,9], range(10,20), [14,14,20], [45,51,64], [33,46,49], [31,23,66], [3,54,55], [43,12,96], [1,34,12], [1,43,21], [5,34,87]]
+    #subsets = [[2,3], [1,4,5,6], [3,4,5], [7,8,9], range(10,20), [14,14,20], [45,51,64], [33,46,49], [31,23,66], [3,54,55], [43,12,96], [1,34,12], [1,43,21], [5,34,87]]
 
-    gseal = gseaE(data, subsets, rankingFromOrangeMeas(MA_signalToNoise()), n=10, permutation="class")
+    #gseal = gseaE(data, subsets, rankingFromOrangeMeas(MA_signalToNoise()), n=10, permutation="class")
 
     #b =  rankingFromOrangeMeas(MA_signalToNoise())(data)
     #gseal = gseaR(b, subsets, n=1000)
@@ -561,4 +465,39 @@ if  __name__=="__main__":
     #for el in gseal:
     #    print el
  
-    print gseal
+    #print gseal
+
+     
+    def unpckGS(filename):
+        import pickle
+        f = open(filename,'rb')
+        return pickle.load(f)
+
+    genesetFile = "geneSets3.pck"
+
+    def getGenesets():
+        import orngRegistry
+        return unpckGS(orngRegistry.outputDir + "/geneSets3.pck")
+
+
+    gso = GSEA(organism="hsa")
+    gso.setData(orange.ExampleTable('DLBCL_200a.tab'))
+
+    import time
+
+    t = time.time()
+
+    gen1 = getGenesets()
+
+    print time.time() -t
+
+    print "adding genesets"
+    t = time.time()
+
+    for name,genes in gen1.items():
+        gso.addGeneset(name, genes)
+
+    print time.time() - t
+
+    print gso.compute(n=20, permutation="attr")
+

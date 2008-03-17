@@ -28,6 +28,13 @@ def dataWithAttrs(data, attributes):
         domain = orange.Domain(newatts, False)
     return orange.ExampleTable(domain, data)
 
+def comboboxItems(combobox, newitems):
+    combobox.clear()
+    if newitems:
+        combobox.insertStrList(newitems)
+        #combobox.setCurrentItem(i)
+
+
 class OWGsea(OWWidget):
 
     settingsList = [ "name", "perms", "minSubsetSize", "minSubsetSizeC", "maxSubsetSize", "maxSubsetSizeC", \
@@ -66,7 +73,7 @@ class OWGsea(OWWidget):
         box = QVGroupBox(ca)
         box.setTitle('Permutate')
 
-        _ = OWGUI.comboBox(box, self, "ptype", items=nth(self.permutationTypes, 0), \
+        self.permTypeF = OWGUI.comboBox(box, self, "ptype", items=nth(self.permutationTypes, 0), \
             tooltip="Permutation type.")
 
         _ = OWGUI.spin(box, self, "perms", 50, 1000, orientation="horizontal", label="Times")
@@ -100,7 +107,8 @@ class OWGsea(OWWidget):
         for header in ["Geneset", "NES", "ES", "P-value", "Size", "Matched Size", "Genes"]:
             self.listView.addColumn(header)
 
-        self.listView.setSelectionMode(QListView.Single)
+        self.listView.setSelectionMode(QListView.NoSelection)
+
         self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.newPathwaySelected)
         boxL.addWidget(self.listView)
         self.resize(600,50)
@@ -110,7 +118,15 @@ class OWGsea(OWWidget):
         for name,genes in gen1.items():
             self.addGeneset(name, genes)
 
+        self.addComment("Computation was not started.")
+
     def newPathwaySelected(self, item):
+
+        qApp.processEvents()
+
+        if not self.selectable:
+            return
+
         iname = self.lwiToGeneset[item]
         outat = self.res[iname][6]
 
@@ -132,27 +148,47 @@ class OWGsea(OWWidget):
             item.setText(1, "%0.3f" % nes)
             item.setText(2, "%0.3f" % es)
             item.setText(3, "%0.3f" % pval)
+            #item.setText(4, "%0.3f" % min(fdr,1.0))
             item.setText(4, str(os))
             item.setText(5, str(ts))
             item.setText(6, writeGenes(genes))
 
             self.lwiToGeneset[item] = name
 
+    def addComment(self, comm):
+        item = QListViewItem(self.listView)
+        item.setText(0, comm)
+
+    def setSelMode(self, bool):
+        if bool:
+            self.selectable = True
+            self.listView.setSelectionMode(QListView.Single)
+        else:
+            self.selectable = False
+            self.listView.setSelectionMode(QListView.NoSelection)
+
     def compute(self):
 
+        clearListView(self.listView)
+        self.addComment("Computing...")
+
+        qApp.processEvents()
+
         if self.data:
+
+            self.setSelMode(False)
 
             pb = OWGUI.ProgressBar(self, iterations=self.perms+2)
 
             if hasattr(self, "btnApply"):
                 self.btnApply.setFocus()
 
-            gso = orngGsea.GSEA(organism="mmu")
-            #print self.data
+            gso = orngGsea.GSEA(organism="hsa")
             gso.setData(self.data)
 
             for name,genes in self.geneSets.items():
                 gso.addGeneset(name, genes)
+                qApp.processEvents()
 
             kwargs = {}
 
@@ -160,35 +196,52 @@ class OWGsea(OWWidget):
                 if case: return t
                 else: return f
 
-            kwargs["minSize"] = ifr(self.minSubsetSizeC, self.minSubsetSize, 0)
-            kwargs["maxSize"] = ifr(self.maxSubsetSizeC, self.maxSubsetSize, 0)
-            kwargs["minPart"] = ifr(self.minSubsetPartC, self.minSubsetPart, 0)
+            kwargs["minSize"] = \
+                ifr(self.minSubsetSizeC, self.minSubsetSize, 1)
+            kwargs["maxSize"] = \
+                ifr(self.maxSubsetSizeC, self.maxSubsetSize, 1000000)
+            kwargs["minPart"] = \
+                ifr(self.minSubsetPartC, self.minSubsetPart/100.0, 0.0)
  
-            res = gso.compute(n=self.perms, callback=pb.advance, \
-                **kwargs)
+            if len(self.data) > 1:
+                kwargs["permutation"] =  \
+                    ifr(self.permutationTypes[self.ptype][1] == "p", "class", "a")
+                
+            res = gso.compute(n=self.perms, callback=pb.advance, **kwargs)
             self.res = res
 
             pb.finish()
 
-            self.fillResults(res)
+            if len(res) > 0:
+                self.fillResults(res)
+                self.setSelMode(True)
+            else:
+                self.setSelMode(False)
+                clearListView(self.listView)
+                self.addComment("No genesets found.")
+
 
     def setData(self, data):
         self.data = data
 
         if data:
             if len(data) == 1:
-                #one example - calculated rankings
-                
-
-
+                #disable correlation type
+                comboboxItems(self.corTypeF, [])
+                self.corTypeF.setDisabled(True)
+                #set permutation type to fixed
+                self.permTypeF.setCurrentItem(1)
+                self.permTypeF.setDisabled(True)
+            else:
+                #enable correlation type
+                comboboxItems(self.corTypeF, nth(self.correlationTypes, 0))
+                self.corTypeF.setDisabled(False)
+                #allow change of permutation type
+                self.permTypeF.setDisabled(False)
 
     def addGeneset(self, name, genes):
         self.geneSets[name] = genes
 
-##############################################################################
-# Test the widget, run from DOS prompt
-# > python OWDataTable.py)
-# Make sure that a sample data set (adult_sample.tab) is in the directory
 
 def unpckGS(filename):
     import pickle
@@ -206,7 +259,9 @@ if __name__=="__main__":
     ow=OWGsea()
     a.setMainWidget(ow)
 
-    d = orange.ExampleTable('testCorrelated')
+    d = orange.ExampleTable('DLBCL_200a.tab')
+    #d = orange.ExampleTable('brown-selected.tab')
+    #d = orange.ExampleTable('testCorrelated.tab')
     ow.setData(d)
 
     gen1 = getGenesets()
