@@ -10,16 +10,13 @@ for (dirp, dirns, n) in os.walk('doc'):
 		dirn = dirn + '/'
 	docFiles.extend( [dirn + n1r for n1r in nr if '.svn' not in dirp + '/' + n1r] )
 
-icons = glob.glob(os.path.join('widgets', 'icons', '*.png'))
-
 setup(name = "Genomics",
       version = "VERSION",
       description = "Genomics extensions for Orange",
       author="University of Ljubljana, AI lab",
       author_email="tomaz.curk@fri.uni-lj.si",
-      packages = [ 'widgets' ],
-      data_files = [('doc', docFiles),
-                    (os.path.join('widgets', 'icons'), icons)],
+      packages = [ 'widgets', 'doc' ],
+      package_data = {'widgets': ['icons/*.png'], 'docs': docFiles},
       extra_path="Genomics",
       py_modules = [ 'orngKEGG', 'orngGsea', 'orngGeneMatcher' ],
       scripts=["registerWidgets.py"]
