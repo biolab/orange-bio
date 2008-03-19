@@ -10,14 +10,17 @@ for (dirp, dirns, n) in os.walk('doc'):
 		dirn = dirn + '/'
 	docFiles.extend( [dirn + n1r for n1r in nr if '.svn' not in dirp + '/' + n1r] )
 
+module=Extension("_GOLib", sources=["go.c"])
+
 setup(name = "Genomics",
       version = "0.9.66",
       description = "Genomics extensions for Orange",
       author="University of Ljubljana, AI lab",
       author_email="tomaz.curk@fri.uni-lj.si",
-      packages = [ 'widgets', 'doc' ],
+      ext_modules=[module],
+      packages = [ 'widgets', 'doc', 'data' ],
       package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
       extra_path="Genomics",
-      py_modules = [ 'orngKEGG', 'orngGsea', 'orngGeneMatcher' ],
-      scripts=["registerWidgets.py"]
+      py_modules = [ 'go', 'orngKEGG', 'orngGsea', 'orngGeneMatcher' ],
+      scripts=["registerWidgets.py", "post_install_script.py"]
       )
