@@ -1,6 +1,10 @@
 from distutils.core import setup, Extension
 import os, glob
 
+# delete files on exclude list
+for fn in open("exclude.lst", "rt").readlines():
+	os.remove(fn.rstrip('\n\r'))
+
 # list all documentation files that need to be included
 docFiles = []
 for (dirp, dirns, n) in os.walk('doc'):
