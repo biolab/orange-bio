@@ -248,11 +248,9 @@ def unpckGS(filename):
     f = open(filename,'rb')
     return pickle.load(f)
 
-genesetFile = "geneSets3.pck"
-
 def getGenesets():
     import orngRegistry
-    return unpckGS(orngRegistry.outputDir + "/geneSets3.pck")
+    return unpckGS(orngRegistry.bufferDir + "/gsea/geneSets3.pck")
 
 if __name__=="__main__":
     a=QApplication(sys.argv)
