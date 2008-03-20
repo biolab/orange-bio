@@ -8,7 +8,11 @@ import os
 from cPickle import load, dump
 from collections import defaultdict
 
-default_database_path = (os.path.split(__file__)[0] or ".") +"/data/kegg/"
+try:
+    import orngRegistry
+    default_database_path = orngRegistry.bufferDir + "/kegg/"
+except:
+    default_database_path = (os.path.split(__file__)[0] or ".") +"/data/kegg/"
 
 base_ftp_path = "ftp://ftp.genome.jp/pub/kegg/"
 
