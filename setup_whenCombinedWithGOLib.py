@@ -3,7 +3,10 @@ import os, glob
 
 # delete files on exclude list
 for fn in open("exclude.lst", "rt").readlines():
-	os.remove(fn.rstrip('\n\r'))
+	try:
+		os.remove(fn.rstrip('\n\r'))
+	except:
+		pass
 
 # list all documentation files that need to be included
 docFiles = []
