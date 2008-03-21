@@ -3,4 +3,4 @@ import distutils.sysconfig
 import sys
 import orngRegistry
 
-orngRegistry.addWidgetCategory("Orange Genomics", distutils.sysconfig.get_python_lib() + r"\Genomics\widgets", "remove" not in sys.argv[1])
+orngRegistry.addWidgetCategory("Orange Genomics", distutils.sysconfig.get_python_lib() + r"\Genomics\widgets", "remove" not in sys.argv[1] if len(sys.argv)>1 else 1)
