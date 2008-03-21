@@ -465,9 +465,9 @@ class MyListViewItem(QListViewItem):
             QListViewItem.paintCell(self, painter, colorgroup, column, width, align)
         else:
             f = float(str(self.text(self.enrichmentColumn)))
-            painter.setBrush(QBrush(Qt.white, QBrush.SolidPattern))
-            painter.drawRect(0, 0, width-1, self.height()-1)
             painter.setBrush(QBrush(Qt.blue, QBrush.SolidPattern))
+            painter.drawRect(0, 0, width-1, self.height()-1)
+            painter.setBrush(QBrush(Qt.white, QBrush.SolidPattern))
             painter.drawRect((1-f)*(width-1), 0, width-1, self.height()-1)
 
     def width(self):
