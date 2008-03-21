@@ -419,6 +419,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
         selectedExamples = []
         unselectedExamples = []
         selectedGenes = []
+
+        #change by Marko. don't do anything if there is no dataset 
+        if not self.clusterDataset:
+            return
+
         if self.selectionDirectAnnotation:
             s = filter(lambda anno: anno.GOId in self.selectedTerms, go.loadedAnnotation.annotationList)
             selectedGenes = [anno.geneName for anno in s]
