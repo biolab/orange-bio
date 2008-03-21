@@ -82,7 +82,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         box.setMaximumWidth(150)
         self.evidenceCheckBoxDict = {}
         for etype in go.evidenceTypesOrdered:
-            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.Update)
+            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences)
         OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Annotation", "Signal"], box="Reference From", callback=self.Update)
         OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process", "Cellular component", "Molecular function"], box="Aspect", callback=self.Update)
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene attribute", callback=self.Update)
@@ -162,23 +162,38 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def SetAnnotationCallback(self):
         self.LoadAnnotation()
         if self.clusterDataset:
-            self.SetClusterDataset(self.clusterDataset)
+            #self.SetClusterDataset(self.clusterDataset)
+            self.FilterUnknownGenes()
+            graph = self.Enrichment()
+            self.SetGraph(graph)
 
     def UpdateSelectedEvidences(self):
-        self.SetClusterDataset(self.clusterDataset)
+        #self.SetClusterDataset(self.clusterDataset)
+        self.FilterUnknownGenes()
+        graph = self.Enrichment()
+        self.SetGraph(graph)
 
     def SetReferenceCallback(self):
-        self.SetClusterDataset(self.clusterDataset)
+        #self.SetClusterDataset(self.clusterDataset)
+        self.FilterUnknownGenes()
+        graph = self.Enrichment()
+        self.SetGraph(graph)
 
     def SetAspectCallback(self):
-        self.SetClusterDataset(self.clusterDataset)
+        #self.SetClusterDataset(self.clusterDataset)
+        self.FilterUnknownGenes()
+        graph = self.Enrichment()
+        self.SetGraph(graph)
 
     def SetUseAttrNamesCallback(self):
         self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
         self.Update()
 
     def Update(self):
-        self.SetClusterDataset(self.clusterDataset)
+        #self.SetClusterDataset(self.clusterDataset)
+        self.FilterUnknownGenes()
+        graph = self.Enrichment()
+        self.SetGraph(graph)
 
     def UpdateGOAndAnnotation(self):
         from OWUpdateGODataBase import OWUpdateGODataBase
