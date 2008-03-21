@@ -1,4 +1,6 @@
-"""<name>KEGG Pathway browser</name>
+"""
+<name>KEGG Pathway browser</name>
+<priority>220</priority>
 """
 
 import sys

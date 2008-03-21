@@ -2,7 +2,7 @@
 <name>OWGsea</name>
 <description>Gene Set Enrichment Analysis</description>
 <contact>Marko Toplak (marko.toplak(@at@)gmail.com)</contact>
-<priority>10000</priority>
+<priority>210</priority>
 """
 
 from OWWidget import *
@@ -260,6 +260,8 @@ if __name__=="__main__":
     d = orange.ExampleTable('DLBCL_200a.tab')
     #d = orange.ExampleTable('brown-selected.tab')
     #d = orange.ExampleTable('testCorrelated.tab')
+    d = orange.ExampleTable("sterolTalkHepa.tab")
+
     ow.setData(d)
 
     gen1 = getGenesets()
