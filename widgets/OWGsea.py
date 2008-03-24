@@ -34,6 +34,116 @@ def comboboxItems(combobox, newitems):
         combobox.insertStrList(newitems)
         #combobox.setCurrentItem(i)
 
+def getClasses(data):
+    return [ str(a) for a in data.domain.classVar ]
+
+class PhenotypesSelection():
+
+    def __init__(self, parent, s1=0, s2=1):
+        grid = QHBox(parent)
+        grid.setMinimumWidth(250)
+        grid.setMinimumHeight(100)
+
+        self.p1b = QListBox(grid)
+        self.p2b = QListBox(grid)
+
+        QObject.connect(self.p1b,  SIGNAL("highlighted ( int )"), self.highlighted1)
+        QObject.connect(self.p2b,  SIGNAL("highlighted ( int )"), self.highlighted2)
+
+        self.classes = []
+
+        def createSquarePixmap(color = Qt.black):
+            pixmap = QPixmap()
+            pixmap.resize(13, 13)
+            painter = QPainter()
+            painter.begin(pixmap)
+            painter.setPen(color);
+            painter.setBrush(color);
+            painter.drawRect(0, 0, 13, 13);
+            painter.end()
+            return pixmap
+
+        self.whiteSq = createSquarePixmap(Qt.white)
+        self.redSq = createSquarePixmap(Qt.red)
+        self.blueSq = createSquarePixmap(Qt.blue)
+
+        self.classVals = []
+
+        self.setStates(s1, s2)
+
+    def setStates(self, s1 = 0, s2 = 1):
+
+        self.state1 = self.ls1 = s1
+        self.state2 = self.ls2 = s2
+
+        if self.state1 == self.state2:
+            if self.state1 == 0: self.state2 = 1
+            else: self.state2 = 0
+
+        self.selectWanted()
+
+    def selectWanted(self):
+
+        self.disableNot = True
+
+        try:
+            self.p1b.changeItem(self.whiteSq, self.classVals[self.ls1], self.ls1)
+            self.p2b.changeItem(self.whiteSq, self.classVals[self.ls2], self.ls2)
+        except:
+            #except can happen only if both are illegal
+            pass
+
+        try:
+            self.p1b.setCurrentItem(self.state1)
+            self.p2b.setCurrentItem(self.state2)
+            self.p1b.changeItem(self.redSq, self.classVals[self.state1], self.state1)
+            self.p2b.changeItem(self.blueSq, self.classVals[self.state2], self.state2)
+            self.ls1 = self.state1
+            self.ls2 = self.state2
+        except:
+            pass
+
+        self.disableNot = False
+
+    def highlighted1(self, i):
+        if self.disableNot:
+            return
+        if i == self.state2:
+            self.state2 = self.state1
+        self.state1 = i
+        self.selectWanted()
+
+    def highlighted2(self, i):
+        if self.disableNot:
+            return
+        if i == self.state1:
+            self.state1 = self.state2
+        self.state2 = i
+        self.selectWanted()
+
+    def setClasses(self, input, s1=0, s2=1):
+        self.classVals = sorted(input)
+        self.setupBoxes()
+        self.selectWanted()
+        self.setStates(s1,s2)
+
+    def getSelection(self):
+        return (self.classVals[self.state1], self.classVals[self.state2])
+
+    def setupBoxes(self):
+        self.setupBox(self.p1b)
+        self.setupBox(self.p2b)
+
+    def setupBox(self, box):
+        box.clear()
+        for cv in self.classVals:
+            box.insertItem(self.whiteSq, cv)
+        if not self.classVals:
+            box.setDisabled(True)
+        else:
+            box.setDisabled(False)
+
+
 
 class OWGsea(OWWidget):
 
@@ -57,7 +167,7 @@ class OWGsea(OWWidget):
         self.minSubsetPartC = True
         self.perms = 100
 
-        self.permutationTypes =  [ ("Phenotype", "p"), ("Gene","g") ]
+        self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
 
         self.correlationTypes = [ ("Signal2Noise", "s2n") ]
@@ -68,7 +178,7 @@ class OWGsea(OWWidget):
         self.geneSets = {}
 
         ca = self.controlArea
-        ca.setMaximumWidth(250)
+        ca.setMaximumWidth(500)
 
         box = QVGroupBox(ca)
         box.setTitle('Permutate')
@@ -95,10 +205,6 @@ class OWGsea(OWWidget):
         _,_ = OWGUI.checkWithSpin(box, self, "Max. Subset Size", 1, 10000, "maxSubsetSizeC", "maxSubsetSize", "")
         _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Part (%)", 1, 100, "minSubsetPartC", "minSubsetPart", "")
 
-        OWGUI.separator(ca)
-        
-        self.btnApply = OWGUI.button(ca, self, "&Apply Changes", callback = self.compute, disabled=0)
-
         ma = self.mainArea
         boxL = QVBoxLayout(ma, QVBoxLayout.TopToBottom)
         #box.setTitle("Results")
@@ -106,12 +212,21 @@ class OWGsea(OWWidget):
         self.listView = QListView(ma)
         for header in ["Geneset", "NES", "ES", "P-value", "Size", "Matched Size", "Genes"]:
             self.listView.addColumn(header)
-
         self.listView.setSelectionMode(QListView.NoSelection)
-
         self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.newPathwaySelected)
         boxL.addWidget(self.listView)
+
+        OWGUI.separator(ca)
+
+        box = QVGroupBox(ca)
+        box.setTitle("Phenotypes")
+
+        self.psel = PhenotypesSelection(box)
+
         self.resize(600,50)
+ 
+        OWGUI.separator(ca)
+        self.btnApply = OWGUI.button(ca, self, "&Compute", callback = self.compute, disabled=0)
 
         gen1 = getGenesets()
 
@@ -183,13 +298,6 @@ class OWGsea(OWWidget):
             if hasattr(self, "btnApply"):
                 self.btnApply.setFocus()
 
-            gso = orngGsea.GSEA(organism="hsa")
-            gso.setData(self.data)
-
-            for name,genes in self.geneSets.items():
-                gso.addGeneset(name, genes)
-                qApp.processEvents()
-
             kwargs = {}
 
             def ifr(case, t, f):
@@ -203,17 +311,23 @@ class OWGsea(OWWidget):
             kwargs["minPart"] = \
                 ifr(self.minSubsetPartC, self.minSubsetPart/100.0, 0.0)
  
+            dkwargs = {}
             if len(self.data) > 1:
-                kwargs["permutation"] =  \
-                    ifr(self.permutationTypes[self.ptype][1] == "p", "class", "a")
-                
-            res = gso.compute(n=self.perms, callback=pb.advance, **kwargs)
-            self.res = res
+                dkwargs["classValues"] = self.psel.getSelection()
+ 
+            gso = orngGsea.GSEA(organism="hsa")
+            gso.setData(self.data, **dkwargs)
 
+            for name,genes in self.geneSets.items():
+                gso.addGeneset(name, genes)
+                qApp.processEvents()
+
+            self.res = gso.compute(n=self.perms, callback=pb.advance, **kwargs)
+            
             pb.finish()
 
-            if len(res) > 0:
-                self.fillResults(res)
+            if len(self.res) > 0:
+                self.fillResults(self.res)
                 self.setSelMode(True)
             else:
                 self.setSelMode(False)
@@ -232,12 +346,16 @@ class OWGsea(OWWidget):
                 #set permutation type to fixed
                 self.permTypeF.setCurrentItem(1)
                 self.permTypeF.setDisabled(True)
+                
+                self.psel.setClasses([])
             else:
                 #enable correlation type
                 comboboxItems(self.corTypeF, nth(self.correlationTypes, 0))
                 self.corTypeF.setDisabled(False)
                 #allow change of permutation type
                 self.permTypeF.setDisabled(False)
+
+                self.psel.setClasses(getClasses(data))
 
     def addGeneset(self, name, genes):
         self.geneSets[name] = genes
@@ -256,19 +374,21 @@ if __name__=="__main__":
     a=QApplication(sys.argv)
     ow=OWGsea()
     a.setMainWidget(ow)
+    ow.show()
 
-    d = orange.ExampleTable('DLBCL_200a.tab')
+    #d = orange.ExampleTable('DLBCL_200a.tab')
     #d = orange.ExampleTable('brown-selected.tab')
-    #d = orange.ExampleTable('testCorrelated.tab')
-    d = orange.ExampleTable("sterolTalkHepa.tab")
 
+    #d = orange.ExampleTable('testCorrelated.tab')
+    #ow.setData(d)
+
+    d = orange.ExampleTable("sterolTalkHepa.tab")
     ow.setData(d)
 
-    gen1 = getGenesets()
+    #d = orange.ExampleTable("tmp.tab")
+    #ow.setData(d)
 
-    for name,genes in gen1.items():
-        ow.addGeneset(name, genes)
 
-    ow.show()
+
     a.exec_loop()
     ow.saveSettings()

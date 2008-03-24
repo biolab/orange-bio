@@ -60,7 +60,7 @@ class MA_signalToNoise:
 
         if self.a == None: self.a = cv.values[0]
         if self.b == None: self.b = cv.values[1]
-
+        
         def stdev(l):
             return stats.stdev(l)
     
@@ -72,18 +72,30 @@ class MA_signalToNoise:
             return max(std, 0.2*abs(1.0 if m == 0 else m))
 
         def avWCVal(value):
-            return [ex[i].value for ex in data if ex[cv] == value]
+            return [ex[i].value for ex in data if ex[cv] == value and not ex[i].isSpecial() ]
     
         exa = avWCVal(self.a)
         exb = avWCVal(self.b)
 
-        rval = (mean(exa)-mean(exb))/(stdevm(exa)+stdevm(exb))
+        try:
+            rval = (mean(exa)-mean(exb))/(stdevm(exa)+stdevm(exb))
+            return rval
+        except:
+            #return some "middle" value
+            return 0
 
-        return rval
+def orderedPointersCorr(lcor):
+    """
+    Return a list of integers: indexes in original
+    lcor. Elements in the list are ordered by
+    their lcor[i] value. Higher correlations first.
+    """
+    ordered = [ (i,a) for i,a in enumerate(lcor) ] #original pos + correlation
+    ordered.sort(lambda x,y: cmp(y[1],x[1])) #sort by correlation, descending
+    ordered = nth(ordered, 0) #contains positions in the original list
+    return ordered
 
-
-
-def enrichmentScoreRanked(subset, lcor, p=1.0):
+def enrichmentScoreRanked(subset, lcor, ordered, p=1.0):
     """
     Input data and subset. 
     
@@ -94,13 +106,15 @@ def enrichmentScoreRanked(subset, lcor, p=1.0):
     Returns enrichment score on given data.
     """
 
-    ordered = [ (i,a) for i,a in enumerate(lcor) ] #original pos + correlation
-    ordered.sort(lambda x,y: cmp(y[1],x[1])) #sort by correlation, descending
-    ordered = nth(ordered, 0) #contains positions in the original list
-
     #add if gene is not in the subset
     notInA = -(1. / (len(lcor)-len(subset)))
     #base for addition if gene is in the subset
+    sumcors = sum([ abs(lcor[i])**p for i in subset ])
+
+    #this should not happen
+    if sumcors == 0.0:
+        return (0.0, None)
+    
     inAb = 1./sum([abs(lcor[i])**p for i in subset])
 
     ess = [0.0]
@@ -164,12 +178,15 @@ def gseapval(es, esnull):
     WHAT DOES THAT MEAN?
     """
     
-    if es < 0:
-        return float(len([ a for a in esnull if a <= es ]))/ \
-            len([ a for a in esnull if a < 0])    
-    else: 
-        return float(len([ a for a in esnull if a >= es ]))/ \
-            len([ a for a in esnull if a > 0])
+    try:
+        if es < 0:
+            return float(len([ a for a in esnull if a <= es ]))/ \
+                len([ a for a in esnull if a < 0])    
+        else: 
+            return float(len([ a for a in esnull if a >= es ]))/ \
+                len([ a for a in esnull if a > 0])
+    except:
+        return 1.0
 
 
 def enrichmentScore(data, subset, rankingf):
@@ -177,10 +194,11 @@ def enrichmentScore(data, subset, rankingf):
     Returns enrichment score and running enrichment score.
     """
     lcor = rankingf(data)
-    es,l = enrichmentScoreRanked(subset, lcor)
+    ordered = orderedPointersCorr(lcor)
+    es,l = enrichmentScoreRanked(subset, lcor, ordered)
     return es,l
 
-def gseaE(data, subsets, rankingf=rankingFromOrangeMeas(MA_signalToNoise()), \
+def gseaE(data, subsets, rankingf=None, \
         n=100, permutation="class", **kwargs):
     """
     Run GSEA algorithm on an example table.
@@ -194,19 +212,20 @@ def gseaE(data, subsets, rankingf=rankingFromOrangeMeas(MA_signalToNoise()), \
         order.
 
     """
+
+    if not rankingf:
+        rankingf=rankingFromOrangeMeas(MA_signalToNoise())
+
     enrichmentScores = []
  
-    for subset in subsets:
+    lcor = rankingf(data)
+    ordered = orderedPointersCorr(lcor)
 
-        es = enrichmentScore(data, subset, rankingf)[0]
+    for subset in subsets:
+        es = enrichmentScoreRanked(subset, lcor, ordered)[0]
         enrichmentScores.append(es)
 
     runOptCallbacks(kwargs)
-
-    #save correlations to speed up attribute order permutation
-    lcor = []
-    if permutation != "class":
-        lcor = rankingf(data)
 
     enrichmentNulls = [ [] for a in range(len(subsets)) ]
 
@@ -214,18 +233,14 @@ def gseaE(data, subsets, rankingf=rankingFromOrangeMeas(MA_signalToNoise()), \
 
         if permutation == "class":
             d2 = shuffleClass(data, random.Random(2000+i)) #fixed permutation
+            r2 = rankingf(d2)
+
         else:
-            #SPEEDUP by saving correlations and skipping their recalculation
             r2 = shuffleList(lcor, random.Random(2000+i))
 
+        ordered2 = orderedPointersCorr(r2)
         for si,subset in enumerate(subsets):
-
-            #type of permutation
-            if permutation == "class":
-                esn = enrichmentScore(d2, subset, rankingf)[0]
-            else:
-                esn = enrichmentScoreRanked(subset, r2)[0]
-
+            esn = enrichmentScoreRanked(subset, r2, ordered2)[0]
             enrichmentNulls[si].append(esn)
 
         runOptCallbacks(kwargs)
@@ -251,9 +266,11 @@ def gseaR(rankings, subsets, n=100, **kwargs):
 
     enrichmentScores = []
  
+    ordered = orderedPointersCorr(rankings)
+
     for subset in subsets:
 
-        es = enrichmentScoreRanked(subset, rankings)[0]
+        es = enrichmentScoreRanked(subset, rankings, ordered)[0]
         enrichmentScores.append(es)
     
     runOptCallbacks(kwargs)
@@ -263,10 +280,11 @@ def gseaR(rankings, subsets, n=100, **kwargs):
     for i in range(n):
         
         r2 = shuffleList(rankings, random.Random(2000+i))
+        ordered2 = orderedPointersCorr(r2)
 
         for si,subset in enumerate(subsets):
 
-            esn = enrichmentScoreRanked(subset, r2)[0]
+            esn = enrichmentScoreRanked(subset, r2, ordered2)[0]
             enrichmentNulls[si].append(esn)
 
         runOptCallbacks(kwargs)
@@ -286,19 +304,27 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
 
         enrichmentPVals.append(gseapval(es, enrNull))
 
-
         #normalize the ES(S,pi) and the observed ES(S), separetely rescaling
         #the positive and negative scores by divident by the mean of the 
         #ES(S,pi)
 
-        meanPos = mean([a for a in enrNull if a >= 0])
-        meanNeg = mean([a for a in enrNull if a < 0])
+        #print es, enrNull
 
         def normalize(s):
-            if s >= 0:
-                return s/meanPos
-            else:
-                return -s/meanNeg
+            try:
+                if s == 0:
+                    return 0.0
+                if s >= 0:
+                    meanPos = mean([a for a in enrNull if a >= 0])
+                    #print s, meanPos
+                    return s/meanPos
+                else:
+                    meanNeg = mean([a for a in enrNull if a < 0])
+                    #print s, meanNeg
+                    return -s/meanNeg
+            except:
+                return 0.0 #return if according mean value is uncalculable
+
 
         nes = normalize(es)
         nEnrichmentScores.append(nes)
@@ -357,27 +383,79 @@ class GSEA(object):
         self.genesets = {}
         self.organism = organism
 
-    def keepOnlyMeanAttrs(self, data):
+    def keepOnlyMeanAttrs(self, data, atLeast=3, classValues=None):
+        """
+        Attributes need to be continuous, they need to have
+        at least one value.
+
+        In order of attribute to be valid, it needs to have at least
+        [atLeast] values for every class value.
+        """
+
+        cv = data.domain.classVar
+
+        if cv:
+            oldcvals = [ a for a in cv.values ]
+            
+            if not classValues:
+                classValues = [ oldcvals[0], oldcvals[1] ]
+
+            classValues = [ str(a) for a in classValues ]
+
+
+            #take only examples with classValues classes
+            nclass = orange.EnumVariable(cv.name, values=classValues)
+            ndom = orange.Domain(data.domain.attributes, nclass)
+
+            examples = []
+            for ex in data:
+                if ex[cv] in classValues:
+                    vals = [ ex[a] for a in data.domain.attributes ]
+                    vals.append(ex[cv].value)
+                    examples.append(vals)
+
+            data = orange.ExampleTable(ndom, examples)
 
         def attrOk(a):
+
+            #can't
             if a.varType != orange.VarTypes.Continuous:
                 return False
-            dom2 = orange.Domain([a],False)
+
+            dom2 = orange.Domain([a],data.domain.classVar)
             d2 = orange.ExampleTable(dom2, data)
             vals = [ex[0].value for ex in d2 if not ex[0].isSpecial()]
+
             if len(vals) < 1:
-                return False
-            #TODO. which attributes can I cancel with larger tables
-            return True
+                return False 
             
-        natts = [ a for a in data.domain.attributes if attrOk(a) ]
+            if len(data) > 1 and data.domain.classVar:
+                valc = [ [ex[0].value for ex in d2 \
+                            if not ex[0].isSpecial() and ex[1] == data.domain.classVar[i] \
+                       ] for i in range(len(classValues)) ]
+                minl = min( [ len(a) for a in valc ])
+                if minl < atLeast:
+                    return False
+
+            return True
+        
+        natts = []
+        ignored = []
+        for a in data.domain.attributes:
+            if attrOk(a):
+                natts.append(a)
+            else:
+                ignored.append(a)
+
         ndom = orange.Domain(natts, data.domain.classVar)
+        return orange.ExampleTable(ndom, data), ignored, classValues
 
-        return orange.ExampleTable(ndom, data)
+    def setData(self, data, classValues=None):
 
-    def setData(self, data):
+        data, info, classValues  = self.keepOnlyMeanAttrs(data, classValues=classValues)
+        #print "removed attributes", info
+        #print "class values taken", classValues
 
-        data = self.keepOnlyMeanAttrs(data)
         self.data = data
         attrnames = [ a.name for a in data.domain.attributes ]
         self.gm = orngGeneMatcher.GeneMatcher(attrnames, organism=self.organism, caseSensitive=False)
@@ -479,9 +557,12 @@ if  __name__=="__main__":
         import orngRegistry
         return unpckGS(orngRegistry.outputDir + "/geneSets3.pck")
 
+    #data = orange.ExampleTable('DLBCL_200a.tab')
+    data = orange.ExampleTable("sterolTalkHepa.tab")
 
     gso = GSEA(organism="hsa")
-    gso.setData(orange.ExampleTable('DLBCL_200a.tab'))
+    gso.setData(data, classValues=["Rif_48h", "Rif_12h"])
+    #gso.setData(data, classValues=[ "Rif_12h", "Rif_48h" ])
 
     import time
 
@@ -490,8 +571,8 @@ if  __name__=="__main__":
     gen1 = getGenesets()
 
     print time.time() -t
-
     print "adding genesets"
+
     t = time.time()
 
     for name,genes in gen1.items():
@@ -499,5 +580,8 @@ if  __name__=="__main__":
 
     print time.time() - t
 
-    print gso.compute(n=20, permutation="attr")
+    
+    t = time.time()
+    print gso.compute(n=10, permutation="class")
+    print time.time() -t
 
