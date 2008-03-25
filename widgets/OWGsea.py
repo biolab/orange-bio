@@ -1,8 +1,9 @@
 """
-<name>OWGsea</name>
+<name>GSEA</name>
 <description>Gene Set Enrichment Analysis</description>
 <contact>Marko Toplak (marko.toplak(@at@)gmail.com)</contact>
 <priority>210</priority>
+<icon>icons/GSEA.png</icon>
 """
 
 from OWWidget import *
