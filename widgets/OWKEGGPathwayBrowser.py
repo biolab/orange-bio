@@ -1,6 +1,7 @@
 """
 <name>KEGG Pathway browser</name>
 <priority>220</priority>
+<icon>icons/KEGG.png</icon>
 """
 
 import sys
