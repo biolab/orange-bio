@@ -3,6 +3,7 @@
 <description>Update GO Database</description>
 <contact>Ales Erjavec</contact>
 <priority>101</priority>
+<icon>icons/UpdateDatabases.png</icon>
 """
 
 import go
