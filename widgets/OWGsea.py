@@ -154,7 +154,7 @@ class OWGsea(OWWidget):
         OWWidget.__init__(self, parent, signalManager, name)
 
         self.inputs = [("Examples", ExampleTable, self.setData)]
-        self.outputs = [("Examples only selected genes", ExampleTable) ]
+        self.outputs = [("Examples with selected genes only", ExampleTable), ("Results", ExampleTable) ]
 
         self.res = None
 
@@ -246,7 +246,33 @@ class OWGsea(OWWidget):
         outat = self.res[iname][6]
 
         dataOut =  dataWithAttrs(self.data, outat)
-        self.send("Examples only selected genes", dataOut)
+        self.send("Examples with selected genes only", dataOut)
+
+    def resultsOut(self, data):
+        self.send("Results", data)
+
+    def exportET(self, res):
+        
+        if len(res) <= 0:
+            return None
+
+        vars = []
+        vars.append(orange.StringVariable("Name"))
+        vars.append(orange.FloatVariable("NES"))
+        vars.append(orange.FloatVariable("ES"))
+        vars.append(orange.FloatVariable("P-value"))
+        vars.append(orange.FloatVariable("FDR"))
+        vars.append(orange.StringVariable("Geneset size"))
+        vars.append(orange.StringVariable("Matched size"))
+        vars.append(orange.StringVariable("Genes"))
+    
+        domain = orange.Domain(vars, False)
+
+        examples = []
+        for name, (es, nes, pval, fdr, os, ts, genes) in res.items():
+            examples.append([name, nes, es, pval, fdr, str(os), str(ts),  ", ".join(genes)])
+
+        return orange.ExampleTable(domain, examples)
 
     def fillResults(self, res):
 
@@ -286,6 +312,8 @@ class OWGsea(OWWidget):
 
         clearListView(self.listView)
         self.addComment("Computing...")
+
+        self.resultsOut(None)
 
         qApp.processEvents()
 
@@ -329,6 +357,7 @@ class OWGsea(OWWidget):
             if len(self.res) > 0:
                 self.fillResults(self.res)
                 self.setSelMode(True)
+                self.resultsOut(self.exportET(self.res))
             else:
                 self.setSelMode(False)
                 clearListView(self.listView)
@@ -368,7 +397,7 @@ def unpckGS(filename):
 
 def getGenesets():
     import orngRegistry
-    return unpckGS(orngRegistry.bufferDir + "/gsea/geneSets3.pck")
+    return unpckGS(orngRegistry.bufferDir + "/gsea/geneSets_Gsea_KEGGhsa.pck")
 
 if __name__=="__main__":
     a=QApplication(sys.argv)
@@ -382,7 +411,10 @@ if __name__=="__main__":
     #d = orange.ExampleTable('testCorrelated.tab')
     #ow.setData(d)
 
-    d = orange.ExampleTable("sterolTalkHepa.tab")
+    #d = orange.ExampleTable("sterolTalkHepa.tab")
+    #ow.setData(d)
+
+    d = orange.ExampleTable("demo.tab")
     ow.setData(d)
 
     #d = orange.ExampleTable("tmp.tab")
