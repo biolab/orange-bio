@@ -2,5 +2,3 @@ widgets/OWRules.py
 widgets/OWDisplayMotifs.py
 widgets/OWApproxProfiles.py
 widgets/OWGenomeMap.py
-widgets/OWGOGraphTermFinder.py
-widgets/OWGOTermFinder.py
