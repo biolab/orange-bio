@@ -1,5 +1,6 @@
 """
 <name>KEGG Pathway browser</name>
+<description>Browser that - given a set of genes - searches and displays relevant KEGG pathways</description>
 <priority>220</priority>
 <icon>icons/KEGG.png</icon>
 """
@@ -21,7 +22,7 @@ class PathwayToolTip(QToolTip):
         self.parent = parent
 
     def maybeTip(self, p):
-        objs = self.parent.GetObjects(p.x() ,p.y())
+        objs = [(id, bb) for id, bb in  self.parent.GetObjects(p.x() ,p.y()) if id in self.parent.objects]
         if objs:
             genes = map(self.parent.master.uniqueGenesDict.get, dict(objs).keys())
             text = "<br>".join(genes)
@@ -42,14 +43,18 @@ class PathwayView(QScrollView):
         self.popup = QPopupMenu()
         self.popup.insertItem("View genes on KEGG website", 0, 0)
         self.popup.insertItem("View pathway on KEGG website", 1, 1)
+        self.popup.insertItem("View linked pathway", 2, 2)
         self.connect(self.popup, SIGNAL("activated ( int ) "), self.PopupAction)
         
     def SetPathway(self, pathway=None, objects=[]):
         self.pathway = pathway
         self.objects = objects
         if pathway:
+            pathway.api.download_progress_callback = self.master.progressBarSet
+            self.master.progressBarInit()
             self.image = image = self.pathway.get_image()
             self.bbDict = self.pathway.get_bounding_box_dict()
+            self.master.progressBarFinished()
             self.ShowImage()
 ##            image.save(self.pathway.local_database_path+"TmpPathwayImage.png")
 ##            self.pixmap = QPixmap(orngKEGG.default_database_path+"TmpPathwayImage.png")
@@ -107,28 +112,29 @@ class PathwayView(QScrollView):
         x, y = self.viewportToContents(x, y)
         objs = []
         for id, bbList in self.bbDict.items():
-            if id in self.objects:
-                for bb in bbList:
-                    if _in(x, y, bb):
-                        objs.append((id, bb))
+##            if id in self.objects:
+            for bb in bbList:
+                if _in(x, y, bb):
+                    objs.append((id, bb))
         return objs
     
-    def viewportMouseMoveEvent(self, event):
-        x, y = event.x(), event.y()
-        objs = self.GetObjects(x, y)
+##    def viewportMouseMoveEvent(self, event):
+##        x, y = event.x(), event.y()
+##        objs = self.GetObjects(x, y)
 
     def viewportMousePressEvent(self, event):
         x, y = event.x(), event.y()
         old = set(self.master.selectedObjects.keys())
         objs = self.GetObjects(x, y)
         if event.button()==Qt.LeftButton:
-            self.master.SelectObjects(objs)
+            self.master.SelectObjects([(id, bb) for (id, bb) in objs if id in self.objects])
             for rect in set(self.master.selectedObjects.keys()).union(old):
                 x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect)
                 self.updateContents(x1-1, y1-1, x2-x1+2, y2-y1+2)
         elif event.button()==Qt.RightButton:
             self.popup.objs = objs
-            self.popup.setItemEnabled(0, bool(objs))
+            self.popup.setItemEnabled(0, any(id for id, bb in objs if id in self.objects))
+            self.popup.setItemEnabled(2, len(objs)==1 and objs[-1][0].startswith("path:"))
             self.popup.popup(self.mapToGlobal(event.pos()))
         else:
             QScrollView.viewportMousePressEvent(self, event)
@@ -141,14 +147,19 @@ class PathwayView(QScrollView):
     def PopupAction(self, id):
         import webbrowser
         if id==0:
-            genes = [s.split(":")[-1].strip() for s, t in self.popup.objs]
+            genes = [s.split(":")[-1].strip() for s, t in self.popup.objs if s in self.objects]
             address = "http://www.genome.jp/dbget-bin/www_bget?"+self.pathway.org+"+"+"+".join(genes)
         elif id==1:
 ##            genes = [s for s, t in self.popup.objs]
 ##            s = reduce(lambda s,g:s.union(self.master.org.get_enzymes_by_gene(g)), genes, set())
 ##            address = "http://www.genome.jp/dbget-bin/www_bget?enzyme+"+"+".join([e.split(":")[-1] for e in s])
-            genes = [s.split(":")[-1].strip() for s, t in self.popup.objs]
-            address = "http://www.genome.jp/dbget-bin/show_pathway?"+self.pathway.pathway_id.split(":")[-1]+"+"+"+".join(genes)
+            genes = [s.split(":")[-1].strip() for s, t in self.popup.objs if s in self.objects]
+            address = "http://www.genome.jp/dbget-bin/show_pathway?"+self.pathway.pathway_id.split(":")[-1]+(genes and "+"+"+".join(genes) or "")
+        elif id==2:
+            self.master.selectedObjects = defaultdict(list)
+            self.master.Commit()
+            self.SetPathway(orngKEGG.KEGGPathway(self.popup.objs[-1][0]))
+            return
         try:
             webbrowser.open(address)
         except:
@@ -302,7 +313,6 @@ class OWKEGGPathwayBrowser(OWWidget):
                     c = reduce(lambda li,c:li+_walkCollect(c), [child for child in koClass.children], [])
                     return c + (c and [koClass] or [])
             allClasses = reduce(lambda li1, li2: li1+li2, [_walkCollect(c) for c in self.koOrthology], [])
-            print allClasses
             def _walkCreate(koClass, lvItem):
                 item = QListViewItem(lvItem)
                 id = "path:"+self.organismCodes[self.organismIndex]+koClass.ko_class_id
@@ -353,12 +363,12 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.pathwayView.SetPathway(None)
             return
         self.pathway = orngKEGG.KEGGPathway(item.pathway_id)
-        self.pathway.api.download_start_callbacl = self.progressBarInit
         self.pathway.api.download_progress_callback = self.progressBarSet
-        self.pathway.api.download_end_callback = self.progressBarFinished
         self.pathwayView.SetPathway(self.pathway, self.pathways.get(item.pathway_id, [[]])[0])
         
     def Update(self):
+        if not self.data:
+            return
         self.error(0)
         if self.useAttrNames:
             genes = [str(v.name).strip() for v in self.data.domain.attributes]
@@ -370,11 +380,11 @@ class OWKEGGPathwayBrowser(OWWidget):
             genes = []
         if self.loadedOrganism!=self.organismCodes[self.organismIndex]:
             self.org = orngKEGG.KEGGOrganism(self.organismCodes[self.organismIndex])
-            self.org.api.download_start_callback=self.progressBarInit
             self.org.api.download_progress_callback=self.progressBarSet
-            self.org.api.download_end_callback=self.progressBarFinished
             self.loadedOrganism = self.organismCodes[self.organismIndex]
+        self.progressBarInit()
         uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes), self.caseSensitive)
+        self.progressBarFinished()
         if conflicting:
             print "Conflicting genes:", conflicting
         if unknown:
@@ -385,7 +395,9 @@ class OWKEGGPathwayBrowser(OWWidget):
             else:
                 geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
                 reference = [str(e[geneAttr]) for e in self.refData if not e[geneAttr].isSpecial()]
+            self.progressBarInit()
             uniqueRefGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(reference), self.caseSensitive)
+            self.progressBarFinished()
             self.referenceGenes = reference = uniqueRefGenes.keys()
         else:
             self.referenceGenes = reference = self.org.get_genes()
@@ -416,6 +428,7 @@ class OWKEGGPathwayBrowser(OWWidget):
                 self.selectedObjects[rect].append(id)
         if self.autoCommit:
             self.Commit()
+            
 
     def Commit(self):
         if self.useAttrNames:
