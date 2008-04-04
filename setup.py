@@ -18,6 +18,6 @@ setup(name = "Genomics",
       packages = [ 'widgets', 'doc' ],
       package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
       extra_path="Genomics",
-      py_modules = [ 'orngKEGG', 'orngGsea', 'orngGeneMatcher' ],
+      py_modules = [ 'orngKEGG', 'orngGsea', 'orngGeneMatcher' 'orngData'],
       scripts=["registerWidgets.py"]
       )
