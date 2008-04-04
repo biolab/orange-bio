@@ -1,9 +1,11 @@
 import Image, ImageDraw, ImageMath
 import cStringIO
-import urllib
-import ftplib
 import math
+import time
 import os
+import re
+
+import orngData
 
 from cPickle import load, dump
 from collections import defaultdict
@@ -243,22 +245,22 @@ class GenesDatabaseProxy(defaultdict):
         return self.get(key)
     
 class KEGGInterfaceLocal(object):
-    def __init__(self, update=False, local_database_path=None, download_start_callback=None, download_progress_callback=None, download_end_callback=None):
+    def __init__(self, update=False, local_database_path=None, download_progress_callback=None):
         self.local_database_path = local_database_path or default_database_path
         self.update = update
-        self.download_start_callback = download_start_callback
         self.download_progress_callback = download_progress_callback
-        self.download_end_callback = download_end_callback
-        self.updated_files = set()
         self._gene_alias = {}
         self._gene_alias_conflicting = {}
         self._filenames = {"_enzymes":"ligand/enzyme/_enzymes.pickle",
                            "_from_gene_to_enzymes":"ligand/enzyme/_from_gene_to_enzymes.pickle",
                            "_compounds":"ligand/compound/_compounds.pickle",
                            "_from_enzyme_to_compounds":"ligand/compound/_from_enzyme_to_compounds.pickle"}
+        self.downloader = orngData.FtpDownloader("ftp.genome.jp", self.local_database_path, "/pub/kegg/", numOfThreads=1)
 
     def download_organism_data(self, org):
         rel_path = "pathway/organisms/"+org+"/"
+        files = [rel_path+org+"_gene_map.tab", "pathway/map_title.tab", "genes/taxonomy"]
+        self.downloader.massRetrieve(files)
         file = self._retrieve(rel_path+org+"_gene_map.tab")
         pathway_nums = set(reduce(lambda a,b: a + b.split()[1:], file.readlines(), []))
         descr = dict(map(lambda line:tuple(line.strip().split("\t")), self._retrieve("pathway/map_title.tab").readlines()))
@@ -273,11 +275,14 @@ class KEGGInterfaceLocal(object):
             dump(organisms, open(self.local_database_path+"list_organisms.pickle", "w"))
         dump(dict([("path:"+org+num, descr[num]) for num in pathway_nums]), open(self.local_database_path+"list_pathways_"+org+".pickle","w"))
         
-        ends = [".cpd", ".gene", ".gif", ".map", "_cpd.coord", "_gene.coord"]
+        ends = [".cpd", ".gene", ".gif", ".map", "_cpd.coord", "_gene.coord", ".conf"]
         files = [rel_path+id+ext for id in ids for ext in ends]
-        for file in files:
-            self._retrieve(file)
-        self._retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent")
+        self.downloader.massRetrieve(files, blocking=False)
+        self.downloader.retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent", progressCallback=self.download_progress_callback)
+        while not self.downloader.queue.empty():
+            if self.download_progress_callback:
+                self.download_progress_callback(min(100.0, 100.0*(float(len(files))-self.downloader.queue.qsize())/len(files)))
+            time.sleep(0.1)
 
     def __getattr__(self, name):
         if name=="_enzymes" or name=="_from_gene_to_enzymes" :
@@ -366,51 +371,8 @@ class KEGGInterfaceLocal(object):
         self._taxonomy = d
         
     def _retrieve(self, filename):
-        local_filename = self.local_database_path+filename
-        if not self.update:
-            try:
-                return open(local_filename)
-            except IOError, er:
-                if not er.errno==2:
-                    raise er
-        import os
-        local_dir = os.path.split(local_filename)[0]
-        try:
-            os.makedirs(local_dir)
-        except:
-            pass
-        file = None
-        try:
-            if self.download_progress_callback:
-                if self.download_start_callback:
-                    self.download_start_callback()
-                urllib.urlretrieve(base_ftp_path+filename, local_filename, lambda bc,bs,s:self.download_progress_callback(100*bc*bs/s))
-                if self.download_end_callback:
-                    self.download_end_callback()
-            else:
-                self._ftp_retrieve(filename)
-            file = open(local_filename)
-        except IOError:
-            file = open(local_filename)
-        return file
-
-    def _ftp_retrieve(self, filename):
-        if not getattr(self, "ftp", None):
-            try:
-                self.ftp = ftplib.FTP("ftp.genome.jp")
-                self.ftp.login()
-                self.ftp.cwd("/pub/kegg")
-            except Exception, er:
-                print er
-                self._url_retrieve(filename)
-                return
-        print "ftp: RETR "+filename
-        file = open(self.local_database_path+filename, "wb")
-        self.ftp.retrbinary("RETR "+filename, file.write)
-        file.close()
-
-    def _url_retrieve(self, filename):
-        urllib.urlretrieve(base_ftp_path+filename, self.local_database_path+filename)
+        self.downloader.retrieve(filename, progressCallback=self.download_progress_callback)
+        return open(self.local_database_path+filename)
     
     def list_organisms(self):
         return dict([(key, value[1]) for key, value in self._taxonomy.items()])
@@ -526,8 +488,23 @@ class KEGGInterfaceLocal(object):
 
     def get_bounding_box_dict(self, pathway_id):
         org = pathway_id.split(":")[-1][:-5]
-        d = map(lambda line:(org+":"+line.split()[0], tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_gene.coord").readlines())
-        d.extend(map(lambda line:("cpd:"+line.split()[0], tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_cpd.coord").readlines()))
+        d=[]
+        if not pathway_id.split(":")[-1].startswith("map"):
+            try:
+                d = map(lambda line:(org+":"+line.split()[0], tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_gene.coord").readlines())
+            except:
+                pass
+        try:
+            d.extend(map(lambda line:("cpd:"+line.split()[0], tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_cpd.coord").readlines()))
+        except:
+            pass
+        try:
+            for line in self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".conf").readlines():
+                match = re.findall("rect \(([0-9]+),([0-9]+)\) \(([0-9]+),([0-9]+)\)	/kegg/pathway/"+org+"/([a-z0-9]+)\.html", line)
+                for t in match:
+                    d.append(("path:"+t[-1], t[:-1]))
+        except:
+            pass
         d = [(id, tuple(map(int, t))) for id, t in d]
         bbDict = defaultdict(list)
         for id, bb in d:
@@ -656,8 +633,6 @@ class KEGGOrganism(object):
         self.org = org
         self.local_database_path = local_database_path or default_database_path
         self.api = KEGGInterfaceLocal(update, self.local_database_path)
-        if update:
-            self.api.download_organism_data(self.org)
 
     def list_pathways(self):
         return self.api.list_pathways(self.org)
@@ -776,21 +751,6 @@ class KOClass(object):
                 pass
         self.ko_class_id = self.class_name[:5]
 
-def update_local_ko(local_filename="ko00001.keg"):
-    from urllib import urlretrieve
-    urlretrieve("ftp://ftp.genome.jp/pub/kegg/brite/ko/ko00001.keg", local_filename)
-    f = open("ko00001.kegg")
-    r = []
-    for l in f.readlines():
-        if not l.strip("ABCD\n"):
-            continue
-        if l.startswith("A"):
-            r.append(KOClass(l))
-        elif l.startswith("B"):
-            r[-1].subclasses.append(KOClass(l))
-        elif l.startswith("C"):
-            r[-1].subclasses[-1].subclasses.append(KOClass(l))
-    return r
 
 if __name__=="__main__":
     
