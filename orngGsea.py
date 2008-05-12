@@ -46,6 +46,9 @@ class MA_signalToNoise:
     """
 
     def __init__(self, a=None, b=None):
+        """
+        a and b are choosen class values.
+        """
         self.a = a
         self.b = b
 
@@ -525,6 +528,31 @@ class GSEA(object):
 
         return res
 
+def getDefaultGenesets():
+
+    def unpckGS(filename):
+        import pickle
+        f = open(filename,'rb')
+        return pickle.load(f)
+
+    import orngRegistry
+    return unpckGS(orngRegistry.bufferDir + "/gsea/geneSets_MSIGDB.pck")
+
+def runGSEA(data, classValues=None, organism="hsa", geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, **kwargs):
+
+    gso = GSEA(organism=organism)
+    gso.setData(data, classValues=classValues)
+    
+    if geneSets == None:
+        geneSets = getDefaultGenesets()
+
+    for name,genes in geneSets.items():
+        gso.addGeneset(name, genes)
+
+    res1 = gso.compute(n=n, permutation=permutation, minSize=minSize, maxSize=maxSize, minPart=minPart, **kwargs)
+    return res1
+
+
 if  __name__=="__main__":
 
     #import mOrngData
@@ -580,8 +608,13 @@ if  __name__=="__main__":
 
     print time.time() - t
 
-    
     t = time.time()
-    print gso.compute(n=10, permutation="class")
-    print time.time() -t
+    res1 = gso.compute(n=10, permutation="class")
+    print time.time() - t
+
+    res2 = runGsea(data, classValues=["Rif_48h", "Rif_12h"], n=10, permutation="class")
+
+    print res1
+    print res2
+
 
