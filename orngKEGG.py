@@ -255,7 +255,7 @@ class KEGGInterfaceLocal(object):
                            "_from_gene_to_enzymes":"ligand/enzyme/_from_gene_to_enzymes.pickle",
                            "_compounds":"ligand/compound/_compounds.pickle",
                            "_from_enzyme_to_compounds":"ligand/compound/_from_enzyme_to_compounds.pickle"}
-        self.downloader = orngData.FtpDownloader("ftp.genome.jp", self.local_database_path, "/pub/kegg/", numOfThreads=1)
+        self.downloader = orngData.FtpDownloader("ftp.genome.jp", self.local_database_path, "/pub/kegg/", numOfThreads=10)
 
     def download_organism_data(self, org):
         rel_path = "pathway/organisms/"+org+"/"
@@ -284,6 +284,13 @@ class KEGGInterfaceLocal(object):
                 self.download_progress_callback(min(100.0, 100.0*(float(len(files))-self.downloader.queue.qsize())/len(files)))
             time.sleep(0.1)
 
+    def download_reference_data(self):
+        rel_path = "pathway/map/"
+        descr = dict(map(lambda line:tuple(line.strip().split("\t")), self._retrieve("pathway/map_title.tab").readlines()))
+        ends = [".conf", ".gif", ".map"]
+        files = [rel_path+"map"+pathNum+ext for pathNum in descr.keys() for ext in ends]
+        self.downloader.massRetrieve(files, progressCallback=self.download_progress_callback)
+        
     def __getattr__(self, name):
         if name=="_enzymes" or name=="_from_gene_to_enzymes" :
             self._load_enzyme_database()
@@ -751,6 +758,37 @@ class KOClass(object):
                 pass
         self.ko_class_id = self.class_name[:5]
 
+import orngGenomicsUpdate
+
+class Update(orngGenomicsUpdate.Update):
+    def __init__(self, local_database_path=None, progressCallback=None):
+        orngGenomicsUpdate.Update.__init__(self, local_database_path, progressCallback)
+        self.api = KEGGInterfaceLocal(True, local_database_path, progressCallback)
+
+    def GetUpdatable(self):
+        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism.im_func.func_name, (org,))) in self.shelve]
+        return [(self.UpdateOrganism, "Update organism pathways and genes" , orgs),
+                (self.UpdateReference, "Update reference pathways", []),
+                (self.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
+        
+
+    def GetDownloadable(self):
+        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism.im_func.func_name, (org,))) not in self.shelve]
+        return [(self.UpdateOrganism, "Update organism pathways and genes" , orgs),
+                (self.UpdateReference, "Update reference pathways", []),
+                (self.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
+
+    @orngGenomicsUpdate.Update._auto_updater
+    def UpdateOrganism(self, org):
+        self.api.download_organism_data(org)
+
+    @orngGenomicsUpdate.Update._auto_updater
+    def UpdateReference(self):
+        self.api.download_reference_data()
+        
+    @orngGenomicsUpdate.Update._auto_updater
+    def UpdateEnzymeAndCompounds(self):
+        self.api.massDownloader.retrieve(["ligand//compound//compound", "ligand/enzyme/enzyme"], progressCallback=self.progressCallback)
 
 if __name__=="__main__":
     
