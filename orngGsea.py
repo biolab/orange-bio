@@ -98,7 +98,7 @@ def orderedPointersCorr(lcor):
     ordered = nth(ordered, 0) #contains positions in the original list
     return ordered
 
-def enrichmentScoreRanked(subset, lcor, ordered, p=1.0):
+def enrichmentScoreRankedOld(subset, lcor, ordered, p=1.0):
     """
     Input data and subset. 
     
@@ -109,27 +109,123 @@ def enrichmentScoreRanked(subset, lcor, ordered, p=1.0):
     Returns enrichment score on given data.
     """
 
+    #preglej ponovitve
+    #if len(subset) != len(set(subset)): print "CUDNO", subset 
+
+    subset = set(subset)
+
     #add if gene is not in the subset
     notInA = -(1. / (len(lcor)-len(subset)))
     #base for addition if gene is in the subset
-    sumcors = sum([ abs(lcor[i])**p for i in subset ])
+    cors = [ abs(lcor[i])**p for i in subset ]
+    sumcors = sum(cors)
 
     #this should not happen
     if sumcors == 0.0:
         return (0.0, None)
     
-    inAb = 1./sum([abs(lcor[i])**p for i in subset])
+    inAb = 1./sumcors
 
     ess = [0.0]
+    
     for i in ordered:
         ess.append(ess[-1] + \
-            (inAb*abs(lcor[i])**p if i in subset else notInA)
+            (inAb*abs(lcor[i]**p) if i in subset else notInA)
         )
 
     maxEs = max(ess)
     minEs = min(ess)
     
     return (maxEs if abs(maxEs) > abs(minEs) else minEs, ess[1:])
+
+
+def enrichmentScoreRanked(subset, lcor, ordered, p=1.0, rev2=None):
+    """
+    Input data and subset. 
+    
+    subset: list of attribute indices of the input data belonging
+        to the same set.
+    lcor: correlations with class for each attribute in a list. 
+
+    Returns enrichment score on given data.
+    """
+
+    subset = set(subset)
+
+    if rev2 == None:
+        def rev(l):
+            return numpy.argsort(l)
+        rev2 = rev(ordered)
+
+    #add if gene is not in the subset
+    notInA = -(1. / (len(lcor)-len(subset)))
+    #base for addition if gene is in the subset
+    cors = [ abs(lcor[i])**p for i in subset ]
+    sumcors = sum(cors)
+
+    #this should not happen
+    if sumcors == 0.0:
+        return (0.0, None)
+    
+    inAb = 1./sumcors
+
+    ess = [0.0]
+    
+    map = {}
+    for i in subset:
+        orderedpos = rev2[i]
+        map[orderedpos] = inAb*abs(lcor[i]**p)
+        
+    #print sorted(map.items())
+
+    last = 0
+
+    maxSum = minSum = csum = 0.0
+
+    for a,b in sorted(map.items()):
+        #print a, b
+        #print csum
+        diff = a-last
+        csum += notInA*diff
+        #print csum
+        last = a+1
+        
+        if csum < minSum:
+            minSum = csum
+        
+        csum += b
+
+        if csum > maxSum:
+            maxSum = csum
+
+    #finish it
+    diff = (len(ordered))-last
+    csum += notInA*diff
+    #print "LAST",csum
+    if csum < minSum:
+        minSum = csum
+
+    #print "MY", (maxSum if abs(maxSum) > abs(minSum) else minSum)
+
+    """
+    print "subset", subset
+
+    for i in ordered:
+        ess.append(ess[-1] + \
+            (inAb*abs(lcor[i]**p) if i in subset else notInA)
+        )
+        if i in subset:
+            print ess[-2], ess[-1]
+            print i, (inAb*abs(lcor[i]**p))
+
+    maxEs = max(ess)
+    minEs = min(ess)
+    
+    print "REAL", (maxEs if abs(maxEs) > abs(minEs) else minEs, ess[1:])
+
+    aaaaa = Aaaa
+    """
+    return (maxSum if abs(maxSum) > abs(minSum) else minSum, [])
 
 #from mOrngData
 def shuffleAttribute(data, attribute, locations):
@@ -224,11 +320,18 @@ def gseaE(data, subsets, rankingf=None, \
     lcor = rankingf(data)
     ordered = orderedPointersCorr(lcor)
 
+    def rev(l):
+        return numpy.argsort(l)
+
+    rev2 = rev(ordered)
+
     for subset in subsets:
-        es = enrichmentScoreRanked(subset, lcor, ordered)[0]
+        es = enrichmentScoreRanked(subset, lcor, ordered, rev2=rev2)[0]
         enrichmentScores.append(es)
 
     runOptCallbacks(kwargs)
+
+    #print "PERMUTATION", permutation
 
     enrichmentNulls = [ [] for a in range(len(subsets)) ]
 
@@ -242,8 +345,9 @@ def gseaE(data, subsets, rankingf=None, \
             r2 = shuffleList(lcor, random.Random(2000+i))
 
         ordered2 = orderedPointersCorr(r2)
+        rev22 = rev(ordered2)
         for si,subset in enumerate(subsets):
-            esn = enrichmentScoreRanked(subset, r2, ordered2)[0]
+            esn = enrichmentScoreRanked(subset, r2, ordered2, rev2=rev22)[0]
             enrichmentNulls[si].append(esn)
 
         runOptCallbacks(kwargs)
@@ -270,10 +374,15 @@ def gseaR(rankings, subsets, n=100, **kwargs):
     enrichmentScores = []
  
     ordered = orderedPointersCorr(rankings)
+    
+    def rev(l):
+        return numpy.argsort(l)
+
+    rev2 = rev(ordered)
 
     for subset in subsets:
 
-        es = enrichmentScoreRanked(subset, rankings, ordered)[0]
+        es = enrichmentScoreRanked(subset, rankings, ordered, rev2=rev2)[0]
         enrichmentScores.append(es)
     
     runOptCallbacks(kwargs)
@@ -284,10 +393,11 @@ def gseaR(rankings, subsets, n=100, **kwargs):
         
         r2 = shuffleList(rankings, random.Random(2000+i))
         ordered2 = orderedPointersCorr(r2)
+        rev22 = rev(ordered2)
 
         for si,subset in enumerate(subsets):
 
-            esn = enrichmentScoreRanked(subset, r2, ordered2)[0]
+            esn = enrichmentScoreRanked(subset, r2, ordered2, rev2=rev22)[0]
             enrichmentNulls[si].append(esn)
 
         runOptCallbacks(kwargs)
@@ -579,42 +689,18 @@ if  __name__=="__main__":
         f = open(filename,'rb')
         return pickle.load(f)
 
-    genesetFile = "geneSets3.pck"
+    genesetFile = "genesets/geneSets_cp.pck"
+    gen1 = unpckGS(genesetFile)
+    
+    data = orange.ExampleTable("leukemiaGSEA.tab")
+    #data = orange.ExampleTable("demo.tab")
+    print "loaded data"
 
-    def getGenesets():
-        import orngRegistry
-        return unpckGS(orngRegistry.outputDir + "/geneSets3.pck")
+    def novi():
+        print "done"
 
-    #data = orange.ExampleTable('DLBCL_200a.tab')
-    data = orange.ExampleTable("sterolTalkHepa.tab")
-
-    gso = GSEA(organism="hsa")
-    gso.setData(data, classValues=["Rif_48h", "Rif_12h"])
-    #gso.setData(data, classValues=[ "Rif_12h", "Rif_48h" ])
-
-    import time
-
-    t = time.time()
-
-    gen1 = getGenesets()
-
-    print time.time() -t
-    print "adding genesets"
-
-    t = time.time()
-
-    for name,genes in gen1.items():
-        gso.addGeneset(name, genes)
-
-    print time.time() - t
-
-    t = time.time()
-    res1 = gso.compute(n=10, permutation="class")
-    print time.time() - t
-
-    res2 = runGsea(data, classValues=["Rif_48h", "Rif_12h"], n=10, permutation="class")
-
-    print res1
-    print res2
+    res2 = runGSEA(data, n=50, geneSets=gen1, permutation="class", callback=novi)
+    
+    print '\n'.join([ str(a) + ": " +str(b) for a,b in sorted(res2.items())])
 
 
