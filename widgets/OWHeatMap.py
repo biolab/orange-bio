@@ -12,7 +12,10 @@ import OWGUI
 from qt import *
 from qtcanvas import *
 from OWWidget import *
-from qwt import *
+try:
+    from qwt import *
+except:
+    from Qwt4 import *
 from OWDlgs import OWChooseImageSizeDlg
 from OWDataFiles import DataFiles
 
