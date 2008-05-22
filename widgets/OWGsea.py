@@ -211,7 +211,7 @@ class OWGsea(OWWidget):
         #box.setTitle("Results")
 
         self.listView = QListView(ma)
-        for header in ["Geneset", "NES", "ES", "P-value", "Size", "Matched Size", "Genes"]:
+        for header in ["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"]:
             self.listView.addColumn(header)
         self.listView.setSelectionMode(QListView.NoSelection)
         self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.newPathwaySelected)
@@ -271,7 +271,9 @@ class OWGsea(OWWidget):
 
         examples = []
         for name, (es, nes, pval, fdr, os, ts, genes) in res.items():
-            examples.append([name, nes, es, pval, fdr, str(os), str(ts),  ", ".join(genes)])
+            examples.append([name, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
+
+        examples.sort(lambda x,y: cmp(x[3],y[3]))
 
         return orange.ExampleTable(domain, examples)
 
@@ -290,10 +292,10 @@ class OWGsea(OWWidget):
             item.setText(1, "%0.3f" % nes)
             item.setText(2, "%0.3f" % es)
             item.setText(3, "%0.3f" % pval)
-            #item.setText(4, "%0.3f" % min(fdr,1.0))
-            item.setText(4, str(os))
-            item.setText(5, str(ts))
-            item.setText(6, writeGenes(genes))
+            item.setText(4, "%0.3f" % min(fdr,1.0))
+            item.setText(5, str(os))
+            item.setText(6, str(ts))
+            item.setText(7, writeGenes(genes))
 
             self.lwiToGeneset[item] = name
 
@@ -310,7 +312,6 @@ class OWGsea(OWWidget):
             self.listView.setSelectionMode(QListView.NoSelection)
 
     def compute(self):
-
         clearListView(self.listView)
         self.addComment("Computing...")
 
@@ -339,7 +340,11 @@ class OWGsea(OWWidget):
                 ifr(self.maxSubsetSizeC, self.maxSubsetSize, 1000000)
             kwargs["minPart"] = \
                 ifr(self.minSubsetPartC, self.minSubsetPart/100.0, 0.0)
- 
+
+            if len(self.data) > 1:
+                permtype = self.permutationTypes[self.ptype][1]
+                kwargs["permutation"] = ifr(permtype == "p", "class", "genes") 
+
             dkwargs = {}
             if len(self.data) > 1:
                 dkwargs["classValues"] = self.psel.getSelection()
