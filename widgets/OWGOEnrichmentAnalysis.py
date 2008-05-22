@@ -13,6 +13,7 @@ import OWGUI
 from OWWidget import *
 from qt import *
 from qttable import *
+from collections import defaultdict
 
 class TreeNode(object):
     def __init__(self, tuple, children):
@@ -290,8 +291,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.progressBarInit()
             go.loadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
             self.progressBarFinished()
-            count = dict([(etype, 0) for etype in go.evidenceTypesOrdered])
-            geneSets = dict([(etype, set()) for etype in go.evidenceTypesOrdered])
+##            count = dict([(etype, 0) for etype in go.evidenceTypesOrdered])
+##            geneSets = dict([(etype, set()) for etype in go.evidenceTypesOrdered])
+            count = defaultdict(int)
+            geneSets = defaultdict(set)
             for anno in go.loadedAnnotation.annotationList:
                 count[anno.evidence]+=1
                 geneSets[anno.evidence].add(anno.geneName)
