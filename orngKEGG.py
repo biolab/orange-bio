@@ -260,7 +260,7 @@ class KEGGInterfaceLocal(object):
     def download_organism_data(self, org):
         rel_path = "pathway/organisms/"+org+"/"
         files = [rel_path+org+"_gene_map.tab", "pathway/map_title.tab", "genes/taxonomy"]
-        self.downloader.massRetrieve(files)
+        self.downloader.massRetrieve(files, update=self.update)
         file = self._retrieve(rel_path+org+"_gene_map.tab")
         pathway_nums = set(reduce(lambda a,b: a + b.split()[1:], file.readlines(), []))
         descr = dict(map(lambda line:tuple(line.strip().split("\t")), self._retrieve("pathway/map_title.tab").readlines()))
@@ -277,8 +277,8 @@ class KEGGInterfaceLocal(object):
         
         ends = [".cpd", ".gene", ".gif", ".map", "_cpd.coord", "_gene.coord", ".conf"]
         files = [rel_path+id+ext for id in ids for ext in ends]
-        self.downloader.massRetrieve(files, blocking=False)
-        self.downloader.retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent", progressCallback=self.download_progress_callback)
+        self.downloader.massRetrieve(files, update=self.update, blocking=False)
+        self.downloader.retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent", update=self.update, progressCallback=self.download_progress_callback)
         while not self.downloader.queue.empty():
             if self.download_progress_callback:
                 self.download_progress_callback(min(100.0, 100.0*(float(len(files))-self.downloader.queue.qsize())/len(files)))
@@ -289,7 +289,7 @@ class KEGGInterfaceLocal(object):
         descr = dict(map(lambda line:tuple(line.strip().split("\t")), self._retrieve("pathway/map_title.tab").readlines()))
         ends = [".conf", ".gif", ".map"]
         files = [rel_path+"map"+pathNum+ext for pathNum in descr.keys() for ext in ends]
-        self.downloader.massRetrieve(files, progressCallback=self.download_progress_callback)
+        self.downloader.massRetrieve(files, update=self.update, progressCallback=self.download_progress_callback)
         
     def __getattr__(self, name):
         if name=="_enzymes" or name=="_from_gene_to_enzymes" :
@@ -766,29 +766,29 @@ class Update(orngGenomicsUpdate.Update):
         self.api = KEGGInterfaceLocal(True, local_database_path, progressCallback)
 
     def GetUpdatable(self):
-        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism.im_func.func_name, (org,))) in self.shelve]
+        orgs = [org for org in self.api.list_organisms() if str((str(Update.UpdateOrganism), (org,))) in self.shelve]
         return [(self.UpdateOrganism, "Update organism pathways and genes" , orgs),
                 (self.UpdateReference, "Update reference pathways", []),
                 (self.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
         
 
     def GetDownloadable(self):
-        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism.im_func.func_name, (org,))) not in self.shelve]
+        orgs = [org for org in self.api.list_organisms() if str((str(Update.UpdateOrganism), (org,))) not in self.shelve]
         return [(self.UpdateOrganism, "Update organism pathways and genes" , orgs),
                 (self.UpdateReference, "Update reference pathways", []),
                 (self.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
 
-    @orngGenomicsUpdate.Update._auto_updater
     def UpdateOrganism(self, org):
         self.api.download_organism_data(org)
+        self._update(Update.UpdateOrganism, (org,))
 
-    @orngGenomicsUpdate.Update._auto_updater
     def UpdateReference(self):
         self.api.download_reference_data()
+        self._update(Update.UpdateReference, ())
         
-    @orngGenomicsUpdate.Update._auto_updater
     def UpdateEnzymeAndCompounds(self):
         self.api.massDownloader.retrieve(["ligand//compound//compound", "ligand/enzyme/enzyme"], progressCallback=self.progressCallback)
+        self._update(Update.UpdateEnzymeAndCompounds, ())
 
 if __name__=="__main__":
     
