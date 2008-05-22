@@ -83,7 +83,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         box.setMaximumWidth(150)
         self.evidenceCheckBoxDict = {}
         for etype in go.evidenceTypesOrdered:
-            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences)
+            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=go.evidenceTypes[etype])
         OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Annotation", "Signal"], box="Reference From", callback=self.Update)
         OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process", "Cellular component", "Molecular function"], box="Aspect", callback=self.Update)
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene attribute", callback=self.Update)
@@ -483,10 +483,11 @@ class MyListViewItem(QListViewItem):
             QListViewItem.paintCell(self, painter, colorgroup, column, width, align)
         else:
             f = float(str(self.text(self.enrichmentColumn)))
-            painter.setBrush(QBrush(Qt.blue, QBrush.SolidPattern))
-            painter.drawRect(0, 0, width-1, self.height()-1)
             painter.setBrush(QBrush(Qt.white, QBrush.SolidPattern))
-            painter.drawRect((1-f)*(width-1), 0, width-1, self.height()-1)
+            painter.drawRect(0, 0, width-1, self.height()-1)
+            painter.setBrush(QBrush(Qt.blue, QBrush.SolidPattern))
+##            painter.drawRect((1-f)*(width-1), 0, width-1, self.height()-1)
+            painter.drawRect(0, 0, f*(width-1), self.height()-1)
 
     def width(self):
         return 100
