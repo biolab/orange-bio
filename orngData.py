@@ -3,6 +3,7 @@ import urllib
 import threading
 import os
 import time
+import socket
 from Queue import Queue
 from StringIO import StringIO
 from datetime import datetime
