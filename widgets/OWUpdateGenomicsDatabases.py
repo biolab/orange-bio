@@ -7,8 +7,8 @@
 """
 
 import go
-import orngKEGG
-import orngData
+import obiKEGG
+import obiData
 import sys
 import OWGUI
 from OWWidget import OWWidget
@@ -22,7 +22,7 @@ class OWUpdateGenomicsDatabases(OWWidget):
         self.goDataDir = go.getDataDir()
         self.goAspect = 0
         self.goOrganism = 0
-        self.keggDataDir = orngKEGG.default_database_path
+        self.keggDataDir = obiKEGG.default_database_path
         self.keggOrganism = 0
         self.tabWidget = QTabWidget(self.controlArea)
         ##GO
@@ -40,7 +40,7 @@ class OWUpdateGenomicsDatabases(OWWidget):
         self.keggTab = box = OWGUI.widgetBox(self.controlArea)
         self.tabWidget.addTab(self.keggTab, "KEGG")
         OWGUI.lineEdit(box, self, "keggDataDir", "Custom Data Base Location", valueType = str)
-        self.keggOrganisms = orngKEGG.KEGGInterfaceLocal().list_organisms().items()
+        self.keggOrganisms = obiKEGG.KEGGInterfaceLocal().list_organisms().items()
         self.keggOrganisms.sort()
         cb = OWGUI.comboBox(box, self, "keggOrganism", "Organisms", items=["%s: %s" % t for t in self.keggOrganisms])
         cb.setMaximumWidth(250)
@@ -81,13 +81,13 @@ class OWUpdateGenomicsDatabases(OWWidget):
         org = self.keggOrganisms[self.keggOrganism][0]
         self.tabWidget.setDisabled(True)
         self.progressBarInit()
-        orngKEGG.KEGGInterfaceLocal(True, self.keggDataDir, threads=10, download_progress_callback=self.progressBarSet).download_organism_data(org)
+        obiKEGG.KEGGInterfaceLocal(True, self.keggDataDir, threads=10, download_progress_callback=self.progressBarSet).download_organism_data(org)
         self.progressBarFinished()
         self.tabWidget.setDisabled(False)
 
     def UpdateKEGGEnzymeAndCompounds(self):
         self.progressBarInit()
-        f = orngData.FtpDownloader("ftp.genome.jp", self.keggDataDir, "/pub/kegg/")
+        f = obiData.FtpDownloader("ftp.genome.jp", self.keggDataDir, "/pub/kegg/")
         self.progressBarInit()
         f.retrieve("brite/ko/ko00001.kegg", True, progressCallback=self.progressBarSet)
         f.retrieve("ligand/compound/compound",True, progressCallback=self.progressBarSet)

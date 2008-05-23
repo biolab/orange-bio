@@ -7,7 +7,7 @@
 
 import sys
 import orange
-import orngKEGG
+import obiKEGG
 
 from OWWidget import *
 from qt import *
@@ -57,7 +57,7 @@ class PathwayView(QScrollView):
             self.master.progressBarFinished()
             self.ShowImage()
 ##            image.save(self.pathway.local_database_path+"TmpPathwayImage.png")
-##            self.pixmap = QPixmap(orngKEGG.default_database_path+"TmpPathwayImage.png")
+##            self.pixmap = QPixmap(obiKEGG.default_database_path+"TmpPathwayImage.png")
 ##            w, h = image.size
 ##            self.resizeContents(w, h)
 ##            self.updateContents(self.contentsX(), self.contentsY() ,self.viewport().width(), self.viewport().height())
@@ -158,7 +158,7 @@ class PathwayView(QScrollView):
         elif id==2:
             self.master.selectedObjects = defaultdict(list)
             self.master.Commit()
-            self.SetPathway(orngKEGG.KEGGPathway(self.popup.objs[-1][0]))
+            self.SetPathway(obiKEGG.KEGGPathway(self.popup.objs[-1][0]))
             return
         try:
             webbrowser.open(address)
@@ -185,7 +185,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
-        self.organismCodes = orngKEGG.KEGGInterfaceLocal().list_organisms().items()
+        self.organismCodes = obiKEGG.KEGGInterfaceLocal().list_organisms().items()
         self.organismCodes.sort()
         items = [code+": "+desc for code, desc in self.organismCodes]
         self.organismCodes = [code for code, desc in self.organismCodes]
@@ -270,7 +270,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         attrNames = [str(v.name).strip() for v in self.data.domain.attributes]
         for i, org in enumerate(self.organismCodes):
             try:
-                geneNames = load(open(orngKEGG.default_database_path+org+"_genenames.pickle"))
+                geneNames = load(open(obiKEGG.default_database_path+org+"_genenames.pickle"))
             except:
                 continue
             for attr in self.geneAttrCandidates:
@@ -300,10 +300,10 @@ class OWKEGGPathwayBrowser(OWWidget):
     def UpdateListView(self):
         self.listView.clear()
         allPathways = self.org.list_pathways()
-        allRefPathways = orngKEGG.KEGGInterfaceLocal().list_pathways(org="map")
+        allRefPathways = obiKEGG.KEGGInterfaceLocal().list_pathways(org="map")
         items = []
         if self.showOntology:
-            self.koOrthology = orngKEGG.KEGGInterfaceLocal().get_ko_orthology()
+            self.koOrthology = obiKEGG.KEGGInterfaceLocal().get_ko_orthology()
             self.listView.setRootIsDecorated(True)
             path_ids = set([s[-5:] for s in self.pathways.keys()])
             def _walkCollect(koClass):
@@ -362,7 +362,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         if not item or not item.pathway_id:
             self.pathwayView.SetPathway(None)
             return
-        self.pathway = orngKEGG.KEGGPathway(item.pathway_id)
+        self.pathway = obiKEGG.KEGGPathway(item.pathway_id)
         self.pathway.api.download_progress_callback = self.progressBarSet
         self.pathwayView.SetPathway(self.pathway, self.pathways.get(item.pathway_id, [[]])[0])
         
@@ -379,7 +379,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.error(0, "Cannot extact gene names from input")
             genes = []
         if self.loadedOrganism!=self.organismCodes[self.organismIndex]:
-            self.org = orngKEGG.KEGGOrganism(self.organismCodes[self.organismIndex])
+            self.org = obiKEGG.KEGGOrganism(self.organismCodes[self.organismIndex])
             self.org.api.download_progress_callback=self.progressBarSet
             self.loadedOrganism = self.organismCodes[self.organismIndex]
         self.progressBarInit()

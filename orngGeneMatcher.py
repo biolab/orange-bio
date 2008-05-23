@@ -1,4 +1,4 @@
-import orngKEGG
+import obiKEGG
 
 def nth(l,n): return [ a[n] for a in l ]
 
@@ -14,7 +14,7 @@ class GeneMatcher(object):
 
         self.caseSensitive = caseSensitive
 
-        self.keggorg = orngKEGG.KEGGOrganism(organism) #to do translation
+        self.keggorg = obiKEGG.KEGGOrganism(organism) #to do translation
         self.organism = organism
 
         attrnames = targets

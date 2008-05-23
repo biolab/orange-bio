@@ -5,7 +5,7 @@ import time
 import os
 import re
 
-import orngData
+import obiData
 
 from cPickle import load, dump
 from collections import defaultdict
@@ -255,7 +255,7 @@ class KEGGInterfaceLocal(object):
                            "_from_gene_to_enzymes":"ligand/enzyme/_from_gene_to_enzymes.pickle",
                            "_compounds":"ligand/compound/_compounds.pickle",
                            "_from_enzyme_to_compounds":"ligand/compound/_from_enzyme_to_compounds.pickle"}
-        self.downloader = orngData.FtpDownloader("ftp.genome.jp", self.local_database_path, "/pub/kegg/", numOfThreads=10)
+        self.downloader = obiData.FtpDownloader("ftp.genome.jp", self.local_database_path, "/pub/kegg/", numOfThreads=10)
 
     def download_organism_data(self, org):
         rel_path = "pathway/organisms/"+org+"/"
@@ -758,11 +758,11 @@ class KOClass(object):
                 pass
         self.ko_class_id = self.class_name[:5]
 
-import orngGenomicsUpdate
+import obiGenomicsUpdate
 
-class Update(orngGenomicsUpdate.Update):
+class Update(obiGenomicsUpdate.Update):
     def __init__(self, local_database_path=None, progressCallback=None):
-        orngGenomicsUpdate.Update.__init__(self, local_database_path, progressCallback)
+        obiGenomicsUpdate.Update.__init__(self, local_database_path, progressCallback)
         self.api = KEGGInterfaceLocal(True, local_database_path, progressCallback)
 
     def GetUpdatable(self):
