@@ -5,6 +5,7 @@ import stats
 #import mOrngData
 import random
 import time
+import math
 
 """
 Gene set enrichment analysis.
@@ -82,6 +83,71 @@ class MA_signalToNoise:
 
         try:
             rval = (mean(exa)-mean(exb))/(stdevm(exa)+stdevm(exb))
+            return rval
+        except:
+            #return some "middle" value
+            return 0
+
+def lvar (inlist):
+    n = inlist.size
+    mn = numpy.mean(inlist)
+    deviations = inlist - mn
+    return numpy.dot(deviations,deviations)/float(n-1)
+
+def stdev(l):
+    return math.sqrt(lvar(l))
+
+def stdevm(l):
+    m = numpy.mean(l)
+    std = stdev(l)
+    #print std, 0.2*abs(1.0 if m == 0 else m)
+    #return minmally 2*|mi|, where mi=0 is adjusted to mi=1
+    return max(std, 0.2*abs(1.0 if m == 0 else m))
+
+class MA_signalToNoise2:
+    """
+    Returns signal to noise measurement: difference of means of two classes
+    divided by the sum of standard deviations for both classes. 
+    """
+
+    def __init__(self, a=None, b=None):
+        """
+        a and b are choosen class values.
+        """
+        self.a = a
+        self.b = b
+
+    def __call__(self, i, data):
+        cv = data.domain.classVar
+        #print data.domain
+
+        datao = data
+
+        #for faster computation. to save dragging many attributes along
+        dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
+        data = orange.ExampleTable(dom2, data)
+        i = 0
+
+        if self.a == None: self.a = 0
+        if self.b == None: self.b = 1
+
+        a,c = data.toNumpyMA("A/C")
+        a = a[:,0]
+        #print a.data
+        masked = numpy.where(a.mask==False)
+        a = a.data
+        c = c.data
+        a = a[masked]
+        c = c[masked]
+
+        def avWCValNP(value):
+            return  a[numpy.where(c == value)]
+
+        exa = avWCValNP(0)
+        exb = avWCValNP(1)
+
+        try:
+            rval = (numpy.mean(exa)-numpy.mean(exb))/(stdevm(exa)+stdevm(exb))
             return rval
         except:
             #return some "middle" value
@@ -485,7 +551,7 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
     
     return zip(enrichmentScores, nEnrichmentScores, enrichmentPVals, fdrs)
 
-import orngGeneMatcher
+import obiGeneMatch
 
 def nth(l,n): return [ a[n] for a in l ]
 
@@ -571,7 +637,7 @@ class GSEA(object):
 
         self.data = data
         attrnames = [ a.name for a in data.domain.attributes ]
-        self.gm = orngGeneMatcher.GeneMatcher(attrnames, organism=self.organism, caseSensitive=False)
+        self.gm = obiGeneMatch.GeneMatcher(attrnames, organism=self.organism, caseSensitive=False)
  
     def addGeneset(self, genesetname, genes):
 
@@ -699,7 +765,7 @@ if  __name__=="__main__":
     def novi():
         print "done"
 
-    res2 = runGSEA(data, n=50, geneSets=gen1, permutation="class", callback=novi)
+    res2 = runGSEA(data, n=5, geneSets=gen1, permutation="class", callback=novi)
     
     print '\n'.join([ str(a) + ": " +str(b) for a,b in sorted(res2.items())])
 

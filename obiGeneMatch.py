@@ -6,7 +6,7 @@ def inverseDic(dic):
     item = dic.items()
     return dict(zip(nth(item,1),nth(item,0)))
 
-class GeneMatcher(object):
+class GeneMatch(object):
 
     def __init__(self, targets, caseSensitive=True, organism="hsa"):
 
@@ -78,7 +78,7 @@ class GeneMatcher(object):
 
     def match(self, genes):
         """
-        Function returns a dictionary of an old value: matching data
+        Function returns a tuple of an (old value, matching data)
         """
         targets = self.targets
         targetmap = self.targetmap

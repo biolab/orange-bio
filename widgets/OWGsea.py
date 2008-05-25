@@ -8,7 +8,7 @@
 
 from OWWidget import *
 import OWGUI
-import orngGsea
+import obiGsea
 from exceptions import Exception
 
 def nth(l, n):
@@ -349,7 +349,7 @@ class OWGsea(OWWidget):
             if len(self.data) > 1:
                 dkwargs["classValues"] = self.psel.getSelection()
  
-            gso = orngGsea.GSEA(organism="hsa")
+            gso = obiGsea.GSEA(organism="hsa")
             gso.setData(self.data, **dkwargs)
 
             for name,genes in self.geneSets.items():
