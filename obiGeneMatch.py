@@ -105,3 +105,14 @@ class GeneMatch(object):
 
         return matches
 
+class GeneMatchMk2(object):
+    dbNameMap = {"UniProtKB":"UniProt", "SGD":"SGD", "dictyBase":"DictyBase"}
+    dbOrgMap = {"goa_human":"hsa", "dictyBase":"ddi", "sgd":"sce"}
+    def __init__(self, keggOrg, goAnno, caseSensitive=True):
+        self.keggOrg = keggOrg
+        self.goAnno = goAnno
+        self.caseSensitive = caseSensitive
+
+    def GetNameFromDB(self, name, dbName):
+        pass
+

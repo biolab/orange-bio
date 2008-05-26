@@ -81,7 +81,7 @@ class OWUpdateGenomicsDatabases(OWWidget):
         org = self.keggOrganisms[self.keggOrganism][0]
         self.tabWidget.setDisabled(True)
         self.progressBarInit()
-        obiKEGG.KEGGInterfaceLocal(True, self.keggDataDir, threads=10, download_progress_callback=self.progressBarSet).download_organism_data(org)
+        obiKEGG.KEGGInterfaceLocal(True, self.keggDataDir, download_progress_callback=self.progressBarSet).download_organism_data(org)
         self.progressBarFinished()
         self.tabWidget.setDisabled(False)
 

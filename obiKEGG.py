@@ -207,7 +207,7 @@ class DBCompoundEntry(DBEntry):
         return e and "cpd:"+e[0] or "unknown"
 
 class DBGeneEntry(DBEntry):
-    cache = ["name", "enzymes", "alt_names", "pathways"]
+    cache = ["name", "enzymes", "alt_names", "pathways", "db_links"]
     def get_name(self):
         e = self.get_by_list("ENTRY")
         return e and e[0].strip() or "unknown"
@@ -222,6 +222,10 @@ class DBGeneEntry(DBEntry):
         lines = self.get_by_lines("DBLINKS")
         return [line.split()[1] for line in lines if len(line.split())>=2] + [n.strip(",\t \n") for n in self.get_by_list("NAME")] +[self.get_name()]
 
+    def get_db_links(self):
+        lines = self.get_by_lines("DBLINKS")
+        return dict([(line.split()[0].rstrip(":"), line.split()[1]) for line in lines if len(line.split())>=2])
+    
     def get_pathways(self):
         lines = self.get_by_lines("PATHWAY")
         return ["path:"+line.split()[1] for line in lines if len(line.split())>=2]
