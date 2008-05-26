@@ -7,6 +7,7 @@
 """
 
 import go
+import obiKEGG
 import sys
 import OWGUI
 
@@ -14,6 +15,8 @@ from OWWidget import *
 from qt import *
 from qttable import *
 from collections import defaultdict
+
+from obiGeneMatch import GeneMatchMk2
 
 class TreeNode(object):
     def __init__(self, tuple, children):
@@ -43,6 +46,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.outputs = [("Selected Examples", ExampleTable, Default), ("Unselected Examples", ExampleTable, Default), ("Example With Unknown Genes", ExampleTable, Default)] #, ("Selected Structured Data", DataFiles, Single + NonDefault)]
 
         self.annotationIndex = 0
+        self.autoFindBestOrg = False
         self.useReferenceDataset  = 0
         self.aspectIndex = 0
         self.geneAttrIndex = 0
@@ -79,11 +83,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
         box = OWGUI.widgetBox(self.inputTab, "Organism annotation", addSpace=True)
         self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.SetAnnotationCallback)
         #box = OWGUI.widgetBox(box, "Evidence codes in annotation", addSpace=True)
-        box = OWGUI.widgetBox(self.inputTab, "Evidence codes in annotation", addSpace=True)
-        box.setMaximumWidth(150)
-        self.evidenceCheckBoxDict = {}
-        for etype in go.evidenceTypesOrdered:
-            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=go.evidenceTypes[etype])
+##        box = OWGUI.widgetBox(self.inputTab, "Evidence codes in annotation", addSpace=True)
+##        box.setMaximumWidth(150)
+##        self.evidenceCheckBoxDict = {}
+##        for etype in go.evidenceTypesOrdered:
+##            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=go.evidenceTypes[etype])
         OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Annotation", "Signal"], box="Reference From", callback=self.Update)
         OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process", "Cellular component", "Molecular function"], box="Aspect", callback=self.Update)
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene attribute", callback=self.Update)
@@ -101,6 +105,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.checkBox(box, self, "filterByPValue", "p-value",callback=self.FilterAndDisplayGraph)
         OWGUI.qwtHSlider(box, self, 'maxPValue', label='p:', labelWidth=33, minValue=0, maxValue=1, step=0.001, precision=3, ticks=0, maxWidth=80, callback=self.FilterAndDisplayGraph)
         self.tabs.insertTab(self.filterTab, "Filter")
+
+        box = OWGUI.widgetBox(self.filterTab, "Evidence codes in annotation", addSpace=True)
+        box.setMaximumWidth(150)
+        self.evidenceCheckBoxDict = {}
+        for etype in go.evidenceTypesOrdered:
+            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=go.evidenceTypes[etype])
         
         ##Select tab
         self.selectTab=QVGroupBox(self)
@@ -159,6 +169,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         #print(dir(header))
         #header.paintSection = instancemethod(paintSection, header, type(header))
         self.resize(900, 800)
+
+        self.keggOrg = None
+        self.clusterDataset = None
         
     def SetAnnotationCallback(self):
         self.LoadAnnotation()
@@ -218,7 +231,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.geneAttrIndexCombo.insertStrList([a.name for a in  self.candidateGeneAttrs])
 
     def FindBestGeneAttrAndOrganism(self):
-        organismGenes = dict([(o,set(go.getCachedGeneNames(o))) for o in self.annotationCodes])
+        if self.autoFindBestOrg:  
+            organismGenes = dict([(o,set(go.getCachedGeneNames(o))) for o in self.annotationCodes])
+        else:
+            currCode = self.annotationCodes[self.annotationIndex]
+            organismGenes = {currCode: set(go.getCachedGeneNames(currCode))}
         candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
         candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, candidateGeneAttrs)
         attrNames = [v.name for v in self.clusterDataset.domain.variables]
@@ -302,13 +319,45 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
                 self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
             self.loadedAnnotationCode=self.annotationCodes[self.annotationIndex]
-        
+            if self.loadedAnnotationCode in GeneMatchMk2.dbOrgMap:
+                self.keggOrg = obiKEGG.KEGGOrganism(GeneMatchMk2.dbOrgMap[self.loadedAnnotationCode], update=False)
+                self.keggOrg.api.download_progress_callback = self.progressBarSet
+            else:
+                self.keggOrg = None
+
+    def UpdateGOAliases(self, genes):
+        genes = [gene for gene in genes if gene not in go.loadedAnnotation.aliasMapper]
+        if not self.keggOrg:
+            return
+##        old = dict(go.loadedAnnotation.__annotation.aliasMapper)
+        dbNames = set([anno.DB for anno in go.loadedAnnotation.annotationList])
+        dbNames = [GeneMatchMk2.dbNameMap[db] for db in dbNames if db in GeneMatchMk2.dbNameMap]
+        org = GeneMatchMk2.dbOrgMap[self.loadedAnnotationCode]
+        try:
+            self.progressBarInit()
+            unique, c, u = self.keggOrg.get_unique_gene_ids(genes)
+            self.progressBarFinished()
+            for k, gene in unique.items():
+                links = self.keggOrg.api._genes[org][k].get_db_links()
+                for db in dbNames:
+                    if db in links and links[db] in go.loadedAnnotation.aliasMapper:
+                        go.loadedAnnotation.aliasMapper[gene] = go.loadedAnnotation.aliasMapper[links[db]]
+                        break
+                altNames = self.keggOrg.api._genes[org][k].get_alt_names()
+                altNames = [name for name in altNames if name in go.loadedAnnotation.aliasMapper]
+                if len(set([go.loadedAnnotation.aliasMapper[name] for name in altNames]))==1:
+                    go.loadedAnnotation.aliasMapper[gene] = go.loadedAnnotation.aliasMapper[altNames[0]]
+        except IOError, ex:
+            print ex
+        return
+    
     def Enrichment(self):
         if self.useAttrNames:
             clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
         else:
             geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
             clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset if not ex[geneAttr].isSpecial()]
+        self.UpdateGOAliases(clusterGenes)
         self.clusterGenes = clusterGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, clusterGenes)
         referenceGenes = None
         if self.useReferenceDataset:
@@ -317,6 +366,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     referenceGenes = [v.name for v in self.referenceDataset.domain.variables]
                 else:
                     referenceGenes = [str(ex[geneAttr]) for ex in self.referenceDataset if not ex[geneAttr].isSpecial()]
+                self.UpdateGOAliases(referenceGenes)
                 referenceGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, referenceGenes)
                 self.information()
             except Exception, er:
@@ -332,6 +382,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.progressBarInit()
         if clusterGenes:
             self.terms = terms = go.GOTermFinder(clusterGenes, referenceGenes, evidences, aspect=aspect, progressCallback=self.progressBarSet)
+##            go.loadedAnnotation.__annotation.aliasMapper = old
         else:
             self.terms = terms = {}
         self.progressBarFinished()
