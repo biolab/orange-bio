@@ -107,12 +107,40 @@ class GeneMatch(object):
 
 class GeneMatchMk2(object):
     dbNameMap = {"UniProtKB":"UniProt", "SGD":"SGD", "dictyBase":"DictyBase"}
-    dbOrgMap = {"goa_human":"hsa", "dictyBase":"ddi", "sgd":"sce"}
-    def __init__(self, keggOrg, goAnno, caseSensitive=True):
+    dbOrgMap = {"goa_human":"hsa", "dictyBase":"ddi", "sgd":"sce", "fb":"dme", "tigr_Aphagocytophilum":"aph", "PAMGO_Atumefaciens":"atu", "tair":"ath", "tigr_Banthracis":"ban",
+                "goa_cow":"cow", "tigr_Chydrogenoformans":"chy", "wb":"cel", "tigr_Cjejuni":"cje", "cgd":"cal", "tigr_Cperfringens":"cpf", "tigr_Cpsychrerythraea":"cps", "tigr_Cburnetii":"cbu",
+                "zfin":"dre", "tigr_Dethenogenes":"det", "tigr_Echaffeensis":"ech", "goa_chicken":"gga", "tigr_Gsulfurreducens":"gsu", "tigr_Hneptunium":"hne", "GeneDB_Lmajor":"lma",
+                "tigr_Lmonocytogenes":"lmf", "PAMGO_Mgrisea":"mgr", "tigr_Mcapsulatus":"mca", "mgi":"mmu", "tigr_Nsennetsu":"nse", "gramene_oryza":"osa", "GeneDB_Pfalciparum":"pfa",
+                "pseudocap":"pae", "tigr_Pfluorescens":"pfl", "tigr_Psyringae":"pst", "tigr_Psyringae_phaseolicola":"psp", "rgd":"rno", "GeneDB_Spombe":"spo", "tigr_Soneidensis":"son",
+                "tigr_Spomeroyi":"sil", "GeneDB_Tbrucei":"tbr", "tigr_Vcholerae":"vch"}
+    def __init__(self, keggOrg, caseSensitive=True):
         self.keggOrg = keggOrg
-        self.goAnno = goAnno
         self.caseSensitive = caseSensitive
 
-    def GetNameFromDB(self, name, dbName):
-        pass
+    def GetNamesFromDB(self, names, dbName):
+        dbName = self.dbNameMap.get(dbName, dbName)
+        k, c, u = self.keggOrg.get_unique_gene_ids(names, self.caseSensitive)
+        mapper = {}
+        for key, name in k.items():
+            links = self.keggOrg.api._genes[self.keggOrg.org][key].get_db_links()
+            if dbName in links:
+                mapper[links[dbName]] = name
+            else:
+                u.append(name)
+        return mapper, c, u
+
+    def LinkWith(self, names, aliasMapper):
+        mapper = dict([(name, aliasMapper[name]) for name in names if name in aliasMapper])
+        names = [name for name in names if name not in aliasMapper]
+        k, c, u = self.keggOrg.get_unique_gene_ids(names, self.caseSensitive)
+        for key, name in k.items():
+            altNames = self.keggOrg.api._genes[self.keggOrg.org][key].get_alt_names()
+            nameSet = set([aliasMapper[altName] for altName in altNames if altName in aliasMapper])
+            if len(nameSet)==1:
+                mapper[name] = nameSet.pop()
+            elif len(nameSet)==0:
+                u.append(name)
+            else:
+                c.append(name)
+        return mapped, c, u
 

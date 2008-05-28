@@ -101,16 +101,16 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.filterTab = QVGroupBox(self)
         box = OWGUI.widgetBox(self.filterTab, "Filter GO Term Nodes", addSpace=True)
         OWGUI.checkBox(box, self, "filterByNumOfInstances", "Number of instances", callback=self.FilterAndDisplayGraph)
-        OWGUI.qwtHSlider(box, self, 'minNumOfInstances', label='#:', labelWidth=33, minValue=1, maxValue=1000, step=1.0, precision=1, ticks=0, maxWidth=80, callback=self.FilterAndDisplayGraph)
+        OWGUI.qwtHSlider(box, self, 'minNumOfInstances', label='#:', labelWidth=5, minValue=1, maxValue=1000, step=1.0, precision=1, ticks=0, maxWidth=60, callback=self.FilterAndDisplayGraph)
         OWGUI.checkBox(box, self, "filterByPValue", "p-value",callback=self.FilterAndDisplayGraph)
-        OWGUI.qwtHSlider(box, self, 'maxPValue', label='p:', labelWidth=33, minValue=0, maxValue=1, step=0.001, precision=3, ticks=0, maxWidth=80, callback=self.FilterAndDisplayGraph)
-        self.tabs.insertTab(self.filterTab, "Filter")
+        OWGUI.qwtHSlider(box, self, 'maxPValue', label='p:', labelWidth=5, minValue=0, maxValue=1, step=0.001, precision=3, ticks=0, maxWidth=60, callback=self.FilterAndDisplayGraph)
 
         box = OWGUI.widgetBox(self.filterTab, "Evidence codes in annotation", addSpace=True)
-        box.setMaximumWidth(150)
+##        box.setMaximumWidth(150)
         self.evidenceCheckBoxDict = {}
         for etype in go.evidenceTypesOrdered:
             self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=go.evidenceTypes[etype])
+        self.tabs.insertTab(self.filterTab, "Filter")
         
         ##Select tab
         self.selectTab=QVGroupBox(self)
@@ -176,28 +176,27 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def SetAnnotationCallback(self):
         self.LoadAnnotation()
         if self.clusterDataset:
-            #self.SetClusterDataset(self.clusterDataset)
             self.FilterUnknownGenes()
             graph = self.Enrichment()
             self.SetGraph(graph)
 
     def UpdateSelectedEvidences(self):
-        #self.SetClusterDataset(self.clusterDataset)
-        self.FilterUnknownGenes()
-        graph = self.Enrichment()
-        self.SetGraph(graph)
+        if self.clusterDataset:
+            self.FilterUnknownGenes()
+            graph = self.Enrichment()
+            self.SetGraph(graph)
 
     def SetReferenceCallback(self):
-        #self.SetClusterDataset(self.clusterDataset)
-        self.FilterUnknownGenes()
-        graph = self.Enrichment()
-        self.SetGraph(graph)
+        if self.clusterDataset:
+            self.FilterUnknownGenes()
+            graph = self.Enrichment()
+            self.SetGraph(graph)
 
     def SetAspectCallback(self):
-        #self.SetClusterDataset(self.clusterDataset)
-        self.FilterUnknownGenes()
-        graph = self.Enrichment()
-        self.SetGraph(graph)
+        if self.clusterDataset:
+            self.FilterUnknownGenes()
+            graph = self.Enrichment()
+            self.SetGraph(graph)
 
     def SetUseAttrNamesCallback(self):
         self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
@@ -205,9 +204,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
     def Update(self):
         #self.SetClusterDataset(self.clusterDataset)
-        self.FilterUnknownGenes()
-        graph = self.Enrichment()
-        self.SetGraph(graph)
+        if self.clusterDataset:
+            self.FilterUnknownGenes()
+            graph = self.Enrichment()
+            self.SetGraph(graph)
 
     def UpdateGOAndAnnotation(self):
         from OWUpdateGODataBase import OWUpdateGODataBase
@@ -327,7 +327,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
     def UpdateGOAliases(self, genes):
         genes = [gene for gene in genes if gene not in go.loadedAnnotation.aliasMapper]
-        if not self.keggOrg:
+        if not self.keggOrg or not os.path.isfile(os.path.join(self.keggOrg.local_database_path,"genes//organisms//"+self.keggOrg.org+"//_genes.pickle")):
+            print "Gene translation failed"
             return
 ##        old = dict(go.loadedAnnotation.__annotation.aliasMapper)
         dbNames = set([anno.DB for anno in go.loadedAnnotation.annotationList])
@@ -402,9 +403,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
         return graph
 
     def FilterAndDisplayGraph(self):
-        self.graph = self.FilterGraph(self.originalGraph)
-        self.ClearGraph()
-        self.DisplayGraph()
+        if self.clusterDataset:
+            self.graph = self.FilterGraph(self.originalGraph)
+            self.ClearGraph()
+            self.DisplayGraph()
 
     def SetGraph(self, graph=None):
         self.originalGraph = graph

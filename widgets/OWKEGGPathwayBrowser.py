@@ -182,6 +182,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.useAttrNames = False
         self.caseSensitive = True
         self.showOntology = True
+        self.autoFindBestOrg = False
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
@@ -268,7 +269,8 @@ class OWKEGGPathwayBrowser(OWWidget):
         score = {}
         self.progressBarInit()
         attrNames = [str(v.name).strip() for v in self.data.domain.attributes]
-        for i, org in enumerate(self.organismCodes):
+        testOrgs = self.autoFindBestOrg and self.organismCodes or self.organismCodes[self.organismIndex]
+        for i, org in enumerate(testOrgs):
             try:
                 geneNames = load(open(obiKEGG.default_database_path+org+"_genenames.pickle"))
             except:
