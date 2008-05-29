@@ -637,7 +637,7 @@ class GSEA(object):
 
         self.data = data
         attrnames = [ a.name for a in data.domain.attributes ]
-        self.gm = obiGeneMatch.GeneMatcher(attrnames, organism=self.organism, caseSensitive=False)
+        self.gm = obiGeneMatch.GeneMatch(attrnames, organism=self.organism, caseSensitive=False)
  
     def addGeneset(self, genesetname, genes):
 
