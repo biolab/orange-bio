@@ -37,22 +37,21 @@ def comboboxItems(combobox, newitems):
         #combobox.setCurrentItem(i)
 
 def getClasses(data):
-    return [ str(a) for a in data.domain.classVar ]
+    return [ a.value for a in data.domain.classVar ]
 
-class PhenotypesSelection():
+class PhenotypesSelection(QGroupBox):
 
     def __init__(self, parent, s1=0, s2=1):
-        grid = OWGUI.widgetBox(parent, orientation = "horizontal")
+        QObject.__init__(self)
+        grid = OWGUI.widgetBox(parent, "", orientation = "horizontal")
         grid.setMinimumWidth(250)
         grid.setMinimumHeight(100)
         
-        self.attributes = []
-        
-        self.p1b = OWGUI.listBox(grid, QObject, labels='attributes')#, callback = self.highlighted1)
-        self.p2b = OWGUI.listBox(grid, QObject, labels='attributes')#, callback = self.highlighted2)
+        self.p1b = OWGUI.listBox(grid, self)
+        self.p2b = OWGUI.listBox(grid, self)
 
-        #QObject.connect(self.p1b,  SIGNAL("highlighted ( int )"), self.highlighted1)
-        #QObject.connect(self.p2b,  SIGNAL("highlighted ( int )"), self.highlighted2)
+        QObject.connect(self.p1b,  SIGNAL("highlighted ( int )"), self.highlighted1)
+        QObject.connect(self.p2b,  SIGNAL("highlighted ( int )"), self.highlighted2)
 
         self.classes = []
 
@@ -108,7 +107,7 @@ class PhenotypesSelection():
 
         self.disableNot = False
 
-    def highlighted1(self, i):
+    def highlighted1(self):
         if self.disableNot:
             return
         if i == self.state2:
@@ -134,21 +133,13 @@ class PhenotypesSelection():
         return (self.classVals[self.state1], self.classVals[self.state2])
 
     def setupBoxes(self):
-        #self.setupBox(self.p1b)
-        #self.setupBox(self.p2b)
-        self.attributes = [(var) for var in self.classVals]
-        
-        if self.attributes == []:
-            self.p1b.setDisabled(True)
-            self.p2b.setDisabled(True)
-        else:
-            self.p1b.setDisabled(False)
-            self.p2b.setDisabled(False)
+        self.setupBox(self.p1b)
+        self.setupBox(self.p2b)
 
     def setupBox(self, box):
         box.clear()
         for cv in self.classVals:
-            box.insertItem(self.whiteSq, cv)
+            box.addItem(cv)
         if not self.classVals:
             box.setDisabled(True)
         else:
