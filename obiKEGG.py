@@ -11,8 +11,8 @@ from cPickle import load, dump
 from collections import defaultdict
 
 try:
-    import orngRegistry
-    default_database_path = orngRegistry.bufferDir + "/kegg/"
+    import orngOrangeFoldersQt4
+    default_database_path = orngOrangeFoldersQt4['bufferDir'] + "/kegg/"
 except:
     default_database_path = (os.path.split(__file__)[0] or ".") +"/data/kegg/"
 
