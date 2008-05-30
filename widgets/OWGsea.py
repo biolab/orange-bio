@@ -15,10 +15,11 @@ def nth(l, n):
     return [ a[n] for a in l ]
 
 def clearListView(lw):
-    it = lw.firstChild()
-    while it:
-        lw.takeItem(it)
-        it = lw.firstChild()
+    lw.clear()
+    #it = lw.firstChild()
+    #while it:
+    #    lw.takeItem(it)
+    #    it = lw.firstChild()
 
 def dataWithAttrs(data, attributes):
     attributes = dict([(a,1) for a in attributes])
@@ -32,7 +33,7 @@ def dataWithAttrs(data, attributes):
 def comboboxItems(combobox, newitems):
     combobox.clear()
     if newitems:
-        combobox.insertStrList(newitems)
+        combobox.insertItems(0, newitems)
         #combobox.setCurrentItem(i)
 
 def getClasses(data):
@@ -41,21 +42,22 @@ def getClasses(data):
 class PhenotypesSelection():
 
     def __init__(self, parent, s1=0, s2=1):
-        grid = QHBox(parent)
+        grid = OWGUI.widgetBox(parent, orientation = "horizontal")
         grid.setMinimumWidth(250)
         grid.setMinimumHeight(100)
+        
+        self.attributes = []
+        
+        self.p1b = OWGUI.listBox(grid, QObject, labels='attributes')#, callback = self.highlighted1)
+        self.p2b = OWGUI.listBox(grid, QObject, labels='attributes')#, callback = self.highlighted2)
 
-        self.p1b = QListBox(grid)
-        self.p2b = QListBox(grid)
-
-        QObject.connect(self.p1b,  SIGNAL("highlighted ( int )"), self.highlighted1)
-        QObject.connect(self.p2b,  SIGNAL("highlighted ( int )"), self.highlighted2)
+        #QObject.connect(self.p1b,  SIGNAL("highlighted ( int )"), self.highlighted1)
+        #QObject.connect(self.p2b,  SIGNAL("highlighted ( int )"), self.highlighted2)
 
         self.classes = []
 
         def createSquarePixmap(color = Qt.black):
-            pixmap = QPixmap()
-            pixmap.resize(13, 13)
+            pixmap = QPixmap(13, 13)
             painter = QPainter()
             painter.begin(pixmap)
             painter.setPen(color);
@@ -132,8 +134,16 @@ class PhenotypesSelection():
         return (self.classVals[self.state1], self.classVals[self.state2])
 
     def setupBoxes(self):
-        self.setupBox(self.p1b)
-        self.setupBox(self.p2b)
+        #self.setupBox(self.p1b)
+        #self.setupBox(self.p2b)
+        self.attributes = [(var) for var in self.classVals]
+        
+        if self.attributes == []:
+            self.p1b.setDisabled(True)
+            self.p2b.setDisabled(True)
+        else:
+            self.p1b.setDisabled(False)
+            self.p2b.setDisabled(False)
 
     def setupBox(self, box):
         box.clear()
@@ -181,8 +191,7 @@ class OWGsea(OWWidget):
         ca = self.controlArea
         ca.setMaximumWidth(500)
 
-        box = QVGroupBox(ca)
-        box.setTitle('Permutate')
+        box = OWGUI.widgetBox(ca, 'Permutate')
 
         self.permTypeF = OWGUI.comboBox(box, self, "ptype", items=nth(self.permutationTypes, 0), \
             tooltip="Permutation type.")
@@ -191,39 +200,46 @@ class OWGsea(OWWidget):
 
         OWGUI.separator(ca)
 
-        box = QVGroupBox(ca)
-        box.setTitle('Correlation Calculation')
+        box = OWGUI.widgetBox(ca, 'Correlation Calculation')
 
         self.corTypeF = OWGUI.comboBox(box, self, "ctype", items=nth(self.correlationTypes, 0), \
             tooltip="Correlation type.")
 
         OWGUI.separator(ca)
 
-        box = QVGroupBox(ca)
-        box.setTitle('Subset Filtering')
+        box = OWGUI.widgetBox(ca, 'Subset Filtering')
 
         _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Size", 1, 10000, "minSubsetSizeC", "minSubsetSize", "") #TODO check sizes
         _,_ = OWGUI.checkWithSpin(box, self, "Max. Subset Size", 1, 10000, "maxSubsetSizeC", "maxSubsetSize", "")
         _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Part (%)", 1, 100, "minSubsetPartC", "minSubsetPart", "")
 
         ma = self.mainArea
-        boxL = QVBoxLayout(ma, QVBoxLayout.TopToBottom)
+        #boxL = QVBoxLayout(ma, QVBoxLayout.TopToBottom)
         #box.setTitle("Results")
 
-        self.listView = QListView(ma)
-        for header in ["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"]:
-            self.listView.addColumn(header)
-        self.listView.setSelectionMode(QListView.NoSelection)
-        self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.newPathwaySelected)
-        boxL.addWidget(self.listView)
+        self.listView = QTreeWidget(ma)
+        ma.layout().addWidget(self.listView)
+        self.listView.setAllColumnsShowFocus(1)
+        self.listView.setColumnCount(8)
+        self.listView.setHeaderLabels(["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"])
+        
+        self.listView.header().setStretchLastSection(True)
+        self.listView.header().setClickable(0)
+        self.listView.header().setSortIndicatorShown(0)
+        self.listView.header().setResizeMode(0, QHeaderView.Stretch)
+        
+        #for header in ["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"]:
+            #self.listView.addColumn(header)
+        #self.listView.setSelectionMode(QListView.NoSelection)
+        #self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.newPathwaySelected)
+        self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.newPathwaySelected)
 
         OWGUI.separator(ca)
 
-        box = QVGroupBox(ca)
-        box.setTitle("Phenotypes")
+        box = OWGUI.widgetBox(ca, 'Phenotypes')
 
         self.psel = PhenotypesSelection(box)
-
+        
         self.resize(600,50)
  
         OWGUI.separator(ca)
@@ -287,7 +303,7 @@ class OWGsea(OWWidget):
             return ", ".join(genes)
 
         for name, (es, nes, pval, fdr, os, ts, genes) in res.items():
-            item = QListViewItem(self.listView)
+            item = QTreeWidgetItem(self.listView)
             item.setText(0, name)
             item.setText(1, "%0.3f" % nes)
             item.setText(2, "%0.3f" % es)
@@ -300,8 +316,8 @@ class OWGsea(OWWidget):
             self.lwiToGeneset[item] = name
 
     def addComment(self, comm):
-        item = QListViewItem(self.listView)
-        item.setText(0, comm)
+        item = QTreeWidgetItem(self.listView)
+        item.setText(0, comm)   
 
     def setSelMode(self, bool):
         if bool:
@@ -389,7 +405,7 @@ class OWGsea(OWWidget):
                 self.corTypeF.setDisabled(False)
                 #allow change of permutation type
                 self.permTypeF.setDisabled(False)
-
+                print "set classes"
                 self.psel.setClasses(getClasses(data))
 
     def addGeneset(self, name, genes):
@@ -402,8 +418,8 @@ def unpckGS(filename):
     return pickle.load(f)
 
 def getGenesets():
-    import orngRegistry
-    return unpckGS(orngRegistry.bufferDir + "/gsea/geneSets_Gsea_KEGGhsa.pck")
+    import orngOrangeFoldersQt4
+    return unpckGS(orngOrangeFoldersQt4.__getDirectoryNames()["bufferDir"] + "/gsea/geneSets_Gsea_KEGGhsa.pck")
 
 if __name__=="__main__":
     a=QApplication(sys.argv)
