@@ -348,13 +348,14 @@ class OWGsea(OWWidget):
             kwargs["minPart"] = \
                 ifr(self.minSubsetPartC, self.minSubsetPart/100.0, 0.0)
 
+
             if len(self.data) > 1:
                 permtype = self.permutationTypes[self.ptype][1]
                 kwargs["permutation"] = ifr(permtype == "p", "class", "genes") 
 
             dkwargs = {}
             if len(self.data) > 1:
-                dkwargs["classValues"] = self.psel.getSelection()
+                dkwargs["classValues"] = self.psel.getSelection()            
  
             gso = obiGsea.GSEA(organism="hsa")
             gso.setData(self.data, **dkwargs)
