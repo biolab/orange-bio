@@ -42,7 +42,7 @@ class MA_signalToNoise:
         #print data.domain
 
         #for faster computation. to save dragging many attributes along
-        dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
+        dom2 = orange.Domain([data.domain[i]], data.domain.classVar)
         data = orange.ExampleTable(dom2, data)
         i = 0
 
