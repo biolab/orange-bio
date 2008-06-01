@@ -50,8 +50,8 @@ class PhenotypesSelection(QGroupBox):
         self.p1b = OWGUI.listBox(grid, self)
         self.p2b = OWGUI.listBox(grid, self)
 
-        QObject.connect(self.p1b,  SIGNAL("highlighted ( int )"), self.highlighted1)
-        QObject.connect(self.p2b,  SIGNAL("highlighted ( int )"), self.highlighted2)
+        self.connect(self.p1b,  SIGNAL("currentRowChanged(int)"), self.highlighted1)
+        self.connect(self.p2b,  SIGNAL("currentRowChanged(int)"), self.highlighted2)
 
         self.classes = []
 
@@ -65,41 +65,41 @@ class PhenotypesSelection(QGroupBox):
             painter.end()
             return pixmap
 
-        self.whiteSq = createSquarePixmap(Qt.white)
-        self.redSq = createSquarePixmap(Qt.red)
-        self.blueSq = createSquarePixmap(Qt.blue)
+        self.whiteSq = QIcon(createSquarePixmap(Qt.white))
+        self.redSq = QIcon(createSquarePixmap(Qt.red))
+        self.blueSq = QIcon(createSquarePixmap(Qt.blue))
 
         self.classVals = []
 
         self.setStates(s1, s2)
 
     def setStates(self, s1 = 0, s2 = 1):
-
         self.state1 = self.ls1 = s1
         self.state2 = self.ls2 = s2
 
         if self.state1 == self.state2:
-            if self.state1 == 0: self.state2 = 1
-            else: self.state2 = 0
+            if self.state1 == 0: 
+                self.state2 = 1
+            else: 
+                self.state2 = 0
 
         self.selectWanted()
 
     def selectWanted(self):
-
         self.disableNot = True
 
         try:
-            self.p1b.changeItem(self.whiteSq, self.classVals[self.ls1], self.ls1)
-            self.p2b.changeItem(self.whiteSq, self.classVals[self.ls2], self.ls2)
+            self.p1b.item(self.ls1).setIcon(self.whiteSq)
+            self.p2b.item(self.ls2).setIcon(self.whiteSq)
         except:
             #except can happen only if both are illegal
             pass
 
         try:
-            self.p1b.setCurrentItem(self.state1)
-            self.p2b.setCurrentItem(self.state2)
-            self.p1b.changeItem(self.redSq, self.classVals[self.state1], self.state1)
-            self.p2b.changeItem(self.blueSq, self.classVals[self.state2], self.state2)
+            self.p1b.setCurrentRow(self.state1)
+            self.p2b.setCurrentRow(self.state2)
+            self.p1b.currentItem().setIcon(self.redSq)
+            self.p2b.currentItem().setIcon(self.blueSq)
             self.ls1 = self.state1
             self.ls2 = self.state2
         except:
@@ -107,7 +107,7 @@ class PhenotypesSelection(QGroupBox):
 
         self.disableNot = False
 
-    def highlighted1(self):
+    def highlighted1(self, i):
         if self.disableNot:
             return
         if i == self.state2:
@@ -126,8 +126,7 @@ class PhenotypesSelection(QGroupBox):
     def setClasses(self, input, s1=0, s2=1):
         self.classVals = sorted(input)
         self.setupBoxes()
-        self.selectWanted()
-        self.setStates(s1,s2)
+        self.setStates(s1, s2)
 
     def getSelection(self):
         return (self.classVals[self.state1], self.classVals[self.state2])
@@ -139,13 +138,12 @@ class PhenotypesSelection(QGroupBox):
     def setupBox(self, box):
         box.clear()
         for cv in self.classVals:
-            box.addItem(cv)
+            box.addItem(QListWidgetItem(self.whiteSq, cv))
+            
         if not self.classVals:
             box.setDisabled(True)
         else:
             box.setDisabled(False)
-
-
 
 class OWGsea(OWWidget):
 
@@ -217,12 +215,12 @@ class OWGsea(OWWidget):
         self.listView.header().setStretchLastSection(True)
         self.listView.header().setClickable(0)
         self.listView.header().setSortIndicatorShown(0)
-        self.listView.header().setResizeMode(0, QHeaderView.Stretch)
+        #self.listView.header().setResizeMode(0, QHeaderView.Stretch)
         
         #for header in ["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"]:
             #self.listView.addColumn(header)
-        #self.listView.setSelectionMode(QListView.NoSelection)
-        #self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.newPathwaySelected)
+        self.listView.setSelectionMode(QAbstractItemView.NoSelection)
+        #self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.ja)
         self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.newPathwaySelected)
 
         OWGUI.separator(ca)
@@ -243,17 +241,20 @@ class OWGsea(OWWidget):
 
         self.addComment("Computation was not started.")
 
-    def newPathwaySelected(self, item):
-
+    def newPathwaySelected(self):
+        print "newPathwaySelected"
         qApp.processEvents()
 
         if not self.selectable:
             return
 
-        iname = self.lwiToGeneset[item]
-        outat = self.res[iname][6]
-
-        dataOut =  dataWithAttrs(self.data, outat)
+        outat = set([])
+        for item in self.listView.selectedItems():
+            iname = self.lwiToGeneset[item]
+            outat.update(self.res[iname][6])
+            
+            
+        dataOut =  dataWithAttrs(self.data,list(outat))
         self.send("Examples with selected genes only", dataOut)
 
     def resultsOut(self, data):
@@ -313,7 +314,7 @@ class OWGsea(OWWidget):
     def setSelMode(self, bool):
         if bool:
             self.selectable = True
-            self.listView.setSelectionMode(QListView.Single)
+            self.listView.setSelectionMode(QAbstractItemView.MultiSelection)
         else:
             self.selectable = False
             self.listView.setSelectionMode(QListView.NoSelection)
