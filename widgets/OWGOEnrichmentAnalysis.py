@@ -12,10 +12,7 @@ import sys
 import OWGUI
 
 from OWWidget import *
-from qt import *
-from qttable import *
 from collections import defaultdict
-
 from obiGeneMatch import GeneMatchMk2
 
 class TreeNode(object):
@@ -30,9 +27,9 @@ def paintSection(self, painter, index, fr):
     else:
         pass
 
-class MyListView(QListView):
+class MyTreeWidget(QTreeWidget):
     def __init__(self, parent):
-        apply(QListView.__init__,(self, parent))
+        apply(QTreeWidget.__init__,(self, parent))
 
     #def paintEvent(self, event):
     
@@ -77,9 +74,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         #############
         ##GUI
         #############
-        self.tabs = QTabWidget(self.controlArea, 'tabWidget')
+        self.tabs = OWGUI.tabWidget(self.controlArea)
         ##Input tab
-        self.inputTab = QVGroupBox(self)
+        self.inputTab = OWGUI.createTabPage(self.tabs, "Input")
         box = OWGUI.widgetBox(self.inputTab, "Organism annotation", addSpace=True)
         self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.SetAnnotationCallback)
         #box = OWGUI.widgetBox(box, "Evidence codes in annotation", addSpace=True)
@@ -92,13 +89,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process", "Cellular component", "Molecular function"], box="Aspect", callback=self.Update)
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene attribute", callback=self.Update)
         OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use attribute names", callback=self.SetUseAttrNamesCallback)
-        self.tabs.insertTab(self.inputTab, "Input")
+       
         box = OWGUI.widgetBox(self.inputTab, "GO update")
         b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
         box.setMaximumWidth(150)
         
         ##Filter tab
-        self.filterTab = QVGroupBox(self)
+        self.filterTab = OWGUI.createTabPage(self.tabs, "Filter")
         box = OWGUI.widgetBox(self.filterTab, "Filter GO Term Nodes", addSpace=True)
         OWGUI.checkBox(box, self, "filterByNumOfInstances", "Number of instances", callback=self.FilterAndDisplayGraph)
         OWGUI.qwtHSlider(box, self, 'minNumOfInstances', label='#:', labelWidth=5, minValue=1, maxValue=1000, step=1.0, precision=1, ticks=0, maxWidth=60, callback=self.FilterAndDisplayGraph)
@@ -110,55 +107,55 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.evidenceCheckBoxDict = {}
         for etype in go.evidenceTypesOrdered:
             self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=go.evidenceTypes[etype])
-        self.tabs.insertTab(self.filterTab, "Filter")
         
         ##Select tab
-        self.selectTab=QVGroupBox(self)
+        self.selectTab = OWGUI.createTabPage(self.tabs, "Select")
         #box = OWGUI.widgetBox(self.selectTab, "Annotated genes", addSpace=True)
         box = OWGUI.radioButtonsInBox(self.selectTab, self, "selectionDirectAnnotation", ["Directly or Indirectly", "Directly"], box="Annotated genes", callback=self.ExampleSelection)
         box = OWGUI.widgetBox(self.selectTab, "Output", addSpace=True)
         OWGUI.checkBox(box, self, "selectionDisjoint", "Disjoint/Inclusive", callback=self.ExampleSelection)
         OWGUI.checkBox(box, self, "selectionAddTermAsClass", "Add GO Term as class", callback=self.ExampleSelection)
-        self.tabs.insertTab(self.selectTab, "Select")
 
         # ListView for DAG, and table for significant GOIDs
         self.DAGcolumns = ['GO term', 'Cluster frequency', 'Reference frequency', 'p value', 'Genes', 'Enrichment']
         self.layout=QVBoxLayout(self.mainArea)
-        self.splitter = QSplitter(QSplitter.Vertical, self.mainArea)
-        self.layout.add(self.splitter)
+        self.splitter = QSplitter(Qt.Vertical, self.mainArea)
+        self.mainArea.layout().addWidget(self.splitter)
 
         # list view
-        self.listView = MyListView(self.splitter)
-        self.listView.setMultiSelection(1)
+        self.listView = MyTreeWidget(self.splitter)
+        self.listView.setSelectionMode(QAbstractItemView.MultiSelection)
         self.listView.setAllColumnsShowFocus(1)
-        self.listView.addColumn(self.DAGcolumns[0])
-        self.listView.setColumnWidth(0, 300)
-        self.listView.setColumnWidthMode(0, QListView.Manual)
-        self.listView.setColumnAlignment(0, QListView.AlignLeft)
-        self.listView.setSorting(-1)
-        for dagColumnTitle in self.DAGcolumns[1:]:
-            col = self.listView.addColumn(dagColumnTitle)
-            self.listView.setColumnWidth(col, 100)
-            self.listView.setColumnWidthMode(col, QListView.Manual)
-            self.listView.setColumnAlignment(col, QListView.AlignCenter)
-        self.connect(self.listView, SIGNAL("selectionChanged()"), self.ViewSelectionChanged)
+        self.listView.setColumnCount(len(self.DAGcolumns))
+        self.listView.setHeaderLabels(self.DAGcolumns)
+        
+        #self.listView.setColumnWidth(0, 300)
+        #self.listView.setColumnWidthMode(0, QListView.Manual)
+        #self.listView.setColumnAlignment(0, QListView.AlignLeft)
+        #self.listView.setSorting(-1)
+        #for dagColumnTitle in self.DAGcolumns[1:]:
+        #    col = self.listView.addColumn(dagColumnTitle)
+        #    self.listView.setColumnWidth(col, 100)
+        #    self.listView.setColumnWidthMode(col, QListView.Manual)
+        #    self.listView.setColumnAlignment(col, QListView.AlignCenter)
+        self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.ViewSelectionChanged)
         self.listView.setRootIsDecorated (True)
 
         # table of significant GO terms
-        self.sigTermsTable = QTable(self.splitter)
-        self.sigTermsTable.setNumCols(6)
-        self.sigTermsTable.setNumRows(4)
+        self.sigTermsTable = QTableWidget(self.splitter)
+        self.sigTermsTable.setColumnCount(6)
+        self.sigTermsTable.setRowCount(4)
         ## hide the vertical header
-        self.sigTermsTable.verticalHeader().hide()
-        self.sigTermsTable.setLeftMargin(0)
-        self.sigTermsTable.setSelectionMode(QTable.Multi)
-        self.sigTermsTable.setColumnWidth(0, 300)
-        for col in range(1, self.sigTermsTable.numCols()):
-            self.sigTermsTable.setColumnWidth(col, 100)
+        #self.sigTermsTable.verticalHeader().hide()
+        #self.sigTermsTable.setLeftMargin(0)
+        self.sigTermsTable.setSelectionMode(QAbstractItemView.MultiSelection)
+        #self.sigTermsTable.setColumnWidth(0, 300)
+        #for col in range(1, self.sigTermsTable.columnCount):
+        #    self.sigTermsTable.setColumnWidth(col, 100)
         self.header = self.sigTermsTable.horizontalHeader()
-        for i in range(len(self.DAGcolumns)):
-            self.header.setLabel(i, self.DAGcolumns[i])
-        self.connect(self.sigTermsTable, SIGNAL("selectionChanged()"), self.TableSelectionChanged)
+        #for i in range(len(self.DAGcolumns)):
+        #    self.header.setLabel(i, self.DAGcolumns[i])
+        self.connect(self.sigTermsTable, SIGNAL("itemSelectionChanged()"), self.TableSelectionChanged)
         self.splitter.show()
 
         self.sigTableTermsSorted = []
@@ -168,6 +165,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
         #from new import instancemethod
         #print(dir(header))
         #header.paintSection = instancemethod(paintSection, header, type(header))
+        
+        self.inputTab.layout().addStretch(1)
+        self.filterTab.layout().addStretch(1)
+        self.selectTab.layout().addStretch(1)
+        
         self.resize(900, 800)
 
         self.keggOrg = None
@@ -228,7 +230,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
         self.candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, self.candidateGeneAttrs)
         self.geneAttrIndexCombo.clear()
-        self.geneAttrIndexCombo.insertStrList([a.name for a in  self.candidateGeneAttrs])
+        self.geneAttrIndexCombo.addItems([a.name for a in  self.candidateGeneAttrs])
 
     def FindBestGeneAttrAndOrganism(self):
         if self.autoFindBestOrg:  
@@ -419,7 +421,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def ClearGraph(self):
         self.listView.clear()
         self.listViewItems=[]
-        self.sigTermsTable.setNumRows(0)
+        self.sigTermsTable.setRowCount(0)
         #self.sigTableItems=[]
 
     def DisplayGraph(self):
@@ -432,14 +434,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
             if (parent, term) in fromParentDict:
                 return
             if term in self.graph:
-                displayNode = MyListViewItem(parentDisplayNode)
+                displayNode = MyTreeWidgetItem(parentDisplayNode)
                 displayNode.setText(0, go.loadedGO.termDict[term].name)
                 displayNode.setText(1, str(len(self.graph[term][0])))
                 displayNode.setText(2, str(self.graph[term][2]))
                 displayNode.setText(3, "%.4f" % self.graph[term][1])
                 displayNode.setText(4, ", ".join(self.graph[term][0]))
                 displayNode.setText(5, "%.4f" % (enrichment(self.graph[term])/maxFoldEnrichment)) #(float(len(self.graph[term][0]))/self.graph[term][2]))
-                displayNode.setOpen(True)
                 displayNode.term=term
                 self.listViewItems.append(displayNode)
                 if term in self.termListViewItemDict:
@@ -458,31 +459,34 @@ class OWGOEnrichmentAnalysis(OWWidget):
         terms = self.graph.items()
         terms.sort(lambda a,b:cmp(a[1][1],b[1][1]))
         self.sigTableTermsSorted = [t[0] for t in terms]
-        self.sigTermsTable.setNumRows(len(terms))
+        self.sigTermsTable.setRowCount(len(terms))
         for i, (id, (genes, p_value, refCount)) in enumerate(terms):
             text = [go.loadedGO.termDict[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
             for j,t in enumerate(text):
-                self.sigTermsTable.setText(i, j, t)
-
+                self.sigTermsTable.setItem(i, j, QTableWidgetItem(t))
+                
+        self.listView.expandAll()
+        
     def ViewSelectionChanged(self):
         selected = filter(lambda lvi: lvi.isSelected(), self.listViewItems)
         self.selectedTerms = set([lvi.term for lvi in selected])
         self.ExampleSelection()
         
     def TableSelectionChanged(self):
-        self.selectedTerms=[]
+        self.selectedTerms = []
         for i, term in enumerate(self.sigTableTermsSorted):
-            selected = self.sigTermsTable.isRowSelected(i, False)
+            selected = self.sigTermsTable.item(i,0).isSelected()
             if selected:
                 self.selectedTerms.append(term)
             for lvi in self.termListViewItemDict[term]:
                 try:
                     lvi.setSelected(selected)
-                    self.listView.repaintItem(lvi)
-                    if selected: lvi.setOpen(True)
+                    #self.listView.repaintItem(lvi)
+                    if selected: lvi.setExpanded(True)
                 except RuntimeError:    ##Underlying C/C++ object deleted (why??)
                     pass
-        self.listView.triggerUpdate()
+                
+        #self.listView.triggerUpdate()
         self.ExampleSelection()
             
     
@@ -529,7 +533,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
             self.send("Unselected Examples", unselectedExamples and orange.ExampleTable(unselectedExamples) or None)
             
-class MyListViewItem(QListViewItem):
+class MyTreeWidgetItem(QTreeWidgetItem):
     enrichmentColumn = 5
     def paintCell(self, painter, colorgroup, column, width, align):
         if column!=self.enrichmentColumn:

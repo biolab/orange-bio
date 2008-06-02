@@ -75,7 +75,7 @@ class PathwayView(QGraphicsView):
         if self.master.autoResize:
             import Image
             w, h = self.image.size
-            self.resizeFactor = factor = min(self.viewport().width()/float(w), self.viewport().height()/float(h))
+            self.resizeFactor = factor = min(self.frameRect().width()/float(w), self.frameRect().height()/float(h))
             image = self.image.resize((int(w*factor), int(h*factor)), Image.ANTIALIAS)
         else:
             image = self.image
@@ -88,7 +88,7 @@ class PathwayView(QGraphicsView):
         print 'w', w, 'h', h
         #self.resize(w, h)
         #self.update()#Contents(self.contentsX(), self.contentsY() ,self.viewport().width(), self.viewport().height())
-        self.updateSceneRect(QRectF(0,0,self.viewport().width(), self.viewport().height()))
+        self.updateSceneRect(QRectF(self.frameRect().x(),self.frameRect().y(),self.frameRect().width(), self.frameRect().height()))
         self.update()
 
     #def drawItems(self, painter, numItems, options):
@@ -97,28 +97,32 @@ class PathwayView(QGraphicsView):
     #def drawForeground(self, painter, rect):
     #    print 'foreground'
         
-    def drawBackground(self, painter, rect):
+    def drawBackground(self, painter, r):
     #def render(self, painter, target, source, aspectRatioMode):
     #def render(self, painter, cx=0, cy=0, cw=-1, ch=-1):
         print 'render'
-        QGraphicsView.drawBackground(self, painter, rect)
+        QGraphicsView.drawBackground(self, painter, r)
+        cx = self.frameRect().x()
+        cy = self.frameRect().y()
+        cw = self.frameRect().width()
+        ch = self.frameRect().height()
         
         if self.pixmap:
-            #cw = cw!=-1 and cw or self.viewport().width()
-            #ch = ch!=-1 and ch or self.viewport().height()
-            #painter.drawPixmap(cx, cy, self.pixmap, cx, cy, min(cw, self.pixmap.width()-cx), min(ch, self.pixmap.height()-cy))
-            painter.drawPixmap(rect, self.pixmap, self.sceneRect())
+            cw = cw!=-1 and cw or self.frameRect().width()
+            ch = ch!=-1 and ch or self.frameRect().height()
+            painter.drawPixmap(cx, cy, self.pixmap, cx, cy, min(cw, self.pixmap.width()-cx), min(ch, self.pixmap.height()-cy))
+            #painter.drawPixmap(rect, self.pixmap, self.sceneRect())
             painter.save()
 
             painter.setPen(QPen(Qt.blue, 2, Qt.SolidLine))
             painter.setBrush(QBrush(Qt.NoBrush))
             for rect in reduce(lambda a,b:a.union(b), [bbList for id, bbList in self.bbDict.items() if id in self.objects], set()):
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), self.sceneRect())
+                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect)
                 painter.drawRect(x1+1, y1+1, x2-x1, y2-y1)
                 
             painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
             for rect in self.master.selectedObjects.keys():
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), self.sceneRect())
+                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect)
                 painter.drawRect(x1+1, y1+1, x2-x1, y2-y1)
             painter.restore()
 
@@ -160,11 +164,11 @@ class PathwayView(QGraphicsView):
         else:
             QScrollView.viewportMousePressEvent(self, event)
 
-    def resizeEvent(self, event):
-        QGraphicsView.resizeEvent(self, event)
+    #def resizeEvent(self, event):
+    #    QGraphicsView.resizeEvent(self, event)
         
-        if self.master.autoResize and self.image:
-            self.ShowImage()
+    #    if self.master.autoResize and self.image:
+    #        self.ShowImage()
             
         #QGraphicsView.resizeEvent(self,e)
         #if self.scene().parent.FitToWindow:

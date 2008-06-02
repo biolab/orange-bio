@@ -13,22 +13,21 @@ import sys
 import OWGUI
 from OWWidget import OWWidget
 
-from qt import *
-
 class OWUpdateGenomicsDatabases(OWWidget):
     settingsList = ["goDataDir", "goAspect", "goOrganism"] 
+    
     def __init__(self, parent=None, signalManager=None, name="Update Genomics Databases", **kwds):
         OWWidget.__init__(self, parent, signalManager, name, **kwds)
         self.goDataDir = go.getDataDir()
+        print 'goDataDir', self.goDataDir
         self.goAspect = 0
         self.goOrganism = 0
         self.keggDataDir = obiKEGG.default_database_path
         self.keggOrganism = 0
-        self.tabWidget = QTabWidget(self.controlArea)
+        self.tabWidget = OWGUI.tabWidget(self.controlArea)
         ##GO
         ###############
-        self.goTab = box = OWGUI.widgetBox(self.controlArea)
-        self.tabWidget.addTab(self.goTab, "GO")
+        self.goTab = box = OWGUI.createTabPage(self.tabWidget, "GO")
         OWGUI.lineEdit(box, self, "goDataDir", "Custom Data Base Location", valueType = str)
         self.goOrgansmNames = go.listOrganisms()
         self.goOrganismCombo = OWGUI.comboBox(box, self, "goOrganism", "Organism", items = self.goOrgansmNames)
@@ -37,8 +36,7 @@ class OWUpdateGenomicsDatabases(OWWidget):
         OWGUI.rubber(box)
         ##KEGG
         ##############
-        self.keggTab = box = OWGUI.widgetBox(self.controlArea)
-        self.tabWidget.addTab(self.keggTab, "KEGG")
+        self.keggTab = box = OWGUI.createTabPage(self.tabWidget, "KEGG")
         OWGUI.lineEdit(box, self, "keggDataDir", "Custom Data Base Location", valueType = str)
         self.keggOrganisms = obiKEGG.KEGGInterfaceLocal().list_organisms().items()
         self.keggOrganisms.sort()
@@ -52,13 +50,17 @@ class OWUpdateGenomicsDatabases(OWWidget):
         go.setDataDir(self.goDataDir)
         #self.UpdateAspectCombo()
         self.UpdateOrganismCombo()
+        
+        self.goTab.layout().addStretch(1)
+        self.keggTab.layout().addStretch(1)
+        
         self.resize(100, 200)
         #self.updateGUI()
 
     def UpdateOrganismCombo(self):
         self.goOrgansmNames = go.listOrganisms()
         self.goOrganismCombo.clear()
-        self.goOrganismCombo.insertStrList(self.goOrgansmNames)
+        self.goOrganismCombo.addItems(self.goOrgansmNames)
 
     def UpdateAnnotation(self):
         go.setDataDir(self.goDataDir)
@@ -94,10 +96,10 @@ class OWUpdateGenomicsDatabases(OWWidget):
         f.retrieve("ligand/enzyme/enzyme", True, progressCallback=self.progressBarSet)
         self.progressBarFinished()
 
-    def close(self, destroy):
-        self.emit(PYSIGNAL("closed()"), ())
-        self.saveSettings()
-        return OWWidget.close(self, destroy)
+    #def close(self, destroy):
+    #    self.emit(PYSIGNAL("closed()"), ())
+    #    self.saveSettings()
+    #    return OWWidget.close(self, destroy)
         
 
 if __name__ == "__main__":
