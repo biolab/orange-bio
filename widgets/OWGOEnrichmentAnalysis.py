@@ -466,7 +466,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
     def ViewSelectionChanged(self):
         selected = filter(lambda lvi: lvi.isSelected(), self.listViewItems)
-        self.selectedTerms = set([lvi.term for lvi in selected])
+        self.selectedTerms = list(set([lvi.term for lvi in selected]))
         self.ExampleSelection()
         
     def TableSelectionChanged(self):
