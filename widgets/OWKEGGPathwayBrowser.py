@@ -269,7 +269,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         score = {}
         self.progressBarInit()
         attrNames = [str(v.name).strip() for v in self.data.domain.attributes]
-        testOrgs = self.autoFindBestOrg and self.organismCodes or self.organismCodes[self.organismIndex]
+        testOrgs = self.autoFindBestOrg and self.organismCodes or [self.organismCodes[self.organismIndex]]
         for i, org in enumerate(testOrgs):
             try:
                 geneNames = load(open(obiKEGG.default_database_path+org+"_genenames.pickle"))
