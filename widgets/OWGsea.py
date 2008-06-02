@@ -39,17 +39,26 @@ def getClasses(data):
     return [ str(a) for a in data.domain.classVar ]
 
 class PhenotypesSelection():
+    """
+    Window indices:
+    0 - left chooser
+    1 - right chooser
 
-    def __init__(self, parent, s1=0, s2=1):
+    wishedState: 0 not choosen anywhere, 1 choosen in left, 2 in right
+    """
+
+    def __init__(self, parent):
         grid = QHBox(parent)
         grid.setMinimumWidth(250)
         grid.setMinimumHeight(100)
 
-        self.p1b = QListBox(grid)
-        self.p2b = QListBox(grid)
+        self.boxes = [ QListBox(grid), QListBox(grid) ]
 
-        QObject.connect(self.p1b,  SIGNAL("highlighted ( int )"), self.highlighted1)
-        QObject.connect(self.p2b,  SIGNAL("highlighted ( int )"), self.highlighted2)
+        for box in self.boxes:
+            box.setSelectionMode(QListBox.Single)
+
+        QObject.connect(self.boxes[0], SIGNAL("selected ( int )"), self.highlighted1)
+        QObject.connect(self.boxes[1], SIGNAL("selected ( int )"), self.highlighted2)
 
         self.classes = []
 
@@ -65,86 +74,109 @@ class PhenotypesSelection():
             return pixmap
 
         self.whiteSq = createSquarePixmap(Qt.white)
-        self.redSq = createSquarePixmap(Qt.red)
-        self.blueSq = createSquarePixmap(Qt.blue)
+        self.marked = [ createSquarePixmap(Qt.red), createSquarePixmap(Qt.blue) ]
 
         self.classVals = []
 
-        self.setStates(s1, s2)
-
-    def setStates(self, s1 = 0, s2 = 1):
-
-        self.state1 = self.ls1 = s1
-        self.state2 = self.ls2 = s2
-
-        if self.state1 == self.state2:
-            if self.state1 == 0: self.state2 = 1
-            else: self.state2 = 0
-
-        self.selectWanted()
-
     def selectWanted(self):
-
+    
+        #prevent selection events when chenging here
         self.disableNot = True
 
-        try:
-            self.p1b.changeItem(self.whiteSq, self.classVals[self.ls1], self.ls1)
-            self.p2b.changeItem(self.whiteSq, self.classVals[self.ls2], self.ls2)
-        except:
-            #except can happen only if both are illegal
-            pass
+        """
+        Changes have to be calculated. Apply only changes because of potential
+        troubles with flickering.
+        """
 
-        try:
-            self.p1b.setCurrentItem(self.state1)
-            self.p2b.setCurrentItem(self.state2)
-            self.p1b.changeItem(self.redSq, self.classVals[self.state1], self.state1)
-            self.p2b.changeItem(self.blueSq, self.classVals[self.state2], self.state2)
-            self.ls1 = self.state1
-            self.ls2 = self.state2
-        except:
-            pass
+        def disable(n, i):
+            self.boxes[n].changeItem(self.whiteSq, self.classVals[i], i)
+            self.choosen[n][i] = False
 
+        def enable(n, i):
+            self.boxes[n].changeItem(self.marked[n], self.classVals[i], i)
+            self.choosen[n][i] = True
+
+        self.boxes[0].setCurrentItem(self.lastSel[0])
+        self.boxes[1].setCurrentItem(self.lastSel[1])
+
+        #print self.wishedState, self.choosen
+
+        for boxi in range(2):
+
+            #disable every choosen one which is not wished any more
+            toDisable = [ i for i,e in enumerate(self.choosen[boxi]) \
+                    if e == True and self.wishedState[i] != boxi+1 ]
+
+            for i in toDisable:
+                disable(boxi, i)
+
+            #enable every not choosen one that is wished
+            toEnable = [ i for i,e in enumerate(self.choosen[boxi]) \
+                    if e == False and self.wishedState[i] == boxi+1 ]
+
+            for i in toEnable:
+                enable(boxi, i)
+
+        #allow selection events
         self.disableNot = False
 
-    def highlighted1(self, i):
+        #print self.getSelection(), self.wishedState
+
+    def highlighted(self, n, i):
+        """
+        Clicked on a i-th item of box n
+        """
+
         if self.disableNot:
             return
-        if i == self.state2:
-            self.state2 = self.state1
-        self.state1 = i
+
+        self.lastSel[n] = i
+
+        if self.wishedState[i] == n+1:
+            self.wishedState[i] = 0
+        else:
+            self.wishedState[i] = n+1
+
         self.selectWanted()
 
-    def highlighted2(self, i):
-        if self.disableNot:
-            return
-        if i == self.state1:
-            self.state1 = self.state2
-        self.state2 = i
-        self.selectWanted()
+    def highlighted1(self, i): return self.highlighted(0, i)
+    def highlighted2(self, i): return self.highlighted(1, i)
 
     def setClasses(self, input, s1=0, s2=1):
+
         self.classVals = sorted(input)
+        self.wishedState = [ 0 ] * len(self.classVals)
+
+        self.choosen = [ [ False ] * len(self.classVals), [ False ] * len(self.classVals) ]
+
+        self.wishedState[s1] = 1
+        self.wishedState[s2] = 2
+
+        self.lastSel = [s1, s2]
+
         self.setupBoxes()
         self.selectWanted()
-        self.setStates(s1,s2)
 
     def getSelection(self):
-        return (self.classVals[self.state1], self.classVals[self.state2])
+        sels = [ [ self.classVals[i] for i,a in enumerate(self.wishedState) if a == n+1 ]
+            for n in range(2) ]
+        return sels
 
     def setupBoxes(self):
-        self.setupBox(self.p1b)
-        self.setupBox(self.p2b)
+        for box in self.boxes:
+            self.setupBox(box)
 
     def setupBox(self, box):
+        # clear and fill box
+
         box.clear()
         for cv in self.classVals:
             box.insertItem(self.whiteSq, cv)
+
         if not self.classVals:
             box.setDisabled(True)
         else:
             box.setDisabled(False)
-
-
 
 class OWGsea(OWWidget):
 
@@ -347,6 +379,15 @@ class OWGsea(OWWidget):
             if hasattr(self, "btnApply"):
                 self.btnApply.setFocus()
 
+            selectedClasses = self.psel.getSelection()
+            fc = "Phenotype group empty. Stopped."
+            if len(selectedClasses[0]) == 0:
+                self.addComment(fc)
+                return
+            elif len(selectedClasses[1]) == 0:
+                self.addComment(fc)
+                return 
+
             kwargs = {}
 
             def ifr(case, t, f):
@@ -366,7 +407,7 @@ class OWGsea(OWWidget):
 
             dkwargs = {}
             if len(self.data) > 1:
-                dkwargs["classValues"] = self.psel.getSelection()
+                dkwargs["classValues"] = selectedClasses
  
             gso = obiGsea.GSEA(organism="hsa")
             gso.setData(self.data, **dkwargs)
@@ -448,11 +489,11 @@ if __name__=="__main__":
     #d = orange.ExampleTable('testCorrelated.tab')
     #ow.setData(d)
 
-    #d = orange.ExampleTable("sterolTalkHepa.tab")
-    #ow.setData(d)
-
-    d = orange.ExampleTable("demo.tab")
+    d = orange.ExampleTable("sterolTalkHepa.tab")
     ow.setData(d)
+
+    #d = orange.ExampleTable("demo.tab")
+    #ow.setData(d)
 
     #d = orange.ExampleTable("tmp.tab")
     #ow.setData(d)

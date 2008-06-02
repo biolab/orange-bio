@@ -6,6 +6,7 @@ import stats
 import random
 import time
 import math
+from obiExpression import *
 
 """
 Gene set enrichment analysis.
@@ -27,66 +28,6 @@ def rankingFromOrangeMeas(meas):
     orange.MeasureAttribute.
     """
     return lambda d: [ meas(i,d) for i in range(len(d.domain.attributes)) ]
-
-class MA_pearsonCorrelation:
-    """
-    Calling an object of this class computes Pearson correlation of all
-    attributes against class.
-    """
-
-    def __call__(self, i, data):
-        dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
-        data2 = orange.ExampleTable(dom2, data)
-        a,c = data2.toNumpy("A/C")
-        return numpy.corrcoef(c,a[:,0])[0,1]
-
-class MA_signalToNoise:
-    """
-    Returns signal to noise measurement: difference of means of two classes
-    divided by the sum of standard deviations for both classes. 
-    """
-
-    def __init__(self, a=None, b=None):
-        """
-        a and b are choosen class values.
-        """
-        self.a = a
-        self.b = b
-
-    def __call__(self, i, data):
-        cv = data.domain.classVar
-        #print data.domain
-
-        #for faster computation. to save dragging many attributes along
-        dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
-        data = orange.ExampleTable(dom2, data)
-        i = 0
-
-        if self.a == None: self.a = cv.values[0]
-        if self.b == None: self.b = cv.values[1]
-        
-        def stdev(l):
-            return stats.stdev(l)
-    
-        def stdevm(l):
-            m = mean(l)
-            std = stdev(l)
-            #print std, 0.2*abs(1.0 if m == 0 else m)
-            #return minmally 2*|mi|, where mi=0 is adjusted to mi=1
-            return max(std, 0.2*abs(1.0 if m == 0 else m))
-
-        def avWCVal(value):
-            return [ex[i].value for ex in data if ex[cv] == value and not ex[i].isSpecial() ]
-    
-        exa = avWCVal(self.a)
-        exb = avWCVal(self.b)
-
-        try:
-            rval = (mean(exa)-mean(exb))/(stdevm(exa)+stdevm(exb))
-            return rval
-        except:
-            #return some "middle" value
-            return 0
 
 def lvar (inlist):
     n = inlist.size
@@ -579,21 +520,42 @@ class GSEA(object):
             if not classValues:
                 classValues = [ oldcvals[0], oldcvals[1] ]
 
-            classValues = [ str(a) for a in classValues ]
+            toJoin = []
 
+            for vals in classValues:
+                if isinstance(vals, list) or isinstance(vals, tuple):
+                    toJoin.append(list(vals))
+                else:
+                    toJoin.append([vals])
+
+            classValues = reduce(lambda x,y: x+y, toJoin)
+            classValues = [ str(a) for a in classValues ] # ok class values
+
+            #dictionary of old class -> new class
+            mapval = {}
+            nclassvalues = [] # need to preserver order
+
+            for joinvals in toJoin:
+                joinvalsn = "+".join([ str(val) for val in sorted(joinvals) ])
+                nclassvalues.append(joinvalsn)
+
+                for val in joinvals:
+                    mapval[str(val)] = joinvalsn
 
             #take only examples with classValues classes
-            nclass = orange.EnumVariable(cv.name, values=classValues)
+            nclass = orange.EnumVariable(cv.name, values=nclassvalues)
             ndom = orange.Domain(data.domain.attributes, nclass)
 
             examples = []
             for ex in data:
                 if ex[cv] in classValues:
                     vals = [ ex[a] for a in data.domain.attributes ]
-                    vals.append(ex[cv].value)
+                    vals.append(mapval[str(ex[cv].value)])
                     examples.append(vals)
 
             data = orange.ExampleTable(ndom, examples)
+
+            #join specified classes
 
         def attrOk(a):
 
@@ -611,7 +573,7 @@ class GSEA(object):
             if len(data) > 1 and data.domain.classVar:
                 valc = [ [ex[0].value for ex in d2 \
                             if not ex[0].isSpecial() and ex[1] == data.domain.classVar[i] \
-                       ] for i in range(len(classValues)) ]
+                       ] for i in range(len(nclassvalues)) ]
                 minl = min( [ len(a) for a in valc ])
                 if minl < atLeast:
                     return False
@@ -627,7 +589,7 @@ class GSEA(object):
                 ignored.append(a)
 
         ndom = orange.Domain(natts, data.domain.classVar)
-        return orange.ExampleTable(ndom, data), ignored, classValues
+        return orange.ExampleTable(ndom, data), ignored, nclassvalues
 
     def setData(self, data, classValues=None):
 
