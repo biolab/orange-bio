@@ -69,13 +69,13 @@ class PathwayView(QGraphicsView):
         else:
             self.bbDict = {}
             self.pixmap = None
-            #self.resizeContents(0,0)
+            self.scene.setSceneRect(QRectF(0, 0, 0, 0))
 
     def ShowImage(self):
         if self.master.autoResize:
             import Image
             w, h = self.image.size
-            self.resizeFactor = factor = min(self.frameRect().width()/float(w), self.frameRect().height()/float(h))
+            self.resizeFactor = factor = min(self.width() / float(w), self.height() / float(h))
             image = self.image.resize((int(w*factor), int(h*factor)), Image.ANTIALIAS)
         else:
             image = self.image
@@ -85,56 +85,46 @@ class PathwayView(QGraphicsView):
         image.save(self.pathway.local_database_path+"TmpPathwayImage.png")
         self.pixmap = QPixmap(self.pathway.local_database_path+"TmpPathwayImage.png")
         w, h = image.size
-        print 'w', w, 'h', h
-        #self.resize(w, h)
-        #self.update()#Contents(self.contentsX(), self.contentsY() ,self.viewport().width(), self.viewport().height())
-        self.updateSceneRect(QRectF(self.frameRect().x(),self.frameRect().y(),self.frameRect().width(), self.frameRect().height()))
-        self.update()
+        self.scene.setSceneRect(QRectF(0, 0, w, h))
+        #self.updateSceneRect(QRectF(self.contentsRect().x(),self.contentsRect().y(),self.contentsRect().width(), self.contentsRect().height()))
+        self.updateSceneRect(QRectF(0, 0, w, h))
 
-    #def drawItems(self, painter, numItems, options):
-    #    print 'items'
-        
-    #def drawForeground(self, painter, rect):
-    #    print 'foreground'
-        
     def drawBackground(self, painter, r):
-    #def render(self, painter, target, source, aspectRatioMode):
-    #def render(self, painter, cx=0, cy=0, cw=-1, ch=-1):
-        print 'render'
         QGraphicsView.drawBackground(self, painter, r)
-        cx = self.frameRect().x()
-        cy = self.frameRect().y()
-        cw = self.frameRect().width()
-        ch = self.frameRect().height()
+        cx = r.x()
+        cy = r.y()
         
         if self.pixmap:
-            cw = cw!=-1 and cw or self.frameRect().width()
-            ch = ch!=-1 and ch or self.frameRect().height()
-            painter.drawPixmap(cx, cy, self.pixmap, cx, cy, min(cw, self.pixmap.width()-cx), min(ch, self.pixmap.height()-cy))
-            #painter.drawPixmap(rect, self.pixmap, self.sceneRect())
+            #print 'cx',cx,'cy',cy
+            painter.drawPixmap(0, 0, self.pixmap)
             painter.save()
 
             painter.setPen(QPen(Qt.blue, 2, Qt.SolidLine))
             painter.setBrush(QBrush(Qt.NoBrush))
             for rect in reduce(lambda a,b:a.union(b), [bbList for id, bbList in self.bbDict.items() if id in self.objects], set()):
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect)
+                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
+                print 'x1', x1, 'y1', y1, 'x2', x2, 'y2',y2
                 painter.drawRect(x1+1, y1+1, x2-x1, y2-y1)
                 
             painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
             for rect in self.master.selectedObjects.keys():
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect)
+                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
                 painter.drawRect(x1+1, y1+1, x2-x1, y2-y1)
+                
             painter.restore()
 
     def GetObjects(self, x, y):
         def _in(x, y, bb):
 ##            if bb[0]=="rect":
-            x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), bb)
+            x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), bb)
             return x>=x1 and y>=y1 and x<x2 and y<y2
 ##            else:
 ##                x1, y1, r = map(lambda x:int(self.resizeFactor*x), bb[1:])
 ##                return abs(x1-x)<=r and abs(y1-y)<=r
-        x, y = self.viewportToContents(x, y)
+        point = self.mapToScene(x, y)
+        x = point.x()
+        y = point.y()
+        print 'contents x',x,'y',y
         objs = []
         for id, bbList in self.bbDict.items():
 ##            if id in self.objects:
@@ -147,15 +137,18 @@ class PathwayView(QGraphicsView):
 ##        x, y = event.x(), event.y()
 ##        objs = self.GetObjects(x, y)
 
-    def viewportMousePressEvent(self, event):
+    def mousePressEvent(self, event):
+        
         x, y = event.x(), event.y()
+        print 'mouse x',x,'y',y
         old = set(self.master.selectedObjects.keys())
         objs = self.GetObjects(x, y)
         if event.button()==Qt.LeftButton:
             self.master.SelectObjects([(id, bb) for (id, bb) in objs if id in self.objects])
             for rect in set(self.master.selectedObjects.keys()).union(old):
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor*x), rect)
-                self.updateContents(x1-1, y1-1, x2-x1+2, y2-y1+2)
+                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
+                self.updateSceneRect(QRectF(x1-1, y1-1, x2-x1+2, y2-y1+2))
+                
         elif event.button()==Qt.RightButton:
             self.popup.objs = objs
             self.popup.setItemEnabled(0, any(id for id, bb in objs if id in self.objects))
@@ -164,11 +157,11 @@ class PathwayView(QGraphicsView):
         else:
             QScrollView.viewportMousePressEvent(self, event)
 
-    #def resizeEvent(self, event):
-    #    QGraphicsView.resizeEvent(self, event)
+    def resizeEvent(self, event):
+        QGraphicsView.resizeEvent(self, event)
         
-    #    if self.master.autoResize and self.image:
-    #        self.ShowImage()
+        if self.master.autoResize and self.image:
+            self.ShowImage()
             
         #QGraphicsView.resizeEvent(self,e)
         #if self.scene().parent.FitToWindow:
@@ -296,6 +289,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.geneAttrCandidates = self.data.domain.attributes + self.data.domain.getmetas().values()
         self.geneAttrCandidates = filter(lambda v:v.varType in [orange.VarTypes.Discrete ,orange.VarTypes.String], self.geneAttrCandidates)
         self.geneAttrCombo.clear()
+        print 'geneAttrCandidates', self.geneAttrCandidates
         self.geneAttrCombo.addItems([var.name for var in self.geneAttrCandidates])
         data = self.data
         if len(data)>20:
