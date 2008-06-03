@@ -5,9 +5,10 @@
 """
 import orange
 
-from obiExpression import MA_signalToNoise, MA_t_test
+from obiExpression import *
 
 from OWGraph import *
+from OWGraphTools import PolygonCurve
 from OWWidget import *
 from OWHist import OWHist
 
@@ -20,9 +21,34 @@ class ScoreHist(OWHist):
         self.setAxisTitle(QwtPlot.xBottom, "Score")
         self.setAxisTitle(QwtPlot.yLeft, "Frequency")
 
+    def updateData(self):
+        OWHist.updateData(self)
+##        self.upperTailShadeKey = self.insertCurve(PolygonCurve(self, pen=QPen(Qt.blue), brush=QBrush(Qt.red))) # self.addCurve("upperTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Sticks)
+        self.upperTailShadeKey = self.addCurve("upperTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Steps)
+##        self.lowerTailShadeKey = self.insertCurve(PolygonCurve(self, pen=QPen(Qt.blue), brush=QBrush(Qt.red))) #self.addCurve("lowerTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Sticks)
+        self.lowerTailShadeKey = self.addCurve("lowerTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Steps)
+        self.setCurveStyle(self.upperTailShadeKey, QwtPlotCurve.Steps)
+        self.setCurveStyle(self.lowerTailShadeKey, QwtPlotCurve.Steps)
+        self.setCurveBrush(self.upperTailShadeKey, QBrush(Qt.red))
+        self.setCurveBrush(self.lowerTailShadeKey, QBrush(Qt.red))
+
+    def shadeTails(self):
+        index = max(min(int(100*(self.upperBoundary-self.minx)/(self.maxx-self.minx)), 100)-1, 0)
+        x = [self.upperBoundary] + list(self.xData[index:])
+        y = [self.yData[index]] + list(self.yData[index:])
+        self.setCurveData(self.upperTailShadeKey, x, y)
+        if self.type == 1:
+            index = max(min(int(100*(self.lowerBoundary-self.minx)/(self.maxx-self.minx)),100)-1, 0)
+            x = list(self.xData[:index]) + [self.lowerBoundary]
+            y = list(self.yData[:index]) + [self.yData[index]]
+            self.setCurveData(self.lowerTailShadeKey, x, y)
+        else:
+            self.setCurveData(self.lowerTailShadeKey, [], [])
+        
     def setBoundary(self, low, hi):
         OWHist.setBoundary(self, low, hi)
         self.master.UpdateSelectedInfoLabel(low, hi)
+        self.shadeTails()
         if self.master.autoCommit:
             self.master.Commit()
 
@@ -61,18 +87,22 @@ class OWFeatureSelection(OWWidget):
     def __init__(self, parent=None, signalManager=None, name="Feature selection"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Examples", ExampleTable, self.SetData)]
-        self.outputs = [("Examples", ExampleTable)]
+        self.outputs = [("Examples with selected attributes", ExampleTable),
+                        ("Examples with remaining attributes", ExampleTable)]
 
         self.methodIndex = 0
         self.autoCommit = False
 ##        self.infoLabel = "No data on input"        
 
-        oneTailTest = lambda attr, low, hi:self.scores.get(attr,0)>hi
-        twoTailTest = lambda attr, low, hi:self.scores.get(attr,0)>hi or self.scores.get(attr,0)<low
+        self.oneTailTest = oneTailTest = lambda attr, low, hi:self.scores.get(attr,0)>hi
+        self.twoTailTest = twoTailTest = lambda attr, low, hi:self.scores.get(attr,0)>hi or self.scores.get(attr,0)<low
         self.scoreMethods = [("chi-squared", orange.MeasureAttribute_chiSquare, oneTailTest),
                              ("info gain", orange.MeasureAttribute_info, oneTailTest),
                              ("signal to noise ratio", lambda attr, data:MA_signalToNoise()(attr, data), twoTailTest),
-                             ("t-test",lambda attr, data:MA_t_test()(attr, data), twoTailTest)]
+                             ("t-test",lambda attr, data:MA_t_test()(attr, data), twoTailTest),
+                             ("t-test p-value",lambda attr, data:MA_t_test(prob=True)(attr, data), oneTailTest),
+                             ("fold test", lambda attr, data:MA_fold_test()(attr, data), twoTailTest),
+                             ("log2 fold test", lambda attr, data:math.log(max(min(MA_fold_test()(attr, data), 1e300), 1e-300)), twoTailTest)]
 
         boxLayout = QVBoxLayout(self.mainArea)
         self.histogram = ScoreHist(self, self.mainArea)
@@ -99,6 +129,7 @@ class OWFeatureSelection(OWWidget):
         
     def SetData(self, data):
         self.error(0)
+        self.warning(0)
         self.scoreCache = {}
         self.discData = None
         self.data = data
@@ -112,6 +143,10 @@ class OWFeatureSelection(OWWidget):
         if scoreFunc in self.scoreCache:
             return self.scoreCache[scoreFunc]
         attributes = data.domain.attributes
+        if self.methodIndex in [2,3,4,5,6] and len(data.domain.classVar.values)>2:
+            self.warning(0, self.scoreMethods[self.methodIndex][0]+" works only on two class data (using only first two class values for computation)")
+        else:
+            self.warning(0)
         self.progressBarInit()
         if scoreFunc==orange.MeasureAttribute_info or scoreFunc==orange.MeasureAttribute_chiSquare:
             if self.discData:
@@ -141,9 +176,8 @@ class OWFeatureSelection(OWWidget):
     def Update(self):
         if self.data and self.data.domain.classVar:
             self.scores = self.ComputeAttributeScore(self.data, self.scoreMethods[self.methodIndex][1])
-            self.histogram.type = 0 if self.methodIndex in [0, 1] else 1
+            self.histogram.type = 0 if self.scoreMethods[self.methodIndex][2]==self.oneTailTest else 1
             self.histogram.setValues(self.scores.values())
-##            if self.methodIndex in self.cuts:
             self.histogram.setBoundary(*self.cuts.get(self.methodIndex, (0, 0)))
         else:
             self.histogram.clear()
@@ -157,7 +191,7 @@ class OWFeatureSelection(OWWidget):
                 text = text+"Class var missing"
         else:
             text = "No data on input\n\n"
-        self.dataInfoLabel.setText(text)        
+        self.dataInfoLabel.setText(text)     
 
     def UpdateSelectedInfoLabel(self, cutOffLower=0, cutOffUpper=0):
         self.cuts[self.methodIndex] = (cutOffLower, cutOffUpper)
@@ -173,9 +207,9 @@ class OWFeatureSelection(OWWidget):
             cutOffLower = self.histogram.lowerBoundary
             test = self.scoreMethods[self.methodIndex][2]
             selectedAttrs = [attr for attr in self.data.domain.attributes if  test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
-            self.send("Examples", self.data.select(selectedAttrs+[self.data.domain.classVar]))
+            self.send("Examples with selected attributes", self.data.select(selectedAttrs+[self.data.domain.classVar]))
         else:
-            self.send("Examples", None)
+            self.send("Examples with selected attributes", None)
 
 if __name__=="__main__":
     import sys
