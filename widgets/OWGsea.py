@@ -213,8 +213,9 @@ class OWGsea(OWWidget):
         self.listView.setHeaderLabels(["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"])
         
         self.listView.header().setStretchLastSection(True)
-        self.listView.header().setClickable(0)
-        self.listView.header().setSortIndicatorShown(0)
+        self.listView.header().setClickable(True)
+        self.listView.header().setSortIndicatorShown(True)
+        self.listView.setSortingEnabled(True)
         #self.listView.header().setResizeMode(0, QHeaderView.Stretch)
         
         #for header in ["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"]:

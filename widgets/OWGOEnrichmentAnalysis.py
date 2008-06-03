@@ -129,6 +129,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.listView.setColumnCount(len(self.DAGcolumns))
         self.listView.setHeaderLabels(self.DAGcolumns)
         
+        self.listView.header().setClickable(True)
+        self.listView.header().setSortIndicatorShown(True)
+        self.listView.setSortingEnabled(True)
+        
         #self.listView.setColumnWidth(0, 300)
         #self.listView.setColumnWidthMode(0, QListView.Manual)
         #self.listView.setColumnAlignment(0, QListView.AlignLeft)
