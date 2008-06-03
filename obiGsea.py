@@ -591,9 +591,9 @@ class GSEA(object):
         ndom = orange.Domain(natts, data.domain.classVar)
         return orange.ExampleTable(ndom, data), ignored, nclassvalues
 
-    def setData(self, data, classValues=None):
+    def setData(self, data, classValues=None, atLeast=3):
 
-        data, info, classValues  = self.keepOnlyMeanAttrs(data, classValues=classValues)
+        data, info, classValues  = self.keepOnlyMeanAttrs(data, classValues=classValues, atLeast=atLeast)
         #print "removed attributes", info
         #print "class values taken", classValues
 
@@ -676,10 +676,10 @@ def getDefaultGenesets():
     import orngRegistry
     return unpckGS(orngRegistry.bufferDir + "/gsea/geneSets_MSIGDB.pck")
 
-def runGSEA(data, classValues=None, organism="hsa", geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, **kwargs):
+def runGSEA(data, classValues=None, organism="hsa", geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, **kwargs):
 
     gso = GSEA(organism=organism)
-    gso.setData(data, classValues=classValues)
+    gso.setData(data, classValues=classValues, atLeast=atLeast)
     
     if geneSets == None:
         geneSets = getDefaultGenesets()
@@ -727,7 +727,7 @@ if  __name__=="__main__":
     def novi():
         print "done"
 
-    res2 = runGSEA(data, n=5, geneSets=gen1, permutation="class", callback=novi)
+    res2 = runGSEA(data, n=5, geneSets=gen1, permutation="class", callback=novi, atLeast=3)
     
     print '\n'.join([ str(a) + ": " +str(b) for a,b in sorted(res2.items())])
 
