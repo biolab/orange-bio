@@ -1,6 +1,7 @@
 """
 <name>FeatureSelection</name>
 <description>Feature selection</description>
+<priority>230</priority>
 """
 import orange
 
