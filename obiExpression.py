@@ -73,9 +73,10 @@ class MA_signalToNoise:
             return 0
 
 class MA_t_test(object):
-    def __init__(self, a=None, b=None):
+    def __init__(self, a=None, b=None, prob=False):
         self.a = a
         self.b = b
+        self.prob = prob
     def __call__(self, i, data):
         cv = data.domain.classVar
         #print data.domain
@@ -105,13 +106,33 @@ class MA_t_test(object):
 
         try:
             t, prob = stats.lttest_ind(exa, exb)
-            return t
+            return prob if self.prob else t
         except:
             return 0
-##        try:
-##            rval = (mean(exa)-mean(exb))/(stdevm(exa)+stdevm(exb))
-##            return rval
-##        except:
-##            #return some "middle" value -
-##            #TODO rather throw exception? 
-##            return 0
+
+class MA_fold_test(object):
+    def __init__(self, a=None, b=None):
+        self.a = a
+        self.b = b
+    def __call__(self, i, data):
+        cv = data.domain.classVar
+        #print data.domain
+
+        #for faster computation. to save dragging many attributes along
+        dom2 = orange.Domain([data.domain[i]], data.domain.classVar)
+        data = orange.ExampleTable(dom2, data)
+        i = 0
+
+        if self.a == None: self.a = cv.values[0]
+        if self.b == None: self.b = cv.values[1]
+
+        def avWCVal(value):
+            return [ex[i].value for ex in data if ex[cv] == value and not ex[i].isSpecial() ]
+
+        exa = avWCVal(self.a)
+        exb = avWCVal(self.b)
+
+        try:
+            return mean(exa)/mean(exb)
+        except:
+            return 0
