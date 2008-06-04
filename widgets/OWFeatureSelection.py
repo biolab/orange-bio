@@ -10,25 +10,25 @@ from obiExpression import *
 from OWGraph import *
 from OWGraphTools import PolygonCurve
 from OWWidget import *
-from OWHist import OWHist
+from OWHist import OWInteractiveHist
 
 import OWGUI
 
-class ScoreHist(OWHist):
+class ScoreHist(OWInteractiveHist):
     def __init__(self, master, parent=None):
-        OWHist.__init__(self, parent)
+        OWInteractiveHist.__init__(self, parent)
         self.master = master
         self.setAxisTitle(QwtPlot.xBottom, "Score")
         self.setAxisTitle(QwtPlot.yLeft, "Frequency")
 
     def updateData(self):
-        OWHist.updateData(self)
+        OWInteractiveHist.updateData(self)
 ##        self.upperTailShadeKey = self.insertCurve(PolygonCurve(self, pen=QPen(Qt.blue), brush=QBrush(Qt.red))) # self.addCurve("upperTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Sticks)
         self.upperTailShadeKey = self.addCurve("upperTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Steps)
 ##        self.lowerTailShadeKey = self.insertCurve(PolygonCurve(self, pen=QPen(Qt.blue), brush=QBrush(Qt.red))) #self.addCurve("lowerTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Sticks)
         self.lowerTailShadeKey = self.addCurve("lowerTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Steps)
-        self.setCurveStyle(self.upperTailShadeKey, QwtPlotCurve.Steps)
-        self.setCurveStyle(self.lowerTailShadeKey, QwtPlotCurve.Steps)
+##        self.setCurveStyle(self.upperTailShadeKey, QwtPlotCurve.Steps)
+##        self.setCurveStyle(self.lowerTailShadeKey, QwtPlotCurve.Steps)
         self.setCurveBrush(self.upperTailShadeKey, QBrush(Qt.red))
         self.setCurveBrush(self.lowerTailShadeKey, QBrush(Qt.red))
 
@@ -38,7 +38,7 @@ class ScoreHist(OWHist):
         y = [self.yData[index]] + list(self.yData[index:])
         self.setCurveData(self.upperTailShadeKey, x, y)
         if self.type == 1:
-            index = max(min(int(100*(self.lowerBoundary-self.minx)/(self.maxx-self.minx)),100)-1, 0)
+            index = max(min(int(100*(self.lowerBoundary-self.minx)/(self.maxx-self.minx)),99), 0)
             x = list(self.xData[:index]) + [self.lowerBoundary]
             y = list(self.yData[:index]) + [self.yData[index]]
             self.setCurveData(self.lowerTailShadeKey, x, y)
@@ -46,49 +46,19 @@ class ScoreHist(OWHist):
             self.setCurveData(self.lowerTailShadeKey, [], [])
         
     def setBoundary(self, low, hi):
-        OWHist.setBoundary(self, low, hi)
+        OWInteractiveHist.setBoundary(self, low, hi)
         self.master.UpdateSelectedInfoLabel(low, hi)
         self.shadeTails()
         if self.master.autoCommit:
             self.master.Commit()
-
-    def _setBoundary(self, button, cut):
-        if button == QMouseEvent.LeftButton:
-            low, hi = cut, self.upperBoundary
-        else:
-            low, hi = self.lowerBoundary, cut
-        if low > hi:
-            low, hi = hi, low
-        if self.type==1:
-            self.setBoundary(low, hi)
-        else:
-            self.setBoundary(cut, cut)
         
-    def onMousePressed(self, e):
-        cut = self.invTransform(QwtPlot.xBottom, e.x())
-        self.mouseCurrentlyPressed = 1
-        self._setBoundary(e.button(), cut)
-        
-    def onMouseMoved(self, e):
-##        OWHist.onMouseMoved(self, e)
-        if self.mouseCurrentlyPressed:
-            cut = self.invTransform(QwtPlot.xBottom, e.x())
-            self._setBoundary(e.state(), cut)
-
-    def onMouseReleased(self, e):
-##        OWHist.onMouseRelesed(self, e)
-        cut = self.invTransform(QwtPlot.xBottom, e.x())
-        self.mouseCurrentlyPressed = 0
-        self._setBoundary(e.button(), cut)
-
 class OWFeatureSelection(OWWidget):
     settingsList=["methodIndex", "autoCommit"]
 ##    contextHandlers={"":DomainContextHandler("",[])}
     def __init__(self, parent=None, signalManager=None, name="Feature selection"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Examples", ExampleTable, self.SetData)]
-        self.outputs = [("Examples with selected attributes", ExampleTable),
-                        ("Examples with remaining attributes", ExampleTable)]
+        self.outputs = [("Examples with selected attributes", ExampleTable), ("Examples with remaining attributes", ExampleTable)]
 
         self.methodIndex = 0
         self.autoCommit = False
