@@ -209,8 +209,8 @@ class OWGsea(OWWidget):
         self.listView = QTreeWidget(ma)
         ma.layout().addWidget(self.listView)
         self.listView.setAllColumnsShowFocus(1)
-        self.listView.setColumnCount(8)
-        self.listView.setHeaderLabels(["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"])
+        self.listView.setColumnCount(9)
+        self.listView.setHeaderLabels(["Collection", "Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"])
         
         self.listView.header().setStretchLastSection(True)
         self.listView.header().setClickable(True)
@@ -272,6 +272,7 @@ class OWGsea(OWWidget):
 
         vars = []
         vars.append(orange.StringVariable("Name"))
+        vars.append(orange.EnumVariable("Collection", values = ["KEGG", "C4", "C3", "C2", "C1"]))
         vars.append(orange.FloatVariable("NES"))
         vars.append(orange.FloatVariable("ES"))
         vars.append(orange.FloatVariable("P-value"))
@@ -284,7 +285,10 @@ class OWGsea(OWWidget):
 
         examples = []
         for name, (es, nes, pval, fdr, os, ts, genes) in resl:
-            examples.append([name, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
+            splitndx = name.find("] ")
+            collection = name[1:splitndx]
+            name = name[splitndx + 2:]
+            examples.append([name, collection, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
 
         return orange.ExampleTable(domain, examples)
 
@@ -315,15 +319,19 @@ class OWGsea(OWWidget):
             return ", ".join(genes)
 
         for name, (es, nes, pval, fdr, os, ts, genes) in res.items():
+            splitndx = name.find("] ")
+            collection = name[1:splitndx]
+            name = name[splitndx + 2:]
             item = QTreeWidgetItem(self.listView)
-            item.setText(0, name)
-            item.setText(1, "%0.3f" % nes)
-            item.setText(2, "%0.3f" % es)
-            item.setText(3, "%0.3f" % pval)
-            item.setText(4, "%0.3f" % min(fdr,1.0))
-            item.setText(5, str(os))
-            item.setText(6, str(ts))
-            item.setText(7, writeGenes(genes))
+            item.setText(0, collection)
+            item.setText(1, name)
+            item.setText(2, "%0.3f" % nes)
+            item.setText(3, "%0.3f" % es)
+            item.setText(4, "%0.3f" % pval)
+            item.setText(5, "%0.3f" % min(fdr,1.0))
+            item.setText(6, str(os))
+            item.setText(7, str(ts))
+            item.setText(8, writeGenes(genes))
 
             self.lwiToGeneset[item] = name
 
