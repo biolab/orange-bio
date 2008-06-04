@@ -49,6 +49,7 @@ class ScoreHist(OWInteractiveHist):
         OWInteractiveHist.setBoundary(self, low, hi)
         self.master.UpdateSelectedInfoLabel(low, hi)
         self.shadeTails()
+        self.replot()
         if self.master.autoCommit:
             self.master.Commit()
         
@@ -62,10 +63,11 @@ class OWFeatureSelection(OWWidget):
 
         self.methodIndex = 0
         self.autoCommit = False
+        self.selectNBest = 20
 ##        self.infoLabel = "No data on input"        
 
-        self.oneTailTest = oneTailTest = lambda attr, low, hi:self.scores.get(attr,0)>hi
-        self.twoTailTest = twoTailTest = lambda attr, low, hi:self.scores.get(attr,0)>hi or self.scores.get(attr,0)<low
+        self.oneTailTest = oneTailTest = lambda attr, low, hi:self.scores.get(attr,0)>=hi
+        self.twoTailTest = twoTailTest = lambda attr, low, hi:self.scores.get(attr,0)>=hi or self.scores.get(attr,0)<=low
         self.scoreMethods = [("chi-squared", orange.MeasureAttribute_chiSquare, oneTailTest),
                              ("info gain", orange.MeasureAttribute_info, oneTailTest),
                              ("signal to noise ratio", lambda attr, data:MA_signalToNoise()(attr, data), twoTailTest),
@@ -84,7 +86,9 @@ class OWFeatureSelection(OWWidget):
         self.dataInfoLabel = OWGUI.widgetLabel(box, "\n\n")
         self.selectedInfoLabel = OWGUI.widgetLabel(box, "")
         OWGUI.radioButtonsInBox(self.controlArea, self, "methodIndex", [sm[0] for sm in self.scoreMethods], box="Score Method", callback=self.Update, addSpace=True)
-        box = OWGUI.widgetBox(self.controlArea, self, "Selection", addSpace=True)
+        box = OWGUI.widgetBox(self.controlArea, "Selection", addSpace=True)
+        OWGUI.button(box, self, "Select n best features", callback=self.SelectNBest)
+        OWGUI.spin(box, self, "selectNBest", 0, 10000, step=1, label="n:")
         OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
         OWGUI.button(box, self, "&Commit", callback=self.Commit)
         OWGUI.rubber(self.controlArea)
@@ -170,7 +174,20 @@ class OWFeatureSelection(OWWidget):
             self.selectedInfoLabel.setText("%i selected attributes" %len([attr for attr in self.data.domain.attributes if test(attr, cutOffLower, cutOffUpper)])) #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]))
         else:
             self.selectedInfoLabel.setText("0 selected attributes")
-            
+
+    def SelectNBest(self):
+        scores = self.scores.items()
+        scores.sort(lambda a,b:cmp(a[1], b[1]))
+        if not scores:
+            return
+        if self.scoreMethods[self.methodIndex][2]==self.oneTailTest:
+            scores = scores[-max(self.selectNBest, 1):]
+            self.histogram.setBoundary(scores[0][1], scores[0][1])
+        else:
+            scoresHi = scores[-max(self.selectNBest/2, 1):]
+            scoresLo = scores[:max(self.selectNBest/2+self.selectNBest%2, 1)]
+            self.histogram.setBoundary(scoresLo[-1][1], scoresHi[0][1])
+        
     def Commit(self):
         if self.data and self.data.domain.classVar:
             cutOffUpper = self.histogram.upperBoundary
@@ -178,8 +195,11 @@ class OWFeatureSelection(OWWidget):
             test = self.scoreMethods[self.methodIndex][2]
             selectedAttrs = [attr for attr in self.data.domain.attributes if  test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
             self.send("Examples with selected attributes", self.data.select(selectedAttrs+[self.data.domain.classVar]))
+            remainingAttrs = [attr for attr in self.data.domain.attributes if  not test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
+            self.send("Examples with remaining attributes", self.data.select(remainingAttrs+[self.data.domain.classVar]))
         else:
             self.send("Examples with selected attributes", None)
+            self.send("Examples with remaining attributes", None)
 
 if __name__=="__main__":
     import sys
