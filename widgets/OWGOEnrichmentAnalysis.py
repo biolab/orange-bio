@@ -67,13 +67,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         self.updateGODataBaseWidget = None
         try:
-            from OWUpdateGODataBase import OWUpdateGODataBase
-            self.updateGODataBaseWidget = OWUpdateGODataBase()
+            from OWUpdateGenomicsDatabases import OWUpdateGenomicsDatabases
+            self.updateGODataBaseWidget = OWUpdateGenomicsDatabases()
             self.connect(w, PYSIGNAL("closed()"), self.UpdateAnnotationComboBox)
         except:
             pass
         
-        self.annotationCodes = go.listDownloadedOrganisms()
+        self.annotationCodes = go.listDownloadedOrganisms() or ["goa_human"]
         #############
         ##GUI
         #############
@@ -210,15 +210,18 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.SetGraph(graph)
 
     def UpdateGOAndAnnotation(self):
-        from OWUpdateGODataBase import OWUpdateGODataBase
-        w = OWUpdateGODataBase()
+        from OWUpdateGenomicsDatabases import OWUpdateGenomicsDatabases
+        w = OWUpdateGenomicsDatabases()
         w.show()
         self.connect(w, PYSIGNAL("closed()"), self.UpdateAnnotationComboBox)
 
     def UpdateAnnotationComboBox(self):
-        curr = self.annotationCodes[self.annotationIndex]
+        if self.annotationCodes:
+            curr = self.annotationCodes[self.annotationIndex]
+        else:
+            curr = None
         self.annotationCodes = go.listDownloadedOrganisms()
-        index = self.annotationCodes.index(curr)
+        index = curr and self.annotationCodes.index(curr) or 0
         self.annotationComboBox.clear()
         self.annotationComboBox.insertStrList(self.annotationCodes)
         self.annotationComboBox.setCurrentItem(index)
@@ -268,9 +271,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.SetGenesComboBox()
             if not go.loadedGO:
                 self.LoadGO()
+            if not go.loadedAnnotation:
+                self.LoadAnnotation()
             self.FindBestGeneAttrAndOrganism()
             #if not go.loadedAnnotation:
-            self.LoadAnnotation()
             self.FilterUnknownGenes()
             graph = self.Enrichment()
             #print graph
@@ -299,14 +303,36 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.send("Example With Unknown Genes", None)
 
     def LoadGO(self):
-        self.progressBarInit()
-        go.loadGO(progressCallback=self.progressBarSet)
-        self.progressBarFinished()
+        try:
+            self.progressBarInit()
+            go.loadGO(progressCallback=self.progressBarSet)
+            self.progressBarFinished()
+        except IOError, er:
+            response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the ontology.\nClik OK to download it?", "OK", "Cancel", "", 0, 1)
+            if response==0:
+                self.progressBarInit()
+                go.downloadGO(progressCallback=self.progressBarSet)
+                go.loadGO(progressCallback=self.progressBarSet)
+                self.progressBarFinished()
+            else:
+                raise
         
     def LoadAnnotation(self):
+        if not self.annotationCodes:
+            response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the annotation.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
+            if response==0:
+                self.UpdateGOAndAnnotation()
         if self.annotationCodes[self.annotationIndex]!= self.loadedAnnotationCode:
             self.progressBarInit()
-            go.loadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
+            try:
+                go.loadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
+            except IOError, er:
+                response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the annotation.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
+                if response==0:
+                    go.downloadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
+                    go.loadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
+                else:
+                    raise
             self.progressBarFinished()
 ##            count = dict([(etype, 0) for etype in go.evidenceTypesOrdered])
 ##            geneSets = dict([(etype, set()) for etype in go.evidenceTypesOrdered])
