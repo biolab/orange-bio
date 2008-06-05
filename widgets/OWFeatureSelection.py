@@ -15,41 +15,15 @@ from OWHist import OWInteractiveHist
 import OWGUI
 
 class ScoreHist(OWInteractiveHist):
-    def __init__(self, master, parent=None):
-        OWInteractiveHist.__init__(self, parent)
+    def __init__(self, master, parent=None, type="hiTail"):
+        OWInteractiveHist.__init__(self, parent, type=type)
         self.master = master
         self.setAxisTitle(QwtPlot.xBottom, "Score")
         self.setAxisTitle(QwtPlot.yLeft, "Frequency")
-
-    def updateData(self):
-        OWInteractiveHist.updateData(self)
-##        self.upperTailShadeKey = self.insertCurve(PolygonCurve(self, pen=QPen(Qt.blue), brush=QBrush(Qt.red))) # self.addCurve("upperTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Sticks)
-        self.upperTailShadeKey = self.addCurve("upperTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Steps)
-##        self.lowerTailShadeKey = self.insertCurve(PolygonCurve(self, pen=QPen(Qt.blue), brush=QBrush(Qt.red))) #self.addCurve("lowerTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Sticks)
-        self.lowerTailShadeKey = self.addCurve("lowerTailShade", Qt.blue, Qt.blue, 6, symbol = QwtSymbol.None, style = QwtPlotCurve.Steps)
-##        self.setCurveStyle(self.upperTailShadeKey, QwtPlotCurve.Steps)
-##        self.setCurveStyle(self.lowerTailShadeKey, QwtPlotCurve.Steps)
-        self.setCurveBrush(self.upperTailShadeKey, QBrush(Qt.red))
-        self.setCurveBrush(self.lowerTailShadeKey, QBrush(Qt.red))
-
-    def shadeTails(self):
-        index = max(min(int(100*(self.upperBoundary-self.minx)/(self.maxx-self.minx)), 100)-1, 0)
-        x = [self.upperBoundary] + list(self.xData[index:])
-        y = [self.yData[index]] + list(self.yData[index:])
-        self.setCurveData(self.upperTailShadeKey, x, y)
-        if self.type == 1:
-            index = max(min(int(100*(self.lowerBoundary-self.minx)/(self.maxx-self.minx)),99), 0)
-            x = list(self.xData[:index]) + [self.lowerBoundary]
-            y = list(self.yData[:index]) + [self.yData[index]]
-            self.setCurveData(self.lowerTailShadeKey, x, y)
-        else:
-            self.setCurveData(self.lowerTailShadeKey, [], [])
         
     def setBoundary(self, low, hi):
         OWInteractiveHist.setBoundary(self, low, hi)
         self.master.UpdateSelectedInfoLabel(low, hi)
-        self.shadeTails()
-        self.replot()
         if self.master.autoCommit:
             self.master.Commit()
         
@@ -66,15 +40,20 @@ class OWFeatureSelection(OWWidget):
         self.selectNBest = 20
 ##        self.infoLabel = "No data on input"        
 
-        self.oneTailTest = oneTailTest = lambda attr, low, hi:self.scores.get(attr,0)>=hi
+        self.oneTailTestHi = oneTailTestHi = lambda attr, low, hi:self.scores.get(attr,0)>=hi
+        self.oneTailTestLow = oneTailTestLow = lambda attr, low, hi:self.scores.get(attr,0)<=low
         self.twoTailTest = twoTailTest = lambda attr, low, hi:self.scores.get(attr,0)>=hi or self.scores.get(attr,0)<=low
-        self.scoreMethods = [("chi-squared", orange.MeasureAttribute_chiSquare, oneTailTest),
-                             ("info gain", orange.MeasureAttribute_info, oneTailTest),
+        self.middleTest = middleTest = lambda attr, low, hi:self.scores.get(attr,0)<=hi and self.scores.get(attr,0)>=low
+        self.histType = {oneTailTestHi:"hiTail", oneTailTestLow:"lowTail", twoTailTest:"twoTail", middleTest:"middle"}
+        self.scoreMethods = [("chi-square", orange.MeasureAttribute_chiSquare, oneTailTestHi),
+                             ("info gain", orange.MeasureAttribute_info, oneTailTestHi),
                              ("signal to noise ratio", lambda attr, data:MA_signalToNoise()(attr, data), twoTailTest),
                              ("t-test",lambda attr, data:MA_t_test()(attr, data), twoTailTest),
-                             ("t-test p-value",lambda attr, data:MA_t_test(prob=True)(attr, data), oneTailTest),
-                             ("fold test", lambda attr, data:MA_fold_test()(attr, data), twoTailTest),
-                             ("log2 fold test", lambda attr, data:math.log(max(min(MA_fold_test()(attr, data), 1e300), 1e-300)), twoTailTest)]
+                             ("t-test p-value",lambda attr, data:1.0 - MA_t_test(prob=True)(attr, data), oneTailTestLow),
+                             ("fold change", lambda attr, data:MA_fold_change()(attr, data), twoTailTest),
+                             ("log2 fold change", lambda attr, data:math.log(max(min(MA_fold_change()(attr, data), 1e300), 1e-300)), twoTailTest),
+                             ("anova", lambda attr, data:MA_anova()(attr, data), oneTailTestHi),
+                             ("anova p-value", lambda attr, data:1.0-MA_anova(prob=True)(attr, data), oneTailTestLow)]
 
         boxLayout = QVBoxLayout(self.mainArea)
         self.histogram = ScoreHist(self, self.mainArea)
@@ -150,7 +129,7 @@ class OWFeatureSelection(OWWidget):
     def Update(self):
         if self.data and self.data.domain.classVar:
             self.scores = self.ComputeAttributeScore(self.data, self.scoreMethods[self.methodIndex][1])
-            self.histogram.type = 0 if self.scoreMethods[self.methodIndex][2]==self.oneTailTest else 1
+            self.histogram.type = self.histType[self.scoreMethods[self.methodIndex][2]]
             self.histogram.setValues(self.scores.values())
             self.histogram.setBoundary(*self.cuts.get(self.methodIndex, (0, 0)))
         else:
@@ -180,9 +159,12 @@ class OWFeatureSelection(OWWidget):
         scores.sort(lambda a,b:cmp(a[1], b[1]))
         if not scores:
             return
-        if self.scoreMethods[self.methodIndex][2]==self.oneTailTest:
+        if self.scoreMethods[self.methodIndex][2]==self.oneTailTestHi:
             scores = scores[-max(self.selectNBest, 1):]
             self.histogram.setBoundary(scores[0][1], scores[0][1])
+        elif self.scoreMethods[self.methodIndex][2]==self.oneTailTestLow:
+            scores = scores[:max(self.selectNBest,1)]
+            self.histogram.setBoundary(scores[-1][1], scores[-1][1])
         else:
             scoresHi = scores[-max(self.selectNBest/2, 1):]
             scoresLo = scores[:max(self.selectNBest/2+self.selectNBest%2, 1)]

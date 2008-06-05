@@ -110,7 +110,7 @@ class MA_t_test(object):
         except:
             return 0
 
-class MA_fold_test(object):
+class MA_fold_change(object):
     def __init__(self, a=None, b=None):
         self.a = a
         self.b = b
@@ -135,4 +135,27 @@ class MA_fold_test(object):
         try:
             return mean(exa)/mean(exb)
         except:
+            return 0
+
+class MA_anova(object):
+    def __init__(self, prob=False):
+        self.prob = prob
+    def __call__(self, i, data):
+        cv = data.domain.classVar
+        #print data.domain
+
+        #for faster computation. to save dragging many attributes along
+        dom2 = orange.Domain([data.domain[i]], data.domain.classVar)
+        data = orange.ExampleTable(dom2, data)
+        i = 0
+
+        def avWCVal(value):
+            return [ex[i].value for ex in data if ex[cv] == value and not ex[i].isSpecial() ]
+
+        data = [avWCVal(val) for val in cv.values]
+
+        try:
+            f, prob = stats.lF_oneway(*tuple(data))
+            return prob if self.prob else f
+        except ex:
             return 0
