@@ -513,6 +513,7 @@ class GSEA(object):
         """
 
         cv = data.domain.classVar
+        nclassvalues = None
 
         if cv:
             oldcvals = [ a for a in cv.values ]
@@ -647,6 +648,9 @@ class GSEA(object):
             nsubsets.append( \
                 [namesToIndices[b] for a,b in subset[1][1]])
             nsubsetsNames.append([b for a,b in subset[1][1]])
+
+        if len(nsubsets) == 0:
+            return {} # prevent pointless computation of attribe ranks
 
         #print nsubsets
 
