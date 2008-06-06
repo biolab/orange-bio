@@ -376,7 +376,8 @@ def gseaR(rankings, subsets, n=100, **kwargs):
     """
 
     if "permutation" in kwargs:
-        raise Exception("Only gene permutation possible")
+        if kwargs["permutation"] == "class":
+            raise Exception("Only gene permutation possible")
 
     enrichmentScores = []
  
@@ -731,7 +732,8 @@ if  __name__=="__main__":
     def novi():
         print "done"
 
-    res2 = runGSEA(data, n=5, geneSets=gen1, permutation="class", callback=novi, atLeast=3)
+    data = orange.ExampleTable(data.domain, data[:1])
+    res2 = runGSEA(data, n=5, geneSets=gen1, permutation="classn", callback=novi, atLeast=3)
     
     print '\n'.join([ str(a) + ": " +str(b) for a,b in sorted(res2.items())])
 
