@@ -12,7 +12,7 @@
 from OWWidget import *
 from qttable import *
 from qt import *
-from orngMeSH import *
+from obiMeSH import *
 import OWGUI
 
 class MyQTableItem(QTableItem):
@@ -100,7 +100,7 @@ class OWMeSHBrowser(OWWidget):
         self.reference = None
         self.cluster = None
         self.loadSettings()        
-        self.mesh = orngMeSH()          # main object is created
+        self.mesh = obiMeSH()          # main object is created
         self.dataLoaded = self.mesh.dataLoaded
 
         # left pane
