@@ -304,7 +304,7 @@ class OWGsea(OWWidget):
             for j in range(i+1, len(resl)):
                 gen1 = set(resl[i][1][6])
                 gen2 = set(resl[j][1][6])
-                dm[i,j] = float(len(gen1 & gen2)) / len(gen2 | gen2)
+                dm[i,j] = float(len(gen1 & gen2)) / len(gen1 | gen2)
 
         return dm
 
