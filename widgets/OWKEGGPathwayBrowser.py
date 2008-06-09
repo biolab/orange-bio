@@ -13,9 +13,8 @@ from OWWidget import *
 import OWGUI
 from collections import defaultdict
 
-class PathwayToolTip(QToolTip):
+class PathwayToolTip(object):
     def __init__(self, parent):
-        QToolTip.__init__(self, parent)
         self.parent = parent
 
     def maybeTip(self, p):
@@ -23,13 +22,14 @@ class PathwayToolTip(QToolTip):
         if objs:
             genes = map(self.parent.master.uniqueGenesDict.get, dict(objs).keys())
             text = "<br>".join(genes)
-            self.tip(QRect(p.x()-2, p.y()-2, 4, 4), text)
+##            self.tip(QRect(p.x()-2, p.y()-2, 4, 4), text)
+            QToolTip.showText(self.parent.mapToGlobal(p), text, self.parent, QRect(p.x()-2, p.y()-2, 4, 4))
 
 class PathwayView(QGraphicsView):
     def __init__(self, master, *args):
         QGraphicsView.__init__(self, *args)
         self.master = master
-        #self.toolTip = PathwayToolTip(self)
+        self.toolTip = PathwayToolTip(self)
 
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -133,12 +133,10 @@ class PathwayView(QGraphicsView):
                     objs.append((id, bb))
         return objs
     
-##    def viewportMouseMoveEvent(self, event):
-##        x, y = event.x(), event.y()
-##        objs = self.GetObjects(x, y)
+    def mouseMoveEvent(self, event):
+        self.toolTip.maybeTip(event.pos())
 
     def mousePressEvent(self, event):
-        
         x, y = event.x(), event.y()
         print 'mouse x',x,'y',y
         old = set(self.master.selectedObjects.keys())
@@ -148,20 +146,27 @@ class PathwayView(QGraphicsView):
             for rect in set(self.master.selectedObjects.keys()).union(old):
                 x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
                 self.updateSceneRect(QRectF(x1-1, y1-1, x2-x1+2, y2-y1+2))
-                
-        elif event.button()==Qt.RightButton:
-            self.popup.objs = objs
-            self.popup.setItemEnabled(0, any(id for id, bb in objs if id in self.objects))
-            self.popup.setItemEnabled(2, len(objs)==1 and objs[-1][0].startswith("path:"))
-            self.popup.popup(self.mapToGlobal(event.pos()))
         else:
-            QScrollView.viewportMousePressEvent(self, event)
+            QGraphicsView.mousePressEvent(self, event)
 
     def resizeEvent(self, event):
         QGraphicsView.resizeEvent(self, event)
         
         if self.master.autoResize and self.image:
             self.ShowImage()
+
+    def contextMenuEvent(self, event):
+        objs = self.GetObjects(event.x(), event.y())
+        menu = QMenu(self)
+        action = menu.addAction("View pathway on KEGG website")
+        self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(1))
+        if any(id for id, bb in objs if id in self.objects):
+            menu.addAction("View genes on KEGG website")
+            self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(0))
+        if len(objs)==1 and objs[-1][0].startswith("path:"):
+            menu.addAction("View linked pathway")
+            self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(2))
+        menu.popup(event.globalPos())
             
         #QGraphicsView.resizeEvent(self,e)
         #if self.scene().parent.FitToWindow:
@@ -379,7 +384,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             pathways = self.pathways.items()
             pathways.sort(lambda a,b:cmp(a[1][1], b[1][1]))
             for id, (genes, p_value, ref) in pathways:
-                item = QListViewItem(self.listView)
+                item = QTreeWidgetItem(self.listView)
                 item.setText(0, allPathways.get(id, id))
                 item.setText(1, "%.5f" % p_value)
                 item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
@@ -509,8 +514,8 @@ if __name__=="__main__":
     app = QApplication(sys.argv)
     data = orange.ExampleTable("../../orange/doc/datasets/brown-selected.tab")
     w = OWKEGGPathwayBrowser()
-    app.setMainWidget(w)
+##    app.setMainWidget(w)
     w.show()
     w.SetData(data)
-    app.exec_loop()
+    app.exec_()
     w.saveSettings()
