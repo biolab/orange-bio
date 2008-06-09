@@ -407,3 +407,13 @@ class OWMeSHBrowser(OWWidget):
             self.__updateData__()
         else:
             self.__clearGUI__()
+
+if __name__=="__main__":
+    a = QApplication(sys.argv)
+    ow = OWMeSHBrowser()
+    a.setMainWidget(ow)
+##    dataset = orange.ExampleTable('adult_sample')
+##    ow.setData(dataset)
+    ow.show()
+    a.exec_loop()
+    ow.saveSettings()
