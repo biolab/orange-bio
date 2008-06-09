@@ -1,0 +1,74 @@
+import stats, orange, numpy
+
+def mean(l):
+    return float(sum(l))/len(l)
+
+class MA_pearsonCorrelation:
+    """
+    Calling an object of this class computes Pearson correlation of all
+    attributes against class.
+    """
+    def __call__(self, i, data):
+        dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
+        data2 = orange.ExampleTable(dom2, data)
+        a,c = data2.toNumpy("A/C")
+        return numpy.corrcoef(c,a[:,0])[0,1]
+
+class MA_signalToNoise:
+    """
+    Returns signal to noise measurement: difference of means of two classes
+    divided by the sum of standard deviations for both classes. 
+
+    Usege similar to MeasureAttribute*.
+
+    Standard deviation used for now returns minmally 0.2*|mi|, where mi=0 is adjusted to mi=1
+    (as in gsea implementation).
+
+    Can work only on data with two classes. If there are multiple class, then
+    relevant class values can be specified on object initialization.
+    By default the relevant classes are first and second class value
+    from the domain.
+    """
+
+    def __init__(self, a=None, b=None):
+        """
+        a and b are choosen class values.
+        """
+        self.a = a
+        self.b = b
+
+    def __call__(self, i, data):
+        cv = data.domain.classVar
+        #print data.domain
+
+        #for faster computation. to save dragging many attributes along
+        dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
+        data = orange.ExampleTable(dom2, data)
+        i = 0
+
+        if self.a == None: self.a = cv.values[0]
+        if self.b == None: self.b = cv.values[1]
+
+        def stdev(l):
+            return stats.stdev(l)
+
+        def stdevm(l):
+            m = mean(l)
+            std = stdev(l)
+            #return minmally 0.2*|mi|, where mi=0 is adjusted to mi=1
+            return max(std, 0.2*abs(1.0 if m == 0 else m))
+
+        def avWCVal(value):
+            return [ex[i].value for ex in data if ex[cv] == value and not ex[i].isSpecial() ]
+
+        exa = avWCVal(self.a)
+        exb = avWCVal(self.b)
+
+        try:
+            rval = (mean(exa)-mean(exb))/(stdevm(exa)+stdevm(exb))
+            return rval
+        except:
+            #return some "middle" value -
+            #TODO rather throw exception? 
+            return 0
+
