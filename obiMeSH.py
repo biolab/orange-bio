@@ -29,7 +29,7 @@ class obiMeSH(object):
             self.lookup.append(self.lookup[-1] + log(i))		
         self.dataLoaded = self.__loadOntologyFromDisk()		
 
-    def setDataDir(self,dataDir):
+    def setDataDir(self, dataDir):
         self.path = dataDir
         self.dataLoaded = self.dataLoaded or self.__loadOntologyFromDisk()
  
@@ -76,6 +76,7 @@ class obiMeSH(object):
         ontology.close()
 		
         __dataPath = os.path.join(os.path.dirname(__file__), self.path)
+        print "XXX", __dataPath
         output = file(os.path.join(__dataPath,'mesh-ontology.dat'), 'w')
 
         if callback:
@@ -544,6 +545,7 @@ class obiMeSH(object):
         self.fromPMID = dict()              #   pmid -> term id
 
         __dataPath = os.path.join(os.path.dirname(__file__), self.path)
+        print "XXX", __dataPath
 		
         try:		
             # reading graph structure from file
