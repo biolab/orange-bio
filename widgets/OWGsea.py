@@ -158,7 +158,8 @@ class OWGsea(OWWidget):
         self.outputs = [("Examples with selected genes only", ExampleTable), ("Results", ExampleTable), ("Distance Matrix", orange.SymMatrix) ]
 
         self.res = None
-
+        self.dm = None
+        
         self.name = 'GSEA'
         self.minSubsetSize = 3
         self.minSubsetSizeC = True
@@ -259,8 +260,11 @@ class OWGsea(OWWidget):
                     fn = head + ".gsea"
                 else:
                     fn = str(filename)
-                
-                pickle.dump(self.res, open(fn, "wb" ))
+                    
+                fp = open(fn, "wb" )
+                pickle.dump(self.res, fp)
+                pickle.dump(self.dm, fp)
+                fp.close()
         else:
             self.warning('No internal data to save.')
     
@@ -273,8 +277,17 @@ class OWGsea(OWWidget):
         filename = str(QFileDialog.getOpenFileName(self, 'Open GSEA data', startfile, "GSEA files (*.gsea)"))
         if filename == "": return
         
-        res = pickle.load(open(filename, "rb"))
-        self.compute(res)
+        fp = open(filename, "rb")
+        res = pickle.load(fp)
+        
+        try:
+            dm = pickle.load(fp)
+        except:
+            dm = None
+        
+        fp.close()
+        
+        self.compute(res, dm)
 
     def newPathwaySelected(self):
         print "newPathwaySelected"
@@ -355,7 +368,7 @@ class OWGsea(OWWidget):
             return ", ".join(genes)
 
         for name, (es, nes, pval, fdr, os, ts, genes) in res.items():
-            splitndx = name.find("] ")
+            splitndx = name.find("]")
             collection = name[1:splitndx]
             name = name[splitndx + 2:]
             item = QTreeWidgetItem(self.listView)
@@ -383,20 +396,17 @@ class OWGsea(OWWidget):
             self.selectable = False
             self.listView.setSelectionMode(QListView.NoSelection)
 
-    def compute(self, res=None):
+    def compute(self, res=None, dm=None):
         clearListView(self.listView)
         self.addComment("Computing...")
 
         self.resultsOut(None)
 
         qApp.processEvents()
-        self.res = None
+        self.res = res
+        self.dm = dm
         
-        if res != None:
-            self.res = res
-            
-        elif self.data:
-
+        if self.res == None and self.data:
             self.setSelMode(False)
 
             pb = OWGUI.ProgressBar(self, iterations=self.perms+2)
@@ -446,13 +456,15 @@ class OWGsea(OWWidget):
                 etres = self.exportET(resl)
 
                 self.resultsOut(etres)
-                dm = self.exportDistanceMatrix(resl)
+                if self.dm == None:
+                    self.dm = self.exportDistanceMatrix(resl)
+                    
+                    for ex in etres:
+                        ex.name = str(ex[0])
+                    
+                    self.dm.setattr("items", etres)
 
-                dm.setattr("items", etres)
-                for ex in etres:
-                    ex.name = str(ex[0])
-
-                self.genesetDistOut(dm)
+                self.genesetDistOut(self.dm)
 
             else:
                 self.setSelMode(False)

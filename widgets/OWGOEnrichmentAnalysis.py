@@ -118,7 +118,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         # ListView for DAG, and table for significant GOIDs
         self.DAGcolumns = ['GO term', 'Cluster frequency', 'Reference frequency', 'p value', 'Genes', 'Enrichment']
-        self.layout=QVBoxLayout(self.mainArea)
+        #self.layout=QVBoxLayout(self.mainArea)
         self.splitter = QSplitter(Qt.Vertical, self.mainArea)
         self.mainArea.layout().addWidget(self.splitter)
 
