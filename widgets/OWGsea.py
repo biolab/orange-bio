@@ -272,7 +272,8 @@ class OWGsea(OWWidget):
 
         vars = []
         vars.append(orange.StringVariable("Name"))
-        vars.append(orange.EnumVariable("Collection", values = ["KEGG", "C4", "C3", "C2", "C1"]))
+        vars.append(orange.EnumVariable("Collection", values = ["KEGG", "C5", "C4", "C3", "C2", "C1"]))
+        vars.append(orange.EnumVariable("Subcollection", values = ["KEGG", "C5 bp", "C5 cc", "C5 mf", "C4 cm", "C4 cgn", "C3 mir", "C3 tft", "C2 cgp", "C2 cp", "C1"]))
         vars.append(orange.FloatVariable("NES"))
         vars.append(orange.FloatVariable("ES"))
         vars.append(orange.FloatVariable("P-value"))
@@ -285,10 +286,11 @@ class OWGsea(OWWidget):
 
         examples = []
         for name, (es, nes, pval, fdr, os, ts, genes) in resl:
-            splitndx = name.find("] ")
-            collection = name[1:splitndx]
+            splitndx = name.find("]")
+            subcollection = name[1:splitndx]
+            collection = subcollection.split(" ")[0]
             name = name[splitndx + 2:]
-            examples.append([name, collection, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
+            examples.append([name, collection, subcollection, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
 
         return orange.ExampleTable(domain, examples)
 
