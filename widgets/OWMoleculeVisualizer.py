@@ -775,7 +775,17 @@ def render2OE8BitImage(view):
 def remoteMoleculeFragment2BMP(molSmiles, fragSmiles, filename, size=200, title="", grayedBackground=False):
     import cStringIO
     import urllib
-    import Image
+    import Image, ImageDraw
+
+    from openbabel import OBConversion, OBMol
+    loader = OBConversion()
+    loader.SetInAndOutFormats("smi", "smi")
+    if not loader.ReadString(OBMol(), molSmiles):
+        img = Image.new("RGB", (size, size), (255,255,255))
+        draw = ImageDraw.Draw(img)
+        draw.text((10, size/2-10), "wrong SMILES notation", fill=(0, 0, 0))
+        img.save(filename)
+        return
     
     params = urllib.urlencode({'password': OWMoleculeVisualizer.serverPwd, 'molSmiles': molSmiles, 'fragSmiles': fragSmiles, 'size': size, 'title': title, 'grayBack': grayedBackground})
     try:
@@ -793,7 +803,17 @@ def remoteMoleculeFragment2BMP(molSmiles, fragSmiles, filename, size=200, title=
 def remoteMolecule2BMP(molSmiles, filename, size=200, title="", grayedBackground=False):
     import cStringIO
     import urllib
-    import Image
+    import Image, ImageDraw
+
+    from openbabel import OBConversion, OBMol
+    loader = OBConversion()
+    loader.SetInAndOutFormats("smi", "smi")
+    if not loader.ReadString(OBMol(), molSmiles):
+        img = Image.new("RGB", (size, size), (255,255,255))
+        draw = ImageDraw.Draw(img)
+        draw.text((10, size/2-10), "wrong SMILES notation", fill=(0, 0, 0))
+        img.save(filename)
+        return    
     
     params = urllib.urlencode({'password': OWMoleculeVisualizer.serverPwd, 'molSmiles': molSmiles, 'size': size, 'title': title, 'grayBack': grayedBackground})
     try:
