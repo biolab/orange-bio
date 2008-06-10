@@ -33,7 +33,7 @@ class OWFeatureSelection(OWWidget):
     def __init__(self, parent=None, signalManager=None, name="Feature selection"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Examples", ExampleTable, self.SetData)]
-        self.outputs = [("Examples with selected attributes", ExampleTable), ("Examples with remaining attributes", ExampleTable)]
+        self.outputs = [("Examples with selected attributes", ExampleTable), ("Examples with remaining attributes", ExampleTable), ("Computed scores", ExampleTable)]
 
         self.methodIndex = 0
         self.autoCommit = False
@@ -65,8 +65,10 @@ class OWFeatureSelection(OWWidget):
         self.dataInfoLabel = OWGUI.widgetLabel(box, "\n\n")
         self.selectedInfoLabel = OWGUI.widgetLabel(box, "")
         OWGUI.radioButtonsInBox(self.controlArea, self, "methodIndex", [sm[0] for sm in self.scoreMethods], box="Score Method", callback=self.Update, addSpace=True)
+        box = OWGUI.widgetBox(self.controlArea, "Computed Scores", addSpace=True)
+        OWGUI.button(box, self, "Send all computed scores", callback=self.SendComputedScores, tooltip="Computes scores for all features and sends\nthe results on the Computed scores output")
         box = OWGUI.widgetBox(self.controlArea, "Selection", addSpace=True)
-        OWGUI.button(box, self, "Select n best features", callback=self.SelectNBest)
+        OWGUI.button(box, self, "Select n best features", callback=self.SelectNBest, tooltip="Automaticaly selects n best features based on the currently selected score method")
         OWGUI.spin(box, self, "selectNBest", 0, 10000, step=1, label="n:")
         OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
         OWGUI.button(box, self, "&Commit", callback=self.Commit)
@@ -106,7 +108,12 @@ class OWFeatureSelection(OWWidget):
                 data = self.discData
                 newAttrs = data.domain.attributes
             else:
-                newAttrs = [self.discretizer(attr, data) for attr in attributes]
+                newAttrs = []
+                for attr in attributes:
+                    if attr.varType==orange.VarTypes.Continuous:
+                        newAttrs.append(self.discretizer(attr, data))
+                    else:
+                        newAttrs.append(attr)
 ##                data = data.select(newAttrs + [data.domain.classVar])
                 newDomain = orange.Domain(newAttrs + [data.domain.classVar])
                 table = orange.ExampleTable(newDomain)
@@ -119,7 +126,10 @@ class OWFeatureSelection(OWWidget):
         scores = {}
         milestones = set(range(0, len(attributes), max(len(attributes)/100, 1)))
         for i, (attr, newAttr) in enumerate(zip(attributes, newAttrs)):
-            scores[attr] = scoreFunc(newAttr, data)
+            try:
+                scores[attr] = scoreFunc(newAttr, data)
+            except:
+                scores[attr] = 0.0
             if i in milestones:
                 self.progressBarSet(100.0*i/len(attributes))
         self.progressBarFinished()
@@ -182,6 +192,26 @@ class OWFeatureSelection(OWWidget):
         else:
             self.send("Examples with selected attributes", None)
             self.send("Examples with remaining attributes", None)
+            self.send("Computed scores", None)
+
+    def SendComputedScores(self):
+        if self.data and self.data.domain.classVar:
+            domain = orange.Domain(self.data.domain.attributes, False)
+            mid = orange.newmetaid()
+            domain.addmeta(mid, orange.StringVariable("Score method"))
+            table = orange.ExampleTable(domain)
+            for name, func, test in self.scoreMethods:
+                if func not in self.scoreCache:
+                    scores = self.ComputeAttributeScore(self.data, func)
+                scores = self.scoreCache[func]
+                ex = orange.Example(domain, [scores[attr] for attr in domain.attributes])
+                ex[mid] = name
+                table.append(ex)
+            self.send("Computed scores", table)
+        else:
+            self.send("Computed scores", None)
+            
+            
 
 if __name__=="__main__":
     import sys
