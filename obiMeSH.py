@@ -207,7 +207,38 @@ class obiMeSH(object):
         allTerms = list(set(allTerms))
 
         return allTerms
+   
+    def findCIDSubset(self,meshTerms,examples, callback = None):
+        """ function examples which have at least one node on their path from list meshTerms
+            findSubset(['Aspirine'],[1,2,3]) will return a dataset with examples annotated as Aspirine"""
 
+        newdata = []
+        ids = list()
+
+        for i in meshTerms:
+            ids.extend(self.toID[i])
+
+        for e in examples:
+            if not self.fromCID.has_key(e):
+               continue
+
+            ends = self.fromCID[e]
+            endids = list()
+            for i in ends:
+                if self.toID.has_key(i):
+                    endids.extend(self.toID[i])
+            allnodes = self.__findParents(endids)
+
+            # calculate intersection            
+            isOk = False            
+            for i in allnodes:
+                if ids.count(i) > 0:
+                    isOk = True
+                    break
+
+            if isOk:      # intersection between example mesh terms and observed term group is None
+                newdata.append(e)
+        return newdata
     
     def findFrequentTerms(self,data,minSizeInTerm, treeData = False, callback=None):
         """ Function iterates thru examples in data. For each example it computes a list of associated terms. At the end we get (for each term) number of examples which have this term. """
@@ -545,8 +576,7 @@ class obiMeSH(object):
         self.fromPMID = dict()              #   pmid -> term id
 
         __dataPath = os.path.join(os.path.dirname(__file__), self.path)
-        print "XXX", __dataPath
-		
+
         try:		
             # reading graph structure from file
             d = file(os.path.join(__dataPath,'mesh-ontology.dat'))
@@ -565,7 +595,7 @@ class obiMeSH(object):
             # reading pmid annotation from file
             g = file(os.path.join(__dataPath,'pmid-annotation.dat'))
         except IOError:
-            print os.path.join(__dataPath,'pmid-annotation.dat') + " does not exist! Please use function setDataDir(path) to fix this problem."
+            #print os.path.join(__dataPath,'pmid-annotation.dat') + " does not exist! Please use function setDataDir(path) to fix this problem."
             #return False
 			
         # loading ontology graph
