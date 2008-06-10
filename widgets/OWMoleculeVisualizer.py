@@ -317,7 +317,11 @@ class OWMoleculeVisualizer(OWWidget):
         self.scrollView.setFocusPolicy(QWidget.StrongFocus)
         self.listBox.setFocusPolicy(QWidget.NoFocus)
 
-        self.imageprefix=os.path.split(__file__)[0]
+        try:
+            import orngRegistry
+            self.imageprefix=orngRegistry.bufferDir
+        except:
+            self.imageprefix=os.path.split(__file__)[0]
         if "molimages" not in os.listdir(self.imageprefix):
             try:
                 os.mkdir(self.imageprefix and self.imageprefix+"/molimages" or "molimages")
