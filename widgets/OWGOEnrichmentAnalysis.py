@@ -248,6 +248,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         cn = {}
         for attr in candidateGeneAttrs:
             vals = [str(e[attr]) for e in self.clusterDataset]
+            if any("," in val for val in vals):
+                vals = reduce(list.__add__, (val.split(",") for val in vals))
             for organism, s in organismGenes.items():
                 l = filter(lambda a: a in s, vals)
                 cn[(attr,organism)] = len(l)
@@ -298,8 +300,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
             examples = []
             for ex in self.clusterDataset:
-                if str(ex[geneAttr]) not in go.loadedAnnotation.aliasMapper:
+                if not any(n in go.loadedAnnotation.aliasMapper for n in str(ex[geneAttr]).split(",")):
                     examples.append(ex)
+##                if str(ex[geneAttr]) not in go.loadedAnnotation.aliasMapper:
+##                    examples.append(ex)
             self.send("Example With Unknown Genes", examples and orange.ExampleTable(examples) or None)
         else:
             self.send("Example With Unknown Genes", None)
@@ -361,9 +365,15 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def Enrichment(self):
         if self.useAttrNames:
             clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
+            self.information(0)
         else:
             geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
             clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset if not ex[geneAttr].isSpecial()]
+            if any("," in gene for gene in clusterGenes):
+                self.information(0, "Separators detected in cluster gene names. Assuming multiple genes per example.")
+                clusterGenes = reduce(list.__add__, (genes.split(",") for genes in clusterGenes))
+            else:
+                self.information(0)
         self.UpdateGOAliases(clusterGenes)
         self.clusterGenes = clusterGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, clusterGenes)
         referenceGenes = None
@@ -371,16 +381,23 @@ class OWGOEnrichmentAnalysis(OWWidget):
             try:
                 if self.useAttrNames:
                     referenceGenes = [v.name for v in self.referenceDataset.domain.variables]
+                    self.information(1)
                 else:
                     referenceGenes = [str(ex[geneAttr]) for ex in self.referenceDataset if not ex[geneAttr].isSpecial()]
+                    if any("," in gene for gene in clusterGenes):
+                        self.information(1, "Separators detected in reference gene names. Assuming multiple genes per example.")
+                        referenceGenes = reduce(list.__add__, (genes.split(",") for genes in referenceGenes))
+                    else:
+                        self.information(1)
                 self.UpdateGOAliases(referenceGenes)
                 referenceGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, referenceGenes)
-                self.information()
+                self.information(2)
             except Exception, er:
-                self.information(str(er)+" Using the annotation for reference")
+                self.information(2, str(er)+" Using the annotation for reference")
         else:
-            self.information()
-            self.referenceGenes = go.loadedAnnotation.geneNames
+            self.information(2)
+            referenceGenes = go.loadedAnnotation.geneNames
+        self.referenceGenes = referenceGenes
         evidences = []
         for etype in go.evidenceTypesOrdered:
             if getattr(self, "useEvidence"+etype):
@@ -518,17 +535,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         if self.useAttrNames:
             vars = [self.clusterDataset.domain[gene] for gene in set(selectedGenes)]
-            newDomain = orange.Domain(vars, 0)
+            newDomain = orange.Domain(vars, self.clusterDataset.domain.classVar)
             self.send("Selected Examples", orange.ExampleTable(newDomain, self.clusterDataset))
             self.send("Unselected Examples", None)
         else:
-            geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]            
+            geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
             newClass = orange.EnumVariable("GO Term", values=list(self.selectedTerms))
             newDomain = orange.Domain(self.clusterDataset.domain.variables, newClass)
             for ex in self.clusterDataset:
-                if not ex[geneAttr].isSpecial() and str(ex[geneAttr]) in selectedGenes:
+                if not ex[geneAttr].isSpecial() and any(gene in selectedGenes for gene in str(ex[geneAttr]).split(",")):
                     if self.selectionDisjoint and self.selectionAddTermAsClass:
-                        c = filter(lambda term: str(ex[geneAttr]) in self.graph[term][0], self.selectedTerms)[0]
+                        c = filter(lambda term: any(gene in self.graph[term][0] for gene in str(ex[geneAttr]).split(",")) , self.selectedTerms)[0]
                         ex =  orange.Example(newDomain, ex)
                         ex.setclass(newClass(c))
                     selectedExamples.append(ex)
