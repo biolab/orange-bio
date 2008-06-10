@@ -10,6 +10,7 @@ from OWWidget import *
 import OWGUI
 import obiGsea
 from exceptions import Exception
+import cPickle as pickle
 
 def nth(l, n):
     return [ a[n] for a in l ]
@@ -234,13 +235,46 @@ class OWGsea(OWWidget):
  
         OWGUI.separator(ca)
         self.btnApply = OWGUI.button(ca, self, "&Compute", callback = self.compute, disabled=0)
-
+        
+        fileBox = OWGUI.widgetBox(ca, orientation='horizontal')
+        OWGUI.button(fileBox, self, "Load", callback = self.loadData, disabled=0)
+        OWGUI.button(fileBox, self, "Save", callback = self.saveData, disabled=0)
+        
         gen1 = getGenesets()
 
         for name,genes in gen1.items():
             self.addGeneset(name, genes)
 
         self.addComment("Computation was not started.")
+        
+    def saveData(self):
+        self.warning('')
+        
+        if self.res != None:
+            filename = QFileDialog.getSaveFileName(self, 'Save GSEA data', '', 'GSEA files (*.gsea)')
+            if filename:
+                fn = ""
+                head, tail = os.path.splitext(str(filename))
+                if not tail:
+                    fn = head + ".gsea"
+                else:
+                    fn = str(filename)
+                
+                pickle.dump(self.res, open(fn, "wb" ))
+        else:
+            self.warning('No internal data to save.')
+    
+    def loadData(self):
+        if sys.platform == "darwin":
+            startfile = user.home
+        else:
+            startfile = "."
+                
+        filename = str(QFileDialog.getOpenFileName(self, 'Open GSEA data', startfile, "GSEA files (*.gsea)"))
+        if filename == "": return
+        
+        res = pickle.load(open(filename, "rb"))
+        self.compute(res)
 
     def newPathwaySelected(self):
         print "newPathwaySelected"
@@ -349,15 +383,19 @@ class OWGsea(OWWidget):
             self.selectable = False
             self.listView.setSelectionMode(QListView.NoSelection)
 
-    def compute(self):
+    def compute(self, res=None):
         clearListView(self.listView)
         self.addComment("Computing...")
 
         self.resultsOut(None)
 
         qApp.processEvents()
-
-        if self.data:
+        self.res = None
+        
+        if res != None:
+            self.res = res
+            
+        elif self.data:
 
             self.setSelMode(False)
 
@@ -398,7 +436,8 @@ class OWGsea(OWWidget):
             self.res = gso.compute(n=self.perms, callback=pb.advance, **kwargs)
             
             pb.finish()
-
+            
+        if self.res != None:
             if len(self.res) > 0:
                 self.fillResults(self.res)
                 self.setSelMode(True)
