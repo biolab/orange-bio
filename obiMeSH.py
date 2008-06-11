@@ -599,7 +599,7 @@ class obiMeSH(object):
             #return False
 			
         # loading ontology graph
-        t=0
+		t=0
         for i in d:
             t += 1
             parts = i.split("\t")		# delimiters are tabs
@@ -611,7 +611,7 @@ class obiMeSH(object):
 
             self.toID[parts[0]] = ids	# append additional ID
             self.toDesc[parts[0]] = parts[2]
-			
+
             for r in ids:
                 self.toName[r] = parts[0]
         
