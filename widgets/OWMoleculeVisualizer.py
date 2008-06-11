@@ -364,10 +364,10 @@ class OWMoleculeVisualizer(OWWidget):
                     self.molSubset=self.molSubset.select(self.molData.domain)
                 except:
                     self.molSubset=[]
-##            tmp=self.moleculeTitleAttributeList
+            tmp=self.moleculeTitleAttributeList
             self.openContext("",data)
-##            if len(tmp)>=100 and not self.moleculeTitleAttributeList:
-##                self.moleculeTitleAttributeList=tmp
+            if tmp and not self.moleculeTitleAttributeList: ##openContext somtimes crashes internaly and silently clears title list
+                self.moleculeTitleAttributeList=tmp
             self.showImages()
         else:
             self.moleculeSmilesCombo.clear()
