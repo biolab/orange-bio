@@ -234,6 +234,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         
         self.ctrlPressed=False
         self.selectedObjects = defaultdict(list)
+        self.data = None
         self.refData = None
         self.loadedOrganism = None
         
@@ -305,6 +306,8 @@ class OWKEGGPathwayBrowser(OWWidget):
                 
     def UpdateListView(self):
         self.listView.clear()
+        if not self.data:
+            return
         allPathways = self.org.list_pathways()
         allRefPathways = obiKEGG.KEGGInterfaceLocal().list_pathways(org="map")
         items = []
@@ -445,24 +448,28 @@ class OWKEGGPathwayBrowser(OWWidget):
             
 
     def Commit(self):
-        if self.useAttrNames:
-            selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
-            selectedVars = [self.data.domain[self.uniqueGenesDict[gene]] for gene in selectedGenes]
-            newDomain = orange.Domain(selectedVars ,0)
-            self.send("Selected Examples", orange.ExampleTable(newDomain, self.data))
+        if self.data:
+            if self.useAttrNames:
+                selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
+                selectedVars = [self.data.domain[self.uniqueGenesDict[gene]] for gene in selectedGenes]
+                newDomain = orange.Domain(selectedVars ,0)
+                self.send("Selected Examples", orange.ExampleTable(newDomain, self.data))
+            else:
+                geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
+                selectedExamples = []
+                otherExamples = []
+                selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
+                for ex in self.data:
+                    names = [self.revUniqueGenesDict.get(name, None) for name in split_and_strip(str(ex[geneAttr]), ",")]
+                    if any(name and name in selectedGenes for name in names):
+                        selectedExamples.append(ex)
+                    else:
+                        otherExamples.append(ex)
+                self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
+                self.send("Unselected Examples", otherExamples and orange.ExampleTable(otherExamples) or None)
         else:
-            geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
-            selectedExamples = []
-            otherExamples = []
-            selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
-            for ex in self.data:
-                names = [self.revUniqueGenesDict.get(name, None) for name in split_and_strip(str(ex[geneAttr]), ",")]
-                if any(name and name in selectedGenes for name in names):
-                    selectedExamples.append(ex)
-                else:
-                    otherExamples.append(ex)
-            self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
-            self.send("Unselected Examples", otherExamples and orange.ExampleTable(otherExamples) or None)
+            self.send("Selected Examples", None)
+            self.send("Unselected Examples", None)
         
     def keyPressEvent(self, key):
         if key.key()==Qt.Key_Control:
