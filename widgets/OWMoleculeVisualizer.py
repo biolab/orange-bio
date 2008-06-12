@@ -5,7 +5,6 @@
 <priority>2015</priority>
 """
 
-
 import orange
 #import orngChem_Old as orngChem
 from OWWidget import *
@@ -14,13 +13,15 @@ import OWGUI
 import sys, os
 #import vis
 
+import pickle
+
 localOpenEye = True
 try:
     from openeye.oechem import *
     from openeye.oedepict import *
 except ImportError:
     localOpenEye = False
-
+  
 class DrawContext(object):
     def __init__(self, molecule="", fragment="", size=200, imageprefix="", imagename="", title="", grayedBackground=False, useCached=False):
         self.molecule=molecule
@@ -41,9 +42,39 @@ class DrawContext(object):
 
     def __ne__(self, other):
         return not self==other
-        
-class ImageCacheManager(object):
+
+class Singleton(object):
+    __single_instances = {}
+    def __init__(self):
+        if self.__class__ in getattr(self, "_Singleton__single_instances"):
+            raise Exception("Creating a singleton class, use getinstance() instead")
+        else:
+            getattr(self, "_Singleton__single_instances")[self.__class__] = self
+    @classmethod
+    def getinstance(cls, *args, **kw):
+        instances = getattr(cls, "_Singleton__single_instances")
+        if cls in instances:
+            return instances[cls]
+        else:
+            return cls(*args, **kw)
+            
+from threading import Lock
+
+def synchronized(lock):
+    def syncfunc(func):
+        def f(*args, **kw):
+            lock.acquire()
+            ret = func(*args, **kw)
+            lock.release()
+            return ret
+        return f
+    return syncfunc
+
+mutex = Lock()
+
+class ImageCacheManager(Singleton):
     def __init__(self, maxSize=2000, imageprefix="image", ext=".png"):
+        Singleton.__init__(self)
         self.maxSize = maxSize
         self.imageprefix = imageprefix
         self.ext = ext
@@ -52,13 +83,16 @@ class ImageCacheManager(object):
         self.currentImages = {}
         self.cachedImages = {}
         self.epoch = 0
-
+        self.cachefilename = "imageCache.pickle"
+        
+    @synchronized(mutex)
     def setMaxSize(self, maxSize):
         self.maxSize = maxSize
 
     def getUnusedIndex(self):
         return (set(range(max(len(self.cachedImages)+len(self.currentImages)+1, self.maxSize)))-self.usedIndices).pop()
 
+    @synchronized(mutex)
     def getNewImageName(self, key):
         index = self.getUnusedIndex()
         self.usedIndices.add(index)
@@ -66,9 +100,11 @@ class ImageCacheManager(object):
         self.currentImages[key] = (index, name)
         return name
 
+    @synchronized(mutex)
     def __contains__(self, key):
         return key in self.cachedImages or key in self.currentImages
 
+    @synchronized(mutex)
     def __getitem__(self, key):
         if key in self.cachedImages:
             self.currentImages[key] = self.cachedImages[key]
@@ -77,6 +113,7 @@ class ImageCacheManager(object):
             return self.currentImages[key][1]
         raise KeyError(key)
 
+    @synchronized(mutex)
     def __delitem__(self, key):
         if key in self.cachedImages:
             del self.cachedImages[key]
@@ -85,12 +122,44 @@ class ImageCacheManager(object):
         else:
             raise KeyError(key)
         
+    @synchronized(mutex)
     def newEpoch(self):
         self.cachedImages = dict([(key, value) for key, value in self.cachedImages.items()[-self.maxSize:]])
         self.cachedImages.update(self.currentImages)
         self.usedIndices = set([v[0] for v in self.cachedImages.values()])
         self.currentImages = {}
-        
+
+    @classmethod
+    @synchronized(mutex)
+    def getcachedinstance(cls, filename=None, *args, **kw):
+        instances = getattr(cls, "_Singleton__single_instances")
+        if cls in instances:
+            return instances[cls]
+        else:
+            try:
+                print "Loading image cache from "+filename
+                inst = pickle.load(open(filename))
+                instances[cls] = inst
+                return inst
+            except Exception, ex:
+                print "Image cache loading failed", ex
+                inst = cls(*args, **kw)
+                inst.cachefilename = filename
+                return inst
+            
+    @synchronized(mutex)
+    def __del__(self):
+        self.dump()
+
+    @synchronized(mutex)
+    def dump(self):
+        try:
+            print "Dumping image cache to "+ self.cachefilename
+            pickle.dump(self, open(self.cachefilename, "w"))
+        except Exception, ex:
+            print "Dumping failed", ex
+            pass
+    
 class BigImage(QDialog):
     def __init__(self, context, *args):
         apply(QDialog.__init__, (self,)+args)
@@ -183,6 +252,7 @@ class MolImage(QLabel):
             self.selected=False
             self.setFrameStyle(QFrame.Panel | QFrame.Raised)
             self.show()
+            master.fromCacheCount+=1
         
     def load(self, filename):
         self.pix=QPixmap()
@@ -272,11 +342,11 @@ class OWMoleculeVisualizer(OWWidget):
         self.markFragmentsCheckBox=OWGUI.checkBox(box, self, "colorFragments", "Mark fragments", callback=self.redrawImages)
         box.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Maximum))
         OWGUI.separator(self.controlArea)
-        self.moleculeSmilesCombo=OWGUI.comboBox(self.controlArea, self, "moleculeSmilesAttr", "Molecule SMILES attribute",callback=self.showImages)
+        self.moleculeSmilesCombo=OWGUI.comboBox(self.controlArea, self, "moleculeSmilesAttr", "Molecule SMILES Attribute",callback=self.showImages)
         self.moleculeSmilesCombo.box.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Maximum))
         OWGUI.separator(self.controlArea)
 ##        self.moleculeTitleCombo=OWGUI.comboBox(self.controlArea, self, "moleculeTitleAttr", "Molecule title attribute", callback=self.redrawImages)
-        box=OWGUI.widgetBox(self.controlArea, "Molecule title attributes", addSpace = True)
+        box=OWGUI.widgetBox(self.controlArea, "Molecule Title Attributes", addSpace = True)
 ##        self.moleculeTitleListBox=QListBox(box)
 ##        self.moleculeTitleListBox.setSelectionMode(QListBox.Extended)
 ##        self.moleculeTitleListBox.setMinimumHeight(100)
@@ -286,10 +356,10 @@ class OWMoleculeVisualizer(OWWidget):
 ##        OWGUI.separator(self.controlArea)
 ##        self.moleculeTitleCombo.box.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Maximum))
         OWGUI.separator(self.controlArea)
-        self.fragmentSmilesCombo=OWGUI.comboBox(self.controlArea, self, "fragmentSmilesAttr", "Fragment SMILES attribute", callback=self.updateFragmentsListBox)
+        self.fragmentSmilesCombo=OWGUI.comboBox(self.controlArea, self, "fragmentSmilesAttr", "Fragment SMILES Attribute", callback=self.updateFragmentsListBox)
         self.fragmentSmilesCombo.box.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Maximum))
         OWGUI.separator(self.controlArea)
-        box=OWGUI.spin(self.controlArea, self, "imageSize", 50, 500, 50, box="Image size", callback=self.redrawImages, callbackOnReturn = True)
+        box=OWGUI.spin(self.controlArea, self, "imageSize", 50, 500, 50, box="Image Size", callback=self.redrawImages, callbackOnReturn = True)
         box.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Maximum))
         OWGUI.separator(self.controlArea)
         box=OWGUI.widgetBox(self.controlArea,"Selection", addSpace = True)
@@ -348,8 +418,9 @@ class OWMoleculeVisualizer(OWWidget):
         self.showFragmentsRadioButton.setDisabled(True)
         self.loadSettings()
         OWMoleculeVisualizer.serverPwd=self.serverPassword
-        self.imageCache=ImageCacheManager(1000, self.imageprefix, ".png")
+        self.imageCache=ImageCacheManager.getcachedinstance(os.path.join(os.path.split(self.imageprefix)[0],"imageCache.pickle"), 1000, self.imageprefix, ".png")
         self.failedCount=0
+        self.fromCacheCount=0
         
     def setMoleculeTable(self, data):
         self.closeContext()
@@ -521,6 +592,7 @@ class OWMoleculeVisualizer(OWWidget):
         self.imageWidgets=[]
         self.imageCache.newEpoch()
         self.failedCount=0
+        self.fromCacheCount=0
         if self.showFragments and self.fragmentSmiles:
             correctedNumColumns=fixNumColumns(len(self.fragmentSmiles[1:]), self.numColumns)
             self.progressBarInit()
@@ -581,10 +653,16 @@ class OWMoleculeVisualizer(OWWidget):
         self.renderImages(useCached)
         if not localOpenEye:
             if self.failedCount>0:
-                self.infoLabel.setText("Chemicals %i\nFailed to retrieve images from server" % len(self.imageWidgets))
-                self.warning("Failed to retrieve images from server")
+                self.infoLabel.setText("%i chemicals\nFailed to retrieve %i images from server\n%i images \
+                from server\n%i images from local cache" % (len(self.imageWidgets), self.failedCount,
+                                                            len(self.imageWidgets)-self.failedCount-self.fromCacheCount, self.fromCacheCount))
+                self.warning("Failed to retrieve some images from server")
+            elif self.fromCacheCount == len(self.imageWidgets):
+                self.infoLabel.setText("%i chemicals\nAll images from local cache" % len(self.imageWidgets))
+            elif self.fromCacheCount == 0:
+                self.infoLabel.setText("%i chemicals\nAll images from server" % len(self.imageWidgets))
             else:
-                self.infoLabel.setText("Chemicals %i\nAll images retrieved from server" % len(self.imageWidgets))
+                self.infoLabel.setText("%i chemicals\n%i images from server %i from local cache" % (len(self.imageWidgets), len(self.imageWidgets)-self.fromCacheCount, self.fromCacheCount))
         else:
             self.infoLabel.setText("Chemicals %i" % len(self.imageWidgets))
 
@@ -692,6 +770,10 @@ class OWMoleculeVisualizer(OWWidget):
             file.write("</tr>\n")
         file.write("</table></body></html>")
         file.close()
+
+    def saveSettings(self, *args, **kw):
+        OWWidget.saveSettings(self, *args, **kw)
+        self.imageCache.dump()
         
 def moleculeFragment2BMP(molSmiles, fragSmiles, filename, size=200, title="", grayedBackground=False):
     """given smiles codes of molecle and a fragment will draw the molecule and save it
