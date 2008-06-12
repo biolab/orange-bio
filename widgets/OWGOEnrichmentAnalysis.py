@@ -18,6 +18,9 @@ from collections import defaultdict
 
 from obiGeneMatch import GeneMatchMk2
 
+def split_and_strip(string, sep=None):
+    return [s.strip() for s in string.split(sep)]
+
 class TreeNode(object):
     def __init__(self, tuple, children):
         self.tuple = tuple
@@ -246,7 +249,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         for attr in candidateGeneAttrs:
             vals = [str(e[attr]) for e in self.clusterDataset]
             if any("," in val for val in vals):
-                vals = reduce(list.__add__, (val.split(",") for val in vals))
+                vals = reduce(list.__add__, (split_and_strip(val, ",") for val in vals), [])
             for organism, s in organismGenes.items():
                 l = filter(lambda a: a in s, vals)
                 cn[(attr,organism)] = len(l)
@@ -298,7 +301,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
             examples = []
             for ex in self.clusterDataset:
-                if not any(n in go.loadedAnnotation.aliasMapper for n in str(ex[geneAttr]).split(",")):
+                if not any(n in go.loadedAnnotation.aliasMapper for n in split_and_strip(str(ex[geneAttr]), ",")):
                     examples.append(ex)
 ##                if str(ex[geneAttr]) not in go.loadedAnnotation.aliasMapper:
 ##                    examples.append(ex)
@@ -391,7 +394,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset if not ex[geneAttr].isSpecial()]
             if any("," in gene for gene in clusterGenes):
                 self.information(0, "Separators detected in cluster gene names. Assuming multiple genes per example.")
-                clusterGenes = reduce(list.__add__, (genes.split(",") for genes in clusterGenes))
+                clusterGenes = reduce(list.__add__, (split_and_strip(genes, ",") for genes in clusterGenes), [])
             else:
                 self.information(0)
         self.UpdateGOAliases(clusterGenes)
@@ -406,7 +409,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     referenceGenes = [str(ex[geneAttr]) for ex in self.referenceDataset if not ex[geneAttr].isSpecial()]
                     if any("," in gene for gene in clusterGenes):
                         self.information(1, "Separators detected in reference gene names. Assuming multiple genes per example.")
-                        referenceGenes = reduce(list.__add__, (genes.split(",") for genes in referenceGenes))
+                        referenceGenes = reduce(list.__add__, (split_and_strip(genes, ",") for genes in referenceGenes), [])
                     else:
                         self.information(1)
                 self.UpdateGOAliases(referenceGenes)
@@ -561,9 +564,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
             newClass = orange.EnumVariable("GO Term", values=list(self.selectedTerms))
             newDomain = orange.Domain(self.clusterDataset.domain.variables, newClass)
             for ex in self.clusterDataset:
-                if not ex[geneAttr].isSpecial() and any(gene in selectedGenes for gene in str(ex[geneAttr]).split(",")):
+                if not ex[geneAttr].isSpecial() and any(gene in selectedGenes for gene in split_and_strip(str(ex[geneAttr]), ",")):
                     if self.selectionDisjoint and self.selectionAddTermAsClass:
-                        c = filter(lambda term: any(gene in self.graph[term][0] for gene in str(ex[geneAttr]).split(",")) , self.selectedTerms)[0]
+                        c = filter(lambda term: any(gene in self.graph[term][0] for gene in split_and_strip(str(ex[geneAttr]), ",")) , self.selectedTerms)[0]
                         ex =  orange.Example(newDomain, ex)
                         ex.setclass(newClass(c))
                     selectedExamples.append(ex)
