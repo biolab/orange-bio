@@ -63,15 +63,7 @@ class PhenotypesSelection():
         self.classes = []
 
         def createSquarePixmap(color = Qt.black):
-            pixmap = QPixmap()
-            pixmap.resize(13, 13)
-            painter = QPainter()
-            painter.begin(pixmap)
-            painter.setPen(color);
-            painter.setBrush(color);
-            painter.drawRect(0, 0, 13, 13);
-            painter.end()
-            return pixmap
+            return OWGUI.createAttributePixmap("", color)
 
         self.whiteSq = createSquarePixmap(Qt.white)
         self.marked = [ createSquarePixmap(Qt.red), createSquarePixmap(Qt.blue) ]
@@ -180,14 +172,14 @@ class PhenotypesSelection():
 
 class OWGsea(OWWidget):
 
-    settingsList = [ "name", "perms", "minSubsetSize", "minSubsetSizeC", "maxSubsetSize", "maxSubsetSizeC", \
-        "minSubsetPart", "minSubsetPartC", "ptype" ]
+    settingsList = [ "name", "perms", "minSubsetSize", "minSubsetSizeC", "maxSubsetSize", "maxSubsetSizeC", "minSubsetPart", "minSubsetPartC", "ptype", "gridSel" ]
 
     def __init__(self, parent=None, signalManager = None, name='GSEA'):
         OWWidget.__init__(self, parent, signalManager, name)
 
         self.inputs = [("Examples", ExampleTable, self.setData)]
-        self.outputs = [("Examples with selected genes only", ExampleTable), ("Results", ExampleTable), ("Distance Matrix", orange.SymMatrix) ]
+        self.outputs = [("Examples with selected genes only", ExampleTable), \
+            ("Results", ExampleTable), ("Distance Matrix", orange.SymMatrix) ]
 
         self.res = None
 
@@ -203,10 +195,14 @@ class OWGsea(OWWidget):
         self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
 
+        self.organisms = [ ("hsa", "hsa"), ("ddi", "ddi") ]
+        self.otype = 0
+
         self.correlationTypes = [ ("Signal2Noise", "s2n") ]
         self.ctype = 0
 
-        #self.loadSettings()
+        self.loadSettings()
+
         self.data = None
         self.geneSets = {}
 
@@ -214,20 +210,23 @@ class OWGsea(OWWidget):
         ca.setMaximumWidth(500)
 
         box = QVGroupBox(ca)
-        box.setTitle('Permutate')
+        box.setTitle('Organism')
 
-        self.permTypeF = OWGUI.comboBox(box, self, "ptype", items=nth(self.permutationTypes, 0), \
-            tooltip="Permutation type.")
-
-        _ = OWGUI.spin(box, self, "perms", 50, 1000, orientation="horizontal", label="Times")
+        OWGUI.comboBox(box, self, "otype", \
+            items=nth(self.organisms, 0), tooltip="Organism")
 
         OWGUI.separator(ca)
 
         box = QVGroupBox(ca)
-        box.setTitle('Correlation Calculation')
+        box.setTitle('Properties')
 
-        self.corTypeF = OWGUI.comboBox(box, self, "ctype", items=nth(self.correlationTypes, 0), \
-            tooltip="Correlation type.")
+        self.permTypeF = OWGUI.comboBoxWithCaption(box, self, "ptype", items=nth(self.permutationTypes, 0), \
+            tooltip="Permutation type.", label="Permutate")
+
+        _ = OWGUI.spin(box, self, "perms", 50, 1000, orientation="horizontal", label="Times")
+
+        self.corTypeF = OWGUI.comboBoxWithCaption(box, self, "ctype", items=nth(self.correlationTypes, 0), \
+            tooltip="Correlation type.", label="Correlation")
 
         OWGUI.separator(ca)
 
@@ -237,6 +236,16 @@ class OWGsea(OWWidget):
         _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Size", 1, 10000, "minSubsetSizeC", "minSubsetSize", "") #TODO check sizes
         _,_ = OWGUI.checkWithSpin(box, self, "Max. Subset Size", 1, 10000, "maxSubsetSizeC", "maxSubsetSize", "")
         _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Part (%)", 1, 100, "minSubsetPartC", "minSubsetPart", "")
+
+        OWGUI.separator(ca)
+
+        box = QVGroupBox(ca)
+        box.setTitle("Gene Sets")
+
+        self.gridSel = []
+        self.geneSel = [ a[0] for a in obiGsea.getCollectionFiles() ]
+        self.lbgs = OWGUI.listBox(box, self, "gridSel", "geneSel", selectionMode = QListBox.Multi)
+        OWGUI.button(box, self, "From &File", callback = self.addCollection, disabled=0)
 
         ma = self.mainArea
         boxL = QVBoxLayout(ma, QVBoxLayout.TopToBottom)
@@ -261,12 +270,17 @@ class OWGsea(OWWidget):
         OWGUI.separator(ca)
         self.btnApply = OWGUI.button(ca, self, "&Compute", callback = self.compute, disabled=0)
 
-        gen1 = getGenesets()
-
-        for name,genes in gen1.items():
-            self.addGeneset(name, genes)
+        #gen1 = getGenesets()
+        #for name,genes in gen1.items():
+        #    self.addGeneset(name, genes)
 
         self.addComment("Computation was not started.")
+
+    def addCollection(self):
+        fname = self.chooseGeneSetsFile()
+        if fname:
+            if fname not in self.geneSel:
+                self.geneSel.append(fname)
 
     def newPathwaySelected(self, item):
 
@@ -323,7 +337,7 @@ class OWGsea(OWWidget):
             for j in range(i+1, len(resl)):
                 gen1 = set(resl[i][1][6])
                 gen2 = set(resl[j][1][6])
-                dm[i,j] = float(len(gen1 & gen2)) / len(gen2 | gen2)
+                dm[i,j] = float(len(gen1 & gen2)) / len(gen1 | gen2)
 
         return dm
 
@@ -363,6 +377,15 @@ class OWGsea(OWWidget):
             self.listView.setSelectionMode(QListView.NoSelection)
 
     def compute(self):
+
+        #self.lbgs.clear()
+
+        #LOAD GENE SETS
+        collectionNames = [ self.geneSel[a] for a in self.gridSel ]
+        self.geneSets = obiGsea.collections(collectionNames, default=False)
+
+        #self.geneSel.append("fffafda")
+
         clearListView(self.listView)
         self.addComment("Computing...")
 
@@ -409,7 +432,10 @@ class OWGsea(OWWidget):
             if len(self.data) > 1:
                 dkwargs["classValues"] = selectedClasses
  
-            gso = obiGsea.GSEA(organism="hsa")
+
+            organism = self.organisms[self.otype][1]
+
+            gso = obiGsea.GSEA(organism="ddi")  # ORIGINALLY HSA
             gso.setData(self.data, **dkwargs)
 
             for name,genes in self.geneSets.items():
@@ -464,8 +490,13 @@ class OWGsea(OWWidget):
 
                 self.psel.setClasses(getClasses(data))
 
-    def addGeneset(self, name, genes):
-        self.geneSets[name] = genes
+    def chooseGeneSetsFile(self):
+        """
+        Return choosen gene sets file name or None, if no file
+        was choosen.
+        """
+        filename = str(QFileDialog.getOpenFileName("./","Gene Collections (*.gmt *.pck)", self, "open", "Choose gene set collection"))
+        return filename
 
 
 def unpckGS(filename):
@@ -475,7 +506,9 @@ def unpckGS(filename):
 
 def getGenesets():
     import orngRegistry
+    #return unpckGS("../abc/precompPathways.pck")
     return unpckGS(orngRegistry.bufferDir + "/gsea/geneSets_Gsea_KEGGhsa.pck")
+    
 
 if __name__=="__main__":
     a=QApplication(sys.argv)
@@ -489,8 +522,8 @@ if __name__=="__main__":
     #d = orange.ExampleTable('testCorrelated.tab')
     #ow.setData(d)
 
-    d = orange.ExampleTable("sterolTalkHepa.tab")
-    ow.setData(d)
+    #d = orange.ExampleTable("sterolTalkHepa.tab")
+    #ow.setData(d)
 
     #d = orange.ExampleTable("demo.tab")
     #ow.setData(d)
@@ -498,7 +531,8 @@ if __name__=="__main__":
     #d = orange.ExampleTable("tmp.tab")
     #ow.setData(d)
 
-
+    d = orange.ExampleTable("../abc/abc_gsea_1.tab")
+    ow.setData(d)
 
     a.exec_loop()
     ow.saveSettings()

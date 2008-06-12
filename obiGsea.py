@@ -5,7 +5,7 @@ import stats
 #import mOrngData
 import random
 import time
-import math
+import math, os
 from obiExpression import *
 
 """
@@ -13,6 +13,8 @@ Gene set enrichment analysis.
 
 Author: Marko Toplak
 """
+
+collectionsPath = None
 
 """
 Correlation methods.
@@ -695,6 +697,150 @@ def runGSEA(data, classValues=None, organism="hsa", geneSets=None, n=100, permut
     res1 = gso.compute(n=n, permutation=permutation, minSize=minSize, maxSize=maxSize, minPart=minPart, **kwargs)
     return res1
 
+"""
+Genesets
+"""
+
+def strip(s):
+    #return s
+    return s.rstrip().lstrip()
+
+def possiblyReadFile(s):
+    """
+    If s is not a string, then it is probably a file.
+    Read it's contents.
+    """
+    if isinstance(s, basestring):
+        return s
+    else:
+        return s.read()
+
+def handleNELines(s, fn):
+    """
+    Run function on nonempty lines of a string.
+    Return a list of results for each line.
+    """
+    lines = s.split("\n")
+    lines = [ strip(l) for l in lines ]
+    lines = filter(lambda x: x != "", lines)
+    return [ fn(l) for l in lines ]
+
+def genesetsLoadGMT(s):
+    """
+    Eech line consists of tab separated elements. First is
+    the geneset name, next is it's description. 
+    
+    For now the description is skipped.
+    """
+
+    s = possiblyReadFile(s)
+
+    def hline(s):
+        tabs = [ strip(tab) for tab in s.split("\t") ]
+        return tabs[0], tabs[2:]
+
+    return dict(handleNELines(s, hline))
+
+def collectionsPathname():
+    if not collectionsPath:
+        import orngRegistry
+        return os.path.join(orngRegistry.bufferDir, "gsea", "genesets")
+    else:
+        return collectionsPath
+
+
+def createCollection(lnf):
+    """
+    Input - list of tuples of geneset collection name and GMT
+    file.
+    """
+
+    def addSource(dic, addition):
+        return dict( \
+            [ (addition + name,genes) for name,genes in dic.items() ] )
+
+    gen1 = {}
+
+    for n,fn in lnf:
+        if fn.lower()[-4:] == ".gmt":
+            gen2 = genesetsLoadGMT(open(fn,"rt"))
+        elif fn.lower()[-4:] == ".pck":
+            import pickle
+            f = open(fn,'rb')
+            gen2 = pickle.load(f)
+
+        gen1.update(addSource(gen2, "[%s] " % n))
+
+    return gen1
+
+def getCollectionFiles(path=collectionsPathname()):
+
+    def loadInfo(path):
+        #TODO load info file
+        return {}
+        
+    info = loadInfo(path)
+
+    def okFile(fn):
+        if fn.lower()[-4:] == ".gmt":
+            return True
+        elif fn.lower()[-4:] == ".pck":
+            return True
+        return False
+
+    files = sorted(filter(okFile, os.listdir(path)))
+
+    out = []
+
+    for file in files:
+        fn = os.path.join(path, file)
+        name = info.get(file, file)
+        out.append( (name, fn) )
+
+    return out
+
+def collections(l=[], default=True, path=collectionsPathname()):
+    """
+    Input is a list of collections.
+    Default - if default collections are included.
+    Input is a list of names. If names match to any names in path,
+    they are taken. If not, file with that name is regarded as
+    a filename of gene set colections
+    """
+    collections = getCollectionFiles(path)
+
+    coln = nth(collections, 0)
+    colff = nth(collections, 1)
+    colf =  [ os.path.split(f)[1] for f in colff ]
+
+    check = [ coln, colff, colf ]
+
+    choosen = set()
+    if default:
+        choosen = choosen | set(collections)
+
+    for col in l:
+        added = False
+        if not added:
+            try: # if integer it can be the index
+                choosen = choosen | set( [ collections[int(col)] ])
+                added = True
+            except:
+                pass
+        if not added:
+            for cl in check:
+                if col in cl:
+                    choosen = choosen | set( [ collections[cl.index(col)] ])
+                    added = True
+                    break
+        if not added:
+            choosen = choosen | set( [ (col, col) ] )            
+
+    return createCollection(list(choosen))
+
+"""
+End genesets
+"""
 
 if  __name__=="__main__":
 
@@ -716,6 +862,11 @@ if  __name__=="__main__":
  
     #print gseal
 
+    #collectionsPathname()
+
+    print collections(["c2.cp.v2.5.symbols.gmt"], default=False)
+
+    import sys; sys.exit(0)
      
     def unpckGS(filename):
         import pickle
