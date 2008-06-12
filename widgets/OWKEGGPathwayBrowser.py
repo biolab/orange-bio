@@ -16,6 +16,9 @@ import OWGUI
 
 from collections import defaultdict
 
+def split_and_strip(string, sep=None):
+    return [s.strip() for s in string.split(sep)]
+
 class PathwayToolTip(QToolTip):
     def __init__(self, parent):
         QToolTip.__init__(self, parent)
@@ -272,11 +275,12 @@ class OWKEGGPathwayBrowser(OWWidget):
         testOrgs = self.autoFindBestOrg and self.organismCodes or [self.organismCodes[self.organismIndex]]
         for i, org in enumerate(testOrgs):
             try:
-                geneNames = load(open(obiKEGG.default_database_path+org+"_genenames.pickle"))
+                geneNames = load(open(os.path.join(obiKEGG.default_database_path, org+"_genenames.pickle")))
             except:
                 continue
             for attr in self.geneAttrCandidates:
                 vals = [str(e[attr]).strip() for e in data if not e[attr].isSpecial()]
+                vals = reduce(list.__add__, (split_and_strip(val, ",") for val in vals), [])
                 match = filter(lambda v:v in geneNames, vals)
                 score[(attr, org)] = len(match)
             match = [v for v in attrNames if v in geneNames]
@@ -372,11 +376,15 @@ class OWKEGGPathwayBrowser(OWWidget):
         if not self.data:
             return
         self.error(0)
+        self.information(0)
         if self.useAttrNames:
             genes = [str(v.name).strip() for v in self.data.domain.attributes]
         elif self.geneAttrCandidates:
             geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
             genes = [str(e[geneAttr]) for e in self.data if not e[geneAttr].isSpecial()]
+            if any("," in gene for gene in genes):
+                genes = reduce(list.__add__, (split_and_strip(gene, ",") for gene in genes), [])
+                self.information(0, "Separators detected in input gene names. Assuming multiple genes per example.")
         else:
             self.error(0, "Cannot extact gene names from input")
             genes = []
@@ -391,12 +399,16 @@ class OWKEGGPathwayBrowser(OWWidget):
             print "Conflicting genes:", conflicting
         if unknown:
             print "Unknown genes:", unknown
+        self.information(1)
         if self.useReference and self.refData:
             if self.useAttrNames:
                 reference = [str(v.name).strip() for v in self.refData]
             else:
                 geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
                 reference = [str(e[geneAttr]) for e in self.refData if not e[geneAttr].isSpecial()]
+                if any("," in gene for gene in reference):
+                    reference = reduce(list.__add__, (split_and_strip(gene, ",") for gene in reference), [])
+                    self.information(1, "Separators detected in reference gene names. Assuming multiple genes per example.")
             self.progressBarInit()
             uniqueRefGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(reference), self.caseSensitive)
             self.progressBarFinished()
@@ -434,7 +446,7 @@ class OWKEGGPathwayBrowser(OWWidget):
 
     def Commit(self):
         if self.useAttrNames:
-            selectedGenes = reduce(lambda s,b:s.union(b), self.selectedObjects.values(), set())
+            selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
             selectedVars = [self.data.domain[self.uniqueGenesDict[gene]] for gene in selectedGenes]
             newDomain = orange.Domain(selectedVars ,0)
             self.send("Selected Examples", orange.ExampleTable(newDomain, self.data))
@@ -442,10 +454,10 @@ class OWKEGGPathwayBrowser(OWWidget):
             geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
             selectedExamples = []
             otherExamples = []
-            selectedGenes = reduce(lambda s,b:s.union(b), self.selectedObjects.values(), set())
+            selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
             for ex in self.data:
-                name = self.revUniqueGenesDict.get(str(ex[geneAttr]).strip(), None)
-                if name and name in selectedGenes:
+                names = [self.revUniqueGenesDict.get(name, None) for name in split_and_strip(str(ex[geneAttr]), ",")]
+                if any(name and name in selectedGenes for name in names):
                     selectedExamples.append(ex)
                 else:
                     otherExamples.append(ex)
