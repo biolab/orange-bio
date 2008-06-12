@@ -28,6 +28,6 @@ setup(name = "Genomics",
       packages = [ 'widgets', 'doc', 'data' ],
       package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
       extra_path="Genomics",
-      py_modules = [ 'go', 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomisUpdate', 'obiExpression', 'stats', 'pstat' ],
+      py_modules = [ 'go', 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomicsUpdate', 'obiExpression', 'stats', 'pstat' ],
       scripts=["registerWidgets.py", "post_install_script.py"]
       )
