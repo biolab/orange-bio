@@ -178,8 +178,7 @@ class OWGsea(OWWidget):
         OWWidget.__init__(self, parent, signalManager, name)
 
         self.inputs = [("Examples", ExampleTable, self.setData)]
-        self.outputs = [("Examples with selected genes only", ExampleTable), \
-            ("Results", ExampleTable), ("Distance Matrix", orange.SymMatrix) ]
+        self.outputs = [("Examples with selected genes only", ExampleTable), ("Results", ExampleTable), ("Distance Matrix", orange.SymMatrix) ]
 
         self.res = None
 
@@ -245,7 +244,7 @@ class OWGsea(OWWidget):
         self.gridSel = []
         self.geneSel = [ a[0] for a in obiGsea.getCollectionFiles() ]
         self.lbgs = OWGUI.listBox(box, self, "gridSel", "geneSel", selectionMode = QListBox.Multi)
-        OWGUI.button(box, self, "From &File", callback = self.addCollection, disabled=0)
+        #OWGUI.button(box, self, "From &File", callback = self.addCollection, disabled=0)
 
         ma = self.mainArea
         boxL = QVBoxLayout(ma, QVBoxLayout.TopToBottom)
