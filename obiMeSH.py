@@ -12,7 +12,7 @@ import os.path
 
 class obiMeSH(object):
     def __init__(self):
-        self.path = "data/MeSH"
+        self.path = "data"
         self.reference = None
         self.cluster = None
         self.ratio = 1
@@ -26,8 +26,8 @@ class obiMeSH(object):
         #we calculate log(i!)
         self.lookup = [0]
         for i in range(1, 8000):
-            self.lookup.append(self.lookup[-1] + log(i))		
-        self.dataLoaded = self.__loadOntologyFromDisk()		
+            self.lookup.append(self.lookup[-1] + log(i))
+        self.dataLoaded = self.__loadOntologyFromDisk()
 
     def setDataDir(self, dataDir):
         self.path = dataDir
@@ -54,18 +54,18 @@ class obiMeSH(object):
             rsize += len(i)
             line = i.rstrip("\t\n")
             if(line == "*NEWRECORD"):
-                if(len(results) > 0 and results[-1][1] == []):				# we skip nodes with missing mesh id
+                if(len(results) > 0 and results[-1][1] == []):	# we skip nodes with missing mesh id
                     results[-1] = ["",[],"No description."]
                 else:
                     results.append(["",[],"No description."])	
                 if(len(results)%40 == 0):
                     if callback:
-                        callback(1+int(rsize*94/size))			
+                        callback(1+int(rsize*94/size))	
 	
             parts = line.split(" = ")
             if(len(parts) == 2 and len(results)>0):
                 if(parts[0] == "MH"):
-                    results[-1][0] = parts[1].strip("\t ") 					
+                    results[-1][0] = parts[1].strip("\t ") 
 
                 if(parts[0] == "MN"):
                     results[-1][1].append(parts[1].strip("\t "))
@@ -74,7 +74,7 @@ class obiMeSH(object):
                     results[-1][2] = parts[1].strip("\t ")
 
         ontology.close()
-		
+
         __dataPath = os.path.join(os.path.dirname(__file__), self.path)
         print "XXX", __dataPath
         output = file(os.path.join(__dataPath,'mesh-ontology.dat'), 'w')
@@ -110,11 +110,11 @@ class obiMeSH(object):
         ids = list()
         l = len(examples)
         c = 0.0
-        
+
         # we couldn't find any mesh attribute
         if self.solo_att == "Unknown":
             return newdata
-        
+
         for i in meshTerms:
             ids.extend(self.toID[i])
 
@@ -132,7 +132,7 @@ class obiMeSH(object):
                 if self.toID.has_key(i):
                     endids.extend(self.toID[i])
             allnodes = self.__findParents(endids)
-            
+
             # calculate intersection            
             isOk = False            
             for i in allnodes:
@@ -143,7 +143,7 @@ class obiMeSH(object):
             if isOk:      # intersection between example mesh terms and observed term group is None
                 newdata.append(e)
 
-        return newdata	
+        return newdata
 
     def findTerms(self,ids, idType="cid", callback = None):
         """ returns a dictionary with terms (term id) that apply to ids (cids or pmids). """
@@ -208,7 +208,7 @@ class obiMeSH(object):
 
         return allTerms
    
-    def findCIDSubset(self,meshTerms,examples, callback = None):
+    def findCIDSubset(self,examples,meshTerms, callback = None):
         """ function examples which have at least one node on their path from list meshTerms
             findSubset(['Aspirine'],[1,2,3]) will return a dataset with examples annotated as Aspirine"""
 
@@ -216,7 +216,8 @@ class obiMeSH(object):
         ids = list()
 
         for i in meshTerms:
-            ids.extend(self.toID[i])
+                if self.toID.has_key(i):
+                    ids.extend(self.toID[i])
 
         for e in examples:
             if not self.fromCID.has_key(e):
@@ -333,7 +334,7 @@ class obiMeSH(object):
         succesors["tops"] = tops
         return succesors  
         
-    def findEnrichedTerms(self,reference, cluster, pThreshold=0.05, treeData = False, callback=None):
+    def findEnrichedTerms(self,reference, cluster, pThreshold=0.015, treeData = False, callback=None):
         """ like above, but only includes enriched terms (with p value equal or less than pThreshold). Returns a list of (term_id,  term_description, countRef, countCluster, p-value,	enrichment/deprivement, list of corrensponding cids ... anything else necessary). It printOrder is true function returns results in nested lists. This means that at printing time we know if there is any relationship betwen terms"""
 
         self.clu_att = self.__findMeshAttribute(cluster)
@@ -367,17 +368,17 @@ class obiMeSH(object):
         else:
             return ret
 
-    def printMeSH(self,data, selection = ["term","r","c", "p"]):
+    def printMeSH(self,data, selection = ["term","r","c", "p"], func = None):
         """for a dictinary of terms prints a MeSH ontology. Together with ontology should print things like number
         of compounds, p-values (enrichment), ... see Printing the Tree in orngTree documentation for example of such
         an implementation. The idea is to have only function for printing out the nested list of terms. """
         # first we calculate additional info for printing MeSH ontology
         info = self.__treeData(data.keys())
         for i in info["tops"]:
-            self.__pp(0,i,info,data, selection)
-            
-    def __pp(self, offset, item, relations, data, selection):
-        mapping = {"term":0,"desc":1,"r":2,"c":3, "p":4, "fold":5} 
+            self.__pp(0,i,info,data, selection, funct = func)
+
+    def __pp(self, offset, item, relations, data, selection, funct = None):
+        mapping = {"term":0,"desc":1,"r":2,"c":3, "p":4, "fold":5, "func":6} 
         for i in range(0,offset):
             print " ",
 
@@ -391,15 +392,64 @@ class obiMeSH(object):
                 else:
                     print print_data[mapping[i]],
 
+            if funct != None:
+                print " ", funct(print_data[0]),
+
             #print self.toName[item], " r=" + str(data[item][1])  +" c="+ str(data[item][2])  ," p=" + str(pval) + " fold=" + str(fold)
             print ""
         else:
             print self.toName[item], " freq=" + str(data[item])
 
+        for i in relations[item]:
+            self.__pp(offset + 2, i, relations, data, selection, funct = funct) 
+
+    def printHtmlMeSH(self,data, selection = ["term","r","c", "p"], func = None):
+        """for a dictinary of terms prints a MeSH ontology. Together with ontology should print things like number
+        of compounds, p-values (enrichment), ... see Printing the Tree in orngTree documentation for example of such
+        an implementation. The idea is to have only function for printing out the nested list of terms. """
+        # first we calculate additional info for printing MeSH ontology
+        info = self.__treeData(data.keys())
+        print "<table>\n<tr>"
+        for i in selection:
+            print "<th width='55px' align='left'>" + i  +"</th>"
+        
+        if func != None:
+            func("header")
+            
+        print "</tr>\n"
+        for i in info["tops"]:
+            self.__htmlpp(0,i,info,data, selection, funct = func)
+        print "</table>"
+
+    def __htmlpp(self, offset, item, relations, data, selection, funct = None):
+        mapping = {"term":0,"desc":1,"r":2,"c":3, "p":4, "fold":5, "func":6} 
+        print "<tr>"
+        if type(data[item]) == list:
+            pval = "%.4g" % data[item][2]
+            fold = "%.4g" % data[item][3]
+            print_data = [self.toName[item], self.toDesc[self.toName[item]], str(data[item][0]), str(data[item][1]), str(pval), str(fold)]
+            for i in selection:
+                print "<td>"
+                
+                if i == "term":
+                    for l in range(0,offset):
+                        print "&nbsp;",
+                elif i == "p":
+                    print '%(#)2.3e' % {'#':float(print_data[mapping[i]])} + "</td>",
+                    continue
+                print print_data[mapping[i]] + "</td>",
+
+            if funct != None:
+                print funct(print_data[0]),
+
+            #print self.toName[item], " r=" + str(data[item][1])  +" c="+ str(data[item][2])  ," p=" + str(pval) + " fold=" + str(fold)
+            print "</tr>"
+        else:
+            print self.toName[item], " freq=" + str(data[item])
 
         for i in relations[item]:
-            self.__pp(offset + 2, i, relations, data, selection) 
-        
+            self.__htmlpp(offset + 2, i, relations, data, selection, funct = funct)
+
     def findCompounds(self,terms, CIDs):
         """from CIDs found those compounds that match terms from the list"""
         # why do we need such a specialized function?
