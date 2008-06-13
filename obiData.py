@@ -27,6 +27,7 @@ class FtpWorker(object):
         self.ftpAddr = ftpAddr
         self.ftp = None
         self.now = datetime.now()
+        self.statCache = {}
 
     def connect(self):
         self.ftp.connect(self.ftpAddr)
@@ -86,9 +87,19 @@ class FtpWorker(object):
             return False
         
     def statFtp(self, filename):
-        s = StringIO()
-        self.ftp.dir(filename, s.write)
-        s = s.getvalue().split()
+        dir, file = os.path.split(filename)
+##        print dir, file
+        if (dir, file) in self.statCache:
+            s = self.statCache[(dir, file)].split()
+        else:
+##            s = StringIO()
+##            self.ftp.dir(filename, s.write)
+            lines = []
+            self.ftp.dir(dir, lines.append)
+##            print "Lines : #", len(lines)
+            self.statCache.update(dict([((dir, line.split()[-1].strip()), line.strip()) for line in lines if line.strip()]))
+            s = self.statCache[(dir, file)].split()
+##            s = s.getvalue().split()
         size, date = int(s[-5]), s[-4:-1]
         if ":" in date[-1]:
             date = datetime(self.now.year, _monthDict.get(date[0], 1), int(date[1]))

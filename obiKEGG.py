@@ -382,7 +382,7 @@ class KEGGInterfaceLocal(object):
         self._taxonomy = d
         
     def _retrieve(self, filename):
-        self.downloader.retrieve(filename, progressCallback=self.download_progress_callback)
+        self.downloader.retrieve(filename, update=self.update, progressCallback=self.download_progress_callback)
         return open(self.local_database_path+filename)
     
     def list_organisms(self):
@@ -717,8 +717,8 @@ class KEGGPathway(object):
         self.org = pathway_id.split(":")[-1][:-5]
         self.local_database_path = local_database_path or default_database_path
         self.api = KEGGInterfaceLocal(update, self.local_database_path)
-        if update:
-            self.api.download_pathway_data(self.org)
+##        if update:
+##            self.api.download_pathway_data(self.org)
 
     def get_image(self):
         return self.api.get_pathway_image(self.pathway_id)
@@ -762,34 +762,46 @@ class KOClass(object):
                 pass
         self.ko_class_id = self.class_name[:5]
 
-import obiGenomicsUpdate
+from obiGenomicsUpdate import Update as UpdateBase
+from obiGenomicsUpdate import synchronized
 
-class Update(obiGenomicsUpdate.Update):
+from threading import Lock
+
+updateLock = Lock()
+
+class Update(UpdateBase):
+    @synchronized(updateLock)
     def __init__(self, local_database_path=None, progressCallback=None):
-        obiGenomicsUpdate.Update.__init__(self, local_database_path, progressCallback)
+        UpdateBase.__init__(self, local_database_path, progressCallback)
         self.api = KEGGInterfaceLocal(True, local_database_path, progressCallback)
 
+    @synchronized(updateLock)
     def GetUpdatable(self):
-        orgs = [org for org in self.api.list_organisms() if str((str(Update.UpdateOrganism), (org,))) in self.shelve]
-        return [(self.UpdateOrganism, "Update organism pathways and genes" , orgs),
-                (self.UpdateReference, "Update reference pathways", []),
-                (self.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
+        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism, (org,))) in self.shelve]
+        ret = [(Update.UpdateOrganism, "Update organism pathways and genes" , orgs)]
         
-
+        return [(Update.UpdateOrganism, "Update organism pathways and genes" , orgs),
+                (Update.UpdateReference, "Update reference pathways", []),
+                (Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
+        
+    @synchronized(updateLock)
     def GetDownloadable(self):
-        orgs = [org for org in self.api.list_organisms() if str((str(Update.UpdateOrganism), (org,))) not in self.shelve]
-        return [(self.UpdateOrganism, "Update organism pathways and genes" , orgs),
-                (self.UpdateReference, "Update reference pathways", []),
-                (self.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
+        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism, (org,))) not in self.shelve]
+        return [(Update.UpdateOrganism, "Update organism pathways and genes" , orgs),
+                (Update.UpdateReference, "Update reference pathways", []),
+                (Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
 
+    @synchronized(updateLock)
     def UpdateOrganism(self, org):
         self.api.download_organism_data(org)
         self._update(Update.UpdateOrganism, (org,))
 
+    @synchronized(updateLock)
     def UpdateReference(self):
         self.api.download_reference_data()
         self._update(Update.UpdateReference, ())
-        
+
+    @synchronized(updateLock)        
     def UpdateEnzymeAndCompounds(self):
         self.api.massDownloader.retrieve(["ligand//compound//compound", "ligand/enzyme/enzyme"], progressCallback=self.progressCallback)
         self._update(Update.UpdateEnzymeAndCompounds, ())
