@@ -12,7 +12,7 @@ import os.path
 
 class obiMeSH(object):
     def __init__(self):
-        self.path = "data"
+        self.path = "data\MeSH"
         self.reference = None
         self.cluster = None
         self.ratio = 1
