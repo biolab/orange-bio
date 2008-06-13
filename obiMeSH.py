@@ -1,4 +1,3 @@
-# TODO: Popravi moznost izbire enrichanih termov. Namesto tresholda daj funkcijo.
 # TODO: Buffering za izbiro termov. Dodaj optimizacijo, ki uposteva vsebovanost.
 # TODO: Dodaj callback pri iskanju MeSH termov.
 
@@ -496,23 +495,25 @@ class obiMeSH(object):
 
     def __findMeshAttribute(self,data):
         """ function tries to find attribute which contains list os mesh terms """
+        return "mesh"
         # we get a list of attributes
         dom = data.domain.attributes
         for k in data:              # for each example
-            for i in dom:           # for each attribute
-                att = str(i.name)
-                try:                                         # we try to use eval()
-                    r = eval(str(k[att].value))
-                    if type(r) == list:         # attribute type should be list
-                        if self.dataLoaded:         # if ontology is loaded we perform additional test
-                            for i in r:
-                                if self.toID.has_key(i): return att
-                        else:               # otherwise we return list attribute
-                            return att
-                except SyntaxError:
-                    continue
-                except NameError:
-                    continue   
+            if k.varType == 6:
+                for i in dom:           # for each attribute
+                    att = str(i.name)
+                    try:                                         # we try to use eval()
+                        r = eval(str(k[att].value))
+                        if type(r) == list:         # attribute type should be list
+                            if self.dataLoaded:         # if ontology is loaded we perform additional test
+                                for i in r:
+                                    if self.toID.has_key(i): return att
+                            else:                   # otherwise we return list attribute
+                                return att
+                    except SyntaxError:
+                        continue
+                    except NameError:
+                        continue   
         print "Program was unable to determinate MeSH attribute."
         return "Unknown"
 
