@@ -1,11 +1,12 @@
 import shelve
 import datetime
+import os
 
 class Update(object):
     def __init__(self, local_database_path, progressCallback=None):
         self.local_database_path = local_database_path
         self.progressCallback = progressCallback
-        self.shelve = shelve.open(self.local_database_path+"//updates.shelve")
+        self.shelve = shelve.open(os.path.join(self.local_database_path, "updates.shelve"))
 
     def GetUpdatable(self):
         raise Exception("Not implemented")
