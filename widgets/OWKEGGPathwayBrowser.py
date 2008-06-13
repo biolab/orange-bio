@@ -1,5 +1,5 @@
 """
-<name>KEGG Pathway browser</name>
+<name>KEGG Pathway Browser</name>
 <description>Browser that - given a set of genes - searches and displays relevant KEGG pathways</description>
 <priority>220</priority>
 <icon>icons/KEGG.png</icon>
@@ -202,7 +202,7 @@ class OWKEGGPathwayBrowser(OWWidget):
     contextHandlers = {"":DomainContextHandler("",[ContextField("organismIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
                                                    ContextField("geneAttrIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
                                                    ContextField("useAttrNames", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes)])}
-    def __init__(self, parent=None, signalManager=None, name="KEGG Pathway browser"):
+    def __init__(self, parent=None, signalManager=None, name="KEGG Pathway Browser"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Examples", ExampleTable, self.SetData), ("Reference", ExampleTable, self.SetRefData)]
         self.outputs = [("Selected Examples", ExampleTable), ("Unselected Examples", ExampleTable)]
@@ -267,6 +267,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         
         self.ctrlPressed = False
         self.selectedObjects = defaultdict(list)
+        self.data = None
         self.refData = None
         self.loadedOrganism = None
         
@@ -341,6 +342,8 @@ class OWKEGGPathwayBrowser(OWWidget):
                 
     def UpdateListView(self):
         self.listView.clear()
+        if not self.data:
+            return
         allPathways = self.org.list_pathways()
         allRefPathways = obiKEGG.KEGGInterfaceLocal().list_pathways(org="map")
         items = []
@@ -490,25 +493,28 @@ class OWKEGGPathwayBrowser(OWWidget):
             
 
     def Commit(self):
-        if self.useAttrNames:
-            selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
-            selectedVars = [self.data.domain[self.uniqueGenesDict[gene]] for gene in selectedGenes]
-            newDomain = orange.Domain(selectedVars ,0)
-            self.send("Selected Examples", orange.ExampleTable(newDomain, self.data))
+        if self.data:
+            if self.useAttrNames:
+                selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
+                selectedVars = [self.data.domain[self.uniqueGenesDict[gene]] for gene in selectedGenes]
+                newDomain = orange.Domain(selectedVars ,0)
+                self.send("Selected Examples", orange.ExampleTable(newDomain, self.data))
+            else:
+                geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
+                selectedExamples = []
+                otherExamples = []
+                selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
+                for ex in self.data:
+                    names = [self.revUniqueGenesDict.get(name, None) for name in split_and_strip(str(ex[geneAttr]), ",")]
+                    if any(name and name in selectedGenes for name in names):
+                        selectedExamples.append(ex)
+                    else:
+                        otherExamples.append(ex)
+                self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
+                self.send("Unselected Examples", otherExamples and orange.ExampleTable(otherExamples) or None)
         else:
-            print 'geneAttrCandidates',self.geneAttrCandidates
-            geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
-            selectedExamples = []
-            otherExamples = []
-            selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
-            for ex in self.data:
-                names = [self.revUniqueGenesDict.get(name, None) for name in split_and_strip(str(ex[geneAttr]), ",")]
-                if any(name and name in selectedGenes for name in names):
-                    selectedExamples.append(ex)
-                else:
-                    otherExamples.append(ex)
-            self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
-            self.send("Unselected Examples", otherExamples and orange.ExampleTable(otherExamples) or None)
+            self.send("Selected Examples", None)
+            self.send("Unselected Examples", None)
         
     def keyPressEvent(self, key):
         if key.key()==Qt.Key_Control:
