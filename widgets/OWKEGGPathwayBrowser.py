@@ -211,7 +211,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.autoCommit = False
         self.autoResize = True
         self.useReference = False
-        self.useAttrNames = False
+        self.useAttrNames = 0
         self.caseSensitive = True
         self.showOntology = True
         self.autoFindBestOrg = False
@@ -227,11 +227,9 @@ class OWKEGGPathwayBrowser(OWWidget):
         
         box = OWGUI.widgetBox(self.controlArea, "Gene attribure")
         self.geneAttrCombo = OWGUI.comboBox(box, self, "geneAttrIndex", callback=self.Update)
-        OWGUI.checkBox(box, self, "useAttrNames", "Use variable names", callback=self.UseAttrNamesCallback)
+        OWGUI.checkBox(box, self, "useAttrNames", "Use variable names", disables=[(-1, self.geneAttrCombo)], callback=self.UseAttrNamesCallback)
         OWGUI.checkBox(box, self, "caseSensitive", "Case sensitive gene matching", callback=self.Update)
         OWGUI.separator(self.controlArea)
-        
-        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
         
         OWGUI.checkBox(self.controlArea, self, "useReference", "From signal", box="Reference", callback=self.Update)
         OWGUI.separator(self.controlArea)
@@ -291,7 +289,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.Update()
 
     def UseAttrNamesCallback(self):
-        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
+##        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
         self.Update()
 
     def SetBestGeneAttrAndOrganism(self):
@@ -327,18 +325,18 @@ class OWKEGGPathwayBrowser(OWWidget):
         score = [(s, attr, org) for (attr, org), s in score.items()]
         score.sort()
         if not score:
-            self.useAttrNames = False
+            self.useAttrNames = 0
             self.geneAttrIndex = len(self.geneAttrCandidates)-1
             self.organismIndex = 0
         elif score[-1][1]=="_var_names_":
-            self.useAttrNames = True
+            self.useAttrNames = 1
             self.geneAttrIndex = 0 #self.geneAttrCandidates.index(score[-2][1])
             self.organismIndex = self.organismCodes.index(score[-1][2])
         else:
-            self.useAttrNames = False
+            self.useAttrNames = 0
             self.geneAttrIndex = self.geneAttrCandidates.index(score[-1][1])
             self.organismIndex = self.organismCodes.index(score[-1][2])
-        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
+##        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
                 
     def UpdateListView(self):
         self.listView.clear()
