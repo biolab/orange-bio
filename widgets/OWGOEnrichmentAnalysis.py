@@ -61,6 +61,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.selectionDirectAnnotation = 0
         self.selectionDisjoint = 0
         self.selectionAddTermAsClass = 0
+
+        self.loadSettings()        
+        
         # check usage of all evidences
         for etype in go.evidenceTypesOrdered:
             varName = "useEvidence"+etype 
@@ -94,7 +97,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Annotation", "Signal"], box="Reference From", callback=self.Update)
         OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process", "Cellular component", "Molecular function"], box="Aspect", callback=self.Update)
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene attribute", callback=self.Update)
-        OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use attribute names", callback=self.SetUseAttrNamesCallback)
+        OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use attribute names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.SetUseAttrNamesCallback)
+        self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
+        
         self.tabs.insertTab(self.inputTab, "Input")
         box = OWGUI.widgetBox(self.inputTab, "GO update")
         b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
@@ -202,7 +207,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.SetGraph(graph)
 
     def SetUseAttrNamesCallback(self):
-        self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
+##        self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
         self.Update()
 
     def Update(self):
@@ -263,11 +268,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.annotationIndex = self.annotationCodes.index(organizm)
         if bestAttr=="_var_names_":
             self.useAttrNames = True
-            self.geneAttrIndexCombo.setDisabled(True)
+##            self.geneAttrIndexCombo.setDisabled(True)
             self.geneAttrIndex = 0
         else:
             self.useAttrNames = False
-            self.geneAttrIndexCombo.setDisabled(False)
+##            self.geneAttrIndexCombo.setDisabled(False)
             self.geneAttrIndex = candidateGeneAttrs.index(bestAttr)
     
     def SetClusterDataset(self, data=None):
