@@ -201,6 +201,8 @@ class OWKEGGPathwayBrowser(OWWidget):
         box = OWGUI.widgetBox(self.controlArea, "Gene attribure")
         self.geneAttrCombo = OWGUI.comboBox(box, self, "geneAttrIndex", callback=self.Update)
         OWGUI.checkBox(box, self, "useAttrNames", "Use variable names", disables=[(-1, self.geneAttrCombo)], callback=self.UseAttrNamesCallback)
+        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
+        
         OWGUI.checkBox(box, self, "caseSensitive", "Case sensitive gene matching", callback=self.Update)
         OWGUI.separator(self.controlArea)
         
