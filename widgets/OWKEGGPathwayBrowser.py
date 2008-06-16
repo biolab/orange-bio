@@ -106,7 +106,7 @@ class PathwayView(QGraphicsView):
             painter.setBrush(QBrush(Qt.NoBrush))
             for rect in reduce(lambda a,b:a.union(b), [bbList for id, bbList in self.bbDict.items() if id in self.objects], set()):
                 x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
-                print 'x1', x1, 'y1', y1, 'x2', x2, 'y2',y2
+                #print 'x1', x1, 'y1', y1, 'x2', x2, 'y2',y2
                 painter.drawRect(x1+1, y1+1, x2-x1, y2-y1)
                 
             painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
@@ -127,7 +127,7 @@ class PathwayView(QGraphicsView):
         point = self.mapToScene(x, y)
         x = point.x()
         y = point.y()
-        print 'contents x',x,'y',y
+        #print 'contents x',x,'y',y
         objs = []
         for id, bbList in self.bbDict.items():
 ##            if id in self.objects:
@@ -141,7 +141,7 @@ class PathwayView(QGraphicsView):
 
     def mousePressEvent(self, event):
         x, y = event.x(), event.y()
-        print 'mouse x',x,'y',y
+        #print 'mouse x',x,'y',y
         old = set(self.master.selectedObjects.keys())
         objs = self.GetObjects(x, y)
         if event.button()==Qt.LeftButton:
@@ -298,7 +298,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.geneAttrCandidates = self.data.domain.attributes + self.data.domain.getmetas().values()
         self.geneAttrCandidates = filter(lambda v:v.varType in [orange.VarTypes.Discrete ,orange.VarTypes.String], self.geneAttrCandidates)
         self.geneAttrCombo.clear()
-        print 'geneAttrCandidates', self.geneAttrCandidates
+        #print 'geneAttrCandidates', self.geneAttrCandidates
         self.geneAttrCombo.addItems([var.name for var in self.geneAttrCandidates])
         data = self.data
         if len(data)>20:
@@ -416,7 +416,7 @@ class OWKEGGPathwayBrowser(OWWidget):
                 return
             self.pathway = obiKEGG.KEGGPathway(item.pathway_id)
             self.pathway.api.download_progress_callback = self.progressBarSet
-            print 'pathway:', self.pathway
+            #print 'pathway:', self.pathway
             self.pathwayView.SetPathway(self.pathway, self.pathways.get(item.pathway_id, [[]])[0])
             
     def Update(self):
