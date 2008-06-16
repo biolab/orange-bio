@@ -407,7 +407,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         for etype in go.evidenceTypesOrdered:
             if getattr(self, "useEvidence"+etype):
                 evidences.append(etype)
-        aspect = ["P", "F", "C"][self.aspectIndex]
+        aspect = ["P", "C", "F"][self.aspectIndex]
         self.progressBarInit()
         if clusterGenes:
             self.terms = terms = go.GOTermFinder(clusterGenes, referenceGenes, evidences, aspect=aspect, progressCallback=self.progressBarSet)
