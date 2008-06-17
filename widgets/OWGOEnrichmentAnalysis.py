@@ -55,7 +55,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.selectionDirectAnnotation = 0
         self.selectionDisjoint = 0
         self.selectionAddTermAsClass = 0
-
+        self.selectionChanging = 0
+        
         self.loadSettings()        
         
         # check usage of all evidences
@@ -152,7 +153,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         # table of significant GO terms
         self.sigTermsTable = QTableWidget(self.splitter)
-        self.sigTermsTable.setColumnCount(6)
+        self.sigTermsTable.setColumnCount(len(self.DAGcolumns))
+        self.sigTermsTable.setHorizontalHeaderLabels(self.DAGcolumns)
         self.sigTermsTable.setRowCount(4)
         ## hide the vertical header
         #self.sigTermsTable.verticalHeader().hide()
@@ -494,26 +496,45 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.listView.expandAll()
         
     def ViewSelectionChanged(self):
-        selected = filter(lambda lvi: lvi.isSelected(), self.listViewItems)
+        if self.selectionChanging:
+            return
+        
+        self.selectionChanging = 1
+        self.selectedTerms = []
+        #selected = filter(lambda lvi: lvi.isSelected(), self.listViewItems)
+        selected = self.listView.selectedItems()
         self.selectedTerms = list(set([lvi.term for lvi in selected]))
         self.ExampleSelection()
+        self.selectionChanging = 0
+        
         
     def TableSelectionChanged(self):
+        if self.selectionChanging:
+            return
+        
+        self.selectionChanging = 1
         self.selectedTerms = []
-        for i, term in enumerate(self.sigTableTermsSorted):
-            selected = self.sigTermsTable.item(i,0).isSelected()
+        selectedRows = set([item.row() for item in self.sigTermsTable.selectedIndexes()])
+        
+        for row in range(self.sigTermsTable.rowCount()):
+            selected = row in selectedRows
+            term = self.sigTableTermsSorted[row]
+            
             if selected:
                 self.selectedTerms.append(term)
+                
             for lvi in self.termListViewItemDict[term]:
                 try:
                     lvi.setSelected(selected)
                     #self.listView.repaintItem(lvi)
                     if selected: lvi.setExpanded(True)
                 except RuntimeError:    ##Underlying C/C++ object deleted (why??)
+                    print "error 11"
                     pass
                 
         #self.listView.triggerUpdate()
         self.ExampleSelection()
+        self.selectionChanging = 0
             
     
     def ExampleSelection(self):
