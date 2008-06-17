@@ -262,8 +262,8 @@ class OWGsea(OWWidget):
                     fn = str(filename)
                     
                 fp = open(fn, "wb" )
-                pickle.dump(self.res, fp)
-                pickle.dump(self.dm, fp)
+                pickle.dump(self.res, fp, -1)
+                pickle.dump(self.dm, fp, -1)
                 fp.close()
         else:
             self.warning('No internal data to save.')
