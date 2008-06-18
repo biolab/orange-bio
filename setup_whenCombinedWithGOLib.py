@@ -20,7 +20,7 @@ for (dirp, dirns, n) in os.walk('doc'):
 module=Extension("_GOLib", sources=["go.c"])
 
 setup(name = "Genomics",
-      version = "1.0",
+      version = "0.9.67",
       description = "Genomics extensions for Orange",
       author="University of Ljubljana, AI lab",
       author_email="tomaz.curk@fri.uni-lj.si",
@@ -28,6 +28,6 @@ setup(name = "Genomics",
       packages = [ 'widgets', 'doc', 'data' ],
       package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
       extra_path="Genomics",
-      py_modules = [ 'go', 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomicsUpdate', 'obiExpression', 'stats', 'pstat' ],
+      py_modules = [ 'go', 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomisUpdate', 'stats', 'pstat' ],
       scripts=["registerWidgets.py", "post_install_script.py"]
       )

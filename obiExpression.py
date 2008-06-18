@@ -135,7 +135,7 @@ class MA_fold_change(object):
         try:
             return mean(exa)/mean(exb)
         except:
-            return 1.0
+            return 0
 
 class MA_anova(object):
     def __init__(self, prob=False):
@@ -157,5 +157,5 @@ class MA_anova(object):
         try:
             f, prob = stats.lF_oneway(*tuple(data))
             return prob if self.prob else f
-        except:
+        except ex:
             return 0

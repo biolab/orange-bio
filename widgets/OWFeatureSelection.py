@@ -8,6 +8,7 @@ import orange
 from obiExpression import *
 
 from OWGraph import *
+from OWGraphTools import PolygonCurve
 from OWWidget import *
 from OWHist import OWInteractiveHist
 
@@ -32,17 +33,17 @@ class OWFeatureSelection(OWWidget):
     def __init__(self, parent=None, signalManager=None, name="Feature selection"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Examples", ExampleTable, self.SetData)]
-        self.outputs = [("Examples with selected attributes", ExampleTable), ("Examples with remaining attributes", ExampleTable), ("Computed scores", ExampleTable)]
+        self.outputs = [("Examples with selected attributes", ExampleTable), ("Examples with remaining attributes", ExampleTable)]
 
         self.methodIndex = 0
         self.autoCommit = False
         self.selectNBest = 20
 ##        self.infoLabel = "No data on input"        
 
-        self.oneTailTestHi = oneTailTestHi = lambda attr, low, hi:self.scores.get(attr, hi)>=hi
-        self.oneTailTestLow = oneTailTestLow = lambda attr, low, hi:self.scores.get(attr, low)<=low
-        self.twoTailTest = twoTailTest = lambda attr, low, hi:self.scores.get(attr, hi)>=hi or self.scores.get(attr, low)<=low
-        self.middleTest = middleTest = lambda attr, low, hi:self.scores.get(attr, hi)<=hi and self.scores.get(attr, low)>=low
+        self.oneTailTestHi = oneTailTestHi = lambda attr, low, hi:self.scores.get(attr,0)>=hi
+        self.oneTailTestLow = oneTailTestLow = lambda attr, low, hi:self.scores.get(attr,0)<=low
+        self.twoTailTest = twoTailTest = lambda attr, low, hi:self.scores.get(attr,0)>=hi or self.scores.get(attr,0)<=low
+        self.middleTest = middleTest = lambda attr, low, hi:self.scores.get(attr,0)<=hi and self.scores.get(attr,0)>=low
         self.histType = {oneTailTestHi:"hiTail", oneTailTestLow:"lowTail", twoTailTest:"twoTail", middleTest:"middle"}
         self.scoreMethods = [("chi-square", orange.MeasureAttribute_chiSquare, oneTailTestHi),
                              ("info gain", orange.MeasureAttribute_info, oneTailTestHi),
@@ -54,20 +55,20 @@ class OWFeatureSelection(OWWidget):
                              ("anova", lambda attr, data:MA_anova()(attr, data), oneTailTestHi),
                              ("anova p-value", lambda attr, data:1.0-MA_anova(prob=True)(attr, data), oneTailTestLow)]
 
-        boxLayout = QVBoxLayout(self.mainArea)
-        self.histogram = ScoreHist(self, self.mainArea)
-        boxLayout.addWidget(self.histogram)
-        self.histogram.setSizePolicy(QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum))
+        boxHistogram = OWGUI.widgetBox(self.mainArea)
+        self.histogram = ScoreHist(self, boxHistogram)
+        boxHistogram.layout().addWidget(self.histogram)
+##        self.histogram = ScoreHist(self)
+##        self.mainArea.layout().addWidget(self.histogram)
+##        self.histogram.setSizePolicy(QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum))
         self.histogram.show()
         
         box = OWGUI.widgetBox(self.controlArea, "Info", addSpace=True)
         self.dataInfoLabel = OWGUI.widgetLabel(box, "\n\n")
         self.selectedInfoLabel = OWGUI.widgetLabel(box, "")
         OWGUI.radioButtonsInBox(self.controlArea, self, "methodIndex", [sm[0] for sm in self.scoreMethods], box="Score Method", callback=self.Update, addSpace=True)
-        box = OWGUI.widgetBox(self.controlArea, "Computed Scores", addSpace=True)
-        OWGUI.button(box, self, "Send all computed scores", callback=self.SendComputedScores, tooltip="Computes scores for all features and sends\nthe results on the Computed scores output")
         box = OWGUI.widgetBox(self.controlArea, "Selection", addSpace=True)
-        OWGUI.button(box, self, "Select n best features", callback=self.SelectNBest, tooltip="Automaticaly selects n best features based on the currently selected score method")
+        OWGUI.button(box, self, "Select n best features", callback=self.SelectNBest)
         OWGUI.spin(box, self, "selectNBest", 0, 10000, step=1, label="n:")
         OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
         OWGUI.button(box, self, "&Commit", callback=self.Commit)
@@ -107,12 +108,7 @@ class OWFeatureSelection(OWWidget):
                 data = self.discData
                 newAttrs = data.domain.attributes
             else:
-                newAttrs = []
-                for attr in attributes:
-                    if attr.varType==orange.VarTypes.Continuous:
-                        newAttrs.append(self.discretizer(attr, data))
-                    else:
-                        newAttrs.append(attr)
+                newAttrs = [self.discretizer(attr, data) for attr in attributes]
 ##                data = data.select(newAttrs + [data.domain.classVar])
                 newDomain = orange.Domain(newAttrs + [data.domain.classVar])
                 table = orange.ExampleTable(newDomain)
@@ -125,8 +121,7 @@ class OWFeatureSelection(OWWidget):
         scores = {}
         milestones = set(range(0, len(attributes), max(len(attributes)/100, 1)))
         for i, (attr, newAttr) in enumerate(zip(attributes, newAttrs)):
-            if attr.varType == orange.VarTypes.Continuous:
-                scores[attr] = scoreFunc(newAttr, data)
+            scores[attr] = scoreFunc(newAttr, data)
             if i in milestones:
                 self.progressBarSet(100.0*i/len(attributes))
         self.progressBarFinished()
@@ -151,13 +146,13 @@ class OWFeatureSelection(OWWidget):
                 text = text+"Class var missing"
         else:
             text = "No data on input\n\n"
-        self.dataInfoLabel.setText(text)
+        self.dataInfoLabel.setText(text)     
 
     def UpdateSelectedInfoLabel(self, cutOffLower=0, cutOffUpper=0):
         self.cuts[self.methodIndex] = (cutOffLower, cutOffUpper)
         if self.data:
             test = self.scoreMethods[self.methodIndex][2]
-            self.selectedInfoLabel.setText("%i selected attributes" %len([attr for attr in self.data.domain.attributes if attr in self.scores and test(attr, cutOffLower, cutOffUpper)])) #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]))
+            self.selectedInfoLabel.setText("%i selected attributes" %len([attr for attr in self.data.domain.attributes if test(attr, cutOffLower, cutOffUpper)])) #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]))
         else:
             self.selectedInfoLabel.setText("0 selected attributes")
 
@@ -183,34 +178,12 @@ class OWFeatureSelection(OWWidget):
             cutOffLower = self.histogram.lowerBoundary
             test = self.scoreMethods[self.methodIndex][2]
             selectedAttrs = [attr for attr in self.data.domain.attributes if  test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
-            domain = orange.Domain(selectedAttrs +[self.data.domain.classVar])
-            domain.addmetas(self.data.domain.getmetas())
-            self.send("Examples with selected attributes", orange.ExampleTable(domain, self.data)) #self.data.select(selectedAttrs+[self.data.domain.classVar]))
+            self.send("Examples with selected attributes", self.data.select(selectedAttrs+[self.data.domain.classVar]))
             remainingAttrs = [attr for attr in self.data.domain.attributes if  not test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
             self.send("Examples with remaining attributes", self.data.select(remainingAttrs+[self.data.domain.classVar]))
         else:
             self.send("Examples with selected attributes", None)
             self.send("Examples with remaining attributes", None)
-            self.send("Computed scores", None)
-
-    def SendComputedScores(self):
-        if self.data and self.data.domain.classVar:
-            domain = orange.Domain(self.data.domain.attributes, False)
-            mid = orange.newmetaid()
-            domain.addmeta(mid, orange.StringVariable("Score method"))
-            table = orange.ExampleTable(domain)
-            for name, func, test in self.scoreMethods:
-                if func not in self.scoreCache:
-                    scores = self.ComputeAttributeScore(self.data, func)
-                scores = self.scoreCache[func]
-                ex = orange.Example(domain, [scores.get(attr,"?") for attr in domain.attributes])
-                ex[mid] = name
-                table.append(ex)
-            self.send("Computed scores", table)
-        else:
-            self.send("Computed scores", None)
-            
-            
 
 if __name__=="__main__":
     import sys

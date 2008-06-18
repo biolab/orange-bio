@@ -11,13 +11,13 @@ for (dirp, dirns, n) in os.walk('doc'):
 	docFiles.extend( [dirn + n1r for n1r in nr if '.svn' not in dirp + '/' + n1r] )
 
 setup(name = "Genomics",
-      version = "1.0",
+      version = "0.9.67",
       description = "Genomics extensions for Orange",
       author="University of Ljubljana, AI lab",
       author_email="tomaz.curk@fri.uni-lj.si",
       packages = [ 'widgets', 'doc' ],
       package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
       extra_path="Genomics",
-      py_modules = [ 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomicsUpdate', 'obiExpression', 'stats', 'pstat' ],
+      py_modules = [ 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomicsUpdate', 'stats', 'pstat' ],
       scripts=["registerWidgets.py"]
       )

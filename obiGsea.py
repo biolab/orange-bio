@@ -5,16 +5,13 @@ import stats
 #import mOrngData
 import random
 import time
-import math, os
-from obiExpression import *
+import math
 
 """
 Gene set enrichment analysis.
 
 Author: Marko Toplak
 """
-
-collectionsPath = None
 
 """
 Correlation methods.
@@ -30,6 +27,66 @@ def rankingFromOrangeMeas(meas):
     orange.MeasureAttribute.
     """
     return lambda d: [ meas(i,d) for i in range(len(d.domain.attributes)) ]
+
+class MA_pearsonCorrelation:
+    """
+    Calling an object of this class computes Pearson correlation of all
+    attributes against class.
+    """
+
+    def __call__(self, i, data):
+        dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
+        data2 = orange.ExampleTable(dom2, data)
+        a,c = data2.toNumpy("A/C")
+        return numpy.corrcoef(c,a[:,0])[0,1]
+
+class MA_signalToNoise:
+    """
+    Returns signal to noise measurement: difference of means of two classes
+    divided by the sum of standard deviations for both classes. 
+    """
+
+    def __init__(self, a=None, b=None):
+        """
+        a and b are choosen class values.
+        """
+        self.a = a
+        self.b = b
+
+    def __call__(self, i, data):
+        cv = data.domain.classVar
+        #print data.domain
+
+        #for faster computation. to save dragging many attributes along
+        dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
+        data = orange.ExampleTable(dom2, data)
+        i = 0
+
+        if self.a == None: self.a = cv.values[0]
+        if self.b == None: self.b = cv.values[1]
+        
+        def stdev(l):
+            return stats.stdev(l)
+    
+        def stdevm(l):
+            m = mean(l)
+            std = stdev(l)
+            #print std, 0.2*abs(1.0 if m == 0 else m)
+            #return minmally 2*|mi|, where mi=0 is adjusted to mi=1
+            return max(std, 0.2*abs(1.0 if m == 0 else m))
+
+        def avWCVal(value):
+            return [ex[i].value for ex in data if ex[cv] == value and not ex[i].isSpecial() ]
+    
+        exa = avWCVal(self.a)
+        exb = avWCVal(self.b)
+
+        try:
+            rval = (mean(exa)-mean(exb))/(stdevm(exa)+stdevm(exb))
+            return rval
+        except:
+            #return some "middle" value
+            return 0
 
 def lvar (inlist):
     n = inlist.size
@@ -378,8 +435,7 @@ def gseaR(rankings, subsets, n=100, **kwargs):
     """
 
     if "permutation" in kwargs:
-        if kwargs["permutation"] == "class":
-            raise Exception("Only gene permutation possible")
+        raise Exception("Only gene permutation possible")
 
     enrichmentScores = []
  
@@ -516,7 +572,6 @@ class GSEA(object):
         """
 
         cv = data.domain.classVar
-        nclassvalues = None
 
         if cv:
             oldcvals = [ a for a in cv.values ]
@@ -524,42 +579,21 @@ class GSEA(object):
             if not classValues:
                 classValues = [ oldcvals[0], oldcvals[1] ]
 
-            toJoin = []
+            classValues = [ str(a) for a in classValues ]
 
-            for vals in classValues:
-                if isinstance(vals, list) or isinstance(vals, tuple):
-                    toJoin.append(list(vals))
-                else:
-                    toJoin.append([vals])
-
-            classValues = reduce(lambda x,y: x+y, toJoin)
-            classValues = [ str(a) for a in classValues ] # ok class values
-
-            #dictionary of old class -> new class
-            mapval = {}
-            nclassvalues = [] # need to preserver order
-
-            for joinvals in toJoin:
-                joinvalsn = "+".join([ str(val) for val in sorted(joinvals) ])
-                nclassvalues.append(joinvalsn)
-
-                for val in joinvals:
-                    mapval[str(val)] = joinvalsn
 
             #take only examples with classValues classes
-            nclass = orange.EnumVariable(cv.name, values=nclassvalues)
+            nclass = orange.EnumVariable(cv.name, values=classValues)
             ndom = orange.Domain(data.domain.attributes, nclass)
 
             examples = []
             for ex in data:
                 if ex[cv] in classValues:
                     vals = [ ex[a] for a in data.domain.attributes ]
-                    vals.append(mapval[str(ex[cv].value)])
+                    vals.append(ex[cv].value)
                     examples.append(vals)
 
             data = orange.ExampleTable(ndom, examples)
-
-            #join specified classes
 
         def attrOk(a):
 
@@ -577,7 +611,7 @@ class GSEA(object):
             if len(data) > 1 and data.domain.classVar:
                 valc = [ [ex[0].value for ex in d2 \
                             if not ex[0].isSpecial() and ex[1] == data.domain.classVar[i] \
-                       ] for i in range(len(nclassvalues)) ]
+                       ] for i in range(len(classValues)) ]
                 minl = min( [ len(a) for a in valc ])
                 if minl < atLeast:
                     return False
@@ -593,11 +627,11 @@ class GSEA(object):
                 ignored.append(a)
 
         ndom = orange.Domain(natts, data.domain.classVar)
-        return orange.ExampleTable(ndom, data), ignored, nclassvalues
+        return orange.ExampleTable(ndom, data), ignored, classValues
 
-    def setData(self, data, classValues=None, atLeast=3):
+    def setData(self, data, classValues=None):
 
-        data, info, classValues  = self.keepOnlyMeanAttrs(data, classValues=classValues, atLeast=atLeast)
+        data, info, classValues  = self.keepOnlyMeanAttrs(data, classValues=classValues)
         #print "removed attributes", info
         #print "class values taken", classValues
 
@@ -652,9 +686,6 @@ class GSEA(object):
                 [namesToIndices[b] for a,b in subset[1][1]])
             nsubsetsNames.append([b for a,b in subset[1][1]])
 
-        if len(nsubsets) == 0:
-            return {} # prevent pointless computation of attribe ranks
-
         #print nsubsets
 
         if len(self.data) > 1:
@@ -683,10 +714,10 @@ def getDefaultGenesets():
     import orngRegistry
     return unpckGS(orngRegistry.bufferDir + "/gsea/geneSets_MSIGDB.pck")
 
-def runGSEA(data, classValues=None, organism="hsa", geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, **kwargs):
+def runGSEA(data, classValues=None, organism="hsa", geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, **kwargs):
 
     gso = GSEA(organism=organism)
-    gso.setData(data, classValues=classValues, atLeast=atLeast)
+    gso.setData(data, classValues=classValues)
     
     if geneSets == None:
         geneSets = getDefaultGenesets()
@@ -697,150 +728,6 @@ def runGSEA(data, classValues=None, organism="hsa", geneSets=None, n=100, permut
     res1 = gso.compute(n=n, permutation=permutation, minSize=minSize, maxSize=maxSize, minPart=minPart, **kwargs)
     return res1
 
-"""
-Genesets
-"""
-
-def strip(s):
-    #return s
-    return s.rstrip().lstrip()
-
-def possiblyReadFile(s):
-    """
-    If s is not a string, then it is probably a file.
-    Read it's contents.
-    """
-    if isinstance(s, basestring):
-        return s
-    else:
-        return s.read()
-
-def handleNELines(s, fn):
-    """
-    Run function on nonempty lines of a string.
-    Return a list of results for each line.
-    """
-    lines = s.split("\n")
-    lines = [ strip(l) for l in lines ]
-    lines = filter(lambda x: x != "", lines)
-    return [ fn(l) for l in lines ]
-
-def genesetsLoadGMT(s):
-    """
-    Eech line consists of tab separated elements. First is
-    the geneset name, next is it's description. 
-    
-    For now the description is skipped.
-    """
-
-    s = possiblyReadFile(s)
-
-    def hline(s):
-        tabs = [ strip(tab) for tab in s.split("\t") ]
-        return tabs[0], tabs[2:]
-
-    return dict(handleNELines(s, hline))
-
-def collectionsPathname():
-    if not collectionsPath:
-        import orngRegistry
-        return os.path.join(orngRegistry.bufferDir, "gsea", "genesets")
-    else:
-        return collectionsPath
-
-
-def createCollection(lnf):
-    """
-    Input - list of tuples of geneset collection name and GMT
-    file.
-    """
-
-    def addSource(dic, addition):
-        return dict( \
-            [ (addition + name,genes) for name,genes in dic.items() ] )
-
-    gen1 = {}
-
-    for n,fn in lnf:
-        if fn.lower()[-4:] == ".gmt":
-            gen2 = genesetsLoadGMT(open(fn,"rt"))
-        elif fn.lower()[-4:] == ".pck":
-            import pickle
-            f = open(fn,'rb')
-            gen2 = pickle.load(f)
-
-        gen1.update(addSource(gen2, "[%s] " % n))
-
-    return gen1
-
-def getCollectionFiles(path=collectionsPathname()):
-
-    def loadInfo(path):
-        #TODO load info file
-        return {}
-        
-    info = loadInfo(path)
-
-    def okFile(fn):
-        if fn.lower()[-4:] == ".gmt":
-            return True
-        elif fn.lower()[-4:] == ".pck":
-            return True
-        return False
-
-    files = sorted(filter(okFile, os.listdir(path)))
-
-    out = []
-
-    for file in files:
-        fn = os.path.join(path, file)
-        name = info.get(file, file)
-        out.append( (name, fn) )
-
-    return out
-
-def collections(l=[], default=True, path=collectionsPathname()):
-    """
-    Input is a list of collections.
-    Default - if default collections are included.
-    Input is a list of names. If names match to any names in path,
-    they are taken. If not, file with that name is regarded as
-    a filename of gene set colections
-    """
-    collections = getCollectionFiles(path)
-
-    coln = nth(collections, 0)
-    colff = nth(collections, 1)
-    colf =  [ os.path.split(f)[1] for f in colff ]
-
-    check = [ coln, colff, colf ]
-
-    choosen = set()
-    if default:
-        choosen = choosen | set(collections)
-
-    for col in l:
-        added = False
-        if not added:
-            try: # if integer it can be the index
-                choosen = choosen | set( [ collections[int(col)] ])
-                added = True
-            except:
-                pass
-        if not added:
-            for cl in check:
-                if col in cl:
-                    choosen = choosen | set( [ collections[cl.index(col)] ])
-                    added = True
-                    break
-        if not added:
-            choosen = choosen | set( [ (col, col) ] )            
-
-    return createCollection(list(choosen))
-
-"""
-End genesets
-"""
 
 if  __name__=="__main__":
 
@@ -862,11 +749,6 @@ if  __name__=="__main__":
  
     #print gseal
 
-    #collectionsPathname()
-
-    print collections(["c2.cp.v2.5.symbols.gmt"], default=False)
-
-    import sys; sys.exit(0)
      
     def unpckGS(filename):
         import pickle
@@ -883,8 +765,7 @@ if  __name__=="__main__":
     def novi():
         print "done"
 
-    data = orange.ExampleTable(data.domain, data[:1])
-    res2 = runGSEA(data, n=5, geneSets=gen1, permutation="classn", callback=novi, atLeast=3)
+    res2 = runGSEA(data, n=5, geneSets=gen1, permutation="class", callback=novi)
     
     print '\n'.join([ str(a) + ": " +str(b) for a,b in sorted(res2.items())])
 

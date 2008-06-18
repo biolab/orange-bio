@@ -10,15 +10,17 @@ from OWWidget import *
 import OWGUI
 import obiGsea
 from exceptions import Exception
+import cPickle as pickle
 
 def nth(l, n):
     return [ a[n] for a in l ]
 
 def clearListView(lw):
-    it = lw.firstChild()
-    while it:
-        lw.takeItem(it)
-        it = lw.firstChild()
+    lw.clear()
+    #it = lw.firstChild()
+    #while it:
+    #    lw.takeItem(it)
+    #    it = lw.firstChild()
 
 def dataWithAttrs(data, attributes):
     attributes = dict([(a,1) for a in attributes])
@@ -32,139 +34,113 @@ def dataWithAttrs(data, attributes):
 def comboboxItems(combobox, newitems):
     combobox.clear()
     if newitems:
-        combobox.insertStrList(newitems)
+        combobox.insertItems(0, newitems)
         #combobox.setCurrentItem(i)
 
 def getClasses(data):
-    return [ str(a) for a in data.domain.classVar ]
+    return [ a.value for a in data.domain.classVar ]
 
-class PhenotypesSelection():
-    """
-    Window indices:
-    0 - left chooser
-    1 - right chooser
+class PhenotypesSelection(QGroupBox):
 
-    wishedState: 0 not choosen anywhere, 1 choosen in left, 2 in right
-    """
-
-    def __init__(self, parent):
-        grid = QHBox(parent)
+    def __init__(self, parent, s1=0, s2=1):
+        QObject.__init__(self)
+        grid = OWGUI.widgetBox(parent, "", orientation = "horizontal")
         grid.setMinimumWidth(250)
         grid.setMinimumHeight(100)
+        
+        self.p1b = OWGUI.listBox(grid, self)
+        self.p2b = OWGUI.listBox(grid, self)
 
-        self.boxes = [ QListBox(grid), QListBox(grid) ]
-
-        for box in self.boxes:
-            box.setSelectionMode(QListBox.Single)
-
-        QObject.connect(self.boxes[0], SIGNAL("selected ( int )"), self.highlighted1)
-        QObject.connect(self.boxes[1], SIGNAL("selected ( int )"), self.highlighted2)
+        self.connect(self.p1b,  SIGNAL("currentRowChanged(int)"), self.highlighted1)
+        self.connect(self.p2b,  SIGNAL("currentRowChanged(int)"), self.highlighted2)
 
         self.classes = []
 
         def createSquarePixmap(color = Qt.black):
-            return OWGUI.createAttributePixmap("", color)
+            pixmap = QPixmap(13, 13)
+            painter = QPainter()
+            painter.begin(pixmap)
+            painter.setPen(color);
+            painter.setBrush(color);
+            painter.drawRect(0, 0, 13, 13);
+            painter.end()
+            return pixmap
 
-        self.whiteSq = createSquarePixmap(Qt.white)
-        self.marked = [ createSquarePixmap(Qt.red), createSquarePixmap(Qt.blue) ]
+        self.whiteSq = QIcon(createSquarePixmap(Qt.white))
+        self.redSq = QIcon(createSquarePixmap(Qt.red))
+        self.blueSq = QIcon(createSquarePixmap(Qt.blue))
 
         self.classVals = []
 
+        self.setStates(s1, s2)
+
+    def setStates(self, s1 = 0, s2 = 1):
+        self.state1 = self.ls1 = s1
+        self.state2 = self.ls2 = s2
+
+        if self.state1 == self.state2:
+            if self.state1 == 0: 
+                self.state2 = 1
+            else: 
+                self.state2 = 0
+
+        self.selectWanted()
+
     def selectWanted(self):
-    
-        #prevent selection events when chenging here
         self.disableNot = True
 
-        """
-        Changes have to be calculated. Apply only changes because of potential
-        troubles with flickering.
-        """
+        try:
+            self.p1b.item(self.ls1).setIcon(self.whiteSq)
+            self.p2b.item(self.ls2).setIcon(self.whiteSq)
+        except:
+            #except can happen only if both are illegal
+            pass
 
-        def disable(n, i):
-            self.boxes[n].changeItem(self.whiteSq, self.classVals[i], i)
-            self.choosen[n][i] = False
+        try:
+            self.p1b.setCurrentRow(self.state1)
+            self.p2b.setCurrentRow(self.state2)
+            self.p1b.currentItem().setIcon(self.redSq)
+            self.p2b.currentItem().setIcon(self.blueSq)
+            self.ls1 = self.state1
+            self.ls2 = self.state2
+        except:
+            pass
 
-        def enable(n, i):
-            self.boxes[n].changeItem(self.marked[n], self.classVals[i], i)
-            self.choosen[n][i] = True
-
-        self.boxes[0].setCurrentItem(self.lastSel[0])
-        self.boxes[1].setCurrentItem(self.lastSel[1])
-
-        #print self.wishedState, self.choosen
-
-        for boxi in range(2):
-
-            #disable every choosen one which is not wished any more
-            toDisable = [ i for i,e in enumerate(self.choosen[boxi]) \
-                    if e == True and self.wishedState[i] != boxi+1 ]
-
-            for i in toDisable:
-                disable(boxi, i)
-
-            #enable every not choosen one that is wished
-            toEnable = [ i for i,e in enumerate(self.choosen[boxi]) \
-                    if e == False and self.wishedState[i] == boxi+1 ]
-
-            for i in toEnable:
-                enable(boxi, i)
-
-        #allow selection events
         self.disableNot = False
 
-        #print self.getSelection(), self.wishedState
-
-    def highlighted(self, n, i):
-        """
-        Clicked on a i-th item of box n
-        """
-
+    def highlighted1(self, i):
         if self.disableNot:
             return
-
-        self.lastSel[n] = i
-
-        if self.wishedState[i] == n+1:
-            self.wishedState[i] = 0
-        else:
-            self.wishedState[i] = n+1
-
+        if i == self.state2:
+            self.state2 = self.state1
+        self.state1 = i
         self.selectWanted()
 
-    def highlighted1(self, i): return self.highlighted(0, i)
-    def highlighted2(self, i): return self.highlighted(1, i)
+    def highlighted2(self, i):
+        if self.disableNot:
+            return
+        if i == self.state1:
+            self.state1 = self.state2
+        self.state2 = i
+        self.selectWanted()
 
     def setClasses(self, input, s1=0, s2=1):
-
         self.classVals = sorted(input)
-        self.wishedState = [ 0 ] * len(self.classVals)
-
-        self.choosen = [ [ False ] * len(self.classVals), [ False ] * len(self.classVals) ]
-
-        self.wishedState[s1] = 1
-        self.wishedState[s2] = 2
-
-        self.lastSel = [s1, s2]
-
         self.setupBoxes()
-        self.selectWanted()
+        self.setStates(s1, s2)
 
     def getSelection(self):
-        sels = [ [ self.classVals[i] for i,a in enumerate(self.wishedState) if a == n+1 ]
-            for n in range(2) ]
-        return sels
+        return (self.classVals[self.state1], self.classVals[self.state2])
 
     def setupBoxes(self):
-        for box in self.boxes:
-            self.setupBox(box)
+        self.setupBox(self.p1b)
+        self.setupBox(self.p2b)
 
     def setupBox(self, box):
-        # clear and fill box
-
         box.clear()
         for cv in self.classVals:
-            box.insertItem(self.whiteSq, cv)
-
+            box.addItem(QListWidgetItem(self.whiteSq, cv))
+            
         if not self.classVals:
             box.setDisabled(True)
         else:
@@ -172,7 +148,8 @@ class PhenotypesSelection():
 
 class OWGsea(OWWidget):
 
-    settingsList = [ "name", "perms", "minSubsetSize", "minSubsetSizeC", "maxSubsetSize", "maxSubsetSizeC", "minSubsetPart", "minSubsetPartC", "ptype", "gridSel" ]
+    settingsList = [ "name", "perms", "minSubsetSize", "minSubsetSizeC", "maxSubsetSize", "maxSubsetSizeC", \
+        "minSubsetPart", "minSubsetPartC", "ptype" ]
 
     def __init__(self, parent=None, signalManager = None, name='GSEA'):
         OWWidget.__init__(self, parent, signalManager, name)
@@ -181,7 +158,8 @@ class OWGsea(OWWidget):
         self.outputs = [("Examples with selected genes only", ExampleTable), ("Results", ExampleTable), ("Distance Matrix", orange.SymMatrix) ]
 
         self.res = None
-
+        self.dm = None
+        
         self.name = 'GSEA'
         self.minSubsetSize = 3
         self.minSubsetSizeC = True
@@ -194,104 +172,137 @@ class OWGsea(OWWidget):
         self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
 
-        self.organisms = [ ("hsa", "hsa"), ("ddi", "ddi") ]
-        self.otype = 0
-
         self.correlationTypes = [ ("Signal2Noise", "s2n") ]
         self.ctype = 0
 
-        self.loadSettings()
-
+        #self.loadSettings()
         self.data = None
         self.geneSets = {}
 
         ca = self.controlArea
         ca.setMaximumWidth(500)
 
-        box = QVGroupBox(ca)
-        box.setTitle('Organism')
+        box = OWGUI.widgetBox(ca, 'Permutate')
 
-        OWGUI.comboBox(box, self, "otype", \
-            items=nth(self.organisms, 0), tooltip="Organism")
-
-        OWGUI.separator(ca)
-
-        box = QVGroupBox(ca)
-        box.setTitle('Properties')
-
-        self.permTypeF = OWGUI.comboBoxWithCaption(box, self, "ptype", items=nth(self.permutationTypes, 0), \
-            tooltip="Permutation type.", label="Permutate")
+        self.permTypeF = OWGUI.comboBox(box, self, "ptype", items=nth(self.permutationTypes, 0), \
+            tooltip="Permutation type.")
 
         _ = OWGUI.spin(box, self, "perms", 50, 1000, orientation="horizontal", label="Times")
 
-        self.corTypeF = OWGUI.comboBoxWithCaption(box, self, "ctype", items=nth(self.correlationTypes, 0), \
-            tooltip="Correlation type.", label="Correlation")
+        OWGUI.separator(ca)
+
+        box = OWGUI.widgetBox(ca, 'Correlation Calculation')
+
+        self.corTypeF = OWGUI.comboBox(box, self, "ctype", items=nth(self.correlationTypes, 0), \
+            tooltip="Correlation type.")
 
         OWGUI.separator(ca)
 
-        box = QVGroupBox(ca)
-        box.setTitle('Subset Filtering')
+        box = OWGUI.widgetBox(ca, 'Subset Filtering')
 
         _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Size", 1, 10000, "minSubsetSizeC", "minSubsetSize", "") #TODO check sizes
         _,_ = OWGUI.checkWithSpin(box, self, "Max. Subset Size", 1, 10000, "maxSubsetSizeC", "maxSubsetSize", "")
         _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Part (%)", 1, 100, "minSubsetPartC", "minSubsetPart", "")
 
-        OWGUI.separator(ca)
-
-        box = QVGroupBox(ca)
-        box.setTitle("Gene Sets")
-
-        self.gridSel = []
-        self.geneSel = [ a[0] for a in obiGsea.getCollectionFiles() ]
-        self.lbgs = OWGUI.listBox(box, self, "gridSel", "geneSel", selectionMode = QListBox.Multi)
-        #OWGUI.button(box, self, "From &File", callback = self.addCollection, disabled=0)
-
         ma = self.mainArea
-        boxL = QVBoxLayout(ma, QVBoxLayout.TopToBottom)
+        #boxL = QVBoxLayout(ma, QVBoxLayout.TopToBottom)
         #box.setTitle("Results")
 
-        self.listView = QListView(ma)
-        for header in ["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"]:
-            self.listView.addColumn(header)
-        self.listView.setSelectionMode(QListView.NoSelection)
-        self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.newPathwaySelected)
-        boxL.addWidget(self.listView)
+        self.listView = QTreeWidget(ma)
+        ma.layout().addWidget(self.listView)
+        self.listView.setAllColumnsShowFocus(1)
+        self.listView.setColumnCount(9)
+        self.listView.setHeaderLabels(["Collection", "Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"])
+        
+        self.listView.header().setStretchLastSection(True)
+        self.listView.header().setClickable(True)
+        self.listView.header().setSortIndicatorShown(True)
+        self.listView.setSortingEnabled(True)
+        #self.listView.header().setResizeMode(0, QHeaderView.Stretch)
+        
+        #for header in ["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"]:
+            #self.listView.addColumn(header)
+        self.listView.setSelectionMode(QAbstractItemView.NoSelection)
+        #self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.ja)
+        self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.newPathwaySelected)
 
         OWGUI.separator(ca)
 
-        box = QVGroupBox(ca)
-        box.setTitle("Phenotypes")
+        box = OWGUI.widgetBox(ca, 'Phenotypes')
 
         self.psel = PhenotypesSelection(box)
-
+        
         self.resize(600,50)
  
         OWGUI.separator(ca)
         self.btnApply = OWGUI.button(ca, self, "&Compute", callback = self.compute, disabled=0)
+        
+        fileBox = OWGUI.widgetBox(ca, orientation='horizontal')
+        OWGUI.button(fileBox, self, "Load", callback = self.loadData, disabled=0)
+        OWGUI.button(fileBox, self, "Save", callback = self.saveData, disabled=0)
+        
+        gen1 = getGenesets()
 
-        #gen1 = getGenesets()
-        #for name,genes in gen1.items():
-        #    self.addGeneset(name, genes)
+        for name,genes in gen1.items():
+            self.addGeneset(name, genes)
 
         self.addComment("Computation was not started.")
+        
+    def saveData(self):
+        self.warning('')
+        
+        if self.res != None:
+            filename = QFileDialog.getSaveFileName(self, 'Save GSEA data', '', 'GSEA files (*.gsea)')
+            if filename:
+                fn = ""
+                head, tail = os.path.splitext(str(filename))
+                if not tail:
+                    fn = head + ".gsea"
+                else:
+                    fn = str(filename)
+                    
+                fp = open(fn, "wb" )
+                pickle.dump(self.res, fp, -1)
+                pickle.dump(self.dm, fp, -1)
+                fp.close()
+        else:
+            self.warning('No internal data to save.')
+    
+    def loadData(self):
+        if sys.platform == "darwin":
+            startfile = user.home
+        else:
+            startfile = "."
+                
+        filename = str(QFileDialog.getOpenFileName(self, 'Open GSEA data', startfile, "GSEA files (*.gsea)"))
+        if filename == "": return
+        
+        fp = open(filename, "rb")
+        res = pickle.load(fp)
+        
+        try:
+            dm = pickle.load(fp)
+        except:
+            dm = None
+        
+        fp.close()
+        
+        self.compute(res, dm)
 
-    def addCollection(self):
-        fname = self.chooseGeneSetsFile()
-        if fname:
-            if fname not in self.geneSel:
-                self.geneSel.append(fname)
-
-    def newPathwaySelected(self, item):
-
+    def newPathwaySelected(self):
+        print "newPathwaySelected"
         qApp.processEvents()
 
         if not self.selectable:
             return
 
-        iname = self.lwiToGeneset[item]
-        outat = self.res[iname][6]
-
-        dataOut =  dataWithAttrs(self.data, outat)
+        outat = set([])
+        for item in self.listView.selectedItems():
+            iname = self.lwiToGeneset[item]
+            outat.update(self.res[iname][6])
+            
+            
+        dataOut =  dataWithAttrs(self.data,list(outat))
         self.send("Examples with selected genes only", dataOut)
 
     def resultsOut(self, data):
@@ -308,6 +319,8 @@ class OWGsea(OWWidget):
 
         vars = []
         vars.append(orange.StringVariable("Name"))
+        vars.append(orange.EnumVariable("Collection", values = ["KEGG", "C5", "C4", "C3", "C2", "C1"]))
+        vars.append(orange.EnumVariable("Subcollection", values = ["KEGG", "C5 bp", "C5 cc", "C5 mf", "C4 cm", "C4 cgn", "C3 mir", "C3 tft", "C2 cgp", "C2 cp", "C1"]))
         vars.append(orange.FloatVariable("NES"))
         vars.append(orange.FloatVariable("ES"))
         vars.append(orange.FloatVariable("P-value"))
@@ -320,7 +333,11 @@ class OWGsea(OWWidget):
 
         examples = []
         for name, (es, nes, pval, fdr, os, ts, genes) in resl:
-            examples.append([name, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
+            splitndx = name.find("]")
+            subcollection = name[1:splitndx]
+            collection = subcollection.split(" ")[0]
+            name = name[splitndx + 2:]
+            examples.append([name, collection, subcollection, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
 
         return orange.ExampleTable(domain, examples)
 
@@ -351,64 +368,51 @@ class OWGsea(OWWidget):
             return ", ".join(genes)
 
         for name, (es, nes, pval, fdr, os, ts, genes) in res.items():
-            item = QListViewItem(self.listView)
-            item.setText(0, name)
-            item.setText(1, "%0.3f" % nes)
-            item.setText(2, "%0.3f" % es)
-            item.setText(3, "%0.3f" % pval)
-            item.setText(4, "%0.3f" % min(fdr,1.0))
-            item.setText(5, str(os))
-            item.setText(6, str(ts))
-            item.setText(7, writeGenes(genes))
+            splitndx = name.find("]")
+            collection = name[1:splitndx]
+            name = name[splitndx + 2:]
+            item = QTreeWidgetItem(self.listView)
+            item.setText(0, collection)
+            item.setText(1, name)
+            item.setText(2, "%0.3f" % nes)
+            item.setText(3, "%0.3f" % es)
+            item.setText(4, "%0.3f" % pval)
+            item.setText(5, "%0.3f" % min(fdr,1.0))
+            item.setText(6, str(os))
+            item.setText(7, str(ts))
+            item.setText(8, writeGenes(genes))
 
             self.lwiToGeneset[item] = name
 
     def addComment(self, comm):
-        item = QListViewItem(self.listView)
-        item.setText(0, comm)
+        item = QTreeWidgetItem(self.listView)
+        item.setText(0, comm)   
 
     def setSelMode(self, bool):
         if bool:
             self.selectable = True
-            self.listView.setSelectionMode(QListView.Single)
+            self.listView.setSelectionMode(QAbstractItemView.MultiSelection)
         else:
             self.selectable = False
             self.listView.setSelectionMode(QListView.NoSelection)
 
-    def compute(self):
-
-        #self.lbgs.clear()
-
-        #LOAD GENE SETS
-        collectionNames = [ self.geneSel[a] for a in self.gridSel ]
-        self.geneSets = obiGsea.collections(collectionNames, default=False)
-
-        #self.geneSel.append("fffafda")
-
+    def compute(self, res=None, dm=None):
         clearListView(self.listView)
         self.addComment("Computing...")
 
         self.resultsOut(None)
 
         qApp.processEvents()
-
-        if self.data:
-
+        self.res = res
+        self.dm = dm
+        
+        if self.res == None and self.data:
             self.setSelMode(False)
 
             pb = OWGUI.ProgressBar(self, iterations=self.perms+2)
 
             if hasattr(self, "btnApply"):
                 self.btnApply.setFocus()
-
-            selectedClasses = self.psel.getSelection()
-            fc = "Phenotype group empty. Stopped."
-            if len(selectedClasses[0]) == 0:
-                self.addComment(fc)
-                return
-            elif len(selectedClasses[1]) == 0:
-                self.addComment(fc)
-                return 
 
             kwargs = {}
 
@@ -423,18 +427,16 @@ class OWGsea(OWWidget):
             kwargs["minPart"] = \
                 ifr(self.minSubsetPartC, self.minSubsetPart/100.0, 0.0)
 
+
             if len(self.data) > 1:
                 permtype = self.permutationTypes[self.ptype][1]
                 kwargs["permutation"] = ifr(permtype == "p", "class", "genes") 
 
             dkwargs = {}
             if len(self.data) > 1:
-                dkwargs["classValues"] = selectedClasses
+                dkwargs["classValues"] = self.psel.getSelection()            
  
-
-            organism = self.organisms[self.otype][1]
-
-            gso = obiGsea.GSEA(organism="ddi")  # ORIGINALLY HSA
+            gso = obiGsea.GSEA(organism="hsa")
             gso.setData(self.data, **dkwargs)
 
             for name,genes in self.geneSets.items():
@@ -444,7 +446,8 @@ class OWGsea(OWWidget):
             self.res = gso.compute(n=self.perms, callback=pb.advance, **kwargs)
             
             pb.finish()
-
+            
+        if self.res != None:
             if len(self.res) > 0:
                 self.fillResults(self.res)
                 self.setSelMode(True)
@@ -453,13 +456,15 @@ class OWGsea(OWWidget):
                 etres = self.exportET(resl)
 
                 self.resultsOut(etres)
-                dm = self.exportDistanceMatrix(resl)
+                if self.dm == None:
+                    self.dm = self.exportDistanceMatrix(resl)
+                    
+                    for ex in etres:
+                        ex.name = str(ex[0])
+                    
+                    self.dm.setattr("items", etres)
 
-                dm.setattr("items", etres)
-                for ex in etres:
-                    ex.name = str(ex[0])
-
-                self.genesetDistOut(dm)
+                self.genesetDistOut(self.dm)
 
             else:
                 self.setSelMode(False)
@@ -486,16 +491,11 @@ class OWGsea(OWWidget):
                 self.corTypeF.setDisabled(False)
                 #allow change of permutation type
                 self.permTypeF.setDisabled(False)
-
+                print "set classes"
                 self.psel.setClasses(getClasses(data))
 
-    def chooseGeneSetsFile(self):
-        """
-        Return choosen gene sets file name or None, if no file
-        was choosen.
-        """
-        filename = str(QFileDialog.getOpenFileName("./","Gene Collections (*.gmt *.pck)", self, "open", "Choose gene set collection"))
-        return filename
+    def addGeneset(self, name, genes):
+        self.geneSets[name] = genes
 
 
 def unpckGS(filename):
@@ -504,10 +504,8 @@ def unpckGS(filename):
     return pickle.load(f)
 
 def getGenesets():
-    import orngRegistry
-    #return unpckGS("../abc/precompPathways.pck")
-    return unpckGS(orngRegistry.bufferDir + "/gsea/geneSets_Gsea_KEGGhsa.pck")
-    
+    import orngOrangeFoldersQt4
+    return unpckGS(orngOrangeFoldersQt4.__getDirectoryNames()["bufferDir"] + "/gsea/geneSets_Gsea_KEGGhsa.pck")
 
 if __name__=="__main__":
     a=QApplication(sys.argv)
@@ -524,14 +522,13 @@ if __name__=="__main__":
     #d = orange.ExampleTable("sterolTalkHepa.tab")
     #ow.setData(d)
 
-    #d = orange.ExampleTable("demo.tab")
-    #ow.setData(d)
+    d = orange.ExampleTable("demo.tab")
+    ow.setData(d)
 
     #d = orange.ExampleTable("tmp.tab")
     #ow.setData(d)
 
-    d = orange.ExampleTable("../abc/abc_gsea_1.tab")
-    ow.setData(d)
+
 
     a.exec_loop()
     ow.saveSettings()
