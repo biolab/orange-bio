@@ -11,7 +11,7 @@ for (dirp, dirns, n) in os.walk('doc'):
 	docFiles.extend( [dirn + n1r for n1r in nr if '.svn' not in dirp + '/' + n1r] )
 
 setup(name = "Genomics",
-      version = "0.9.67",
+      version = "1.0",
       description = "Genomics extensions for Orange",
       author="University of Ljubljana, AI lab",
       author_email="tomaz.curk@fri.uni-lj.si",

@@ -20,7 +20,7 @@ for (dirp, dirns, n) in os.walk('doc'):
 module=Extension("_GOLib", sources=["go.c"])
 
 setup(name = "Genomics",
-      version = "0.9.67",
+      version = "1.0",
       description = "Genomics extensions for Orange",
       author="University of Ljubljana, AI lab",
       author_email="tomaz.curk@fri.uni-lj.si",
