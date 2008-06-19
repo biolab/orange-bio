@@ -124,7 +124,8 @@ class GeneMatchMk2(object):
         for key, name in k.items():
             links = self.keggOrg.api._genes[self.keggOrg.org][key].get_db_links()
             if dbName in links:
-                mapper[links[dbName]] = name
+                for link in links[db]:
+                    mapper[link] = name
             else:
                 u.append(name)
         return mapper, c, u

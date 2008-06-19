@@ -189,6 +189,8 @@ class PathwayView(QGraphicsView):
         elif id==2:
             self.master.selectedObjects = defaultdict(list)
             self.master.Commit()
+            pathway = obiKEGG.KEGGPathway(self.popup.objs[-1][0])
+            pathway.api = self.pathway.api
             self.SetPathway(obiKEGG.KEGGPathway(self.popup.objs[-1][0]))
             return
         try:
@@ -415,7 +417,8 @@ class OWKEGGPathwayBrowser(OWWidget):
                 self.pathwayView.SetPathway(None)
                 return
             self.pathway = obiKEGG.KEGGPathway(item.pathway_id)
-            self.pathway.api.download_progress_callback = self.progressBarSet
+##            self.pathway.api.download_progress_callback = self.progressBarSet
+            self.pathway.api = self.org.api
             #print 'pathway:', self.pathway
             self.pathwayView.SetPathway(self.pathway, self.pathways.get(item.pathway_id, [[]])[0])
             
@@ -436,7 +439,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.error(0, "Cannot extact gene names from input")
             genes = []
         if self.loadedOrganism!=self.organismCodes[self.organismIndex]:
-            self.org = obiKEGG.KEGGOrganism(self.organismCodes[self.organismIndex])
+            self.org = obiKEGG.KEGGOrganism(self.organismCodes[self.organismIndex], True)
             self.org.api.download_progress_callback=self.progressBarSet
             self.loadedOrganism = self.organismCodes[self.organismIndex]
         self.progressBarInit()

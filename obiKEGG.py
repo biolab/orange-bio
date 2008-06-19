@@ -14,7 +14,7 @@ try:
     import orngOrangeFoldersQt4
     default_database_path = orngOrangeFoldersQt4.__getDirectoryNames()['bufferDir'] + "/kegg/"
 except:
-    default_database_path = (os.path.split(__file__)[0] or ".") +"/data/kegg/"
+    default_database_path = (os.path.split(__file__)[0] or ".") +"data/kegg/"
 
 base_ftp_path = "ftp://ftp.genome.jp/pub/kegg/"
 
@@ -132,7 +132,7 @@ def _rel_dir(pathway_id):
         return "pathway/organisms/"+pathway_id.split(":")[-1][:-5]+"/"
 
 def _tabspliter(file):
-    return [tuple(l.split("\t")) for t in file.readlines()]  
+    return [tuple(l.split("\t")) for t in file.readlines()]
 
 class DBEntry(object):
     cache = []
@@ -220,11 +220,11 @@ class DBGeneEntry(DBEntry):
         
     def get_alt_names(self):
         lines = self.get_by_lines("DBLINKS")
-        return [line.split()[1] for line in lines if len(line.split())>=2] + [n.strip(",\t \n") for n in self.get_by_list("NAME")] +[self.get_name()]
+        return reduce(list.__add__, [line.split()[1:] for line in lines if len(line.split())>=2], []) + [n.strip(",\t \n") for n in self.get_by_list("NAME")] +[self.get_name()]
 
     def get_db_links(self):
         lines = self.get_by_lines("DBLINKS")
-        return dict([(line.split()[0].rstrip(":"), line.split()[1]) for line in lines if len(line.split())>=2])
+        return dict([(line.split()[0].rstrip(":"), line.split()[1:]) for line in lines if len(line.split())>=2])
     
     def get_pathways(self):
         lines = self.get_by_lines("PATHWAY")
@@ -382,7 +382,7 @@ class KEGGInterfaceLocal(object):
         self._taxonomy = d
         
     def _retrieve(self, filename):
-        self.downloader.retrieve(filename, progressCallback=self.download_progress_callback)
+        self.downloader.retrieve(filename, update=self.update, progressCallback=self.download_progress_callback)
         return open(self.local_database_path+filename)
     
     def list_organisms(self):
@@ -762,34 +762,41 @@ class KOClass(object):
                 pass
         self.ko_class_id = self.class_name[:5]
 
-import obiGenomicsUpdate
+from obiGenomicsUpdate import Update as UpdateBase
+from obiGenomicsUpdate import synchronized
 
-class Update(obiGenomicsUpdate.Update):
+from threading import Lock
+updateLock = Lock()
+class Update(UpdateBase):
     def __init__(self, local_database_path=None, progressCallback=None):
         obiGenomicsUpdate.Update.__init__(self, local_database_path, progressCallback)
         self.api = KEGGInterfaceLocal(True, local_database_path, progressCallback)
 
+    @synchronized(updateLock)
     def GetUpdatable(self):
         orgs = [org for org in self.api.list_organisms() if str((str(Update.UpdateOrganism), (org,))) in self.shelve]
         return [(self.UpdateOrganism, "Update organism pathways and genes" , orgs),
                 (self.UpdateReference, "Update reference pathways", []),
                 (self.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
         
-
+    @synchronized(updateLock)
     def GetDownloadable(self):
         orgs = [org for org in self.api.list_organisms() if str((str(Update.UpdateOrganism), (org,))) not in self.shelve]
         return [(self.UpdateOrganism, "Update organism pathways and genes" , orgs),
                 (self.UpdateReference, "Update reference pathways", []),
                 (self.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
 
+    @synchronized(updateLock)
     def UpdateOrganism(self, org):
         self.api.download_organism_data(org)
         self._update(Update.UpdateOrganism, (org,))
 
+    @synchronized(updateLock)
     def UpdateReference(self):
         self.api.download_reference_data()
         self._update(Update.UpdateReference, ())
-        
+
+    @synchronized(updateLock)
     def UpdateEnzymeAndCompounds(self):
         self.api.massDownloader.retrieve(["ligand//compound//compound", "ligand/enzyme/enzyme"], progressCallback=self.progressCallback)
         self._update(Update.UpdateEnzymeAndCompounds, ())

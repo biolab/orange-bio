@@ -238,7 +238,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         #print go.getDataDir()
 
     def SetGenesComboBox(self):
-        self.candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
+        self.candidateGeneAttrs = self.clusterDataset.domain.variables + self.clusterDataset.domain.getmetas().values()
         self.candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, self.candidateGeneAttrs)
         self.geneAttrIndexCombo.clear()
         self.geneAttrIndexCombo.addItems([a.name for a in  self.candidateGeneAttrs])
@@ -358,8 +358,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             for k, gene in unique.items():
                 links = self.keggOrg.api._genes[org][k].get_db_links()
                 for db in dbNames:
-                    if db in links and links[db] in go.loadedAnnotation.aliasMapper:
-                        go.loadedAnnotation.aliasMapper[gene] = go.loadedAnnotation.aliasMapper[links[db]]
+                    if db in links and len(set([link for link in links[db] if link in go.loadedAnnotation.aliasMapper]))==1:
+                        go.loadedAnnotation.aliasMapper[gene] = go.loadedAnnotation.aliasMapper[set([link for link in links[db] if link in go.loadedAnnotation.aliasMapper]).pop()]
                         break
                 altNames = self.keggOrg.api._genes[org][k].get_alt_names()
                 altNames = [name for name in altNames if name in go.loadedAnnotation.aliasMapper]
