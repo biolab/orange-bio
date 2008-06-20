@@ -266,8 +266,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
             
         cn = cn.items()
         cn.sort(lambda a,b:-cmp(a[1],b[1]))
-        bestAttr, organizm = cn[0][0]
-        self.annotationIndex = self.annotationCodes.index(organizm)
+        ((bestAttr, organism), count) = cn[0]
+        if bestAttr=="_var_names_" and count<=len(attrNames)/10.0 or \
+           bestAttr!="_var_names_" and count<=len(self.clusterDataset)/10.0:
+            return
+        
+        self.annotationIndex = self.annotationCodes.index(organism)
         if bestAttr=="_var_names_":
             self.useAttrNames = True
 ##            self.geneAttrIndexCombo.setDisabled(True)
