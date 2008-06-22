@@ -157,5 +157,5 @@ class MA_anova(object):
         try:
             f, prob = stats.lF_oneway(*tuple(data))
             return prob if self.prob else f
-        except ex:
+        except:
             return 0
