@@ -89,29 +89,48 @@
 import obiMeSH
 </xmp> -->
 
+<h3>Using basic obiMeSH attributes</h3>
+<p>Following example shows usage of main obiMeSH attributes.</p>
+<xmp class=code>>>> import obiMeSH
+>>> d = obiMeSH.obiMeSH()
+>>> dir(d)
+# We look if there is an annotation for chemical with CID 6240 in our local database.
+>>> d.fromCID[6240]
+['Chlorpromazine']
+# We could also used function which is using online database ...
+>>> d.findTerms([1,2,3,4,5,6])
+{1: ['Acetylcarnitine'], 2: [], 3: [], 4: ['Propanolamines'], 5: [], 6: ['Dinitrochlorobenzene']}
+# After we know MeSH terms we can get their description ...
+>>> d.toDesc['Chlorpromazine']
+"The prototypical phenothiazine antipsychotic drug. Like the other drugs in this class chlorpromazine's antipsychotic actions
+are thought to be due to long-term adaptation by the brain to blocking DOPAMINE RECEPTORS. Chlorpromazine has several other
+actions and therapeutic uses, including as an antiemetic and in the treatment of intractable hiccup."
+# or MeSH ids ...
+>>> d.toID['Chlorpromazine']
+['D02.886.369.198', 'D03.494.741.198']
+# which can be easily converted back to MeSH terms.
+>>> d.toName['D03']
+'Heterocyclic Compounds'
+>>> d.toName['D03.494']
+'Heterocyclic Compounds, 3-Ring'
+</xmp>
+
 <h3>Printing MeSH term enrichment</h3>
 
-<p>In the following example you can see how to pretty print returned results from findEnrichedTerms.</p>
+<p>In the following example you can see how to calculate and pretty print enriched MeSH terms.</p>
 
-<xmp class=code>
-import orange
+<xmp class=code>import orange
 import obiMeSH
 
-def myFunc(text):
-    return text
-
+# load reference and cluster dataset
 r = orange.ExampleTable('D06-reference')
 c = orange.ExampleTable('D06-cluster')
 f = obiMeSH.obiMeSH()
 data = f.findEnrichedTerms(r,c)
-f.printMeSH(data, func = myFunc)
+f.printMeSH(data)
 </xmp>
 
-
 <!--
-<h3>Calculating MeSH term frequency and MeSH term enrichment</h3>
-<p>asdf</p>
-
 <h3>Parsing PubMed XML data</h3>
 <p>asdf</p>
 
@@ -133,7 +152,7 @@ import obiMeSH
 
 <h2>pubChemAPI</h2>
 
-<p><INDEX name="classes/pubChemAPI (in obiMeSH)">pubChemAPI is the main class used to query PubChem database.</p>
+<p><INDEX name="classes/pubChemAPI (in obiMeSH)">pubChemAPI is the main class used to query online PubChem database.</p>
 
 
 <P class=section>Methods</P>
@@ -143,7 +162,7 @@ import obiMeSH
 <DL>Functions returns corresponding chemical formula in SMILES format for desired <code>id</code>. Argument <code>typ</code> indicates type of identifier. At the moment there are two possibilities for a value of <code>typ</code> ('cid' for compound id and 'sid' for substance id). </DD>
 
 <DT>getMeSHterms(cid)</DT>   
-<DL>Function returns a list of MeSH terms (calssification) for a given CID.</DD>
+<DL>Function returns a list of MeSH terms (classification) for a given CID.</DD>
 
 <DT>getCIDfromSID(sid)</DT>
 <DL>Function returns a list of possible CIDs for a given SID.</DD>
@@ -154,9 +173,69 @@ import obiMeSH
 <DT>getCIDs(name, weight)</DT>
 <DL>Function returns a list of possible chemical names for a given CID and molecular weight.</DD>
 
-<DT>def getCIDs(name)</DT>
+<DT>getCIDs(name)</DT>
 <DL>Function returns a list of possible chemical names for a given CID.</DD>
 
+
+<h2>Examples</h2>
+
+
+<h3>Basic functions</h3>
+
+<p>In the following example you can see how to do basic operations with pubChemAPI library.</p>
+
+<xmp class=code>from obiMeSH import *
+
+api = pubChemAPI()
+chemical = 'Chlorpromazine'
+cid = api.getCIDs(chemical)
+classTerms = api.getMeSHterms(cid[0])
+pharmTerms = api.getPharmActionList(cid[0])
+smiles = api.getSMILE(cid,'cid')
+
+print 'Drug name', chemical
+print 'All available CID numbers', cid
+print 'Classification MeSH terms', classTerms
+print 'Pharmacological action MeSH terms', pharmTerms
+print 'Smiles notation', smiles
+</xmp>
+
+<P>The output should be
+<xmp>Drug name  Chlorpromazine
+All available CID numbers  [2726, 70413, 522335, 6240, 9683, 6431825, 4926, 84362, 62861, 443037, 23724898, 165214,
+ 160588, 122845, 9682, 6474604, 125595, 125358, 6474605, 465099, 465100, 481770, 159916, 465103, 465098, 461555, 107410,
+ 465104, 486143, 467415, 114324, 117674, 117673, 3026449, 72287, 6420056, 3916, 24182520, 24182516, 91499, 67356, 66064, 
+66062, 6602611, 6444542, 6436410, 6436057, 5282418, 5282417, 5281881, 5281878, 5281032, 36207, 2913535, 17012, 5887, 5566, 
+5452, 4917, 4748, 4744, 4078, 3372]
+Classification MeSH terms  ['Chlorpromazine']
+Pharmacological action MeSH terms  ['Antiemetics', 'Antipsychotic Agents', 'Dopamine Antagonists']
+Smiles notation  CN(C)CCCN1C2=CC=CC=C2SC3=C1C=C(C=C3)Cl
+</xmp>
+</P>
+
+<h3>Generating drug dataset with pubChemAPI and obiMeSH</h3>
+
+<p>In this example you can see how to print chemical dataset suitable usage in Orange. We will assume that our initial data is a set of drug names. Note that following procedure is vague and may not be accurate for all the chemicals. The crux of the problem is the fact that function getCIDs returns a list of CIDs. We assume that first CID is the one we are looking for but that is not always true. You should also note that for this problem it is better to use function findTerms from obiMeSH that getHeSMterms from pubChemAPI. This approach uses internal buffer database of MeSH annotations and is may be faster.</p>
+<br>
+<p>part of <a href='obiMeSH-dataset-generator.py'>obiMeSH-dataset-generator.py</a></p>
+<xmp class=code>for i in names:
+	cids = chem.getCIDs(i.strip())
+	if len(cids) > 0:
+		cid = cids[0] 		
+		terms = d.findTerms([int(cid)])[cid]
+		smiles = chem.getSMILE(int(cid),"cid")
+		print cid, "\t", i, "\t", smiles, "\t", terms
+</xmp>
+
+<P>The output should be
+<xmp>cid	name	smiles	mesh
+string	string	string	string
+
+6427782 	1,7-octadiene 	CC=CCC=CC 	[]
+24199357 	2-Dimethylamnoethyl cloride 	CC(C)C1=CC=C(C=C1)C2C(C(=O)NC(=S)N2)C#N.[K] 	[]
+3385 	5-fluorouracil 	C1=C(C(=O)NC(=O)N1)F 	['Fluorouracil']
+</xmp>
+</P>
 
 </body>
 </html>

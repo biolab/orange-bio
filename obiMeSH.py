@@ -161,6 +161,8 @@ class obiMeSH(object):
                 else:   # no it is not, let's go on the internet - use pubChemAPI
                     r = pubChemAPI()
                     l = r.getMeSHterms(i)
+                    ca = r.getPharmActionList(i)
+                    l.extend(ca) # we extend it with Pharmacological actions
                     #l = self.findTermsForCID(i)
                     self.fromCID[int(i)] = l
                     ret[int(i)] = l
@@ -764,9 +766,7 @@ class PubChemMeSHParser(SGMLParser):
         text = text.strip()
         if text == '':
             return
-        
-        # print text
-        
+                
         if self.next == 1:
             self.directTerms.append(text)
             self.next = 0
@@ -774,7 +774,7 @@ class PubChemMeSHParser(SGMLParser):
             self.indirectTerms.append((text,self.nextLink))
             self.next = 0
 
-        if text == "Drug and Chemical Info:":
+        if text == "Drug and Chemical Info from MeSH:":
             self.foundMeSH = True
         elif (text == "Pharmacological Action" or text == "Classification" or text == "PubMed via MeSH" or text == "PubMed MeSH Keyword Summary"):
             self.foundMeSH = False
