@@ -147,9 +147,16 @@ class PhenotypesSelection(QGroupBox):
             box.setDisabled(False)
 
 class OWGsea(OWWidget):
-
-    settingsList = [ "name", "perms", "minSubsetSize", "minSubsetSizeC", "maxSubsetSize", "maxSubsetSizeC", \
-        "minSubsetPart", "minSubsetPartC", "ptype" ]
+    settingsList = ["name", 
+                    "perms", 
+                    "minSubsetSize", 
+                    "minSubsetSizeC", 
+                    "maxSubsetSize", 
+                    "maxSubsetSizeC", 
+                    "minSubsetPart", 
+                    "minSubsetPartC", 
+                    "ptype", 
+                    "loadFileName"]
 
     def __init__(self, parent=None, signalManager = None, name='GSEA'):
         OWWidget.__init__(self, parent, signalManager, name)
@@ -174,8 +181,14 @@ class OWGsea(OWWidget):
 
         self.correlationTypes = [ ("Signal2Noise", "s2n") ]
         self.ctype = 0
+        
+        if sys.platform == "darwin":
+            self.loadFileName = user.home
+        else:
+            self.loadFileName = "."
 
-        #self.loadSettings()
+        self.loadSettings()
+        
         self.data = None
         self.geneSets = {}
 
@@ -268,16 +281,16 @@ class OWGsea(OWWidget):
         else:
             self.warning('No internal data to save.')
     
-    def loadData(self):
-        if sys.platform == "darwin":
-            startfile = user.home
-        else:
-            startfile = "."
-                
-        filename = str(QFileDialog.getOpenFileName(self, 'Open GSEA data', startfile, "GSEA files (*.gsea)"))
-        if filename == "": return
+    def loadData(self):                
+        self.loadFileName = str(QFileDialog.getOpenFileName(self, 'Open GSEA data', self.loadFileName, "GSEA files (*.gsea)"))
+        if self.loadFileName == "": 
+            if sys.platform == "darwin":
+                self.loadFileName = user.home
+            else:
+                self.loadFileName = "."
+            return
         
-        fp = open(filename, "rb")
+        fp = open(self.loadFileName, "rb")
         res = pickle.load(fp)
         
         try:
@@ -336,7 +349,7 @@ class OWGsea(OWWidget):
             splitndx = name.find("]")
             subcollection = name[1:splitndx]
             collection = subcollection.split(" ")[0]
-            name = name[splitndx + 2:]
+            name = name[splitndx + 1:]
             examples.append([name, collection, subcollection, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
 
         return orange.ExampleTable(domain, examples)
@@ -370,7 +383,7 @@ class OWGsea(OWWidget):
         for name, (es, nes, pval, fdr, os, ts, genes) in res.items():
             splitndx = name.find("]")
             collection = name[1:splitndx]
-            name = name[splitndx + 2:]
+            name = name[splitndx + 1:]
             item = QTreeWidgetItem(self.listView)
             item.setText(0, collection)
             item.setText(1, name)
