@@ -11,7 +11,7 @@ import obiKEGG
 import obiData
 import sys
 import OWGUI
-from OWWidget import OWWidget
+from OWWidget import *
 
 class OWUpdateGenomicsDatabases(OWWidget):
     settingsList = ["goDataDir", "goAspect", "goOrganism"] 
@@ -28,7 +28,8 @@ class OWUpdateGenomicsDatabases(OWWidget):
         ##GO
         ###############
         self.goTab = box = OWGUI.createTabPage(self.tabWidget, "GO")
-        OWGUI.lineEdit(box, self, "goDataDir", "Custom Data Base Location", valueType = str)
+        le = OWGUI.lineEdit(box, self, "goDataDir", "Custom Data Base Location", valueType = str)
+        le.setDisabled(True)
         self.goOrgansmNames = go.listOrganisms()
         self.goOrganismCombo = OWGUI.comboBox(box, self, "goOrganism", "Organism", items = self.goOrgansmNames)
         OWGUI.button(box, self, "Update Annotation", callback=self.UpdateAnnotation)
@@ -37,7 +38,8 @@ class OWUpdateGenomicsDatabases(OWWidget):
         ##KEGG
         ##############
         self.keggTab = box = OWGUI.createTabPage(self.tabWidget, "KEGG")
-        OWGUI.lineEdit(box, self, "keggDataDir", "Custom Data Base Location", valueType = str)
+        le = OWGUI.lineEdit(box, self, "keggDataDir", "Custom Data Base Location", valueType = str)
+        le.setDisabled(True)
         self.keggOrganisms = obiKEGG.KEGGInterfaceLocal().list_organisms().items()
         self.keggOrganisms.sort()
         cb = OWGUI.comboBox(box, self, "keggOrganism", "Organisms", items=["%s: %s" % t for t in self.keggOrganisms])
@@ -96,10 +98,9 @@ class OWUpdateGenomicsDatabases(OWWidget):
         f.retrieve("ligand/enzyme/enzyme", True, progressCallback=self.progressBarSet)
         self.progressBarFinished()
 
-    #def close(self, destroy):
-    #    self.emit(PYSIGNAL("closed()"), ())
-    #    self.saveSettings()
-    #    return OWWidget.close(self, destroy)
+    def closeEvent(self, event):
+        self.emit(SIGNAL("closed()"))
+        return OWWidget.closeEvent(self, event)
         
 
 if __name__ == "__main__":
