@@ -8,7 +8,7 @@
 import orange
 #import orngChem_Old as orngChem
 from OWWidget import *
-from qt import *
+
 import OWGUI
 import sys, os
 #import vis
@@ -194,27 +194,31 @@ class BigImage(QDialog):
         self.imageSize=min(event.size().width(), event.size().height())
         self.renderImage()
         
-class MolWidget(QVBox):
+class MolWidget(QFrame):
     def __init__(self, master, parent, context):
-        apply(QVBox.__init__, (self, parent))
+        QFrame.__init__(self, parent)
         self.master=master
         self.context=context
-        self.label=QLabel(self)
         self.selected=False
+        self.label=QLabel()
         self.image=MolImage(master, self, context)
-        self.show()
         self.label.setText(context.title)
         self.label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
         self.label.setMaximumWidth(context.size)
+        layout = QVBoxLayout()
+        layout.addWidget(self.label)
+        layout.addWidget(self.image)
+        self.setLayout(layout)
+        self.show()
 
     def repaint(self):
-        apply(QVBox.repaint,(self, ))
+        QFrame.repaint(self)
         self.label.repaint()
         self.image.repaint()
         
 class MolImage(QLabel):
     def __init__(self, master, parent, context):
-        apply(QLabel.__init__,(self, parent))
+        QLabel.__init__(self, parent)
         self.context=context
         self.master=master
         #imagename=context.imagename or context.imageprefix+".bmp"
@@ -284,15 +288,15 @@ class MolImage(QLabel):
         d=BigImage(context, self)
         d.show()
         
-class ScrollView(QScrollView):
+class ScrollArea(QScrollArea):
     def __init__(self, master, *args):
-        apply(QScrollView.__init__, (self,)+args)
+        QScrollArea.__init__(self, *args)
         self.master=master
         self.viewport().setMouseTracking(True)
         self.setMouseTracking(True)
         
     def resizeEvent(self, event):
-        apply(QScrollView.resizeEvent, (self, event))
+        QScrollArea.resizeEvent(self, event)
         size=event.size()
         w,h=self.width(), self.height()
         oldNumColumns=self.master.numColumns
@@ -312,7 +316,7 @@ class OWMoleculeVisualizer(OWWidget):
     serverPwd = ""
     uniqueWidgetImageId = 0
     def __init__(self, parent=None, signalManager=None, name="Molecule visualizer"):
-        apply(OWWidget.__init__,(self, parent, signalManager, name))
+        OWWidget.__init__(self, parent, signalManager, name)
         self.inputs=[("Molecules", ExampleTable, self.setMoleculeTable), ("Molecule subset", ExampleTable, self.setMoleculeSubset), ("Fragments", ExampleTable, self.setFragmentTable)]
         self.outputs=[("Selected Molecules", ExampleTable)]
         self.colorFragments=1
@@ -351,7 +355,7 @@ class OWMoleculeVisualizer(OWWidget):
 ##        self.moleculeTitleListBox.setSelectionMode(QListBox.Extended)
 ##        self.moleculeTitleListBox.setMinimumHeight(100)
 ##        self.connect(self.moleculeTitleListBox, SIGNAL("selectionChanged()"), self.updateTitles)
-        self.moleculeTitleListBox=OWGUI.listBox(box, self, "selectedMoleculeTitleAttrs", "moleculeTitleAttributeList", selectionMode = QListBox.Extended, callback=self.updateTitles)
+        self.moleculeTitleListBox=OWGUI.listBox(box, self, "selectedMoleculeTitleAttrs", "moleculeTitleAttributeList", selectionMode = QListWidget.ExtendedSelection, callback=self.updateTitles)
         self.moleculeTitleListBox.setMinimumHeight(100)
 ##        OWGUI.separator(self.controlArea)
 ##        self.moleculeTitleCombo.box.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Maximum))
@@ -372,25 +376,33 @@ class OWMoleculeVisualizer(OWWidget):
         OWGUI.button(self.controlArea, self, "&Save to HTML", self.saveToHTML)
         OWGUI.rubber(self.controlArea)
         
-        self.mainAreaLayout=QVBoxLayout(self.mainArea, QVBoxLayout.TopToBottom)
-        spliter=QSplitter(Qt.Vertical, self.mainArea)
-        self.scrollView=ScrollView(self, spliter)
-        self.scrollView.setHScrollBarMode(QScrollView.Auto)
-        self.scrollView.setVScrollBarMode(QScrollView.Auto)
-        self.molWidget=QWidget(self.scrollView.viewport())
-        self.scrollView.addChild(self.molWidget)
-        self.mainAreaLayout.addWidget(spliter)
-        self.gridLayout=QGridLayout(self.molWidget,100,100,2,2)
-        self.gridLayout.setAutoAdd(False)
-        self.listBox=QListBox(spliter)
+##        self.mainAreaLayout=QVBoxLayout(self.mainArea, QVBoxLayout.TopToBottom)
+##        self.mainAreaLayout=QVBoxLayout()
+        spliter=QSplitter(Qt.Vertical)
+        self.scrollArea=ScrollArea(self, spliter)
+##        self.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+##        self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+##        self.molWidget=QWidget(self.scrollView.viewport())
+        self.molWidget=QWidget()
+        self.scrollArea.setWidget(self.molWidget)
+##        self.scrollArea.addChild(self.molWidget)
+        self.mainArea.layout().addWidget(spliter)
+        self.gridLayout=QGridLayout(self.molWidget)
+        self.molWidget.setLayout(self.gridLayout)
+##        self.gridLayout.setAutoAdd(False)
+        self.listBox=QListWidget(spliter)
         self.connect(self.listBox, SIGNAL("highlighted(int)"), self.fragmentSelection)
-        self.scrollView.setFocusPolicy(QWidget.StrongFocus)
-        self.listBox.setFocusPolicy(QWidget.NoFocus)
+##        self.scrollArea.setFocusPolicy(QWidget.StrongFocus)
+##        self.listBox.setFocusPolicy(QWidget.NoFocus)
+##        self.mainArea.setLayout(self.mainAreaLayout)
 
         try:
-            import orngRegistry
-            self.imageprefix=orngRegistry.bufferDir
-        except:
+##            import orngRegistry
+##            self.imageprefix=orngRegistry.bufferDir
+            import orngOrangeFoldersQt4
+            self.imageprefix = orngOrangeFoldersQt4.__dict__["__getDirectoryNames"]()['bufferDir']
+        except Exception, ex:
+            print ex
             self.imageprefix=os.path.split(__file__)[0]
         if "molimages" not in os.listdir(self.imageprefix):
             try:
@@ -418,7 +430,7 @@ class OWMoleculeVisualizer(OWWidget):
         self.showFragmentsRadioButton.setDisabled(True)
         self.loadSettings()
         OWMoleculeVisualizer.serverPwd=self.serverPassword
-        self.imageCache=ImageCacheManager.getcachedinstance(os.path.join(os.path.split(self.imageprefix)[0],"imageCache.pickle"), 1000, self.imageprefix, ".png")
+        self.imageCache=ImageCacheManager.getcachedinstance(os.path.join(os.path.split(self.imageprefix)[0],"imageCache.pickle"), 2000, self.imageprefix, ".png")
         self.failedCount=0
         self.fromCacheCount=0
         
@@ -523,7 +535,7 @@ class OWMoleculeVisualizer(OWWidget):
         self.candidateMolSmilesAttr=[c[1] for c in candidates]
         best = reduce(lambda best,current:best[0]<current[0] and current or best, candidates)
         self.moleculeSmilesCombo.clear()
-        self.moleculeSmilesCombo.insertStrList([v.name for v in self.candidateMolSmilesAttr])
+        self.moleculeSmilesCombo.addItems([v.name for v in self.candidateMolSmilesAttr])
         self.moleculeSmilesAttr=candidates.index(best)
 
     def setMoleculeTitleListBox(self):
@@ -558,7 +570,7 @@ class OWMoleculeVisualizer(OWWidget):
             candidates=[]
         self.candidateFragSmilesAttr=[None]+candidates
         self.fragmentSmilesCombo.clear()
-        self.fragmentSmilesCombo.insertStrList(["Default"]+[v.name for v in candidates])
+        self.fragmentSmilesCombo.addItems(["Default"]+[v.name for v in candidates])
         if self.fragmentSmilesAttr>len(candidates):
             self.fragmentSmilesAttr=0
 
@@ -569,7 +581,7 @@ class OWMoleculeVisualizer(OWWidget):
         else:
             self.fragmentSmiles=[""]+self.defFragmentSmiles
         self.listBox.clear()
-        self.listBox.insertStrList(self.fragmentSmiles)
+        self.listBox.addItems(self.fragmentSmiles)
         self.showFragmentsRadioButton.setDisabled(len(self.fragmentSmiles)==1)
         self.markFragmentsCheckBox.setDisabled(len(self.fragmentSmiles)==1)
         self.selectMarkedMoleculesButton.setDisabled(True)
@@ -588,7 +600,7 @@ class OWMoleculeVisualizer(OWWidget):
             else:
                 return numColumns
         
-        self.numColumns=self.scrollView.width()/(self.imageSize+4) or 1
+        self.numColumns=self.scrollArea.width()/(self.imageSize+4) or 1
         self.imageWidgets=[]
         self.imageCache.newEpoch()
         self.failedCount=0
@@ -636,13 +648,15 @@ class OWMoleculeVisualizer(OWWidget):
             self.updateTitles()
         #print "done drawing"
         self.overRideCache=False
+        self.molWidget.setMinimumSize(self.gridLayout.sizeHint())
+        self.molWidget.show()
 ##        if self.imageWidgets:
 ##            self.scrollView.viewport().setMaximumHeight(self.imageSize*(len(self.imageWidgets)/self.numColumns+1))
 ##            print self.imageWidgets[-1].y()+self.imageWidgets[-1].height(), viewportHeight
 
     def destroyImageWidgets(self):
         for w in self.imageWidgets:
-            self.molWidget.removeChild(w)
+            self.gridLayout.removeWidget(w)
         self.imageWidgets=[]
             
     def showImages(self, useCached=False):
@@ -969,12 +983,12 @@ if __name__=="__main__":
     from pywin.debugger import set_trace
 ##    set_trace()
     w=OWMoleculeVisualizer()
-    app.setMainWidget(w)
+##    app.setMainWidget(w)
     w.show()
     data=orange.ExampleTable("E://chem/chemdata/BCMData_growth_frag.tab")
     
     w.setMoleculeTable(data)
 ##    data=orange.ExampleTable("E://chem//new//sf.tab")
 ##    w.setFragmentTable(data)
-    app.exec_loop()
+    app.exec_()
     w.saveSettings()
