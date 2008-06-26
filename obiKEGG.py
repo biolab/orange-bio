@@ -12,9 +12,9 @@ from collections import defaultdict
 
 try:
     import orngOrangeFoldersQt4
-    default_database_path = orngOrangeFoldersQt4.__getDirectoryNames()['bufferDir'] + "/kegg/"
+    default_database_path = os.path.join(orngOrangeFoldersQt4.__getDirectoryNames()['bufferDir'],"kegg//")
 except:
-    default_database_path = (os.path.split(__file__)[0] or ".") +"data/kegg/"
+    default_database_path = os.path.join((os.path.split(__file__)[0] or "."), "data//kegg//")
 
 base_ftp_path = "ftp://ftp.genome.jp/pub/kegg/"
 
@@ -606,12 +606,6 @@ class KEGGInterfaceLocal(object):
             elif l.startswith("C"):
                 r[-1].children[-1].children.append(KOClass(l))
         return r
-    
-class NameTranslator(dict):
-    def __init__(self):
-        dict.__init__(self)
-    def __getitem__(self, key, hint=None):
-        pass
         
 class p_value(object):
     def __init__(self, max=1000):
@@ -767,24 +761,27 @@ from obiGenomicsUpdate import synchronized
 
 from threading import Lock
 updateLock = Lock()
+
 class Update(UpdateBase):
     def __init__(self, local_database_path=None, progressCallback=None):
-        UpdateBase.__init__(self, local_database_path, progressCallback)
-        self.api = KEGGInterfaceLocal(True, local_database_path, progressCallback)
+        UpdateBase.__init__(self, local_database_path if local_database_path else default_database_path, progressCallback)
+        self.api = KEGGInterfaceLocal(False, self.local_database_path, progressCallback)
 
     @synchronized(updateLock)
     def GetUpdatable(self):
         orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism, (org,))) in self.shelve]
-        return [(Update.UpdateOrganism, "Update organism pathways and genes" , orgs),
-                (Update.UpdateReference, "Update reference pathways", []),
-                (Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
+        ret = [(Update.UpdateOrganism, "Update organism pathways and genes" , orgs)] if orgs else []
+        ret.extend([(Update.UpdateReference, "Update reference pathways", [])] if str((Update.UpdateReference, ())) in self.shelve else [])
+        ret.extend([(Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])] if str((Update.UpdateEnzymeAndCompounds)) in self.shelve else[])
+        return ret
         
     @synchronized(updateLock)
     def GetDownloadable(self):
         orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism, (org,))) not in self.shelve]
-        return [(Update.UpdateOrganism, "Update organism pathways and genes" , orgs),
-                (Update.UpdateReference, "Update reference pathways", []),
-                (Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
+        ret = [(Update.UpdateOrganism, "Update organism pathways and genes" , orgs)] if orgs else []
+        ret.extend([(Update.UpdateReference, "Update reference pathways", [])] if str((Update.UpdateReference, ())) not in self.shelve else [])
+        ret.extend([(Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])] if str((Update.UpdateEnzymeAndCompounds, ())) not in self.shelve else [])
+        return ret
 
     @synchronized(updateLock)
     def UpdateOrganism(self, org):
