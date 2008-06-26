@@ -769,22 +769,22 @@ from threading import Lock
 updateLock = Lock()
 class Update(UpdateBase):
     def __init__(self, local_database_path=None, progressCallback=None):
-        obiGenomicsUpdate.Update.__init__(self, local_database_path, progressCallback)
+        UpdateBase.__init__(self, local_database_path, progressCallback)
         self.api = KEGGInterfaceLocal(True, local_database_path, progressCallback)
 
     @synchronized(updateLock)
     def GetUpdatable(self):
-        orgs = [org for org in self.api.list_organisms() if str((str(Update.UpdateOrganism), (org,))) in self.shelve]
-        return [(self.UpdateOrganism, "Update organism pathways and genes" , orgs),
-                (self.UpdateReference, "Update reference pathways", []),
-                (self.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
+        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism, (org,))) in self.shelve]
+        return [(Update.UpdateOrganism, "Update organism pathways and genes" , orgs),
+                (Update.UpdateReference, "Update reference pathways", []),
+                (Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
         
     @synchronized(updateLock)
     def GetDownloadable(self):
-        orgs = [org for org in self.api.list_organisms() if str((str(Update.UpdateOrganism), (org,))) not in self.shelve]
-        return [(self.UpdateOrganism, "Update organism pathways and genes" , orgs),
-                (self.UpdateReference, "Update reference pathways", []),
-                (self.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
+        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism, (org,))) not in self.shelve]
+        return [(Update.UpdateOrganism, "Update organism pathways and genes" , orgs),
+                (Update.UpdateReference, "Update reference pathways", []),
+                (Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])]
 
     @synchronized(updateLock)
     def UpdateOrganism(self, org):
