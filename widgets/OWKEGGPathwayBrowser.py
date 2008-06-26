@@ -148,7 +148,7 @@ class PathwayView(QGraphicsView):
             self.master.SelectObjects([(id, bb) for (id, bb) in objs if id in self.objects])
             for rect in set(self.master.selectedObjects.keys()).union(old):
                 x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
-                self.updateSceneRect(QRectF(x1-1, y1-1, x2-x1+2, y2-y1+2))
+                self.updateScene([QRectF(x1-2, y1-2, x2-x1+2, y2-y1+2)])
         else:
             QGraphicsView.mousePressEvent(self, event)
 
