@@ -211,39 +211,20 @@ class OWGsea(OWWidget):
         self.correlationTypes = [ ("Signal2Noise", "s2n") ]
         self.ctype = 0
         
-       
         self.data = None
         self.geneSets = {}
 
-        ca = self.controlArea
-        ca.setMaximumWidth(300)
+        self.controlArea.setMaximumWidth(300)
+        self.tabs = OWGUI.tabWidget(self.controlArea)
 
+        ca = OWGUI.createTabPage(self.tabs, "Basic")
 
         box = OWGUI.widgetBox(ca, 'Organism')
         OWGUI.comboBox(box, self, "otype", \
             items=nth(self.organisms, 0), tooltip="Organism")
 
-        OWGUI.separator(ca)
-
-        box = OWGUI.widgetBox(ca, 'Properties')
-
-        self.permTypeF = OWGUI.comboBoxWithCaption(box, self, "ptype", items=nth(self.permutationTypes, 0), \
-            tooltip="Permutation type.", label="Permutate")
-        _ = OWGUI.spin(box, self, "perms", 50, 1000, orientation="horizontal", label="Times")
-        self.corTypeF = OWGUI.comboBoxWithCaption(box, self, "ctype", items=nth(self.correlationTypes, 0), \
-            tooltip="Correlation type.", label="Correlation")
-
-        OWGUI.separator(ca)
-
-        box = OWGUI.widgetBox(ca, 'Subset Filtering')
-
-        _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Size", 1, 10000, "minSubsetSizeC", "minSubsetSize", "") #TODO check sizes
-        _,_ = OWGUI.checkWithSpin(box, self, "Max. Subset Size", 1, 10000, "maxSubsetSizeC", "maxSubsetSize", "")
-        _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Part (%)", 1, 100, "minSubsetPartC", "minSubsetPart", "")
 
         ma = self.mainArea
-        #boxL = QVBoxLayout(ma, QVBoxLayout.TopToBottom)
-        #box.setTitle("Results")
 
         self.listView = QTreeWidget(ma)
         ma.layout().addWidget(self.listView)
@@ -257,27 +238,15 @@ class OWGsea(OWWidget):
         self.listView.setSortingEnabled(True)
         #self.listView.header().setResizeMode(0, QHeaderView.Stretch)
         
-        #for header in ["Geneset", "NES", "ES", "P-value", "FDR", "Size", "Matched Size", "Genes"]:
-            #self.listView.addColumn(header)
         self.listView.setSelectionMode(QAbstractItemView.NoSelection)
-        #self.connect(self.listView, SIGNAL("selectionChanged ( QListViewItem * )"), self.ja)
         self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.newPathwaySelected)
 
+        #box = OWGUI.widgetBox(ca, 'Phenotypes')
+    
         OWGUI.separator(ca)
 
-        box = OWGUI.widgetBox(ca, 'Gene Sets')
-
-        self.gridSel = []
-        self.geneSel = [ a[0] for a in obiGsea.getCollectionFiles() ]
-        self.lbgs = OWGUI.listBox(box, self, "gridSel", "geneSel", selectionMode = QListWidget.MultiSelection)
-        OWGUI.button(box, self, "From &File", callback = self.addCollection, disabled=0)
-
-        OWGUI.separator(ca)
-
-
-        box = OWGUI.widgetBox(ca, 'Phenotypes')
-
-        self.psel = PhenotypesSelection(box)
+        OWGUI.widgetLabel(ca, "Phenotype selection:")
+        self.psel = PhenotypesSelection(ca)
         
         self.resize(600,50)
  
@@ -287,7 +256,37 @@ class OWGsea(OWWidget):
         fileBox = OWGUI.widgetBox(ca, orientation='horizontal')
         OWGUI.button(fileBox, self, "Load", callback = self.loadData, disabled=0)
         OWGUI.button(fileBox, self, "Save", callback = self.saveData, disabled=0)
+ 
+        #ca.layout().addStretch(1)
+
+        ca = OWGUI.createTabPage(self.tabs, "Gene sets")
         
+        box = OWGUI.widgetBox(ca)
+
+        self.gridSel = []
+        self.geneSel = [ a[0] for a in obiGsea.getCollectionFiles() ]
+        self.lbgs = OWGUI.listBox(box, self, "gridSel", "geneSel", selectionMode = QListWidget.MultiSelection)
+        OWGUI.button(box, self, "From &File", callback = self.addCollection, disabled=0)
+
+        #ca.layout().addStretch(1)
+
+        ca = OWGUI.createTabPage(self.tabs, "Settings")
+        box = OWGUI.widgetBox(ca, 'Properties')
+
+        self.permTypeF = OWGUI.comboBoxWithCaption(box, self, "ptype", items=nth(self.permutationTypes, 0), \
+            tooltip="Permutation type.", label="Permutate")
+        _ = OWGUI.spin(box, self, "perms", 50, 1000, orientation="horizontal", label="Times")
+        self.corTypeF = OWGUI.comboBoxWithCaption(box, self, "ctype", items=nth(self.correlationTypes, 0), \
+            tooltip="Correlation type.", label="Correlation")
+
+        box = OWGUI.widgetBox(ca, 'Subset Filtering')
+
+        _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Size", 1, 10000, "minSubsetSizeC", "minSubsetSize", "") #TODO check sizes
+        _,_ = OWGUI.checkWithSpin(box, self, "Max. Subset Size", 1, 10000, "maxSubsetSizeC", "maxSubsetSize", "")
+        _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Part (%)", 1, 100, "minSubsetPartC", "minSubsetPart", "")
+
+        ca.layout().addStretch(1)
+
         self.addComment("Computation was not started.")
 
         if sys.platform == "darwin":
@@ -314,7 +313,6 @@ class OWGsea(OWWidget):
 
         cleanInvalid(len(self.geneSel))
 
-
     def addCollection(self):
         fname = self.chooseGeneSetsFile()
         if fname:
@@ -324,7 +322,6 @@ class OWGsea(OWWidget):
 
                 self.gridSel = getattr(self, "gridSel")
                 self.gridSel.append(len(self.geneSel)-1)
-
 
     def saveData(self):
         self.warning('')
@@ -378,7 +375,6 @@ class OWGsea(OWWidget):
         for item in self.listView.selectedItems():
             iname = self.lwiToGeneset[item]
             outat.update(self.res[iname][6])
-            
             
         dataOut =  dataWithAttrs(self.data,list(outat))
         self.send("Examples with selected genes only", dataOut)
@@ -452,10 +448,10 @@ class OWGsea(OWWidget):
         for name, (es, nes, pval, fdr, os, ts, genes) in res.items():
             splitndx = name.find("]")
             collection = name[1:splitndx]
-            name = name[splitndx + 1:]
+            name1 = name[splitndx + 1:]
             item = QTreeWidgetItem(self.listView)
             item.setText(0, collection)
-            item.setText(1, name)
+            item.setText(1, name1)
             item.setText(2, "%0.3f" % nes)
             item.setText(3, "%0.3f" % es)
             item.setText(4, "%0.3f" % pval)
@@ -473,7 +469,7 @@ class OWGsea(OWWidget):
     def setSelMode(self, bool):
         if bool:
             self.selectable = True
-            self.listView.setSelectionMode(QAbstractItemView.MultiSelection)
+            self.listView.setSelectionMode(QAbstractItemView.ExtendedSelection)
         else:
             self.selectable = False
             self.listView.setSelectionMode(QListView.NoSelection)
