@@ -11,6 +11,7 @@ from OWGraph import *
 from OWGraphTools import PolygonCurve
 from OWWidget import *
 from OWHist import OWInteractiveHist
+from OWToolbars import ZoomSelectToolbar
 
 import OWGUI
 
@@ -31,7 +32,7 @@ class OWFeatureSelection(OWWidget):
     settingsList=["methodIndex", "autoCommit"]
 ##    contextHandlers={"":DomainContextHandler("",[])}
     def __init__(self, parent=None, signalManager=None, name="Feature selection"):
-        OWWidget.__init__(self, parent, signalManager, name)
+        OWWidget.__init__(self, parent, signalManager, name, wantGraph=True, showSaveGraph=True)
         self.inputs = [("Examples", ExampleTable, self.SetData)]
         self.outputs = [("Examples with selected attributes", ExampleTable), ("Examples with remaining attributes", ExampleTable)]
 
@@ -67,12 +68,16 @@ class OWFeatureSelection(OWWidget):
         self.dataInfoLabel = OWGUI.widgetLabel(box, "\n\n")
         self.selectedInfoLabel = OWGUI.widgetLabel(box, "")
         OWGUI.radioButtonsInBox(self.controlArea, self, "methodIndex", [sm[0] for sm in self.scoreMethods], box="Score Method", callback=self.Update, addSpace=True)
+        ZoomSelectToolbar(self, self.controlArea, self.histogram, buttons=[ZoomSelectToolbar.IconSelect, ZoomSelectToolbar.IconZoom, ZoomSelectToolbar.IconPan])
+        OWGUI.separator(self.controlArea)
         box = OWGUI.widgetBox(self.controlArea, "Selection", addSpace=True)
         OWGUI.button(box, self, "Select n best features", callback=self.SelectNBest)
         OWGUI.spin(box, self, "selectNBest", 0, 10000, step=1, label="n:")
         OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
         OWGUI.button(box, self, "&Commit", callback=self.Commit)
         OWGUI.rubber(self.controlArea)
+
+        self.connect(self.graphButton, SIGNAL("clicked()"), self.histogram.saveToFile)
         
         self.loadSettings()
 
