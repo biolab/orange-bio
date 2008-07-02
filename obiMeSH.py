@@ -101,7 +101,7 @@ class obiMeSH(object):
 			callback(100)
 		print "Ontology database has been updated."
 
-	def findSubset(self,examples,meshTerms, callback = None):
+	def findSubset(self,examples,meshTerms, callback = None, MeSHtype = 'term'):
 		""" function examples which have at least one node on their path from list meshTerms
 			findSubset(all,['Aspirine']) will return a dataset with examples annotated as Aspirine """
 		# clone		
@@ -110,13 +110,16 @@ class obiMeSH(object):
 		ids = list()
 		l = len(examples)
 		c = 0.0
-
+		meshTerms = list(set(meshTerms))
 		# we couldn't find any mesh attribute
 		if self.solo_att == "Unknown":
 			return newdata
-
-		for i in meshTerms:
-			ids.extend(self.toID[i])
+		
+		if MeSHtype == 'term':
+			for i in meshTerms:
+				ids.extend(self.toID[i])
+		else:
+			ids = meshTerms
 
 		for e in examples:
 			try:
@@ -191,7 +194,7 @@ class obiMeSH(object):
 
 		newdata = []
 		ids = list()
-
+		meshTerms = list(set(meshTerms))
 		for i in meshTerms:
 				if self.toID.has_key(i):
 					ids.extend(self.toID[i])
@@ -247,7 +250,7 @@ class obiMeSH(object):
 				callback(int(t*100/n))
 
 			try:
-				endNodes = eval(i[self.solo_att].value)	# for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
+				endNodes = list(set(eval(i[self.solo_att].value))) # for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
 			except SyntaxError:
 				#print "Error in parsing ",i[self.solo_att].value
 				continue
@@ -392,7 +395,7 @@ class obiMeSH(object):
 			print "<th width=" + w[i] +" align='left'>" + i  +"</th>"
 
 		if func != None:
-			func("header")
+			func("header","")
 
 		print "</tr>\n"
 		for i in info["tops"]:
@@ -418,7 +421,7 @@ class obiMeSH(object):
 				print print_data[mapping[i]] + " &nbsp;</td>",
 
 			if funct != None:
-				print funct(print_data[0]),
+				print funct(print_data[0],item),
 
 			#print self.toName[item], " r=" + str(data[item][1])  +" c="+ str(data[item][2])  ," p=" + str(pval) + " fold=" + str(fold)
 			print "</tr>"
@@ -431,7 +434,7 @@ class obiMeSH(object):
 	def findCompounds(self,terms, CIDs):
 		"""from CIDs found those compounds that match terms from the list"""
 		# why do we need such a specialized function?
-		
+
 	def parsePubMed(self,filename, attributes = ["pmid", "title","abstract","mesh"], skipExamplesWithout = ["mesh"]):
 		parser = make_parser()
 		handler = pubMedHandler()
@@ -470,6 +473,11 @@ class obiMeSH(object):
 				tmp = tmp.rstrip("1234567890").rstrip(".")
 				if(tmp not in res):
 					res.append(tmp)
+		"""for i in res:
+			nn = self.toID[self.toName[i]]
+			for t in nn:
+				if not t in res:
+					res.append(t) """
 		return res
 
 	def __findMeshAttribute(self,data):
@@ -514,9 +522,9 @@ class obiMeSH(object):
 				r += 1.0
 				callback(int(100*r/(n+cln)))
 			try:
-				endNodes = eval(i[self.ref_att].value)		# for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
+				endNodes = list(set(eval(i[self.ref_att].value))) # for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
 			except SyntaxError:					 # where was a parse error
-				#print "Error in parsing ",i[self.ref_att].value
+				print "Error in parsing ",i[self.ref_att].value
 				n=n-1
 				continue
 			#we find ID of end nodes
@@ -532,7 +540,7 @@ class obiMeSH(object):
 				continue
 			# we find id of all parents
 			allIDs = self.__findParents(endIDs)
-			for k in allIDs:								# for every meshID we update statistics dictionary
+			for k in list(set(allIDs)):								# for every meshID we update statistics dictionary
 				if(not self.statistics.has_key(k)):			# first time meshID
 					self.statistics[k] = [ 0, 0, 0.0, 0.0 ]
 				self.statistics[k][0] += 1 # increased noReference
@@ -543,7 +551,7 @@ class obiMeSH(object):
 				if callback:
 					r += 1.0
 					callback(int(100*r/(n+cln)))
-				endNodes = eval(i[self.clu_att].value)	# for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
+				endNodes = list(set(eval(i[self.clu_att].value))) # for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
 			except SyntaxError:
 				#print "Error in parsing ",i[self.clu_att].value
 				cln = cln - 1
@@ -552,15 +560,16 @@ class obiMeSH(object):
 			endIDs = []
 			for k in endNodes:
 				if(self.toID.has_key(k)):				
-					endIDs.extend(self.toID[k])	# for every endNode we add all corensponding meshIDs
+					endIDs.extend(self.toID[k]) # for every endNode we add all corensponding meshIDs
 			# endIDs may be empty > in this case we can skip this example
 			if len(endIDs) == 0:
 				cln = cln-1
 				continue
 			# we find id of all parents
 			allIDs = self.__findParents(endIDs)								
-			for k in allIDs:						# for every meshID we update statistics dictionary
-				self.statistics[k][1] += 1				# increased noCluster 
+			for k in list(set(allIDs)): # for every meshID we update statistics dictionary
+				if self.statistics.has_key(k):
+					self.statistics[k][1] += 1 # increased noCluster 
 		self.ratio = float(cln)/float(n)
 		# enrichment
 		for i in self.statistics.iterkeys():
@@ -765,6 +774,24 @@ class SmilesParser(SGMLParser):
 			self.smiles = text
 			self.nextSmile = False
 
+class FormulaParser(SGMLParser):
+	def reset(self):
+		self.nextFormula = False
+		self.formula = ""
+		SGMLParser.reset(self)
+
+	def unknown_starttag(self, tag, attrs): 
+		#print tag, " ", attrs
+		if tag=="item":
+			for (i,j) in attrs:
+				if i=="name" and j=="MolecularFormula":
+					self.nextFormula = True
+
+	def handle_data(self, text):
+		if self.nextFormula:
+			self.formula = text
+			self.nextFormula = False
+
 class CIDSParser(SGMLParser):
 	def reset(self):
 		self.nextCID = False
@@ -831,6 +858,27 @@ class pubChemAPI(object):
 		# from allTerms make a set
 		allTerms = list(set(allTerms))
 		return allTerms
+
+	def getMolecularFormula(self, id, typ):	
+		dbs = {"sid":"pcsubstance", "cid":"pccompound"}
+		if not dbs.has_key(typ):
+			return "Unknown identifier"
+		# maybe we already have the data ...
+		if id == self.identifier and dbs[typ] == self.database:
+			raw = self.data
+		else:
+			url2fetch = "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=" + dbs[typ] + "&id=" + str(id)
+			#print url2fetch
+			d = urlopen(url2fetch)
+			raw = d.read()
+			self.data = raw
+			self.identifier = id
+			self.database = dbs[typ]
+		pr = FormulaParser()
+		pr.feed(raw)
+		data = pr.formula
+		pr.close()
+		return data
 
 	def getCIDfromSID(self, sid):
 		dbs = {"sid":"pcsubstance", "cid":"pccompound"}

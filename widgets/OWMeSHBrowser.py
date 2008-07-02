@@ -195,12 +195,12 @@ class OWMeSHBrowser(OWWidget):
         self.progressBarInit()
         for i in self.lvItem2Mesh.iterkeys():
             if i.isSelected():
-                items.append(self.lvItem2Mesh[i])
+                items.append(self.lvItem2Mesh[i][1])
         
         if self.reference:
-            data=self.mesh.findSubset(self.reference, items, callback=self.progressBarSet)
+            data=self.mesh.findSubset(self.reference, items, callback=self.progressBarSet, MeSHtype='id')
         else:
-            data=self.mesh.findSubset(self.cluster, items, callback=self.progressBarSet)
+            data=self.mesh.findSubset(self.cluster, items, callback=self.progressBarSet, MeSHtype='id')
         
         
         #print items
@@ -258,7 +258,7 @@ class OWMeSHBrowser(OWWidget):
                 cfr = str(self.results[e][1])
                 pval = "%.4g" % self.results[e][2]
                 fold = "%.4g" % self.results[e][3]
-                self.lvItem2Mesh[f] = self.mesh.toName[e]
+                self.lvItem2Mesh[f] = (self.mesh.toName[e],e)
                 data = [self.mesh.toName[e], rfr, cfr, pval, fold]
                 for t in range(len(data)):
                     f.setText(t,data[t])
@@ -304,7 +304,7 @@ class OWMeSHBrowser(OWWidget):
             for e in starters:      # we manualy create top nodes
                 f = QListViewItem(self.meshLV);
                 f.setOpen(1)
-                self.lvItem2Mesh[f] = self.mesh.toName[e]
+                self.lvItem2Mesh[f] = (self.mesh.toName[e],e)
                 rfr = str(self.results[e])
                 data = [self.mesh.toName[e], rfr]
                 for t in range(len(data)):
@@ -328,7 +328,7 @@ class OWMeSHBrowser(OWWidget):
                 fold = "%.4g" % self.results[i][3]
                 data.extend([rfr, cfr, pval, fold])
 
-            self.lvItem2Mesh[f]=data[0]         # mapping   QListViewItem <-> mesh id
+            self.lvItem2Mesh[f]=(data[0],i)        # mapping   QListViewItem <-> mesh id
 
             for t in range(len(data)):
                 f.setText(t,data[t])
