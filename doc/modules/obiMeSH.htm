@@ -9,69 +9,69 @@
 
 <index name="modules+multidimensional scaling">
 
-<p>The obiMeSH module provides the functionality to calculate <a href="http://www.nlm.nih.gov/bsd/disted/mesh/">MeSH</a> term enrichment and to annotate (MeSH ontology) supported examples (chemical compounds with CID, medical articles with PMID).</p>
+<p>This module provides the functionality to calculate <a href="http://www.nlm.nih.gov/bsd/disted/mesh/">MeSH</a> term enrichment and to annotate (MeSH ontology) supported examples (chemical compounds with CID, medical articles with PMID).</p>
 
 <h2>obiMesh</h2>
 
-<p><INDEX name="classes/obiMeSH (in obiMeSH)">obiMeSH is the main class for all task related to MeSH ontology</p>
+<p><INDEX name="classes/obiMeSH (in obiMeSH)">obiMeSH is the main class for all task related to MeSH ontology.</p>
 
 
 <P class=section>Methods</P>
 <DL class=attributes>
-<DT>obiMeSH()</DT>
+<dt>obiMeSH()</dt>
 <DD>Constructor has no arguments.</DD>
 
-<DT>setDataDir(path)</DT>
+<dt>setDataDir(path)</dt>
 <DD>Sets path to directory containing MeSH ontology, CID and PMID annotation.</DD>
 
-<DT>getDataDir</DT>
+<dt>getDataDir</dt>
 <DD>Returns current data directory path.</DD>
 
-<DT>downloadOntology(callback=None)</DT>
+<dt>downloadOntology(callback=None)</dt>
 <DD>Function downloads new MeSH ontology from the internet. Since MeSH ontology is quite large (about 60Mb) it may take a while.</DD>
 
-<DT>findFrequentTerms(data, minSizeInTerm, callback=None)</DT>
+<dt>findFrequentTerms(data, minSizeInTerm, callback=None)</dt>
 <DD>Function returns a dictionary where keys are MeSH terms ids and values are integers representing number of examples annotated with corresponding MeSH term. Data has to be instance of <code>ExampleTable</code>. With argument <code>minSizeInTerm</code> you can select only MeSH terms that have at least <code>minSizeInTerm</code> annotated examples.</DD>
 
-<DT>findEnrichedTerms(reference, cluster, pThreshold=0.05, callback=None)</DT>
+<dt>findEnrichedTerms(reference, cluster, pThreshold=0.05, callback=None)</dt>
 <DD>Function returns a dictionary where keys are MeSH terms and values are lists of four integers (number of annotated reference examples, number of annotated cluster examples, MeSH term enrichment, fold enrichment). With attribute <code>pThreshold</code> you can limit MeSH terms in returned dictionary to terms with enrichment less or equal to defined constant. Data sets (<code>reference</code> and <code>cluster</code>) have to be instances of <code>ExampleTable</code></DD>
 
-<DT>printMeSH(data, selection = ["term","r","c", "p"])</DT>
+<dt>printMeSH(data, selection = ["term","r","c", "p"])</dt>
 <DD>Function performs a pretty print of a dictionary returned by function <code>findFrequentTerms</code> or <code>findEnrichedTerms</code>. When you are printing a dictionary of enriched MeSH terms (returned by <code>findEnrichedTerms</code>) you can also specify their properties and their order to print. At the moment you can choose among "term" (MeSH term name), "desc" (MeSH term description), "r" (number of examples from reference), "c" (number of examples from cluster), "p" (MeSH term enrichment) and "fold" (fold enrichment). </DD>
-<DT>
+<dt>
 	
-	<DT>printHtmlMeSH(data, selection = ["term","r","c", "p"])</DT>
+	<dt>printHtmlMeSH(data, selection = ["term","r","c", "p"])</dt>
 	<DD>Similar to previous one except it returns html code. </DD>
 	
-<DT>findTerms(ids, idType="cid")</DT>
-<DD>Function returns a dictionary where keys are members of the list <code>ids</code> and values are lists of MeSH terms that apply to a key. With <code>idType</code> you can choose annotation ("cid" or TODO!!! "pmid").  </DD><DT>
+<dt>findTerms(ids, idType="cid")</dt>
+<DD>Function returns a dictionary where keys are members of the list <code>ids</code> and values are lists of MeSH terms that apply to a key. With <code>idType</code> you can choose annotation ("cid" or TODO!!! "pmid").  </DD><dt>
 		
-<DT>parsePubMed(filename, attributes = ["pmid", "title","abstract","mesh"], skipExamplesWithout = ["mesh"])</DT>
-<DD>Function parses <a href="http>//www.pubmed.gov">PubMed</a> XML file (search results saved in XML format) into Oranges <code>ExampleTable</code>. Of course you can select only certain attributes. At the moment supported attributes are "pmid" (PubMed ID), "title" (article title), "abstract" (article abstract), "mesh" (MeSH terms) and "affilation". </DD><DT>
+<dt>parsePubMed(filename, attributes = ["pmid", "title","abstract","mesh"], skipExamplesWithout = ["mesh"])</dt>
+<DD>Function parses <a href="http>//www.pubmed.gov">PubMed</a> XML file (search results saved in XML format) into Oranges <code>ExampleTable</code>. Of course you can select only certain attributes. At the moment supported attributes are "pmid" (PubMed ID), "title" (article title), "abstract" (article abstract), "mesh" (MeSH terms) and "affilation". </DD><dt>
 	
-<DT>findSubset(examples, meshTerms, callback = None)</DT>
-<DD>Function return a new dataset (subset of <code>examples</code>) with examples that apply to one or more MeSH term from the list <code>meshTerms</code>. Argument <code>examples</code> has to be instance of <code>ExampleTable</code>. </DD><DT>
+<dt>findSubset(examples, meshTerms, callback = None)</dt>
+<DD>Function return a new dataset (subset of <code>examples</code>) with examples that apply to one or more MeSH term from the list <code>meshTerms</code>. Argument <code>examples</code> has to be instance of <code>ExampleTable</code>. </DD><dt>
 	
-	<DT>findCIDSubset(examples, meshTerms, callback = None)</DT>
-	<DD>Function return a new list of (subset of <code>examples</code>) with CIDs that apply to one or more MeSH term from the list <code>meshTerms</code>. Argument <code>examples</code> has to be a list of integers. </DD><DT>
+	<dt>findCIDSubset(examples, meshTerms, callback = None)</dt>
+	<DD>Function return a new list of (subset of <code>examples</code>) with CIDs that apply to one or more MeSH term from the list <code>meshTerms</code>. Argument <code>examples</code> has to be a list of integers. </DD><dt>
 	
 
 <p class=section>Attributes</p>
-<DL class =attributes></DL>
+<DL class =attributes></dl>
 	
-<DT>toID</DT>
+<dt>toID</dt>
 <DD>Dictionary <code>toID</code> provides mapping between MeSH term and MeSH term ids. Please note that some MeSH terms have more than one MeSH term id (one to many relation).  </DD>
 
-<DT>toName</DT>
+<dt>toName</dt>
 <DD>Dictionary <code>toName</code> provides mapping between MeSH term id and MeSH term. </DD>
 
-<DT>toDesc<DT>
+<dt>toDesc<dt>
 <DD>Dictionary <code>toName</code> provides mapping between MeSH term and MeSH term description.</code></DD>
 
-<DT>fromCID</DT>
+<dt>fromCID</dt>
 <DD>Dictionary <code>fromCID</code> provides mapping between CID (compound id) and a list of MeSH terms.</DD>
 
-<DT>fromPMID<DT>
+<dt>fromPMID<dt>
 <DD>Dictionary <code>fromPMID</code> provides mapping between PMID (PubMed id) and a list of MeSH terms.</DD>
 
 
@@ -156,25 +156,25 @@ import obiMeSH
 
 
 <P class=section>Methods</P>
-<DL class=attributes>
 	
 <dt>getSMILE(id, typ)</dt>
-<DL>Functions returns corresponding chemical formula in SMILES format for desired <code>id</code>. Argument <code>typ</code> indicates type of identifier. At the moment there are two possibilities for a value of <code>typ</code> ('cid' for compound id and 'sid' for substance id). </DD>
+<dl>Functions returns corresponding chemical formula in SMILES format for desired <code>id</code>. Argument <code>typ</code> indicates type of identifier. At the moment there are two possibilities for a value of <code>typ</code> ('cid' for compound id and 'sid' for substance id). </dl>
 
-<DT>getMeSHterms(cid)</DT>   
-<DL>Function returns a list of MeSH terms (classification) for a given CID.</DD>
+<dt>getMeSHterms(cid)</dt>   
+<dl>Function returns a list of MeSH terms (classification) for a given CID.</dl>
 
-<DT>getCIDfromSID(sid)</DT>
-<DL>Function returns a list of possible CIDs for a given SID.</DD>
+<dt>getCIDfromSID(sid)</dt>
+<dl>Function returns a list of possible CIDs for a given SID.</dl>
 
-<DT>getPharmActionList(cid)</DT>
-<DL>Function returns a list of pharmacological actions for a given CID.</DD>
+<dt>getPharmActionList(cid)</dt>
+<dl>Function returns a list of pharmacological actions for a given CID.</dl>
 
-<DT>getCIDs(name, weight)</DT>
-<DL>Function returns a list of possible chemical names for a given CID and molecular weight.</DD>
+<dt>getCIDs(name, weight)</dt>
+<dl>Function returns a list of possible chemical names for a given CID and molecular weight.</dl>
 
-<DT>getCIDs(name)</DT>
-<DL>Function returns a list of possible chemical names for a given CID.</DD>
+<dt>getCIDs(name)</dt>
+<dl>Function returns a list of possible chemical names for a given CID.</dl>
+</dd>
 
 
 <h2>Examples</h2>
@@ -201,7 +201,7 @@ print 'Smiles notation', smiles
 </xmp>
 
 <P>The output should be
-<xmp>Drug name  Chlorpromazine
+<xmp  class=code>Drug name  Chlorpromazine
 All available CID numbers  [2726, 70413, 522335, 6240, 9683, 6431825, 4926, 84362, 62861, 443037, 23724898, 165214,
  160588, 122845, 9682, 6474604, 125595, 125358, 6474605, 465099, 465100, 481770, 159916, 465103, 465098, 461555, 107410,
  465104, 486143, 467415, 114324, 117674, 117673, 3026449, 72287, 6420056, 3916, 24182520, 24182516, 91499, 67356, 66064, 
@@ -228,7 +228,7 @@ Smiles notation  CN(C)CCCN1C2=CC=CC=C2SC3=C1C=C(C=C3)Cl
 </xmp>
 
 <P>The output should be
-<xmp>cid	name	smiles	mesh
+<xmp  class=code>cid	name	smiles	mesh
 string	string	string	string
 
 6427782 	1,7-octadiene 	CC=CCC=CC 	[]
