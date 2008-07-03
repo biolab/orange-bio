@@ -34,7 +34,7 @@ class OWFeatureSelection(OWWidget):
     def __init__(self, parent=None, signalManager=None, name="Feature selection"):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True, showSaveGraph=True)
         self.inputs = [("Examples", ExampleTable, self.SetData)]
-        self.outputs = [("Examples with selected attributes", ExampleTable), ("Examples with remaining attributes", ExampleTable)]
+        self.outputs = [("Examples with selected attributes", ExampleTable), ("Examples with remaining attributes", ExampleTable), ("Selected attributes", ExampleTable)]
 
         self.methodIndex = 0
         self.autoCommit = False
@@ -151,7 +151,7 @@ class OWFeatureSelection(OWWidget):
                 text = text+"Class var missing"
         else:
             text = "No data on input\n\n"
-        self.dataInfoLabel.setText(text)     
+        self.dataInfoLabel.setText(text)
 
     def UpdateSelectedInfoLabel(self, cutOffLower=0, cutOffUpper=0):
         self.cuts[self.methodIndex] = (cutOffLower, cutOffUpper)
@@ -186,9 +186,13 @@ class OWFeatureSelection(OWWidget):
             self.send("Examples with selected attributes", self.data.select(selectedAttrs+[self.data.domain.classVar]))
             remainingAttrs = [attr for attr in self.data.domain.attributes if  not test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
             self.send("Examples with remaining attributes", self.data.select(remainingAttrs+[self.data.domain.classVar]))
+            domain = orange.Domain([orange.StringVariable("label")], False)
+            self.send("Selected attributes", orange.ExampleTable([orange.Example(domain, [attr.name]) for attr in selectedAttrs]) if selectedAttrs else None)
+            
         else:
             self.send("Examples with selected attributes", None)
             self.send("Examples with remaining attributes", None)
+            self.send("Selected attributes", None)
 
 if __name__=="__main__":
     import sys
