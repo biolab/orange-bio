@@ -1,4 +1,4 @@
-import stats, orange, numpy
+import stats, orange, numpy, statc
 
 def mean(l):
     return float(sum(l))/len(l)
@@ -41,16 +41,14 @@ class MA_signalToNoise:
         cv = data.domain.classVar
         #print data.domain
 
-        #for faster computation. to save dragging many attributes along
-        dom2 = orange.Domain([data.domain[i]], data.domain.classVar)
-        data = orange.ExampleTable(dom2, data)
-        i = 0
-
         if self.a == None: self.a = cv.values[0]
         if self.b == None: self.b = cv.values[1]
 
         def stdev(l):
-            return stats.stdev(l)
+            return statc.std(l)
+
+        def mean(l):
+            return statc.mean(l)
 
         def stdevm(l):
             m = mean(l)
@@ -59,7 +57,7 @@ class MA_signalToNoise:
             return max(std, 0.2*abs(1.0 if m == 0 else m))
 
         def avWCVal(value):
-            return [ex[i].value for ex in data if ex[cv] == value and not ex[i].isSpecial() ]
+            return [ex[i].value for ex in data if ex[-1].value == value and not ex[i].isSpecial() ]
 
         exa = avWCVal(self.a)
         exb = avWCVal(self.b)

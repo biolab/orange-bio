@@ -15,6 +15,15 @@ Author: Marko Toplak
 """
 
 collectionsPath = None
+def iset(data):
+    """
+    Is data orange.ExampleTable?
+    """
+    return isinstance(data, orange.ExampleTable)
+
+def issequencens(x):
+    "Is x a sequence and not string ? We say it is if it has a __getitem__ method and is not string."
+    return hasattr(x, '__getitem__') and not isinstance(x, basestring)
 
 """
 Correlation methods.
@@ -217,6 +226,7 @@ def enrichmentScoreRanked(subset, lcor, ordered, p=1.0, rev2=None):
     #print "MY", (maxSum if abs(maxSum) > abs(minSum) else minSum)
 
     """
+    #BY DEFINITION
     print "subset", subset
 
     for i in ordered:
@@ -248,15 +258,23 @@ def shuffleAttribute(data, attribute, locations):
     for i in range(len(data)):
         data[i][attribute] = l[i]
 
-def shuffleClass(data, rand=random.Random(0)):
+def shuffleClass(datai, rands=0):
     """
     Returns a dataset with values of class attribute randomly shuffled.
+    If multiple dataset are on input shuffle them all with the same random seed.
     """
-    d2 = orange.ExampleTable(data.domain, data)
-    locations = range(len(data))
-    rand.shuffle(locations)
-    shuffleAttribute(d2, d2.domain.classVar, locations)
-    return d2
+    def shuffleOne(data):
+        rand = random.Random(rands)
+        d2 = orange.ExampleTable(data.domain, data)
+        locations = range(len(data))
+        rand.shuffle(locations)
+        shuffleAttribute(d2, d2.domain.classVar, locations)
+        return d2
+
+    if iset(datai):
+        return shuffleOne(datai)
+    else:
+        return [ shuffleOne(data) for data in datai ]
 
 def shuffleList(l, rand=random.Random(0)):
     """
@@ -347,7 +365,7 @@ def gseaE(data, subsets, rankingf=None, \
     for i in range(n):
 
         if permutation == "class":
-            d2 = shuffleClass(data, random.Random(2000+i)) #fixed permutation
+            d2 = shuffleClass(data, 2000+i) #fixed permutation
             r2 = rankingf(d2)
 
         else:
@@ -455,9 +473,11 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
         nenrNull = [ normalize(s) for s in enrNull ]
         nEnrichmentNulls.append(nenrNull)
  
+
+    #FDR computation
     #create a histogram of all NES(S,pi) over all S and pi
     vals = reduce(lambda x,y: x+y, nEnrichmentNulls, [])
-    
+
     """
     Use this null distribution to compute an FDR q value, for a given NES(S) =
     NES* >= 0. The FDR is the ratio of the percantage of all (S,pi) with
@@ -466,14 +486,22 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
     = NES* <= 0.
     """
 
+    nvals = numpy.array(sorted(vals))
+    nnes = numpy.array(sorted(nEnrichmentScores))
+
     fdrs = []
-    pvalsF = []
 
     import operator
 
     for i in range(len(enrichmentScores)):
 
         nes = nEnrichmentScores[i]
+
+        """
+        #Strighfoward but slow implementation follows in comments.
+        #Useful as code description.
+        
+        
         if nes >= 0:
             op0 = operator.ge
             opn = operator.ge
@@ -483,21 +511,60 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
 
         allPos = [a for a in vals if op0(a,0)]
         allHigherAndPos = [a for a in allPos if opn(a,nes) ]
-        top = len(allHigherAndPos)/float(len(allPos)) #p value
-
-        pvalsF.append(top)
 
         nesPos = [a for a in nEnrichmentScores if op0(a,0) ]
         nesHigherAndPos = [a for a in nesPos if opn(a,nes) ]
-        down = len(nesHigherAndPos)/float(len(nesPos))
 
-        fdrs.append(top/down)
+        top = len(allHigherAndPos)/float(len(allPos)) #p value
+        down = len(nesHigherAndPos)/float(len(nesPos))
+        
+        l1 = [ len(allPos), len(allHigherAndPos), len(nesPos), len(nesHigherAndPos)]
+
+        allPos = allHigherAndPos = nesPos =  nesHigherAndPos = 1
+
+        """
+
+        if nes >= 0:
+            allPos = int(len(vals) - numpy.searchsorted(nvals, 0, side="left"))
+            allHigherAndPos = int(len(vals) - numpy.searchsorted(nvals, nes, side="left"))
+            nesPos = len(nnes) - int(numpy.searchsorted(nnes, 0, side="left"))
+            nesHigherAndPos = len(nnes) - int(numpy.searchsorted(nnes, nes, side="left"))
+        else:
+            allPos = int(numpy.searchsorted(nvals, 0, side="left"))
+            allHigherAndPos = int(numpy.searchsorted(nvals, nes, side="right"))
+            nesPos = int(numpy.searchsorted(nnes, 0, side="left"))
+            nesHigherAndPos = int(numpy.searchsorted(nnes, nes, side="right"))
+           
+        """
+        #Comparing results
+        l2 = [ allPos, allHigherAndPos, nesPos, nesHigherAndPos ]
+        diffs = [ l1[i]-l2[i] for i in range(len(l1)) ]
+        sumd = sum( [ abs(a) for a in diffs ] )
+        if sumd > 0:
+            print nes > 0
+            print "orig", l1
+            print "modi", l2
+        """
+
+        try:
+            top = allHigherAndPos/float(allPos) #p value
+            down = nesHigherAndPos/float(nesPos)
+
+            fdrs.append(top/down)
+        except:
+            fdrs.append(1000000000.0)
     
     return zip(enrichmentScores, nEnrichmentScores, enrichmentPVals, fdrs)
 
 import obiGeneMatch
 
 def nth(l,n): return [ a[n] for a in l ]
+
+def itOrFirst(data):
+    if iset(data):
+        return data
+    else:
+        return data[0]
 
 class GSEA(object):
 
@@ -506,16 +573,18 @@ class GSEA(object):
         self.genesets = {}
         self.organism = organism
 
-    def keepOnlyMeanAttrs(self, data, atLeast=3, classValues=None):
+    def keepOnlyMeanAttrs(self, datai, atLeast=3, classValues=None):
         """
         Attributes need to be continuous, they need to have
         at least one value.
 
         In order of attribute to be valid, it needs to have at least
         [atLeast] values for every class value.
+
+        Keep only specified classes - group them in two values.
         """
 
-        cv = data.domain.classVar
+        cv = itOrFirst(datai).domain.classVar
         nclassvalues = None
 
         if cv:
@@ -527,7 +596,7 @@ class GSEA(object):
             toJoin = []
 
             for vals in classValues:
-                if isinstance(vals, list) or isinstance(vals, tuple):
+                if issequencens(vals):
                     toJoin.append(list(vals))
                 else:
                     toJoin.append([vals])
@@ -548,20 +617,30 @@ class GSEA(object):
 
             #take only examples with classValues classes
             nclass = orange.EnumVariable(cv.name, values=nclassvalues)
-            ndom = orange.Domain(data.domain.attributes, nclass)
+            ndom = orange.Domain(itOrFirst(datai).domain.attributes, nclass)
 
-            examples = []
-            for ex in data:
-                if ex[cv] in classValues:
-                    vals = [ ex[a] for a in data.domain.attributes ]
-                    vals.append(mapval[str(ex[cv].value)])
-                    examples.append(vals)
+            def removeAndTransformClasses(data):
+                """
+                Removes unnecessary class values and joines them according
+                to function input.
+                """
+                examples = []
+                for ex in data:
+                    if ex[cv] in classValues:
+                        vals = [ ex[a] for a in data.domain.attributes ]
+                        vals.append(mapval[str(ex[cv].value)])
+                        examples.append(vals)
 
-            data = orange.ExampleTable(ndom, examples)
+                return orange.ExampleTable(ndom, examples)
+
+            if iset(datai):
+                datai = removeAndTransformClasses(datai)
+            else:
+                datai = [ removeAndTransformClasses(data) for data in datai ]
 
             #join specified classes
 
-        def attrOk(a):
+        def attrOk(a, data):
 
             #can't
             if a.varType != orange.VarTypes.Continuous:
@@ -579,22 +658,39 @@ class GSEA(object):
                             if not ex[0].isSpecial() and ex[1] == data.domain.classVar[i] \
                        ] for i in range(len(nclassvalues)) ]
                 minl = min( [ len(a) for a in valc ])
+                
                 if minl < atLeast:
                     return False
 
             return True
         
-        natts = []
+
+        def notOkAttributes(data):
+            ignored = []
+            for a in data.domain.attributes:
+                if not attrOk(a, data):
+                    ignored.append(a)
+            return ignored
+        
         ignored = []
-        for a in data.domain.attributes:
-            if attrOk(a):
-                natts.append(a)
-            else:
-                ignored.append(a)
+        if iset(datai):
+            ignored = set(notOkAttributes(datai))
+        else:
+            ignored = set(reduce(lambda x,y: x+y, [ notOkAttributes(data) for data in datai ]))
 
-        ndom = orange.Domain(natts, data.domain.classVar)
-        return orange.ExampleTable(ndom, data), ignored, nclassvalues
+        natts = [ a for a in itOrFirst(datai).domain.attributes if a not in ignored ]
+        #print ignored, natts, set(ignored) & set(natts)
 
+        ndom = orange.Domain(natts, itOrFirst(datai).domain.classVar)
+
+        datao = None
+        if iset(datai):
+            datao = orange.ExampleTable(ndom, datai)
+        else:
+            datao = [ orange.ExampleTable(ndom, data) for data in datai ]
+
+        return datao, ignored, nclassvalues
+        
     def setData(self, data, classValues=None, atLeast=3, caseSensitive=False):
 
         data, info, classValues  = self.keepOnlyMeanAttrs(data, classValues=classValues, atLeast=atLeast)
@@ -602,7 +698,7 @@ class GSEA(object):
         #print "class values taken", classValues
 
         self.data = data
-        attrnames = [ a.name for a in data.domain.attributes ]
+        attrnames = [ a.name for a in itOrFirst(self.data).domain.attributes ]
         self.gm = obiGeneMatch.GeneMatch(attrnames, organism=self.organism, caseSensitive=caseSensitive)
  
     def addGeneset(self, genesetname, genes):
@@ -639,7 +735,7 @@ class GSEA(object):
         #we need a mapping from attribute names to their
 
         namesToIndices = dict( \
-            [(at.name, i) for i,at in enumerate(data.domain.attributes)])
+            [(at.name, i) for i,at in enumerate(itOrFirst(data).domain.attributes)])
 
         #print namesToIndices
         #print self.toRealNames
@@ -657,7 +753,7 @@ class GSEA(object):
 
         #print nsubsets
 
-        if len(self.data) > 1:
+        if len(itOrFirst(data)) > 1:
             gseal = gseaE(data, nsubsets, n=n, **kwargs)
         else:
             rankings = [ data[0][at].native() for at in data.domain.attributes ]
@@ -866,9 +962,9 @@ if  __name__=="__main__":
 
     #collectionsPathname()
 
-    print collections(["c2.cp.v2.5.symbols.gmt"], default=False)
+    #print collections(["c2.cp.v2.5.symbols.gmt"], default=False)
 
-    import sys; sys.exit(0)
+    #import sys; sys.exit(0)
      
     def unpckGS(filename):
         import pickle
@@ -878,16 +974,77 @@ if  __name__=="__main__":
     genesetFile = "genesets/geneSets_cp.pck"
     gen1 = unpckGS(genesetFile)
     
-    data = orange.ExampleTable("leukemiaGSEA.tab")
-    #data = orange.ExampleTable("demo.tab")
+    #data = orange.ExampleTable("leukemiaGSEA.tab")
+    data = orange.ExampleTable("demo.tab")
     print "loaded data"
 
     def novi():
-        print "done"
+        pass
+        #print "done"
 
-    data = orange.ExampleTable(data.domain, data[:1])
-    res2 = runGSEA(data, n=5, geneSets=gen1, permutation="classn", callback=novi, atLeast=3)
+    def etForAttribute(datal,a):
+        tables = len(datal)
+
+        def getAttrVals(data, attr):
+            dom2 = orange.Domain([data.domain[attr]], False)
+            dataa = orange.ExampleTable(dom2, data)
+            return [ a[0].native() for a in dataa ]
+
+        domainl = []
+        valuesl = []
+
+        for id, data in enumerate(datal):
+            v = getAttrVals(data,a)
+            valuesl.append(v)
+            domainl.append(orange.FloatVariable(name=("v"+str(id))))
+
+        classvals = getAttrVals(data, datal[0].domain.classVar)
+        valuesl += [ classvals ]
+
+        dom = orange.Domain(domainl, datal[0].domain.classVar)
+        examples = [ list(a) for a in zip(*valuesl) ]
+
+        datat = orange.ExampleTable(dom, examples)
+
+        return datat
+
+
+    def evaluateWith(fn):
+        """
+        fn - evaluates example talbe
+        """
+
+        def newf(datal):
+            res = []
+            for a in datal[0].domain.attributes:
+                et = etForAttribute(datal, a)
+                res.append(fn(et))
+            return res
+
+        return newf
     
-    print '\n'.join([ str(a) + ": " +str(b) for a,b in sorted(res2.items())])
+    def give1(data):
+        return 1
+
+    import orngTest, orngStat
+
+    from math import sqrt
+
+    def knn(data):
+        learner = orange.kNNLearner(k=int(len(data)))
+        res = orngTest.crossValidation([ learner ], data)
+        return orngStat.AUC(res)[0]
+
+
+    gen1 = collections(["c2.all.v2.5.symbols.gmt"], default=False)
+
+    #data = orange.ExampleTable(data.domain, data[:1])
+
+    #res2 = runGSEA(data, n=5, geneSets=gen1, permutation="class", callback=novi, atLeast=3)
+    res2 = runGSEA([data], n=100, geneSets=gen1, permutation="class", callback=novi, atLeast=3, rankingf=evaluateWith(knn))
+    
+    print '\n'.join([ str(a) + ": " +str(b[2]) for a,b in sorted(res2.items(), key=lambda x: x[1][2])])
+
+
 
 
