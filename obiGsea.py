@@ -40,71 +40,6 @@ def rankingFromOrangeMeas(meas):
     """
     return lambda d: [ meas(i,d) for i in range(len(d.domain.attributes)) ]
 
-def lvar (inlist):
-    n = inlist.size
-    mn = numpy.mean(inlist)
-    deviations = inlist - mn
-    return numpy.dot(deviations,deviations)/float(n-1)
-
-def stdev(l):
-    return math.sqrt(lvar(l))
-
-def stdevm(l):
-    m = numpy.mean(l)
-    std = stdev(l)
-    #print std, 0.2*abs(1.0 if m == 0 else m)
-    #return minmally 2*|mi|, where mi=0 is adjusted to mi=1
-    return max(std, 0.2*abs(1.0 if m == 0 else m))
-
-class MA_signalToNoise2:
-    """
-    Returns signal to noise measurement: difference of means of two classes
-    divided by the sum of standard deviations for both classes. 
-    """
-
-    def __init__(self, a=None, b=None):
-        """
-        a and b are choosen class values.
-        """
-        self.a = a
-        self.b = b
-
-    def __call__(self, i, data):
-        cv = data.domain.classVar
-        #print data.domain
-
-        datao = data
-
-        #for faster computation. to save dragging many attributes along
-        dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
-        data = orange.ExampleTable(dom2, data)
-        i = 0
-
-        if self.a == None: self.a = 0
-        if self.b == None: self.b = 1
-
-        a,c = data.toNumpyMA("A/C")
-        a = a[:,0]
-        #print a.data
-        masked = numpy.where(a.mask==False)
-        a = a.data
-        c = c.data
-        a = a[masked]
-        c = c[masked]
-
-        def avWCValNP(value):
-            return  a[numpy.where(c == value)]
-
-        exa = avWCValNP(0)
-        exb = avWCValNP(1)
-
-        try:
-            rval = (numpy.mean(exa)-numpy.mean(exb))/(stdevm(exa)+stdevm(exb))
-            return rval
-        except:
-            #return some "middle" value
-            return 0
-
 def orderedPointersCorr(lcor):
     """
     Return a list of integers: indexes in original
@@ -116,47 +51,6 @@ def orderedPointersCorr(lcor):
     ordered = nth(ordered, 0) #contains positions in the original list
     return ordered
 
-def enrichmentScoreRankedOld(subset, lcor, ordered, p=1.0):
-    """
-    Input data and subset. 
-    
-    subset: list of attribute indices of the input data belonging
-        to the same set.
-    lcor: correlations with class for each attribute in a list. 
-
-    Returns enrichment score on given data.
-    """
-
-    #preglej ponovitve
-    #if len(subset) != len(set(subset)): print "CUDNO", subset 
-
-    subset = set(subset)
-
-    #add if gene is not in the subset
-    notInA = -(1. / (len(lcor)-len(subset)))
-    #base for addition if gene is in the subset
-    cors = [ abs(lcor[i])**p for i in subset ]
-    sumcors = sum(cors)
-
-    #this should not happen
-    if sumcors == 0.0:
-        return (0.0, None)
-    
-    inAb = 1./sumcors
-
-    ess = [0.0]
-    
-    for i in ordered:
-        ess.append(ess[-1] + \
-            (inAb*abs(lcor[i]**p) if i in subset else notInA)
-        )
-
-    maxEs = max(ess)
-    minEs = min(ess)
-    
-    return (maxEs if abs(maxEs) > abs(minEs) else minEs, ess[1:])
-
-
 def enrichmentScoreRanked(subset, lcor, ordered, p=1.0, rev2=None):
     """
     Input data and subset. 
@@ -166,7 +60,12 @@ def enrichmentScoreRanked(subset, lcor, ordered, p=1.0, rev2=None):
     lcor: correlations with class for each attribute in a list. 
 
     Returns enrichment score on given data.
+
+    This implementation efficiently handles "sparse" genesets (that
+    cover only a small subset of all genes in the dataset).
     """
+
+    #print lcor
 
     subset = set(subset)
 
@@ -242,7 +141,6 @@ def enrichmentScoreRanked(subset, lcor, ordered, p=1.0, rev2=None):
     
     print "REAL", (maxEs if abs(maxEs) > abs(minEs) else minEs, ess[1:])
 
-    aaaaa = Aaaa
     """
     return (maxSum if abs(maxSum) > abs(minSum) else minSum, [])
 
@@ -300,8 +198,6 @@ def gseapval(es, esnull):
     estimate nominal p-value for S from esnull by using the positive
     or negative portion of the distribution corresponding to the sign 
     of the observed ES(S).
-
-    WHAT DOES THAT MEAN?
     """
     
     try:
@@ -310,7 +206,7 @@ def gseapval(es, esnull):
                 len([ a for a in esnull if a < 0])    
         else: 
             return float(len([ a for a in esnull if a >= es ]))/ \
-                len([ a for a in esnull if a > 0])
+                len([ a for a in esnull if a >= 0])
     except:
         return 1.0
 
@@ -345,6 +241,8 @@ def gseaE(data, subsets, rankingf=None, \
     enrichmentScores = []
  
     lcor = rankingf(data)
+    #print lcor
+
     ordered = orderedPointersCorr(lcor)
 
     def rev(l):
@@ -435,6 +333,8 @@ def gseaR(rankings, subsets, n=100, **kwargs):
 
 def gseaSignificance(enrichmentScores, enrichmentNulls):
 
+    #print enrichmentScores
+
     enrichmentPVals = []
     nEnrichmentScores = []
     nEnrichmentNulls = []
@@ -442,6 +342,7 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
     for i in range(len(enrichmentScores)):
         es = enrichmentScores[i]
         enrNull = enrichmentNulls[i]
+        #print es, enrNull
 
         enrichmentPVals.append(gseapval(es, enrNull))
 
@@ -893,6 +794,11 @@ def getCollectionFiles(path=collectionsPathname()):
     for file in files:
         fn = os.path.join(path, file)
         name = info.get(file, file)
+        if name == file:
+            #remove suffix if no info
+            if name.lower()[-4:] == ".gmt" or name.lower()[-4:] == ".pck":
+                name = name[:-4]
+
         out.append( (name, fn) )
 
     return out
@@ -940,6 +846,50 @@ def collections(l=[], default=True, path=collectionsPathname()):
 End genesets
 """
 
+
+
+def etForAttribute(datal,a):
+    tables = len(datal)
+
+    def getAttrVals(data, attr):
+        dom2 = orange.Domain([data.domain[attr]], False)
+        dataa = orange.ExampleTable(dom2, data)
+        return [ a[0].native() for a in dataa ]
+
+    domainl = []
+    valuesl = []
+
+    for id, data in enumerate(datal):
+        v = getAttrVals(data,a)
+        valuesl.append(v)
+        domainl.append(orange.FloatVariable(name=("v"+str(id))))
+
+    classvals = getAttrVals(data, datal[0].domain.classVar)
+    valuesl += [ classvals ]
+
+    dom = orange.Domain(domainl, datal[0].domain.classVar)
+    examples = [ list(a) for a in zip(*valuesl) ]
+
+    datat = orange.ExampleTable(dom, examples)
+
+    return datat
+
+
+def evaluateEtWith(fn):
+    """
+    fn - evaluates example talbe
+    """
+
+    def newf(datal):
+        res = []
+        for a in datal[0].domain.attributes:
+            et = etForAttribute(datal, a)
+            res.append(fn(et))
+        return res
+
+    return newf
+
+
 if  __name__=="__main__":
 
     #import mOrngData
@@ -975,54 +925,17 @@ if  __name__=="__main__":
     gen1 = unpckGS(genesetFile)
     
     #data = orange.ExampleTable("leukemiaGSEA.tab")
-    data = orange.ExampleTable("demo.tab")
+    #data = orange.ExampleTable("demo.tab")
+    data = orange.ExampleTable("sterolTalkHepa.tab")
+
+    print data.domain.classVar.values
+
     print "loaded data"
 
     def novi():
         pass
         #print "done"
 
-    def etForAttribute(datal,a):
-        tables = len(datal)
-
-        def getAttrVals(data, attr):
-            dom2 = orange.Domain([data.domain[attr]], False)
-            dataa = orange.ExampleTable(dom2, data)
-            return [ a[0].native() for a in dataa ]
-
-        domainl = []
-        valuesl = []
-
-        for id, data in enumerate(datal):
-            v = getAttrVals(data,a)
-            valuesl.append(v)
-            domainl.append(orange.FloatVariable(name=("v"+str(id))))
-
-        classvals = getAttrVals(data, datal[0].domain.classVar)
-        valuesl += [ classvals ]
-
-        dom = orange.Domain(domainl, datal[0].domain.classVar)
-        examples = [ list(a) for a in zip(*valuesl) ]
-
-        datat = orange.ExampleTable(dom, examples)
-
-        return datat
-
-
-    def evaluateWith(fn):
-        """
-        fn - evaluates example talbe
-        """
-
-        def newf(datal):
-            res = []
-            for a in datal[0].domain.attributes:
-                et = etForAttribute(datal, a)
-                res.append(fn(et))
-            return res
-
-        return newf
-    
     def give1(data):
         return 1
 
@@ -1031,19 +944,22 @@ if  __name__=="__main__":
     from math import sqrt
 
     def knn(data):
-        learner = orange.kNNLearner(k=int(len(data)))
+        learner = orange.kNNLearner(k=int(sqrt(len(data))))
         res = orngTest.crossValidation([ learner ], data)
-        return orngStat.AUC(res)[0]
+        return orngStat.AUC(res)[0]**3
 
 
     gen1 = collections(["c2.all.v2.5.symbols.gmt"], default=False)
+    print gen1.keys()[:100]
+
+    import sys; sys.exit(0)
 
     #data = orange.ExampleTable(data.domain, data[:1])
 
-    #res2 = runGSEA(data, n=5, geneSets=gen1, permutation="class", callback=novi, atLeast=3)
-    res2 = runGSEA([data], n=100, geneSets=gen1, permutation="class", callback=novi, atLeast=3, rankingf=evaluateWith(knn))
+    #res2 = runGSEA(data, n=100, geneSets=gen1, permutation="class", callback=novi, atLeast=3)
+    res2 = runGSEA([data, data], n=100, geneSets=gen1, permutation="class", callback=novi, atLeast=3, rankingf=evaluateEtWith(knn))
     
-    print '\n'.join([ str(a) + ": " +str(b[2]) for a,b in sorted(res2.items(), key=lambda x: x[1][2])])
+    print '\n'.join([ str(a) + ": " +str(b[:3]) for a,b in sorted(res2.items(), key=lambda x: x[1][2])])
 
 
 
