@@ -48,13 +48,13 @@ class OWFeatureSelection(OWWidget):
         self.histType = {oneTailTestHi:"hiTail", oneTailTestLow:"lowTail", twoTailTest:"twoTail", middleTest:"middle"}
         self.scoreMethods = [("chi-square", orange.MeasureAttribute_chiSquare, oneTailTestHi),
                              ("info gain", orange.MeasureAttribute_info, oneTailTestHi),
-                             ("signal to noise ratio", lambda attr, data:MA_signalToNoise()(attr, data), twoTailTest),
-                             ("t-test",lambda attr, data:MA_t_test()(attr, data), twoTailTest),
-                             ("t-test p-value",lambda attr, data:1.0 - MA_t_test(prob=True)(attr, data), oneTailTestLow),
-                             ("fold change", lambda attr, data:MA_fold_change()(attr, data), twoTailTest),
-                             ("log2 fold change", lambda attr, data:math.log(max(min(MA_fold_change()(attr, data), 1e300), 1e-300)), twoTailTest),
-                             ("anova", lambda attr, data:MA_anova()(attr, data), oneTailTestHi),
-                             ("anova p-value", lambda attr, data:1.0-MA_anova(prob=True)(attr, data), oneTailTestLow)]
+                             ("signal to noise ratio", lambda attr, data: MA_signalToNoise()(attr, data), twoTailTest),
+                             ("t-test",lambda attr, data: MA_t_test()(attr, data), twoTailTest),
+                             ("t-test p-value",lambda attr, data: MA_t_test(prob=True)(attr, data), oneTailTestLow),
+                             ("fold change", lambda attr, data: MA_fold_change()(attr, data), twoTailTest),
+                             ("log2 fold change", lambda attr, data: math.log(max(min(MA_fold_change()(attr, data), 1e300), 1e-300), 2.0), twoTailTest),
+                             ("anova", lambda attr, data: MA_anova()(attr, data), oneTailTestHi),
+                             ("anova p-value", lambda attr, data: MA_anova(prob=True)(attr, data), oneTailTestLow)]
 
         boxHistogram = OWGUI.widgetBox(self.mainArea)
         self.histogram = ScoreHist(self, boxHistogram)
@@ -173,9 +173,18 @@ class OWFeatureSelection(OWWidget):
             scores = scores[:max(self.selectNBest,1)]
             self.histogram.setBoundary(scores[-1][1], scores[-1][1])
         else:
-            scoresHi = scores[-max(self.selectNBest/2, 1):]
-            scoresLo = scores[:max(self.selectNBest/2+self.selectNBest%2, 1)]
-            self.histogram.setBoundary(scoresLo[-1][1], scoresHi[0][1])
+            scoresHi = scores[-max(min(self.selectNBest, len(scores)/2), 1):]
+            scoresLo = scores[:max(min(self.selectNBest, len(scores)/2), 1)]
+            scores = [(abs(score), 1) for attr, score in scoresHi] + [(abs(score), -1) for attr, score in scoresLo]
+            if self.scoreMethods[self.methodIndex][0]=="fold change": ## fold change is on a logaritmic scale
+                scores =  [(abs(math.log(max(min(score, 1e300), 1e-300), 2.0)), sign) for score, sign in scores]
+            scores.sort()
+            scores = scores[-max(self.selectNBest, 1):]
+            countHi = len([score for score, sign in scores if sign==1])
+            countLo = len([score for score, sign in scores if sign==-1])
+            cutHi = scoresHi[-countHi][1] if countHi else scoresHi[-1][1]+1e-10
+            cutLo = scoresLo[countLo-1][1] if countLo else scoresLo[0][1]-1e-10
+            self.histogram.setBoundary(cutLo, cutHi)
         
     def Commit(self):
         if self.data and self.data.domain.classVar:
