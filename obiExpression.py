@@ -106,7 +106,7 @@ class MA_t_test(object):
             t, prob = stats.lttest_ind(exa, exb)
             return prob if self.prob else t
         except:
-            return 0
+            return 1.0 if sefl.prob else 0.0
 
 class MA_fold_change(object):
     def __init__(self, a=None, b=None):
@@ -133,7 +133,7 @@ class MA_fold_change(object):
         try:
             return mean(exa)/mean(exb)
         except:
-            return 0
+            return 1
 
 class MA_anova(object):
     def __init__(self, prob=False):
@@ -156,4 +156,4 @@ class MA_anova(object):
             f, prob = stats.lF_oneway(*tuple(data))
             return prob if self.prob else f
         except:
-            return 0
+            return 1.0 if self.prob else 0.0
