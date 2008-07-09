@@ -19,24 +19,12 @@ class TreeNode(object):
     def __init__(self, tuple, children):
         self.tuple = tuple
         self.children = children
-
-def paintSection(self, painter, index, fr):
-    print self
-    if index!=5:
-        QHeader.paintSection(self, painter, index, fr)
-    else:
-        pass
-
-class MyTreeWidget(QTreeWidget):
-    def __init__(self, parent):
-        apply(QTreeWidget.__init__,(self, parent))
-
-    #def paintEvent(self, event):
     
 class OWGOEnrichmentAnalysis(OWWidget):
     settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex",
                     "filterByNumOfInstances", "minNumOfInstances", "filterByPValue", "maxPValue", "selectionDirectAnnotation", "selectionDisjoint",
                     "selectionAddTermAsClass", "useAttrNames"]
+    contextHandlers = {"": DomainContextHandler("", ["geneAttrIndex", "useAttrNames", "annotationIndex"], matchValues=1)}
     def __init__(self, parent=None, signalManager=None, name="GO Enrichment Analysis"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Cluster Examples", ExampleTable, self.SetClusterDataset, Default), ("Reference Examples", ExampleTable, self.SetReferenceDataset, Single + NonDefault)] #, ("Structured Data", DataFiles, self.chipdata, Single + NonDefault)]
@@ -125,7 +113,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.mainArea.layout().addWidget(self.splitter)
 
         # list view
-        self.listView = MyTreeWidget(self.splitter)
+        self.listView = QTreeWidget(self.splitter)
         self.listView.setSelectionMode(QAbstractItemView.MultiSelection)
         self.listView.setAllColumnsShowFocus(1)
         self.listView.setColumnCount(len(self.DAGcolumns))
@@ -134,6 +122,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.listView.header().setClickable(True)
         self.listView.header().setSortIndicatorShown(True)
         self.listView.setSortingEnabled(True)
+        self.listView.setItemDelegateForColumn(5, EnrichmentColumnItemDelegate(self))
         
         #self.listView.setColumnWidth(0, 300)
         #self.listView.setColumnWidthMode(0, QListView.Manual)
@@ -288,20 +277,24 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.geneAttrIndex = candidateGeneAttrs.index(bestAttr)
     
     def SetClusterDataset(self, data=None):
+        self.closeContext()
         self.clusterDataset = data
         if data:
             self.SetGenesComboBox()
+            self.FindBestGeneAttrAndOrganism()
+            self.openContext("", data)
             if not go.loadedGO:
                 self.LoadGO()
             if not go.loadedAnnotation:
                 self.LoadAnnotation()
-            self.FindBestGeneAttrAndOrganism()
+            
             #if not go.loadedAnnotation:
             self.FilterUnknownGenes()
             graph = self.Enrichment()
             #print graph
             self.SetGraph(graph)
         else:
+            self.openContext("", None)
             self.ClearGraph()
             self.send("Selected Examples", None)
             self.send("Unselected Examples", None)
@@ -495,7 +488,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             if (parent, term) in fromParentDict:
                 return
             if term in self.graph:
-                displayNode = MyTreeWidgetItem(parentDisplayNode)
+                displayNode = QTreeWidgetItem(parentDisplayNode)
                 displayNode.setText(0, go.loadedGO.termDict[term].name)
                 displayNode.setText(1, str(len(self.graph[term][0])))
                 displayNode.setText(2, str(self.graph[term][2]))
@@ -613,30 +606,29 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
             self.send("Unselected Examples", unselectedExamples and orange.ExampleTable(unselectedExamples) or None)
             
-class MyTreeWidgetItem(QTreeWidgetItem):
-    enrichmentColumn = 5
-    def paintCell(self, painter, colorgroup, column, width, align):
-        if column!=self.enrichmentColumn:
-            QListViewItem.paintCell(self, painter, colorgroup, column, width, align)
-        else:
-            f = float(str(self.text(self.enrichmentColumn)))
-            painter.setBrush(QBrush(Qt.white, QBrush.SolidPattern))
-            painter.drawRect(0, 0, width-1, self.height()-1)
-            painter.setBrush(QBrush(Qt.blue, QBrush.SolidPattern))
-##            painter.drawRect((1-f)*(width-1), 0, width-1, self.height()-1)
-            painter.drawRect(0, 0, f*(width-1), self.height()-1)
 
-    def width(self):
-        return 100
-    
+class EnrichmentColumnItemDelegate(QItemDelegate):
+    def paint(self, painter, option, index):
+        self.drawBackground(painter, option, index)
+        value, ok = index.data(Qt.DisplayRole).toDouble()
+        if ok:
+            painter.save()
+            painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
+            painter.drawRect(option.rect)
+            painter.setBrush(QBrush(Qt.blue, Qt.SolidPattern))
+            painter.drawRect(option.rect.x(), option.rect.y(), value*(option.rect.width()-1), option.rect.height()-1)
+            painter.restore()
+        else:
+            QItemDelegate.paint(self, painter, option, index)
+        
+        
 if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
     w=OWGOEnrichmentAnalysis()
-    data = orange.ExampleTable("../../doc/datasets/brown-selected.tab")
-    w.SetClusterDataset(data)
-    app.setMainWidget(w)
+    data = orange.ExampleTable("../../orange/doc/datasets/brown-selected.tab")
     w.show()
-    app.exec_loop()
+    w.SetClusterDataset(data)
+    app.exec_()
     w.saveSettings()
         
