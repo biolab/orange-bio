@@ -195,8 +195,8 @@ class OWFeatureSelection(OWWidget):
             self.send("Examples with selected attributes", self.data.select(selectedAttrs+[self.data.domain.classVar]))
             remainingAttrs = [attr for attr in self.data.domain.attributes if  not test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
             self.send("Examples with remaining attributes", self.data.select(remainingAttrs+[self.data.domain.classVar]))
-            domain = orange.Domain([orange.StringVariable("label")], False)
-            self.send("Selected attributes", orange.ExampleTable([orange.Example(domain, [attr.name]) for attr in selectedAttrs]) if selectedAttrs else None)
+            domain = orange.Domain([orange.StringVariable("label"), orange.FloatVariable(self.scoreMethods[self.methodIndex][0])], False)
+            self.send("Selected attributes", orange.ExampleTable([orange.Example(domain, [attr.name, self.scores.get(attr, 0)]) for attr in selectedAttrs]) if selectedAttrs else None)
             
         else:
             self.send("Examples with selected attributes", None)
