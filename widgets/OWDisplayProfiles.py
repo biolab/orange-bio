@@ -30,13 +30,13 @@ class boxPlotQwtPlotCurve(QwtPlotCurve):
         self.tickXw = tickXw
         self.boxPlotPenWidth = 2
 
-    def draw(self, p, xMap, yMap, f=-1, t=0):
+    def draw(self, p, xMap, yMap, f=0, t=-1):
         # save ex settings
 ##        pen = p.pen()
 ##        brush = p.brush()
         p.save()
         if type(f)==QRect:
-            f = 0
+            f = 0 
         
         p.setBackgroundMode(Qt.OpaqueMode)
         p.setPen(self.pen())
@@ -47,7 +47,6 @@ class boxPlotQwtPlotCurve(QwtPlotCurve):
 
             if f % 6 <> 0: f -= f % 6
             if t % 6 <> 0:  t += 6 - (t % 6)
-
             ## first connect averages
             first = 1
             if self.connectPoints: 
