@@ -1,3 +1,6 @@
+"""obiKEGG is an interface to Kyoto Encyclopedia of Genes and Genomes (http://www.genome.jp/kegg/) that allows easy access to KEGG pathway and genes data.
+
+"""
 import Image, ImageDraw, ImageMath
 import cStringIO
 import math
@@ -635,32 +638,41 @@ class p_value(object):
     
 class KEGGOrganism(object):
     def __init__(self, org, update=False, local_database_path=None):
+        
         self.org = org
         self.local_database_path = local_database_path or default_database_path
         self.api = KEGGInterfaceLocal(update, self.local_database_path)
 
     def list_pathways(self):
+        """Return a list of all organism specific pathways."""
         return self.api.list_pathways(self.org)
     
     def get_linked_pathways(self, pathway_id):
+        """Return a list of all organism specific pathways that pathway with pathway_id links to."""
         return self.api.get_linked_pathways(pathway_id)
 
     def get_genes_by_pathway(self, pathway_id):
+        """Return a list of all organism specific genes that are on the pathway with pathway_id."""
         return self.api.get_genes_by_pathway(pathway_id)
 
-    def get_enzymes_by_pathway(self, pathway_id):    
+    def get_enzymes_by_pathway(self, pathway_id):
+        """Return a list of all organism specific enzymes that are on the pathway with pathway_id."""
         return self.api.get_enzymes_by_pathway(pathway_id)
 
     def get_compounds_by_pathway(self, pathway_id):
+        """Return a list of all organism specific compounds that are on the pathway with pathway_id."""
         return self.api.get_enzymes_by_pathway(pathway_id)
 
     def get_genes(self):
+        """Return a list of all organism genes."""
         return self.api.get_genes_by_organism(self.org)
 
     def get_pathways_by_genes(self, genes):
+        """Return a list of all organism specific pathways that contain all the genes."""
         return self.api.get_pathways_by_genes(genes)
 
     def get_enriched_pathways_by_genes(self, genes, reference=None, callback=None):
+        """Return a dictionary with enriched pathways ids as keys and (list_of_genes, p_value, num_of_reference_genes) tuples as items."""
         allPathways = defaultdict(lambda :[[], 1.0, []])
         tmp_callback = self.api.download_progress_callback
         if callback:
@@ -682,27 +694,37 @@ class KEGGOrganism(object):
         for p_id, entry in allPathways.items():
             entry[2].extend(reference.intersection(self.get_genes_by_pathway(p_id)))
             entry[1] = _p(float(len(entry[2]))/len(reference), len(entry[0]), len(genes))
-        return dict([(pid, (genes, p, len(ref))) for pid, (genes, p, ref) in allPathways.items()]) #TODO: calculate p
+        return dict([(pid, (genes, p, len(ref))) for pid, (genes, p, ref) in allPathways.items()])
 
     def get_pathways_by_enzymes(self, enzymes):
+        """Return a list of all organism specific pathways that contain all the enzymes."""
         return self.api.get_pathways_by_enzymes(enzymes)
 
     def get_pathways_by_compounds(self, compounds):
+        """Return a list of all organism specific pathways that contain all the compounds."""
         return self.api.get_pathways_by_compounds(compounds)
 
     def get_enzymes_by_compound(self, compound_id):
+        """Return a list of all organism specific enzymes that are involved in a reaction with compound."""
         return self.api.get_enzymes_by_compound(compound_id)
 
     def get_compounds_by_enzyme(self, enzyme_id):
+        """Return a list of all compounds that are involved in a reaction with the enzyme."""
         return self.api.get_compounds_by_enzyme(enzyme_id)
 
     def get_genes_by_enzyme(self, enzyme_id):
+        """Return a list of all genes that are involved with the production of enzyme."""
         return self.api.get_genes_by_enzyme(enzyme_id, self.org)
 
     def get_enzymes_by_gene(self, gene_id):
+        """Return a list of all enzymes that are a product of gene."""
         return self.api.get_enzymes_by_gene(gene_id)
 
     def get_unique_gene_ids(self, genes, caseSensitive=True):
+        """Return a tuple with three elements. The first is a dictionary mapping from unique gene
+        ids to gene names in genes, the second is a list of conflicting gene names and the third is a list
+        of unknown genes.
+        """
         return self.api.get_unique_gene_ids(self.org, genes, caseSensitive)
 
 class KEGGPathway(object):
@@ -715,24 +737,31 @@ class KEGGPathway(object):
             self.api.download_pathway_data(self.org)
 
     def get_image(self):
+        """Return an PIL image of the pathway."""
         return self.api.get_pathway_image(self.pathway_id)
 
     def get_colored_image(self, objects):
+        """Return an PIL image of the pathway with marked objects."""
         return self.api.get_colored_pathway_image(self.pathway_id, objects)
 
     def get_bounding_box(self, object_id):
+        """Return a bounding box of the form (x1, y1, x2, y2) of object on the pathway image."""
         return self.api.get_bounding_box(self.pathway_id, object_id)
 
     def get_bounding_box_dict(self):
+        """Return a dictionary mapping all objects on the pathways to bounding boxes (x1, y1, x2, y2) on the pathway image."""
         return self.api.get_bounding_box_dict(self.pathway_id)
 
     def get_genes(self):
+        """Return all genes on the pathway."""
         return self.api.get_genes_by_pathway(self.pathway_id)
 
     def get_enzymes(self):
+        """Return all enzymes on the pathway."""
         return self.api.get_enzymes_by_pathway(self.pathway_id)
 
     def get_compounds(self):
+        """Return all compounds on the pathway."""
         return self.api.get_compounds_by_pathway(self.pathway_id)
         
 class KOClass(object):
