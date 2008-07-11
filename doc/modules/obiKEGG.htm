@@ -1,0 +1,105 @@
+<html>
+
+<head>
+<title>obiKEGG: Interface to KEGG(Kyoto Encyclopedia of Genes and Genomes)</title>
+<link rel=stylesheet href="../style.css" type="text/css">
+<link rel=stylesheet href="style-print.css" type="text/css" media=print>
+</head>
+
+<body>
+<h1>obiKEGG: Interface to KEGG(Kyoto Encyclopedia of Genes and Genomes)</h1>
+<p>obiKEGG is an interface to <a href="http://www.genome.jp/kegg/">Kyoto Encyclopedia of Genes and Genomes</a> that allows easy access to KEGG pathway and genes data.</p>
+
+<h2>Local data manipulation</h2>
+<h2><index>Update</index></h2>
+<p>Is a class used for managing local KEGG database copy.</p>
+<p class=section>Methods</p>
+<dl class=attributes>
+	<dt>getinstance(local_database_path=None, progressCallback=None)</dt>
+	<dd>Return an instance of the Update class initialized to local_database_path. progressCallback will be used to report progress an all download progress.</dd>
+	
+	<dt>UpdateOrganism(org)</dt>
+	<dd>Download organism specific pathways and genes to the local database</dd>
+	
+	<dt>UpdateReference()</dt>
+	<dd>Download reference pathways</dd>
+	
+	<dt>UpdateEnzymeAndCompounds()</dt>
+	<dd>Downloads enzyme and compound data</dd>
+</dl>
+
+<h2><index>KEGGOrganism</index></h2>
+<p class=section>Methods</p>
+<dl class=attributes>
+	<dt>list_pathways()</dt>
+	<dd>Return a list of all organism specific pathways</dd>
+	
+	<dt>get_linked_pathways(pathway_id)</dt>
+	<dd>Return a list of all organism specific pathways that pathway with <code>pathway_id</code> links to</dd>
+	
+	<dt>get_genes()</dt>
+	<dd>Return a list of all specific genes</dd>
+	
+	<dt>get_genes_by_pathway(pathway_id)</dt>
+	<dd>Return a list of all organism specific genes that are on the pathway with <code>pathway_id</code></dd>
+	
+	<dt>get_enzymes_by_pathway(pathway_id)</dt>
+	<dd>Return a list of all organism specific enzymes that are on the pathway with <code>pathway_id</code></dd>
+	
+	<dt>get_compounds_by_pathway(pathway_id)</dt>
+	<dd>Return a list of all organism specific compounds that are on the pathway with <code>pathway_id</code></dd>
+	
+	<dt>get_pathways_by_genes(genes)</dt>
+	<dd>Return a list of all organism specific pathways that contain all the genes</dd>
+	
+	<dt>get_enriched_pathways_by_genes(genes, reference=None, callback=None)</dt>
+	<dd>Return a dictionary with enriched pathways ids as keys and (list_of_genes, p_value, num_of_reference_genes) tuples as items.</dd>
+	
+	<dt>get_pathways_by_enzymes(enzymes)</dt>
+	<dd>Return a list of all organism specific pathways that contain all the enzymes</dd>
+	
+	<dt>get_pathways_by_compounds(compounds)</dt>
+	<dd>Return a list of all organism specific pathways that contain all the compounds</dd>
+	
+	<dt>get_enzymes_by_compound(compound)</dt>
+	<dd>Return a list of all organism specific enzymes that are involved in a reaction with <code>compound</code></dd>
+	
+	<dt>get_compounds_by_enzyme(enzyme)</dt>
+	<dd>Return a list of all compounds that are involved in a reaction with the <code>enzyme</code></dd>
+	
+	<dt>get_genes_by_enzyme(enzyme)</dt>
+	<dd>Return a list of all genes that are involved with the production of <code>enzyme</code></dd>
+	
+	<dt>get_enzymes_by_gene(gene)</dt>
+	<dd>Return a list of all enzymes that are a product of <code>gene</code></dd>
+	
+	<dt>get_unique_gene_ids(genes, caseSensitive=True)</dt>
+	<dd>Return a tuple with three elements. The first is a dictionary mapping from unique gene ids to gene names in <code>genes</code>, the second is a list of conflicting gene names and the third is a list of unknown genes</dd>
+	
+</dl>
+
+<h2><index>KEGGPathway</index></h2>
+<p class=section>Methods</p>
+<dl class=attributes>
+	<dt>get_image()</dt>
+	<dd>Return an PIL image of the pathway</dd>
+	
+	<dt>get_colored_image(objects)</dt>
+	<dd>Return an PIL image of the pathway with marked <code>objects</code></dd>
+	
+	<dt>get_bounding_box(object)</dt>
+	<dd>Return a bounding box of the form (x1, y1, x2, y2) of <code>object</code> on the pathway image</dd>
+	
+	<dt>get_bounding_box_dict()</dt>
+	<dd>Return a dictionary mapping all objects on the pathways to bounding boxes (x1, y1, x2, y2) on the pathway image</dd>
+	
+	<dt>get_genes()</dt>
+	<dd>Return all genes on the pathway</dd>
+	
+	<dt>get_enzymes()</dt>
+	<dd>Return all enzymes on the pathway</dd>
+	
+	<dt>get_compounds()</dt>
+	<dd>Return all compounds on the pathway</dd>
+	
+</dl>
