@@ -139,6 +139,18 @@ class OWFeatureSelection(OWWidget):
             self.histogram.type = self.histType[self.scoreMethods[self.methodIndex][2]]
             self.histogram.setValues(self.scores.values())
             self.histogram.setBoundary(*self.cuts.get(self.methodIndex, (0, 0)))
+            if self.methodIndex in [2, 3, 5, 6]:
+                classValues = self.data.domain.classVar.values
+                if self.methodIndex == 5:
+                    x1, y1 = (self.histogram.minx + 1) / 2 , self.histogram.maxy
+                    x2, y2 = (self.histogram.maxx + 1) / 2 , self.histogram.maxy
+                else:
+                    x1, y1 = (self.histogram.minx) / 2 , self.histogram.maxy
+                    x2, y2 = (self.histogram.maxx) / 2 , self.histogram.maxy
+                self.histogram.addMarker(classValues[1], x1, y1)
+                self.histogram.addMarker(classValues[0], x2, y2)
+                self.histogram.replot()
+            
         else:
             self.histogram.clear()
             
