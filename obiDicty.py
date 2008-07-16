@@ -1,5 +1,4 @@
 import sys, pprint, time, re
-from mMisc import *
 from itertools import *
 import urllib
 import orange
