@@ -5,6 +5,8 @@
 <priority>2015</priority>
 """
 
+from __future__ import with_statement
+
 import orange
 #import orngChem_Old as orngChem
 from OWWidget import *
@@ -63,9 +65,8 @@ from threading import Lock
 def synchronized(lock):
     def syncfunc(func):
         def f(*args, **kw):
-            lock.acquire()
-            ret = func(*args, **kw)
-            lock.release()
+            with lock:
+                ret = func(*args, **kw)
             return ret
         return f
     return syncfunc
@@ -142,8 +143,11 @@ class ImageCacheManager(Singleton):
                 instances[cls] = inst
                 return inst
             except Exception, ex:
-                print "Image cache loading failed", ex
+                print "Image cache loading failed", filename, ex
+                from traceback import print_exception
+                print_exception(*sys.exc_info())
                 inst = cls(*args, **kw)
+                print inst
                 inst.cachefilename = filename
                 return inst
             
@@ -201,7 +205,9 @@ class MolWidget(QFrame):
         self.context=context
         self.selected=False
         self.label=QLabel()
+        self.label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
         self.image=MolImage(master, self, context)
+        self.image.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.label.setText(context.title)
         self.label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
         self.label.setMaximumWidth(context.size)
@@ -209,6 +215,7 @@ class MolWidget(QFrame):
         layout.addWidget(self.label)
         layout.addWidget(self.image)
         self.setLayout(layout)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.show()
 
     def repaint(self):
@@ -296,6 +303,7 @@ class ScrollArea(QScrollArea):
         self.setMouseTracking(True)
         
     def resizeEvent(self, event):
+        print "in resizeEvent"
         QScrollArea.resizeEvent(self, event)
         size=event.size()
         w,h=self.width(), self.height()
@@ -303,7 +311,9 @@ class ScrollArea(QScrollArea):
         numColumns=w/(self.master.imageSize+4) or 1
         if numColumns!=oldNumColumns:
             self.master.numColumns=numColumns
-            self.master.redrawImages(useCached=not self.master.overRideCache)
+            print "in resizeEvent calling redrawImages"
+##            self.master.redrawImages(useCached=not self.master.overRideCache)
+            self.master.rearrangeLayout()
 ##        print self.maximumSize().height(), self.viewport().maximumSize().height()
         
 
@@ -391,7 +401,7 @@ class OWMoleculeVisualizer(OWWidget):
         self.molWidget.setLayout(self.gridLayout)
 ##        self.gridLayout.setAutoAdd(False)
         self.listBox=QListWidget(spliter)
-        self.connect(self.listBox, SIGNAL("highlighted(int)"), self.fragmentSelection)
+        self.connect(self.listBox, SIGNAL("currentRowChanged(int)"), self.fragmentSelection)
 ##        self.scrollArea.setFocusPolicy(QWidget.StrongFocus)
 ##        self.listBox.setFocusPolicy(QWidget.NoFocus)
 ##        self.mainArea.setLayout(self.mainAreaLayout)
@@ -587,6 +597,8 @@ class OWMoleculeVisualizer(OWWidget):
         self.selectMarkedMoleculesButton.setDisabled(True)
         
     def fragmentSelection(self, index):
+        if index == -1:
+            index = 0
         self.selectedFragment=self.fragmentSmiles[index]
         self.selectMarkedMoleculesButton.setEnabled(bool(self.selectedFragment))
         self.markFragmentsCheckBox.setEnabled(bool(self.selectedFragment))
@@ -594,19 +606,24 @@ class OWMoleculeVisualizer(OWWidget):
             self.redrawImages()
         
     def renderImages(self,useCached=False):
-        def fixNumColumns(numItems, numColumns):
-            if (self.imageSize+4)*(numItems/numColumns+1)>30000:
-                return numItems/(30000/(self.imageSize+4))
-            else:
-                return numColumns
+##        def fixNumColumns(numItems, numColumns):
+##            if (self.imageSize+4)*(numItems/numColumns+1)>30000:
+##                return numItems/(30000/(self.imageSize+4))
+##            else:
+##                return numColumns
         
         self.numColumns=self.scrollArea.width()/(self.imageSize+4) or 1
+        self.gridLayout = QGridLayout()
+        self.scrollArea.takeWidget()
+        self.molWidget = QWidget()
+        self.scrollArea.setWidget(self.molWidget)
+        self.molWidget.setLayout(self.gridLayout)
         self.imageWidgets=[]
         self.imageCache.newEpoch()
         self.failedCount=0
         self.fromCacheCount=0
         if self.showFragments and self.fragmentSmiles:
-            correctedNumColumns=fixNumColumns(len(self.fragmentSmiles[1:]), self.numColumns)
+            correctedNumColumns=self.numColumns #fixNumColumns(len(self.fragmentSmiles[1:]), self.numColumns)
             self.progressBarInit()
             for i,fragment in enumerate(self.fragmentSmiles[1:]):
                 #imagename=self.imageprefix+str(i)+".bmp"
@@ -627,7 +644,7 @@ class OWMoleculeVisualizer(OWWidget):
                 if not sAttr:
                     return
             molSmiles=[(str(e[sAttr]), e) for e in self.molData if not e[sAttr].isSpecial()]
-            correctedNumColumns=fixNumColumns(len(molSmiles), self.numColumns)
+            correctedNumColumns=self.numColumns #fixNumColumns(len(molSmiles), self.numColumns)
             self.progressBarInit()
             if self.colorFragments and self.selectedFragment:
                 fMap=map_fragments([self.selectedFragment], [t[0] for t  in molSmiles])
@@ -648,6 +665,10 @@ class OWMoleculeVisualizer(OWWidget):
             self.updateTitles()
         #print "done drawing"
         self.overRideCache=False
+##        import sip
+##        sip.delete(self.molWidget.layout())
+##        self.molWidget.setLayout(self.gridLayout)
+##        self.molWidget.layout().activate()
         self.molWidget.setMinimumSize(self.gridLayout.sizeHint())
         self.molWidget.show()
 ##        if self.imageWidgets:
@@ -656,8 +677,21 @@ class OWMoleculeVisualizer(OWWidget):
 
     def destroyImageWidgets(self):
         for w in self.imageWidgets:
+            w.hide()
             self.gridLayout.removeWidget(w)
         self.imageWidgets=[]
+
+    def rearrangeLayout(self):
+        self.numColumns=self.scrollArea.width()/(self.imageSize+4) or 1
+        self.molWidget = QWidget()
+        self.gridLayout = QGridLayout()
+        self.molWidget.setLayout(self.gridLayout)
+        for i, w in enumerate(self.imageWidgets):
+            self.gridLayout.addWidget(w, i/self.numColumns, i%self.numColumns)
+        self.scrollArea.takeWidget()
+        self.scrollArea.setWidget(self.molWidget)
+        self.molWidget.setMinimumSize(self.gridLayout.sizeHint())
+        self.molWidget.show()
             
     def showImages(self, useCached=False):
         self.destroyImageWidgets()
