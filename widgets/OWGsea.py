@@ -40,6 +40,58 @@ def comboboxItems(combobox, newitems):
 def getClasses(data):
     return [ a.value for a in data.domain.classVar ]
 
+def exportDistanceMatrix(resl):
+    """
+    Input: results as a list of tuples
+    """
+
+    dm = orange.SymMatrix(len(resl))
+
+    for i in range(len(resl)-1):
+        for j in range(i+1, len(resl)):
+            gen1 = set(resl[i][1][6])
+            gen2 = set(resl[j][1][6])
+            dm[i,j] = float(len(gen1 & gen2)) / len(gen1 | gen2)
+
+    return dm
+
+def exportET(resl):
+    #do not sort them inside
+    
+    if len(resl) <= 0:
+        return None
+
+    def splitn(name):
+        splitndx = name.find("]")
+        collection = name[1:splitndx]
+        name = name[splitndx + 1:]
+        return collection,name
+
+    allCollections = sorted(set([splitn(name)[0] for name,_ in resl]))
+
+    vars = []
+    vars.append(orange.StringVariable("Name"))
+    vars.append(orange.EnumVariable("Collection", values=allCollections ))
+    vars.append(orange.FloatVariable("NES"))
+    vars.append(orange.FloatVariable("ES"))
+    vars.append(orange.FloatVariable("P-value"))
+    vars.append(orange.FloatVariable("FDR"))
+    vars.append(orange.StringVariable("Geneset size"))
+    vars.append(orange.StringVariable("Matched size"))
+    vars.append(orange.StringVariable("Genes"))
+
+    domain = orange.Domain(vars, False)
+
+    examples = []
+    for name, (es, nes, pval, fdr, os, ts, genes) in resl:
+        collection, name = splitn(name)
+        examples.append([name, collection, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
+
+    return orange.ExampleTable(domain, examples)
+
+
+
+
 class PhenotypesSelection(QGroupBox):
     """
     Window indices:
@@ -385,56 +437,6 @@ class OWGsea(OWWidget):
     def genesetDistOut(self, dm):
         self.send("Distance Matrix", dm)
 
-    def exportET(self, resl):
-        #do not sort them inside
-        
-        if len(resl) <= 0:
-            return None
- 
-        def splitn(name):
-            splitndx = name.find("]")
-            collection = name[1:splitndx]
-            name = name[splitndx + 1:]
-            return collection,name
-
-        allCollections = sorted(set([splitn(name)[0] for name,_ in resl]))
-
-        vars = []
-        vars.append(orange.StringVariable("Name"))
-        vars.append(orange.EnumVariable("Collection", values=allCollections ))
-        vars.append(orange.FloatVariable("NES"))
-        vars.append(orange.FloatVariable("ES"))
-        vars.append(orange.FloatVariable("P-value"))
-        vars.append(orange.FloatVariable("FDR"))
-        vars.append(orange.StringVariable("Geneset size"))
-        vars.append(orange.StringVariable("Matched size"))
-        vars.append(orange.StringVariable("Genes"))
-    
-        domain = orange.Domain(vars, False)
-
-        examples = []
-        for name, (es, nes, pval, fdr, os, ts, genes) in resl:
-            collection, name = splitn(name)
-            examples.append([name, collection, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
-
-        return orange.ExampleTable(domain, examples)
-
-
-    def exportDistanceMatrix(self, resl):
-        """
-        Input: results as a list of tuples
-        """
-
-        dm = orange.SymMatrix(len(resl))
-    
-        for i in range(len(resl)-1):
-            for j in range(i+1, len(resl)):
-                gen1 = set(resl[i][1][6])
-                gen2 = set(resl[j][1][6])
-                dm[i,j] = float(len(gen1 & gen2)) / len(gen1 | gen2)
-
-        return dm
-
 
     def fillResults(self, res):
 
@@ -546,11 +548,11 @@ class OWGsea(OWWidget):
                 self.setSelMode(True)
                 resl = self.res.items()
 
-                etres = self.exportET(resl)
+                etres = exportET(resl)
 
                 self.resultsOut(etres)
                 if self.dm == None:
-                    self.dm = self.exportDistanceMatrix(resl)
+                    self.dm = exportDistanceMatrix(resl)
                     
                     for ex in etres:
                         ex.name = str(ex[0])
