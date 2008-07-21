@@ -1,8 +1,6 @@
 import orange
-#import mMisc as m
 import numpy
 import stats
-#import mOrngData
 import random
 import time
 import math, os
@@ -875,16 +873,17 @@ def etForAttribute(datal,a):
     return datat
 
 
-def evaluateEtWith(fn):
+def evaluateEtWith(fn, *args, **kwargs):
     """
-    fn - evaluates example talbe
+    fn - evaluates example table given
+    following arguments.
     """
 
     def newf(datal):
         res = []
         for a in datal[0].domain.attributes:
             et = etForAttribute(datal, a)
-            res.append(fn(et))
+            res.append(fn(et, *args, **kwargs))
         return res
 
     return newf
