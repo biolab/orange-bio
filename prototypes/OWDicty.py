@@ -32,70 +32,42 @@ class MyQThread(QThread):
 ##            print_exception(*sys.exc_info())
         
 class OWDicty(OWWidget):
-    settingsList = ["serverToken", "platform", "tables", "selectedTables"]
+    settingsList = ["serverToken", "platform", "platformList", "experiments", "selectedExperiments"]
     def __init__(self, parent=None, signalManager=None, name="Dicty database"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example tables", ExampleTable, Multiple)]
         self.serverToken = ""
-##        self.type = None
-##        self.typesList = ["norms", "chips"] #[n for n, long in obiDicty.DatabaseConnection.obidPairs]
 
         self.platform = None
         self.platformList = []
         
-        self.sampleList = []
-        self.sampleSelected = []
-
-        self.treatmentList = []
-        self.treatmentSelected = []
-
-        self.growthCondList = []
-        self.growthCondSelected = []
-        
-        self.joinList = [n for n, long in obiDicty.DatabaseConnection.aoidPairs]
-        self.joinSelected = []
-        
-        self.separateList = [n for n, long in obiDicty.DatabaseConnection.aoidPairs]
-        self.separateSelected = []
+        self.experiments = []
+        self.selectedExperiments = []
         
         self.loadSettings()
         
         OWGUI.lineEdit(self.controlArea, self, "serverToken", box="Server Token", callback=self.Connect)
-##        self.typeCombo = OWGUI.comboBox(self.controlArea, self, "type", box="Type", items=self.typesList, sendSelectedValue=True, callback=self.UpdateControls)
-        self.platformCombo = OWGUI.comboBox(self.controlArea, self, "platform", box="Platform", items=self.platformList, sendSelectedValue=True, callback=partial(self.UpdateControls, ["sample", "treatment", "growthCond"]))
-        self.sampleListBox = OWGUI.listBox(self.controlArea, self, "sampleSelected", "sampleList", box="Samples", selectionMode=QListWidget.ExtendedSelection, callback=partial(self.UpdateControls, ["treatment", "growthCond"]))
-        self.treatmentListBox = OWGUI.listBox(self.controlArea, self, "treatmentSelected", "treatmentList", box="Treatment", selectionMode=QListWidget.ExtendedSelection, callback=partial(self.UpdateControls, ["growthCond"]))
-        self.growthCondListBox = OWGUI.listBox(self.controlArea, self, "growthCondSelected", "growthCondList", box="Growth Condition", selectionMode=QListWidget.ExtendedSelection, callback=partial(self.UpdateControls, []))
-        self.joinListBox = OWGUI.listBox(self.mainArea, self, "joinSelected", "joinList", box="Join", selectionMode=QListWidget.ExtendedSelection)
-        self.separateListBox = OWGUI.listBox(self.mainArea, self, "separateSelected", "separateList", box="Separate", selectionMode=QListWidget.ExtendedSelection)
-        
+##        OWGUI.lineEdit(self.mainArea, self, "search", 
+        self.experimentsWidget = QTreeWidget()
+        self.experimentsWidget.setHeaderLabels(["Strain", "Treatment", "Growth condition"])
+        self.experimentsWidget.setSelectionMode(QTreeWidget.ExtendedSelection)
+        self.experimentsWidget.setRootIsDecorated(False)
+##        self.experimentsWidget.setAlternatingRowColors(True)
+        self.mainArea.layout().addWidget(self.experimentsWidget)
 ##        OWGUI.button(self.controlArea, self, "&Preview", callback=self.ShowPreview)
+        OWGUI.button(self.controlArea, self, "&Update", callback=self.UpdateExperiments)
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
         OWGUI.rubber(self.controlArea)
 
-        self.dbc = None
-        self.locks = defaultdict(Lock)
-        self.InitControls()
+        self.dbc = None        
+
+        self.FillExperimentsWidget()
+
+        self.resize(600, 400)
 
     def __updateSelectionList(self, oldList, oldSelection, newList):
         oldList = [oldList[i] for i in oldSelection]
         return [ i for i, new in enumerate(newList) if new in oldList]
-
-    def GetOptions(self):
-        print self.platform, [self.sampleList[i] for i in self.sampleSelected], [self.joinList[i] for i in self.joinSelected], [self.separateList[i] for i in self.separateSelected]
-        return self.platform, [self.sampleList[i] for i in self.sampleSelected], [self.joinList[i] for i in self.joinSelected], [self.separateList[i] for i in self.separateSelected]
-
-    def GetQuery(self):
-        query = {}
-        if self.platform:
-            query["platform"] = self.platform
-        if self.sampleSelected:
-            query["sample"] = [self.sampleList[i] for i in self.sampleSelected]
-        if self.treatmentSelected:
-            query["treatment"] = [self.treatmentList[i] for i in self.treatmentSelected]
-        if self.growthCondSelected:
-            query["growthCond"] = [self.growthCondList[i] for i in self.growthCondSelected]
-        return {} #query
     
     def Connect(self):
         address = "http://www.ailab.si/dictyexpress/api/index.php?"
@@ -110,41 +82,45 @@ class OWDicty(OWWidget):
             return
         self.error(0)
 
-    def InitControls(self):
+    def UpdateExperiments(self):
         if not self.dbc:
             self.Connect()
-        self.platformThread = MyQThread(self, partial(self.dbc.annotationOptions, self.dbc.aoidt("platform")))
-        self.platformCombo.setDisabled(True)
-        def _set():
-            self.platformCombo.clear()
-            self.platformCombo.addItems(self.platformThread.returnValue["platform"])
-            self.platformCombo.setDisabled(False)
-        self.connect(self.platformThread, SIGNAL("finished()"), partial(_set))
-        self.platformThread.start()
-            
-    def UpdateControls(self, controls=()):
-        if not self.dbc:
-            self.Connect()
-        query = self.GetQuery()
-        for control in controls:
-            thread = MyQThread(self, partial(self.dbc.annotationOptions, self.dbc.aoidt(control), **query))
-            setattr(self, control+"Thread", thread)
-            listBox = getattr(self, control+"ListBox")
-            listBox.setDisabled(True)
-            def _set(control):
-                setattr(self, control+"List", getattr(self, control+"Thread").returnValue[control])
-                getattr(self, control+"ListBox").setDisabled(False)
-            self.connect(thread, SIGNAL("finished()"), partial(_set, control))
-            thread.start()
+        self.experiments = []
+        self.experimentsWidget.clear()
+        self.progressBarInit()
+        strains = self.dbc.annotationOptions(self.dbc.aoidt("sample"))["sample"]
+        for i, strain in enumerate(strains):
+            opt = self.dbc.annotationOptions(sample=strain)
+            treatments = opt["treatment"]
+            growthConds = opt["growthCond"]
+            for treatment in treatments:
+                for cond in growthConds:
+                    self.experiments.append([strain, treatment, cond])
+                    QTreeWidgetItem(self.experimentsWidget, self.experiments[-1])
+            self.progressBarSet((100.0 * i) / len(strains))
+        self.progressBarFinished()
+
+    def FillExperimentsWidget(self):
+        self.experimentsWidget.clear()
+        for strings in self.experiments:
+            QTreeWidgetItem(self.experimentsWidget, strings)
 
     def ShowPreview(self):
         pass
 
     def Commit(self):
-        platform, sample, join, separate = self.GetOptions()
-        tables = self.dbc.getData(platform=platform, sample=sample, join=join, separate=separate)
+        if not self.dbc:
+            self.Connect()
+        allTables = []
+##        print self.experimentsWidget.selectedIndexes()
+        for item in self.experimentsWidget.selectedItems():
+##            item = self.experimentsWidget.itemFromIndex(index)
+            print str(item.text(0)), str(item.text(1)), str(item.text(2))
+            tables = self.dbc.getData(sample=str(item.text(0)), treatment=str(item.text(1)), growthCond=str(item.text(2)))
+##            print len(tables)
+            allTables.extend(tables)
         self.send("Example tables", None)
-        for i, table in enumerate(tables):
+        for i, table in enumerate(allTables):
             self.send("Example tables", table, i)
 
 if __name__ == "__main__":
