@@ -13,23 +13,6 @@ from collections import defaultdict
 from threading import Lock, Thread
 from traceback import print_exception
 import sys
-
-class ShadedItemDelegate(QItemDelegate):
-    def paint(self, painter, option, index):
-        self.drawBackground(painter, option, index)
-        value, ok = index.data(Qt.DisplayRole).toString()
-
-class MyQThread(QThread):
-    def __init__(self, parent, func=None):
-        QThread.__init__(self, parent)
-        self.func = func
-        
-    def run(self):
-        try:
-            self.returnValue = self.func()
-        except Exception, ex:
-            pass
-##            print_exception(*sys.exc_info())
         
 class OWDicty(OWWidget):
     settingsList = ["serverToken", "platform", "platformList", "experiments", "selectedExperiments"]
@@ -43,19 +26,22 @@ class OWDicty(OWWidget):
         
         self.experiments = []
         self.selectedExperiments = []
+
+        self.searchString = ""
         
         self.loadSettings()
         
         OWGUI.lineEdit(self.controlArea, self, "serverToken", box="Server Token", callback=self.Connect)
-##        OWGUI.lineEdit(self.mainArea, self, "search", 
+        OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
         self.experimentsWidget = QTreeWidget()
         self.experimentsWidget.setHeaderLabels(["Strain", "Treatment", "Growth condition"])
         self.experimentsWidget.setSelectionMode(QTreeWidget.ExtendedSelection)
         self.experimentsWidget.setRootIsDecorated(False)
+        self.experimentsWidget.setSortingEnabled(True)
 ##        self.experimentsWidget.setAlternatingRowColors(True)
         self.mainArea.layout().addWidget(self.experimentsWidget)
 ##        OWGUI.button(self.controlArea, self, "&Preview", callback=self.ShowPreview)
-        OWGUI.button(self.controlArea, self, "&Update", callback=self.UpdateExperiments)
+        OWGUI.button(self.controlArea, self, "&Update list", callback=self.UpdateExperiments)
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
         OWGUI.rubber(self.controlArea)
 
@@ -87,6 +73,7 @@ class OWDicty(OWWidget):
             self.Connect()
         self.experiments = []
         self.experimentsWidget.clear()
+        self.items = []
         self.progressBarInit()
         strains = self.dbc.annotationOptions(self.dbc.aoidt("sample"))["sample"]
         for i, strain in enumerate(strains):
@@ -96,17 +83,29 @@ class OWDicty(OWWidget):
             for treatment in treatments:
                 for cond in growthConds:
                     self.experiments.append([strain, treatment, cond])
-                    QTreeWidgetItem(self.experimentsWidget, self.experiments[-1])
+                    self.items.append(QTreeWidgetItem(self.experimentsWidget, self.experiments[-1]))
             self.progressBarSet((100.0 * i) / len(strains))
         self.progressBarFinished()
 
     def FillExperimentsWidget(self):
+        if not self.experiments:
+            self.UpdateExperiments()
+            return
         self.experimentsWidget.clear()
+        self.items = []
         for strings in self.experiments:
-            QTreeWidgetItem(self.experimentsWidget, strings)
+            self.items.append(QTreeWidgetItem(self.experimentsWidget, strings))
+        
 
     def ShowPreview(self):
         pass
+
+    def SearchUpdate(self, string=""):
+        print "s:",self.searchString
+        for item in self.items:
+            item.setHidden(not all(s in (item.text(0) + item.text(1) + item.text(2)) for s in self.searchString.split()))
+            
+        
 
     def Commit(self):
         if not self.dbc:
