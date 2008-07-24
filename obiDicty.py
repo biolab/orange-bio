@@ -157,6 +157,7 @@ class DBInterface(object):
             return self.raw(request, tryN=tryN-1)
 
     def get(self, request):
+##        print "Request:" + request
         rawf = self.raw(request)
         if rawf == None:
             raise Exception("Connection error when contacting " + self.address + request)
@@ -179,6 +180,7 @@ def splitTableOnColumn(ll,n):
     return omap
 
 def neededColumns(legend, want):
+##    print legend, want
     return [ legend.index(a) for a in want ]
 
 def onlyColumns(ll, legend, want):
@@ -397,7 +399,7 @@ chips chips""")
 
         l = []
         for k,v in kwargs.items():
-            if not issequencens(v):
+            if v.__class__ in [str, unicode, int]:
                 v = [ v ]
             l.append((k,v))
 
