@@ -98,7 +98,6 @@ class OWDicty(OWWidget):
             treatments = opt["treatment"]
             growthConds = opt["growthCond"]
             platforms = opt["platform"]
-            print opt
             for treatment in treatments:
                 for cond in growthConds:
                     for platform in platforms:
@@ -129,7 +128,7 @@ class OWDicty(OWWidget):
         separate = [self.separateList[i] for i in self.separateSelected]
         import time
         start = time.time()
-        print "Start:", start
+        print "Start:"
         for item in self.experimentsWidget.selectedItems():
             tables = self.dbc.getData(sample=str(item.text(0)), treatment=str(item.text(1)), growthCond=str(item.text(2)), join=join, separate=separate)
             for table in tables:
