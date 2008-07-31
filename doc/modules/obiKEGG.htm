@@ -8,7 +8,7 @@
 
 <body>
 <h1>obiKEGG: Interface to KEGG(Kyoto Encyclopedia of Genes and Genomes)</h1>
-<p>obiKEGG is an interface to <a href="http://www.genome.jp/kegg/">Kyoto Encyclopedia of Genes and Genomes</a> that allows easy access to KEGG pathway and genes data.</p>
+<p>obiKEGG is an interface to <a href="http://www.genome.jp/kegg/">Kyoto Encyclopedia of Genes and Genomes</a> that allows easy access to KEGG pathway and gene data.</p>
 
 <h2>Local data manipulation</h2>
 <h2><index>Update</index></h2>
@@ -29,6 +29,16 @@
 </dl>
 
 <h2><index>KEGGOrganism</index></h2>
+<p><code>KEGGOrgansim</code> is a class for easy access to organism specific data.</p>
+<p class=section>Attributes</p>
+<dl class=attributes>
+	<dt>org</dt>
+	<dd>Kegg organism code (e.g. "hsa")</dd>
+	<dt>local_database_path</dt>
+	<dd>Path to the local database. If <code>None</code> the <code>obiKEGG.default_database_path</code> will be used</dd>
+</dl>
+<p class="header">Example: construction</p>
+<xmp class="code">org = KEGGOrganism("hsa", local_database_path="C:\\kegg")</xmp>
 <p class=section>Methods</p>
 <dl class=attributes>
 	<dt>list_pathways()</dt>
@@ -78,7 +88,24 @@
 	
 </dl>
 
+<h3>Example<h3>
+<p class="header">Getting enriched pathways</p>
+<xmp class="code">org = KEGGOrganism("hsa")
+genes, _, _ = org.get_unique_gene_ids([...])
+res = orng.get_enriched_pathways(genes)
+for p_id, (genes, p_value, refCount) in res.items():
+	print "Pathway id %s with p-value %.4f" %(p_id, p_value)</xmp>
+
+
 <h2><index>KEGGPathway</index></h2>
+<p><code>KEGGPathway</code> is a class for pathway specific data</p>
+<p class=section>Attributes</p>
+<dl class=attributes>
+	<dt>pathway_id</dt>
+	<dd>Kegg pathway id code (e.g. "hsa:00052")</dd>
+	<dt>local_database_path</dt>
+	<dd>Path to the local database. If <code>None</code> the <code>obiKEGG.default_database_path</code> will be used</dd>
+</dl>
 <p class=section>Methods</p>
 <dl class=attributes>
 	<dt>get_image()</dt>
@@ -103,3 +130,10 @@
 	<dd>Return all compounds on the pathway</dd>
 	
 </dl>
+
+<h3>Example<h3>
+<p class="header">Retrieval of enriched pathway images with marked genes</p>
+<xmp class="code">for p_id, (genes, _, _) in res.items():
+	pathway = KEGGPathway(p_id)
+	image = pathway.get_colored_image(genes)
+	image.save(p_id)</xmp>
