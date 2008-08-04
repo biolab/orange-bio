@@ -78,6 +78,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene attribute", callback=self.Update)
         OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use attribute names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.SetUseAttrNamesCallback)
         self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
+        self.geneInfoLabel = OWGUI.label(self.geneAttrIndexCombo.box, self, "0 genes on input signal")
         
        
         box = OWGUI.widgetBox(self.inputTab, "GO update")
@@ -279,6 +280,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def SetClusterDataset(self, data=None):
         self.closeContext()
         self.clusterDataset = data
+        self.geneInfoLabel.setText("")
         if data:
             self.SetGenesComboBox()
             self.FindBestGeneAttrAndOrganism()
@@ -408,6 +410,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             else:
                 self.information(0)
         self.UpdateGOAliases(clusterGenes)
+        self.geneInfoLabel.setText("%i genes on input" % len(clusterGenes))
         self.clusterGenes = clusterGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, clusterGenes)
         referenceGenes = None
         if self.useReferenceDataset:
@@ -442,6 +445,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##            go.loadedAnnotation.__annotation.aliasMapper = old
         else:
             self.terms = terms = {}
+        if not self.terms:
+            self.warning(0, "No terms found")
+        else:
+            self.warning(0)
         self.progressBarFinished()
         self.treeStructDict = {}
         ids = self.terms.keys()
