@@ -1,5 +1,5 @@
 import ftplib
-import urllib
+import urllib, urllib2
 import threading
 import os
 import time
@@ -124,59 +124,22 @@ class FtpThreadWorker(threading.Thread, FtpWorker):
             filename, local, update, retryCount, progressCallback = self.queue.get()
             self.retrieve(filename, local, update, progressCallback)
             self.queue.task_done()
-            
-##class FtpThread(threading.Thread):
-##    def __init__(self, ftpAddr, queue, group=None, target=None, name=None, args=(), kwargs={}):
-##        threading.Thread.__init__(self, group, target, name, args, kwargs)
-##        self.ftpAddr =ftpAddr
-##        self.queue = queue
-##        self.ftp = ftplib.FTP()
-##        #self.ftp.login()
-##            
-##    def run(self):
-##        loginRetry = False
-##        while True:
-##            if not loginRetry:
-##                filename, local, update, retryCount, progressCallback = self.queue.get()
-##            try:
-##                if self.isLocal(local) and not update:
-##                    continue
-##                size, date = self.statFtp(filename)
-##                if update and update!="force":
-##                    sizeLocal, dateLocal = self.statLocal(local)
-##                    if sizeLocal!=size:
-##                        update = "force"
-##                    if False and dateLocal < date: # TODO fix date comparison
-##                        update = "force"
-##                    
-##                if not self.isLocal(local) or update=="force":
-##                    s = StringIO()
-##                    if progressCallback:
-##                        self.ftp.retrbinary("RETR "+filename, _ftpCallbackWrapper(size, s.write, progressCallback))
-##                    else:
-##                        self.ftp.retrbinary("RETR "+filename, s.write)
-##                    s.getvalue()
-##                    if s.len>size:
-##                        raise Exception("Wrong size of file "+filename)
-##                    f = open(local, "wb")
-##                    f.write(s.buf)
-##                    f.close()
-##                loginRetry = False
-##
-##            except (ftplib.error_temp, ftplib.error_perm), ex:
-##                print ex
-##                self.ftp.connect(self.ftpAddr)
-##                self.ftp.login()
-##                loginRetry = True
-##                #self.queue.put((filename, local, update, retryCount, progressCallback))
-##            except Exception, ex:
-##                print ex
-##                print (filename, local, retryCount+1)
-##                if retryCount<5:
-##                    self.queue.put((filename, local, "force", retryCount+1, progressCallback))
-##                loginRetry = False
-##            self.queue.task_done()
 
+class DownloaderBase(object):
+    def __init__(self, remoteAddr, localDir, remoteDir="", numOfThreads=5):
+        self.remoteAddr = remoteAddr
+        self.localDir = localDir
+        self.remoteDir = remoteDir
+        self.numOfThreads = numOfThreads
+
+    def retrieve(self, *args):
+        raise NotImplementedError
+
+    def massRetrieve(self, *args):
+        raise NotImplementedError
+
+    def GetIfModified(self, filename, date):
+        raise NotImplementedError
     
 class FtpDownloader(object):
     def __init__(self, ftpAddr, localDir, ftpDir="", numOfThreads=5):
@@ -227,8 +190,10 @@ class FtpDownloader(object):
             self.ftpWorker.retrieve(self.ftpDir+filename, self.localDir+filename, update, progressCallback)
         else:
             self.queue.put((self.ftpDir+filename, self.localDir+filename, update, 0, progressCallback))
-##        if blocking:
-##            while not self.queue.empty():
-##                time.sleep(0.1)
-##            #self.queue.join()
-    
+
+##class HTTPDownloader(DownloaderBase):
+##    def __init__(self, *args, **kwargs):
+##        DownloaderBase.__init__(self, *args, **kwargs)
+##
+##    def retrieve(self, filename):
+##        

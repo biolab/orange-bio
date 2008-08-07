@@ -271,7 +271,7 @@ class KEGGInterfaceLocal(object):
         file = self._retrieve(rel_path+org+"_gene_map.tab")
         pathway_nums = set(reduce(lambda a,b: a + b.split()[1:], file.readlines(), []))
         descr = dict(map(lambda line:tuple(line.strip().split("\t")), self._retrieve("pathway/map_title.tab").readlines()))
-        dump(descr, open(self.local_database_path+"list_pathways_map.pickle", "w"))
+##        dump(descr, open(self.local_database_path+"list_pathways_map.pickle", "w"))
         ids = [org+num for num in pathway_nums]
         try:
             organisms = load(open(self.local_database_path+"list_organisms.pickle"))
@@ -279,8 +279,8 @@ class KEGGInterfaceLocal(object):
             organisms = {}
         if org not in organisms:
             organisms[org] = self._taxonomy.get(org, "  ")[1]
-            dump(organisms, open(self.local_database_path+"list_organisms.pickle", "w"))
-        dump(dict([("path:"+org+num, descr[num]) for num in pathway_nums]), open(self.local_database_path+"list_pathways_"+org+".pickle","w"))
+##            dump(organisms, open(self.local_database_path+"list_organisms.pickle", "w"))
+##        dump(dict([("path:"+org+num, descr[num]) for num in pathway_nums]), open(self.local_database_path+"list_pathways_"+org+".pickle","w"))
         
         ends = [".cpd", ".gene", ".gif", ".map", "_cpd.coord", "_gene.coord", ".conf"]
         files = [rel_path+id+ext for id in ids for ext in ends]
@@ -815,6 +815,8 @@ class Update(UpdateBase):
     @synchronized(updateLock)
     def UpdateOrganism(self, org):
         self.api.download_organism_data(org)
+        os.remove(os.path.join(self.local_database_path, "genes//organisms//" + org + "_genes.pickle"))
+        self.api._load_gene_database(org)
         self._update(Update.UpdateOrganism, (org,))
 
     @synchronized(updateLock)
@@ -824,8 +826,12 @@ class Update(UpdateBase):
 
     @synchronized(updateLock)
     def UpdateEnzymeAndCompounds(self):
-        self.api.massDownloader.retrieve(["ligand//compound//compound", "ligand/enzyme/enzyme"], progressCallback=self.progressCallback)
+        self.api.massDownloader.retrieve(["ligand//compound//compound", "ligand//enzyme//enzyme"], progressCallback=self.progressCallback)
         self._update(Update.UpdateEnzymeAndCompounds, ())
+
+    def GetTarballDirs(self):
+        orgs = self.api.list_organisms()
+        return ["pathway//organisms//"+org for org in orgs] + ["pathway//map"]
 
 if __name__=="__main__":
     
