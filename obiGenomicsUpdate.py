@@ -72,15 +72,24 @@ class PKGManager(object):
         self.endState = {}
 
     def Update(self):
-        os.chdir(self.local_database_path)
         for func, desc, argList in self.updater.GetUpdatable() + self.updater.GetDownloadable():
-            for args in argList:
-                self.InitWatch()
-                print desc, "Calling:", func, "with:", args
-                func(self.updater,args)
-                self.EndWatch()
-                self.Create(func.__name__+str(args))
+            for args in argList or [""]:
+                self.MakePKG(func, desc, args)
 
+    def MakePKG(self, func, desc="", args=""):
+        realpath = os.path.realpath(os.curdir)
+        os.chdir(self.local_database_path)
+        self.InitWatch()
+        if args == "":
+            print desc, "Calling:", func
+            func(self.updater)
+        else:
+            print desc, "Calling:", func, "with:", args
+            func(self.updater, args)
+        self.EndWatch()
+        self.Create(func, desc, args)
+        os.chdir(realpath)
+        
     def Collect(self, state):
         for dirpath, dirnames, filenames in os.walk("."):
             for filename in filenames:
@@ -97,13 +106,14 @@ class PKGManager(object):
         self.endState = {}
         self.Collect(self.endState)
 
-    def Create(self, name):
-        initial = set(self.initialState.items())
-        end = set(self.endState.items())
-        update = end - initial
+    def Diff(self):
+        return list(set(self.endState.items()) - set(self.initialState.items()))
+
+    def Create(self, func, desc, args):
+        name = func.__name__ + ("_" + str(args) if args else "")
         tarDirs = set()
         files = set()
-        for filename, time in list(update):
+        for filename, time in self.Diff():
             if self.InTarball(filename):
                 tarDirs.add(self.InTarball(filename))
             else:
