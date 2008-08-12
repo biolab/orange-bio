@@ -12,6 +12,8 @@ from urllib import urlopen
 from sgmllib import SGMLParser
 import os.path
 
+FUZZYMETAID = -12
+
 class obiMeSH(object):
 	def __init__(self):
 		self.path = "data/MeSH"
@@ -100,6 +102,36 @@ class obiMeSH(object):
 		if callback:
 			callback(100)
 		print "Ontology database has been updated."
+
+	def expandToFuzzyExamples(self, examples, a, b):
+		""" function will return new example table with some examples (effect is in (a,b)) expanded to fuzzy """
+		mu = orange.FloatVariable("u")
+		mv = orange.StringVariable("fuzzy set")
+		examples.domain.addmeta(FUZZYMETAID, mu)
+		examples.domain.addmeta(FUZZYMETAID-1, mv)
+		newexamples = []
+		for j in range(0,len(examples)):
+			i = examples[j]
+			v = float(i['effect'])
+			if v > a and v < b:  # we have to expand this example
+				newexamples.append(i)
+				i["fuzzy set"] = 'yes'
+				i["u"] = (v-a)/(b-a)
+				examples.append(i)
+				examples[-1]["fuzzy set"] = "no"
+				examples[-1]["u"] = (b-v)/(b-a)
+				#newexamples[-1]["set"] = 'no'
+				#newexamples[-1]["u"] =  (b-v)/(b-a)
+			else:
+				if v > a:  #		u(yes) = 1.0
+					i["fuzzy set"] = 'yes'
+					i["u"] = 1.0
+				else: #		u(no) = 1.0
+					i["fuzzy set"] = 'no'
+					i["u"] = 1.0
+		#for i in newexamples:
+		#	examples.append(i)
+		return examples
 
 	def findSubset(self,examples,meshTerms, callback = None, MeSHtype = 'term'):
 		""" function examples which have at least one node on their path from list meshTerms
@@ -314,7 +346,7 @@ class obiMeSH(object):
 		succesors["tops"] = tops
 		return succesors  
 		
-	def findEnrichedTerms(self,reference, cluster, pThreshold=0.015, treeData = False, callback=None):
+	def findEnrichedTerms(self,reference, cluster, pThreshold=0.05, treeData = False, callback=None, fuzzy = False):
 		""" like above, but only includes enriched terms (with p value equal or less than pThreshold). Returns a list of (term_id,  term_description, countRef, countCluster, p-value,	enrichment/deprivement, list of corrensponding cids ... anything else necessary). It printOrder is true function returns results in nested lists. This means that at printing time we know if there is any relationship betwen terms"""
 
 		self.clu_att = self.__findMeshAttribute(cluster)
@@ -323,7 +355,7 @@ class obiMeSH(object):
 		if((not self.calculated or self.reference != reference or self.cluster != cluster) and self.ref_att != "Unknown" and self.clu_att != "Unknown"):	# Do have new data? Then we have to recalculate everything.
 			self.reference = reference
 			self.cluster = cluster			
-			self.__calculateAll(callback)
+			self.__calculateAll(callback, fuzzy)
 
 		# declarations
 		ret = dict()
@@ -509,12 +541,21 @@ class obiMeSH(object):
 			return True
 		return False
 
-	def __calculateAll(self, callback):
+	def __calculateAll(self, callback, fuzzy):
 		"""calculates all statistics"""
 		# we build a dictionary 		meshID -> [description, noReference,noCluster, enrichment, deprivement, [cids] ]
 		self.statistics = dict()
-		n = len(self.reference) 										# reference size
-		cln = len(self.cluster)											# cluster size
+		if fuzzy:
+			n = 0
+			for i in self.reference:
+				n = n + float(i['u'])
+			cln = 0
+			for i in self.cluster:
+				cln = cln + float(i['u'])
+
+		else:
+			n = len(self.reference) 										# reference size
+			cln = len(self.cluster)											# cluster size
 		# frequency from reference list
 		r = 0.0
 		for i in self.reference:
@@ -525,7 +566,10 @@ class obiMeSH(object):
 				endNodes = list(set(eval(i[self.ref_att].value))) # for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
 			except SyntaxError:					 # where was a parse error
 				print "Error in parsing ",i[self.ref_att].value
-				n=n-1
+				if fuzzy:
+					n = n - float(i["u"])
+				else:
+					n=n-1
 				continue
 			#we find ID of end nodes
 			endIDs = []
@@ -536,14 +580,20 @@ class obiMeSH(object):
 					print "Current ontology does not contain MeSH term ", k, "." 
 			# endIDs may be empty > in this case we can skip this example
 			if len(endIDs) == 0:
-				n = n-1
+				if fuzzy:
+					n = n - float(i["u"])
+				else:
+					n = n-1
 				continue
 			# we find id of all parents
 			allIDs = self.__findParents(endIDs)
 			for k in list(set(allIDs)):								# for every meshID we update statistics dictionary
 				if(not self.statistics.has_key(k)):			# first time meshID
 					self.statistics[k] = [ 0, 0, 0.0, 0.0 ]
-				self.statistics[k][0] += 1 # increased noReference
+				if fuzzy:
+					self.statistics[k][0] += float(i["u"])
+				else:
+					self.statistics[k][0] += 1 # increased noReference
 		# frequency from cluster list
 		r=0.0
 		for i in self.cluster:
@@ -554,7 +604,10 @@ class obiMeSH(object):
 				endNodes = list(set(eval(i[self.clu_att].value))) # for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
 			except SyntaxError:
 				#print "Error in parsing ",i[self.clu_att].value
-				cln = cln - 1
+				if fuzzy:
+					cln = cln - float(i["u"])
+				else:
+					cln = cln - 1
 				continue
 			# we find ID of end nodes
 			endIDs = []
@@ -563,17 +616,23 @@ class obiMeSH(object):
 					endIDs.extend(self.toID[k]) # for every endNode we add all corensponding meshIDs
 			# endIDs may be empty > in this case we can skip this example
 			if len(endIDs) == 0:
-				cln = cln-1
+				if fuzzy:
+					cln = cln - float(i["u"])
+				else:
+					cln = cln-1
 				continue
 			# we find id of all parents
 			allIDs = self.__findParents(endIDs)								
 			for k in list(set(allIDs)): # for every meshID we update statistics dictionary
 				if self.statistics.has_key(k):
-					self.statistics[k][1] += 1 # increased noCluster 
+					if fuzzy:
+						self.statistics[k][1] += float(i["u"])
+					else:
+						self.statistics[k][1] += 1 # increased noCluster 
 		self.ratio = float(cln)/float(n)
 		# enrichment
 		for i in self.statistics.iterkeys():
-			self.statistics[i][2] = self.__calcEnrichment(n,cln,self.statistics[i][0],self.statistics[i][1])	# p enrichment
+			self.statistics[i][2] = self.__calcEnrichment(int(n),int(cln),int(self.statistics[i][0]),int(self.statistics[i][1])) 	# p enrichment
 			self.statistics[i][3] = float(self.statistics[i][1]) / float(self.statistics[i][0] ) / self.ratio   # fold enrichment
 		self.calculated = True		
 
