@@ -9,6 +9,7 @@ import OWGUI
 
 import sys
 
+
 class MyTreeWidgetItem(QTreeWidgetItem):
     def __contains__(self, text):
         return any(text.upper() in str(self.text(i)).upper() for i in range(self.columnCount()))    
@@ -19,6 +20,7 @@ class OWDicty(OWWidget):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example tables", ExampleTable, Multiple)]
         self.serverToken = ""
+        self.server = "http://www.ailab.si/dictyexpress/api/index.php"
 
         self.platform = None
         self.platformList = []
@@ -34,14 +36,16 @@ class OWDicty(OWWidget):
 
         self.searchString = ""
         
-        OWGUI.lineEdit(self.controlArea, self, "serverToken", box="Server Token", callback=self.Connect)
-        
         self.joinListBox = OWGUI.listBox(self.controlArea, self, "joinSelected", "joinList", box="Join By", selectionMode=QListWidget.ExtendedSelection, callback=self.UpdateJoinSelected)
         self.separateListBox = OWGUI.listBox(self.controlArea, self, "separateSelected", "separateList", box="Separate By", selectionMode=QListWidget.ExtendedSelection, callback=self.UpdateJoinSelected)
         OWGUI.button(self.controlArea, self, "&Update list", callback=self.UpdateExperiments)
 ##        box = OWGUI.widgetBox(self.controlArea, "Data")
-##        OWGUI.checkBox(box, self, "useCache", "Use cached data", 
+##        OWGUI.checkBox(box, self, "useCache", "Use cached data",
+##        OWGUI.button(self.controlArea, self, "Preview", callback=self.Preview)
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
+        box  = OWGUI.widgetBox(self.controlArea, "Server")
+        OWGUI.lineEdit(box, self, "server", "Address", callback=self.Connect)
+        OWGUI.lineEdit(box, self, "serverToken","Token", callback=self.Connect)
         OWGUI.rubber(self.controlArea)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
@@ -67,7 +71,7 @@ class OWDicty(OWWidget):
         return [ i for i, new in enumerate(newList) if new in oldList]
     
     def Connect(self):
-        address = "http://www.ailab.si/dictyexpress/api/index.php?"
+        address = self.server + "?"
         if self.serverToken:
             address += "token="+self.serverToken+"&"
         try:
@@ -118,7 +122,18 @@ class OWDicty(OWWidget):
     def SearchUpdate(self, string=""):
         for item in self.items:
             item.setHidden(not all(s in item for s in self.searchString.split()))
-            
+
+    def Preview(self):
+        if not self.dbc:
+            self.Connect()
+        join = [self.joinList[i] for i in self.joinSelected]
+        separate = [self.separateList[i] for i in self.separateSelected]
+        for item in self.experimentsWidget.selectedItems():
+            ids = self.dbc.search("norms", sample=str(item.text(0)), treatment=str(item.text(1)), growthCond=str(item.text(2)), platform=str(item.text(3)))
+            read = self.dbc.dictionarize(ids, self.dbc.annotations, "norms", ids)
+            groups = self.dbc.groupAnnotations(read, join=join, separate=separate)
+            for group in groups:
+                print [t[0] for t in group[0]]
     
     def Commit(self):
         if not self.dbc:
