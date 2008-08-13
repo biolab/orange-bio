@@ -127,6 +127,8 @@ class HttpGetException(Exception): pass
 def httpGet(address, *args, **kwargs):
     if verbose: 
         print address
+    address = address.strip().replace(" ", "%20")
+    
     t1 = time.time()
     f = urllib.urlopen(address, *args, **kwargs)
     read = f.read()
