@@ -106,7 +106,7 @@ class MA_t_test(object):
             t, prob = stats.lttest_ind(exa, exb)
             return prob if self.prob else t
         except:
-            return 1.0 if sefl.prob else 0.0
+            return 1.0 if self.prob else 0.0
 
 class MA_fold_change(object):
     def __init__(self, a=None, b=None):
