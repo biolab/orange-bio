@@ -540,34 +540,39 @@ class GSEA(object):
             #join specified classes
 
         def attrOk(a, data):
+    
+            a = data.domain.attributes.index(a)
 
             #can't
-            if a.varType != orange.VarTypes.Continuous:
+            if data.domain.attributes[a].varType != orange.VarTypes.Continuous:
                 return False
 
-            dom2 = orange.Domain([a],data.domain.classVar)
-            d2 = orange.ExampleTable(dom2, data)
-            vals = [ex[0].value for ex in d2 if not ex[0].isSpecial()]
+            if not data.domain.classVar:
 
-            if len(vals) < 1:
-                return False 
+                vals = [ex[a].value for ex in data if not ex[a].isSpecial()]
+                if len(vals) < 1:
+                    return False 
             
-            if len(data) > 1 and data.domain.classVar:
-                valc = [ [ex[0].value for ex in d2 \
-                            if not ex[0].isSpecial() and ex[1] == data.domain.classVar[i] \
+            if len(data) > 1 and data.domain.classVar and atLeast > 0:
+
+                valc = [ [ex[a].value for ex in data \
+                            if not ex[a].isSpecial() and ex[-1] == data.domain.classVar[i] \
                        ] for i in range(len(nclassvalues)) ]
                 minl = min( [ len(a) for a in valc ])
                 
                 if minl < atLeast:
+                    #print "Less than atLeast"
                     return False
 
             return True
         
 
         def notOkAttributes(data):
+            print "new data"
             ignored = []
             for a in data.domain.attributes:
                 if not attrOk(a, data):
+                    #print "Removing", a
                     ignored.append(a)
             return ignored
         
@@ -575,7 +580,16 @@ class GSEA(object):
         if iset(datai):
             ignored = set(notOkAttributes(datai))
         else:
-            ignored = set(reduce(lambda x,y: x+y, [ notOkAttributes(data) for data in datai ]))
+            #ignore any attribute which is has less than atLeast values for each class
+            #ignored = set(reduce(lambda x,y: x+y, [ notOkAttributes(data) for data in datai ]))
+
+            #remove any attribute, which is ok in less than half of the dataset
+            ignored = []
+            for a in data.domain.attributes:
+                attrOks = sum([ attrOk(a, data) for data in datai ])
+                if attrOks < len(datai)/2:
+                    ignored.append(a)
+
 
         natts = [ a for a in itOrFirst(datai).domain.attributes if a not in ignored ]
         #print ignored, natts, set(ignored) & set(natts)
@@ -739,7 +753,13 @@ def genesetsLoadGMT(s):
 def collectionsPathname():
     if not collectionsPath:
         import orngRegistry
-        return os.path.join(orngRegistry.directoryNames["bufferDir"], "gsea", "genesets")
+        pth = os.path.join(orngRegistry.directoryNames["bufferDir"], "gsea", "genesets")
+        try:
+            os.makedirs(pth)
+        except:
+            pass
+
+        return pth
     else:
         return collectionsPath
 
