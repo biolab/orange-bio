@@ -60,7 +60,7 @@ class Singleton(object):
         else:
             return cls(*args, **kw)
             
-from threading import Lock
+from threading import RLock as Lock
 
 def synchronized(lock):
     def syncfunc(func):
@@ -144,10 +144,7 @@ class ImageCacheManager(Singleton):
                 return inst
             except Exception, ex:
                 print "Image cache loading failed", filename, ex
-                from traceback import print_exception
-                print_exception(*sys.exc_info())
                 inst = cls(*args, **kw)
-                print inst
                 inst.cachefilename = filename
                 return inst
             
@@ -710,7 +707,7 @@ class OWMoleculeVisualizer(OWWidget):
             elif self.fromCacheCount == 0:
                 self.infoLabel.setText("%i chemicals\nAll images from server" % len(self.imageWidgets))
             else:
-                self.infoLabel.setText("%i chemicals\n%i images from server %i from local cache" % (len(self.imageWidgets), len(self.imageWidgets)-self.fromCacheCount, self.fromCacheCount))
+                self.infoLabel.setText("%i chemicals\n%i images from server\n%i from local cache" % (len(self.imageWidgets), len(self.imageWidgets)-self.fromCacheCount, self.fromCacheCount))
         else:
             self.infoLabel.setText("Chemicals %i" % len(self.imageWidgets))
 
