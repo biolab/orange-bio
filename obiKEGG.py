@@ -21,6 +21,8 @@ except:
 
 base_ftp_path = "ftp://ftp.genome.jp/pub/kegg/"
 
+forceUpdate = False
+
 import htmllib
 class HTMLImageCollector(htmllib.HTMLParser):
     def __init__(self):
@@ -385,7 +387,8 @@ class KEGGInterfaceLocal(object):
         self._taxonomy = d
         
     def _retrieve(self, filename):
-        self.downloader.retrieve(filename, update=self.update, progressCallback=self.download_progress_callback)
+        if forceUpdate == True or self.update == "Force update":
+            self.downloader.retrieve(filename, update=self.update, progressCallback=self.download_progress_callback)
         return open(self.local_database_path+filename)
     
     def list_organisms(self):
@@ -798,24 +801,28 @@ import tarfile
 class Update(UpdateBase):
     def __init__(self, local_database_path=None, progressCallback=None):
         UpdateBase.__init__(self, local_database_path if local_database_path else default_database_path, progressCallback)
-        self.api = KEGGInterfaceLocal(False, self.local_database_path, progressCallback)
+        self.api = KEGGInterfaceLocal("Force update", self.local_database_path, progressCallback)
 
 ##    @synchronized(updateLock)
-    def GetUpdatable(self):
-        ret = []
-        ret.extend([(Update.UpdateReference, "Update reference pathways", [])] if str((Update.UpdateReference, ())) in self.shelve else [])
-        ret.extend([(Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])] if str((Update.UpdateEnzymeAndCompounds)) in self.shelve else[])
-        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism, (org,))) in self.shelve]
-        ret.extend([(Update.UpdateOrganism, "Update organism pathways and genes" , orgs)] if orgs else [])
-        return ret
-        
+##    def GetUpdatable(self):
+##        ret = []
+##        ret.extend([(Update.UpdateReference, "Update reference pathways", [])] if str((Update.UpdateReference, ())) in self.shelve else [])
+##        ret.extend([(Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])] if str((Update.UpdateEnzymeAndCompounds)) in self.shelve else[])
+##        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism, (org,))) in self.shelve]
+##        ret.extend([(Update.UpdateOrganism, "Update organism pathways and genes" , orgs)] if orgs else [])
+##        return ret
+##        
 ##    @synchronized(updateLock)
+
+    def IsUpdatable(self, func, args):
+        return True
+    
     def GetDownloadable(self):
         ret = []
-        ret.extend([(Update.UpdateReference, "Update reference pathways", [])] if str((Update.UpdateReference, ())) not in self.shelve else [])
-        ret.extend([(Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])] if str((Update.UpdateEnzymeAndCompounds, ())) not in self.shelve else [])
-        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism, (org,))) not in self.shelve]
-        ret.extend([(Update.UpdateOrganism, "Update organism pathways and genes" , orgs)] if orgs else [])
+        ret.extend([(Update.UpdateReference, ())] if (Update.UpdateReference, ()) not in self.shelve else [])
+        ret.extend([(Update.UpdateEnzymeAndCompounds, ())] if (Update.UpdateEnzymeAndCompounds, ()) not in self.shelve else [])
+        orgs = [org for org in self.api.list_organisms() if (Update.UpdateOrganism, (org,)) not in self.shelve]
+        ret.extend([(Update.UpdateOrganism , (org,)) for org in orgs])
         return ret
 
 ##    @synchronized(updateLock)
@@ -829,12 +836,12 @@ class Update(UpdateBase):
         self._update(Update.UpdateOrganism, (org,))
 
 ##    @synchronized(updateLock)
-    def UpdateReference(self, *_):
+    def UpdateReference(self):
         self.api.download_reference_data()
         self._update(Update.UpdateReference, ())
 
 ##    @synchronized(updateLock)
-    def UpdateEnzymeAndCompounds(self, *_):
+    def UpdateEnzymeAndCompounds(self):
         self.api.downloader.massRetrieve(["ligand//compound//compound", "ligand//enzyme//enzyme"], progressCallback=self.progressCallback)
         for file in ["ligand//compound//_compounds.pickle", "ligand//enzyme//_enzymes.pickle", "ligand/enzyme/_from_gene_to_enzymes.pickle", "ligand/compound/_from_enzyme_to_compounds.pickle"]:
             try:
@@ -850,25 +857,27 @@ class Update(UpdateBase):
         return ["pathway//organisms//"+org for org in orgs] + ["pathway//map"]
 
 class PKGManager(PKGManagerBase):
-    def __init__(self, updater, compression="gz"):
-        PKGManagerBase.__init__(self, updater, updater.GetTarballDirs(), compression)
+    def __init__(self, updater, *args, **kwargs):
+        PKGManagerBase.__init__(self, updater, updater.GetTarballDirs(), *args, **kwargs)
 
-    def Create(self, func, desc, args):
+    def Create(self, func, args):
         name = func.__name__ + ("_" + str(args) if args else "")
         if not self.Diff():
-            return
+            return None
         print "Creating:", name + ".tar" + ("." + self.compression if self.compression else "")
         tarFile = tarfile.open(name + ".tar" + ("." + self.compression if self.compression else ""), "w:"+self.compression)
         if func == Update.UpdateOrganism:
-            tarFile.add(os.path.normpath("pathway//organisms//" + args))
-            tarFile.add(os.path.normpath("genes//organisms//" + args))
-            tarFile.add(args+"_genenames.pickle")
+            tarFile.add(os.path.normpath("pathway//organisms//" + args[0]))
+            tarFile.add(os.path.normpath("genes//organisms//" + args[0]))
+            tarFile.add(args[0] + "_genenames.pickle")
         elif func == Update.UpdateReference:
             tarFile.add(os.path.normpath("pathway//map"))
             tarFile.add(os.path.normpath("pathway//map_title.tab"))
         elif func == Update.UpdateEnzymeAndCompounds:
             tarFile.add(os.path.normpath("ligand//compound//"))
             tarFile.add(os.path.normpath("ligand//enzyme//"))
+        tarFile.close()
+        return name + ".tar" + ("." + self.compression if self.compression else "")
             
 
 if __name__=="__main__":

@@ -1,3 +1,4 @@
+from __future__ import with_statement
 import ftplib
 import urllib, urllib2
 import threading
@@ -7,7 +8,43 @@ import socket
 from Queue import Queue
 from StringIO import StringIO
 from datetime import datetime
+from threading import RLock
+from obiGenomicsUpdate import synchronized
 
+class FileNotFoundError(IOError):
+    pass
+
+class SharedCache(object):
+    def __init__(self, *args, **kwargs):
+        self._dict = dict(*args, **kwargs)
+        self._lock = RLock()
+
+    def __getitem__(self, key):
+        with self._lock:
+            return self._dict.__getitem__(key)
+
+    def __setitem__(self, key, item):
+        with self._lock:
+            return self._dict.__setitem__(key, item)
+
+    def __delitem__(self, key):
+        with self._lock:
+            return self._dict.__delitem__(key)
+
+    def __contains__(self, key):
+        with self._lock:
+            return self._dict.__contains__(key)
+
+    def __getattr__(self, name):
+        try:
+            attr = getattr(self._dict, name)
+            if callable(attr):
+                return synchronized(self._lock)(attr)
+            else:
+                return attr
+        except AttributeError:
+            raise AttributeError(name)
+        
 class _ftpCallbackWrapper(object):
     def __init__(self, size, callback, progressCallback):
         self.size = max(size, 1)
@@ -23,11 +60,11 @@ class _ftpCallbackWrapper(object):
 _monthDict = {"Jan":1, "Feb":2, "Mar":3, "Apr":4, "May":5, "Jun":6, "Jul":7, "Aug":8, "Sep":9, "Oct":10, "Nov":11, "Dec":12}
 
 class FtpWorker(object):
-    def __init__(self,  ftpAddr):
+    def __init__(self,  ftpAddr, statCache = None):
         self.ftpAddr = ftpAddr
         self.ftp = None
         self.now = datetime.now()
-        self.statCache = {}
+        self.statCache = statCache if statCache != None else SharedCache()
 
     def connect(self):
         self.ftp.connect(self.ftpAddr)
@@ -56,8 +93,9 @@ class FtpWorker(object):
                         update = "force"
                 if update=="force" or not isLocal:
                     s = StringIO()
+##                    f = open(local + ".tmp", "wb")
                     if progressCallback:
-                        self.ftp.retrbinary("RETR "+filename, _ftpCallbackWrapper(size, s.write, progressCallback))
+                        self.ftp.retrbinary("RETR "+filename, _ftpCallbackWrapper(size, s.write, progressCallback), )
                     else:
                         self.ftp.retrbinary("RETR "+filename, s.write)
                     s.getvalue()
@@ -65,7 +103,15 @@ class FtpWorker(object):
                         raise Exception("Wrong size of file "+filename)
                     f = open(local, "wb")
                     f.write(s.buf)
-                    f.close()
+##                    f.flush()
+##                    f.close()
+##                    try:
+##                        if os.path.exists(local):
+##                            os.remove(local)
+##                        os.rename(local + ".tmp", local)
+##                    except Exception, ex:
+##                        print ex, local
+##                        raise
                     break
             except ftplib.error_perm, ex:
                 #print ex
@@ -78,6 +124,8 @@ class FtpWorker(object):
                 break
             except socket.error:
                 self.connect()
+            except FileNotFoundError:
+                break
     
     def isLocal(self, filename):
         try:
@@ -88,18 +136,23 @@ class FtpWorker(object):
         
     def statFtp(self, filename):
         dir, file = os.path.split(filename)
-##        print dir, file
-        if (dir, file) in self.statCache:
-            s = self.statCache[(dir, file)].split()
-        else:
-##            s = StringIO()
-##            self.ftp.dir(filename, s.write)
-            lines = []
-            self.ftp.dir(dir, lines.append)
-##            print "Lines : #", len(lines)
-            self.statCache.update(dict([((dir, line.split()[-1].strip()), line.strip()) for line in lines if line.strip()]))
-            s = self.statCache.get((dir, file), "-- 0 1 1 1 1").split()
-##            s = s.getvalue().split()
+        with self.statCache._lock:
+            if dir in self.statCache:
+                try:
+                    s = self.statCache[dir][file].split()
+                except KeyError:
+                    raise FileNotFoundError(filename)
+            else:
+                lines = []
+##                print "Ftp Stat:", dir, file
+                self.ftp.dir(dir, lines.append)
+                self.statCache[dir] = dict([(line.split()[-1].strip(), line.strip()) for line in lines if line.strip()])
+                try:
+                    s = self.statCache[dir][file].split()
+                except KeyError:
+                    raise FileNotFoundError(filename)
+##                print dir ,file, s
+    ##            s = s.getvalue().split()
         size, date = int(s[-5]), s[-4:-1]
         if ":" in date[-1]:
             date = datetime(self.now.year, _monthDict.get(date[0], 1), int(date[1]))
@@ -114,9 +167,9 @@ class FtpWorker(object):
         return stat.st_size, datetime.fromtimestamp(stat.st_mtime)
 
 class FtpThreadWorker(threading.Thread, FtpWorker):
-    def __init__(self, ftpAddr, queue, group=None, target=None, name=None, args=(), kwargs={}):
+    def __init__(self, ftpAddr, queue, statCache=None, group=None, target=None, name=None, args=(), kwargs={}):
         threading.Thread.__init__(self, group, target, name, args, kwargs)
-        FtpWorker.__init__(self, ftpAddr)
+        FtpWorker.__init__(self, ftpAddr, statCache)
         self.queue = queue
 
     def run(self):
@@ -149,14 +202,15 @@ class FtpDownloader(object):
         self.numOfThreads = numOfThreads
         self.queue = Queue(0)
         self.workers = []
-        self.ftpWorker = FtpWorker(self.ftpAddr)
+        self.statCache = SharedCache()
+        self.ftpWorker = FtpWorker(self.ftpAddr, statCache=self.statCache)
 
     def initWorkers(self):
         if self.workers:
             return
         for i in range(self.numOfThreads):
             try:
-                t = FtpThreadWorker(self.ftpAddr, self.queue, name="FtpThread(%s):#%i"%(self.ftpAddr, i))
+                t = FtpThreadWorker(self.ftpAddr, self.queue, self.statCache, name="FtpThread(%s):#%i"%(self.ftpAddr, i))
                 t.setDaemon(True)
                 t.start()
                 self.workers.append(t)
