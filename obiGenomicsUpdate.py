@@ -4,6 +4,7 @@ import shelve
 import datetime
 import tarfile
 import pickle
+import orngServerFiles
 from UserDict import DictMixin
 
 class UpdateShelve(DictMixin):
@@ -77,9 +78,8 @@ def synchronized(lock):
 
 from datetime import datetime
 
-class Update(Singleton):
+class Update(object):
     def __init__(self, local_database_path, progressCallback=None):
-        Singleton.__init__(self)
         self.local_database_path = local_database_path
         self.progressCallback = progressCallback
         import os
@@ -118,16 +118,19 @@ class PKGUpdate(Update):
         self.wrappedUpdater = wrappedUpdater
         self.wrappedUpdaterClass = wrappedUpdater.__class__
 
-    def __GetServerFileName(self, func, args):
+    def _GetServerFileName(self, func, args):
         return func.__name__+ ("_" + str(args) if args else "") + ".tar.gz"
 
+    def _GetServerDateTime(self, *args):
+        time = self.serverFiles.info(self.domain, self._GetServerFileName(*args))["datetime"].split(".")[0]
+        return datetime.strptime(time, "%Y-%m-%d %H:%M:%S")
+    
     def IsUpdatable(self, *args):
-        if args in self.shelve and self.GetLastUpdateTime(*args) < \
-           self.serverFiles.info(self.domain, self.__GetServerFileName(*args))["datetime"]:
-            return True
-        else:
+        try:
+            return args in self.shelve and self.GetLastUpdateTime(*args) < self._GetServerDateTime(*args)
+        except Exception:
             return False
-            
+        
     def GetDownloadable(self):
         files = self.serverFiles.listfiles(self.domain)
         downloadable = []
@@ -138,19 +141,19 @@ class PKGUpdate(Update):
                 args = eval(args) 
             else:
                 funcname, args = filename.split(".")[0], ()
-            downloadable.append((getattr(wrappedUpdaterClass, funcname), args))
+            downloadable.append((getattr(self.wrappedUpdaterClass, funcname), args))
         return [item for item in downloadable if item not in self.shelve]
 
     def UpdateWrapper(self, func):
         @wraps(func)
         def update(*args):
-            filename = self.__GetServerFileName(func, args)
-            datetime = self.serverFiles.info(self.domain, self.__GetServerFileName(func, args))
-            ServerFiles.download(self.domain, filename)
-            filepath = ServerFile.localName(self.domain, filename)
+            filename = self._GetServerFileName(func, args)
+            time = self._GetServerDateTime(func, args)
+            orngServerFiles.download(self.domain, filename)
+            filepath = orngServerFiles.localpath(self.domain, filename)
             tar = tarfile.open(filepath)
             tar.extractall(self.local_database_path)
-            self._update(func, args, datetime)
+            self._update(func, args, time)
         return update
 
     def __getattr__(self, name):
@@ -159,7 +162,6 @@ class PKGUpdate(Update):
         except AttributeError:
             raise AttributeError(name)
         
-
 class PKGManager(object):
     def __init__(self, updater, tarballs=[], compression="gz", serverFiles=None, domain=None):
         self.local_database_path = os.path.normpath(updater.local_database_path)
@@ -173,10 +175,12 @@ class PKGManager(object):
 
     def Update(self):
         for func, args in self.updater.GetUpdatable() + self.updater.GetDownloadable():
-            for args in argList or [""]:
+            try:
                 self.MakePKG(func, args)
+            except Exception, ex:
+                print "Update package failed due to:", ex
 
-    def MakePKG(self, func, args=()):
+    def MakePKG(self, func, args):
         realpath = os.path.realpath(os.curdir)
         os.chdir(self.local_database_path)
         self.InitWatch()

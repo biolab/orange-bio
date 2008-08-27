@@ -9,13 +9,7 @@
 import orange, math
 import orangene
 import OWGUI
-from qt import *
-from qtcanvas import *
 from OWWidget import *
-try:
-    from qwt import *
-except:
-    from Qwt4 import *
 from OWDlgs import OWChooseImageSizeDlg
 from OWDataFiles import DataFiles
 
@@ -88,11 +82,11 @@ class OWHeatMap(OWWidget):
 
         # GUI definition
         self.connect(self.graphButton, SIGNAL("clicked()"), self.saveFig)
-        self.tabs = QTabWidget(self.controlArea, 'tabWidget')
+        self.tabs = OWGUI.tabWidget(self.controlArea) #QTabWidget(self.controlArea, 'tabWidget')
 
         # SETTINGS TAB
-        settingsTab = QVGroupBox(self)
-        box = QVButtonGroup("Cell Size (Pixels)", settingsTab)
+        settingsTab = OWGUI.createTabPage(self.tabs, "Settings") #QVGroupBox(self)
+        box = OWGUI.widgetBox(settingsTab, "Cell Size (Pixels)") #QVButtonGroup("Cell Size (Pixels)", settingsTab)
         OWGUI.qwtHSlider(box, self, "CellWidth", label='Width: ', labelWidth=38, minValue=1, maxValue=self.maxHSize, step=1, precision=0, callback=self.drawHeatMap)
         self.sliderVSize = OWGUI.qwtHSlider(box, self, "CellHeight", label='Height: ', labelWidth=38, minValue=1, maxValue=self.maxVSize, step=1, precision=0, callback=self.createHeatMap)
         OWGUI.qwtHSlider(box, self, "SpaceX", label='Space: ', labelWidth=38, minValue=0, maxValue=50, step=2, precision=0, callback=self.drawHeatMap)
@@ -105,14 +99,14 @@ class OWHeatMap(OWWidget):
             palc.insertItem(cit) ## because of a string cast in the comboBox constructor
         OWGUI.checkBox(settingsTab, self, "SortGenes", "Sort genes", box="Sort", callback=self.constructHeatmap)
         
-        palc.setCurrentItem(self.CurrentPalette)  #needed to update combobox after adding items. Maybe this could be useful to include in OWGUI as update() or similar?
+##        palc.setCurrentItem(self.CurrentPalette)  #needed to update combobox after adding items. Maybe this could be useful to include in OWGUI as update() or similar?
         
 
-        self.tabs.insertTab(settingsTab, "Settings")
+##        self.tabs.insertTab(settingsTab, "Settings")
 
         # FILTER TAB
-        tab = QVGroupBox(self)
-        box = QVButtonGroup("Threshold Values", tab)
+        tab = OWGUI.createTabPage(self.tabs, "Filter") #QVGroupBox(self)
+        box = OWGUI.widgetBox(tab, "Threshold Values") #QVButtonGroup("Threshold Values", tab)
         OWGUI.checkBox(box, self, 'CutEnabled', "Enabled", callback=self.setCutEnabled)
         self.sliderCutLow = OWGUI.qwtHSlider(box, self, 'CutLow', label='Low:', labelWidth=33, minValue=-100, maxValue=0, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.drawHeatMap)
         self.sliderCutHigh = OWGUI.qwtHSlider(box, self, 'CutHigh', label='High:', labelWidth=33, minValue=0, maxValue=100, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.drawHeatMap)
@@ -120,14 +114,14 @@ class OWHeatMap(OWWidget):
             self.sliderCutLow.box.setDisabled(1)
             self.sliderCutHigh.box.setDisabled(1)
 
-        box = QVButtonGroup("Merge", tab)
+        box = OWGUI.widgetBox(tab, "Merge") #QVButtonGroup("Merge", tab)
         OWGUI.qwtHSlider(box, self, "Merge", label='Rows:', labelWidth=33, minValue=1, maxValue=500, step=1, callback=self.mergeChanged, precision=0, ticks=0)
         OWGUI.checkBox(box, self, 'MaintainArrayHeight', "Maintain array height")
 
-        self.tabs.insertTab(tab, "Filter")
+##        self.tabs.insertTab(tab, "Filter")
 
         # INFO TAB
-        tab = QVGroupBox(self)
+        tab = OWGUI.createTabPage(self.tabs, "Info") #QVGroupBox(self)
 
         box = QVButtonGroup("Annotation && Legends", tab)
         OWGUI.checkBox(box, self, 'LegendOnTop', 'Show legend', callback=self.drawHeatMap)
@@ -151,37 +145,38 @@ class OWHeatMap(OWWidget):
         self.tabs.insertTab(tab, "Info")
 
         # FILES TAB
-        self.filesTab = QVGroupBox(self)
-        box = QVButtonGroup("Data Files", self.filesTab)
-        self.fileLB = QListBox(box, "lb")
-##        self.fileLB.setMaximumWidth(10)
-        self.connect(self.fileLB, SIGNAL("highlighted(int)"), self.fileSelectionChanged)
-        self.connect(self.fileLB, SIGNAL("selected(int)"), self.setFileReferenceBySelection)
-        self.tabs.insertTab(self.filesTab, "Files")
-        self.tabs.setTabEnabled(self.filesTab, 0)
-        hbox = QHBox(box)
-        self.fileUp = OWGUI.button(hbox, self, 'Up', \
-            callback=lambda i=-1: self.fileOrderChange(i), disabled=1)
-        self.fileRef = OWGUI.button(hbox, self, 'Ref', self.setFileReference, disabled=1)
-        self.fileDown = OWGUI.button(hbox, self, 'Down', \
-            callback=lambda i=1: self.fileOrderChange(i), disabled=1)
-        for btn in [self.fileUp, self.fileRef, self.fileDown]:
-            btn.setMaximumWidth(45)
+        if "I am not too lazy":
+            self.filesTab = QVGroupBox(self)
+            box = QVButtonGroup("Data Files", self.filesTab)
+            self.fileLB = QListBox(box, "lb")
+    ##        self.fileLB.setMaximumWidth(10)
+            self.connect(self.fileLB, SIGNAL("highlighted(int)"), self.fileSelectionChanged)
+            self.connect(self.fileLB, SIGNAL("selected(int)"), self.setFileReferenceBySelection)
+            self.tabs.insertTab(self.filesTab, "Files")
+            self.tabs.setTabEnabled(self.filesTab, 0)
+            hbox = QHBox(box)
+            self.fileUp = OWGUI.button(hbox, self, 'Up', \
+                callback=lambda i=-1: self.fileOrderChange(i), disabled=1)
+            self.fileRef = OWGUI.button(hbox, self, 'Ref', self.setFileReference, disabled=1)
+            self.fileDown = OWGUI.button(hbox, self, 'Down', \
+                callback=lambda i=1: self.fileOrderChange(i), disabled=1)
+            for btn in [self.fileUp, self.fileRef, self.fileDown]:
+                btn.setMaximumWidth(45)
 
-        OWGUI.checkBox(self.filesTab, self, 'ShowDataFileNames', 'Show data file names',
-           callback=self.drawHeatMap)
-        OWGUI.radioButtonsInBox(self.filesTab, self, 'SelectionType', \
-           ['Single data set', 'Multiple data sets'], box='Selection', callback=self.removeSelection)
+            OWGUI.checkBox(self.filesTab, self, 'ShowDataFileNames', 'Show data file names',
+               callback=self.drawHeatMap)
+            OWGUI.radioButtonsInBox(self.filesTab, self, 'SelectionType', \
+               ['Single data set', 'Multiple data sets'], box='Selection', callback=self.removeSelection)
 
         self.resize(700,400)
 
         # canvas with microarray
-        self.layout = QVBoxLayout(self.mainArea)
-        self.canvas = QCanvas()
-        self.canvasView = MyCanvasView(self.canvas, self.mainArea)
-        self.selection = SelectData(self, self.canvas)
+##        self.layout = QVBoxLayout(self.mainArea)
+        self.scene = QGraphicsScene()
+        self.sceneView = MySceneView(self.scene, self.mainArea)
+        self.selection = SelectData(self, self.scene)
         # self.canvasView = QCanvasView(self.canvas, self.mainArea)
-        self.layout.add(self.canvasView)
+        self.mainArea.layout().addWidget(self.sceneView)
 
     def createColorStripe(self, palette):
         dx = 104; dy = 18

@@ -220,10 +220,18 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
-        self.organismCodes = obiKEGG.KEGGInterfaceLocal().list_organisms().items()
+        self.allOrganismCodes = obiKEGG.KEGGInterfaceLocal(update=False).list_organisms()
+        update = obiKEGG.Update.getinstance()
+        updatable = dict([(func, (desc, args)) for func, desc, args in update.GetUpdatable()])
+        desc, args = updatable.get(obiKEGG.Update.UpdateOrganism,  ("", []))
+        self.organismCodes = [(code, name) for code, name in self.allOrganismCodes.items() if code in args]
         self.organismCodes.sort()
         items = [code+": "+desc for code, desc in self.organismCodes]
         self.organismCodes = [code for code, desc in self.organismCodes]
+        if not items:
+            self.error(0, "No downloaded organism data!! Update the KEGG for your organism.")
+        if obiKEGG.Update.UpdateReference not in updatable:
+            self.warning(0, "Reference pathways are not downloaded. You will not be able to view all pathways in the orthology")
         cb = OWGUI.comboBox(self.controlArea, self, "organismIndex", box="Organism", items=items, callback=self.Update, addSpace=True)
         cb.setMaximumWidth(200)
         

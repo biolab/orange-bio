@@ -829,10 +829,14 @@ class Update(UpdateBase):
     def UpdateOrganism(self, org):
         self.api.download_organism_data(org)
         try:
-            os.remove(os.path.join(self.local_database_path, "genes//organisms//" + org + "_genes.pickle"))
+            os.remove(os.path.join(self.local_database_path, "genes//organisms//", org, "_genes.pickle"))
         except Exception:
             pass
-        self.api._load_gene_database(org)
+        self.api._load_gene_database(org) #to parse the .ent file and create the _genes.pickle file
+        try:
+            os.remove(os.path.join(self.local_database_path, "genes//organisms//", org,  self.api._taxonomy[org][0]+".ent"))
+        except Exception:
+            pass
         self._update(Update.UpdateOrganism, (org,))
 
 ##    @synchronized(updateLock)
