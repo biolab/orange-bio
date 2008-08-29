@@ -856,6 +856,13 @@ class Update(UpdateBase):
         self.api._load_enzyme_database()
         self._update(Update.UpdateEnzymeAndCompounds, ())
 
+    def UpdateTaxonomy(self):
+        self.api.downloader.retrieve("genes//taxonomy", "genes//taxonomy", progressCallback=self.progressCallback)
+        self._update(Update.UpdateTaxonomy, ())
+
+    def UpdateOrthology(self):
+        self.api.downloader.retrieve("brite//ko//ko00001.keg","brite//ko//ko00001.keg", progressCallback=self.progressCallback)
+
     def GetTarballDirs(self):
         orgs = self.api.list_organisms()
         return ["pathway//organisms//"+org for org in orgs] + ["pathway//map"]
@@ -880,6 +887,11 @@ class PKGManager(PKGManagerBase):
         elif func == Update.UpdateEnzymeAndCompounds:
             tarFile.add(os.path.normpath("ligand//compound//"))
             tarFile.add(os.path.normpath("ligand//enzyme//"))
+        elif func == Update.UpdateTaxonomy:
+            tarFile.add(os.path.normpath("genes//taxonomy"))
+        else:
+            tarFile.close()
+            return PKGManagerBase.Create(self, func, args)
         tarFile.close()
         return name + ".tar" + ("." + self.compression if self.compression else "")
             

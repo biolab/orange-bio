@@ -156,6 +156,12 @@ class PKGUpdate(Update):
             self._update(func, args, time)
         return update
 
+    def Apply(self, func, args):
+        if func.im_class == type(self):
+            return func(self, *args)
+        else:
+            return getattr(self, func.__name__)(*args)
+            
     def __getattr__(self, name):
         try:
             return self.UpdateWrapper(getattr(self.wrappedUpdaterClass, name))
@@ -229,7 +235,7 @@ class PKGManager(object):
         if len(files)+len(tarDirs) > 0:
             name = name+".tar" + (("." + self.compression) if self.compression else "")
             tarFile = tarfile.open(name, "w:"+self.compression)
-            print "Creating:", os.path.join(self.local_database_path, name)
+            print "Creating:",  name
             for file in files:
                 tarFile.add(file)
             for tarDir in tarDirs:

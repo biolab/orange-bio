@@ -103,8 +103,8 @@ class FtpWorker(object):
                         raise Exception("Wrong size of file "+filename)
                     f = open(local, "wb")
                     f.write(s.buf)
-##                    f.flush()
-##                    f.close()
+                    f.flush()
+                    f.close()
 ##                    try:
 ##                        if os.path.exists(local):
 ##                            os.remove(local)
@@ -241,7 +241,7 @@ class FtpDownloader(object):
         except:
             pass
         if blocking:
-            self.ftpWorker.retrieve(self.ftpDir+filename, self.localDir+filename, update, progressCallback)
+            self.ftpWorker.retrieve(self.ftpDir+filename, os.path.join(self.localDir, filename), update, progressCallback)
         else:
             self.queue.put((self.ftpDir+filename, self.localDir+filename, update, 0, progressCallback))
 

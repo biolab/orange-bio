@@ -5,11 +5,12 @@ from obiGenomicsUpdate import PKGManager as PKGManagerBase
 
 import urllib2
 
+from datetime import datetime
 class Update(UpdateBase):
     def __init__(self, local_database_path=None, progressCallback=None):
         UpdateBase.__init__(self, local_database_path or getDataDir(), progressCallback)
     def CheckModified(self, addr, date=None):
-        return date > self.GetLastModified(self, addr)
+        return date > self.GetLastModified(addr)
 ##        req = urllib2.Request(addr, headers=date and {"If-Modified-Since":date} or {})
 ##        try:
 ##            urllib2.urlopen(req)
