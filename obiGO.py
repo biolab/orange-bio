@@ -38,7 +38,6 @@ class Update(UpdateBase):
         elif func == Update.UpdateAnnotation:
             return self.CheckModifiedOrg(args[0])
             
-##    @synchronized(updateLock)
     def GetDownloadable(self):
         orgs = set(listOrganisms())-set(listDownloadedOrganisms())
         ret = []
@@ -48,12 +47,14 @@ class Update(UpdateBase):
             ret.extend([(Update.UpdateAnnotation, (org,)) for org in orgs])
         return ret
 
-##    @synchronized(updateLock)
     def UpdateAnnotation(self, org):
         downloadAnnotationTo(org, os.path.join(self.local_database_path, "gene_association." + org), self.progressCallback)
+        try:
+            os.remove(os.path.join(self.local_database_path, "gene_association." + org + ".gz"))
+        except Exception:
+            pass
         self._update(Update.UpdateAnnotation, (org,), self.GetLastModified("http://www.geneontology.org/gene-associations/gene_association." + org + ".gz"))
 
-##    @synchronized(updateLock)
     def UpdateOntology(self):
         downloadGOTo(os.path.join(self.local_database_path, "gene_ontology.obo"), self.progressCallback)
         self._update(Update.UpdateOntology, (), self.GetLastModified("http://www.geneontology.org/ontology/gene_ontology.obo"))
