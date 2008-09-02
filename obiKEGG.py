@@ -235,6 +235,15 @@ class DBGeneEntry(DBEntry):
         lines = self.get_by_lines("PATHWAY")
         return ["path:"+line.split()[1] for line in lines if len(line.split())>=2]
 
+class DBOrganismEntry(DBEntry):
+    cache = ["name", "annotation_type"]
+    def get_name(self):
+        e = self.get_by_list("ENTRY")
+        return e and e[0].strip() or "unknown"
+    
+    def get_annotation_type(self):
+        return self.get_string("ANNOTATION")
+
 class DBEntryWrapper(object):
     def __init__(self, wrapped):
         for name in wrapped.cache:
@@ -263,13 +272,29 @@ class KEGGInterfaceLocal(object):
         self._filenames = {"_enzymes":"ligand/enzyme/_enzymes.pickle",
                            "_from_gene_to_enzymes":"ligand/enzyme/_from_gene_to_enzymes.pickle",
                            "_compounds":"ligand/compound/_compounds.pickle",
-                           "_from_enzyme_to_compounds":"ligand/compound/_from_enzyme_to_compounds.pickle"}
+                           "_from_enzyme_to_compounds":"ligand/compound/_from_enzyme_to_compounds.pickle",
+                           "_genome":"genes/_genome.pickle"}
         self.downloader = obiData.FtpDownloader("ftp.genome.jp", self.local_database_path, "/pub/kegg/", numOfThreads=10)
 
+    def _rel_org_dir(self, org):
+        if org=="map":
+            return "map/"
+        elif self._genome[org].get_annotation_type()=="manual": ##            return "pathway/organisms/"+pathway_id.split(":")[-1][:-5]+"/"
+            return "organisms/"+org+"/"
+        elif len(org)==4 and org.startswith("e"):
+            return "organisms_est/"+org+"/"
+        else:
+            return "organisms_kaas/"+org+"/"
+        
+    def _rel_pathway_dir(self, pathway_id):
+        return "pathway/"+self._rel_org_dir(pathway_id.split(":")[-1][:-5])
+
     def download_organism_data(self, org):
-        rel_path = "pathway/organisms/"+org+"/"
-        files = [rel_path+org+"_gene_map.tab", "pathway/map_title.tab", "genes/taxonomy"]
+        files = ["pathway/map_title.tab", "genes/taxonomy", "genes/genome"]
         self.downloader.massRetrieve(files, update=self.update)
+        rel_path = "pathway/"+self._rel_org_dir(org)
+##        files = [rel_path+org+"_gene_map.tab", "pathway/map_title.tab", "genes/taxonomy"]
+        self.downloader.retrieve(rel_path+org+"_gene_map.tab", update=self.update)
         file = self._retrieve(rel_path+org+"_gene_map.tab")
         pathway_nums = set(reduce(lambda a,b: a + b.split()[1:], file.readlines(), []))
         descr = dict(map(lambda line:tuple(line.strip().split("\t")), self._retrieve("pathway/map_title.tab").readlines()))
@@ -287,7 +312,7 @@ class KEGGInterfaceLocal(object):
         ends = [".cpd", ".gene", ".gif", ".map", "_cpd.coord", "_gene.coord", ".conf"]
         files = [rel_path+id+ext for id in ids for ext in ends]
         self.downloader.massRetrieve(files, update=self.update, blocking=False)
-        self.downloader.retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent", update=self.update, progressCallback=self.download_progress_callback)
+        self.downloader.retrieve("genes/"+self._rel_org_dir(org)+self._taxonomy[org][0]+".ent", update=self.update, progressCallback=self.download_progress_callback)
         while not self.downloader.queue.empty():
             if self.download_progress_callback:
                 self.download_progress_callback(min(100.0, 100.0*(float(len(files))-self.downloader.queue.qsize())/len(files)))
@@ -311,7 +336,7 @@ class KEGGInterfaceLocal(object):
             self._genes = GenesDatabaseProxy(self)
             return self.__dict__[name]
             #self._load_genes_database()
-        elif name=="_taxonomy":
+        elif name=="_taxonomy" or name=="_genome":
             self._load_taxonomy()
             return self.__dict__[name]
         else:
@@ -363,12 +388,13 @@ class KEGGInterfaceLocal(object):
             self._dump_pickled(self._from_enzyme_to_compounds, name="_from_enzyme_to_compounds")
 
     def _load_gene_database(self, org):
+        rel_path = "genes/" + self._rel_org_dir(org)
         try:
-            self._genes[org] = self._load_pickled("genes/organisms/"+org+"/_genes.pickle")
+            self._genes[org] = self._load_pickled(rel_path + "_genes.pickle")
         except Exception, ex:
-            genes = map(DBGeneEntry, filter(bool ,self._retrieve("genes/organisms/"+org+"/"+self._taxonomy[org][0]+".ent").read().split("///\n")))
-            self._genes[org] = dict([(org+":"+g.get_name(), DBEntryWrapper(g)) for g in genes])
-            self._dump_pickled(self._genes[org], "genes/organisms/"+org+"/_genes.pickle")
+            genes = map(DBGeneEntry, filter(bool ,self._retrieve(rel_path+self._taxonomy[org][0] + ".ent").read().split("///\n")))
+            self._genes[org] = dict([(org + ":" + g.get_name(), DBEntryWrapper(g)) for g in genes])
+            self._dump_pickled(self._genes[org], rel_path + "_genes.pickle")
         self._gene_alias[org] = {}
         self._gene_alias_conflicting[org] = set()
         for id, gene in self._genes[org].items():
@@ -385,6 +411,12 @@ class KEGGInterfaceLocal(object):
         orgs = filter(lambda line:line.strip() and not line.startswith("#"), self._retrieve("genes/taxonomy").readlines())
         d = dict([(line.split()[1].strip(), (line.split("\t")[-2].strip(), line.split("\t")[-1].strip())) for line in orgs])
         self._taxonomy = d
+        try:
+            self._genome = self._load_pickled(name = "_genome")
+        except:
+            entrys = map(DBOrganismEntry, filter(bool, self._retrieve("genes/genome").read().split("///\n")))
+            self._genome = dict([(e.get_name(), DBEntryWrapper(e)) for e in entrys])
+            self._dump_pickled(self._genome, name="_genome")
         
     def _retrieve(self, filename):
         if forceUpdate == True or self.update == "Force update":
@@ -400,31 +432,32 @@ class KEGGInterfaceLocal(object):
             r = map(lambda line:tuple(line.strip().split("\t")), self._retrieve("pathway/map_title.tab").readlines())
             return dict([("path:map"+p, desc) for p, desc in r])
         else:
-            ids = set(_collect(self._retrieve("pathway/organisms/"+org+"/"+org+"_gene_map.tab").readlines(), lambda line:line.split()[1:]))
+            rel_path = "pathway/"+self._rel_org_dir(org)
+            ids = set(_collect(self._retrieve(rel_path+org+"_gene_map.tab").readlines(), lambda line:line.split()[1:]))
             pathways = self.list_pathways("map")
             return dict([("path:"+org+id, pathways["path:map"+id]) for id in ids])
         
         #return load(open(self.local_database_path+"list_pathways_"+org+".pickle"))
 
     def get_linked_pathways(self, pathway_id):
-        return ["path:"+p.strip() for p in self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".map").readlines()]
+        return ["path:"+p.strip() for p in self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".map").readlines()]
 
     def get_genes_by_organism(self, org):
         return self._genes[org].keys()
         #return [org+":"+g for g in _collect(self._retrieve("pathway/organisms/"+org+"/"+org+"_gene_map.tab").readlines(), lambda s:s.split()[:1])]
 
     def get_genes_by_pathway(self, pathway_id):
-        return [pathway_id.split(":")[-1][:-5]+":"+g for g in _collect(self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gene").readlines(), lambda s:s.split()[:1])]
+        return [pathway_id.split(":")[-1][:-5]+":"+g for g in _collect(self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".gene").readlines(), lambda s:s.split()[:1])]
 
     def get_enzymes_by_pathway(self, pathway_id):
         if pathway_id.startswith("path:map"):
-            return self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".enz").readlines()
+            return self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".enz").readlines()
         else:
             genes = self.get_genes_by_pathway(pathway_id)
             return list(set(_collect(map(self.get_enzymes_by_gene, genes))))
 
     def get_compounds_by_pathway(self, pathway_id):
-        return _collect(self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".cpd").readlines(), lambda s:s.split()[:1])
+        return _collect(self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".cpd").readlines(), lambda s:s.split()[:1])
 
     def get_pathways_by_genes(self, genes_list):
         genes = set(genes_list)
@@ -480,7 +513,7 @@ class KEGGInterfaceLocal(object):
         return self._from_gene_to_enzymes.get(gene_id, [])
 
     def get_pathway_image(self, pathway_id):
-        f = self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
+        f = self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
         image = Image.open(self.local_database_path+_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
         return image.convert("RGB")
 
@@ -508,15 +541,15 @@ class KEGGInterfaceLocal(object):
         d=[]
         if not pathway_id.split(":")[-1].startswith("map"):
             try:
-                d = map(lambda line:(org+":"+line.split()[0], tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_gene.coord").readlines())
+                d = map(lambda line:(org+":"+line.split()[0], tuple(line.split()[1:])), self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+"_gene.coord").readlines())
             except:
                 pass
         try:
-            d.extend(map(lambda line:("cpd:"+line.split()[0], tuple(line.split()[1:])), self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+"_cpd.coord").readlines()))
+            d.extend(map(lambda line:("cpd:"+line.split()[0], tuple(line.split()[1:])), self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+"_cpd.coord").readlines()))
         except:
             pass
         try:
-            for line in self._retrieve(_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".conf").readlines():
+            for line in self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".conf").readlines():
                 match = re.findall("rect \(([0-9]+),([0-9]+)\) \(([0-9]+),([0-9]+)\)	/kegg/pathway/"+org+"/([a-z0-9]+)\.html", line)
                 for t in match:
                     d.append(("path:"+t[-1], t[:-1]))
@@ -766,7 +799,7 @@ class KEGGPathway(object):
     def get_compounds(self):
         """Return all compounds on the pathway."""
         return self.api.get_compounds_by_pathway(self.pathway_id)
-        
+    
 class KOClass(object):
     def __init__(self, text=None):
         self.children = []
@@ -819,6 +852,8 @@ class Update(UpdateBase):
     
     def GetDownloadable(self):
         ret = []
+        ret.extend([(Update.UpdateTaxonomy, ())] if (Update.UpdateTaxonomy, ()) not in self.shelve else [])
+        ret.extend([(Update.UpdateOrthology, ())] if (Update.UpdateOrthology, ()) not in self.shelve else [])
         ret.extend([(Update.UpdateReference, ())] if (Update.UpdateReference, ()) not in self.shelve else [])
         ret.extend([(Update.UpdateEnzymeAndCompounds, ())] if (Update.UpdateEnzymeAndCompounds, ()) not in self.shelve else [])
         orgs = [org for org in self.api.list_organisms() if (Update.UpdateOrganism, (org,)) not in self.shelve]
@@ -828,13 +863,14 @@ class Update(UpdateBase):
 ##    @synchronized(updateLock)
     def UpdateOrganism(self, org):
         self.api.download_organism_data(org)
+        rel_path = self.api._rel_org_dir(org)
         try:
-            os.remove(os.path.join(self.local_database_path, "genes//organisms//", org, "_genes.pickle"))
+            os.remove(os.path.join(self.local_database_path, "genes/", rel_path, "_genes.pickle"))
         except Exception:
             pass
         self.api._load_gene_database(org) #to parse the .ent file and create the _genes.pickle file
         try:
-            os.remove(os.path.join(self.local_database_path, "genes//organisms//", org,  self.api._taxonomy[org][0]+".ent"))
+            os.remove(os.path.join(self.local_database_path, "genes/", rel_path, self.api._taxonomy[org][0]+".ent"))
         except Exception:
             pass
         self._update(Update.UpdateOrganism, (org,))
@@ -847,21 +883,27 @@ class Update(UpdateBase):
 ##    @synchronized(updateLock)
     def UpdateEnzymeAndCompounds(self):
         self.api.downloader.massRetrieve(["ligand//compound//compound", "ligand//enzyme//enzyme"], progressCallback=self.progressCallback)
-        for file in ["ligand//compound//_compounds.pickle", "ligand//enzyme//_enzymes.pickle", "ligand/enzyme/_from_gene_to_enzymes.pickle", "ligand/compound/_from_enzyme_to_compounds.pickle"]:
+        for file in ["ligand//compound//_compounds.pickle", "ligand//enzyme//_enzymes.pickle", "ligand//enzyme//_from_gene_to_enzymes.pickle", "ligand//compound//_from_enzyme_to_compounds.pickle"]:
             try:
                 os.remove(os.path.join(self.local_database_path, file))
             except Exception:
                 pass
         self.api._load_compound_database()
         self.api._load_enzyme_database()
+        for file in ["ligand//compound//compound", "ligand//enzyme//enzyme"]:
+            try:
+                os.remove(os.path.join(self.local_database_path, file))
+            except Exception:
+                pass
         self._update(Update.UpdateEnzymeAndCompounds, ())
 
     def UpdateTaxonomy(self):
-        self.api.downloader.retrieve("genes//taxonomy", "genes//taxonomy", progressCallback=self.progressCallback)
+        self.api.downloader.massRetrieve(["genes//taxonomy", "genes//genome"], progressCallback=self.progressCallback)
         self._update(Update.UpdateTaxonomy, ())
 
     def UpdateOrthology(self):
         self.api.downloader.retrieve("brite//ko//ko00001.keg","brite//ko//ko00001.keg", progressCallback=self.progressCallback)
+        self._update(Update.UpdateOrthology, ())
 
     def GetTarballDirs(self):
         orgs = self.api.list_organisms()
@@ -878,8 +920,9 @@ class PKGManager(PKGManagerBase):
         print "Creating:", name + ".tar" + ("." + self.compression if self.compression else "")
         tarFile = tarfile.open(name + ".tar" + ("." + self.compression if self.compression else ""), "w:"+self.compression)
         if func == Update.UpdateOrganism:
-            tarFile.add(os.path.normpath("pathway//organisms//" + args[0]))
-            tarFile.add(os.path.normpath("genes//organisms//" + args[0]))
+            rel_path = self.updater.api._rel_org_dir(args[0])
+            tarFile.add(os.path.normpath("pathway//" + rel_path))
+            tarFile.add(os.path.normpath("genes//" + rel_path))
             tarFile.add(args[0] + "_genenames.pickle")
         elif func == Update.UpdateReference:
             tarFile.add(os.path.normpath("pathway//map"))
@@ -889,6 +932,7 @@ class PKGManager(PKGManagerBase):
             tarFile.add(os.path.normpath("ligand//enzyme//"))
         elif func == Update.UpdateTaxonomy:
             tarFile.add(os.path.normpath("genes//taxonomy"))
+            tarFile.add(os.path.normpath("genes//genome"))
         else:
             tarFile.close()
             return PKGManagerBase.Create(self, func, args)
