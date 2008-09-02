@@ -48,21 +48,6 @@ class UpdateShelve(DictMixin):
 
     def sync(self):
         self.__shelve.sync()
-        
-class Singleton(object):
-    __single_instances = {}            
-    def __init__(self, *args):
-        if self.__class__ in getattr(self, "_Singleton__single_instances"):
-            raise Exception("Creating a singleton class, use getinstance() instead")
-        else:
-            getattr(self, "_Singleton__single_instances")[self.__class__] = self
-    @classmethod
-    def getinstance(cls, *args, **kw):
-        instances = getattr(cls, "_Singleton__single_instances")
-        if cls in instances:
-            return instances[cls]
-        else:
-            return cls(*args, **kw)
             
 from threading import Lock
 from functools import wraps
@@ -80,6 +65,10 @@ from datetime import datetime
 
 class Update(object):
     def __init__(self, local_database_path, progressCallback=None):
+        """Base update object.
+        Each obi module that uses updatable resources should subclass this class and at minimum reimplement
+        the IsUpdatable and GetDownloadable methods.
+        """
         self.local_database_path = local_database_path
         self.progressCallback = progressCallback
         import os
@@ -90,21 +79,34 @@ class Update(object):
         self.shelve = UpdateShelve(os.path.join(self.local_database_path, ".updates.shelve"))
 
     def IsUpdatable(self, *args):
+        """Return True if the local can be updated else return False
+        """
         raise NotImplementedError
     
     def GetLocal(self):
+        """Return a list [(callable, args), ...] that have been called in the past.
+        """
         return self.shelve.keys()
     
     def GetUpdatable(self):
+        """Return a list [(callable, args), ...] that can be updated.
+        """
         return [item for item in self.GetLocal() if self.IsUpdatable(*item)]
         
     def GetDownloadable(self):
+        """Return a list [(callable, args), ...] that can be downloaded. Must no contain any
+        (callable, args) that are returnd by GetLocal.
+        """
         raise NotImplementedError
     
     def GetLastUpdateTime(self, callable, args):
+        """Returns the last update time of callable with args.
+        """
         return self.shelve.get((callable, args), datetime(1,1,1))
 
     def _update(self, callable, args, date=None):
+        """Insert the record of update with date. if date is None use the current date.
+        """
         self.shelve[callable, args] = date if date else datetime.now()
         self.shelve.sync()
 
@@ -112,6 +114,17 @@ import orngServerFiles
 
 class PKGUpdate(Update):
     def __init__(self, domain, wrappedUpdater, *args, **kwargs):
+        """Wrap the subclass of Update to download data as packages from our own server.
+        Arguments:
+            - domain : should be a string that identifies a resource e.g. "kegg", "go" ...
+            - wrappedUpdater : instance of a subclass of Update that is wrapped
+        Example:
+        >>> pkg = PKGUpdate("go", obiGO.Update())
+        >>> for item in pkg.GetUpdatable():
+        ...     pkg.Apply(*item)
+        ...
+        >>>
+        """
         Update.__init__(self, wrappedUpdater.local_database_path, wrappedUpdater.progressCallback)
         self.domain = domain
         self.serverFiles = orngServerFiles.ServerFiles()
@@ -157,6 +170,8 @@ class PKGUpdate(Update):
         return update
 
     def Apply(self, func, args):
+        """Use this method to apply a return values of GetUpdatable ... which are unwrapped
+        """
         if func.im_class == type(self):
             return func(self, *args)
         else:
@@ -170,6 +185,15 @@ class PKGUpdate(Update):
         
 class PKGManager(object):
     def __init__(self, updater, tarballs=[], compression="gz", serverFiles=None, domain=None):
+        """Uses a subclass of Update to create packages for central server updates based on the difference of
+        local database directory before and after an update. Reimplement the Create method for custom package creation (see obiKEGG.PKGManager).
+        Arguments:
+            - updater : instance of a sublass of Update
+            - tarballs : list of directories that should be contained in a package as a whole.
+            - compression : compression to use for the package. Can be "gz", "bz2" or None
+            - serverFiles : instance of ServerFiles
+            - domain : name of the domain 
+        """
         self.local_database_path = os.path.normpath(updater.local_database_path)
         self.updater = updater
         self.tarballs = [os.path.normpath(tar) for tar in tarballs]
@@ -179,14 +203,17 @@ class PKGManager(object):
         self.initialState = {}
         self.endState = {}
 
-    def Update(self):
-        for func, args in self.updater.GetUpdatable() + self.updater.GetDownloadable():
+    def Update(self, items=None):
+        """Create and upload packages for all updatable and downloadable items.
+        """
+        for func, args in self.updater.GetUpdatable() + self.updater.GetDownloadable() if items==None else items:
             try:
                 self.MakePKG(func, args)
             except Exception, ex:
                 print "Update package failed due to:", ex
 
     def MakePKG(self, func, args):
+        """Make and upload package."""
         realpath = os.path.realpath(os.curdir)
         os.chdir(self.local_database_path)
         self.InitWatch()
@@ -220,6 +247,8 @@ class PKGManager(object):
         self.Collect(self.endState)
 
     def Diff(self):
+        """Return the names of files that were changed between calls to InitWatch and EndWatch.
+        """
         return list(set(self.endState.items()) - set(self.initialState.items()))
 
     def Create(self, func, args):
