@@ -10,7 +10,7 @@ for (dirp, dirns, n) in os.walk('doc'):
 		dirn = dirn + '/'
 	docFiles.extend( [dirn + n1r for n1r in nr if '.svn' not in dirp + '/' + n1r] )
 
-module=Extension("_GOLib", sources=["go.c"])
+module=Extension("_GOLib", sources=["src/go.c"])
 
 setup(name = "Genomics",
       version = "0.9.67",
