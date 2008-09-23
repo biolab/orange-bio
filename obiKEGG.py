@@ -1,7 +1,11 @@
 """obiKEGG is an interface to Kyoto Encyclopedia of Genes and Genomes (http://www.genome.jp/kegg/) that allows easy access to KEGG pathway and genes data.
 
 """
-import Image, ImageDraw, ImageMath
+try:
+    import Image, ImageDraw, ImageMath
+except:
+    pass
+
 import cStringIO
 import math
 import time
@@ -799,6 +803,7 @@ class KEGGPathway(object):
     def get_compounds(self):
         """Return all compounds on the pathway."""
         return self.api.get_compounds_by_pathway(self.pathway_id)
+
     
 class KOClass(object):
     def __init__(self, text=None):
@@ -847,8 +852,24 @@ class Update(UpdateBase):
 ##        
 ##    @synchronized(updateLock)
 
+    def LastUpdate(self, func, args):
+        def _LastUpdate(path):
+            size, time = self.api.downloader.ftpWorker.statFtp("/pub/kegg/"+path)
+            return time
+        if func == Update.UpdateOrganism:
+            rel_path = self.api._rel_org_dir(args[0]).rstrip("/")
+            return max(_LastUpdate("pathway/"+rel_path), _LastUpdate("genes/"+rel_path))
+        elif func == Update.UpdateReference:
+            return max(_LastUpdate("pathway/map"), _LastUpdate("pathway/map_title.tab"))
+        elif func == Update.UpdateEnzymeAndCompounds:
+            return max(_LastUpdate("ligand/compund/compound"), _LastUpdate("ligand/enzyme/enzyme"))
+        elif func == Update.UpdateOrthology:
+            return _LastUpdate("brite/ko/ko00001.keg")
+        elif func == Update.UpdateTaxonomy:
+            return max(_LastUpdate("genes/taxonomy"), _LastUpdate("genes/genome"))
+        
     def IsUpdatable(self, func, args):
-        return True
+        return self.LastUpdate(func, args) > self.GetLastUpdateTime(func, args)
     
     def GetDownloadable(self):
         ret = []
@@ -915,8 +936,8 @@ class PKGManager(PKGManagerBase):
 
     def Create(self, func, args):
         name = func.__name__ + ("_" + str(args) if args else "")
-        if not self.Diff():
-            return None
+##        if not self.Diff():
+##            return None
         print "Creating:", name + ".tar" + ("." + self.compression if self.compression else "")
         tarFile = tarfile.open(name + ".tar" + ("." + self.compression if self.compression else ""), "w:"+self.compression)
         if func == Update.UpdateOrganism:
