@@ -30,5 +30,5 @@ pkgUpdate.UpdateReference()
 
 for org, name in [("hsa", "Homo sapiens"), ("sce", "Yeast")]:
     print "Updating KEGG pathways for", name
-    pkg.UpdateOrganism(org)
+    pkgUpdate.UpdateOrganism(org)
 
