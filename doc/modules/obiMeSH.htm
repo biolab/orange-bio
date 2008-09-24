@@ -21,15 +21,6 @@
 <dt>obiMeSH()</dt>
 <DD>Constructor has no arguments.</DD>
 
-<dt>setDataDir(path)</dt>
-<DD>Sets path to directory containing MeSH ontology, CID and PMID annotation.</DD>
-
-<dt>getDataDir</dt>
-<DD>Returns current data directory path.</DD>
-
-<dt>downloadOntology(callback=None)</dt>
-<DD>Function downloads new MeSH ontology from the internet. Since MeSH ontology is quite large (about 60Mb) it may take a while.</DD>
-
 <dt>findFrequentTerms(data, minSizeInTerm, callback=None)</dt>
 <DD>Function returns a dictionary where keys are MeSH terms ids and values are integers representing number of examples annotated with corresponding MeSH term. Data has to be instance of <code>ExampleTable</code>. With argument <code>minSizeInTerm</code> you can select only MeSH terms that have at least <code>minSizeInTerm</code> annotated examples.</DD>
 
@@ -40,8 +31,8 @@
 <DD>Function performs a pretty print of a dictionary returned by function <code>findFrequentTerms</code> or <code>findEnrichedTerms</code>. When you are printing a dictionary of enriched MeSH terms (returned by <code>findEnrichedTerms</code>) you can also specify their properties and their order to print. At the moment you can choose among "term" (MeSH term name), "desc" (MeSH term description), "r" (number of examples from reference), "c" (number of examples from cluster), "p" (MeSH term enrichment) and "fold" (fold enrichment). </DD>
 <dt>
 	
-	<dt>printHtmlMeSH(data, selection = ["term","r","c", "p"])</dt>
-	<DD>Similar to previous one except it returns html code. </DD>
+<dt>printHtmlMeSH(data, selection = ["term","r","c", "p"])</dt>
+<DD>Similar to previous one except it returns html code. </DD>
 	
 <dt>findTerms(ids, idType="cid")</dt>
 <DD>Function returns a dictionary where keys are members of the list <code>ids</code> and values are lists of MeSH terms that apply to a key. With <code>idType</code> you can choose annotation ("cid" or TODO!!! "pmid").  </DD><dt>
