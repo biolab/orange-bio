@@ -11,12 +11,32 @@ from math import log,exp
 from urllib import urlopen
 from sgmllib import SGMLParser
 import os.path
+import orngServerFiles
 
 FUZZYMETAID = -12
 
 class obiMeSH(object):
 	def __init__(self):
-		self.path = "data/MeSH"
+		#self.path = "data/MeSH"
+		# we check if all files from MeSH directory are localy present
+		# if not, download them
+		# if there is newer version, update them
+
+		d = orngServerFiles.ServerFiles()
+		f = d.listfiles('MeSH')
+		l = orngServerFiles.listfiles('MeSH')
+		
+		for i in f:
+			if not i in l:
+				orngServerFiles.download('MeSH',i)
+				print 'downloadding ', i
+			else:
+				df = d.info('MeSH', i)['datetime']
+				dl = orngServerFiles.info('MeSH', i)['datetime']
+				if df>dl:
+					print 'updating ', i
+					orngServerFiles.download('MeSH',i)
+		
 		self.reference = None
 		self.cluster = None
 		self.ratio = 1
@@ -33,75 +53,66 @@ class obiMeSH(object):
 			self.lookup.append(self.lookup[-1] + log(i))
 		self.dataLoaded = self.__loadOntologyFromDisk()
 
-	def setDataDir(self, dataDir):
-		self.path = dataDir
-		self.dataLoaded = self.dataLoaded or self.__loadOntologyFromDisk()
- 
-	def getDataDir(self):
-		"""Default for dataDir is "data", by calling these two methods the user can change the directory of the local "fast" data base.
-		This influences downloadGO() and downloadAnnotation(...). above directory also buffers compound annotation"""
-		return self.path
+#	def setDataDir(self, dataDir):
+#		self.path = dataDir
+#		self.dataLoaded = self.dataLoaded or self.__loadOntologyFromDisk()
 
-	def downloadOntology(self,callback=None):
-		# ftp://nlmpubs.nlm.nih.gov/online/mesh/.meshtrees/mtrees2008.bin
-		# ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2008.bin
-		if callback:
-			callback(1)
-		
-		ontology = urlopen("ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2008.bin")
-		size = int(ontology.info().getheader("Content-Length"))
-		rsize = 0
+#	def getDataDir(self):
+#		"""Default for dataDir is "data", by calling these two methods the user can change the directory of the local "fast" data base.
+#		This influences downloadGO() and downloadAnnotation(...). above directory also buffers compound annotation"""
+#		return self.path
 
-		results = list()
-
-		for i in ontology:
-			rsize += len(i)
-			line = i.rstrip("\t\n")
-			if(line == "*NEWRECORD"):
-				if(len(results) > 0 and results[-1][1] == []):	# we skip nodes with missing mesh id
-					results[-1] = ["",[],"No description."]
-				else:
-					results.append(["",[],"No description."])	
-				if(len(results)%40 == 0):
-					if callback:
-						callback(1+int(rsize*94/size))	
-	
-			parts = line.split(" = ")
-			if(len(parts) == 2 and len(results)>0):
-				if(parts[0] == "MH"):
-					results[-1][0] = parts[1].strip("\t ") 
-
-				if(parts[0] == "MN"):
-					results[-1][1].append(parts[1].strip("\t "))
-
-				if(parts[0] == "MS"):
-					results[-1][2] = parts[1].strip("\t ")
-
-		ontology.close()
-
-		__dataPath = os.path.join(os.path.dirname(__file__), self.path)
-		output = file(os.path.join(__dataPath,'mesh-ontology.dat'), 'w')
-
-		if callback:
-			callback(98)
-		
-		for i in results:
-			#print i[0] + "\t"
-			output.write(i[0] + "\t")
-			g=len(i[1])			
-			for k in i[1]:
-				g -= 1
-				if(g > 0):
-					# print k + ";"
-					output.write(k + ";")
-				else:
-					# print k + "\t" + i[2]
-					output.write(k + "\t" + i[2] + "\n")
-		output.close()
-		self.__loadOntologyFromDisk()
-		if callback:
-			callback(100)
-		print "Ontology database has been updated."
+#	def downloadOntology(self,callback=None):
+#		# ftp://nlmpubs.nlm.nih.gov/online/mesh/.meshtrees/mtrees2008.bin
+#		# ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2008.bin
+#		if callback:
+#			callback(1)
+#		ontology = urlopen("ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2008.bin")
+#		size = int(ontology.info().getheader("Content-Length"))
+#		rsize = 0
+#		results = list()
+#		for i in ontology:
+#			rsize += len(i)
+#			line = i.rstrip("\t\n")
+#			if(line == "*NEWRECORD"):
+#				if(len(results) > 0 and results[-1][1] == []):	# we skip nodes with missing mesh id
+#					results[-1] = ["",[],"No description."]
+#				else:
+#					results.append(["",[],"No description."])	
+#				if(len(results)%40 == 0):
+#					if callback:
+#						callback(1+int(rsize*94/size))
+#			parts = line.split(" = ")
+#			if(len(parts) == 2 and len(results)>0):
+#				if(parts[0] == "MH"):
+#					results[-1][0] = parts[1].strip("\t ") 
+#
+#				if(parts[0] == "MN"):
+#					results[-1][1].append(parts[1].strip("\t "))
+#				if(parts[0] == "MS"):
+#					results[-1][2] = parts[1].strip("\t ")
+#		ontology.close()
+#		__dataPath = os.path.join(os.path.dirname(__file__), self.path)
+#		output = file(os.path.join(__dataPath,'mesh-ontology.dat'), 'w')
+#		if callback:
+#			callback(98)
+#		for i in results:
+#			#print i[0] + "\t"
+#			output.write(i[0] + "\t")
+#			g=len(i[1])			
+#			for k in i[1]:
+#				g -= 1
+#				if(g > 0):
+#					# print k + ";"
+#					output.write(k + ";")
+#				else:
+#					# print k + "\t" + i[2]
+#					output.write(k + "\t" + i[2] + "\n")
+#		output.close()
+#		self.__loadOntologyFromDisk()
+#		if callback:
+#			callback(100)
+#		print "Ontology database has been updated."
 
 	def expandToFuzzyExamples(self, examples, a, b):
 		""" function will return new example table with some examples (effect is in (a,b)) expanded to fuzzy """
@@ -201,13 +212,13 @@ class obiMeSH(object):
 					self.fromCID[int(i)] = l
 					ret[int(i)] = l
 					
-					if len(l)>0:
-						# if we found something lets save it to a file
-						__dataPath = os.path.join(os.path.dirname(__file__), self.path)
-						fileHandle = open(os.path.join(__dataPath,'cid-annotation.dat'), 'a')
-						for s in l:
-							fileHandle.write('\n' + str(i) + ';' + s )
-						fileHandle.close()
+					#if len(l)>0:
+					#	# if we found something lets save it to a file
+					#	__dataPath = os.path.join(os.path.dirname(__file__), self.path)
+					#	fileHandle = open(os.path.join(__dataPath,'cid-annotation.dat'), 'a')
+					#	for s in l:
+					#		fileHandle.write('\n' + str(i) + ';' + s )
+					#	fileHandle.close()
 					
 			return ret
 		elif idType == "pmid":  #FIXME PMID annotation
@@ -661,7 +672,8 @@ class obiMeSH(object):
 		self.toDesc = dict() # 	name -> description
 		self.fromCID = dict() #   cid -> term id
 		self.fromPMID = dict()  #   pmid -> term id
-		__dataPath = os.path.join(os.path.dirname(__file__), self.path)
+		
+		__dataPath = orngServerFiles.localpath('MeSH')
 		try:		
 			# reading graph structure from file
 			d = file(os.path.join(__dataPath,'mesh-ontology.dat'))
