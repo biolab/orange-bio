@@ -29,7 +29,7 @@ class obiMeSH(object):
 		for i in f:
 			if not i in l:
 				orngServerFiles.download('MeSH',i)
-				print 'downloadding ', i
+				print 'downloading ', i
 			else:
 				df = d.info('MeSH', i)['datetime']
 				dl = orngServerFiles.info('MeSH', i)['datetime']
@@ -196,7 +196,7 @@ class obiMeSH(object):
 
 		ret = dict()
 		if(not self.dataLoaded):
-			print "Annotation and ontology has never been loaded! Use function setDataDir(path) to fix the problem."
+			print "Annotation and ontology has never been loaded!"
 			return ret
 
 		if idType=="cid": 
@@ -678,13 +678,13 @@ class obiMeSH(object):
 			# reading graph structure from file
 			d = file(os.path.join(__dataPath,'mesh-ontology.dat'))
 		except IOError:
-			print os.path.join(__dataPath,'mesh-ontology.dat') + " does not exist! Please use function setDataDir(path) to fix this problem."
+			print os.path.join(__dataPath,'mesh-ontology.dat') + " does not exist!"
 			return False
 		try:	
 			# reading cid annotation from file
 			f = file(os.path.join(__dataPath,'cid-annotation.dat'))
 		except IOError:
-			print os.path.join(__dataPath,'cid-annotation.dat') + " does not exist! Please use function setDataDir(path) to fix this problem."
+			print os.path.join(__dataPath,'cid-annotation.dat') + " does not exist!"
 			#return False
 		# loading ontology graph
 		t=0
