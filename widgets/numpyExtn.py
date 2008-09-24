@@ -121,8 +121,13 @@ def percentilesMa(m,perc,axis=0):
     """
     assert 0 < perc < 1
     m = numpy.ma.asarray(m, numpy.float)
-    if len(m.shape) == 0 or (len(m.shape)==1 and m.shape[0]==1):
-        return m[0]
+    # 2008-06-23: BUG: does not work with negative axis values: 0 axis is always taken
+    # assert -len(m.shape) <= axis < len(m.shape)
+    assert 0 <= axis < len(m.shape)
+    # 2008-06-23 BUG: at arbitrary axis, a single element is just returned
+    ##    if len(m.shape) == 0 or (len(m.shape)==1 and m.shape[0]==1):
+    if m.shape[axis] == 1:
+        return m[axis]
     elif len(m.shape) == 1:
         # returns (1,) array or ma.masked
         mCount = numpy.ma.count(m)
@@ -161,17 +166,28 @@ def percentilesMa(m,perc,axis=0):
         takeMed2 = cind.tolist()
         takeMed2.insert(axis,medInd2.tolist())
         med2 = m[tuple(takeMed2)]
-        if __name__=="__main__":
-            print "m\n",numpy.ma.filled(m,-1)
-            print "k", k
-            print "[(k-1)/2,k/2]", [(k-1)/2,k/2]
-            print "cind\n",cind
-            print "mtIndSort\n",mtIndSort
-            print "medInd1\n",medInd1
-            print "medInd2\n",medInd2
-            print "med1\n",med1
-            print "med2\n",med2
+##        if __name__=="__main__":
+##            print "m\n",numpy.ma.filled(m,-1)
+##            print "k", k
+##            print "[(k-1)/2,k/2]", [(k-1)/2,k/2]
+##            print "cind\n",cind
+##            print "mtIndSort\n",mtIndSort
+##            print "medInd1\n",medInd1
+##            print "medInd2\n",medInd2
+##            print "med1\n",med1
+##            print "med2\n",med2
         return med1 + numpy.ma.filled(d*(med2-med1),0)
+
+if __name__ == "__main__":
+    # 2008-06-23: bug with negative indices (not fixed, added assertion
+##    print "first +", medianMA(numpy.asarray([[10,1],[2,11]]),0)
+##    print "first -", medianMA(numpy.asarray([[10,1],[2,11]]),-2)
+##    print "second +", medianMA(numpy.asarray([[10,1],[2,11]]),1)
+##    print "second -", medianMA(numpy.asarray([[10,1],[2,11]]),-1)
+    # 2008-06-23: bug with medianMA(numpy.asarray([[149.0, 87.0]]), 0)
+    print medianMA(numpy.asarray([149.0, 87.0]), 0)
+    print medianMA(numpy.asarray([[149.0, 87.0]]), 0)
+    print medianMA(numpy.asarray([[149.0, 87.0]]), 1)
 
 
 ## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by PJ
@@ -248,6 +264,91 @@ def lowess2(x, y, xest, f=2./3., iter=3):
 ##import Bio.Statistics.lowess
 ##print Bio.Statistics.lowess.lowess(x, y, f, iter)
 ##print lowess2(x, y, xs, f, iter)
+
+def lowessW(x, y, xest, f=2./3., iter=3, dWeights=None, callback=None):
+    """Returns estimated values of y in data points xest (or None if estimation fails).
+    Lowess smoother: Robust locally weighted regression.
+    The lowess function fits a nonparametric regression curve to a scatterplot.
+    The arrays x and y contain an equal number of elements; each pair
+    (x[i], y[i]) defines a data point in the scatterplot. The function returns
+    the estimated (smooth) values of y.
+
+    The smoothing span is given by f. A larger value for f will result in a
+    smoother curve. The number of robustifying iterations is given by iter. The
+    function will run faster with a smaller number of iterations.
+
+    Data points may be assigned weights; if None, all weights equal 1.
+    """
+    x = Numeric.asarray(x, 'd')
+    y = Numeric.asarray(y, 'd')
+    xest = Numeric.asarray(xest, 'd')
+    n = len(x)
+    if n <> len(y):
+        raise AttributeError, "Error: lowessW(x,y,xest,f,iter,dWeights): len(x)=%i not equal to len(y)=%i" % (len(x), len(y))
+    nest = len(xest)
+    # weights of data points (optional)
+    if dWeights <> None:
+        dWeights = Numeric.asarray(dWeights, 'd')
+        if len(dWeights) <> n:
+            raise AttributeError, "Error: lowessW(x,y,xest,f,iter,dWeights): len(dWeights)=%i not equal to len(x)=%i" % (len(dWeights), len(x))
+##        dWeights = dWeights.reshape((n,1))
+    else:
+##        dWeights = Numeric.ones((n,1))
+        dWeights = Numeric.ones((n,))
+    r = min(int(Numeric.ceil(f*n)),n-1) # radius: num. of points to take into LR
+    h = [Numeric.sort(abs(x-x[i]))[r] for i in range(n)]    # distance of the r-th point from x[i]
+    w = Numeric.clip(abs(([x]-Numeric.transpose([x]))/h),0.0,1.0)
+    w = 1-w*w*w
+    w = w*w*w
+    hest = [Numeric.sort(abs(x-xest[i]))[r] for i in range(nest)]    # r-th min. distance from xest[i] to x
+    west = Numeric.clip(abs(([xest]-Numeric.transpose([x]))/hest),0.0,1.0)  # shape: (len(x), len(xest))
+    west = 1-west*west*west
+    west = west*west*west
+    yest = Numeric.zeros(n,'d')
+    yest2 = Numeric.zeros(nest,'d')
+    delta = Numeric.ones(n,'d')
+    try:
+        for iteration in range(int(iter)):
+            # fit xest
+            for i in range(nest):
+##                print delta.shape, west[:,i].shape, dWeights.shape
+                weights = delta * west[:,i] * dWeights
+                b = Numeric.array([sum(weights*y), sum(weights*y*x)])
+                A = Numeric.array([[sum(weights), sum(weights*x)], [sum(weights*x), sum(weights*x*x)]])
+                beta = LinearAlgebra.solve_linear_equations(A,b)
+                yest2[i] = beta[0] + beta[1]*xest[i]
+            # fit x (to calculate residuals and delta)
+            for i in range(n):
+                weights = delta * w[:,i] * dWeights
+                b = Numeric.array([sum(weights*y), sum(weights*y*x)])
+                A = Numeric.array([[sum(weights), sum(weights*x)], [sum(weights*x), sum(weights*x*x)]])
+                beta = LinearAlgebra.solve_linear_equations(A,b)
+                yest[i] = beta[0] + beta[1]*x[i]
+            residuals = y-yest
+            s = MLab.median(abs(residuals))
+            delta = Numeric.clip(residuals/(6*s),-1,1)
+            delta = 1-delta*delta
+            delta = delta*delta
+            if callback: callback()
+    except LinearAlgebra.LinAlgError:
+        print "Warning: NumExtn.lowessW: LinearAlgebra.solve_linear_equations: Singular matrix"
+        yest2 = None
+    return yest2
+
+
+##if __name__ == "__main__":
+##    x1 = numpy.asarray([0,1,2,3,4,5,6,7,8,9])
+##    xe1 = numpy.asarray([-1,0,1,2,3,4,5,6,7,8,9,10])
+##    xe2 = numpy.asarray([4,5,6])
+##    y1 = numpy.asarray([0.1, 0.9, 2.05, 3.11, 3.99, 4.95, 5.88, 6.5, 6.8, 7])
+##    w1 = numpy.asarray([1,   0.1,1,    1,    0.1, 0.1, 0.1, 0.1,0.1,0.1])
+##
+##    l2 = lowess2(x1, y1, xe1, f=0.3, iter=3)
+##    print l2
+##    l3 = lowessW(x1, y1, xe2, f=0.3, iter=3, dWeights=w1)
+##    print l3 #, "\n", w3, "\n", west3
+
+
 
 #####################################################################################
 #####################################################################################
