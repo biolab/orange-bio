@@ -257,7 +257,7 @@ class OWGsea(OWWidget):
         self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
 
-        self.organisms = [ ("hsa", "hsa"), ("ddi", "ddi") ]
+        self.organisms = [ ("hsa", "hsa"), ("ddi", "ddi"), ("mmu", "mmu") ]
         self.otype = 0
 
         self.correlationTypes = [ ("Signal2Noise", "s2n") ]
