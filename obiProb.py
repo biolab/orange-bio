@@ -31,6 +31,6 @@ class Binomial(object):
                 return 1.0
         return math.exp(self._logbin(n, r) + r*math.log(p) + (n + r)*math.log(1.0-p))
 
-    def PValue(self, from_, to, p):
+    def p_value(self, from_, to, p):
         return reduce(lambda sum, i: sum + self.__call__(to, i, p), range(from_, to+1), 0.0)
             
