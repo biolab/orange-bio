@@ -169,7 +169,7 @@ class Assess(object):
     def __call__(self, example):
         enrichmentScores = [] 
 
-        lcor = [ self.attrans[at](example[at]) for at in range(len(data.domain.attributes)) ]
+        lcor = [ self.attrans[at](example[at]) for at in len(self.attrans) ]
 
         ordered = obiGsea.orderedPointersCorr(lcor)
 
