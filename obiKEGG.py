@@ -18,8 +18,8 @@ from cPickle import load, dump
 from collections import defaultdict
 
 try:
-    import orngOrangeFoldersQt4
-    default_database_path = os.path.join(orngOrangeFoldersQt4.__getDirectoryNames()['bufferDir'],"kegg//")
+    import orngEnviron
+    default_database_path = os.path.join(orngEnviron.directoryNames['bufferDir'],"kegg//")
 except:
     default_database_path = os.path.join((os.path.split(__file__)[0] or "."), "data//kegg//")
 

@@ -9,8 +9,8 @@ import cPickle
 import os
 
 try:
-    import orngOrangeFoldersQt4
-    default_database_path = orngOrangeFoldersQt4.__getDirectoryNames()['bufferDir']
+    import orngEnviron
+    default_database_path = orngEnviron.directoryNames['bufferDir']
 except:
     default_database_path = os.path.join((os.path.split(__file__)[0] or "."), "data")
 
