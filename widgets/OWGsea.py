@@ -234,7 +234,8 @@ class OWGsea(OWWidget):
                     "minSubsetPartC", 
                     "ptype", 
                     "loadFileName",
-                    "gridSel" ]
+                    "gridSel",
+                    "csgm"]
 
     def __init__(self, parent=None, signalManager = None, name='GSEA'):
         OWWidget.__init__(self, parent, signalManager, name)
@@ -253,6 +254,7 @@ class OWGsea(OWWidget):
         self.minSubsetPart = 10
         self.minSubsetPartC = True
         self.perms = 100
+        self.csgm = True
 
         self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
@@ -275,6 +277,7 @@ class OWGsea(OWWidget):
         OWGUI.comboBox(box, self, "otype", \
             items=nth(self.organisms, 0), tooltip="Organism")
 
+        OWGUI.checkBox(box, self, "csgm", "Case sensitive gene matching")
 
         ma = self.mainArea
 
@@ -529,7 +532,9 @@ class OWGsea(OWWidget):
             if len(self.data) > 1:
                 dkwargs["classValues"] = selectedClasses
  
-            dkwargs["caseSensitive"] = True
+            dkwargs["caseSensitive"] = self.csgm
+
+            organism = self.organisms[self.otype][0]
 
             gso = obiGsea.GSEA(organism=self.organisms[self.otype][0])
             gso.setData(self.data, **dkwargs)
@@ -613,7 +618,8 @@ if __name__=="__main__":
     #d = orange.ExampleTable('testCorrelated.tab')
     #ow.setData(d)
 
-    d = orange.ExampleTable("sterolTalkHepa.tab")
+    #d = orange.ExampleTable("sterolTalkHepa.tab")
+    d = orange.ExampleTable("holQ10_gs_orange.tab")
     ow.setData(d)
 
     #d = orange.ExampleTable("demo.tab")
