@@ -708,9 +708,9 @@ def drawEnrichmentGraphPIL_tostream(termsList, fh, width=None, height=None):
     thirdColumnStart = secondColumnStart + getMaxTextWidthHint([str(t[2]) for t in termsList]+["Total"]) + 2
     fourthColumnStart = thirdColumnStart + getMaxTextWidthHint([str(t[3]) for t in termsList]+["p-value"]) + 4
 ##    maxAnnotationTextWidth = width==None and getMaxTextWidthHint([str(t[4]) for t in termsList]+["Annotation"]) or (width - fourthColumnStart - verticalMargin) * 2 / 3
-    maxAnnotationTextWidth = width==None and getMaxTextWidthHint([str(t[4]) for t in termsList]+["Annotation"]) or max((width - fourthColumnStart - verticalMargin) * 2 / 3, getMaxTextWidthHint([t[5] for t in termsList]+["Annotation"]))
+    maxAnnotationTextWidth = width==None and getMaxTextWidthHint([str(t[4]) for t in termsList]+["Annotation"]) or max((width - fourthColumnStart - verticalMargin) * 2 / 3, getMaxTextWidthHint([t[4] for t in termsList]+["Annotation"]))
     fifthColumnStart  = fourthColumnStart + maxAnnotationTextWidth + 4
-    maxGenesTextWidth = width==None and getMaxTextWidthHint([str(t[5]) for t in termsList]+["Genes"]) or (width - fourthColumnStart - verticalMargin) / 3
+    maxGenesTextWidth = width==None and getMaxTextWidthHint([str(t[6]) for t in termsList]+["Genes"]) or (width - fourthColumnStart - verticalMargin) / 3
     
     legendHeight = font.getsize("1234567890")[1]*2
     termHeight = font.getsize("A")[1]
