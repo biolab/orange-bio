@@ -46,7 +46,7 @@ if __name__ == "__main__":
 	      version = "1.0",
 	      description = "Genomics extensions for Orange",
 	      author="University of Ljubljana, AI lab",
-	      contact_email="tomaz.curk@fri.uni-lj.si",
+	      maintainer_email="tomaz.curk@fri.uni-lj.si",
 	      ext_modules=modules,
 	      packages = [ 'widgets', 'doc' ],
 	      package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
