@@ -10,15 +10,15 @@
 """
 
 from OWWidget import *
-from qttable import *
-from qt import *
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
 from obiMeSH import *
 import OWGUI
 
-class MyQTableItem(QTableItem):
+class MyQTableWidgetItem(QTableWidgetItem):
     """ Our implementation of QTable item allowing numerical sorting.  """
     def __init__(self,table,text):
-        QTableItem.__init__(self,table,QTableItem.Never,text)
+        QTableWidgetItem.__init__(self,table,QTableWidgetItem.Never,text)
         self.data = text
         
     def key(self):      # additional setting to correctly handle text and numerical sorting
@@ -39,7 +39,7 @@ class MyQTableItem(QTableItem):
                 pre = pre + "0"
             return pre + tdata
         except ValueError:      # sorting text column
-            return self.data
+            return self.data 
 
 class ListViewToolTip(QToolTip):
     """brief A class to allow tooltips in a listview."""
@@ -100,77 +100,72 @@ class OWMeSHBrowser(OWWidget):
         self.reference = None
         self.cluster = None
         self.loadSettings()        
-        self.mesh = obiMeSH()          # main object is created
+        self.mesh = obiMeSH() # main object is created
         self.dataLoaded = self.mesh.dataLoaded
 
         # left pane
-        box = QVGroupBox("Info", self.controlArea)
-        self.infoa = QLabel("No reference data.", box)
-        self.infob = QLabel("No cluster data.", box)
-        self.ratio = QLabel("", box)
-        self.ref_att = QLabel("", box)
-        self.clu_att = QLabel("", box)
-        self.resize(930,600)
-
+        box = OWGUI.widgetBox(self.controlArea, "Info")
+        #box = QGroupBox("Info", self.controlArea)
+        self.infoa = OWGUI.label(box, self, "No reference data.")
+        self.infob = OWGUI.label(box, self, "No cluster data.")
+        self.ratio = OWGUI.label(box, self, "")
+        self.ref_att = OWGUI.label(box, self, "")
+        self.clu_att = OWGUI.label(box, self, "")
+        self.resize(960,600)
+            
         OWGUI.separator(self.controlArea)
-        self.optionsBox = QVGroupBox("Options", self.controlArea)
+        
+        self.optionsBox = OWGUI.widgetBox(self.controlArea, "Options")
         self.maxp = OWGUI.lineEdit(self.optionsBox, self, "maxPValue", label="threshold:", orientation="horizontal", labelWidth=120, valueType=float)
         self.minf = OWGUI.lineEdit(self.optionsBox, self, "minExamplesInTerm", label="min. frequency:", orientation="horizontal", labelWidth=120, valueType=int)        
-        OWGUI.checkBox(self.optionsBox, self, 'multi', 'Multiple selection', callback= self.checkCLicked)
+        #OWGUI.checkBox(self.optionsBox, self, 'multi', 'Multiple selection', callback= self.checkClicked)
         OWGUI.button(self.optionsBox, self, "Refresh", callback=self.refresh)
-        OWGUI.button(self.optionsBox, self, "Update MeSH ontology", callback=self.download)
-
+        
+    
         # right pane
-        self.col_size = [300,84,84,100,120]
+        self.col_size = [280,84,84,100,110]
         self.sort_col = 0
         self.sort_dir = True
         self.columns = ['MeSH term', '# reference', '# cluster', 'p value','fold enrichment'] # both datasets
-        layout=QVBoxLayout(self.mainArea)
-        splitter = QSplitter(QSplitter.Vertical, self.mainArea)
-        layout.add(splitter)
 
+        self.splitter = QSplitter(Qt.Vertical, self.mainArea)
+        self.mainArea.layout().addWidget(self.splitter)
+           
         # list view
-        self.meshLV = QListView(splitter)
-        self.meshLV.setMultiSelection(self.multi)
+        self.meshLV = QTreeWidget(self.splitter)
+        #self.meshLV.setSelectionMode(QAbstractItemView.MultiSelection)
         self.meshLV.setAllColumnsShowFocus(1)
-        self.meshLV.addColumn(self.columns[0])
-        self.meshLV.setColumnWidth(0, self.col_size[0])
-        self.meshLV.setColumnWidthMode(0, QListView.Manual)
-        self.meshLV.setColumnAlignment(0, QListView.AlignLeft)
-        self.meshLV.setSorting(-1)
-        self.meshLV.setRootIsDecorated(1)
-        i=1
-        for title in self.columns[1:]:
-            col = self.meshLV.addColumn(title)
-            self.meshLV.setColumnWidth(col, self.col_size[i])
-            self.meshLV.setColumnWidthMode(col, QListView.Manual)
-            self.meshLV.setColumnAlignment(col, QListView.AlignCenter)
-            i += 1
-        self.connect(self.meshLV, SIGNAL("selectionChanged()"), self.viewSelectionChanged)
-        self.tooltips = ListViewToolTip(self.meshLV,0, self.mesh.toDesc)        
+        self.meshLV.setColumnCount(len(self.columns))
+        self.meshLV.setHeaderLabels(self.columns)
+        
+        self.meshLV.header().setClickable(True)
+        #self.meshLV.header().setSortIndicatorShown(True)
+        #self.meshLV.setSortingEnabled(True)
+        self.meshLV.setRootIsDecorated (True)
+        self.connect(self.meshLV, SIGNAL("itemSelectionChanged()"), self.viewSelectionChanged)
+        #self.meshLV.setItemDelegateForColumn(3, EnrichmentColumnItemDelegate(self))
+        #self.tooltips = ListViewToolTip(self.meshLV,0, self.mesh.toDesc)        
 
         # table of significant mesh terms
-        self.sigTermsTable = QTable(splitter)
-        self.sigTermsTable.setNumCols(len(self.columns))
-        self.sigTermsTable.setNumRows(4)
+        self.sigTermsTable = QTableWidget(self.splitter)
+        self.sigTermsTable.setColumnCount(len(self.columns))
+        self.sigTermsTable.setRowCount(4)
         ## hide the vertical header
         self.sigTermsTable.verticalHeader().hide()
-        self.sigTermsTable.setLeftMargin(0)
-        self.sigTermsTable.setSelectionMode(QTable.Multi)
-        self.header = self.sigTermsTable.horizontalHeader() 
-        for i in range(self.sigTermsTable.numCols()):
-            self.sigTermsTable.setColumnWidth(i, self.col_size[i])
-            self.header.setLabel(i, self.columns[i])
+        #self.sigTermsTable.setLeftMargin(0)
+        #self.sigTermsTable.setSelectionMode(QAbstractItemView.MultiSelection)
+        
+        for i in range(0,len(self.columns)):
+            self.sigTermsTable.horizontalHeader().resizeSection(i,self.col_size[i])
+            self.meshLV.header().resizeSection(i,self.col_size[i])
 
-                   
-        self.connect(self.sigTermsTable, SIGNAL("selectionChanged()"), self.tableSelectionChanged) 
-        self.connect(self.sigTermsTable, SIGNAL("clicked(int,int,int,const QPoint&)"), self.tableClicked)  
+        self.sigTermsTable.setHorizontalHeaderLabels(self.columns)
+
+        self.connect(self.sigTermsTable, SIGNAL("itemSelectionChanged()"), self.tableSelectionChanged) 
+        self.connect(self.sigTermsTable, SIGNAL("clicked(int,int,int,const QPoint&)"), self.tableClicked)
+        self.splitter.show()
         self.optionsBox.setDisabled(1)
 
-    def download(self):
-        self.progressBarInit()
-        self.mesh.downloadOntology(callback=self.progressBarSet)
-        self.progressBarFinished()
 
     def tableSelectionChanged(self):
         return True
@@ -182,25 +177,31 @@ class OWMeSHBrowser(OWWidget):
             self.sort_col = col
             self.sort_dir = True
             
-        self.sigTermsTable.sortColumn(self.sort_col,self.sort_dir,True)
+        self.sigTermsTable.sortItems(self.sort_col,Qt.DescendingOrder)
         #print "sortiram ", col, " ",row
 
-    def checkCLicked(self):
+    def checkClicked(self):
         if self.multi == 0:
             self.meshLV.clearSelection()
-        self.meshLV.setMultiSelection(self.multi)
+        self.meshLV.setSelectionMode(QAbstractItemView.MultiSelection)
 
     def viewSelectionChanged(self):
         items = list()
         self.progressBarInit()
-        for i in self.lvItem2Mesh.iterkeys():
-            if i.isSelected():
-                items.append(self.lvItem2Mesh[i][1])
+
+        itms = self.meshLV.selectedItems()
+        for i in itms:
+            items.append(i.term)
+        
+        #for i in self.lvItem2Mesh.iterkeys():
+        #    if i.isSelected():
+        #        items.append(self.lvItem2Mesh[i][1])
+        #print "selecting ", items
         
         if self.reference:
-            data=self.mesh.findSubset(self.reference, items, callback=self.progressBarSet, MeSHtype='id')
+            data=self.mesh.findSubset(self.reference, items, callback=self.progressBarSet, MeSHtype='term')
         else:
-            data=self.mesh.findSubset(self.cluster, items, callback=self.progressBarSet, MeSHtype='id')
+            data=self.mesh.findSubset(self.cluster, items, callback=self.progressBarSet, MeSHtype='term')
         
         
         #print items
@@ -226,7 +227,7 @@ class OWMeSHBrowser(OWWidget):
             self.ref_att.setText("reference MeSH att: " + self.mesh.ref_att)
 
             # table data update
-            self.sigTermsTable.setNumRows(len(self.results))
+            self.sigTermsTable.setRowCount(len(self.results))
             index = 0
             for i in self.results.iterkeys(): ## sorted by the p value
                # mTerm = i[0]
@@ -239,30 +240,32 @@ class OWMeSHBrowser(OWWidget):
                 fold = "%.4g" % fold
                 vals = [mID ,rF,cF, pval, fold]
                 for j in range(len(vals)):
-                    self.sigTermsTable.setItem(index,j, MyQTableItem(self.sigTermsTable, str(vals[j])))
+                    self.sigTermsTable.setItem(index,j, QTableWidgetItem(str(vals[j])))
                 index = index + 1
 
             # initial sorting - p value
             self.sort_col = 3
             self.sort_dir = True
-            self.sigTermsTable.sortColumn(self.sort_col, self.sort_dir,True)
-
+            self.sigTermsTable.sortItems(self.sort_col, Qt.DescendingOrder)
+        
             # tree view update - The most beautiful part of this widget!
             starters = self.treeInfo["tops"]       # we get a list of possible top nodes            
             self.meshLV.clear()
 
             for e in starters:      # we manualy create top nodes
-                f = QListViewItem(self.meshLV);
-                f.setOpen(1)
+                f = QTreeWidgetItem(self.meshLV);
+                #f.setOpen(1)
                 rfr = str(self.results[e][0])
                 cfr = str(self.results[e][1])
                 pval = "%.4g" % self.results[e][2]
                 fold = "%.4g" % self.results[e][3]
                 self.lvItem2Mesh[f] = (self.mesh.toName[e],e)
                 data = [self.mesh.toName[e], rfr, cfr, pval, fold]
+                f.term = self.mesh.toName[e]
                 for t in range(len(data)):
                     f.setText(t,data[t])
                 self.__treeViewMaker__(f, e, False)
+            self.meshLV.expandAll()
 
 
         elif self.reference or self.cluster:
@@ -281,41 +284,43 @@ class OWMeSHBrowser(OWWidget):
                 self.clu_att.setText("cluster MeSH att: " + self.mesh.solo_att)
 
             # table data update
-            self.sigTermsTable.setNumRows(len(self.results))
+            self.sigTermsTable.setRowCount(len(self.results))
             index = 0
             for i in self.results.iterkeys(): 
                 mID = self.mesh.toName[i] + " (" + i + ")"
                 rF = self.results[i]
                 vals = [mID ,rF]
                 for j in range(len(vals)):
-                    self.sigTermsTable.setItem(index,j, MyQTableItem(self.sigTermsTable, str(vals[j])))
-                    #self.sigTermsTable.setText(index, j, str(vals[j]))
+                    self.sigTermsTable.setItem(index,j, QTableWidgetItem(str(vals[j])))
                 index = index + 1
 
             # initial sorting - frequency
             self.sort_col = 1
             self.sort_dir = True
-            self.sigTermsTable.sortColumn(self.sort_col, self.sort_dir,True)
+            self.sigTermsTable.sortItems(self.sort_col, Qt.DescendingOrder)
 
+        
             # tree view update - The most beautiful part of this widget!
             starters = self.treeInfo["tops"]       # we get a list of possible top nodes
             self.meshLV.clear()
             
             for e in starters:      # we manualy create top nodes
-                f = QListViewItem(self.meshLV);
-                f.setOpen(1)
+                f = QTreeWidgetItem(self.meshLV);
+                #f.setOpen(1)
                 self.lvItem2Mesh[f] = (self.mesh.toName[e],e)
                 rfr = str(self.results[e])
                 data = [self.mesh.toName[e], rfr]
+                f.term = self.mesh.toName[e]
                 for t in range(len(data)):
                     f.setText(t,data[t])
                 self.__treeViewMaker__(f, e, True)
+            self.meshLV.expandAll()
             
     def __treeViewMaker__(self,parentLVI, parentID, soloMode):
         """ Function builds tree in treeListView. If soloMode = True function only display first two columns in tree view. (suitable when only one dataset is present) """
         for i in self.treeInfo[parentID]:   # for each succesor
-            f = QListViewItem(parentLVI);
-            f.setOpen(1)
+            f = QTreeWidgetItem(parentLVI);
+            f.term = self.mesh.toName[i]
             
             data = [self.mesh.toName[i]]
             if soloMode:
@@ -328,7 +333,7 @@ class OWMeSHBrowser(OWWidget):
                 fold = "%.4g" % self.results[i][3]
                 data.extend([rfr, cfr, pval, fold])
 
-            self.lvItem2Mesh[f]=(data[0],i)        # mapping   QListViewItem <-> mesh id
+            self.lvItem2Mesh[f]=(data[0],i)        # mapping   QTreeWidgetItem <-> mesh id
 
             for t in range(len(data)):
                 f.setText(t,data[t])
@@ -343,7 +348,7 @@ class OWMeSHBrowser(OWWidget):
     def __clearGUI__(self):
         """ Function clears updates tree view, table and labels to theis default value """
         self.meshLV.clear()
-        self.sigTermsTable.setNumRows(0)
+        self.sigTermsTable.setRowCount(0)
 
     def __switchGUI__(self):
         """ Function updates GUI for one or two datasets. """
@@ -360,22 +365,26 @@ class OWMeSHBrowser(OWWidget):
             self.maxp.setDisabled(1)
             self.minf.setDisabled(0)
             for i in range(2,len(self.columns)):
-                #self.meshLV.hideColumn(i)
-                self.meshLV.setColumnWidth(i,0)                
-                #self.sigTermsTable.hideColumn(i)
-                self.sigTermsTable.setColumnWidth(i,0)
+                self.meshLV.hideColumn(i)
+                self.sigTermsTable.hideColumn(i)
             
-            self.header.setLabel(1, "frequency")
-            self.meshLV.setColumnText(1,"frequency")
+            self.sigTermsTable.setHorizontalHeaderLabels(["MeSH term","frequency"])
+            self.meshLV.setHeaderLabels(["MeSH term","frequency"])
             self.ratio.setText("")
         else:
             self.maxp.setDisabled(0)
             self.minf.setDisabled(1)
-            for i in range(2,len(self.columns)):
-                self.meshLV.setColumnWidth(i,self.col_size[i])
-                self.sigTermsTable.setColumnWidth(i, self.col_size[i])
-            self.header.setLabel(1, self.columns[1])
-            self.meshLV.setColumnText(1,self.columns[1])
+            for i in range(0,len(self.columns)):
+                self.meshLV.showColumn(i)
+                self.sigTermsTable.showColumn(i)
+                
+            self.sigTermsTable.setHorizontalHeaderLabels(self.columns)
+            self.meshLV.setHeaderLabels(self.columns)
+
+            for i in range(0,len(self.columns)):
+                self.meshLV.header().resizeSection(i,self.col_size[i])
+                self.sigTermsTable.horizontalHeader().resizeSection(i,self.col_size[i])
+
             self.ratio.setText("ratio = %.4g" % self.mesh.ratio)
 
     def getReferenceData(self,data):
