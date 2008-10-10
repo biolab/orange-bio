@@ -6,7 +6,7 @@
 <description>Browser over MeSH ontology</description>
 <icon>icons/MeSH.png</icon>
 <contact>Crt Gorup (crt.gorup@gmail.com)</contact> 
-<priority>2016</priority>
+<priority>215</priority>
 """
 
 from OWWidget import *

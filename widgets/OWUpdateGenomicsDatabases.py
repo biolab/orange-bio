@@ -2,7 +2,7 @@
 <name>Update Genomics Databases</name>
 <description>Central widget for updating genomics databases</description>
 <contact>Ales Erjavec</contact>
-<priority>101</priority>
+<priority>5</priority>
 <icon>icons/UpdateDatabases.png</icon>
 """
 
