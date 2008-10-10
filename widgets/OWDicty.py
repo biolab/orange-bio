@@ -1,6 +1,8 @@
 """
 <name>Dicty database</name>
 <description>Widget interface to dicty experaments</description>
+<icon>icons/dictyExpress.png</icon>
+<priority>250</priority>
 """
 
 from OWWidget import *
