@@ -1,7 +1,8 @@
 """
-<name>FeatureSelection</name>
+<name>Feature Selection</name>
 <description>Feature selection</description>
 <priority>230</priority>
+<icon>icons/FeatureSelection.png</icon>
 """
 import orange
 
