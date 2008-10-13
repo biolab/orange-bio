@@ -1,43 +1,27 @@
 import distutils
 import distutils.sysconfig
 import sys
-import orngRegistry
 import os
+import orngEnviron
 
-orngRegistry.addWidgetCategory("Orange Genomics", \
-    os.path.join(distutils.sysconfig.get_python_lib(),"Genomics","widgets"), \
-    "remove" not in sys.argv[1] if len(sys.argv)>1 else 1)
-
-import go
 try:
-    if sys.argv[1]=="remove":
-        sys.exit(0)
-except:
-    pass
+    import orngRegistry
+    orngRegistry.addWidgetCategory("Orange Genomics", \
+        os.path.join(distutils.sysconfig.get_python_lib(),"Genomics","widgets"), \
+        "remove" not in sys.argv[1] if len(sys.argv)>1 else 1)
+except Exception, detail:
+    print "Error: ", Exception, detail
+    print "Add-on could not be registered with Orange Canvas. Please, make sure to install Orange and Orange Canvas before installing this add-on."
+    print
 
-import obiKEGG, obiGO, obiGenomicsUpdate
-
-pkgUpdate = obiGenomicsUpdate.PKGUpdate("go", obiGO.Update())
-
-print "Updating GO ontology"
-pkgUpdate.UpdateOntology()
-
-for org, name in [("goa_human", "Homo sapiens"), ("sgd", "Yeast")]:
-    print "Updating GO anotations for", name
-    pkgUpdate.UpdateAnnotation(org)
-
-pkgUpdate = obiGenomicsUpdate.PKGUpdate("kegg", obiKEGG.Update())
-
-print "Updating KEGG taxonomy"
-pkgUpdate.UpdateTaxonomy()
-
-print "Updating KEGG orthology"
-pkgUpdate.UpdateOrthology()
-
-print "Updating KEGG reference pathways"
-pkgUpdate.UpdateReference()
-
-for org, name in [("hsa", "Homo sapiens"), ("sce", "Yeast")]:
-    print "Updating KEGG pathways for", name
-    pkgUpdate.UpdateOrganism(org)
-
+try:
+    from OWWidget import *
+    import OWDatabasesUpdate
+    app = QApplication(sys.argv)
+    w = OWDatabasesUpdate.OWDatabasesUpdate(wantCloseButton=True, showAll=True, searchString="essential")
+    w.show()
+    w.exec_()
+except Exception, detail:
+    print "Error: ", Exception, detail
+    print "Widget OWDatabasesUpdate failed to run. Databases needed by Orange Genomics add-on can be downloaded and updated only in this widget."
+    # need to add support for update from text terminal
