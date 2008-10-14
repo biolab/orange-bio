@@ -42,9 +42,9 @@ def writeMakeFileDepends():
 	f.close()
 
 if __name__ == "__main__":
-	setup(name = "Genomics",
+	setup(name = "OBI",
 	      version = "1.0",
-	      description = "Genomics extensions for Orange",
+	      description = "Bioinformatics Add-On for Orange",
 	      author="University of Ljubljana, AI lab",
 	      maintainer_email="tomaz.curk@fri.uni-lj.si",
 	      ext_modules=modules,
