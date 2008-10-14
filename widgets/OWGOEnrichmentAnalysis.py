@@ -433,7 +433,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.UpdateGOAliases(clusterGenes)
         self.geneInfoLabel.setText("%i genes on input" % len(clusterGenes))
         self.clusterGenes = clusterGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, clusterGenes)
-        print len(self.clusterGenes), self.clusterGenes[:5]
+##        print len(self.clusterGenes), self.clusterGenes[:5]
         referenceGenes = None
         if self.useReferenceDataset:
             try:
@@ -463,7 +463,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         aspect = ["P", "C", "F"][self.aspectIndex]
         self.progressBarInit()
         if clusterGenes:
-            print clusterGenes[:5], referenceGenes[:5], evidences, aspect
+##            print clusterGenes[:5], referenceGenes[:5], evidences, aspect
             self.terms = terms = go.GOTermFinder(clusterGenes, referenceGenes, evidences, aspect=aspect, progressCallback=self.progressBarSet)
 ##            go.loadedAnnotation.__annotation.aliasMapper = old
         else:
