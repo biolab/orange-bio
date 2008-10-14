@@ -15,7 +15,7 @@ class OWUpdateGenomicsDatabases(OWDatabasesUpdate):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     w = OWUpdateGenomicsDatabases()
-    app.setMainWidget(w)
+##    app.setMainWidget(w)
     w.show()
-    app.exec_loop()
+    app.exec_()
     w.saveSettings()
