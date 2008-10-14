@@ -7,7 +7,7 @@
 
 import sys
 import orange
-import obiKEGG
+import obiKEGG, orngServerFiles
 
 from OWWidget import *  
 import OWGUI
@@ -215,15 +215,23 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.useReference = False
         self.useAttrNames = 0
         self.caseSensitive = True
-        self.showOntology = True
+        self.showOrthology = True
         self.autoFindBestOrg = False
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
-        self.organismCodes = obiKEGG.KEGGInterfaceLocal().list_organisms().items()
+        self.keggLocalInterface = obiKEGG.KEGGInterfaceLocal(update=False)
+        self.allOrganismCodes = self.keggLocalInterface.list_organisms()
+##        update = obiKEGG.Update()
+        local = [name.split("'")[-2] for name in orngServerFiles.listfiles("kegg") if "UpdateOrganism" in name and len(name.split("'"))>2]
+        self.organismCodes = [(code, name) for code, name in self.allOrganismCodes.items() if code in local]
         self.organismCodes.sort()
         items = [code+": "+desc for code, desc in self.organismCodes]
         self.organismCodes = [code for code, desc in self.organismCodes]
+        if not items:
+            self.error(0, "No downloaded organism data!! Update the KEGG for your organism.")
+##        if obiKEGG.Update.UpdateReference not in updatable:
+##            self.warning(0, "Reference pathways are not downloaded. You will not be able to view all pathways in the orthology")
         cb = OWGUI.comboBox(self.controlArea, self, "organismIndex", box="Organism", items=items, callback=self.Update, addSpace=True)
         cb.setMaximumWidth(200)
         
@@ -238,7 +246,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         OWGUI.checkBox(self.controlArea, self, "useReference", "From signal", box="Reference", callback=self.Update)
         OWGUI.separator(self.controlArea)
 
-        OWGUI.checkBox(self.controlArea, self, "showOntology", "Show pathways in full ontology", box="Ontology", callback=self.UpdateListView)
+        OWGUI.checkBox(self.controlArea, self, "showOrthology", "Show pathways in full orthology", box="Orthology", callback=self.UpdateListView)
         
         OWGUI.checkBox(self.controlArea, self, "autoResize", "Resize to fit", box="Image", callback=lambda :self.pathwayView.image and self.pathwayView.ShowImage())
         OWGUI.separator(self.controlArea)
@@ -309,11 +317,12 @@ class OWKEGGPathwayBrowser(OWWidget):
         score = {}
         self.progressBarInit()
         attrNames = [str(v.name).strip() for v in self.data.domain.attributes]
-        testOrgs = self.autoFindBestOrg and self.organismCodes or [self.organismCodes[self.organismIndex]]
+        testOrgs = self.autoFindBestOrg and self.organismCodes or [self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]]
         for i, org in enumerate(testOrgs):
             try:
                 print obiKEGG.default_database_path + org + "_genenames.pickle"
-                geneNames = load(open(os.path.join(obiKEGG.default_database_path, org+"_genenames.pickle")))
+##                geneNames = load(open(os.path.join(obiKEGG.default_database_path, org+"_genenames.pickle")))
+                geneNames = load(self.keggLocalInterface._retrieve(org+"_genenames.pickle"))
             except:
                 print 'error 2'
                 continue
@@ -347,10 +356,12 @@ class OWKEGGPathwayBrowser(OWWidget):
         if not self.data:
             return
         allPathways = self.org.list_pathways()
-        allRefPathways = obiKEGG.KEGGInterfaceLocal().list_pathways(org="map")
+##        allRefPathways = obiKEGG.KEGGInterfaceLocal().list_pathways(org="map")
+        allRefPathways = self.keggLocalInterface.list_pathways(org="map")
         items = []
-        if self.showOntology:
-            self.koOrthology = obiKEGG.KEGGInterfaceLocal().get_ko_orthology()
+        if self.showOrthology:
+##            self.koOrthology = obiKEGGobiKEGG.KEGGInterfaceLocal().get_ko_orthology()
+            self.koOrthology = self.keggLocalInterface.get_ko_orthology()
             self.listView.setRootIsDecorated(True)
             path_ids = set([s[-5:] for s in self.pathways.keys()])
             def _walkCollect(koClass):
@@ -362,7 +373,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             allClasses = reduce(lambda li1, li2: li1+li2, [_walkCollect(c) for c in self.koOrthology], [])
             def _walkCreate(koClass, lvItem):
                 item = QTreeWidgetItem(lvItem)
-                id = "path:"+self.organismCodes[self.organismIndex]+koClass.ko_class_id
+                id = "path:"+self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]+koClass.ko_class_id
                 if koClass.ko_class_id in path_ids:
                     genes, p_value, ref = self.pathways[id]
                     item.setText(0, allPathways.get(id, id))
@@ -438,10 +449,10 @@ class OWKEGGPathwayBrowser(OWWidget):
         else:
             self.error(0, "Cannot extact gene names from input")
             genes = []
-        if self.loadedOrganism!=self.organismCodes[self.organismIndex]:
-            self.org = obiKEGG.KEGGOrganism(self.organismCodes[self.organismIndex], True)
+        if self.loadedOrganism!=self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]:
+            self.org = obiKEGG.KEGGOrganism(self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)], True)
             self.org.api.download_progress_callback=self.progressBarSet
-            self.loadedOrganism = self.organismCodes[self.organismIndex]
+            self.loadedOrganism = self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]
         self.progressBarInit()
         uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes), self.caseSensitive)
         self.progressBarFinished()
