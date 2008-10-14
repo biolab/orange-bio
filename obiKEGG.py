@@ -9,17 +9,17 @@ except:
 import cStringIO
 import math
 import time
-import os
+import os, sys, tarfile
 import re
 
 import obiData
 
-from cPickle import load, dump
+from cPickle import load, loads, dump
 from collections import defaultdict
 
 try:
-    import orngEnviron
-    default_database_path = os.path.join(orngEnviron.directoryNames['bufferDir'],"kegg//")
+    import orngServerFiles
+    default_database_path = os.path.join(orngServerFiles.localpath(), "kegg//")
 except:
     default_database_path = os.path.join((os.path.split(__file__)[0] or "."), "data//kegg//")
 
@@ -269,6 +269,9 @@ class GenesDatabaseProxy(defaultdict):
 class KEGGInterfaceLocal(object):
     def __init__(self, update=False, local_database_path=None, download_progress_callback=None):
         self.local_database_path = local_database_path or default_database_path
+        tarfiles = [name for name in os.listdir(self.local_database_path) if name.endswith(".tar.gz") or name.endswith(".tar")]
+        self.openTarFiles = {}
+        self.inTarfileDict = dict([(os.path.normpath(info.name), filename) for filename in tarfiles for info in tarfile.open(os.path.join(self.local_database_path, filename)).getmembers()])
         self.update = update
         self.download_progress_callback = download_progress_callback
         self._gene_alias = {}
@@ -348,9 +351,11 @@ class KEGGInterfaceLocal(object):
 
     def _load_pickled(self, filename=None, name=None):
         if not filename and name:
-            return load(open(self.local_database_path+self._filenames[name]))
+##            return load(open(self.local_database_path+self._filenames[name]))
+            return loads(self._retrieve(self._filenames[name]).read().replace("\r\n", "\n"))
         else:
-            return load(open(self.local_database_path+filename))
+##            return load(open(self.local_database_path+filename))
+            return loads(self._retrieve(filename).read().replace("\r\n", "\n"))
 
     def _dump_pickled(self, object, filename=None, name=None):
         if not  filename and name:
@@ -393,12 +398,15 @@ class KEGGInterfaceLocal(object):
 
     def _load_gene_database(self, org):
         rel_path = "genes/" + self._rel_org_dir(org)
+        freshLoad = False
         try:
             self._genes[org] = self._load_pickled(rel_path + "_genes.pickle")
         except Exception, ex:
+            print ex
             genes = map(DBGeneEntry, filter(bool ,self._retrieve(rel_path+self._taxonomy[org][0] + ".ent").read().split("///\n")))
             self._genes[org] = dict([(org + ":" + g.get_name(), DBEntryWrapper(g)) for g in genes])
             self._dump_pickled(self._genes[org], rel_path + "_genes.pickle")
+            freshLoad = True
         self._gene_alias[org] = {}
         self._gene_alias_conflicting[org] = set()
         for id, gene in self._genes[org].items():
@@ -408,7 +416,11 @@ class KEGGInterfaceLocal(object):
                     self._gene_alias_conflicting[org].add(alias)
                 else:
                     self._gene_alias[org][alias] = id
-        dump(set(self._gene_alias[org].keys() + self._genes[org].keys()), open(self.local_database_path+org+"_genenames.pickle","w"))
+        if freshLoad:
+            try:
+                dump(set(self._gene_alias[org].keys() + self._genes[org].keys()), open(self.local_database_path+org+"_genenames.pickle","w"))
+            except Exception:
+                pass
         return self._genes[org]
 
     def _load_taxonomy(self):
@@ -417,15 +429,29 @@ class KEGGInterfaceLocal(object):
         self._taxonomy = d
         try:
             self._genome = self._load_pickled(name = "_genome")
-        except:
+        except Exception:
             entrys = map(DBOrganismEntry, filter(bool, self._retrieve("genes/genome").read().split("///\n")))
             self._genome = dict([(e.get_name(), DBEntryWrapper(e)) for e in entrys])
-            self._dump_pickled(self._genome, name="_genome")
+            try:
+                self._dump_pickled(self._genome, name="_genome")
+            except Exception:
+                pass
         
     def _retrieve(self, filename):
         if forceUpdate == True or self.update == "Force update":
             self.downloader.retrieve(filename, update=self.update, progressCallback=self.download_progress_callback)
-        return open(self.local_database_path+filename)
+        try:
+            return open(os.path.join(self.local_database_path, filename))
+        except Exception:
+            if os.path.normpath(filename) in self.inTarfileDict:
+                print "extracting: ", filename
+                tarFileName = self.inTarfileDict[os.path.normpath(filename)]
+                if tarFileName not in self.openTarFiles:
+                    self.openTarFiles[tarFileName] = tarfile.open(os.path.join(self.local_database_path, tarFileName))
+                return self.openTarFiles[tarFileName].extractfile(filename)
+##                return tarfile.open(os.path.join(self.local_database_path, self.inTarfileDict[os.path.normpath(filename)])).extractfile(filename)
+            else:
+                raise
     
     def list_organisms(self):
         return dict([(key, value[1]) for key, value in self._taxonomy.items()])
@@ -518,7 +544,8 @@ class KEGGInterfaceLocal(object):
 
     def get_pathway_image(self, pathway_id):
         f = self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
-        image = Image.open(self.local_database_path+_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
+##        image = Image.open(self.local_database_path+_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
+        image = Image.open(f)
         return image.convert("RGB")
 
     def get_colored_pathway_image(self, pathway_id, objects):
