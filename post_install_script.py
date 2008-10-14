@@ -7,7 +7,7 @@ import orngEnviron
 try:
     import orngRegistry
     orngRegistry.addWidgetCategory("Orange Genomics", \
-        os.path.join(distutils.sysconfig.get_python_lib(),"Genomics"), \
+        os.path.join(distutils.sysconfig.get_python_lib(),"Genomics", "widgets"), \
         "remove" not in sys.argv[1] if len(sys.argv) > 1 else 1)
 except Exception, detail:
     print "Error: ", Exception, detail
