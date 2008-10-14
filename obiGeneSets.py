@@ -58,7 +58,7 @@ def goGeneSets(goorg):
     """
     Returns gene sets from GO. Look at the annotation
     of the organism provided.
-    Returns a list of [ (GOid, genes) ]
+    Returns a ditionary  of (GOid, genes)
     """
     go.loadGO()
 
@@ -82,7 +82,7 @@ def goGeneSets(goorg):
 def keggGeneSets(keggorg):
     """
     Returns pathways from KEGG for provided organism.
-    Returns a list of [ (name, genes) ]
+    Returns a dictionary if (name, genes)
     """
     kegg = obiKEGG.KEGGOrganism(keggorg)
 
@@ -99,6 +99,16 @@ def addSource(dic, addition):
         [ (addition + name,genes) for name,genes in dic.items() ]\
         )
 
+def keggToGo(org):
+    """
+    Converts KEGG organism to GO organism.
+    """
+    dic = {}
+    dic["hsa"] = "goa_human"
+    dic["sce"] = "sgd"
+    dic["ddi"] = "dictyBase"
+    dic["mmu"] = "mgi"
+    return dic[org]
 
 """
 CUSTOM GENESETS
@@ -157,6 +167,25 @@ def collectionsPathname():
     else:
         return collectionsPath
 
+
+def prettyfygo(god):
+    import go
+    go.loadGO()
+
+    def translatens(a):
+        if (a == "molecular_function"): return "MF"
+        elif (a == "biological_process"): return "BP"
+        elif (a == "cellular_component"): return "CC"
+        else: 
+            print a
+            ffkkfds()
+
+    ndic = {}
+    for a,b in god.items():
+        ndic["[GO " + translatens(go.loadedGO.termDict[a].namespace) + "] " + go.loadedGO.termDict[a].name] = b
+    return ndic
+
+
 def createCollection(lnf):
     """
     Input - list of tuples of geneset collection name and GMT
@@ -170,14 +199,34 @@ def createCollection(lnf):
     gen1 = {}
 
     for n,fn in lnf:
-        if fn.lower()[-4:] == ".gmt":
+
+        if fn.lower()[-4:] == ".gmt": #format from webpage
             gen2 = genesetsLoadGMT(open(fn,"rt"))
-        elif fn.lower()[-4:] == ".pck":
+            gen1.update(addSource(gen2, "[%s] " % n))
+
+        elif fn.lower()[-4:] == ".pck": #pickled dictionary
             import pickle
             f = open(fn,'rb')
             gen2 = pickle.load(f)
+            gen1.update(addSource(gen2, "[%s] " % n))
 
-        gen1.update(addSource(gen2, "[%s] " % n))
+        elif n == fn and n[0] == ":":
+            _,name,org = n.split(":")
+
+            if name == "kegg":
+                gen2 = keggGeneSets(org)
+                gen1.update(addSource(gen2, "[%s] " % "KEGG"))
+
+            elif name == "go":
+                gen2 = goGeneSets(keggToGo(org))
+                gen2 = prettyfygo(gen2)
+                gen1.update(addSource(gen2, ""))
+
+            else:
+                raise Exception("Wrong special name (%s)" % (name))            
+            
+        else:
+            raise Exception("Can not recognize geneset (%s,%s)" % (n,fn))
 
     return gen1
 
@@ -222,7 +271,7 @@ def collections(l=[], default=True, path=collectionsPathname()):
     they are taken. If not, file with that name is regarded as
     a filename of gene set colections
     """
-    collections = getCollectionFiles(path)
+    collections = getCollectionFiles(path) #default collections
 
     coln = nth(collections, 0)
     colff = nth(collections, 1)
@@ -249,7 +298,9 @@ def collections(l=[], default=True, path=collectionsPathname()):
                     added = True
                     break
         if not added:
-            choosen = choosen | set( [ (col, col) ] )            
+            choosen = choosen | set( [ (col, col) ] )
+
+    #pair in choosen are (name, location)
 
     return createCollection(list(choosen))
 

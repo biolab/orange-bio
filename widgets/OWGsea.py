@@ -235,7 +235,9 @@ class OWGsea(OWWidget):
                     "ptype", 
                     "loadFileName",
                     "gridSel",
-                    "csgm"]
+                    "csgm",
+                    "gsgo",
+                    "gskegg"]
 
     def __init__(self, parent=None, signalManager = None, name='GSEA'):
         OWWidget.__init__(self, parent, signalManager, name)
@@ -255,11 +257,13 @@ class OWGsea(OWWidget):
         self.minSubsetPartC = True
         self.perms = 100
         self.csgm = True
+        self.gsgo = False
+        self.gskegg = False
 
         self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
 
-        self.organisms = [ ("hsa", "hsa"), ("ddi", "ddi"), ("mmu", "mmu") ]
+        self.organisms = [ ("hsa", "hsa"), ("ddi", "ddi"), ("mmu", "mmu"), ("sce","sce") ]
         self.otype = 0
 
         self.correlationTypes = [ ("Signal2Noise", "s2n") ]
@@ -323,6 +327,10 @@ class OWGsea(OWWidget):
         self.lbgs = OWGUI.listBox(box, self, "gridSel", "geneSel", selectionMode = QListWidget.MultiSelection)
         OWGUI.button(box, self, "From &File", callback = self.addCollection, disabled=0)
 
+        box = OWGUI.widgetBox(box, "Additional sources:")
+        OWGUI.checkBox(box, self, "gskegg", "KEGG pathways")
+        OWGUI.checkBox(box, self, "gsgo", "GO terms")
+ 
         #ca.layout().addStretch(1)
 
         ca = OWGUI.createTabPage(self.tabs, "Settings")
@@ -482,6 +490,14 @@ class OWGsea(OWWidget):
     def compute(self, res=None, dm=None):
 
         collectionNames = [ self.geneSel[a] for a in self.gridSel ]
+
+        organism = self.organisms[self.otype][0]
+
+        if self.gsgo:
+            collectionNames.append(":go:" + organism)
+        if self.gskegg:
+            collectionNames.append(":kegg:" + organism)
+
         self.geneSets = obiGsea.collections(collectionNames, default=False)
 
         clearListView(self.listView)
@@ -534,9 +550,8 @@ class OWGsea(OWWidget):
  
             dkwargs["caseSensitive"] = self.csgm
 
-            organism = self.organisms[self.otype][0]
 
-            gso = obiGsea.GSEA(organism=self.organisms[self.otype][0])
+            gso = obiGsea.GSEA(organism=organism)
             gso.setData(self.data, **dkwargs)
 
             for name,genes in self.geneSets.items():
@@ -612,14 +627,15 @@ if __name__=="__main__":
     ow=OWGsea()
     ow.show()
 
-    #d = orange.ExampleTable('DLBCL_200a.tab')
+    d = orange.ExampleTable('DLBCL_200a.tab')
     #d = orange.ExampleTable('brown-selected.tab')
+    #d = orange.ExampleTable('DLBCL.tab')
 
     #d = orange.ExampleTable('testCorrelated.tab')
     #ow.setData(d)
 
     #d = orange.ExampleTable("sterolTalkHepa.tab")
-    d = orange.ExampleTable("holQ10_gs_orange.tab")
+    #d = orange.ExampleTable("holQ12_gs_orange.tab")
     ow.setData(d)
 
     #d = orange.ExampleTable("demo.tab")
