@@ -14,7 +14,7 @@ except Exception, detail:
     print "Add-on could not be registered with Orange Canvas. Please, make sure to install Orange and Orange Canvas before installing this add-on."
     print
 
-if len(sys.argv) == 0 or len(sys.argv) > 1 and "remove" not in sys.argv[1]:
+if len(sys.argv) <= 1 or len(sys.argv) > 1 and "remove" not in sys.argv[1]:
     try:
         import orngEnviron
         from OWWidget import *
