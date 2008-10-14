@@ -1,16 +1,21 @@
 """A library for handling gene ontologies.
 """
-import _GOLib
+try:
+    import _GOLib
+except:
+    pass
 import re
 from sets import Set
 from urllib import urlretrieve
 from collections import defaultdict
 import cPickle
-import os
+import os, tarfile
+
+import obiProb
 
 try:
     import orngEnviron
-    default_database_path = orngEnviron.directoryNames['bufferDir']
+    default_database_path = os.path.join(orngEnviron.directoryNames['bufferDir'], "go")
 except:
     default_database_path = os.path.join((os.path.split(__file__)[0] or "."), "data")
 
@@ -93,8 +98,10 @@ evidenceTypesOrdered = [
 'NR'
 ]
 
-multiplicitySet=Set(["alt_id","is_a","subset","synonym","related_synonym","exact_synonym","broad_synonym","narrow_synonym",
+multiplicitySet=set(["alt_id","is_a","subset","synonym","related_synonym","exact_synonym","broad_synonym","narrow_synonym",
                      "xref_analog","xref_unknown","relationship"])
+
+multipleTagSet = multiplicitySet
 
 annotationFields=["DB","DB_Object_ID","DB_Object_Symbol","Qualifier","GOID", "DB_Reference","Evidence","With_From","Aspect",
                   "DB_Object_Name","DB_Object_Synonym","DB_Object_Type","taxon","Date","Assigned_by"]
@@ -198,7 +205,7 @@ class GOTerm(object):
                 else:
                     self.__dict__[block]=[body]
             else:
-                self.__dict__[block]=body            
+                self.__dict__[block]=body
         self.GOId=self.id
         self.parents=self.__dict__.get("is_a", [])
         self.parents=[s.split("!")[0].strip(" ") for s in self.parents]
@@ -309,6 +316,319 @@ def __filterSlimsGOId(d):
     slims=filter(lambda id:id in slims, d.keys())
     return dict([(id, d[id]) for id in slims])
 
+
+builtinOBOObjects = ["""
+[Typedef]
+id: is_a
+name: is_a
+range: OBO:TERM_OR_TYPE
+domain: OBO:TERM_OR_TYPE
+definition: The basic subclassing relationship [OBO:defs]"""
+,
+"""[Typedef]
+id: disjoint_from
+name: disjoint_from
+range: OBO:TERM
+domain: OBO:TERM
+definition: Indicates that two classes are disjoint [OBO:defs]"""
+,
+"""[Typedef]
+id: instance_of
+name: instance_of
+range: OBO:TERM
+domain: OBO:INSTANCE
+definition: Indicates the type of an instance [OBO:defs]"""
+,
+"""[Typedef]
+id: inverse_of
+name: inverse_of
+range: OBO:TYPE
+domain: OBO:TYPE
+definition: Indicates that one relationship type is the inverse of another [OBO:defs]"""
+,
+"""[Typedef]
+id: union_of
+name: union_of
+range: OBO:TERM
+domain: OBO:TERM
+definition: Indicates that a term is the union of several others [OBO:defs]"""
+,
+"""[Typedef]
+id: intersection_of
+name: intersection_of
+range: OBO:TERM
+domain: OBO:TERM
+definition: Indicates that a term is the intersection of several others [OBO:defs]"""]
+
+class OBOObject(object):
+    def __init__(self, ontology=None, stanza=None):
+        self.ontology = ontology
+        self._lines = []
+        self.values = {}
+        self.related = set()
+        self.relatedTo = set()
+        if stanza:
+            self.ParseStanza(stanza)
+
+    def ParseStanza(self, stanza):
+        for line in stanza.split("\n"):
+            if ":" not in line:
+                continue
+            tag, rest = line.split(":", 1)
+            value, modifiers, comment = "", "", ""
+            if "!" in rest:
+                rest, comment = rest.split("!")
+            if "{" in rest:
+                value, modifiers = rest.split("{", 1)
+                modifiers = modifiers.strip("}")
+            else:
+                value = rest
+            value = value.strip()
+            self._lines.append((tag, value, modifiers, comment))
+            if tag in multipleTagSet:
+                self.values[tag] = self.values.get(tag, []) + [value]
+            else:
+                self.values[tag] = value
+        self.related = set(self.GetRelatedObjects())
+
+    def GetRelatedObjects(self):
+        result = [(typeId, id) for typeId in ["is_a"] for id in self.values.get(typeId, [])] ##TODO add other builtin Typedef ids
+        result = result + [tuple(r.split(None, 1)) for r in self.values.get("relationship", [])]
+        return result
+
+    def __repr__(self):
+        repr = "[%s]\n" % type(self).__name__
+        for tag, value, modifiers, comment in self._lines:
+            repr = repr + tag + ": " + value
+            if modifiers:
+                repr = repr + "{ " + modifiers + " }"
+            if comment:
+                repr = repr + " ! " + comment
+            repr = repr + "\n"
+        return repr
+
+    def __str__(self):
+        return self.id
+
+    def __getattr__(self, name):
+        try:
+            return self.values[name]
+        except KeyError:
+            raise AttributeError(name)
+        
+class Term(OBOObject):
+    pass
+
+class Typedef(OBOObject):
+    pass
+
+class Instance(OBOObject):
+    pass
+        
+class OntologyMk2(object):
+    def __init__(self, file=None):
+        self.terms = {}
+        self.typedefs = {}
+        self.instances = {}
+        if file:
+            self.ParseFile(file)
+        
+    def ParseFile(self, file, progressCallback=None):                
+        f = open(file) if type(file) == str else file
+        data = f.readlines()
+        data = "".join([line for line in data if not line.startswith("!")])
+        c=re.compile("\[.+?\].*?\n\n", re.DOTALL)
+        print "re find"
+        data=c.findall(data)
+        print "end re find"
+        print len(data)
+        for i, block in enumerate(data):
+            if block.startswith("[Term]"):
+                term = Term(self, block)
+                self.terms[term.id] = term
+            elif block.startswith("[Typedef]"):
+                typedef = Typedef(self, block)
+                self.typedefs[typedef.id] = typedef
+            elif block.startswith("[Instance]"):
+                instance = Instance(self, block)
+                self.instances[instance.id] = instance
+            if progressCallback:
+                progressCallback(100.0*i/len(data))
+        
+        self.aliasMapper = {}
+        for id, term in self.terms.items():
+            for typeId, parent in term.related:
+                self.terms[parent].relatedTo.add((typeId, id))
+
+    def ExtractSuperGraph(self, terms):
+        visited = set()
+        queue = set(terms)
+        while queue:
+            term = queue.pop()
+            visited.add(term)
+            queue.update(set(id for typeId, id in self.terms[term].related) - visited)
+        return visited
+
+    def ExtractSubGraph(self, terms):
+        visited = set()
+        queue = set(terms)
+        while queue:
+            term = queue.pop()
+            visited.add(term)
+            queue.update(set(id for typeId, id in self.terms[term].relatedTo) - visited)
+        return visited
+
+    def __getitem__(self, name):
+        return self.terms.__getitem__(name)
+
+class AnnotationsMk2(object):
+    def __init__(self, file=None, ontology=None, progressCallback=None):
+        self.file = file
+        self.ontology = ontology
+        self.allAnnotations = defaultdict(list)
+        self.geneAnnotations = defaultdict(list)
+        self.termAnnotations = defaultdict(list)
+        self.geneNames = set()
+        self.geneNamesDict = {}
+        self.aliasMapper = {}
+        self.annotations = []
+        self.header = ""
+        if file:
+            self.ParseFile(file, progressCallback)
+
+    def ParseFile(self, file, progressCallback=None):
+        f = open(file) if type(file) == str else file
+        for i,line in enumerate(f.readlines()):
+            if line.startswith("!"):
+                self.header = self.header + line + "\n"
+                continue
+            a=Annotation(line)
+            if not a.geneName or not a.GOId:
+                continue
+            if a.geneName not in self.geneNames:
+                self.geneNames.add(a.geneName)
+                self.geneAnnotations[a.geneName].append(a)
+                for alias in a.alias:
+                    self.aliasMapper[alias] = a.geneName
+                for alias in a.aditionalAliases:
+                    self.aliasMapper[alias] = a.geneName
+                self.aliasMapper[a.geneName] = a.geneName
+                self.aliasMapper[a.DB_Object_ID] = a.geneName
+                names = [a.DB_Object_ID, a.DB_Object_Symbol]
+                names.extend(a.alias)
+                for n in names:
+                    self.geneNamesDict[n] = names
+            else:
+                self.geneAnnotations[a.geneName].append(a)
+            self.annotations.append(a)
+            self.termAnnotations[a.GOId].append(a)
+            if progressCallback and i in milestones:
+                progressCallback(100.0*i/datalen)
+        
+        
+##    def PropagateAnnotations(self, id, annots):
+##        for parent in self.ontology.termDict[id].parents:
+##            if not self.cache[parent].issuperset(annots):
+##                self.cache[parent].update(annots)
+##                self.PropagateAnnotatations(parent, annots - self.cache[parent])
+
+    def CollectAnnotations(self, id):
+        if id not in self.allAnnotations:
+            annotations = [self.termAnnotations[id]]
+            for typeId, child in self.ontology[id].relatedTo:
+                aa = self.CollectAnnotations(child)
+                if type(aa) == set: ## if it was allready reduced in GetAllAnnotations
+                    annotations.append(aa)
+                else:
+                    annotations.extend(aa)
+            self.allAnnotations[id] = annotations
+        return self.allAnnotations[id]
+
+    def GetAllAnnotations(self, id):
+        if type(self.allAnnotations[id]) == list:
+            self.CollectAnnotations(id)
+            self.allAnnotations[id] = reduce(set.union, self.allAnnotations[id], set())
+        return self.allAnnotations[id]
+
+    def GetAllGenes(self, id, evidenceCodes = None):
+        evidenceCodes = set(evidenceCodes or evidenceDict.keys())
+        annotations = self.GetAllAnnotations(id)
+        return list(set([ann.geneName for ann in annotations if ann.Evidence_code in evidenceCodes]))
+
+    def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", progressCallback=None):
+        genes = set(genes)
+        reference = set(reference) or self.geneNames
+        evidenceCodes = set(evidenceCodes or evidenceDict.keys())
+        annotations = [ann for gene in genes for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes and ann.Aspect == aspect]
+        refAnnotations = [ann for gene in reference for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes and ann.Aspect == aspect]
+        annotationsDict = defaultdict(set)
+        for ann in annotations:
+            annotationsDict[ann.GO_ID].add(ann)
+        allGenes = set(ann.geneName for ann in annotations)
+        terms = extractGODAG(annotationsDict.keys())#self.ontology.ExtractSubDAG(annotationsDict.keys())
+        res = {}
+        score = obiProb.Binomial()
+        for i, term in enumerate(terms):
+            allAnnotations = self.GetAllAnnotations(term)
+            mappedGenes = set([ann.geneName for ann in allAnnotations.intersection(annotations)])
+            referenceGenes = list(set([ann.geneName for ann in allAnnotations.intersection(refAnnotations)]))
+            res[term] = (mappedGenes, score.p_value(len(mappedGenes), len(allGenes), len(mappedGenes)/len(referenceGenes)), len(referenceGenes))
+            if progressCallback:
+                progressCallback(100.0 * i / len(terms))
+        return res
+
+    @staticmethod
+    def UpdateAnnotations(org, file, progressCallback=None):
+        import tempfile
+                
+        file = tarfile.open(file, "w:gz") if type(file) == str else file
+        tmpDir = self.local_database_path #os.path.join(orngEnviron.bufferDir, "tmp_go", org)
+        try:
+            os.mkdir(tmpDir)
+        except Exception:
+            pass
+        fileName = os.path.join(tmpDir, "gene_association." + org + ".gz")
+        urlretrieve("http://www.geneontology.org/gene-associations/" + fileName, os.path.join(tmpDir, fileName), progressCallbackWraper)
+        gzFile = GzipFile(os.path.join(tmpDir, fileName), "r")
+        file = open(os.path.join(tmpDir, "gene_association." + org), "w")
+        file.writelines(data)
+        
+        tFile = tarfile.open(os.path.join(tmpDir, "gene_association." + org + ".tar.gz"), "w:gz")
+        tFile.add(os.path.join(tmpDir, "gene_association." + org), "gene_association." + org)
+        annotation = AnnotationMk2(os.path.join(tmpDir, "gene_association." + org), progressCallback=self.progressCallback)
+        
+        try:
+            os.remove(os.path.join(tmpDir, "gene_association." + org + ".gz"))
+        except Exception:
+            pass
+        
+        
+        
+
+        
+def GOTermFinderMk2(clusterGeneList, refereneceGenes=None, evidenceCodes=None, slimsOnly=False, aspect="P", progressCallback=None):
+    genes = set(genes)
+    reference = set(refereneceGenes) if refereneceGenes else loadedAnnotation.geneNames
+    evidenceCodes = set(evidenceCodes or evidenceDict.keys())
+    annotations = [ann for gene in genes for ann in loadedAnnotation.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes and ann.Aspect == aspect]
+    refAnnotations = [ann for gene in reference for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes and ann.Aspect == aspect]
+    annotationsDict = defaultdict(set)
+    for ann in annotations:
+        annotationsDict[ann.GO_ID].add(ann)
+    allGenes = set(ann.geneName for ann in annotations)
+    terms = extractGODAG(annotationsDict.keys())#self.ontology.ExtractSubDAG(annotationsDict.keys())
+    res = {}
+    score = obiProb.Binomial()
+    for i, term in enumerate(terms):
+        allAnnotations = self.GetAllAnnotations(term)
+        mappedGenes = set([ann.geneName for ann in allAnnotations.intersection(annotations)])
+        referenceGenes = list(set([ann.geneName for ann in allAnnotations.intersection(refAnnotations)]))
+        res[term] = (mappedGenes, score.p_value(len(mappedGenes), len(allGenes), len(mappedGenes)/len(referenceGenes)), len(referenceGenes))
+        if progressCallback:
+            progressCallback(100.0 * i / len(terms))
+    return res
+    
+
 def GOTermFinder(clusterGeneList, referenceGenes=None, evidenceCodes=None, slimsOnly=False, aspect="P", progressCallback=None):
     """The method accepts a list of cluster genes, optionally a list of reference genes (otherwise all annotated genes appearing in the loaded annotation file are used),
     and optionally a list of annotation evidence codes to use, otherwise all evidence codes are used. The slimsOnly argument indicates if only GO slims are to be used,
@@ -331,6 +651,50 @@ def GOTermFinder(clusterGeneList, referenceGenes=None, evidenceCodes=None, slims
         return __filterSlimsGOId(result)
     else:
         return result
+
+def mapToSlims(term):
+    slims = set()
+    q = [term]
+    while q:
+        id = q.pop()
+        for parent in loadedGO.termDict[id]:
+            if parent in loadedSlimGO.termDict:
+                slims.add(parent)
+            else:
+                p.append(parent)
+    return slims
+
+def findTermsMk2(geneList, slimsOnly=False, aspect=["F","C","P"], directAnnotationOnly=False, evidenceCodes=None, reportEvidence=True, progressCallback=None):
+    evidenceCodes = set(evidenceCodes or evidenceTypes.keys())
+    res = defaultdict(set)
+    annots = [ann for gene in geneList for ann in loadedAnnotation.geneAnnotations[gene] \
+              if ann.Evidence_code in evidenceCodes and ann.Aspect in aspect]
+    
+    if slimsOnly:
+        for ann in annots:
+            for id in mapToSlims(ann.GO_ID):
+                res[id].add(ann)
+    else:
+        for ann in annots:
+            res[ann.GO_ID].add(ann)
+            
+    if not directAnnotationOnly:
+        def propagate(id, annots):
+            for parent in loadedGO.termDict[id].parents:
+                if not res[parent].intersection(annots):
+                    res[parent].update(annots)
+                    propagate(parent, annots)
+        
+        for id, annots in res.items():
+            propagate(id, annots)
+
+    finalRes = {}
+    for id, annots in res.items():
+        ge = defaultdict(set)
+        for ann in annots:
+            ge[ann.geneName].add(ann.Evidence_code)
+        finalRes[id] = ge.items() if reportEvidence else ge.keys()
+    return finalRes
     
 def findTerms(geneList, slimsOnly=False, aspect=["F","C","P"], directAnnotationOnly=False, evidenceCodes=None, reportEvidence=True, progressCallback=None):
     """For each gene in geneList search for matching GO terms. Argument slimsOnly restricts the GO terms to the slim set. The method returns a dictionary where key is a
@@ -353,9 +717,32 @@ def findTerms(geneList, slimsOnly=False, aspect=["F","C","P"], directAnnotationO
         result=dict([(key, [(gene, __evidenceToList(evidence)) for gene ,evidence in val]) for key, val in result.items()])
     return result
 
+def findGenesMk2(GOTerms, directAnnotationOnly=False, evidenceCodes=None, reportEvidence=True, progressCallback=None):
+    """Return a dictionary where key is a matching gene and items are (GO terms) or (GO term, list of evidences) from the GOterms list.
+    (Note this will take a lot of time if the directAnnotationOnly=False)
+    """
+    evidenceCodes = set(evidenceCodes or evidenceTypes.keys())
+    terms = set(GOTerms)
+    if not directAnnotationOnly:
+        for term in list(terms):
+            terms.update(subTerms(term))
+
+    annots = [ann for ann in loadedAnnotation.annotationList if ann.GO_ID in terms and ann.Evidence_code in evidenceCodes]
+
+    res = defaultdict(lambda : defaultdict(set))
+    for ann in annots:
+        res[ann.geneName][ann.GO_ID].add(ann.Evidence_code)
+
+    finalRes = {}
+    for gene, c in res.items():
+        finalRes[gene] = c.items() if reportEvidence else c.keys()
+    return finalRes
+    
+    
 def findGenes(GOTerms=[], directAnnotationOnly=False, evidenceCodes=None, reportEvidence=True, progressCallback=None):
     """Return a dictionary where key is a matching gene and items are (GO terms) or (GO term, list of evidences) from the GOterms list.
-    (Note this will take a lot of time if the directAnnotationOnly=False)"""
+    (Note this will take a lot of time if the directAnnotationOnly=False)
+    """
     evidence=__evidenceToInt(evidenceCodes)
     result=_GOLib.findGenes(GOTerms, evidence, reportEvidence, directAnnotationOnly, loadedAnnotation.__annotation, loadedGO.__ontology, progressCallback)
     if reportEvidence:
@@ -374,7 +761,13 @@ def extractGODAG(GOTerms=[]):
             expanded.append(term.id)
             queue.extend(term.parents)
     terms=[loadedGO.termDict[id] for id in expanded if id in loadedGO.termDict]
-    return terms      
+    return terms
+
+def subTerms(term):
+    return term.children + reduce(set.union, [subTerms(t) for t in term.children], set())
+
+def superTerms(term):
+    return term.parents + reduce(set.union, [superTerms(t) for t in term.parents], set())
 
 def __DAGDepth(term, cache={}):
 	if term.parents:
@@ -531,7 +924,7 @@ def parseGeneOntology(data, progressCallback=None):
     aliasMapper={}
     goTermDict={}
     datalen=len(data)
-    milestones=Set(range(0,datalen,max(datalen/100,1)))
+    milestones=set(range(0,datalen,max(datalen/100,1)))
     for i, term in enumerate(data):
         t=GOTerm(term)
         termDict[t.id]=t
@@ -552,11 +945,15 @@ def parseGeneOntology(data, progressCallback=None):
     GO.termDescriptorDict=goTermDict
     return GO
 
-def loadOntologyFrom(filename,progressCallback=None):
+def loadOntologyFrom(filename, progressCallback=None):
     if filename.endswith(".PyOntologyDB"):
         db=cPickle.load(open(filename))
     else:
-        file=open(filename)
+        if tarfile.is_tarfile(filename):
+            file = tarfile.open(filename)
+            file = file.extractfile([member for member in file.getmembers() if member.name.startswith("gene_ontology")].pop())
+        else:
+            file = open(filename)
         data=file.read()
         c=re.compile("\[Term\].*?\n\n",re.DOTALL)
         match=c.findall(data)
@@ -610,7 +1007,11 @@ def loadAnnotationFrom(filename, progressCallback=None):
     if filename.endswith(".PyAnnotationDB"):
         anno=cPickle.load(open(filename))
     else:
-        file=open(filename)
+        if tarfile.is_tarfile(filename):
+            file = tarfile.open(filename)
+            file = file.extractfile([member for member in file.getmembers() if member.name.startswith("gene_association")].pop())
+        else:
+            file = open(filename)
         data=file.readlines()
         anno=parseAnnotation(data, progressCallback)
 
@@ -772,7 +1173,7 @@ def drawEnrichmentGraphPIL_tostream(termsList, fh, width=None, height=None):
     image.save(fh)
 
 def __test1():
-    setDataDir("E://orangecvs//GOLib//data")
+##    setDataDir("E://orangecvs//GOLib//data")
     print "Loading GO"
     loadGO()
     print "Loading annotation"
@@ -784,7 +1185,7 @@ def __test1():
     terms = filterByRefFrequency(terms, 10)
     print terms
     try:
-        drawEnrichmentGraph(terms, 30, len(loadedAnnotation.geneNames), filename="pict.png", width=400, height=2000) #, width=400)#, height=1000)
+        drawEnrichmentGraph(terms, 30, len(loadedAnnotation.geneNames), filename="pict.png")#, width=400, height=2000) #, width=400)#, height=1000)
     except Exception, err:
         print err
         raw_input()
@@ -815,16 +1216,16 @@ def __test():
     print findGenes(terms.keys()[:min(len(terms.keys()),3)], progressCallback=call)#,directAnnotationOnly=True)
     print findGenes(["GO:0005763","GO:0003735","GO:0042255","GO:0043037"], progressCallback=call)#,directAnnotationOnly=True)
 
-if not listDownloadedOrganisms():
-    print "Warning!!! No downloaded annotations found!!!"
-    print "You can download annotations using the downloadAnnotation function."
-    print "e.g. go.downloadAnnotation('sgd')"
-try:
-    open(os.path.join(data_dir, "gene_ontology.obo"))
-except:
-    print "Warning!!! No downloaded ontology found!!!"
-    print "You can download it using the downloadGO function."
-    print "e.g. go.downloadGO()"
+##if not listDownloadedOrganisms():
+##    print "Warning!!! No downloaded annotations found!!!"
+##    print "You can download annotations using the downloadAnnotation function."
+##    print "e.g. go.downloadAnnotation('sgd')"
+##try:
+##    open(os.path.join(data_dir, "gene_ontology.obo"))
+##except:
+##    print "Warning!!! No downloaded ontology found!!!"
+##    print "You can download it using the downloadGO function."
+##    print "e.g. go.downloadGO()"
     
     
 if __name__=="__main__":
