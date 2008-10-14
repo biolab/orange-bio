@@ -404,10 +404,8 @@ class OWMoleculeVisualizer(OWWidget):
 ##        self.mainArea.setLayout(self.mainAreaLayout)
 
         try:
-##            import orngRegistry
-##            self.imageprefix=orngRegistry.bufferDir
-            import orngOrangeFoldersQt4
-            self.imageprefix = orngOrangeFoldersQt4.__dict__["__getDirectoryNames"]()['bufferDir']
+            import orngEnviron
+            self.imageprefix = orngEnviron.bufferDir
         except Exception, ex:
             print ex
             self.imageprefix=os.path.split(__file__)[0]
