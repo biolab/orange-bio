@@ -8,12 +8,26 @@
 
 import go
 import obiKEGG
-import sys
+import sys, os, tarfile
 import OWGUI
 
+from os.path import join as p_join
 from OWWidget import *
 from collections import defaultdict
 from obiGeneMatch import GeneMatchMk2
+
+dataDir = os.path.join(orngEnviron.bufferDir, "bigfiles", "go/")
+go.setDataDir(dataDir)
+
+def listDownloded():
+    import orngServerFiles
+    files = orngServerFiles.listfiles("go")
+    return [file.split("'")[-2] for file in files if len(file.split("'"))>2]
+
+def getOrgFileName(org):
+    import orngServerFiles
+    files = orngServerFiles.listfiles("go")
+    return [f for f in files if org in f].pop()
 
 class TreeNode(object):
     def __init__(self, tuple, children):
@@ -54,7 +68,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             code = compile("self.%s = True" % (varName), ".", "single")
             exec(code)
             
-        self.annotationCodes = go.listDownloadedOrganisms()
+        self.annotationCodes = listDownloded()
         if not self.annotationCodes:
             self.error(0, "No downloaded annotations!!\nClick the update button and update annotationa for at least one organism!")
         else:
@@ -81,9 +95,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.geneInfoLabel = OWGUI.label(self.geneAttrIndexCombo.box, self, "0 genes on input signal")
         
        
-        box = OWGUI.widgetBox(self.inputTab, "GO update")
-        b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
-        box.setMaximumWidth(150)
+##        box = OWGUI.widgetBox(self.inputTab, "GO update")
+##        b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
+##        box.setMaximumWidth(150)
         
         ##Filter tab
         self.filterTab = OWGUI.createTabPage(self.tabs, "Filter")
@@ -138,21 +152,25 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.listView.setRootIsDecorated (True)
 
         # table of significant GO terms
-        self.sigTermsTable = QTableWidget(self.splitter)
-        self.sigTermsTable.setColumnCount(len(self.DAGcolumns))
-        self.sigTermsTable.setHorizontalHeaderLabels(self.DAGcolumns)
-        self.sigTermsTable.setRowCount(4)
+##        self.sigTermsTable = QTableWidget(self.splitter)
+##        self.sigTermsTable.setColumnCount(len(self.DAGcolumns))
+##        self.sigTermsTable.setHorizontalHeaderLabels(self.DAGcolumns)
+##        self.sigTermsTable.setRowCount(4)
+        self.sigTerms = QTreeWidget(self.splitter)
+        self.sigTerms.setColumnCount(len(self.DAGcolumns))
+        self.sigTerms.setHeaderLabels(self.DAGcolumns)
+##        self.sigTerms.setRowCount(4)
         ## hide the vertical header
         #self.sigTermsTable.verticalHeader().hide()
         #self.sigTermsTable.setLeftMargin(0)
-        self.sigTermsTable.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.sigTerms.setSelectionMode(QAbstractItemView.MultiSelection)
         #self.sigTermsTable.setColumnWidth(0, 300)
         #for col in range(1, self.sigTermsTable.columnCount):
         #    self.sigTermsTable.setColumnWidth(col, 100)
-        self.header = self.sigTermsTable.horizontalHeader()
+##        self.header = self.sigTerms.horizontalHeader()
         #for i in range(len(self.DAGcolumns)):
         #    self.header.setLabel(i, self.DAGcolumns[i])
-        self.connect(self.sigTermsTable, SIGNAL("itemSelectionChanged()"), self.TableSelectionChanged)
+        self.connect(self.sigTerms, SIGNAL("itemSelectionChanged()"), self.TableSelectionChanged)
         self.splitter.show()
 
         self.sigTableTermsSorted = []
@@ -208,19 +226,20 @@ class OWGOEnrichmentAnalysis(OWWidget):
             graph = self.Enrichment()
             self.SetGraph(graph)
 
-    def UpdateGOAndAnnotation(self):
+    def UpdateGOAndAnnotation(self, tags=[]):
         from OWUpdateGenomicsDatabases import OWUpdateGenomicsDatabases
-        w = OWUpdateGenomicsDatabases(parent = self)
+        w = OWUpdateGenomicsDatabases(parent = self, searchString=" ".join(tags))
         w.setModal(True)
         w.show()
-        self.connect(w, SIGNAL("closed()"), self.UpdateAnnotationComboBox)
+        self.UpdateAnnotationComboBox()
+##        self.connect(w, SIGNAL("closed()"), self.UpdateAnnotationComboBox)
 
     def UpdateAnnotationComboBox(self):
         if self.annotationCodes:
             curr = self.annotationCodes[self.annotationIndex]
         else:
             curr = None
-        self.annotationCodes = go.listDownloadedOrganisms()
+        self.annotationCodes = listDownloaded()
         index = curr and self.annotationCodes.index(curr) or 0
         self.annotationComboBox.clear()
         self.annotationComboBox.addItems(self.annotationCodes)
@@ -243,7 +262,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
             organismGenes = dict([(o,set(go.getCachedGeneNames(o))) for o in self.annotationCodes])
         else:
             currCode = self.annotationCodes[self.annotationIndex]
-            organismGenes = {currCode: set(go.getCachedGeneNames(currCode))}
+            filename = p_join(dataDir, getOrgFileName(currCode))
+            geneNames = cPickle.load(tarfile.open(filename).extractfile("gene_names." + currCode))
+            organismGenes = {currCode: set(geneNames)}
         candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
         candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, candidateGeneAttrs)
         attrNames = [v.name for v in self.clusterDataset.domain.variables]
@@ -324,15 +345,14 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def LoadGO(self):
         try:
             self.progressBarInit()
-            go.loadGO(progressCallback=self.progressBarSet)
+            go.loadedGO = go.loadOntologyFrom(p_join(dataDir, "UpdateOntology.tar.gz"), progressCallback=self.progressBarSet)
             self.progressBarFinished()
         except IOError, er:
             response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the ontology.\nClik OK to download it?", "OK", "Cancel", "", 0, 1)
             if response==0:
-                self.progressBarInit()
-                go.downloadGO(progressCallback=self.progressBarSet)
-                go.loadGO(progressCallback=self.progressBarSet)
-                self.progressBarFinished()
+                self.UpdateGOAndAnnotation(tags = ["ontology", "go"])
+                go.loadedAnnotation = go.loadGOFrom(p_join(dataDir, "UpdateOntology.tar.gz"), progressCallback=self.progressBarSet)
+##                self.progressBarFinished()
             else:
                 raise
         
@@ -340,16 +360,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if not self.annotationCodes:
             response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the annotation.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
             if response==0:
-                self.UpdateGOAndAnnotation()
+                self.UpdateGOAndAnnotation(tags=["annotation", "go"])
         if self.annotationCodes[self.annotationIndex]!= self.loadedAnnotationCode:
             self.progressBarInit()
             try:
-                go.loadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
+                go.loadedAnnotation = go.loadAnnotationFrom(p_join(dataDir, getOrgFileName(self.annotationCodes[self.annotationIndex])), progressCallback=self.progressBarSet)
             except IOError, er:
+                raise
                 response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the annotation.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
                 if response==0:
                     go.downloadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
-                    go.loadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
+                    go.loadedAnnotation = go.loadAnnotationFrom(p_join(dataDir, getOrgFileName(self.annotationCodes[self.annotationIndex])), progressCallback=self.progressBarSet)
                 else:
                     raise
             self.progressBarFinished()
@@ -412,6 +433,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.UpdateGOAliases(clusterGenes)
         self.geneInfoLabel.setText("%i genes on input" % len(clusterGenes))
         self.clusterGenes = clusterGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, clusterGenes)
+        print len(self.clusterGenes), self.clusterGenes[:5]
         referenceGenes = None
         if self.useReferenceDataset:
             try:
@@ -441,6 +463,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         aspect = ["P", "C", "F"][self.aspectIndex]
         self.progressBarInit()
         if clusterGenes:
+            print clusterGenes[:5], referenceGenes[:5], evidences, aspect
             self.terms = terms = go.GOTermFinder(clusterGenes, referenceGenes, evidences, aspect=aspect, progressCallback=self.progressBarSet)
 ##            go.loadedAnnotation.__annotation.aliasMapper = old
         else:
@@ -482,7 +505,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def ClearGraph(self):
         self.listView.clear()
         self.listViewItems=[]
-        self.sigTermsTable.setRowCount(0)
+        self.sigTerms.clear()
         #self.sigTableItems=[]
 
     def DisplayGraph(self):
@@ -520,11 +543,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         terms = self.graph.items()
         terms.sort(lambda a,b:cmp(a[1][1],b[1][1]))
         self.sigTableTermsSorted = [t[0] for t in terms]
-        self.sigTermsTable.setRowCount(len(terms))
+##        self.sigTermsTable.setRowCount(len(terms))
+        self.sigTerms.clear()
         for i, (id, (genes, p_value, refCount)) in enumerate(terms):
             text = [go.loadedGO.termDict[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
-            for j,t in enumerate(text):
-                self.sigTermsTable.setItem(i, j, QTableWidgetItem(t))
+            QTreeWidgetItem(self.sigTerms, text)
+##            for j,t in enumerate(text):
+##                self.sigTermsTable.setItem(i, j, QTableWidgetItem(t))
                 
         self.listView.expandAll()
         
@@ -547,9 +572,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
         self.selectionChanging = 1
         self.selectedTerms = []
-        selectedRows = set([item.row() for item in self.sigTermsTable.selectedIndexes()])
+        selectedRows = set([item.row() for item in self.sigTerms.selectedIndexes()])
         
-        for row in range(self.sigTermsTable.rowCount()):
+        for row in range(self.sigTerms.topLevelItemCount()):
             selected = row in selectedRows
             term = self.sigTableTermsSorted[row]
             
