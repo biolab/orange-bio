@@ -263,7 +263,19 @@ class OWGsea(OWWidget):
         self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
 
-        self.organisms = [ ("hsa", "hsa"), ("ddi", "ddi"), ("mmu", "mmu"), ("sce","sce") ]
+
+        import obiKEGG
+        import orngServerFiles
+
+        self.keggLocalInterface = obiKEGG.KEGGInterfaceLocal(update=False)
+        self.allOrganismCodes = self.keggLocalInterface.list_organisms()
+
+        local = [name.split("'")[-2] for name in orngServerFiles.listfiles("kegg") if "UpdateOrganism" in name and len(name.split("'"))>2]
+        self.organismCodes = [(code, code + ": " + name) for code, name in self.allOrganismCodes.items() if code in local]
+        self.organismCodes.sort()
+        if not self.organismCodes:
+            self.error(0, "No downloaded organism data!! Update the KEGG for your organism.")
+
         self.otype = 0
 
         self.correlationTypes = [ ("Signal2Noise", "s2n") ]
@@ -272,14 +284,13 @@ class OWGsea(OWWidget):
         self.data = None
         self.geneSets = {}
 
-        self.controlArea.setMaximumWidth(300)
         self.tabs = OWGUI.tabWidget(self.controlArea)
 
         ca = OWGUI.createTabPage(self.tabs, "Basic")
 
         box = OWGUI.widgetBox(ca, 'Organism')
-        OWGUI.comboBox(box, self, "otype", \
-            items=nth(self.organisms, 0), tooltip="Organism")
+       
+        cb = OWGUI.comboBox(box, self, "otype", items=nth(self.organismCodes, 1))
 
         OWGUI.checkBox(box, self, "csgm", "Case sensitive gene matching")
 
@@ -491,7 +502,7 @@ class OWGsea(OWWidget):
 
         collectionNames = [ self.geneSel[a] for a in self.gridSel ]
 
-        organism = self.organisms[self.otype][0]
+        organism = self.organismCodes[self.otype][0]
 
         if self.gsgo:
             collectionNames.append(":go:" + organism)

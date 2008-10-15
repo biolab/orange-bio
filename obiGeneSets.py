@@ -103,12 +103,8 @@ def keggToGo(org):
     """
     Converts KEGG organism to GO organism.
     """
-    dic = {}
-    dic["hsa"] = "goa_human"
-    dic["sce"] = "sgd"
-    dic["ddi"] = "dictyBase"
-    dic["mmu"] = "mgi"
-    return dic[org]
+    map = dict([ (b,a) for a,b in obiGeneMatch.GeneMatchMk2.dbOrgMap.items()])
+    return map.get(org, None)
 
 """
 CUSTOM GENESETS
@@ -310,6 +306,11 @@ End genesets
 
 
 if __name__ == "__main__":
-    print keggGeneSets("sce").items()[:10]
-    print goGeneSets("sgd").items()[:10]
+    #print keggGeneSets("sce").items()[:10]
+    #print goGeneSets("sgd").items()[:10]
+
+    print keggToGo("mmu")
+    print keggToGo2("mmu")
+
+
 
