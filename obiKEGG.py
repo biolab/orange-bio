@@ -277,6 +277,7 @@ class KEGGInterfaceLocal(object):
         self.download_progress_callback = download_progress_callback
         self._gene_alias = {}
         self._gene_alias_conflicting = {}
+        self._from_pathway_to_genes = defaultdict(set)
         self._filenames = {"_enzymes":"ligand/enzyme/_enzymes.pickle",
                            "_from_gene_to_enzymes":"ligand/enzyme/_from_gene_to_enzymes.pickle",
                            "_compounds":"ligand/compound/_compounds.pickle",
@@ -417,6 +418,9 @@ class KEGGInterfaceLocal(object):
                     self._gene_alias_conflicting[org].add(alias)
                 else:
                     self._gene_alias[org][alias] = id
+            for p_id in gene.get_pathways():
+                self._from_pathway_to_genes[p_id].add(id)
+                    
         if freshLoad:
             try:
                 dump(set(self._gene_alias[org].keys() + self._genes[org].keys()), open(self.local_database_path+org+"_genenames.pickle","w"))
@@ -504,7 +508,8 @@ class KEGGInterfaceLocal(object):
         for gene in genes:
             pathways = self._genes[org][gene].get_pathways()
             for path in pathways:
-                if genes.issubset(self.get_genes_by_pathway(path)):
+##                if genes.issubset(self.get_genes_by_pathway(path)):
+                if genes.issubset(self._from_pathway_to_genes.get(path, set())):
                     s.add(path)
         return s
         """d = dict(_collect(self._retrieve("pathway/organisms/"+org+"/"+org+"_gene_map.tab").readlines(), lambda line:(lambda li:(org+":"+li[0], li[1:]))(line.split())))
@@ -764,7 +769,7 @@ class KEGGOrganism(object):
         _p = p_value(len(genes))
         reference = set(reference)
         for p_id, entry in allPathways.items():
-            entry[2].extend(reference.intersection(self.get_genes_by_pathway(p_id)))
+            entry[2].extend(reference.intersection(self.api._from_pathway_to_genes.get(p_id, set())))
             entry[1] = _p(float(len(entry[2]))/len(reference), len(entry[0]), len(genes))
         return dict([(pid, (genes, p, len(ref))) for pid, (genes, p, ref) in allPathways.items()])
 
