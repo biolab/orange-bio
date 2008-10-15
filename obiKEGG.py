@@ -271,6 +271,7 @@ class KEGGInterfaceLocal(object):
         self.local_database_path = local_database_path or default_database_path
         tarfiles = [name for name in os.listdir(self.local_database_path) if name.endswith(".tar.gz") or name.endswith(".tar")]
         self.openTarFiles = {}
+        self.cachedExtractedFiles = {}
         self.inTarfileDict = dict([(os.path.normpath(info.name), filename) for filename in tarfiles for info in tarfile.open(os.path.join(self.local_database_path, filename)).getmembers()])
         self.update = update
         self.download_progress_callback = download_progress_callback
@@ -444,11 +445,15 @@ class KEGGInterfaceLocal(object):
             return open(os.path.join(self.local_database_path, filename))
         except Exception:
             if os.path.normpath(filename) in self.inTarfileDict:
-                print "extracting: ", filename
                 tarFileName = self.inTarfileDict[os.path.normpath(filename)]
                 if tarFileName not in self.openTarFiles:
+                    print "opening tar file " + tarFileName
                     self.openTarFiles[tarFileName] = tarfile.open(os.path.join(self.local_database_path, tarFileName))
-                return self.openTarFiles[tarFileName].extractfile(filename)
+                if (tarFileName, os.path.normpath(filename)) not in self.cachedExtractedFiles:
+                    print "extracting: ", filename
+                    data = self.openTarFiles[tarFileName].extractfile(filename).read()
+                    self.cachedExtractedFiles[tarFileName, os.path.normpath(filename)] = data
+                return cStringIO.StringIO(self.cachedExtractedFiles[tarFileName, os.path.normpath(filename)])
 ##                return tarfile.open(os.path.join(self.local_database_path, self.inTarfileDict[os.path.normpath(filename)])).extractfile(filename)
             else:
                 raise
