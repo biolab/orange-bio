@@ -51,6 +51,6 @@ if __name__ == "__main__":
 	      packages = [ 'widgets', 'doc' ],
 	      package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
 	      extra_path="Genomics",
-	      py_modules = [ 'go', 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomicsUpdate', 'stats', 'pstat', 'obiExpression', 'obiGO', 'obiProb', 'obiAssess', 'obiGeneSets', 'obiMeSH' ],
+	      py_modules = [ 'go', 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomicsUpdate', 'stats', 'pstat', 'obiExpression', 'obiGO', 'obiProb', 'obiAssess', 'obiGeneSets', 'obiMeSH', 'obiDicty' ],
 	      scripts=["post_install_script.py"]
 	      )
