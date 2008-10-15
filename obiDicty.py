@@ -106,6 +106,14 @@ def mxrange(lr):
             for b in mxrange(lr[1:]):
                 yield tuple([a] + list(b))
 
+
+def issequencens(x):
+    """
+    Is x a sequence and not string ? We say it is if it has a __getitem__ 
+    method and it is not an instance of basestring.
+    """
+    return hasattr(x, '__getitem__') and not isinstance(x, basestring)
+
 #end utility functions
 
 socket.setdefaulttimeout(10)
@@ -124,14 +132,19 @@ def median(l):
 
 class HttpGetException(Exception): pass
 
+def replaceChars(address):
+    return address.replace(" ", "%20")
+
+
 def httpGet(address, *args, **kwargs):
     if verbose: 
         print address
-    address = address.strip().replace(" ", "%20")
-    
+    address = replaceChars(address)
     t1 = time.time()
     f = urllib.urlopen(address, *args, **kwargs)
     read = f.read()
+    if verbose:
+        print "bytes", len(read)
     if verbose:
         print time.time() - t1
     return read
@@ -159,7 +172,6 @@ class DBInterface(object):
             return self.raw(request, tryN=tryN-1)
 
     def get(self, request):
-##        print "Request:" + request
         rawf = self.raw(request)
         if rawf == None:
             raise Exception("Connection error when contacting " + self.address + request)
@@ -182,7 +194,6 @@ def splitTableOnColumn(ll,n):
     return omap
 
 def neededColumns(legend, want):
-##    print legend, want
     return [ legend.index(a) for a in want ]
 
 def onlyColumns(ll, legend, want):
@@ -255,8 +266,9 @@ experiments experiments
 extractions extractions
 chips chips""")
 
-    def __init__(self, address):
+    def __init__(self, address, buffer=None):
         self.db = DBInterface(address)
+        self.buffer = buffer
         self.preload()
 
     def preload(self):
@@ -297,18 +309,40 @@ chips chips""")
     def downloadMulti(self, command, ids):
         """
         Results in the same order as in ids. 
-        #TODO - buffer?
         """
+
         sids = split(ids,100)
-
+    
         for i,sidp in enumerate(sids):
-            res = self.db.get(command.replace("$MULTI$", ",".join(sidp)))
 
-            legend = res[0]
-            res = res[1:]
+            buffered = []
+            unbuffered = []
+        
+            for a in sidp:
+                if self.inBuffer(command.replace("$MULTI$", a)):
+                    buffered.append(a)
+                else:
+                    unbuffered.append(a)
+
+            res = []
+            legend = []
+
+            if len(unbuffered) > 0:
+                res, legend = self.sq(command.replace("$MULTI$", ",".join(unbuffered)),\
+                    buffer=False)
+            else:
+                # get legend
+                legend = self.fromBuffer(command.replace("$MULTI$", buffered[0]))[0]
 
             #split on different values of the first column - first attribute
             antss = splitTableOnColumn(res, 0)
+
+            #here save buffer
+            for a,b in antss.items():
+                self.toBuffer(command.replace("$MULTI$", a), [ legend ] + b)
+
+            antssb = dict([ (b, self.fromBuffer(command.replace("$MULTI$", b))[1:]) for b in buffered ])
+            antss.update(antssb)
     
             #put results in order
             tl = []
@@ -319,14 +353,16 @@ chips chips""")
         res,legend = self.sq("action=gene_info")
         return res, legend
 
-    def annotationOptions(self, aoid=None, onlyDiff=False, **kwargs):
+    def annotationOptions(self, ao=None, onlyDiff=False, **kwargs):
         """
-        Returns annotation options for given query. Returns all possible annotations
-        if the query is omitted.
+        Returns annotation options for given query. Returns all possible 
+        annotations if the query is omitted.
+
+        If ao is choosen, only result
         """
         params = ""
         if len(kwargs) > 0: params += "&query=" + self.pq(kwargs)
-        if aoid: params += "&annotation_object_id=" + str(aoid)
+        if ao: params += "&annotation_object_id=" +  self.aoidt(ao)
         res,legend = self.sq("action=get_annotation_options%s" % (params))
         res = onlyColumns(res, legend, ['annotation_object_id', 'value' ])
 
@@ -343,8 +379,38 @@ chips chips""")
 
         return dict([ (a, sorted(b)) for a,b in joined.items() ])
 
-    def sq(self, s1):
-        res = self.db.get(s1)
+    
+    def inBuffer(self, addr):
+        if self.buffer:
+            return self.buffer.contains(addr)
+        else:
+            return False
+
+    def fromBuffer(self, addr):
+        return self.buffer.get(addr)
+
+    def toBuffer(self, addr, cont):
+        if self.buffer:
+            return self.buffer.add(addr, cont)
+
+    def bufferFun(self, bufkey, fn, *args, **kwargs):
+        """
+        If bufkey is already present in buffer, return its contents.
+        If not, run function with arguments and save its result
+        into the buffer.
+        """
+        if self.inBuffer(bufkey):
+            res = self.fromBuffer(bufkey)
+        else:
+            res = fn(*args, **kwargs)
+            self.toBuffer(bufkey, res)
+        return res
+
+    def sq(self, s1, buffer=True):
+        if buffer:
+            res = self.bufferFun(s1, self.db.get, s1)
+        else:
+            res = self.db.get(s1)
         return res[1:],res[0]
 
     def annotation(self, type, id):
@@ -368,7 +434,7 @@ chips chips""")
                 if self.meaningfulAnnot(a) ]
 
 
-    def annotations(self, type, ids, all=False):
+    def annotations(self, type, ids=None, all=False):
         antss = self.downloadMulti( \
             "action=get_annotations&ids=$MULTI$&object_id=%s" \
             % (self.obidt(type)), ids)
@@ -384,6 +450,7 @@ chips chips""")
     def search(self, type, **kwargs):
         """
         Break search for multiple values of one attribute to independant searches.
+        Search is case insensitive.
         
         List of searchable annotation types: self.saoids.keys()
 
@@ -401,7 +468,7 @@ chips chips""")
 
         l = []
         for k,v in kwargs.items():
-            if v.__class__ in [str, unicode, int]:
+            if not issequencens(v):
                 v = [ v ]
             l.append((k,v))
 
@@ -414,14 +481,19 @@ chips chips""")
 
             res,_ = self.sq("action=search&object_id=%s&query=%s" \
                 % (self.obidt(type), self.pq(dico)))
+
             ares += res
 
         return sorted(set(nth(ares, 0)))
 
-    def chipN(self, id, columns=["spot_id", 'M']):
-        res,legend = self.sq("action=get_normalized_data&ids=%s" % (id))
-        #res2 = onlyColumns(res, legend, ["spot_id", 'M', 'A'])
-        res2 = onlyColumns(res, legend, columns)
+    def chipN(self, id):
+        action = "action=get_normalized_data&ids=%s" % (id)
+        def getd():
+            res,legend = self.sq(action, buffer=False)
+            res2 = onlyColumns(res, legend, ["spot_id", 'M'])
+            return res2
+
+        res2 = self.bufferFun("TRANS " + action, getd)
         return res2
 
     def chipR(self, id):
@@ -511,6 +583,9 @@ chips chips""")
             2. dictionary of joined annotations of group elements.
 
         """
+
+        if verbose:
+            print "Grouping annotations"
 
         # Separate and join are not a regular expressions (because of group sorting).
 
@@ -735,6 +810,9 @@ chips chips""")
         spotmap is a dictionary of { spotid: gene }
         """
 
+        if verbose:
+            print "Creating example tables"
+
         if annotations != None:
             annotations = dict(annotations)
 
@@ -809,25 +887,29 @@ chips chips""")
     
         return exampleTables
 
-    def getData(self, type="norms", join=["time"], separate=None, average=median, **kwargs):
+    def getData(self, type="norms", join=["time"], separate=None, average=median, ids=None, **kwargs):
         """
         Returns a list of examples tables for a given search query and post-processing
         instructions.
         Parameters: 
             average: function used for combining multiple reading of the same spot on
-                a chip.
+                a chip. If None, no averaging is done.
             join: a list of annotation types which can be different in a single example
                 table. Chips are grouped in groups, which can contain chips which have
                 same annotations.
             separate: annotation types by which we consider groups as separate ones.
                 If blank, take all those not in join.
+            ids: a list of chip ids. If present, search use this ids instead of making
+                a search.
 
         Defaults: Median averaging. Join by time.
         """
-        #returns ids of elements that match the search function
-        ids = self.search(type, **kwargs)
+        if not ids:
+            #returns ids of elements that match the search function
+            ids = self.search(type, **kwargs)
 
         #downloads annotations
+
         read = self.dictionarize(ids, self.annotations, type, ids)
         
         #make annotatio groups
@@ -839,12 +921,24 @@ chips chips""")
 
         #here could user intervent. till now downloads were small
 
+        import time
+        #print time.time()
+
         #donwload chip data
+        #print "Loading files"
+        #import mMisc as m
+        #chipd = m.autoPck("fkdfdlkklfds.pck", "4", self.dictionarize, ids, fun, ids)
+        #import cPickle as pickle
+        #chipd = pickle.load(open("fkdfdlkklfds.pck", 'rb'))
+
         chipd = self.dictionarize(ids, fun, ids)
 
         #create example tables grouped according to user's wishes
+        #print time.time()
         ets = self.exampleTables(chipd, etsa, spotmap=self.spotMap())
 
+
+        #print time.time()
         #if average function is given, use it to join same spotids
         if average != None:
             etsa = []
@@ -885,6 +979,10 @@ def averageAttributes(data, joinc="DDB", fn=median):
     "join" parameter stays the same with regard to first
     appearance.
     """
+
+    if verbose:
+        print "Averaging attributes"
+
 
     valueso = []
     valuess = set(valueso)
@@ -940,4 +1038,61 @@ def floatOrUnknown(a):
         return float(a)
     except:
         return "?"
+
+class Buffer1(object):
+
+
+    def __init__(self, filename, compress=True):
+        import sqlite3
+        self.conn = sqlite3.connect(filename)
+        self.compress = compress
+        c = self.conn.cursor()
+        c.execute('''create table if not exists buf
+        (address text primary key, time text, con blob)''')
+        c.close()
+        self.conn.commit()
+
+    def contains(self, addr):
+        c = self.conn.cursor()
+        c.execute('select address from buf where address=?', (addr,))
+        lc = len(list(c))
+        c.close()
+        if lc == 0:
+            return False
+        else:
+            return True
+
+    def add(self, addr, con):
+        import cPickle, zlib, sqlite3
+        c = self.conn.cursor()
+        if self.compress:
+            bin = sqlite3.Binary(zlib.compress(cPickle.dumps(con)))
+        else:
+            bin = sqlite3.Binary(cPickle.dumps(con))
+        c.execute('insert into buf values (?,?,?)', (addr, "0", bin))
+        c.close()
+        self.conn.commit()
+
+    def get(self, addr):
+        import cPickle, zlib
+        if verbose:
+            print "getting from buffer", addr
+            t = time.time()
+        c = self.conn.cursor()
+        c.execute('select con from buf where address=?', (addr,))
+        ls = list(c)
+        first = ls[0][0]
+        if verbose:
+            print time.time() - t
+        if self.compress:
+            rc = cPickle.loads(zlib.decompress(first))
+        else:
+            rc = cPickle.loads(str(first))
+        c.close()
+
+        if verbose:
+            print time.time() - t
+        return rc
+
+
 

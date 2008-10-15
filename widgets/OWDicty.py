@@ -98,7 +98,7 @@ class OWDicty(OWWidget):
         self.experimentsWidget.clear()
         self.items = []
         self.progressBarInit()
-        strains = self.dbc.annotationOptions(self.dbc.aoidt("sample"))["sample"]
+        strains = self.dbc.annotationOptions("sample")["sample"]
         for i, strain in enumerate(strains):
             opt = self.dbc.annotationOptions(sample=strain)
             treatments = opt["treatment"]
