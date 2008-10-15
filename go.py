@@ -15,7 +15,7 @@ import obiProb
 
 try:
     import orngEnviron
-    default_database_path = os.path.join(orngEnviron.directoryNames['bufferDir'], "go")
+    default_database_path = os.path.join(orngEnviron.bufferDir, "bigfiles", "go//")
 except:
     default_database_path = os.path.join((os.path.split(__file__)[0] or "."), "data")
 
@@ -1179,7 +1179,11 @@ def __test1():
     print "Loading annotation"
     loadAnnotation()
 ##    print len(loadedAnnotation.geneNames)
-    terms = GOTermFinder(loadedAnnotation.geneNames[:30], aspect="P")
+    from datetime import datetime
+    start = datetime.now()
+    terms = GOTermFinder(loadedAnnotation.geneNames[:], aspect="P")
+    print (datetime.now() - start).seconds
+    return
     terms = filterByPValue(terms, 0.05)
     terms = filterByFrequency(terms, 3)
     terms = filterByRefFrequency(terms, 10)
@@ -1192,7 +1196,7 @@ def __test1():
     
 def __test():
     def call(i): print i
-    setDataDir("E://orangecvs//GOLib//data")
+##    setDataDir("E://orangecvs//GOLib//data")
     print "Loading GO"
     loadGO()
     print "Loading annotation"
@@ -1200,7 +1204,7 @@ def __test():
     print "Loading slims"
     setSlims()
     print "Finding terms"
-    print GOTermFinder(loadedAnnotation.geneNames[:20], progressCallback=call)
+    print GOTermFinder(loadedAnnotation.geneNames, progressCallback=call)
     print "Finding slim terms"
     terms = GOTermFinder(loadedAnnotation.geneNames[20:30], slimsOnly=True, aspect="P")
     print terms
