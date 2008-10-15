@@ -486,7 +486,9 @@ class KEGGInterfaceLocal(object):
         #return [org+":"+g for g in _collect(self._retrieve("pathway/organisms/"+org+"/"+org+"_gene_map.tab").readlines(), lambda s:s.split()[:1])]
 
     def get_genes_by_pathway(self, pathway_id):
-        return [pathway_id.split(":")[-1][:-5]+":"+g for g in _collect(self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".gene").readlines(), lambda s:s.split()[:1])]
+        self._genes[pathway_id.split(":")[-1][:-5]]
+        return self._from_pathway_to_genes[pathway_id]
+        ##        return [pathway_id.split(":")[-1][:-5]+":"+g for g in _collect(self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".gene").readlines(), lambda s:s.split()[:1])]
 
     def get_enzymes_by_pathway(self, pathway_id):
         if pathway_id.startswith("path:map"):
@@ -508,8 +510,7 @@ class KEGGInterfaceLocal(object):
         for gene in genes:
             pathways = self._genes[org][gene].get_pathways()
             for path in pathways:
-##                if genes.issubset(self.get_genes_by_pathway(path)):
-                if genes.issubset(self._from_pathway_to_genes.get(path, set())):
+                if genes.issubset(self.get_genes_by_pathway(path)):
                     s.add(path)
         return s
         """d = dict(_collect(self._retrieve("pathway/organisms/"+org+"/"+org+"_gene_map.tab").readlines(), lambda line:(lambda li:(org+":"+li[0], li[1:]))(line.split())))
@@ -769,7 +770,7 @@ class KEGGOrganism(object):
         _p = p_value(len(genes))
         reference = set(reference)
         for p_id, entry in allPathways.items():
-            entry[2].extend(reference.intersection(self.api._from_pathway_to_genes.get(p_id, set())))
+            entry[2].extend(reference.intersection(self.api.get_genes_by_pathway(p_id)))
             entry[1] = _p(float(len(entry[2]))/len(reference), len(entry[0]), len(genes))
         return dict([(pid, (genes, p, len(ref))) for pid, (genes, p, ref) in allPathways.items()])
 
