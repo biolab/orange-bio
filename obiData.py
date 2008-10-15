@@ -67,14 +67,17 @@ class FtpWorker(object):
         self.statCache = statCache if statCache != None else SharedCache()
 
     def connect(self):
+        if not self.ftp:
+            self.ftp = ftplib.FTP()
         self.ftp.connect(self.ftpAddr)
         self.ftp.sock.settimeout(30)
         self.ftp.login()
         
     def retrieve(self, filename, local, update, progressCallback=None):
+        local = os.path.normpath(local)
         isLocal = self.isLocal(local)
         if not update and isLocal:
-            return            
+            return
         retryCount = 0
         while retryCount<3:
             if not self.ftp:
@@ -135,22 +138,31 @@ class FtpWorker(object):
             return False
         
     def statFtp(self, filename):
+        if not self.ftp:
+            self.connect()
         dir, file = os.path.split(filename)
+        dir = dir + "/"
         with self.statCache._lock:
             if dir in self.statCache:
-                try:
-                    s = self.statCache[dir][file].split()
-                except KeyError:
-                    raise FileNotFoundError(filename)
+                if file:
+                    try:
+                        s = self.statCache[dir][file].split()
+                    except KeyError:
+                        raise FileNotFoundError(filename)
+                else:
+                    return
             else:
                 lines = []
 ##                print "Ftp Stat:", dir, file
                 self.ftp.dir(dir, lines.append)
                 self.statCache[dir] = dict([(line.split()[-1].strip(), line.strip()) for line in lines if line.strip()])
-                try:
-                    s = self.statCache[dir][file].split()
-                except KeyError:
-                    raise FileNotFoundError(filename)
+                if file:
+                    try:
+                        s = self.statCache[dir][file].split()
+                    except KeyError:
+                        raise FileNotFoundError(filename)
+                else:
+                    return
 ##                print dir ,file, s
     ##            s = s.getvalue().split()
         size, date = int(s[-5]), s[-4:-1]
@@ -229,21 +241,27 @@ class FtpDownloader(object):
 ##                pass
 ##            self.queue.put((self.ftpDir+filename, self.localDir+filename, update, 0, None))
         if blocking:
-            while not self.queue.empty():
-                if progressCallback:
-                    progressCallback(min(100.0, 100.0*(float(len(filenames))-self.queue.qsize())/len(filenames)))
-                time.sleep(0.1)
-
+            self.wait(progressCallback)
+            
     def retrieve(self, filename, update=False, blocking=True, progressCallback=None):
-        localDir = os.path.split(self.localDir+filename)[0]
+        if type(filename) == str:
+            filename = (filename, filename)
+        localDir = os.path.split(os.path.join(self.localDir, filename[1]))[0]
         try:
             os.makedirs(localDir)
         except:
             pass
         if blocking:
-            self.ftpWorker.retrieve(self.ftpDir+filename, os.path.join(self.localDir, filename), update, progressCallback)
+            self.ftpWorker.retrieve(self.ftpDir+filename[0], os.path.join(self.localDir, filename[1]), update, progressCallback)
         else:
-            self.queue.put((self.ftpDir+filename, self.localDir+filename, update, 0, progressCallback))
+            self.queue.put((self.ftpDir+filename[0], os.path.join(self.localDir, filename[1]), update, 0, progressCallback))
+
+    def wait(self, progressCallback=None):
+        count = self.queue.qsize()
+        while not self.queue.empty():
+            if progressCallback:
+                progressCallback(min(100.0, 100.0*(float(count)-self.queue.qsize())/count))
+            time.sleep(0.1)
 
 ##class HTTPDownloader(DownloaderBase):
 ##    def __init__(self, *args, **kwargs):
