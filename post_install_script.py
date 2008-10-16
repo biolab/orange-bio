@@ -19,7 +19,6 @@ if len(sys.argv) <= 1 or len(sys.argv) > 1 and "remove" not in sys.argv[1]:
         import orngEnviron
         from OWWidget import *
         sys.path.insert(0, os.path.join(distutils.sysconfig.get_python_lib(), "Genomics", "widgets")) # temporary fix, until orngEnviron and orngRegistry are fixed, and automatically add paths to add-on's modules and widgets into sys.path
-        print sys.path
         import OWUpdateGenomicsDatabases
         app = QApplication(sys.argv)
         w = OWUpdateGenomicsDatabases.OWUpdateGenomicsDatabases(wantCloseButton=True, showAll=True, searchString="essential")
