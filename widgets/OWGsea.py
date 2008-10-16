@@ -256,7 +256,7 @@ class OWGsea(OWWidget):
         self.minSubsetPart = 10
         self.minSubsetPartC = True
         self.perms = 100
-        self.csgm = True
+        self.csgm = False
         self.gsgo = False
         self.gskegg = False
 
@@ -311,8 +311,6 @@ class OWGsea(OWWidget):
         self.listView.setSelectionMode(QAbstractItemView.NoSelection)
         self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.newPathwaySelected)
 
-        #box = OWGUI.widgetBox(ca, 'Phenotypes')
-    
         OWGUI.separator(ca)
 
         OWGUI.widgetLabel(ca, "Phenotype selection:")
