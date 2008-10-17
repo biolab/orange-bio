@@ -234,7 +234,7 @@ class OWGsea(OWWidget):
                     "minSubsetPartC", 
                     "ptype", 
                     "loadFileName",
-                    "gridSel",
+                    "gridSels",
                     "csgm",
                     "gsgo",
                     "gskegg"]
@@ -256,7 +256,7 @@ class OWGsea(OWWidget):
         self.minSubsetPart = 10
         self.minSubsetPartC = True
         self.perms = 100
-        self.csgm = False
+        self.csgm = True
         self.gsgo = False
         self.gskegg = False
 
@@ -366,6 +366,7 @@ class OWGsea(OWWidget):
         else:
             self.loadFileName = "."
 
+        self.gridSels = []
         self.loadSettings()
  
         def cleanInvalid(maxn):
@@ -375,25 +376,37 @@ class OWGsea(OWWidget):
             notAllOk = True
 
             while notAllOk:
-                self.gridSel = getattr(self, "gridSel")
+                self.gridSels = getattr(self, "gridSels")
                 notAllOk = False
-                for i,a in enumerate(self.gridSel):
+                for i,a in enumerate(self.gridSels):
                     if a >= maxn:
-                        self.gridSel.pop(i)
+                        self.gridSels.pop(i)
                         notAllOk = True
                         break
-
+        
         cleanInvalid(len(self.geneSel))
+
+        self.gridSel = self.gridSels
+        self.gridSels = self.gridSel
 
     def addCollection(self):
         fname = self.chooseGeneSetsFile()
+
         if fname:
             if fname not in self.geneSel:
-                self.geneSel.append(fname)
-                setattr(self, "geneSel", self.geneSel)
+        
+                #add it to the list, choose it and keep
+                #all old choosen
+                gridSelc = list(self.gridSel)
 
-                self.gridSel = getattr(self, "gridSel")
-                self.gridSel.append(len(self.geneSel)-1)
+                self.geneSel.append(fname)
+                self.geneSel = self.geneSel
+
+                gridSelc.append(len(self.geneSel)-1)
+            
+                self.gridSel = gridSelc
+                self.gridSels = self.gridSel #for saving
+
 
     def saveData(self):
         self.warning('')
