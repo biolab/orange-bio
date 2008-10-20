@@ -145,7 +145,7 @@ class Ontology(object):
     def Load(cls, progressCallback=None):
         """A class method that tries to load the ontology file from default_database_path.
         """
-        files = [name for name in os.listdir(default_database_path) if name.startswith("gene_ontology")]
+        files = [name for name in os.listdir(default_database_path) if name.startswith("gene_ontology") and not name.endswith("info")]
         try:
             return cls(os.path.join(default_database_path, files.pop()), progressCallback=progressCallback)
         except Exception:
@@ -163,6 +163,7 @@ class Ontology(object):
         data=c.findall(data)
 ##        print "end re find"
 ##        print len(data)
+        milestones = set(i for i in range(0, len(data), max(len(data)/100, 1)))
         for i, block in enumerate(builtinOBOObjects + data):
             if block.startswith("[Term]"):
                 term = Term(self, block)
@@ -173,7 +174,7 @@ class Ontology(object):
             elif block.startswith("[Instance]"):
                 instance = Instance(self, block)
                 self.instances[instance.id] = instance
-            if progressCallback:
+            if progressCallback and i in milestones:
                 progressCallback(100.0*i/len(data))
         
         self.aliasMapper = {}
@@ -221,10 +222,8 @@ class Ontology(object):
             pass
         urlretrieve("http://www.geneontology.org/ontology/gene_ontology_edit.obo", os.path.join(tmpDir, "gene_ontology_edit.obo"), progressCallback and __progressCallbackWrapper(progressCallback))
         tFile.add(os.path.join(tmpDir, "gene_ontology_edit.obo"), "gene_ontology_edit.obo")
-        try:
-            shutil.rmtree(tmpDir)
-        except Exception:
-            pass
+        tFile.close()
+        os.remove(os.path.join(tmpDir, "gene_ontology_edit.obo"))
 
 class Annotations(object):
     def __init__(self, file=None, ontology=None, progressCallback=None):
@@ -400,11 +399,8 @@ class Annotations(object):
         cPickle.dump(annotation.geneNames, open(os.path.join(tmpDir, "gene_names.pickle"), "w"))
         tFile.add(os.path.join(tmpDir, "gene_names.pickle"), "gene_names.pickle")
         tFile.close()
-        
-        try:
-            shutil.rmtree(tmpDir)
-        except Exception:
-            pass
+        os.remove(os.path.join(tmpDir, "gene_association." + org))
+        os.remove(os.path.join(tmpDir, "gene_names.pickle"))
 
 class __progressCallbackWrapper:
     def __init__(self, callback):
@@ -414,7 +410,6 @@ class __progressCallbackWrapper:
         self.callback(100*bCount*bSize/fSize)
         
 from obiGenomicsUpdate import Update as UpdateBase
-from obiGenomicsUpdate import PKGManager as PKGManagerBase
 
 import urllib2
 
@@ -422,7 +417,7 @@ class Update(UpdateBase):
     def __init__(self, local_database_path=None, progressCallback=None):
         UpdateBase.__init__(self, local_database_path or getDataDir(), progressCallback)
     def CheckModified(self, addr, date=None):
-        return date > self.GetLastModified(addr)
+        return date > self.GetLastModified(addr) if date else True
         
     def CheckModifiedOrg(self, org):
         return self.CheckModified("http://www.geneontology.org/gene-associations/gene_association." + org + ".gz", self.LastModifiedOrg(org))
@@ -459,7 +454,7 @@ class Update(UpdateBase):
 
     def UpdateAnnotation(self, org):
 ##        downloadAnnotationTo(org, os.path.join(self.local_database_path, "gene_association." + org), self.progressCallback)
-        Annotations.DownloadAnnotations(org, os.path.join(self.local_database_path, "gene_associations." + org + ".tar.gz"), self.progressCallback)
+        Annotations.DownloadAnnotations(org, os.path.join(self.local_database_path, "gene_association." + org + ".tar.gz"), self.progressCallback)
         self._update(Update.UpdateAnnotation, (org,), self.GetLastModified("http://www.geneontology.org/gene-associations/gene_association." + org + ".gz"))
 
     def UpdateOntology(self):
