@@ -6,7 +6,8 @@
 <priority>103</priority>
 """
 
-import go
+##import go
+import obiGO
 import obiKEGG
 import sys, os, tarfile
 import OWGUI
@@ -17,12 +18,17 @@ from collections import defaultdict
 from obiGeneMatch import GeneMatchMk2
 
 dataDir = os.path.join(orngEnviron.bufferDir, "bigfiles", "go/")
-go.setDataDir(dataDir)
+##go.setDataDir(dataDir)
 
 def listDownloded():
     import orngServerFiles
-    files = orngServerFiles.listfiles("go")
-    return [file.split("'")[-2] for file in files if len(file.split("'"))>2]
+    files = orngServerFiles.listfiles("GO")
+    ret = {}
+    for file in files:
+        tags = orngServerFiles.info("GO", file)["tags"]
+        td = dict([tuple(tag.split(":")) for tag in tags if tag.startswith("#") and ":" in tag])
+        ret[td.get("#organism", file)] = file
+    return ret
 
 def getOrgFileName(org):
     import orngServerFiles
@@ -62,13 +68,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.loadSettings()
         
         # check usage of all evidences
-        for etype in go.evidenceTypesOrdered:
-            varName = "useEvidence"+etype 
+        for etype in obiGO.evidenceTypesOrdered:
+            varName = "useEvidence" + etype 
 ##            self.settingsList.append( varName)
             code = compile("self.%s = True" % (varName), ".", "single")
             exec(code)
-            
-        self.annotationCodes = listDownloded()
+        self.annotationFiles = listDownloded()
+        self.annotationCodes = self.annotationFiles.keys()
         if not self.annotationCodes:
             self.error(0, "No downloaded annotations!!\nClick the update button and update annotationa for at least one organism!")
         else:
@@ -110,8 +116,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         box = OWGUI.widgetBox(self.filterTab, "Evidence codes in annotation", addSpace=True)
 ##        box.setMaximumWidth(150)
         self.evidenceCheckBoxDict = {}
-        for etype in go.evidenceTypesOrdered:
-            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=go.evidenceTypes[etype])
+        for etype in obiGO.evidenceTypesOrdered:
+            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=obiGO.evidenceTypes[etype])
         
         ##Select tab
         self.selectTab = OWGUI.createTabPage(self.tabs, "Select")
@@ -189,6 +195,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         self.keggOrg = None
         self.clusterDataset = None
+        self.ontology = None
+        self.annotations = None
         
     def SetAnnotationCallback(self):
         self.LoadAnnotation()
@@ -236,15 +244,16 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
     def UpdateAnnotationComboBox(self):
         if self.annotationCodes:
-            curr = self.annotationCodes[self.annotationIndex]
+            curr = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
         else:
             curr = None
-        self.annotationCodes = listDownloaded()
+        self.annotationFiles = listDownloaded()
+        self.annotationCodes = self.annotationFiles.keys()
         index = curr and self.annotationCodes.index(curr) or 0
         self.annotationComboBox.clear()
         self.annotationComboBox.addItems(self.annotationCodes)
         self.annotationComboBox.setCurrentIndex(index)
-        print "updated annotations"
+##        print "updated annotations"
         if not self.annotationCodes:
             self.error(0, "No downloaded annotations!!\nClick the update button and update annotationa for at least one organism!")
         else:
@@ -261,9 +270,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if self.autoFindBestOrg:  
             organismGenes = dict([(o,set(go.getCachedGeneNames(o))) for o in self.annotationCodes])
         else:
-            currCode = self.annotationCodes[self.annotationIndex]
-            filename = p_join(dataDir, getOrgFileName(currCode))
-            geneNames = cPickle.load(tarfile.open(filename).extractfile("gene_names." + currCode))
+            currCode = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
+##            filename = p_join(dataDir, getOrgFileName(currCode))
+            filename = p_join(dataDir, self.annotationFiles[currCode])
+            f = tarfile.open(filename)
+            info = [info for info in f.getmembers() if info.name.startswith("gene_names")].pop()
+            geneNames = cPickle.load(f.extractfile(info))
             organismGenes = {currCode: set(geneNames)}
         candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
         candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, candidateGeneAttrs)
@@ -275,10 +287,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 vals = reduce(list.__add__, (val.split(",") for val in vals))
             for organism, s in organismGenes.items():
                 l = filter(lambda a: a in s, vals)
-                cn[(attr,organism)] = len(l)
+                cn[(attr,organism)] = len(set(l))
         for organism, s in organismGenes.items():
             l = filter(lambda a: a in s, attrNames)
-            cn[("_var_names_", organism)] = len(l)
+            cn[("_var_names_", organism)] = len(set(l))
             
         cn = cn.items()
         cn.sort(lambda a,b:-cmp(a[1],b[1]))
@@ -306,9 +318,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.SetGenesComboBox()
             self.FindBestGeneAttrAndOrganism()
             self.openContext("", data)
-            if not go.loadedGO:
-                self.LoadGO()
-            if not go.loadedAnnotation:
+##            if not go.loadedGO:
+            if not self.ontology:
+                self.LoadOntology()
+            if not self.annotations:
                 self.LoadAnnotation()
             
             #if not go.loadedAnnotation:
@@ -334,7 +347,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
             examples = []
             for ex in self.clusterDataset:
-                if not any(n in go.loadedAnnotation.aliasMapper for n in str(ex[geneAttr]).split(",")):
+##                if not any(n in go.loadedAnnotation.aliasMapper for n in str(ex[geneAttr]).split(",")):
+                if not any(n.strip() in self.annotations.aliasMapper or n.strip() in self.annotations.additionalAliases for n in str(ex[geneAttr]).split(",")):
                     examples.append(ex)
 ##                if str(ex[geneAttr]) not in go.loadedAnnotation.aliasMapper:
 ##                    examples.append(ex)
@@ -342,17 +356,21 @@ class OWGOEnrichmentAnalysis(OWWidget):
         else:
             self.send("Example With Unknown Genes", None)
 
-    def LoadGO(self):
+    def LoadOntology(self):
         try:
             self.progressBarInit()
-            go.loadedGO = go.loadOntologyFrom(p_join(dataDir, "UpdateOntology.tar.gz"), progressCallback=self.progressBarSet)
+##            go.loadedGO = go.loadOntologyFrom(p_join(dataDir, "UpdateOntology.tar.gz"), progressCallback=self.progressBarSet)
+            f = tarfile.open(p_join(dataDir, "UpdateOntology.tar.gz"))
+            info = [info for info in f.getmembers() if info.name.startswith("gene_ontology")].pop()
+            self.ontology = obiGO.Ontology(f.extractfile(info), progressCallback=self.progressBarSet)
             self.progressBarFinished()
         except IOError, er:
             response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the ontology.\nClik OK to download it?", "OK", "Cancel", "", 0, 1)
             if response==0:
-                self.UpdateGOAndAnnotation(tags = ["ontology", "go"])
-                go.loadedAnnotation = go.loadGOFrom(p_join(dataDir, "UpdateOntology.tar.gz"), progressCallback=self.progressBarSet)
-##                self.progressBarFinished()
+                self.UpdateGOAndAnnotation(tags = ["ontology", "GO", "essential"])
+##                go.loadedAnnotation = go.loadGOFrom(p_join(dataDir, "UpdateOntology.tar.gz"), progressCallback=self.progressBarSet)
+                self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
+                self.progressBarFinished()
             else:
                 raise
         
@@ -361,16 +379,20 @@ class OWGOEnrichmentAnalysis(OWWidget):
             response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the annotation.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
             if response==0:
                 self.UpdateGOAndAnnotation(tags=["annotation", "go"])
-        if self.annotationCodes[self.annotationIndex]!= self.loadedAnnotationCode:
+        if self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
             self.progressBarInit()
             try:
-                go.loadedAnnotation = go.loadAnnotationFrom(p_join(dataDir, getOrgFileName(self.annotationCodes[self.annotationIndex])), progressCallback=self.progressBarSet)
+##                go.loadedAnnotation = go.loadAnnotationFrom(p_join(dataDir, getOrgFileName(self.annotationCodes[self.annotationIndex])), progressCallback=self.progressBarSet)
+                f = tarfile.open(p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]]))
+                info = [info for info in f.getmembers() if info.name.startswith("gene_association")].pop()
+                self.annotations = obiGO.Annotations(f.extractfile(info), ontology=self.ontology, progressCallback=self.progressBarSet)
             except IOError, er:
                 raise
                 response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the annotation.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
                 if response==0:
                     go.downloadAnnotation(self.annotationCodes[self.annotationIndex], progressCallback=self.progressBarSet)
                     go.loadedAnnotation = go.loadAnnotationFrom(p_join(dataDir, getOrgFileName(self.annotationCodes[self.annotationIndex])), progressCallback=self.progressBarSet)
+                    self.annotations = obiGO.Annotations(p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]]), progressCallback=self.progressBarSet)
                 else:
                     raise
             self.progressBarFinished()
@@ -378,13 +400,14 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##            geneSets = dict([(etype, set()) for etype in go.evidenceTypesOrdered])
             count = defaultdict(int)
             geneSets = defaultdict(set)
-            for anno in go.loadedAnnotation.annotationList:
+##            for anno in go.loadedAnnotation.annotationList:
+            for anno in self.annotations.annotations:
                 count[anno.evidence]+=1
                 geneSets[anno.evidence].add(anno.geneName)
-            for etype in go.evidenceTypesOrdered:
+            for etype in obiGO.evidenceTypesOrdered:
                 self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
                 self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
-            self.loadedAnnotationCode=self.annotationCodes[self.annotationIndex]
+            self.loadedAnnotationCode=self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
             if self.loadedAnnotationCode in GeneMatchMk2.dbOrgMap:
                 self.keggOrg = obiKEGG.KEGGOrganism(GeneMatchMk2.dbOrgMap[self.loadedAnnotationCode], update=False)
                 self.keggOrg.api.download_progress_callback = self.progressBarSet
@@ -392,7 +415,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 self.keggOrg = None
 
     def UpdateGOAliases(self, genes):
-        genes = [gene for gene in genes if gene not in go.loadedAnnotation.aliasMapper]
+##        genes = [gene for gene in genes if gene not in go.loadedAnnotation.aliasMapper]
+        genes = [gene for gene in genes if gene not in self.annotations.aliasMapper]
         if not self.keggOrg or not os.path.isfile(os.path.join(self.keggOrg.local_database_path,"genes//organisms//"+self.keggOrg.org+"//_genes.pickle")):
             print "Gene translation failed"
             return
@@ -430,9 +454,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 clusterGenes = reduce(list.__add__, (genes.split(",") for genes in clusterGenes))
             else:
                 self.information(0)
-        self.UpdateGOAliases(clusterGenes)
+##        self.UpdateGOAliases(clusterGenes)
         self.geneInfoLabel.setText("%i genes on input" % len(clusterGenes))
-        self.clusterGenes = clusterGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, clusterGenes)
+##        self.clusterGenes = clusterGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, clusterGenes)
+        self.clusterGenes = clusterGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, clusterGenes)
 ##        print len(self.clusterGenes), self.clusterGenes[:5]
         referenceGenes = None
         if self.useReferenceDataset:
@@ -447,24 +472,27 @@ class OWGOEnrichmentAnalysis(OWWidget):
                         referenceGenes = reduce(list.__add__, (genes.split(",") for genes in referenceGenes))
                     else:
                         self.information(1)
-                self.UpdateGOAliases(referenceGenes)
-                referenceGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, referenceGenes)
+##                self.UpdateGOAliases(referenceGenes)
+##                referenceGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, referenceGenes)
+                referenceGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, referenceGenes)
                 self.information(2)
             except Exception, er:
                 self.information(2, str(er)+" Using the annotation for reference")
         else:
             self.information(2)
-            referenceGenes = go.loadedAnnotation.geneNames
+##            referenceGenes = go.loadedAnnotation.geneNames
+            referenceGenes = self.annotations.geneNames
         self.referenceGenes = referenceGenes
         evidences = []
-        for etype in go.evidenceTypesOrdered:
+        for etype in obiGO.evidenceTypesOrdered:
             if getattr(self, "useEvidence"+etype):
                 evidences.append(etype)
         aspect = ["P", "C", "F"][self.aspectIndex]
         self.progressBarInit()
         if clusterGenes:
 ##            print clusterGenes[:5], referenceGenes[:5], evidences, aspect
-            self.terms = terms = go.GOTermFinder(clusterGenes, referenceGenes, evidences, aspect=aspect, progressCallback=self.progressBarSet)
+##            self.terms = terms = go.GOTermFinder(clusterGenes, referenceGenes, evidences, aspect=aspect, progressCallback=self.progressBarSet)
+            self.terms = terms = self.annotations.GetEnrichedTerms(clusterGenes, referenceGenes, evidences, aspect=aspect, progressCallback=self.progressBarSet)
 ##            go.loadedAnnotation.__annotation.aliasMapper = old
         else:
             self.terms = terms = {}
@@ -476,14 +504,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.treeStructDict = {}
         ids = self.terms.keys()
         for term in self.terms:
-            self.treeStructDict[term] = TreeNode(self.terms[term], filter(lambda t:term in go.loadedGO.termDict[t].parents, ids))
-            if not go.loadedGO.termDict[term].parents:
+##            self.treeStructDict[term] = TreeNode(self.terms[term], filter(lambda t:term in go.loadedGO.termDict[t].parents, ids))
+            parents = lambda t: [term for typeId, term in  self.ontology[t].related]
+            self.treeStructDict[term] = TreeNode(self.terms[term], [id for id in ids if term in parents(id)])
+##            if not go.loadedGO.termDict[term].parents:
+            if not self.ontology[term].related:
                 self.treeStructRootKey = term
         return terms
         
     def FilterGraph(self, graph):
         if self.filterByPValue:
-            graph = go.filterByPValue(graph, self.maxPValue)
+            graph = obiGO.filterByPValue(graph, self.maxPValue)
         if self.filterByNumOfInstances:
             graph = dict(filter(lambda (id,(genes, p, rc)):len(genes)>=self.minNumOfInstances, graph.items()))
         return graph
@@ -519,7 +550,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 return
             if term in self.graph:
                 displayNode = QTreeWidgetItem(parentDisplayNode)
-                displayNode.setText(0, go.loadedGO.termDict[term].name)
+##                displayNode.setText(0, go.loadedGO.termDict[term].name)
+                displayNode.setText(0, self.ontology[term].name)
                 displayNode.setText(1, str(len(self.graph[term][0])))
                 displayNode.setText(2, str(self.graph[term][2]))
                 displayNode.setText(3, "%.4f" % self.graph[term][1])
@@ -546,7 +578,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##        self.sigTermsTable.setRowCount(len(terms))
         self.sigTerms.clear()
         for i, (id, (genes, p_value, refCount)) in enumerate(terms):
-            text = [go.loadedGO.termDict[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
+##            text = [go.loadedGO.termDict[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
+            text = [self.ontology[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
             QTreeWidgetItem(self.sigTerms, text)
 ##            for j,t in enumerate(text):
 ##                self.sigTermsTable.setItem(i, j, QTableWidgetItem(t))
@@ -587,7 +620,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     #self.listView.repaintItem(lvi)
                     if selected: lvi.setExpanded(True)
                 except RuntimeError:    ##Underlying C/C++ object deleted (why??)
-                    print "error 11"
+##                    print "error 11"
                     pass
                 
         #self.listView.triggerUpdate()
@@ -605,7 +638,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             return
 
         if self.selectionDirectAnnotation:
-            s = filter(lambda anno: anno.GOId in self.selectedTerms, go.loadedAnnotation.annotationList)
+##            s = filter(lambda anno: anno.GOId in self.selectedTerms, go.loadedAnnotation.annotationList)
+            s = filter(lambda anno: anno.GOId in self.selectedTerms, self.annotations.annotations)
             selectedGenes = [anno.geneName for anno in s]
         else:        
             map(selectedGenes.extend, [v[0] for id, v in self.graph.items() if id in self.selectedTerms])
