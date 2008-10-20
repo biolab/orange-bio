@@ -27,7 +27,8 @@ def listDownloded():
     for file in files:
         tags = orngServerFiles.info("GO", file)["tags"]
         td = dict([tuple(tag.split(":")) for tag in tags if tag.startswith("#") and ":" in tag])
-        ret[td.get("#organism", file)] = file
+        if "association" in file.lower():
+            ret[td.get("#organism", file)] = file
     return ret
 
 def getOrgFileName(org):
@@ -275,7 +276,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             filename = p_join(dataDir, self.annotationFiles[currCode])
             f = tarfile.open(filename)
             info = [info for info in f.getmembers() if info.name.startswith("gene_names")].pop()
-            geneNames = cPickle.load(f.extractfile(info))
+            print info.name
+            geneNames = cPickle.loads(f.extractfile(info).read().replace("\r\n", "\n"))
             organismGenes = {currCode: set(geneNames)}
         candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
         candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, candidateGeneAttrs)
@@ -360,9 +362,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
         try:
             self.progressBarInit()
 ##            go.loadedGO = go.loadOntologyFrom(p_join(dataDir, "UpdateOntology.tar.gz"), progressCallback=self.progressBarSet)
-            f = tarfile.open(p_join(dataDir, "UpdateOntology.tar.gz"))
-            info = [info for info in f.getmembers() if info.name.startswith("gene_ontology")].pop()
-            self.ontology = obiGO.Ontology(f.extractfile(info), progressCallback=self.progressBarSet)
+##            f = tarfile.open(p_join(dataDir, "gene_ontology.tar.gz"))
+##            info = [info for info in f.getmembers() if info.name.startswith("gene_ontology")].pop()
+##            self.ontology = obiGO.Ontology(f.extractfile(info), progressCallback=self.progressBarSet)
+            self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
+##            print self.ontology
             self.progressBarFinished()
         except IOError, er:
             response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the ontology.\nClik OK to download it?", "OK", "Cancel", "", 0, 1)
@@ -383,9 +387,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.progressBarInit()
             try:
 ##                go.loadedAnnotation = go.loadAnnotationFrom(p_join(dataDir, getOrgFileName(self.annotationCodes[self.annotationIndex])), progressCallback=self.progressBarSet)
-                f = tarfile.open(p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]]))
-                info = [info for info in f.getmembers() if info.name.startswith("gene_association")].pop()
-                self.annotations = obiGO.Annotations(f.extractfile(info), ontology=self.ontology, progressCallback=self.progressBarSet)
+                self.annotations = None
+##                f = tarfile.open(p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]]))
+                filename = p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]])
+##                info = [info for info in f.getmembers() if info.name.startswith("gene_association")].pop()
+##                self.annotations = obiGO.Annotations(f.extractfile(info), ontology=self.ontology, progressCallback=self.progressBarSet)
+                self.annotations = obiGO.Annotations(filename, ontology = self.ontology)
             except IOError, er:
                 raise
                 response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the annotation.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
