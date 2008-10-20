@@ -33,7 +33,10 @@ class Binomial(LogBin):
                 return 1.0
             else:
                 return 0.0
-        return math.exp(self._logbin(n, k) + k * math.log(p) + (n - k) * math.log(1.0 - p))
+        try:
+            return math.exp(self._logbin(n, k) + k * math.log(p) + (n - k) * math.log(1.0 - p))
+        except (OverflowError, ValueError), er:
+            return 0.0
 ##        return math.exp(self._logbin(n, k) + math.log((p**k) * (1.0 - p)**(n - k)))
 
     def p_value(self, k, N, m, n):
@@ -44,7 +47,10 @@ class Binomial(LogBin):
 class Hypergeometric(LogBin):
 
     def __call__(self, k, N, m, n):
-        return math.exp(self._logbin(m, k) + self._logbin(N - m, n - k) - self._logbin(N, n))
+        try:
+            return math.exp(self._logbin(m, k) + self._logbin(N - m, n - k) - self._logbin(N, n))
+        except (OverflowError, ValueError), er:
+            return 0.0
 
     def p_value(self, k, N, m, n):
         subtract = n - k + 1 > k
