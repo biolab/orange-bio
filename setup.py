@@ -50,7 +50,7 @@ if __name__ == "__main__":
 	      ext_modules=modules,
 	      packages = [ 'widgets', 'doc' ],
 	      package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
-	      extra_path="Genomics",
+	      extra_path=("Genomics", "orange/add-ons/Genomics"),
 	      py_modules = [ 'go', 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomicsUpdate', 'stats', 'pstat', 'obiExpression', 'obiGO', 'obiProb', 'obiAssess', 'obiGeneSets', 'obiMeSH', 'obiDicty' ],
 	      scripts=["post_install_script.py"]
 	      )
