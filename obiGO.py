@@ -1,9 +1,3 @@
-try:
-    raise ImportError
-    from psyco import proxy as psyco_proxy
-except ImportError:
-    def psyco_proxy(f): return f
-    
 from go import *
 
 from urllib import urlretrieve
@@ -157,7 +151,6 @@ class Ontology(object):
         except Exception:
             raise IOError("Could not locate ontology file in " + default_database_path)
         
-    @psyco_proxy
     def ParseFile(self, file, progressCallback=None):
         if type(file) == str:
             f = tarfile.open(file).extractfile("gene_ontology_edit.obo") if tarfile.is_tarfile(file) else open(file)
@@ -260,8 +253,7 @@ class Annotations(object):
             return cls(os.path.join(default_database_path, files.pop()))
         except Exception:
             raise IOError("Could not locate gene association file in " + default_database_path)
-        
-    @psyco_proxy
+    
     def ParseFile(self, file, progressCallback=None):
         if type(file) == str:
             f = tarfile.open(file).extractfile("gene_association") if tarfile.is_tarfile(file) else open(file)
@@ -297,6 +289,11 @@ class Annotations(object):
             if progressCallback and i in milestones:
                 progressCallback(100.0*i/len(lines))
 
+    def GetGeneNamesTranslator(self, genes):
+        def alias(gene):
+            return self.aliasMapper.get(gene, self.additionalAliases.get(gene, None))
+        return dict([(alias(gene), gene) for gene in genes if alias(gene)])
+
     def _CollectAnnotations(self, id):
         if id not in self.allAnnotations:
             annotations = [self.termAnnotations[id]]
@@ -327,14 +324,10 @@ class Annotations(object):
         annotations = self.GetAllAnnotations(id)
         return list(set([ann.geneName for ann in annotations if ann.Evidence_code in evidenceCodes]))
 
-    @verbose
-    @psyco_proxy
     def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", progressCallback=None):
         """Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count)
         """
-        def alias(gene):
-            return self.aliasMapper.get(gene.strip(), self.additionalAliases.get(gene.strip(), None))
-        revGenesDict = dict([(alias(gene), gene) for gene in genes if alias(gene)])
+        revGenesDict = self.GetGeneNamesTranslator(genes)
         genes = set(revGenesDict.keys())
         reference = set(reference) if reference else self.geneNames
         evidenceCodes = set(evidenceCodes or evidenceDict.keys())
@@ -369,9 +362,10 @@ class Annotations(object):
         return res
 
     def GetAnnotatedTerms(self, genes, directAnnotationOnly=False, evidenceCodes=None, progressCallback=None):
-        """Return all terms that are annotated genes with evidenceCodes.
+        """Return all terms that are annotated by with evidenceCodes.
         """
-        genes = set(genes)
+        revGenesDict = self.GetGeneNamesTranslator(genes)
+        genes = set(revGenesDict.keys)
         evidenceCodes = set(evidenceCodes or evidenceDict.keys())
         annotations = [ann for gene in genes for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes]
         dd = defaultdict(set)
@@ -382,7 +376,7 @@ class Annotations(object):
             for i, term in enumerate(terms):
                 termAnnots = self.GetAllAnnotations(term)
                 termAnnots.intersection_update(annotations)
-                dd[term].update([ann.geneName for ann in termAnots])
+                dd[term].update([revGenesDict.get(ann.geneName, ann.geneName) for ann in termAnots])
         return dict[d]
     
     @staticmethod
