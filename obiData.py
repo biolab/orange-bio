@@ -190,22 +190,6 @@ class FtpThreadWorker(threading.Thread, FtpWorker):
             self.retrieve(filename, local, update, progressCallback)
             self.queue.task_done()
 
-class DownloaderBase(object):
-    def __init__(self, remoteAddr, localDir, remoteDir="", numOfThreads=5):
-        self.remoteAddr = remoteAddr
-        self.localDir = localDir
-        self.remoteDir = remoteDir
-        self.numOfThreads = numOfThreads
-
-    def retrieve(self, *args):
-        raise NotImplementedError
-
-    def massRetrieve(self, *args):
-        raise NotImplementedError
-
-    def GetIfModified(self, filename, date):
-        raise NotImplementedError
-    
 class FtpDownloader(object):
     def __init__(self, ftpAddr, localDir, ftpDir="", numOfThreads=5):
         self.ftpAddr = ftpAddr
@@ -262,6 +246,7 @@ class FtpDownloader(object):
             if progressCallback:
                 progressCallback(min(100.0, 100.0*(float(count)-self.queue.qsize())/count))
             time.sleep(0.1)
+        self.queue.join()
 
 ##class HTTPDownloader(DownloaderBase):
 ##    def __init__(self, *args, **kwargs):

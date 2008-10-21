@@ -182,97 +182,35 @@ class PKGUpdate(Update):
             return self.UpdateWrapper(getattr(self.wrappedUpdaterClass, name))
         except AttributeError:
             raise AttributeError(name)
-        
-class PKGManager(object):
-    def __init__(self, updater, tarballs=[], compression="gz", serverFiles=None, domain=None):
-        """Uses a subclass of Update to create packages for central server updates based on the difference of
-        local database directory before and after an update. Reimplement the Create method for custom package creation (see obiKEGG.PKGManager).
-        Arguments:
-            - updater : instance of a sublass of Update
-            - tarballs : list of directories that should be contained in a package as a whole.
-            - compression : compression to use for the package. Can be "gz", "bz2" or None
-            - serverFiles : instance of ServerFiles
-            - domain : name of the domain 
-        """
-        self.local_database_path = os.path.normpath(updater.local_database_path)
-        self.updater = updater
-        self.tarballs = [os.path.normpath(tar) for tar in tarballs]
-        self.compression = compression or ""
-        self.serverFiles = serverFiles
-        self.domain = domain
-        self.initialState = {}
-        self.endState = {}
 
-    def Update(self, items=None):
-        """Create and upload packages for all updatable and downloadable items.
-        """
-        for func, args in self.updater.GetUpdatable() + self.updater.GetDownloadable() if items==None else items:
-            try:
-                self.MakePKG(func, args)
-            except Exception, ex:
-                print "Update package failed due to:", ex
+def firstUpdateConsole():
+    import obiKEGG, obiGO, obiGenomicsUpdate
 
-    def MakePKG(self, func, args):
-        """Make and upload package."""
-        realpath = os.path.realpath(os.curdir)
-        os.chdir(self.local_database_path)
-        self.InitWatch()
-        func(self.updater, *args)
-        self.EndWatch()
-        name = self.Create(func, args)
-        if name and self.serverFiles:
-            try:
-                self.serverFiles.create_domain(self.domain)
-            except:
-                pass
-            print "Uploading %s to server" % name
-            self.serverFiles.upload(self.domain, name, open(name, "rb"), title=name, tags=[func.im_class.__module__, func.__name__] + [str(arg) for arg in args] )
-            self.serverFiles.unprotect(self.domain, name)
-        os.chdir(realpath)
-        
-    def Collect(self, state):
-        for dirpath, dirnames, filenames in os.walk("."):
-            for filename in filenames:
-                if not filename.startswith("."):
-                    time = os.stat(os.path.join(dirpath, filename)).st_mtime
-                    state[os.path.normpath(os.path.join(dirpath, filename))] = time
-                
-    def InitWatch(self):
-        self.initialState = {}
-        self.endState = {}
-        self.Collect(self.initialState)
+    pkgUpdate = obiGenomicsUpdate.PKGUpdate("go", obiGO.Update())
 
-    def EndWatch(self):
-        self.endState = {}
-        self.Collect(self.endState)
+    print "Updating GO ontology"
+    pkgUpdate.UpdateOntology()
 
-    def Diff(self):
-        """Return the names of files that were changed between calls to InitWatch and EndWatch.
-        """
-        return list(set(self.endState.items()) - set(self.initialState.items()))
+    for org, name in [("goa_human", "Homo sapiens"), ("sgd", "Yeast")]:
+        print "Updating GO anotations for", name
+        pkgUpdate.UpdateAnnotation(org)
 
-    def Create(self, func, args):
-        """Create the package and return its name otherwise return None"""
-        name = func.__name__ + ("_" + str(args) if args else "")
-        tarDirs = set()
-        files = set()
-        for filename, time in self.Diff():
-            if self.InTarball(filename):
-                tarDirs.add(self.InTarball(filename))
-            else:
-                files.add(filename)
-        if len(files)+len(tarDirs) > 0:
-            name = name+".tar" + (("." + self.compression) if self.compression else "")
-            tarFile = tarfile.open(name, "w:"+self.compression)
-            print "Creating:",  name
-            for file in files:
-                tarFile.add(file)
-            for tarDir in tarDirs:
-                tarFile.add(tarDir)
-            tarFile.close()
-            return name
-        
-    def InTarball(self, filename):
-        for tarball in self.tarballs:
-            if filename.startswith(tarball):
-                return tarball
+    pkgUpdate = obiGenomicsUpdate.PKGUpdate("kegg", obiKEGG.Update())
+
+    print "Updating KEGG taxonomy"
+    pkgUpdate.UpdateTaxonomy()
+
+    print "Updating KEGG orthology"
+    pkgUpdate.UpdateOrthology()
+
+    print "Updating KEGG reference pathways"
+    pkgUpdate.UpdateReference()
+
+    for org, name in [("hsa", "Homo sapiens"), ("sce", "Yeast")]:
+        print "Updating KEGG pathways for", name
+        pkgUpdate.UpdateOrganism(org)
+    
+
+def firstUpdateQt():
+    pass
+    
