@@ -6,6 +6,7 @@ import os
 if len(sys.argv) <= 1 or len(sys.argv) > 1 and "remove" not in sys.argv[1]:
     try:
         import orngEnviron
+        from OWWidget import *
         import OWUpdateGenomicsDatabases
         app = QApplication(sys.argv)
         w = OWUpdateGenomicsDatabases.OWUpdateGenomicsDatabases(wantCloseButton=True, showAll=True, searchString="essential")
