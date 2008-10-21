@@ -42,7 +42,7 @@ def writeMakeFileDepends():
     f.close()
 
 if __name__ == "__main__":
-    setup(name = "Orange Bioinformatics Add-On",
+    setup(name = "Orange Bioinformatics",
           version = "1.0",
           description = "Bioinformatics Add-On for Orange",
           author="University of Ljubljana, AI lab",
