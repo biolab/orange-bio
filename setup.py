@@ -48,7 +48,7 @@ if __name__ == "__main__":
           author="University of Ljubljana, AI lab",
           maintainer_email="tomaz.curk@fri.uni-lj.si",
           ext_modules=modules,
-          packages = [ 'widgets', 'doc' ],
+          packages = [ 'widgets', 'widgets.prototypes', 'doc' ],
           package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
           extra_path=("orange-bioinformatics", "orange/add-ons/Bioinformatics"),
           py_modules = [ 'go', 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomicsUpdate', 'stats', 'pstat', 'obiExpression', 'obiGO', 'obiProb', 'obiAssess', 'obiGeneSets', 'obiMeSH', 'obiDicty' ],
