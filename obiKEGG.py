@@ -1003,6 +1003,7 @@ class KEGGResourceNotFound(Exception):
     pass
 
 import cStringIO
+import obiProb
 
 class KEGGOrganismMk2(object):
     def __init__(self, file):
