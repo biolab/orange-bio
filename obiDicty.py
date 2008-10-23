@@ -128,12 +128,10 @@ def median(l):
     else: #even
         return (l[len(l)/2-1] + l[len(l)/2])/2.0
 
-
 class HttpGetException(Exception): pass
 
 def replaceChars(address):
     return address.replace(" ", "%20")
-
 
 def httpGet(address, *args, **kwargs):
     if verbose: 
@@ -310,20 +308,26 @@ chips chips""")
         o =  "|||".join([ self.aoidt(a) + "***" + b for a,b in q.items()])
         return o
 
-    def downloadMulti(self, command, ids):
+    def downloadMulti(self, command, ids, chunk=100, transformfn=None):
         """
         Results in the same order as in ids.
         """
 
-        sids = split(ids,100)
+        sids = split(ids,chunk)
     
+        def bufcommand():
+            if transformfn:
+                return "TRANS " + command
+            else:
+                return command
+
         for i,sidp in enumerate(sids):
 
             buffered = []
             unbuffered = []
         
             for a in sidp:
-                if self.inBuffer(command.replace("$MULTI$", a)):
+                if self.inBuffer(bufcommand().replace("$MULTI$", a)):
                     buffered.append(a)
                 else:
                     unbuffered.append(a)
@@ -335,19 +339,29 @@ chips chips""")
                 res, legend = self.sq(command.replace("$MULTI$", ",".join(unbuffered)),\
                     buffer=False)
             else:
-                # get legend
-                legend = self.fromBuffer(command.replace("$MULTI$", buffered[0]))[0]
+                # get legend from buffer
+                legend = self.fromBuffer(bufcommand().replace("$MULTI$", buffered[0]))[0]
 
             #split on different values of the first column - first attribute
             antss = splitTableOnColumn(res, 0)
 
+            #if transform before saving is requested, do it
+            if transformfn:
+                nantss = {}
+                nlegend = None
+                for a,b in antss.items():
+                    nb, nlegend = transformfn(b, legend)
+                    nantss[a] = nb
+                legend = nlegend
+                antss = nantss
+ 
             #here save buffer
             for a,b in antss.items():
-                self.toBuffer(command.replace("$MULTI$", a), [ legend ] + b)
+                self.toBuffer(bufcommand().replace("$MULTI$", a), [ legend ] + b)
 
-            antssb = dict([ (b, self.fromBuffer(command.replace("$MULTI$", b))[1:]) for b in buffered ])
+            antssb = dict([ (b, self.fromBuffer(bufcommand().replace("$MULTI$", b))[1:]) for b in buffered ])
             antss.update(antssb)
-    
+
             #put results in order
             tl = []
             for ci in sidp:
@@ -447,8 +461,8 @@ chips chips""")
         inputids = False
         if ids != None:
             inputids = True
-            antss = self.downloadMulti(\
-                "action=get_annotations&ids=$MULTI$&object_id=%s" \
+            antss = self.downloadMulti(
+                "action=get_annotations&ids=$MULTI$&object_id=%s" 
                 % (self.obidt(type)), ids)
         else:
             res,legend = self.sq(
@@ -457,10 +471,9 @@ chips chips""")
             antss = splitTableOnColumn(res, 0)
             ids = nth(antss.items(),0)
             antss = zip(nth(antss.items(),1), [ legend ]*len(antss))
-            print len(antss)
 
-        for ants in zip(antss,ids):
-            (res, legend),id = ants
+        for ants in izip(antss,ids):
+            (res, legend), id = ants
             res2 = onlyColumns(res, legend, ['name', 'value'])
             res2 = [ [ self.aoidtr(a),b ] for a,b in res2 ]
             if not all:
@@ -509,30 +522,30 @@ chips chips""")
 
         return sorted(set(nth(ares, 0)))
 
-    def chipN(self, id):
-        action = "action=get_normalized_data&ids=%s" % (id)
-        def getd():
-            res,legend = self.sq(action, buffer=False)
-            res2 = onlyColumns(res, legend, ["spot_id", 'M'])
-            return res2
 
-        res2 = self.bufferFun("TRANS " + action, getd)
-        return res2
+    def chipN(self, id):
+        return list(self.chipNs([id]))[0]
 
     def chipR(self, id):
-        res,legend = self.sq("action=get_raw_data&ids=%s" % (id))
-        #TODO remove unneeded columns
-        res2 = res
-        return res2
+        return list(self.chipRs([id]))[0]
   
     def chipNs(self, ids):
-        for id in ids:
-            yield self.chipN(id)
+          
+        def sel(res, legend):
+            #Drop unwanted columns - for efficiency
+            res = onlyColumns(res, legend, ["spot_id", 'M'])
+            legend = onlyColumns( [ legend ], legend, ["spot_id", 'M'])[0]
+            return res, legend
+
+        antss = self.downloadMulti("action=get_normalized_data&ids=$MULTI$", ids, chunk=2, transformfn=sel)
+        for a,legend in antss:
+            yield a   
 
     def chipRs(self, id):
-        for id in ids:
-            yield self.chipR(id)
-   
+        antss = self.downloadMulti("action=get_raw_data&ids=$MULTI$", ids, chunk=2)
+        for a,legend in antss:
+            yield a
+  
     def spotId(self):
         res,legend = self.sq("action=spot_id_mapping")
         res2 = onlyColumns(res, legend, ["spot_id", 'ddb', 'genename'])
@@ -1114,7 +1127,7 @@ def floatOrUnknown(a):
     except:
         return "?"
 
-class Buffer1(object):
+class BufferSQLite(object):
 
     def __init__(self, filename, compress=True):
         import sqlite3
@@ -1138,6 +1151,8 @@ class Buffer1(object):
 
     def add(self, addr, con):
         import cPickle, zlib, sqlite3
+        if verbose:
+            print "Adding", addr
         c = self.conn.cursor()
         if self.compress:
             bin = sqlite3.Binary(zlib.compress(cPickle.dumps(con)))
@@ -1170,7 +1185,9 @@ class Buffer1(object):
 
 if __name__=="__main__":
     verbose = 1
-    dbc = DatabaseConnection("http://purple.bioch.bcm.tmc.edu/~anup/index.php?", buffer=Buffer1("tmpbuf1233"))
+    dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?", buffer=BufferSQLite("../tmpbuf1233"))
+    #dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?")
+
     ao = dbc.annotations("norms")
     print list(ao)[:10]
     ao = dbc.annotations("norms", ids=["3900"])
@@ -1180,7 +1197,11 @@ if __name__=="__main__":
     def cb():
         global count
         count += 1
-        print "CBBB", count
+        #print "CBBB", count
 
     ets = dbc.getData(sample='tagA-', callback=cb)
+    
+    for i,et in enumerate(ets):
+        et.save("%s/T%d.tab" % ("multid1", i))
+        print et.annot
 
