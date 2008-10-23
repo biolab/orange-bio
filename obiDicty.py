@@ -1,9 +1,8 @@
 import sys, pprint, time, re
 from itertools import *
-import urllib
+import urllib2
 import orange
 import socket
-
 
 #utility functions - from Marko's mMisc.py
 
@@ -141,7 +140,12 @@ def httpGet(address, *args, **kwargs):
         print address
     address = replaceChars(address)
     t1 = time.time()
-    f = urllib.urlopen(address, *args, **kwargs)
+    f = urllib2.urlopen(address, *args, **kwargs)
+    """
+    if verbose:
+        print "Info"
+        print f.info()
+    """
     read = f.read()
     if verbose:
         print "bytes", len(read)
@@ -308,7 +312,7 @@ chips chips""")
 
     def downloadMulti(self, command, ids):
         """
-        Results in the same order as in ids. 
+        Results in the same order as in ids.
         """
 
         sids = split(ids,100)
@@ -435,17 +439,36 @@ chips chips""")
 
 
     def annotations(self, type, ids=None, all=False):
-        antss = self.downloadMulti( \
-            "action=get_annotations&ids=$MULTI$&object_id=%s" \
-            % (self.obidt(type)), ids)
+        """
+        Return annotations for type and ids. If ids are left blank,
+        all annotations are output.
+        """
+        
+        inputids = False
+        if ids != None:
+            inputids = True
+            antss = self.downloadMulti(\
+                "action=get_annotations&ids=$MULTI$&object_id=%s" \
+                % (self.obidt(type)), ids)
+        else:
+            res,legend = self.sq(
+                "action=get_annotations&object_id=%s"
+                % (self.obidt(type)))
+            antss = splitTableOnColumn(res, 0)
+            ids = nth(antss.items(),0)
+            antss = zip(nth(antss.items(),1), [ legend ]*len(antss))
+            print len(antss)
 
-        for ants in antss:
-            res, legend = ants
+        for ants in zip(antss,ids):
+            (res, legend),id = ants
             res2 = onlyColumns(res, legend, ['name', 'value'])
             res2 = [ [ self.aoidtr(a),b ] for a,b in res2 ]
             if not all:
                 res2 = self.keepOnlyMeaningful(res2)
-            yield res2
+            if inputids:
+                yield res2
+            else:
+                yield (id, res2)
 
     def search(self, type, **kwargs):
         """
@@ -568,7 +591,17 @@ chips chips""")
         return av
 
     def dictionarize(self, ids, fn, *args, **kwargs):
-        return dict(zip(ids, list(fn(*args, **kwargs))))
+        """
+        Creates a dictionary from id: function result.
+        Callback for each part done.
+        """
+        callback = kwargs.pop("callback", None)
+        odic = {}
+        for a,b in izip(ids, fn(*args, **kwargs)):
+            odic[a] = b
+            if callback: callback()
+        return odic
+        #return dict(zip(ids, list(fn(*args, **kwargs))))
 
     def groupAnnotations(self, annotations, prefix="", join=[], separate=None):
         """
@@ -801,7 +834,7 @@ chips chips""")
 
         return exampleTables
 
-    def exampleTables(self, chipsm, groups, spotmap={}, annotations=None):
+    def exampleTables(self, chipsm, groups, spotmap={}, annotations=None, callback=None):
         """
         Create example tables from chip readings, spot mappings and 
         group specifications.
@@ -844,6 +877,8 @@ chips chips""")
         posMap = outPositionMap([ nth(c,0) for c in chipsm.values() ])
         npos = len(posMap.values())
 
+        if callback: callback()
+
         ddb = [ "" for a in range(npos) ] 
 
         for k,ind in posMap.items():
@@ -884,10 +919,12 @@ chips chips""")
 
             setattr(et, "annot", annotc)
             exampleTables.append(et)
+            
+            if callback: callback()
     
         return exampleTables
 
-    def getData(self, type="norms", join=["time"], separate=None, average=median, ids=None, **kwargs):
+    def getData(self, type="norms", join=["time"], separate=None, average=median, ids=None, callback=None, **kwargs):
         """
         Returns a list of examples tables for a given search query and post-processing
         instructions.
@@ -904,41 +941,77 @@ chips chips""")
 
         Defaults: Median averaging. Join by time.
         """
+
+        class CallBack():
+
+            def __init__(self, allparts, fn, callbacks=100):
+                self.allparts = allparts
+                self.lastreport = 0.00001
+                self.getparts = 0
+                self.increase = 1.0/callbacks
+                self.callbacks = callbacks
+                self.fn = fn
+                self.cbs = 0
+
+            def part(self):
+                self.getparts += 1
+                done = float(self.getparts)/self.allparts
+                while done > self.lastreport + self.increase:
+                    self.lastreport += self.increase
+                    self.fn()
+                    self.cbs += 1
+
+            def end(self):
+                while self.cbs < self.callbacks:
+                    self.fn()
+                    self.cbs += 1
+
+        def optcb():
+            if callback: callback()
+
         if not ids:
             #returns ids of elements that match the search function
             ids = self.search(type, **kwargs)
 
-        #downloads annotations
+        cbc = CallBack(1, optcb, callbacks=10)
+        cbc.end()
 
-        read = self.dictionarize(ids, self.annotations, type, ids)
-        
-        #make annotatio groups
+        #downloads annotations
+        cbc = CallBack(len(ids), optcb, callbacks=10)
+        read = self.dictionarize(ids, self.annotations, type, ids, callback=cbc.part)
+        cbc.end()
+
+        cbc = CallBack(1, optcb, callbacks=10)
+
+        #make annotation groups
         etsa = self.groupAnnotations(read, join=join, separate=separate )
         if type == "norms":
             fun = self.chipNs
         else:
             fun = self.chipRs
 
+        cbc.end()
+
         #here could user intervent. till now downloads were small
 
         import time
         #print time.time()
 
-        #donwload chip data
-        #print "Loading files"
-        #import mMisc as m
-        #chipd = m.autoPck("fkdfdlkklfds.pck", "4", self.dictionarize, ids, fun, ids)
-        #import cPickle as pickle
-        #chipd = pickle.load(open("fkdfdlkklfds.pck", 'rb'))
+        #here download actually happens
 
-        chipd = self.dictionarize(ids, fun, ids)
-
+        cbc = CallBack(len(ids), optcb, callbacks=999-50)
+        chipd = self.dictionarize(ids, fun, ids, callback=cbc.part)
+        cbc.end()
+        
         #create example tables grouped according to user's wishes
         #print time.time()
-        ets = self.exampleTables(chipd, etsa, spotmap=self.spotMap())
 
+        cbc = CallBack(len(etsa)+1, optcb, callbacks=10)
+        ets = self.exampleTables(chipd, etsa, spotmap=self.spotMap(), callback=cbc.part)
+        cbc.end()
 
-        #print time.time()
+        cbc = CallBack(len(ets), optcb, callbacks=10)
+
         #if average function is given, use it to join same spotids
         if average != None:
             etsa = []
@@ -946,7 +1019,10 @@ chips chips""")
                 eta = averageAttributes(et, fn=average)
                 eta.annot = et.annot
                 etsa.append(eta)
+                cbc.part()
             ets = etsa
+
+        cbc.end()
 
         return ets
 
@@ -982,7 +1058,6 @@ def averageAttributes(data, joinc="DDB", fn=median):
 
     if verbose:
         print "Averaging attributes"
-
 
     valueso = []
     valuess = set(valueso)
@@ -1041,7 +1116,6 @@ def floatOrUnknown(a):
 
 class Buffer1(object):
 
-
     def __init__(self, filename, compress=True):
         import sqlite3
         self.conn = sqlite3.connect(filename)
@@ -1094,5 +1168,19 @@ class Buffer1(object):
             print time.time() - t
         return rc
 
+if __name__=="__main__":
+    verbose = 1
+    dbc = DatabaseConnection("http://purple.bioch.bcm.tmc.edu/~anup/index.php?", buffer=Buffer1("tmpbuf1233"))
+    ao = dbc.annotations("norms")
+    print list(ao)[:10]
+    ao = dbc.annotations("norms", ids=["3900"])
+    print list(ao)[:10]
 
+    count = 0
+    def cb():
+        global count
+        count += 1
+        print "CBBB", count
+
+    ets = dbc.getData(sample='tagA-', callback=cb)
 

@@ -63,8 +63,9 @@ class OWDicty(OWWidget):
         self.loadSettings()
         self.dbc = None        
 
-        self.UpdateJoinSelected()        
-        self.FillExperimentsWidget()
+        self.UpdateJoinSelected()
+
+        QTimer.singleShot(0, self.FillExperimentsWidget)
 
         self.resize(600, 400)
 
@@ -143,17 +144,23 @@ class OWDicty(OWWidget):
         allTables = []
         join = [self.joinList[i] for i in self.joinSelected]
         separate = [self.separateList[i] for i in self.separateSelected]
+
         import time
         start = time.time()
-        print "Start:"
+
+        pb = OWGUI.ProgressBar(self, iterations=1000)
+
+        #print "Start:"
         for item in self.experimentsWidget.selectedItems():
-            tables = self.dbc.getData(sample=str(item.text(0)), treatment=str(item.text(1)), growthCond=str(item.text(2)), join=join, separate=separate)
+            tables = self.dbc.getData(sample=str(item.text(0)), treatment=str(item.text(1)), growthCond=str(item.text(2)), join=join, separate=separate, callback=pb.advance)
             for table in tables:
                 table.name = ".".join([str(item.text(0)), str(item.text(1)), str(item.text(2)), str(item.text(3))])
             allTables.extend(tables)
         end = int(time.time()-start)
-        print "End:","%ih:%im:%is" % (end/3600, (end/60)%60, end%60)
+        #print "End:","%ih:%im:%is" % (end/3600, (end/60)%60, end%60)
         
+        pb.finish()
+
         self.send("Example tables", None)
         for i, table in enumerate(allTables):
             self.send("Example tables", table, i)
