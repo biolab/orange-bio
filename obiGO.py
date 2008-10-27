@@ -258,12 +258,13 @@ class Annotations(object):
             f = tarfile.open(file).extractfile("gene_association") if tarfile.is_tarfile(file) else open(file)
         else:
             f = file
-        lines = f.readlines()
+        lines = [line for line in f.read().split("\n") if line.strip()]
         milestones = set(i for i in range(0, len(lines), max(len(lines)/100, 1)))
         for i,line in enumerate(lines):
             if line.startswith("!"):
                 self.header = self.header + line + "\n"
                 continue
+            
             a=Annotation(line)
             self.annotationsById[id(a)] = a
             if not a.geneName or not a.GOId:

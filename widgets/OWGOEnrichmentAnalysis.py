@@ -276,7 +276,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             filename = p_join(dataDir, self.annotationFiles[currCode])
             f = tarfile.open(filename)
             info = [info for info in f.getmembers() if info.name.startswith("gene_names")].pop()
-            print info.name
+##            print info.name
             geneNames = cPickle.loads(f.extractfile(info).read().replace("\r\n", "\n"))
             organismGenes = {currCode: set(geneNames)}
         candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
@@ -346,7 +346,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
     def FilterUnknownGenes(self):
         if not self.useAttrNames:
-            geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
+            geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
             examples = []
             for ex in self.clusterDataset:
 ##                if not any(n in go.loadedAnnotation.aliasMapper for n in str(ex[geneAttr]).split(",")):
@@ -392,7 +392,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 filename = p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]])
 ##                info = [info for info in f.getmembers() if info.name.startswith("gene_association")].pop()
 ##                self.annotations = obiGO.Annotations(f.extractfile(info), ontology=self.ontology, progressCallback=self.progressBarSet)
-                self.annotations = obiGO.Annotations(filename, ontology = self.ontology)
+                self.annotations = obiGO.Annotations(filename, ontology = self.ontology, progressCallback=self.progressBarSet)
             except IOError, er:
                 raise
                 response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the annotation.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
@@ -450,11 +450,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         return
     
     def Enrichment(self):
+        if not self.annotations.ontology:
+            self.annotations.ontology = self.ontology
         if self.useAttrNames:
             clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
             self.information(0)
         else:
-            geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
+            geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
             clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset if not ex[geneAttr].isSpecial()]
             if any("," in gene for gene in clusterGenes):
                 self.information(0, "Separators detected in cluster gene names. Assuming multiple genes per example.")
@@ -664,7 +666,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.send("Selected Examples", orange.ExampleTable(newDomain, self.clusterDataset))
             self.send("Unselected Examples", None)
         else:
-            geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
+            geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
             newClass = orange.EnumVariable("GO Term", values=list(self.selectedTerms))
             newDomain = orange.Domain(self.clusterDataset.domain.variables, newClass)
             for ex in self.clusterDataset:
