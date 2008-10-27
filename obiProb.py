@@ -3,21 +3,32 @@ import math
 class LogBin(object):
     _max = 2
     _lookup = [0.0, 0.0]
+    _max_factorial = 1
     def __init__(self, max=1000):
         self._extend(max)
 
+##    @classmethod
+##    def  _extend(cls, max):
+##        lookup = [cls._lookup[-1] + math.log(cls._max)] * (max - cls._max)
+##        for i in range(1, max - cls._max - 1):
+##            lookup[i] = lookup[i - 1] + math.log(cls._max + i)
+##        cls._lookup.extend(lookup)
+##        cls._max = max
+
     @classmethod
     def  _extend(cls, max):
-        lookup = [cls._lookup[-1] + math.log(cls._max)] * (max - cls._max)
-        for i in range(1, max - cls._max - 1):
-            lookup[i] = lookup[i - 1] + math.log(cls._max + i)
-        cls._lookup.extend(lookup)
+        for i in xrange(cls._max, max):
+            cls._max_factorial *= i
+            cls._lookup.append(math.log(cls._max_factorial))
         cls._max = max
 
     def _logbin(self, n, k):
         if n >= self._max:
             self._extend(n + 100)
-        return self._lookup[n] - self._lookup[n - k] - self._lookup[k]
+        if k <= n:
+            return self._lookup[n] - self._lookup[n - k] - self._lookup[k]
+        else:
+            return 0
 
 class Binomial(LogBin):
 
@@ -36,7 +47,8 @@ class Binomial(LogBin):
         try:
             return math.exp(self._logbin(n, k) + k * math.log(p) + (n - k) * math.log(1.0 - p))
         except (OverflowError, ValueError), er:
-            return 0.0
+            print k, N, m, n
+            raise
 ##        return math.exp(self._logbin(n, k) + math.log((p**k) * (1.0 - p)**(n - k)))
 
     def p_value(self, k, N, m, n):
@@ -50,12 +62,14 @@ class Hypergeometric(LogBin):
         try:
             return math.exp(self._logbin(m, k) + self._logbin(N - m, n - k) - self._logbin(N, n))
         except (OverflowError, ValueError), er:
-            return 0.0
+            print k, N, m, n
+            raise
 
     def p_value(self, k, N, m, n):
         subtract = n - k + 1 > k
-        result = sum([math.exp(self._logbin(m, i) + self._logbin(N - m, n - i)) for i in (range(k) if subtract else range(k, n+1))])
-        result /= math.exp(self._logbin(N, n))
+##        result = sum([math.exp(self._logbin(m, i) + self._logbin(N - m, n - i)) for i in (range(k) if subtract else range(k, n+1))])
+        result = sum([self.__call__(i, N, m, n) for i in (range(k) if subtract else range(k, n+1))])
+##        result /= math.exp(self._logbin(N, n))
         return 1.0 - result if subtract else result
 
 
