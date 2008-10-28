@@ -1,0 +1,63 @@
+<html>
+
+<head>
+<title>obiProb: Probability distributions</title>
+<link rel=stylesheet href="../style.css" type="text/css">
+<link rel=stylesheet href="style-print.css" type="text/css" media=print>
+</head>
+
+<body>
+<h1>obiProb Probability distributions</h1>
+<p>obiProb contains a collection of classes and functions for hypothesis testing</p>
+
+<h2>Binomial</h2>
+<index name="Binomial">
+<p>A class for computing binomial distribution probabilities. <a href="http://en.wikipedia.org/wiki/Binomial_distribution">Binomial distribution</a> is the discrete probability distribution of the number of successes in a sequence of n independent yes/no experiments, each of which yields success with probability p</p>
+<p class=section>Methods</p>
+<dl class=attributes>
+	<dt>__call__(k, N, m, n)</dt>
+	<dd>if m out of N experiments are positive return the probability that k out of n experiments are positive using the binomial distribution.
+	(i.e. if p = m/N then return bin(n,k)*(p**k + (1-p)**(n-k)) where bin is the binomial coefficient)</dd>
+	<dt>p_value(k, N, m, n)</dt>
+	<dd>the probability that k or more tests are positive using the binomial distribution</dd>
+</dl>
+
+<h2>Hypergeometric</h2>
+<index name="Hypergeometric">
+<p>A class for computing hypergeometric distribution probabilities. <a href="http://en.wikipedia.org/wiki/Hypergeometric_distribution">Hypergeometric distribution</a> is a discrete probability distribution that describes the number of successes in a sequence of n draws from a finite population without replacement</p>
+<p class=section>Methods</p>
+<dl class=attributes>
+	<dt>__call__(k, N, m, n)</dt>
+	<dd>if m out of N experiments are positive return the probability that k out of n experiments are positive using the hypergeometric distribution.
+	(i.e. return bin(m, k)*bin(N-m, n-k)/bin(N,n) where bin is the binomial coefficient)</dd>
+	<dt>p_value(k, N, m, n)</dt>
+	<dd>the probability that k or more tests are positive using the hypergeometric distribution</dd>
+</dl>
+
+<h2>FDR</h2>
+<index name="FDR">
+<p>A function for preforming <a href="http://en.wikipedia.org/wiki/False_discovery_rate">False Discovery Rate</a> correction on a ordered list of P-values</p>
+<p class=section>Arguments</p>
+<dl class=attributes>
+	<dt>p_values</dt>
+	<dd>an ordered list of P-values</dd>
+	<dt>q (default 0.05)</dt>
+	<dd>ratio of expected false positives</dd>
+	<dt>depandant (default False)</dd>
+	<dd>should the dependant test be used</dd>
+	<dt>m (default len(p_values))</dt>
+	<dd>number of hypothesis tests performed</dd>
+</dl>
+
+<h2>Bonferroni</h2>
+<index name="Bonferroni">
+<p>A function for preforming <a href="http://en.wikipedia.org/wiki/Bonferroni_correction">Bonferroni correction</a> on a list of P-values</p>
+<p class=section>Arguments</p>
+<dl class=attributes>
+	<dt>p_values</dt>
+	<dd>an list of P-values</dd>
+	<dt>q (default 0.05)</dt>
+	<dd>ratio of expected familywise error rate</dd>
+	<dt>m (default len(p_values))</dt>
+	<dd>number of hypothesis tests performed</dd>
+</dl>
