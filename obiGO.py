@@ -1,3 +1,6 @@
+"""obiGO is a Gene Ontology (GO) Handling Library.
+
+"""
 from go import *
 
 from urllib import urlretrieve
@@ -120,7 +123,10 @@ class OBOObject(object):
 
     def __getattr__(self, name):
         try:
-            return self.values[name]
+            if name == "def_":
+                return self.values["def"]
+            else:
+                return self.values[name]
         except KeyError:
             raise AttributeError(name)
         
@@ -134,7 +140,10 @@ class Instance(OBOObject):
     pass
         
 class Ontology(object):
+    """Ontology is the main class representing a gene ontology."""
     def __init__(self, file=None, progressCallback=None):
+        """Initialize the ontology from file. The optional progressCallback will be called with a single argument to report on the progress.
+        """
         self.terms = {}
         self.typedefs = {}
         self.instances = {}
@@ -143,7 +152,7 @@ class Ontology(object):
 
     @classmethod
     def Load(cls, progressCallback=None):
-        """A class method that tries to load the ontology file from default_database_path.
+        """A class method that tries to load the ontology file from default_database_path. It looks for a filename starting with 'gene_ontology'.
         """
         files = [name for name in os.listdir(default_database_path) if name.startswith("gene_ontology") and not name.endswith("info")]
         try:
@@ -152,6 +161,8 @@ class Ontology(object):
             raise IOError("Could not locate ontology file in " + default_database_path)
         
     def ParseFile(self, file, progressCallback=None):
+        """Parse the file. file can be a filename string or an open filelike object. The optional progressCallback will be called with a single argument to report on the progress.
+        """
         if type(file) == str:
             f = tarfile.open(file).extractfile("gene_ontology_edit.obo") if tarfile.is_tarfile(file) else open(file)
         else:
@@ -205,6 +216,8 @@ class Ontology(object):
         return visited
 
     def GetTermDepth(self, term, cache_={}):
+        """Return the minimum depth of a term (length of the shortest path to this term from the top level term).
+        """
         if term not in cache:
             cache[term] = min([self.GetTermDepth(parent) + 1 for typeId, parent in self.terms[term].related] or [1])
         return cache[term]
@@ -226,7 +239,11 @@ class Ontology(object):
         os.remove(os.path.join(tmpDir, "gene_ontology_edit.obo"))
 
 class Annotations(object):
+    """Annotations object holds the annotations.
+    """
     def __init__(self, file=None, ontology=None, progressCallback=None):
+        """Initialize the annotations from file by calling ParseFile on it. The ontology must be an instance of Ontology class. The optional progressCallback will be called with a single argument to report on the progress.
+        """
         self.file = file
         self.ontology = ontology
         self.allAnnotations = defaultdict(list)
@@ -243,17 +260,29 @@ class Annotations(object):
         if file:
             self.ParseFile(file, progressCallback)
 
+    def SetOntology(self, ontology):
+        self.allAnnotations = defaultdict(list)
+        self._ontology = ontology
+
+    def GetOntology(self):
+        return self._ontology
+
+    ontology = property(GetOntology, SetOntology)   
+
     @classmethod
-    def Load(cls, org):
+    def Load(cls, org, ontology=None, progressCallback=None):
         """A class method that tries to load the association file for the given organism from default_database_path.
         """
-        files = [name for name in os.listdir(default_database_path) if name.startswith("gene_association") and org in name]
+        files = [name for name in os.listdir(default_database_path) if name.startswith("gene_association") and org in name and not name.endswith(".info")]
         try:
-            return cls(os.path.join(default_database_path, files.pop()))
-        except Exception:
+            return cls(os.path.join(default_database_path, files.pop()), ontology=ontology, progressCallback=progressCallback)
+        except Exception, ex:
+            print ex
             raise IOError("Could not locate gene association file in " + default_database_path)
     
     def ParseFile(self, file, progressCallback=None):
+        """
+        """
         if type(file) == str:
             f = tarfile.open(file).extractfile("gene_association") if tarfile.is_tarfile(file) else open(file)
         else:
@@ -325,7 +354,7 @@ class Annotations(object):
         return list(set([ann.geneName for ann in annotations if ann.Evidence_code in evidenceCodes]))
 
     def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", progressCallback=None):
-        """Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count)
+        """Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count) for items and term ids as keys.
         """
         revGenesDict = self.GetGeneNamesTranslator(genes)
         genes = set(revGenesDict.keys())
@@ -362,7 +391,7 @@ class Annotations(object):
         return res
 
     def GetAnnotatedTerms(self, genes, directAnnotationOnly=False, evidenceCodes=None, progressCallback=None):
-        """Return all terms that are annotated by with evidenceCodes.
+        """Return all terms that are annotated by genes with evidenceCodes.
         """
         revGenesDict = self.GetGeneNamesTranslator(genes)
         genes = set(revGenesDict.keys)
