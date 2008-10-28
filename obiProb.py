@@ -7,14 +7,6 @@ class LogBin(object):
     def __init__(self, max=1000):
         self._extend(max)
 
-##    @classmethod
-##    def  _extend(cls, max):
-##        lookup = [cls._lookup[-1] + math.log(cls._max)] * (max - cls._max)
-##        for i in range(1, max - cls._max - 1):
-##            lookup[i] = lookup[i - 1] + math.log(cls._max + i)
-##        cls._lookup.extend(lookup)
-##        cls._max = max
-
     @classmethod
     def  _extend(cls, max):
         for i in xrange(cls._max, max):
@@ -25,10 +17,10 @@ class LogBin(object):
     def _logbin(self, n, k):
         if n >= self._max:
             self._extend(n + 100)
-        if k <= n:
+        if k < n:
             return self._lookup[n] - self._lookup[n - k] - self._lookup[k]
         else:
-            return 0
+            return 0.0
 
 class Binomial(LogBin):
 
