@@ -462,7 +462,7 @@ class OWHeatMap(OWWidget):
         return y + c_legendHeight + c_spaceY
 
     def drawFileName(self, label, x, y, width):
-        t = QGraphicsSimpeTextItem(label, None, self.scene)
+        t = QGraphicsSimpleTextItem(label, None, self.scene)
         t.setPos(x, y) #setX(x); t.setY(y)
         t.show()
         line = QGraphicsLineItem(None, self.scene)
