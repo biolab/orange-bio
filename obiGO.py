@@ -147,6 +147,7 @@ class Ontology(object):
         self.terms = {}
         self.typedefs = {}
         self.instances = {}
+        self.slimsSubset = set()
         if file:
             self.ParseFile(file, progressCallback)
 
@@ -192,6 +193,14 @@ class Ontology(object):
         for id, term in self.terms.items():
             for typeId, parent in term.related:
                 self.terms[parent].relatedTo.add((typeId, id))
+
+    def SetSlimsSubset(self, subset):
+        """Set the slims term subset to subset. If subset is a string it must equal one of the defined subsetdef.
+        """
+        if type(subset) == str:
+            self.slimsSubset = [id for id, term in self.terms.items() if subset in getattr(term, "subset", set())]
+        else:
+            self.slimsSubset = set(subset)
 
     def ExtractSuperGraph(self, terms):
         """Return all super terms of terms up to the most general one.
@@ -267,7 +276,7 @@ class Annotations(object):
     def GetOntology(self):
         return self._ontology
 
-    ontology = property(GetOntology, SetOntology)   
+    ontology = property(GetOntology, SetOntology)
 
     @classmethod
     def Load(cls, org, ontology=None, progressCallback=None):
@@ -372,6 +381,8 @@ class Annotations(object):
         score = obiProb.Binomial()
         milestones = set(range(0, len(terms), max(len(terms)/100, 1)))
         for i, term in enumerate(terms):
+            if slimsOnly and term not in self.ontology.slimsSubset:
+                continue
             allAnnotations = self.GetAllAnnotations(term)
             allAnnotations.intersection_update(refAnnotations)
             allAnnotatedGenes = set([ann.geneName for ann in allAnnotations]) #if ann.Aspect == aspect and ann.Evidence_code in evidenceCodes])
