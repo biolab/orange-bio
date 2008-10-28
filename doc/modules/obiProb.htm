@@ -1,14 +1,14 @@
 <html>
 
 <head>
-<title>obiProb: Probability distributions</title>
+<title>obiProb: Probability distributions and corrections</title>
 <link rel=stylesheet href="../style.css" type="text/css">
 <link rel=stylesheet href="style-print.css" type="text/css" media=print>
 </head>
 
 <body>
-<h1>obiProb Probability distributions</h1>
-<p>obiProb contains a collection of classes and functions for hypothesis testing</p>
+<h1>obiProb Probability distributions and corrections</h1>
+<p>obiProb provides the functionality to calculate probability distributions and corrections for multiple hypothesis testing.</p>
 
 <h2>Binomial</h2>
 <index name="Binomial">
@@ -36,28 +36,28 @@
 
 <h2>FDR</h2>
 <index name="FDR">
-<p>A function for preforming <a href="http://en.wikipedia.org/wiki/False_discovery_rate">False Discovery Rate</a> correction on a ordered list of P-values</p>
+<p>A function for preforming <a href="http://en.wikipedia.org/wiki/False_discovery_rate">False Discovery Rate</a> correction on a ordered list of p-values</p>
 <p class=section>Arguments</p>
 <dl class=attributes>
 	<dt>p_values</dt>
-	<dd>an ordered list of P-values</dd>
+	<dd>an ordered list of p-values</dd>
 	<dt>q (default 0.05)</dt>
 	<dd>ratio of expected false positives</dd>
-	<dt>depandant (default False)</dd>
-	<dd>should the dependant test be used</dd>
+	<dt>dependent (default False)</dd>
+	<dd>use correction for dependent hypotheses</dd>
 	<dt>m (default len(p_values))</dt>
-	<dd>number of hypothesis tests performed</dd>
+	<dd>number of hypotheses tested</dd>
 </dl>
 
 <h2>Bonferroni</h2>
 <index name="Bonferroni">
-<p>A function for preforming <a href="http://en.wikipedia.org/wiki/Bonferroni_correction">Bonferroni correction</a> on a list of P-values</p>
+<p>A function for performing <a href="http://en.wikipedia.org/wiki/Bonferroni_correction">Bonferroni correction</a> on a list of p-values</p>
 <p class=section>Arguments</p>
 <dl class=attributes>
 	<dt>p_values</dt>
-	<dd>an list of P-values</dd>
+	<dd>a list of p-values</dd>
 	<dt>q (default 0.05)</dt>
-	<dd>ratio of expected familywise error rate</dd>
+	<dd>ratio of expected family-wise error rate</dd>
 	<dt>m (default len(p_values))</dt>
-	<dd>number of hypothesis tests performed</dd>
+	<dd>number of hypotheses tested</dd>
 </dl>
