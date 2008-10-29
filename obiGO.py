@@ -362,7 +362,7 @@ class Annotations(object):
         annotations = self.GetAllAnnotations(id)
         return list(set([ann.geneName for ann in annotations if ann.Evidence_code in evidenceCodes]))
 
-    def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", progressCallback=None):
+    def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", prob=obiProb.Binomial(), progressCallback=None):
         """Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count) for items and term ids as keys.
         """
         revGenesDict = self.GetGeneNamesTranslator(genes)
@@ -378,7 +378,6 @@ class Annotations(object):
 ##        allRefGenes = set(ann.geneName for ann in refAnnotations)
         terms = self.ontology.ExtractSuperGraph(annotationsDict.keys())
         res = {}
-        score = obiProb.Binomial()
         milestones = set(range(0, len(terms), max(len(terms)/100, 1)))
         for i, term in enumerate(terms):
             if slimsOnly and term not in self.ontology.slimsSubset:
@@ -396,7 +395,7 @@ class Annotations(object):
                 mappedReferenceGenes = reference.intersection(allAnnotatedGenes)
             else:
                 mappedReferenceGenes = allAnnotatedGenes.intersection(reference)
-            res[term] = ([revGenesDict[g] for g in mappedGenes], score.p_value(len(mappedGenes), len(reference), len(mappedReferenceGenes), len(genes)), len(mappedReferenceGenes))
+            res[term] = ([revGenesDict[g] for g in mappedGenes], prob.p_value(len(mappedGenes), len(reference), len(mappedReferenceGenes), len(genes)), len(mappedReferenceGenes))
             if progressCallback and i in milestones:
                 progressCallback(100.0 * i / len(terms))
         return res
