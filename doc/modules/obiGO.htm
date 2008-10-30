@@ -56,6 +56,21 @@
 </dl>
 <h2>Annotations</h2>
 <p>Annotations object holds the annotations.</p>
+<p class=section>Attributes</p>
+<dl class=attributes>
+	<dt>geneAnnotations</dt>
+	<dd>A dictionary mapping a gene name (DB_Object_Symbol) to a set of all annotations of that gene</dd>
+	<dt>termAnnotations</dt>
+	<dd>A dictionary mapping a GO term id to a set of all annotations to that term</dd>
+	<dt>geneNames</dt>
+	<dd>A set of all gene names (all entrys from DB_Object_Symbol, DB_Object_Name and DB_Object_Synonym)</dd>
+	<dt>geneNamesDict</dt>
+	<dd>A dictionary mapping each unique identifier from geneNames set to a list of all equivalent names</dd>
+	<dt>aliasMapper</dt>
+	<dd>A dictionary mapping each unique identifier from geneNames set to a DB_Object_Symbol equivalent</dd>
+	<dt>annotations</dt>
+	<dd>A list of all AnnotationRecord instances</dd>
+</dl>
 <p class=section>Methods</p>
 <dl class=attributes>
 	<dt> __init__(file=None, ontology=None, progressCallback=None)</dt>
