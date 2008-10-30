@@ -155,12 +155,16 @@ class Ontology(object):
     def Load(cls, progressCallback=None):
         """A class method that tries to load the ontology file from default_database_path. It looks for a filename starting with 'gene_ontology'.
         """
-        files = [name for name in os.listdir(default_database_path) if name.startswith("gene_ontology") and not name.endswith("info")]
+        filename = os.path.join(default_database_path, "gene_ontology_edit.obo.tar.gz")
+        if not os.path.isfile(filename):
+##            print "Ontology file not found on local disk"
+##            print "Downloading ontology ..."
+            import orngServerFiles
+            orngServerFiles.download("GO", "gene_ontology_edit.obo.tar.gz")
         try:
-            return cls(os.path.join(default_database_path, files.pop()), progressCallback=progressCallback)
-        except IOError, ex:
-            print ex
-            raise IOError, "Could not locate ontology file in " + default_database_path
+            return cls(filename, progressCallback=progressCallback)
+        except (IOError, OSError), ex:
+            raise Exception, "Could not locate ontology file"
         
     def ParseFile(self, file, progressCallback=None):
         """Parse the file. file can be a filename string or an open filelike object. The optional progressCallback will be called with a single argument to report on the progress.
@@ -171,6 +175,7 @@ class Ontology(object):
             f = file
         data = f.readlines()
         data = "".join([line for line in data if not line.startswith("!")])
+        self.header = data[: data.index("[Term]")]
         c=re.compile("\[.+?\].*?\n\n", re.DOTALL)
 ##        print "re find"
         data=c.findall(data)
@@ -194,6 +199,11 @@ class Ontology(object):
         for id, term in self.terms.items():
             for typeId, parent in term.related:
                 self.terms[parent].relatedTo.add((typeId, id))
+
+    def GetDefinedSlimsSubsets(self):
+        """Return a list of defined subsets
+        """
+        return [line.split()[1] for line in self.header.split("\n") if line.startswith("subsetdef:")]
 
     def SetSlimsSubset(self, subset):
         """Set the slims term subset to subset. If subset is a string it must equal one of the defined subsetdef.
@@ -316,12 +326,20 @@ class Annotations(object):
     def Load(cls, org, ontology=None, progressCallback=None):
         """A class method that tries to load the association file for the given organism from default_database_path.
         """
-        files = [name for name in os.listdir(default_database_path) if name.startswith("gene_association") and org in name and not name.endswith(".info")]
-        try:
-            return cls(os.path.join(default_database_path, files.pop()), ontology=ontology, progressCallback=progressCallback)
-        except IOError, ex:
-            print ex
-            raise IOError, "Could not locate gene association file in " + default_database_path
+##        files = [name for name in os.listdir(default_database_path) if name.startswith("gene_association") and org in name and not name.endswith(".info")]
+        import orngServerFiles
+        files = [file for dom, file in orngServerFiles.search([org]) if dom == "GO"]
+        if not files:
+##            print "Annotation file not found on local disk."
+##            print "Searching on server ..."
+            serverFiles = orngServerFiles.ServerFiles()
+            files = [file for dom, file in serverFiles.search([org]) if dom == "GO"]
+            if not files:
+                raise Exception, "No matching annotations found!"
+##            print "Downloading"
+            orngServerFiles.download("GO", files[0], serverFiles)
+            
+        return cls(os.path.join(default_database_path, files[0]), ontology=ontology, progressCallback=progressCallback)
     
     def ParseFile(self, file, progressCallback=None):
         """
