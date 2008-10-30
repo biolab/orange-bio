@@ -158,8 +158,9 @@ class Ontology(object):
         files = [name for name in os.listdir(default_database_path) if name.startswith("gene_ontology") and not name.endswith("info")]
         try:
             return cls(os.path.join(default_database_path, files.pop()), progressCallback=progressCallback)
-        except Exception:
-            raise IOError("Could not locate ontology file in " + default_database_path)
+        except IOError, ex:
+            print ex
+            raise IOError, "Could not locate ontology file in " + default_database_path
         
     def ParseFile(self, file, progressCallback=None):
         """Parse the file. file can be a filename string or an open filelike object. The optional progressCallback will be called with a single argument to report on the progress.
@@ -247,6 +248,40 @@ class Ontology(object):
         tFile.close()
         os.remove(os.path.join(tmpDir, "gene_ontology_edit.obo"))
 
+_re_obj_name_ = re.compile("([a-zA-z0-9-_]+)")
+
+class AnnotationRecord(object):
+    """Holds the data for an annotation record read from the annotation file. Fields can be
+    accessed with the names: DB, DB_Object_ID, DB_Object_Symbol, Qualifier, GO_ID, DB_Reference,
+    Evidence_code, With_or_From, Aspect, DB_Object_Name, DB_Object_Synonym, DB_Object_Type, taxon,
+    Date, Assigned_by (e.g. rec.GO_ID)
+    or by supplying the original name of the field (see http://geneontology.org/GO.annotation.shtml#file)
+    to the get method (e.g. rec.get("GO ID"))
+    The object also provides the folowing data members for quicker access: geneName, GOId, evidence,
+    aspect and alias(a list of aliases)
+    """
+    __slots__ = ["original", "geneName", "GOId", "evidence", "aspect", "alias", "aditionalAliases"]
+    def __init__(self, fullText):
+        self.original = tuple([t.strip() for t in fullText.split("\t")])
+        self.geneName = self.original[2]
+        self.GOId = self.original[4]
+        self.evidence = self.original[6]
+        self.aspect = self.original[8]
+        self.alias = self.original[10].split("|")
+##        for key, val in zip(annotationFields, self.original):
+##            self.__dict__[key] = val
+
+        self.aditionalAliases = []
+        if ":" in self.DB_Object_Name:
+            self.aditionalAliases = _re_obj_name_.findall(self.DB_Object_Name.split(":")[0])
+
+    def __getattr__(self, name):
+        if name in annotationFieldsDict:
+            return self.original[annotationFieldsDict[name]]
+        else:
+            raise AttributeError(name)
+
+
 class Annotations(object):
     """Annotations object holds the annotations.
     """
@@ -263,7 +298,6 @@ class Annotations(object):
         self.aliasMapper = {}
         self.additionalAliases = {}
         self.annotations = []
-        self.annotationsById = {}
         self.header = ""
         self.geneMapper = None
         if file:
@@ -285,9 +319,9 @@ class Annotations(object):
         files = [name for name in os.listdir(default_database_path) if name.startswith("gene_association") and org in name and not name.endswith(".info")]
         try:
             return cls(os.path.join(default_database_path, files.pop()), ontology=ontology, progressCallback=progressCallback)
-        except Exception, ex:
+        except IOError, ex:
             print ex
-            raise IOError("Could not locate gene association file in " + default_database_path)
+            raise IOError, "Could not locate gene association file in " + default_database_path
     
     def ParseFile(self, file, progressCallback=None):
         """
@@ -303,8 +337,7 @@ class Annotations(object):
                 self.header = self.header + line + "\n"
                 continue
             
-            a=Annotation(line)
-            self.annotationsById[id(a)] = a
+            a=AnnotationRecord(line)
             if not a.geneName or not a.GOId:
                 continue
             if a.geneName not in self.geneNames:
