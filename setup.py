@@ -11,6 +11,7 @@ for (dirp, dirns, n) in os.walk('doc'):
     docFiles.extend( [dirn + n1r for n1r in nr if '.svn' not in dirp + '/' + n1r] )
 
 modules=[Extension("_GOLib", sources=["source/go.c"])]
+destDir="orange/add-ons/Bioinformatics"
 
 def writeMakeFileDepends():
     f = open("Makefile.depends", "wt")
@@ -24,6 +25,7 @@ def writeMakeFileDepends():
 
     if includePaths <> "":
         f.write("COMPILEOPTIONSMODULES = %s\n" % (includePaths))
+    f.write("DESTDIR = $(PYTHONSITEPKGS)/%s\n" % (destDir))
 
     f.write("modules:")
     for ext in modules:
@@ -39,6 +41,9 @@ def writeMakeFileDepends():
         objs = " ".join(objs)
         f.write("%s.so: %s\n" % (ext.name, objs))
         f.write("\t$(LINKER) $(LINKOPTIONS) %s -o %s.so" % (objs, os.path.join("..", ext.name)))
+        f.write("ifeq ($(OS), Darwin)\n")
+        f.write("\tinstall_name_tool -id $(DESTDIR)/%s.so %s.so" % (ext.name, os.path.join("..", ext.name)))
+        f.write("endif\n")
     f.close()
 
 if __name__ == "__main__":
@@ -50,7 +55,7 @@ if __name__ == "__main__":
           ext_modules=modules,
           packages = [ 'widgets', 'widgets.prototypes', 'doc' ],
           package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
-          extra_path=("orange-bioinformatics", "orange/add-ons/Bioinformatics"),
+          extra_path=("orange-bioinformatics", destDir),
           py_modules = [ 'go', 'obiKEGG', 'obiGsea', 'obiGeneMatch', 'obiData', 'obiGenomicsUpdate', 'stats', 'pstat', 'obiExpression', 'obiGO', 'obiProb', 'obiAssess', 'obiGeneSets', 'obiMeSH', 'obiDicty' ],
           scripts=["post_install_script.py"]
           )

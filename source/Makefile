@@ -1,4 +1,6 @@
 PYTHONINCLUDE = $(shell python -c "import sys; print sys.prefix+'/include/python'+sys.version[:3]")
+PYTHONLIB = $(shell python -c "import sys; print sys.prefix+'/lib/python'+sys.version[:3]")
+PYTHONSITEPKGS = $(PYTHONLIB)/site-packages
 OS = $(shell uname)
 
 COMPILER = g++
@@ -6,7 +8,7 @@ CCOMPILER = gcc
 LINKER = g++
 
 ifeq ($(OS), Darwin)
-  COMPILEOPTIONS = -arch i386 -arch ppc -fPIC -fpermissive -fno-common -w -D_POSIX_C_SOURCE -O3 -I$(PYTHONINCLUDE)
+  COMPILEOPTIONS = -arch i386 -arch ppc -fPIC -fpermissive -fno-common -w -O3 -I$(PYTHONINCLUDE)
   LINKOPTIONS = -arch i386 -arch ppc -dynamiclib -headerpad_max_install_names -undefined dynamic_lookup -lstdc++
 else
   COMPILEOPTIONS = -fPIC -fpermissive -w -O3 -I$(PYTHONINCLUDE)
