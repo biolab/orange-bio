@@ -2,111 +2,9 @@ import obiKEGG
 
 def nth(l,n): return [ a[n] for a in l ]
 
-def inverseDic(dic):
-    item = dic.items()
-    return dict(zip(nth(item,1),nth(item,0)))
-
-class GeneMatch(object):
-
-    def __init__(self, targets, caseSensitive=True, organism="hsa"):
-
-        self.trans = {}
-
-        self.caseSensitive = caseSensitive
-
-        self.keggorg = obiKEGG.KEGGOrganism(organism) #to do translation
-        self.organism = organism
-
-        attrnames = targets
-
-        #from lowercase names to real names - if applicable. else identity
-        trn = {}
-        for a in attrnames:
-            if self.caseSensitive:
-                trn[a] = a
-            else:
-                trn[a.lower()] = a
-        self.toRealNames = trn
-
-        translations = [ self.translate(a) for a in attrnames ]
-        translations = filter(lambda x: x[1] != None, translations)
-
-        self.addTransl(translations)
-        self.attrnames = attrnames
-
-        self.targets = self.matchTargets()
-        #print self.targets
-        self.targetmap = dict(zip(self.targets,[1]*len(self.targets)))
-
-    def addTransl(self, trans):
-        self.trans.update(trans)
-        self.transi = inverseDic(self.trans)
-
-    def _translate(self, a):
-        if a not in self.trans:
-            uid,_,_ = self.keggorg.get_unique_gene_ids([a], caseSensitive=self.caseSensitive)
-            if len(uid) > 0:
-                #print a, uid
-                return uid.keys()[0]
-            else:
-                return None
-        else:
-            return self.trans[a]
-
-    def translate(self, a):
-        if not self.caseSensitive:
-            a = a.lower()
-        return (a, self._translate(a))
-
-    def matchTargets(self):
-        td = [ self.translate(a) for a in self.attrnames]
-        #print td
-
-        def leaveOne(x):
-            if x[1] == None:
-                return x[0]
-            else:
-                return x[1]
-
-        return map(leaveOne, td)
-
-    def genecompare(self, gene):
-        if not self.caseSensitive:
-            gene = gene.lower()
-        transl =  self.translate(gene)[1]
-        if transl != None:
-            return transl
-        else:
-            return gene
-
-    def match(self, genes):
-        """
-        Function returns a tuple of an (old value, matching data)
-        """
-        targets = self.targets
-        targetmap = self.targetmap
-
-        def matchingTarget(gene):
-            """
-            Find a match in input data for a given gene.
-            """
-            gc = self.genecompare(gene)
-            if gc in targetmap:
-                return gc
-            else:
-                return None
-
-        matches = [ (gene,matchingTarget(gene)) for gene in genes if matchingTarget(gene)]
-
-        def reverse(gene):
-            if gene in self.transi:
-                return self.transi[gene]
-            else:
-                return gene
-
-        matches = [ (a,self.toRealNames[reverse(b)]) for a,b in matches ]
-
-        return sorted(matches)
+def GeneMatch(targets, organism, caseSensitive=False):
+    return MatcherSequence([MatchName(targets, caseSensitive=caseSensitive),
+            MatchKEGG(targets, organism, caseSensitive=caseSensitive)])
 
 def constructToRealNames(targets, caseSensitive):
     """
@@ -122,59 +20,62 @@ def constructToRealNames(targets, caseSensitive):
             trn[a.lower()] = a
     return trn
 
-class MatchName(object):
-    """
-    Match genes by name. Mather matches genes with exactly the same
-    name, possibly ignoring case. If case is not ignored, then this is really
-    dumb "gene matching". - not properly tested!
-    """
+def issequencens(x):
+    "Is x a sequence and not string ? We say it is if it has a __getitem__ method and it is not an instance of basestring."
+    return hasattr(x, '__getitem__') and not isinstance(x, basestring)
 
-    def __init__(self, targets, caseSensitive=False):
+class Matcher(object):
 
-        self.caseSensitive = caseSensitive
-        self.toRealNames = constructToRealNames(targets, caseSensitive=caseSensitive)
-        print self.toRealNames
+    def targets(self, targets):
+        notImplemented()
 
     def matchOne(self, gene):
-        if not self.caseSensitive:
-            gene = gene.lower()
-
-        return self.toRealNames.get(gene, None)
+        notImplemented()
 
     def matchL(self, genes):
         return [ (gene, self.matchOne(gene)) for gene in genes if self.matchOne(gene) ]
 
     def match(self, genes):
-        return sorted(self.matchL(genes))
+        """
+        Genes can be a string or a single gene.
+        """
+        if issequencens(genes):
+            return sorted(self.matchL(genes))
+        else:
+            return self.matchOne(genes)
 
-class MatchKEGG(object):
+class MatchName(Matcher):
     """
-    Match by KEGG unique id. - not tested properly!
+    Match genes by name. Mather matches genes with exactly the same
+    name, possibly ignoring case. If case is not ignored, then this is really
+    dumb "gene matching".
     """
-    def __init__(self, targets, caseSensitive=False, organism="hsa"):
 
+    def __init__(self, targets, caseSensitive=False):
         self.caseSensitive = caseSensitive
+        self.targets(targets)
 
+    def targets(self, targets):
+        self.toRealNames = constructToRealNames(targets, caseSensitive=self.caseSensitive)
+
+    def matchOne(self, gene):
+        if not self.caseSensitive:
+            gene = gene.lower()
+        return self.toRealNames.get(gene, None)
+
+class MatchKEGG(Matcher):
+    """
+    Match by KEGG unique id.
+    """
+    def __init__(self, targets, organism, caseSensitive=False):
+        self.caseSensitive = caseSensitive
         self.keggorg = obiKEGG.KEGGOrganism(organism)
-
-        attrnames = targets
-        self.toRealNames = constructToRealNames(targets, caseSensitive=caseSensitive)
-
-        uniqueids = [ (a, self.tounique(a)) for a in attrnames ]
-        uniqueids = filter(lambda x: x[1] != None, translations)
-
-        self.trans = {}
-
-        self.addTransl(translations)
-        self.attrnames = targets
-
-        self.targets = self.matchTargets()
-        #print self.targets
-        self.targetmap = dict(zip(self.targets,[1]*len(self.targets)))
-
-    def addTransl(self, trans):
-        self.trans.update(trans)
-        self.transi = inverseDic(self.trans)
+        self.targets(targets)
+    
+    def targets(self, targets):
+        uniqueids = [ (self.tounique(a),a) for a in targets ]
+        uniqueids = filter(lambda x: x[0] != None, uniqueids)
+        self.toname = dict(uniqueids)
 
     def tounique(self, a):
         if not self.caseSensitive:
@@ -187,56 +88,26 @@ class MatchKEGG(object):
         else:
             return None
 
-    def matchTargets(self):
-        td = [ self.translate(a) for a in self.attrnames]
-        #print td
-
-        def leaveOne(x):
-            if x[1] == None:
-                return x[0]
-            else:
-                return x[1]
-
-        return map(leaveOne, td)
-
-    def genecompare(self, gene):
+    def matchOne(self, gene):
         if not self.caseSensitive:
             gene = gene.lower()
-        transl =  self.translate(gene)[1]
-        if transl != None:
-            return transl
-        else:
-            return gene
+        return self.toname.get(self.tounique(gene), None)
 
-    def match(self, genes):
-        """
-        Function returns a tuple of an (old value, matching data)
-        """
-        targets = self.targets
-        targetmap = self.targetmap
+class MatcherSequence(Matcher):
+    
+    def __init__(self, matchers):
+        self.matchers = matchers
 
-        def matchingTarget(gene):
-            """
-            Find a match in input data for a given gene.
-            """
-            gc = self.genecompare(gene)
-            if gc in targetmap:
-                return gc
-            else:
-                return None
+    def matchOne(self, gene):
+        for matcher in self.matchers:
+            m = matcher.matchOne(gene)
+            if m != None:
+                return m
+        return None
 
-        matches = [ (gene,matchingTarget(gene)) for gene in genes if matchingTarget(gene)]
-
-        def reverse(gene):
-            if gene in self.transi:
-                return self.transi[gene]
-            else:
-                return gene
-
-        matches = [ (a,self.toRealNames[reverse(b)]) for a,b in matches ]
-
-        return sorted(matches)
-
+    def targets(self, targets):
+        for matcher in self.matchers:
+            matcher.targets(targets)
 
 
 _dbOrgMap = {"goa_human":"hsa", "dictyBase":"ddi", "sgd":"sce", "fb":"dme", "tigr_Aphagocytophilum":"aph", "PAMGO_Atumefaciens":"atu", "tair":"ath", "tigr_Banthracis":"ban",
@@ -297,19 +168,24 @@ if __name__ == "__main__":
     import orange
 
     data = orange.ExampleTable("allData.tab")
-    attrnames =  [ str(a.name) for a in data.domain.attributes ]
+    attrnames =  [ str(a.name) for a in data.domain.attributes ] + [ "blabla1" ]
     print attrnames
 
-    #gm = GeneMatch(attrnames, organism="hsa", caseSensitive=False)
-    gm = MatchName(attrnames, caseSensitive=False)
+    gm = GeneMatch(attrnames, organism="hsa", caseSensitive=False)
+    #gm = MatchName(attrnames, caseSensitive=False)
+    #gm = MatchKEGG(attrnames, "hsa", caseSensitive=False)
+
+    #gm = MatcherSequence([MatchName([], caseSensitive=False), MatchKEGG([], "hsa", caseSensitive=False)])
+    #gm.targets(attrnames)
 
     gen1 = getDefaultGenesets()
+
+    gen1["TEST1"] = [ "Blabla1" ]
 
     t1 = time.time()
     res = []
     for k,gs in sorted(gen1.items()):
         res.append((k, gs, gm.match(gs)))
-
     t2 = time.time() - t1
 
     for a in res:

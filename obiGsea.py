@@ -23,10 +23,6 @@ def issequencens(x):
     "Is x a sequence and not string ? We say it is if it has a __getitem__ method and is not string."
     return hasattr(x, '__getitem__') and not isinstance(x, basestring)
 
-"""
-Correlation methods.
-"""
-
 def mean(l):
     return float(sum(l))/len(l)
 
@@ -327,6 +323,10 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
 
     #print enrichmentScores
 
+    import time
+
+    tb1 = time.time()
+
     enrichmentPVals = []
     nEnrichmentScores = []
     nEnrichmentNulls = []
@@ -367,9 +367,24 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
         nEnrichmentNulls.append(nenrNull)
  
 
+    #print "First part", time.time() - tb1
+
     #FDR computation
     #create a histogram of all NES(S,pi) over all S and pi
     vals = reduce(lambda x,y: x+y, nEnrichmentNulls, [])
+
+
+    def shorten(l, p=10000):
+        """
+        Take each len(l)/p element, if len(l)/p >= 2.
+        """
+        e = len(l)/p
+        if e <= 1:
+            return l
+        else:
+            return [ l[i] for i in xrange(0, len(l), e) ]
+
+    #vals = shorten(vals) -> this can speed up second part. is it relevant TODO?
 
     """
     Use this null distribution to compute an FDR q value, for a given NES(S) =
@@ -381,6 +396,8 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
 
     nvals = numpy.array(sorted(vals))
     nnes = numpy.array(sorted(nEnrichmentScores))
+
+    #print "LEN VALS", len(vals), len(nEnrichmentScores)
 
     fdrs = []
 
@@ -416,6 +433,7 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
 
         """
 
+        #this could be speed up twice with the same accuracy! 
         if nes >= 0:
             allPos = int(len(vals) - numpy.searchsorted(nvals, 0, side="left"))
             allHigherAndPos = int(len(vals) - numpy.searchsorted(nvals, nes, side="left"))
@@ -446,6 +464,8 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
         except:
             fdrs.append(1000000000.0)
     
+    #print "Whole part", time.time() - tb1
+
     return zip(enrichmentScores, nEnrichmentScores, enrichmentPVals, fdrs)
 
 import obiGeneMatch
@@ -460,7 +480,7 @@ def itOrFirst(data):
 
 class GSEA(object):
 
-    def __init__(self, organism="hsa"):
+    def __init__(self, organism):
         self.a = "blabla"
         self.genesets = {}
         self.organism = organism
@@ -561,7 +581,6 @@ class GSEA(object):
         
 
         def notOkAttributes(data):
-            print "new data"
             ignored = []
             for a in data.domain.attributes:
                 if not attrOk(a, data):
@@ -683,7 +702,7 @@ class GSEA(object):
 
         return res
 
-def runGSEA(data, classValues=None, organism="hsa", geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, **kwargs):
+def runGSEA(data, organism, classValues=None, geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, **kwargs):
 
     gso = GSEA(organism=organism)
     gso.setData(data, classValues=classValues, atLeast=atLeast)
@@ -746,10 +765,8 @@ def evaluateEtWith(fn, *args, **kwargs):
 
 
 if  __name__=="__main__":
-
+    """
     data = orange.ExampleTable("sterolTalkHepa.tab")
-
-    print data.domain.classVar.values
 
     print "loaded data"
 
@@ -778,4 +795,19 @@ if  __name__=="__main__":
     
     print '\n'.join([ str(a) + ": " +str(b[:3]) for a,b in sorted(res2.items(), key=lambda x: x[1][2])])
 
+    """
+
+    import obiGeneSets
+
+    #data = orange.ExampleTable("holQ10_gs_orange.tab")
+    data = orange.ExampleTable("Pomeroy_orange.tab")
+
+    print "loaded data"
+
+    gen1 = collections([], default=True)
+    print gen1.items()[:10]
+
+    res2 = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, organism="hsa")
+    
+    print '\n'.join([ str(a) + ": " +str(b[:6]) for a,b in sorted(res2.items())])
 
