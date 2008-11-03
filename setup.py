@@ -40,9 +40,9 @@ def writeMakeFileDepends():
                 objs.append( objfname)
         objs = " ".join(objs)
         f.write("%s.so: %s\n" % (ext.name, objs))
-        f.write("\t$(LINKER) $(LINKOPTIONS) %s -o %s.so" % (objs, os.path.join("..", ext.name)))
+        f.write("\t$(LINKER) $(LINKOPTIONS) %s -o %s.so\n" % (objs, os.path.join("..", ext.name)))
         f.write("ifeq ($(OS), Darwin)\n")
-        f.write("\tinstall_name_tool -id $(DESTDIR)/%s.so %s.so" % (ext.name, os.path.join("..", ext.name)))
+        f.write("\tinstall_name_tool -id $(DESTDIR)/%s.so %s.so\n" % (ext.name, os.path.join("..", ext.name)))
         f.write("endif\n")
     f.close()
 
