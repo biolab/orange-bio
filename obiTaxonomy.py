@@ -10,6 +10,9 @@ from collections import defaultdict
 
 default_database_path = os.path.join(orngEnviron.bufferDir, "bigfiles", "Taxonomy")
 
+class MultipleSpeciesExceptions(Exception):
+    pass
+
 def _download_taxonomy_NCBI(file=None, progressCallback=None):
     if file == None:
         file = os.path.join(default_database_path, "taxdump.tar.gz")
@@ -20,7 +23,6 @@ def _download_taxonomy_NCBI(file=None, progressCallback=None):
     shutil.copyfileobj(fd, buffer)
     buffer.seek(0)
     tFile = tarfile.open(None, "r:gz", buffer)
-    print tFile.getmembers()
     namesInfo = tFile.getmember("names.dmp")
     nodesInfo = tFile.getmember("nodes.dmp")
     file.addfile(namesInfo, tFile.extractfile(namesInfo))
@@ -43,8 +45,8 @@ def get_taxonomy(_cached=_taxonomy(None, None)):
             pass
         _download_taxonomy_NCBI(tarfile.open(os.path.join(default_database_path, "taxdump.tar.gz"), "w"))
     tfile = tarfile.open(filename)
-    names = tfile.extractfile("names.dmp").readlines()
-    nodes = tfile.extractfile("nodes.dmp").readlines()
+    names = tfile.extractfile("names.dmp").read()
+    nodes = tfile.extractfile("nodes.dmp").read()
     namesDict = defaultdict(list)
     for line in names:
         if not line:
@@ -63,7 +65,7 @@ def get_taxonomy(_cached=_taxonomy(None, None)):
         line = line.split("\t|\t")[:3]
         id, parent, rank = line
         nodesDict[id] = (parent, rank)
-
+        
     _cached.names = dict(namesDict)
     _cached.nodes = nodesDict
     return _cached
@@ -88,4 +90,7 @@ def search(string, onlySpecies=True):
     return match
 
 if __name__ == "__main__":
-    print search("Homo sapiens")
+    ids = search("Homo sapiens")
+    print ids
+    print other_names(ids[0])
+    
