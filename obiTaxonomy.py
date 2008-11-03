@@ -45,8 +45,8 @@ def get_taxonomy(_cached=_taxonomy(None, None)):
             pass
         _download_taxonomy_NCBI(tarfile.open(os.path.join(default_database_path, "taxdump.tar.gz"), "w"))
     tfile = tarfile.open(filename)
-    names = tfile.extractfile("names.dmp").read()
-    nodes = tfile.extractfile("nodes.dmp").read()
+    names = tfile.extractfile("names.dmp").readlines()
+    nodes = tfile.extractfile("nodes.dmp").readlines()
     namesDict = defaultdict(list)
     for line in names:
         if not line:
