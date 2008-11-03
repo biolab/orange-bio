@@ -212,6 +212,22 @@ class Ontology(object):
             self.slimsSubset = [id for id, term in self.terms.items() if subset in getattr(term, "subset", set())]
         else:
             self.slimsSubset = set(subset)
+        print self.slimsSubset
+
+    def GetSlimTerms(self, termId):
+        """Return a list of slim terms for termId.
+        """
+        queue = set([termId])
+        visited = set()
+        slims = set()
+        while queue:
+            term = queue.pop()
+            visited.add(term)
+            if term in self.slimsSubset:
+                slims.add(term)
+            else:
+                queue.update(set(id for typeId, id in self.terms[term].related) - visited)
+        return slims
 
     def ExtractSuperGraph(self, terms):
         """Return all super terms of terms up to the most general one.
@@ -455,19 +471,19 @@ class Annotations(object):
         """Return all terms that are annotated by genes with evidenceCodes.
         """
         revGenesDict = self.GetGeneNamesTranslator(genes)
-        genes = set(revGenesDict.keys)
+        genes = set(revGenesDict.keys())
         evidenceCodes = set(evidenceCodes or evidenceDict.keys())
         annotations = [ann for gene in genes for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes]
         dd = defaultdict(set)
         for ann in annotations:
             dd[ann.GO_ID].add(ann.geneName)
-        if not directAnnotationsOnly:
+        if not directAnnotationOnly:
             terms = self.ontology.ExtractSuperGraph(dd.keys())
             for i, term in enumerate(terms):
                 termAnnots = self.GetAllAnnotations(term)
                 termAnnots.intersection_update(annotations)
                 dd[term].update([revGenesDict.get(ann.geneName, ann.geneName) for ann in termAnots])
-        return dict[d]
+        return dict(dd)
     
     @staticmethod
     def DownloadAnnotations(org, file, progressCallback=None):
