@@ -618,6 +618,24 @@ class GSEA(object):
         
     def setData(self, data, classValues=None, atLeast=3, caseSensitive=False):
 
+        #if we have log2ratio in a single value column, transpose the matrix
+        def transposeIfNeeded(data):
+            columns = [a for a in data.domain] +  [ data.domain.getmeta(a) for a in list(data.domain.getmetas()) ]
+            floatvars = [ a for a in columns if a.varType == orange.VarTypes.Continuous ]
+            if len(floatvars) == 1:
+                floatvar = floatvars[0]
+                stringvar = [ a for a in columns if a.varType == 6 ][0]
+
+                tup = [ (ex[stringvar].value, ex[floatvar].value) for ex in data ]
+                newdom = orange.Domain([orange.FloatVariable(name=a[0]) for a in tup ], False)
+                example = [ a[1] for a in tup ]
+                ndata = orange.ExampleTable(newdom, [example])
+                return ndata
+            return data
+
+        data = transposeIfNeeded(data)
+
+
         data, info, classValues  = self.keepOnlyMeanAttrs(data, classValues=classValues, atLeast=atLeast)
         #print "removed attributes", info
         #print "class values taken", classValues
@@ -636,7 +654,7 @@ class GSEA(object):
         else:
             #print genesetname, genes
             #matching to unified gene names
-            datamatch = self.gm.match(genes)
+            datamatch = self.gm.match(list(genes))
     
             #print "Matched", len(datamatch), "of", len(genes)
             self.genesets[genesetname] = ( genes, datamatch )

@@ -32,14 +32,14 @@ gene set enrichment for given gene sets. To use it run
   should correspond to a sample with its phenotype (class value). Attributes represent individual genes. Their names 
   should be meaningful gene aliases.</dd>
 
+  <dt>organism</dt>
+  <dd>Organism code as used in KEGG. Needed for matching gene names in data to those in gene sets. Some
+  examples: <code>hsa</code> for human, <code>mmu</code> for mouse. This is an required argument.</dd> 
+
   <dt>classValues</dt>
   <dd>A pair of class values describing phenotypes that are chosen as two distinct phenotypes on which gene correlations
   are computed. Only examples with one of chosen class values are considered for analysis. If not specified, first
   two class values in <code>classVar</code> attribute descriptor are used.</dd>
-
-  <dt>organism</dt>
-  <dd>Organism code as used in KEGG. Needed for matching gene names in data to those in gene sets. Some
-  examples: <code>hsa</code> for human, <code>mmu</code> for mouse. Default: <code>hsa</code>.</dd> 
 
   <dt>geneSets</dt>
   <dd>A python dictionary of gene sets, where key is a gene set name which points to a list of gene aliases for genes
@@ -86,9 +86,9 @@ gene set is the same as an alias for a gene in the data set, then those aliases 
 it is checked if gene alias from the gene set and gene alias from the data set are both gene
 aliases of the same gene according to KEGG database for a given organism. If they are, we have a match.</p>
 
-<h3>Example</h3>
+<h3>Example 1</h3>
 
-<p>We present a simple usage examples. Data used here are not gene expression
+<p>We present a simple usage example. Data used here are not gene expression
 data. For the method to work we had to specify our one sets of attributes that seem to "belong together".</p>
 
 <p class="header"><a href="gsea1.py">gsea1.py</a> (uses <a href=
@@ -103,7 +103,7 @@ gen1 = dict([
     ("petal",["petal length", "petal width", "petal color"])
     ])
 
-res = obiGsea.runGSEA(data, minSize=2, geneSets=gen1)
+res = obiGsea.runGSEA(data, organism="hsa", minSize=2, geneSets=gen1)
 print "%5s  %6s %6s %s" % ("LABEL", "NES", "P-VAL", "GENES")
 for name,resu in res.items():
     print "%5s  %6.3f %6.3f %s" % (name, resu[1], resu[2], str(resu[6]))
@@ -118,6 +118,64 @@ sepal   1.080  0.623 ['sepal length', 'sepal width']
 </xmp>
 
 <p>We can see that a "gene" labelled "petal color" was not used, because it couldn't be matched to any attribute in the data set.</p>
+
+<h3>Example 2: directly using correlation data</h3>
+
+<p>GSEA can also directly use correlation data between individual genes and a phenotype. In that case, input data has to have only one example (attribute names are genes), or there are only two attributes - one for correlation values, another for gene names. We have choosen the latter representation for this example, since this is the formatting returned by <code>obiDicty</code> module. Only results for ten pathways are listed.
+</p>
+
+<p class="header"><a href="gsea1.py">gsea2.py</a></p>
+
+<xmp class=code>import obiDicty
+import obiGeneSets
+import obiGsea
+import orange
+
+dbc = obiDicty.DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?")
+data = dbc.getData(sample='pkaC-', time="8")[0] #get first chip
+
+print "First 10 examples"
+for ex in data[:10]:
+    print ex
+
+genesets =  obiGeneSets.collections([":go:ddi", ":kegg:ddi"])
+res = obiGsea.runGSEA(data, organism="ddi", minPart=0.05, geneSets=genesets, permutation="gene")
+
+print "GSEA results"
+print "%-40s %6s %6s %6s %7s" % ("LABEL", "NES", "P-VAL", "SIZE", "MATCHED") 
+for name,resu in res.items()[:10]: 
+    print "%-40s %6.3f %6.3f %6d %7d" % (name[:30], resu[1], resu[2], resu[4], resu[5]) 
+
+</xmp>
+
+<p>Corresponding output:</p>
+
+<xmp class=code>First 10 examples
+[-0.071], {"DDB":'#*'}
+[0.003], {"DDB":'#17S_ribosomal_gene'}
+[-0.168], {"DDB":'#B-elongation_factor'}
+[-0.134], {"DDB":'DDB0185195'}
+[0.330], {"DDB":'DDB0201657'}
+[0.229], {"DDB":'DDB0232075'}
+[0.108], {"DDB":'DDB0231519'}
+[-0.272], {"DDB":'DDB0231642'}
+[0.189], {"DDB":'DDB0186491'}
+[0.082], {"DDB":'DDB0191349'}
+GSEA results
+LABEL                                       NES  P-VAL   SIZE MATCHED
+[GO MF] cation transmembrane t            1.457  0.025    100      27
+[GO BP] cell cycle process               -0.987  0.429     51      16
+[GO CC] cortical cytoskeleton             1.681  0.000     19      15
+[GO CC] membrane coat                     0.726  0.927     28      17
+[GO BP] regulation of actin fi            1.366  0.062     26      19
+[GO MF] transferase activity,            -1.227  0.250     94      13
+[GO BP] localization of cell              1.285  0.091     97      49
+[GO BP] tetrapyrrole biosynthe           -0.787  0.745     11       5
+[GO CC] AP-type membrane coat             0.640  0.773      6       4
+[GO BP] tyrosine metabolic pro           -0.535  0.962      5       5
+</xmp>
+
+
 
 <HR>
 <H2>References</H2>

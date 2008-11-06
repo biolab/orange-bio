@@ -74,10 +74,11 @@ def goGeneSets(goorg):
             cs.add(gene)
             map[s] = cs
 
+    nmap = {}
     for a,b in map.items():
-        gt[a] = sorted(b)
+        nmap[a] = sorted(b)
  
-    return map
+    return nmap
 
 def keggGeneSets(keggorg):
     """
