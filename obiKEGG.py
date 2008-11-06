@@ -451,10 +451,10 @@ class KEGGInterfaceLocal(object):
             if os.path.normpath(filename) in self.inTarfileDict:
                 tarFileName = self.inTarfileDict[os.path.normpath(filename)]
                 if tarFileName not in self.openTarFiles:
-                    print "opening tar file " + tarFileName
+                    #print "opening tar file " + tarFileName
                     self.openTarFiles[tarFileName] = tarfile.open(os.path.join(self.local_database_path, tarFileName))
                 if (tarFileName, os.path.normpath(filename)) not in self.cachedExtractedFiles:
-                    print "extracting: ", filename
+                    #print "extracting: ", filename
                     data = self.openTarFiles[tarFileName].extractfile(filename).read()
                     self.cachedExtractedFiles[tarFileName, os.path.normpath(filename)] = data
                 return cStringIO.StringIO(self.cachedExtractedFiles[tarFileName, os.path.normpath(filename)])
