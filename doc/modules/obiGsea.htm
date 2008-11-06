@@ -43,7 +43,7 @@ gene set enrichment for given gene sets. To use it run
 
   <dt>geneSets</dt>
   <dd>A python dictionary of gene sets, where key is a gene set name which points to a list of gene aliases for genes
-  in the gene set. Default: gene sets from MSIGDB.</dd>
+  in the gene set. Default: gene sets in your collection directory.</dd>
 
   <dt>n</dt>
   <dd>GSEA computes gene set significance by permutation tests. This parameter specifies the number
@@ -60,6 +60,9 @@ gene set enrichment for given gene sets. To use it run
 
   <dt>minPart</dt>
   <dd>Minimum fraction of genes from the gene set also present in the data set for that gene set to be analysed. Default: 0.1.</dd> 
+
+  <dt>atLeast</dt>
+  <dd>Default: 3.</dd>
 
 </dl>
 

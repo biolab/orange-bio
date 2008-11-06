@@ -1,0 +1,112 @@
+<html>
+
+<head>
+<title>obiGeneMatch: gene matching</title>
+<link rel=stylesheet href="../style.css" type="text/css">
+<link rel=stylesheet href="style-print.css" type="text/css" media=print>
+</head>
+
+<body>
+<h1>obiGeneMatch: gene matching</h1>
+<index name="modules/obiGeneMatch">
+<index name="gene matching">
+
+<p>A lot of genes have multiple names. That could make combining data from different sources (for example expression data from one database with gene sets from another one) difficult. Module <code>obiGeneMatch</code> is designed to ease name matching between different data sources.</p>
+
+<p>Prior to using any <code>Matcher</code> class user has to specify targets for gene matching: names, to which matches will try to be found. Usually, target gene names are names of genes from the data set.</p>
+
+
+<h2>Matcher</h2>
+
+A base gene matcher class. All gene matchers implement its functions. To create new gene matchers on its basis, you need to implement functions <code>targets</code> and <code>matchOne</code> at least.
+
+<dl class="attributes">
+<dt>targets(tl)</dt>
+<dd>Set list on gene names tl as targets of this gene matcher. Abstract function.</dd>
+<dt>matchOne(gene)</dt>
+<dd>Returns matching target gene name.</dd>
+<dt>matchL(genes)</dt>
+<dd>Returns a list of tuples (gene, target), where gene is from list genes and target from matcher's targets.</dd>
+<dt>match(input)</dt>
+<dd>If input is a list, returns a list of tuples (gene, target), where gene is from list input and target from matcher's targets, else returns matching target gene name.</dd>
+</dl>
+
+<h2>MatchName</h2>
+
+Match genes by name. Matcher matches genes with exactly the same name, possibly ignoring case. If case is not ignored, then this is really dumb &quot;gene matching&quot;.
+
+<dl class="attributes">
+<dt>__init__(targets, caseSensitive=False)</dt>
+<dd>Returns a new object and sets target names.</dd>
+</dl>
+
+<h2>MatchKEGG</h2>
+
+Match gene names by KEGG unique id. Matcher matches genes with exactly the same name, possibly ignoring case. If case is not ignored, then this is really dumb "gene matching".
+
+<dl class="attributes">
+<dt>__init__(targets, organism, caseSensitive=False)</dt>
+<dd>Returns a new object and sets target names. Organism has to be specified in order to use this gene matcher. It needs to be specified as KEGG organism code. This function creates new instance of KEGGOrganism object, which takes a few seconds. Therefore, we recommend that you recycle the object returned by this function using <code>targets()</code> function to set new target names.</dd>
+<dt>tounique(gene)</dt>
+<dd>Returns KEGG's internal name for the input gene.</dd>
+</dl>
+
+<h2>MatcherSequence</h2>
+
+Allows you to chain gene matchers. An input gene goes through all matchers until a match is found.
+<dl class="attributes">
+<dt>__init__(matchers)</dt>
+<dd>A list of matcher objects is needed.</dd>
+</dl>
+
+<h2>GeneMatch</h2>
+
+Most commonly used gene matcher. If names don't match directly (with respect to the caseSensitive setting), try to match them by KEGG unique ids. It is implemented as a <code>MatcherSequence</code> of <code>MatchName</code> and <code>MatchKEGG</code> objects.
+
+<dl class="attributes">
+<dt>__init__(targets, organism, caseSensitive=False)</dt>
+<dd>Returns a new object and sets target names. Organism has to be specified in order to use this gene matcher. It needs to be specified as KEGG organism code. This function creates new instance of KEGGOrganism object, which takes a few seconds. Therefore, we recommend that you recycle the object returned by this function using <code>targets()</code> function to set new target names.</dd>
+</dl>
+
+<h2>Examples</h2>
+
+<h3>Listing pathways where given genes occur</h3>
+
+<p>The following example works in conjunction with <code>obiKEGG</code>. It takes a list of mouse gene names to find pathways where gene appears.</p>
+
+<p class="header"><a href="geneMatch1.py">geneMatch1.py</a></p>
+
+<xmp class=code>import obiGeneMatch
+import obiKEGG
+
+keggorg = obiKEGG.KEGGOrganism("mmu")
+testgenes = keggorg.get_genes() 
+
+targets = [ "Fndc4", "Itgb8", "Cdc34", "Olfr1403" ] 
+
+gm = obiGeneMatch.GeneMatch(targets, organism="mmu")
+match = gm.match(testgenes)
+print "Matches", match
+
+pnames = keggorg.list_pathways()
+
+for keggname, origname in match:
+	pwys = keggorg.get_pathways_by_genes([keggname])
+	print origname, "is in", [ pnames[p] for p in pwys ] 
+</xmp>
+
+<p>Output:</p>
+
+<xmp class=code>
+Matches [('mmu:216150', 'Cdc34'), ('mmu:258645', 'Olfr1403'), 
+('mmu:320910', 'Itgb8'), ('mmu:64339', 'Fndc4')]
+Cdc34 is in ['Ubiquitin mediated proteolysis']
+Olfr1403 is in ['Olfactory transduction']
+Itgb8 is in ['Cell adhesion molecules (CAMs)', 'ECM-receptor interaction', 
+'Regulation of actin cytoskeleton', 'Focal adhesion']
+Fndc4 is in ['ECM-receptor interaction']
+</xmp>
+
+</body>
+</html>
+
