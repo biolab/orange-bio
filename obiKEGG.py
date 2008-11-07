@@ -900,7 +900,7 @@ class Update(UpdateBase):
         elif func == Update.UpdateReference:
             return max(_LastUpdate("pathway/map"), _LastUpdate("pathway/map_title.tab"))
         elif func == Update.UpdateEnzymeAndCompounds:
-            return max(_LastUpdate("ligand/compund/compound"), _LastUpdate("ligand/enzyme/enzyme"))
+            return max(_LastUpdate("ligand/compound/compound"), _LastUpdate("ligand/enzyme/enzyme"))
         elif func == Update.UpdateOrthology:
             return _LastUpdate("brite/ko/ko00001.keg")
         elif func == Update.UpdateTaxonomy:
@@ -1150,7 +1150,7 @@ class KEGGOrganismMk2(object):
         xml_rel_path= "xml/map/" if map == org else "xml/organisms/" + org + "/"
         downloader.ftpWorker.statFtp("pub/kegg/" + xml_rel_path)
         pathways = [name.split(".")[0] for name in downloader.ftpWorker.statCache.get("pub/kegg/" + xml_rel_path, {}).keys()]
-        print pathways
+        #print pathways
         
         gif_files = [(rel_path + pathway_id + ".gif", pathway_id + ".gif") for pathway_id in pathways]
         downloader.massRetrieve(gif_files, blocking=True)
