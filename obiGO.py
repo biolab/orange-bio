@@ -156,7 +156,7 @@ class Ontology(object):
         """A class method that tries to load the ontology file from default_database_path. It looks for a filename starting with 'gene_ontology'.
         """
         filename = os.path.join(default_database_path, "gene_ontology_edit.obo.tar.gz")
-        if not os.path.isfile(filename):
+        if not os.path.isfile(filename) and not os.path.isdir(filename):
 ##            print "Ontology file not found on local disk"
 ##            print "Downloading ontology ..."
             import orngServerFiles
@@ -164,13 +164,19 @@ class Ontology(object):
         try:
             return cls(filename, progressCallback=progressCallback)
         except (IOError, OSError), ex:
+            print ex
             raise Exception, "Could not locate ontology file"
         
     def ParseFile(self, file, progressCallback=None):
         """Parse the file. file can be a filename string or an open filelike object. The optional progressCallback will be called with a single argument to report on the progress.
         """
         if type(file) == str:
-            f = tarfile.open(file).extractfile("gene_ontology_edit.obo") if tarfile.is_tarfile(file) else open(file)
+            if os.path.isfile(file) and tarfile.is_tarfile(file):
+                f = tarfile.open(file).extractfile("gene_ontology_edit.obo")
+            elif os.path.isfile(file):
+                f = open(file)
+            else:
+                f = open(os.path.join(file, "gene_ontology_edit.obo"))
         else:
             f = file
         data = f.readlines()
@@ -361,7 +367,12 @@ class Annotations(object):
         """
         """
         if type(file) == str:
-            f = tarfile.open(file).extractfile("gene_association") if tarfile.is_tarfile(file) else open(file)
+            if os.path.isfile(file) and tarfile.is_tarfile(file):
+                f = tarfile.open(file).extractfile("gene_association")
+            elif os.path.isfile(file):
+                f = open(file)
+            else:
+                f = open(os.path.join(file, "gene_association"))
         else:
             f = file
         lines = [line for line in f.read().split("\n") if line.strip()]
