@@ -9,27 +9,6 @@ import math
 def normcdf(x, mi, st):
     return 0.5*(2. - stats.erfcc((x - mi)/(st*math.sqrt(2))))
 
-class MA_edelmanParametric(object):
-    """
-    Returns Edelman parametric measure for all attributes in the dataset.
-    Edelman et al, 06.
-
-    Modified a bit.
-    """
-
-    def __init__(self, a=None, b=None):
-        """
-        a and b are choosen class values.
-        """
-        self.a = a
-        self.b = b
-
-    def __call__(self, i, data):
-
-        atl = AT_edelmanParametricLearner(self.a, self.b)
-        nap = atl(i, data)
-        return [ nap(ex[i]) for ex in data ]
-
 class AT_edelmanParametric(object):
 
     def __init__(self, **kwargs):
@@ -110,7 +89,52 @@ class AT_edelmanParametricLearner(object):
 
         return AT_edelmanParametric(mi1=mi1, mi2=mi2, st1=st1, st2=st2)
 
- 
+class AT_loess(object):
+
+    def __init__(self, **kwargs):
+        for a,b in kwargs.items():
+            setattr(self, a, b)
+
+    def __call__(self, nval):
+
+        val = nval.value
+        if nval.isSpecial():
+            return 0.0 #middle value
+        #return first class probablity
+
+        import math
+
+        def saveplog(a,b):
+            try:
+                return math.log(a/b)
+            except:
+                if a < b:
+                    return -10
+                else:
+                    return +10
+
+        try:
+            ocene = self.condprob(val)
+            if sum(ocene) < 0.01:
+                return 0.0
+            return saveplog(ocene[0], ocene[1])
+
+        except:
+            return 0.0
+
+class AT_loessLearner(object):
+
+    def __call__(self, i, data):
+        cv = data.domain.classVar
+        #print data.domain
+        try:
+            ca = orange.ContingencyAttrClass(data.domain.attributes[i], data)
+            a = orange.ConditionalProbabilityEstimatorConstructor_loess(ca, nPoints=5)
+            return AT_loess(condprob=a)
+        except:
+            return AT_loess(condprob=None)
+
+
 def assessE(data, subsets, rankingf=None, \
         n=100, permutation="class", **kwargs):
     """
@@ -212,7 +236,7 @@ if __name__ == "__main__":
     
     data = orange.ExampleTable("sterolTalkHepa.tab")
     a = AssessLearner()
-    ass = a(data, "hsa", obiGeneSets.collections(["c2.all.v2.5.symbols.gmt"], default=False))
+    ass = a(data, "hsa", obiGeneSets.collections(["c2.all.v2.5.symbols.gmt"], default=False), rankingf=AT_loessLearner())
 
     ar = {}
 

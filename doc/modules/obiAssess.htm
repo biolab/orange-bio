@@ -1,0 +1,90 @@
+<html>
+
+<head>
+<title>obiAssess: pathway enrichment for each sample</title>
+<link rel=stylesheet href="../style.css" type="text/css">
+<link rel=stylesheet href="style-print.css" type="text/css" media=print>
+</head>
+
+<body>
+<h1>obiAssess: pathway enrichment for each sample</h1>
+<index name="modules/assess enrichment gsea">
+
+<p>Gene Set Enrichment Analysis (GSEA) is a method which tries to identify groups of genes that are regulated together. It computes pathway enrichments for the whole data set. ASSESS in inspired by GSEA and it computes enrichments for each sample in the data set.</p>
+
+<p>ASSESS takes gene expression data for multiple samples with their phenotypes and computes gene set enrichment for given gene sets. To you it first have to create pathway &quot;models&quot; with AssessLearner and then use them to calculate enrichements for each pair of sample and pathway.</p>
+
+<h2>AssessLearner</h2>
+
+Class is used to build models, that can be used to determine enrichments scores for each example.
+
+<dl class=attributes>
+
+<dt>__call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, rankingf=None)</dt>
+<dd>Function <code>__call__</code> returns an instance of class <code>Assess</code> which can be given an example and returns its enrichemnt in all pathways. Argument descriptions follow. 
+
+<dl class=argumentss>
+
+  <dt>data</dt>
+  <dd>An <A href="ExampleTable.htm"><CODE>ExampleTable</CODE></A> with gene expression data. An example
+  should correspond to a sample with its phenotype (class value). Attributes represent individual genes. Their names 
+  should be meaningful gene aliases.</dd>
+
+  <dt>organism</dt>
+  <dd>Organism code as used in KEGG. Needed for matching gene names in data to those in gene sets. Some
+  examples: <code>hsa</code> for human, <code>mmu</code> for mouse. This is an required argument.</dd> 
+
+  <dt>classValues</dt>
+  <dd>A pair of class values describing phenotypes that are chosen as two distinct phenotypes on which gene correlations
+  are computed. Only examples with one of chosen class values are considered for analysis. If not specified, first
+  two class values in <code>classVar</code> attribute descriptor are used.</dd>
+
+  <dt>geneSets</dt>
+  <dd>A python dictionary of gene sets, where key is a gene set name which points to a list of gene aliases for genes
+  in the gene set. Default: gene sets in your collection directory.</dd>
+
+  <dt>minSize, maxSize</dt>
+  <dd>Minimum and maximum number of genes from gene set also present in the data set for that gene set to be analysed.
+  Defaults: 3 and 1000.</dd>
+
+  <dt>minPart</dt>
+  <dd>Minimum fraction of genes from the gene set also present in the data set for that gene set to be analysed. Default: 0.1.</dd> 
+
+  <dt>rankingf</dt>
+  <dd>Used to specify model type for individual gene sets. See source code for reference. We recommend leaving the parameter blank. In that case, a parametric model from Edelman, 2006 is used.</dd>
+
+</dl>
+
+</dd>
+
+</dl>
+
+<h2>Assess</h2>
+
+<dl class=attributes>
+
+<dt>__init__(**kwargs)</dt>
+<dd>Function <code>__init__</code> is usually called only by <code>AssessLearner</code>. It is used to save built &quot;model&quot; data. Saves all keyword arguments into object's namespace.</dd>
+
+<dt>__call__(example)</dt>
+<dd>Returns enrichments of all gene sets for this example. Enrichments are returned in a dictionary, where keys are gene set and values their enrichments.</dd>
+
+
+</dl>
+
+<h3>Example 1</h3>
+
+<p class="header"><a href="assess1.py">assess1.py</a> (uses <a href=
+"iris.tab">iris.tab</a>)</p>
+
+<xmp class=code>TODO
+</xmp>
+
+<HR>
+<H2>References</H2>
+
+<p>Edelman E, Porrello A, Guinney J, Balakumaran B, Bild A, Febbo PG, Mukherjee S. Analysis of sample set enrichment scores: assaying the enrichment of sets of genes for individual samples in genome-wide expression profiles. Bioinformatics. 2006 Jul 15; 22(14):e108-16. </p>
+
+</body>
+</html>
+
