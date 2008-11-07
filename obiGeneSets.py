@@ -135,7 +135,7 @@ def handleNELines(s, fn):
     lines = filter(lambda x: x != "", lines)
     return [ fn(l) for l in lines ]
 
-def genesetsLoadGMT(s):
+def loadGMT(s):
     """
     Eech line consists of tab separated elements. First is
     the geneset name, next is it's description. 
@@ -150,6 +150,12 @@ def genesetsLoadGMT(s):
         return tabs[0], tabs[2:]
 
     return dict(handleNELines(s, hline))
+
+def loadPickled(s):
+    import cPickle
+    s = possiblyReadFile(s)
+    gen2 = pickle.loads(s)
+    return gen2
 
 def collectionsPathname():
     if not collectionsPath:
@@ -198,13 +204,11 @@ def createCollection(lnf):
     for n,fn in lnf:
 
         if fn.lower()[-4:] == ".gmt": #format from webpage
-            gen2 = genesetsLoadGMT(open(fn,"rt"))
+            gen2 = loadGMT(open(fn,"rt"))
             gen1.update(addSource(gen2, "[%s] " % n))
 
         elif fn.lower()[-4:] == ".pck": #pickled dictionary
-            import pickle
-            f = open(fn,'rb')
-            gen2 = pickle.load(f)
+            gen2 = loadPickled(open(fn,"rb"))
             gen1.update(addSource(gen2, "[%s] " % n))
 
         elif n == fn and n[0] == ":":
@@ -260,7 +264,7 @@ def getCollectionFiles(path=collectionsPathname()):
 
     return out
 
-def collections(l=[], default=True, path=collectionsPathname()):
+def collections(l=[], default=False, path=collectionsPathname()):
     """
     Input is a list of collections.
     Default - if default collections are included.
@@ -307,11 +311,7 @@ End genesets
 
 
 if __name__ == "__main__":
-    #print keggGeneSets("sce").items()[:10]
-    #print goGeneSets("sgd").items()[:10]
-
-    print keggToGo("mmu")
-    print keggToGo2("mmu")
-
+    print keggGeneSets("sce").items()[:10]
+    print goGeneSets("sgd").items()[:10]
 
 

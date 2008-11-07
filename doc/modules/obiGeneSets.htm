@@ -1,0 +1,98 @@
+<html>
+
+<head>
+<title>obiGeneSets</title>
+<link rel=stylesheet href="../style.css" type="text/css">
+<link rel=stylesheet href="style-print.css" type="text/css" media=print>
+</head>
+
+<body>
+<h1>obiGeneSets</h1>
+<index name="modules/gene sets">
+
+<p><code>obiGeneMatch</code> can forge gene sets using KEGG (cellular processes and pathways) and GO (gene ontology and annotations) database and read gene set collections in <code>gmt</code> format used by Molecular Signatures Database (MSigDB). Descriptions of module's functions follow.</p>
+
+<h2>goGeneSets</h2>
+
+Returns gene sets obtained from GO. Every GO term represents a set of genes. Gene sets are returned as a dictionary, where keys are term ids and values lists of genes.
+
+<p class=section>Arguments</p>
+<dl class=arguments>
+
+  <dt>goorg</dt>
+  <dd>An organism code as used by <code>obiGO</code> module.</dd>
+
+</dl>
+
+<h2>keggGeneSets</h2>
+
+Returns gene sets obtained from KEGG. Every KEGG pathway represents a gene set. Gene sets are returned as a dictionary, where keys are names of pathways and values lists of genes.
+
+<p class=section>Arguments</p>
+<dl class=arguments>
+
+  <dt>keggorg</dt>
+  <dd>An organism code as used by <code>obiKEGG</code> module.</dd>
+
+</dl>
+
+<h2>loadGMT</h2>
+
+Loads a file with gene sets in <code>gmt</code> format. This format is primarility used by MSigDB. Gene sets are returned as a dictionary, where keys are names and values lists of gene names.
+
+<p class=section>Arguments</p>
+<dl class=arguments>
+
+  <dt>s</dt>
+  <dd>An open file or a string representing file's contents.</dd>
+
+</dl>
+
+<h2>loadPickled</h2>
+
+Loads a file with pickled gene sets. Pickled gene sets should be represented as a dictionary, where keys are names and their values lists of genes.
+
+<p class=section>Arguments</p>
+<dl class=arguments>
+
+  <dt>s</dt>
+  <dd>An open file or a string representing file's contents.</dd>
+
+</dl>
+
+<h2>collections</h2>
+
+Loads and combines gene sets from various sources: GO, KEGG, <code>gmt</code> and pickled files. Names of all gene sets are modified to reflect their sources by prefix &quot;[source]&quot;.
+
+<p class=section>Arguments</p>
+<dl class=arguments>
+
+  <dt>l</dt>
+  <dd>List of gene sets sources, which are represented by strings. Strings are interpreted as file names by default. If the suffix is &quot;gmt&quot;, file is loaded as a <code>gmt</code> file, and if it is &quot;pck&quot; it is regarded as a pickled file. Files are searched for in given path first. If a list element is something like  &quot;:kegg:org&quot; or &quot;:go:org&quot;, gene sets for organism &quot;org&quot; are retrieved from KEGG or GO.</dd>
+  <dt>default</dt>
+  <dd>Automatically include all gene set collections from a given path. Default: False.</dd>
+  <dt>path</dt>
+  <dd>Path name where to search for gene sets first. Default: <code>buffer/gsea/genesets</code> under Orange's user settings folder.</dd>
+
+<h3>Usage one-liners</h3>
+
+<p>Gene sets from KEGG and GO for mouse.</p>
+
+<xmp class=code>collections([":kegg:mmu", ":go:mmu"])
+</xmp>
+
+<p>Open all default gene sets and custom pathways from &qout;specific.gmt&qout; file residing in the current working direcotory.</p>
+
+<xmp class=code>collections(["specific.gmt", default=True])
+</xmp>
+
+<p>We can also combine above examples.</p>
+
+<xmp class=code>collections([":kegg:mmu", ":go:mmu", "specific.gmt", default=True])
+</xmp>
+
+</dl>
+
+</body>
+</html>
+

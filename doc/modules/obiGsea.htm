@@ -14,15 +14,15 @@
 regulated together. It is implemented in module obiGsea, which is included in Orange for Functional Genomics package.
 To use obiGsea you need to install Orange for Functional Genomics.</p>
 
-<h2>GSEA</h2>
-<index name="gsea">
-<index name="GSEA">
-<index name="gene+set">
-
 <p>GSEA takes gene
 expression data for multiple samples with their phenotypes and computes
 gene set enrichment for given gene sets. To use it run
-<code>runGSEA</code> method with the following arguments:
+<code>runGSEA</code> method with the following arguments:</p>
+
+<h2>runGSEA</h2>
+<index name="gsea">
+<index name="GSEA">
+<index name="gene+set">
 
 <p class=section>Arguments</p>
 <dl class=arguments>
@@ -62,7 +62,7 @@ gene set enrichment for given gene sets. To use it run
   <dd>Minimum fraction of genes from the gene set also present in the data set for that gene set to be analysed. Default: 0.1.</dd> 
 
   <dt>atLeast</dt>
-  <dd>Default: 3.</dd>
+  <dd>Number of valid attribute values for each class value needed for a certain atribute (gene) to be considered in analysis. Attributes failing to meet this criterium are ignored. Default: 3.</dd>
 
 </dl>
 
