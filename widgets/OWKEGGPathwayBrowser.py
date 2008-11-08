@@ -223,7 +223,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.keggLocalInterface = obiKEGG.KEGGInterfaceLocal(update=False)
         self.allOrganismCodes = self.keggLocalInterface.list_organisms()
 ##        update = obiKEGG.Update()
-        local = [name.split("'")[-2] for name in orngServerFiles.listfiles("kegg") if "UpdateOrganism" in name and len(name.split("'"))>2]
+        local = [name.split(".")[0].split("_")[-1] for name in orngServerFiles.listfiles("KEGG") if "kegg_organism" in name]
         self.organismCodes = [(code, name) for code, name in self.allOrganismCodes.items() if code in local]
         self.organismCodes.sort()
         items = [code+": "+desc for code, desc in self.organismCodes]
