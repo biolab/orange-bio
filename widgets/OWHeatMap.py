@@ -12,6 +12,7 @@ import OWGUI
 from OWWidget import *
 from OWDlgs import OWChooseImageSizeDlg
 from ColorPalette import signedPalette
+import OWColorPalette
 try:
     from OWDataFiles import DataFiles
 except Exception:
@@ -48,7 +49,8 @@ class OWHeatMap(OWWidget):
                     "BSpotVar", "ShowGeneAnnotations",
                     "ShowDataFileNames", "BAnnotationVar",
                     "SelectionType",
-                    "CurrentPalette", "SortGenes"]
+                    "CurrentPalette", "SortGenes", "colorSettings", "selectedSchemaIndex",
+                    "palette"]
 
     def __init__(self, parent=None, signalManager = None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
@@ -80,10 +82,16 @@ class OWHeatMap(OWWidget):
         self.setColorPalette()
         self.refFile = 0               # position index of a reference file
         self.selectedFile = None       # position of the selected file in the list box
+
+        self.colorSettings =None
+        self.selectedSchemaIndex = 0
+
+        self.palette = self.ColorPalettes[0]
         
         self.loadSettings()
         self.data = []
         self.maxHSize = 15; self.maxVSize = 15
+
 
         # GUI definition
         self.connect(self.graphButton, SIGNAL("clicked()"), self.saveFig)
@@ -99,11 +107,12 @@ class OWHeatMap(OWWidget):
         OWGUI.separator(settingsTab)
 
         # define the color stripe to show the current palette
-        colorItems = [self.createColorStripe(i) for i in range(len(self.ColorPalettes))]
-        palc = OWGUI.comboBox(settingsTab, self, "CurrentPalette", box="Colors", items=None, tooltip=None, callback=self.setColor)
+        OWGUI.button(OWGUI.widgetBox(settingsTab, "Color"), self, "Set Color", callback=self.setColor, tooltip="Set the heatmap color palette")
+##        colorItems = [self.createColorStripe(i) for i in range(len(self.ColorPalettes))]
+##        palc = OWGUI.comboBox(settingsTab, self, "CurrentPalette", box="Colors", items=None, tooltip=None, callback=self.setColor)
         OWGUI.separator(settingsTab)
-        for cit in colorItems:
-            palc.addItem(QIcon(cit), "") ## because of a string cast in the comboBox constructor
+##        for cit in colorItems:
+##            palc.addItem(QIcon(cit), "") ## because of a string cast in the comboBox constructor
         OWGUI.checkBox(settingsTab, self, "SortGenes", "Sort genes", box="Sort", callback=self.constructHeatmap)
         OWGUI.rubber(settingsTab)
         
@@ -412,11 +421,41 @@ class OWHeatMap(OWWidget):
     # callback functions
 
     def setColor(self):
-        if self.CurrentPalette == len(self.ColorPalettes):
-            self.CurrentPalette = 0
-            # put a code here that allows to define ones own colors
-        else:
+        dlg = self.createColorDialog()
+        if dlg.exec_():
+            self.colorSettings = dlg.getColorSchemas()
+            self.selectedSchemaIndex = dlg.selectedSchemaIndex
+            palette = dlg.getContinuousPalette("palette")
+            unknown = dlg.getColor("unknown").rgb()
+            underflow = dlg.getColor("underflow").rgb()
+            overflow = dlg.getColor("overflow").rgb()
+            self.palette = [palette[float(i)/250].rgb() for i in range(250)] + [qRgb(255, 255, 255)]*3 +[underflow, overflow, unknown]
+        
+##            self.graph.discPalette = dlg.getDiscretePalette("discPalette")
+##            self.graph.setCanvasBackground(dlg.getColor("Canvas"))
+##            self.graph.setGridColor(dlg.getColor("Grid"))
+##            self.updateGraph()
             self.drawHeatMap()
+
+    def createColorDialog(self):
+        c = OWColorPalette.ColorPaletteDlg(self, "Color Palette")
+##        c.createDiscretePalette("discPalette", "Discrete Palette")
+        c.createContinuousPalette("palette", "Continuous Palette", initialColor1=QColor(Qt.blue), initialColor2=QColor(255, 255, 0).rgb())
+        box = c.createBox("otherColors", "Other Colors")
+        c.createColorButton(box, "unknown", "Unknown", Qt.gray)
+        box.layout().addSpacing(5)
+        c.createColorButton(box, "overflow", "Overflow", Qt.black)
+        box.layout().addSpacing(5)
+        c.createColorButton(box, "underflow", "Underflow", Qt.white)
+        c.setColorSchemas(self.colorSettings, self.selectedSchemaIndex)
+        return c
+
+##    def setColor(self):
+##        if self.CurrentPalette == len(self.ColorPalettes):
+##            self.CurrentPalette = 0
+##            # put a code here that allows to define ones own colors
+##        else:
+##            self.drawHeatMap()
 
     def setCutEnabled(self):
         self.sliderCutLow.box.setDisabled(not self.CutEnabled)
@@ -517,7 +556,8 @@ class OWHeatMap(OWWidget):
 ##        self.sceneView.heatmapParameters(self, self.CellWidth, self.CellHeight) # needed for event handling
         self.scene.heatmapParameters(self, self.CellWidth, self.CellHeight) # needed for event handling
 
-        palette = self.ColorPalettes[self.CurrentPalette]
+##        palette = self.ColorPalettes[self.CurrentPalette]
+        palette = self.palette
         groups = (not self.data[0].domain.classVar and 1) or \
                  len(self.data[0].domain.classVar.values) # mercy! (just had to do this)
 
