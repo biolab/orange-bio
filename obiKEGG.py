@@ -331,7 +331,7 @@ class KEGGInterfaceLocal(object):
         return "pathway/"+self._rel_org_dir(pathway_id.split(":")[-1][:-5])
 
     def _pathway_from(self, pathway_id):
-        return "kegg_reference.tar.gz" if "map" in pathway_id else "kegg_organism%s.tar.gz" % pathway_id.split(":")[-1][:-5]
+        return "kegg_reference.tar.gz" if "map" in pathway_id else "kegg_organism_%s.tar.gz" % pathway_id.split(":")[-1][:-5]
 
     def download_organism_data(self, org):
         files = ["pathway/map_title.tab", "genes/taxonomy", "genes/genome"]
