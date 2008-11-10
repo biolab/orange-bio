@@ -400,16 +400,16 @@ class KEGGInterfaceLocal(object):
         else:
             dump(object, open(self.local_database_path+filename, "w"))
     
-    def _load_enzyme_database(self):
+    def _load_enzyme_database(self, from_=None):
         try:
-            self._enzymes = self._load_pickled(name="_enzymes", from_="kegg_enzyme_and_compounds.tar.gz")
+            self._enzymes = self._load_pickled(name="_enzymes", from_=from_ or "kegg_enzyme_and_compounds.tar.gz")
         except Exception, ex:
             print ex
-            enzymes = map(DBEnzymeEntry, filter(bool, self._retrieve("ligand/enzyme/enzyme", "kegg_enzyme_and_compounds.tar.gz").read().split("///\n")))
+            enzymes = map(DBEnzymeEntry, filter(bool, self._retrieve("ligand/enzyme/enzyme", from_ or "kegg_enzyme_and_compounds.tar.gz").read().split("///\n")))
             self._enzymes = dict([(e.get_name(), DBEntryWrapper(e)) for e in enzymes])
             self._dump_pickled(self._enzymes, name="_enzymes")
         try:
-            self._from_gene_to_enzymes = self._load_pickled(name="_from_gene_to_enzymes")
+            self._from_gene_to_enzymes = self._load_pickled(name="_from_gene_to_enzymes", from_=from_ or "kegg_enzyme_and_compounds.tar.gz")
         except Exception, ex:
             self._from_gene_to_enzymes = defaultdict(list)
             for id, e in self._enzymes.items():
@@ -417,15 +417,15 @@ class KEGGInterfaceLocal(object):
                     self._from_gene_to_enzymes[g].append(id)
             self._dump_pickled(self._from_gene_to_enzymes, name="_from_gene_to_enzymes")
         
-    def _load_compound_database(self):
+    def _load_compound_database(self, from_=None):
         try:
-            self._compounds = self._load_pickled(name="_compounds", from_="kegg_enzyme_and_compounds.tar.gz")
+            self._compounds = self._load_pickled(name="_compounds", from_=from_ or "kegg_enzyme_and_compounds.tar.gz")
         except:
-            compounds = map(DBCompoundEntry, filter(bool, self._retrieve("ligand/compound/compound", "kegg_enzyme_and_compounds.tar.gz").read().strip().split("///\n")))
+            compounds = map(DBCompoundEntry, filter(bool, self._retrieve("ligand/compound/compound", from_ or "kegg_enzyme_and_compounds.tar.gz").read().strip().split("///\n")))
             self._compounds = dict([(c.get_name(), DBEntryWrapper(c)) for c in compounds])
             self._dump_pickled(self._compounds, name="_compounds")
         try:
-            self._from_enzyme_to_compounds = self._load_pickled(name="_from_enzyme_to_compounds", from_="kegg_enzyme_and_compounds.tar.gz")
+            self._from_enzyme_to_compounds = self._load_pickled(name="_from_enzyme_to_compounds", from_=from_ or "kegg_enzyme_and_compounds.tar.gz")
         except:
             self._from_enzyme_to_compounds = defaultdict(list)
             for id, c in self._compounds.items():
@@ -433,14 +433,14 @@ class KEGGInterfaceLocal(object):
                     self._from_enzyme_to_compounds[e].append(id)
             self._dump_pickled(self._from_enzyme_to_compounds, name="_from_enzyme_to_compounds")
 
-    def _load_gene_database(self, org):
+    def _load_gene_database(self, org, from_=None):
         rel_path = "genes/" + self._rel_org_dir(org)
         freshLoad = False
         try:
-            self._genes[org] = self._load_pickled(rel_path + "_genes.pickle", from_="kegg_organism_%s.tar.gz" % org)
+            self._genes[org] = self._load_pickled(rel_path + "_genes.pickle", from_=from_ or "kegg_organism_%s.tar.gz" % org)
         except Exception, ex:
-            print >> sys.stderr, ex
-            genes = map(DBGeneEntry, filter(bool ,self._retrieve(rel_path+self._taxonomy[org][0] + ".ent", "kegg_organism_%s.tar.gz" % org).read().split("///\n")))
+##            print >> sys.stderr, ex
+            genes = map(DBGeneEntry, filter(bool ,self._retrieve(rel_path+self._taxonomy[org][0] + ".ent", from_ or "kegg_organism_%s.tar.gz" % org).read().split("///\n")))
             self._genes[org] = dict([(org + ":" + g.get_name(), DBEntryWrapper(g)) for g in genes])
             self._dump_pickled(self._genes[org], rel_path + "_genes.pickle")
             freshLoad = True
@@ -463,14 +463,14 @@ class KEGGInterfaceLocal(object):
                 pass
         return self._genes[org]
 
-    def _load_taxonomy(self):
+    def _load_taxonomy(self, from_=None):
         orgs = filter(lambda line:line.strip() and not line.startswith("#"), self._retrieve("genes/taxonomy", "kegg_taxonomy.tar.gz").readlines())
         d = dict([(line.split()[1].strip(), (line.split("\t")[-2].strip(), line.split("\t")[-1].strip())) for line in orgs])
         self._taxonomy = d
         try:
-            self._genome = self._load_pickled(name = "_genome", from_="kegg_taxonomy.tar.gz")
+            self._genome = self._load_pickled(name = "_genome", from_=from_ or "kegg_taxonomy.tar.gz")
         except Exception:
-            entrys = map(DBOrganismEntry, filter(bool, self._retrieve("genes/genome", "kegg_taxonomy.tar.gz").read().split("///\n")))
+            entrys = map(DBOrganismEntry, filter(bool, self._retrieve("genes/genome", from_ or "kegg_taxonomy.tar.gz").read().split("///\n")))
             self._genome = dict([(e.get_name(), DBEntryWrapper(e)) for e in entrys])
             try:
                 self._dump_pickled(self._genome, name="_genome")
@@ -915,30 +915,13 @@ class KOClass(object):
         self.ko_class_id = self.class_name[:5]
 
 from obiGenomicsUpdate import Update as UpdateBase
-##from obiGenomicsUpdate import PKGManager as PKGManagerBase
-##from obiGenomicsUpdate import synchronized
-
-##from threading import Lock
 
 import tarfile
-
-##updateLock = Lock()
 
 class Update(UpdateBase):
     def __init__(self, local_database_path=None, progressCallback=None):
         UpdateBase.__init__(self, local_database_path if local_database_path else default_database_path, progressCallback)
         self.api = KEGGInterfaceLocal("Force update", self.local_database_path, progressCallback)
-
-##    @synchronized(updateLock)
-##    def GetUpdatable(self):
-##        ret = []
-##        ret.extend([(Update.UpdateReference, "Update reference pathways", [])] if str((Update.UpdateReference, ())) in self.shelve else [])
-##        ret.extend([(Update.UpdateEnzymeAndCompounds, "Update enzyme and compounds", [])] if str((Update.UpdateEnzymeAndCompounds)) in self.shelve else[])
-##        orgs = [org for org in self.api.list_organisms() if str((Update.UpdateOrganism, (org,))) in self.shelve]
-##        ret.extend([(Update.UpdateOrganism, "Update organism pathways and genes" , orgs)] if orgs else [])
-##        return ret
-##        
-##    @synchronized(updateLock)
 
     def LastUpdate(self, func, args):
         def _LastUpdate(path):
@@ -977,7 +960,7 @@ class Update(UpdateBase):
             os.remove(os.path.join(self.local_database_path, "genes/", rel_path, "_genes.pickle"))
         except Exception:
             pass
-        self.api._load_gene_database(org) #to parse the .ent file and create the _genes.pickle file
+        self.api._load_gene_database(org, from_=".//") #to parse the .ent file and create the _genes.pickle file
         try:
             os.remove(os.path.join(self.local_database_path, "genes/", rel_path, self.api._taxonomy[org][0]+".ent"))
         except Exception:
@@ -997,8 +980,8 @@ class Update(UpdateBase):
                 os.remove(os.path.join(self.local_database_path, file))
             except Exception:
                 pass
-        self.api._load_compound_database()
-        self.api._load_enzyme_database()
+        self.api._load_compound_database(from_=".//")
+        self.api._load_enzyme_database(from_=".//")
         for file in ["ligand//compound//compound", "ligand//enzyme//enzyme"]:
             try:
                 os.remove(os.path.join(self.local_database_path, file))
@@ -1017,36 +1000,6 @@ class Update(UpdateBase):
     def GetTarballDirs(self):
         orgs = self.api.list_organisms()
         return ["pathway//organisms//"+org for org in orgs] + ["pathway//map"]
-
-##class PKGManager(PKGManagerBase):
-##    def __init__(self, updater, *args, **kwargs):
-##        PKGManagerBase.__init__(self, updater, updater.GetTarballDirs(), *args, **kwargs)
-##
-##    def Create(self, func, args):
-##        name = func.__name__ + ("_" + str(args) if args else "")
-####        if not self.Diff():
-####            return None
-##        print "Creating:", name + ".tar" + ("." + self.compression if self.compression else "")
-##        tarFile = tarfile.open(name + ".tar" + ("." + self.compression if self.compression else ""), "w:"+self.compression)
-##        if func == Update.UpdateOrganism:
-##            rel_path = self.updater.api._rel_org_dir(args[0])
-##            tarFile.add(os.path.normpath("pathway//" + rel_path))
-##            tarFile.add(os.path.normpath("genes//" + rel_path))
-##            tarFile.add(args[0] + "_genenames.pickle")
-##        elif func == Update.UpdateReference:
-##            tarFile.add(os.path.normpath("pathway//map"))
-##            tarFile.add(os.path.normpath("pathway//map_title.tab"))
-##        elif func == Update.UpdateEnzymeAndCompounds:
-##            tarFile.add(os.path.normpath("ligand//compound//"))
-##            tarFile.add(os.path.normpath("ligand//enzyme//"))
-##        elif func == Update.UpdateTaxonomy:
-##            tarFile.add(os.path.normpath("genes//taxonomy"))
-##            tarFile.add(os.path.normpath("genes//genome"))
-##        else:
-##            tarFile.close()
-##            return PKGManagerBase.Create(self, func, args)
-##        tarFile.close()
-##        return name + ".tar" + ("." + self.compression if self.compression else "")
 
 
 import cStringIO
