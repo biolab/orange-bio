@@ -330,6 +330,9 @@ class KEGGInterfaceLocal(object):
     def _rel_pathway_dir(self, pathway_id):
         return "pathway/"+self._rel_org_dir(pathway_id.split(":")[-1][:-5])
 
+    def _pathway_from(self, pathway_id):
+        return "kegg_reference.tar.gz" if "map" in pathway_id else "kegg_organism%s.tar.gz" % pathway_id.split(":")[-1][:-5]
+
     def download_organism_data(self, org):
         files = ["pathway/map_title.tab", "genes/taxonomy", "genes/genome"]
         self.downloader.massRetrieve(files, update=self.update)
@@ -520,7 +523,7 @@ class KEGGInterfaceLocal(object):
         #return load(open(self.local_database_path+"list_pathways_"+org+".pickle"))
 
     def get_linked_pathways(self, pathway_id):
-        return ["path:"+p.strip() for p in self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".map").readlines()]
+        return ["path:"+p.strip() for p in self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".map", self._pathway_from(pathway_id)).readlines()]
 
     def get_genes_by_organism(self, org):
         return self._genes[org].keys()
@@ -539,7 +542,7 @@ class KEGGInterfaceLocal(object):
             return list(set(_collect(map(self.get_enzymes_by_gene, genes))))
 
     def get_compounds_by_pathway(self, pathway_id):
-        return _collect(self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".cpd").readlines(), lambda s:s.split()[:1])
+        return _collect(self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".cpd", self._pathway_from(pathway_id)).readlines(), lambda s:s.split()[:1])
 
     def get_pathways_by_genes(self, genes_list):
         genes = set(genes_list)
@@ -595,7 +598,7 @@ class KEGGInterfaceLocal(object):
         return self._from_gene_to_enzymes.get(gene_id, [])
 
     def get_pathway_image(self, pathway_id):
-        f = self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".gif", mode="rb")
+        f = self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".gif", self._pathway_from(pathway_id), mode="rb")
 ##        image = Image.open(self.local_database_path+_rel_dir(pathway_id)+pathway_id.split(":")[-1]+".gif")
         image = Image.open(f)
         return image.convert("RGB")
@@ -624,15 +627,15 @@ class KEGGInterfaceLocal(object):
         d=[]
         if not pathway_id.split(":")[-1].startswith("map"):
             try:
-                d = map(lambda line:(org+":"+line.split()[0], tuple(line.split()[1:])), self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+"_gene.coord").readlines())
+                d = map(lambda line:(org+":"+line.split()[0], tuple(line.split()[1:])), self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+"_gene.coord", self._pathway_from(pathway_id)).readlines())
             except:
                 pass
         try:
-            d.extend(map(lambda line:("cpd:"+line.split()[0], tuple(line.split()[1:])), self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+"_cpd.coord").readlines()))
+            d.extend(map(lambda line:("cpd:"+line.split()[0], tuple(line.split()[1:])), self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+"_cpd.coord", self._pathway_from(pathway_id)).readlines()))
         except:
             pass
         try:
-            for line in self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".conf").readlines():
+            for line in self._retrieve(self._rel_pathway_dir(pathway_id)+pathway_id.split(":")[-1]+".conf", self._pathway_from(pathway_id)).readlines():
                 match = re.findall("rect \(([0-9]+),([0-9]+)\) \(([0-9]+),([0-9]+)\)	/kegg/pathway/"+org+"/([a-z0-9]+)\.html", line)
                 for t in match:
                     d.append(("path:"+t[-1], t[:-1]))
