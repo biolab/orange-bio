@@ -883,13 +883,18 @@ class MolDraw(cairo_out):
         matched = v1 in self.ob_matched and v2 in self.ob_matched
         v1.symbol = "R" if matched else "A"
         v2.symbol = "R" if matched else "A"
+        if matched:
+            self._draw_line.im_func.func_defaults = self._draw_line.im_func.func_defaults[:2]+ ((255, 0, 0),)
         cairo_out._draw_edge(self, e)
+        if matched:
+            self._draw_line.im_func.func_defaults = self._draw_line.im_func.func_defaults[:2]+ ((0, 0, 0),)
         v1.symbol, v2.symbol = s1, s2
 
     def _draw_vertex(self, v):
         if v in self.ob_matched:
             color = self.atom_colors.get(v.symbol, None)
             self.atom_colors[v.symbol] = (255, 0, 0)
+            self.color_atoms = True
             cairo_out._draw_vertex(self, v)
             if color:
                 self.atom_colors[v.symbol] = color
@@ -907,7 +912,7 @@ class MolDraw(cairo_out):
         if fragSmiles:
             pattern=OBSmartsPattern()
             pattern.Init(fragSmiles)
-            matches = pattern.Match(mol) and pattern.GetUMapList()
+            matches = pattern.Match(mol) and pattern.GetMapList()
             self.ob_matched = reduce(set.union, matches if matches != False else [], set())
         else:
             self.ob_matched = set()
@@ -919,12 +924,15 @@ class MolDraw(cairo_out):
         gen.calculate_coords(o_mol, bond_length=30, force=True)
 ##        self.oasa2obidx = dict([(value, key) for key, value in ix2oa.items()])
         self.ob_matched = [idx2oa[i] for i in self.ob_matched]
+        print self.ob_matched
         self.color_bonds = True
         cairo_out.mol_to_cairo(self, o_mol, file)
         
 def _test_draw():
-    d = MolDraw(scaling=2.0)
-    d.mol_to_cairo("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Sc")
+    d = MolDraw(scaling=1.0)
+    d.mol_to_cairo("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Scc", "mol1.png")
+    d.mol_to_cairo("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "NCC", "mol2.png")
+    d.mol_to_cairo("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Ncc", "mol3.png")
     
 def _test():
     import orange
