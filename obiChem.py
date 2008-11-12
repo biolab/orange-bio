@@ -863,8 +863,70 @@ def ContaindIn(smiles, fragment):
     pattern=OBSmartsPattern()
     pattern.Init(fragment)
     return bool(pattern.Match(mol))
+
+try:
+    from oasa.cairo_out import cairo_out
+except ImportError:
+    class cairo_out(object):
+        def __init__(self, *args, **kwargs):
+            raise ImportError("OASA library not found")
+
+class MolDraw(cairo_out):
+    atom_colors = {"A":(0, 0, 0), "R":(255, 0, 0)}
+    def __init__(self, **kwargs):
+        cairo_out.__init__(self, **kwargs)
+        self.atom_colors.update({"A":(0, 0, 0), "R":(255, 0, 0)})
+
+    def _draw_edge(self, e):
+        v1, v2 = e.vertices
+        s1, s2 = v1.symbol, v2.symbol
+        matched = v1 in self.ob_matched and v2 in self.ob_matched
+        v1.symbol = "R" if matched else "A"
+        v2.symbol = "R" if matched else "A"
+        cairo_out._draw_edge(self, e)
+        v1.symbol, v2.symbol = s1, s2
+
+    def _draw_vertex(self, v):
+        if v in self.ob_matched:
+            color = self.atom_colors.get(v.symbol, None)
+            self.atom_colors[v.symbol] = (255, 0, 0)
+            cairo_out._draw_vertex(self, v)
+            if color:
+                self.atom_colors[v.symbol] = color
+            else:
+                del self.atom_colors[v.symbol]
+        else:
+            cairo_out._draw_vertex(self, v)
+
+    def mol_to_cairo(self, molSmiles, fragSmiles=None, file="mol.png"):
+        mol=OBMol()
+        loader=OBConversion()
+        loader.SetInAndOutFormats("smi","smi")
+        if not loader.ReadString(mol, molSmiles):
+            return None
+        if fragSmiles:
+            pattern=OBSmartsPattern()
+            pattern.Init(fragSmiles)
+            matches = pattern.Match(mol) and pattern.GetUMapList()
+            self.ob_matched = reduce(set.union, matches if matches != False else [], set())
+        else:
+            self.ob_matched = set()
+        import pybel
+        from oasa.pybel_bridge import PybelConverter
+        o_mol, idx2oa = PybelConverter.pybel_to_oasa_molecule_with_atom_map(pybel.Molecule(mol))
+        from oasa.coords_generator import coords_generator
+        gen = coords_generator(30)
+        gen.calculate_coords(o_mol, bond_length=30, force=True)
+##        self.oasa2obidx = dict([(value, key) for key, value in ix2oa.items()])
+        self.ob_matched = [idx2oa[i] for i in self.ob_matched]
+        self.color_bonds = True
+        cairo_out.mol_to_cairo(self, o_mol, file)
+        
+def _test_draw():
+    d = MolDraw(scaling=2.0)
+    d.mol_to_cairo("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Sc")
     
-def test():
+def _test():
     import orange
     d=orange.ExampleTable("E:\chem\mutagen_raw.tab")
     active=[str(e["SMILES"]) for e in d if str(e[-1])=="1"]
@@ -891,7 +953,7 @@ def test():
 ##    for f in fragments:
 ##        print f.ToSmiles()
 
-def test1():
+def _test1():
     import orange
     data=orange.ExampleTable("E:\chem\mutagen_raw.tab")
 ##    data=orange.ExampleTable("E:\chem\smiles.tab")
@@ -904,6 +966,6 @@ def test1():
 if __name__=="__main__":
     import time
     sTime=time.clock()
-    test1()
+    _test_draw()
     print time.clock()-sTime
 
