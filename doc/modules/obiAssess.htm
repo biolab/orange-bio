@@ -12,18 +12,18 @@
 
 <p>Gene Set Enrichment Analysis (GSEA) is a method which tries to identify groups of genes that are regulated together. It computes pathway enrichments for the whole data set. ASSESS in inspired by GSEA and it computes enrichments for each sample in the data set.</p>
 
-<p>ASSESS takes gene expression with sample phenotypes and computes gene set enrichments for given gene sets. First pathway &quot;models&quot; have to be created with AssessLearner. Afterward they are used to calculate enrichements for each pair of sample and pathway.</p>
+<p>ASSESS takes gene expression with sample phenotypes and computes gene set enrichments for given gene sets. First pathway &quot;models&quot; have to be created with AssessLearner. Afterwards they are used to calculate enrichments for each pair of sample and pathway.</p>
 
 <h2>AssessLearner</h2>
 
-Class is used to build models, that can be used to determine enrichments scores for each example.
+Class is used to build models, that can be used later to determine enrichments scores for each example. Note that domains of input data to <code>AssessLearner</code> and <code>Assess</code> instances must be the same.
 
 <dl class=attributes>
 
 <dt>__call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, rankingf=None)</dt>
 <dd>Function <code>__call__</code> returns an instance of class <code>Assess</code> which can be given an example and returns its enrichemnt in all pathways. Argument descriptions follow. 
 
-<dl class=argumentss>
+<dl class=arguments>
 
   <dt>data</dt>
   <dd>An <A href="ExampleTable.htm"><CODE>ExampleTable</CODE></A> with gene expression data. An example
@@ -67,7 +67,7 @@ Class is used to build models, that can be used to determine enrichments scores 
 <dd>Function <code>__init__</code> is usually called only by <code>AssessLearner</code>. It is used to save built &quot;model&quot; data. Saves all keyword arguments into object's namespace.</dd>
 
 <dt>__call__(example)</dt>
-<dd>Returns enrichments of all gene sets for this example. Enrichments are returned in a dictionary, where keys are gene set and values their enrichments.</dd>
+<dd>Returns enrichments of all gene sets for this example. Enrichments are returned in a dictionary, where keys are gene set and values their enrichments. Note that example's domain must be the same as the domain on which the &quot;model&quot; was built.</dd>
 
 
 </dl>
