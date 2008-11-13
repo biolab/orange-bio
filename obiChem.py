@@ -8,16 +8,13 @@ Classes (see their corresponding __doc__ strings for further detail):
     FragmentBasedLearner    : A learner wrapper class that first runs the molecular fragmentation on the data
 """
 from openbabel import OBMol, OBAtom, OBBond, OBSmartsPattern, OBConversion, OBMolAtomIter, OBMolBondIter, OBAtomBondIter
+import pybel
 ##from pybel import *
 from copy import deepcopy
 import orange
 
 
 debug=False
-try:
-    from pywin.debugger import set_trace
-except:
-    def setTrace(): pass
 
 class Atom(object):
     def __init__(self, molecule, atomicNum=6, aromaticFlag=False, atomIndex=0):
@@ -865,28 +862,31 @@ def ContaindIn(smiles, fragment):
     return bool(pattern.Match(mol))
 
 try:
-    from oasa.cairo_out import cairo_out
+    from oasa.cairo_out import cairo_out as _cairo_out
 except ImportError:
-    class cairo_out(object):
+    class _cairo_out(object):
         def __init__(self, *args, **kwargs):
             raise ImportError("OASA library not found")
 
-class MolDraw(cairo_out):
+class cairo_out(_cairo_out):
     atom_colors = {"A":(0, 0, 0), "R":(255, 0, 0)}
     def __init__(self, **kwargs):
-        cairo_out.__init__(self, **kwargs)
+        _cairo_out.__init__(self, **kwargs)
         self.atom_colors.update({"A":(0, 0, 0), "R":(255, 0, 0)})
 
     def _draw_edge(self, e):
         v1, v2 = e.vertices
         s1, s2 = v1.symbol, v2.symbol
         matched = v1 in self.ob_matched and v2 in self.ob_matched
+        ## 'A' and 'R' are used because they are in oasa periodic table and indicate any atom or any atom except hydrogen
         v1.symbol = "R" if matched else "A"
         v2.symbol = "R" if matched else "A"
         if matched:
+            ## Set the default color argument for _draw_line to red
             self._draw_line.im_func.func_defaults = self._draw_line.im_func.func_defaults[:2]+ ((255, 0, 0),)
-        cairo_out._draw_edge(self, e)
+        _cairo_out._draw_edge(self, e)
         if matched:
+            ## Restore the default color
             self._draw_line.im_func.func_defaults = self._draw_line.im_func.func_defaults[:2]+ ((0, 0, 0),)
         v1.symbol, v2.symbol = s1, s2
 
@@ -894,31 +894,28 @@ class MolDraw(cairo_out):
         if v in self.ob_matched:
             color = self.atom_colors.get(v.symbol, None)
             self.atom_colors[v.symbol] = (255, 0, 0)
-            self.color_atoms = True
-            cairo_out._draw_vertex(self, v)
+            _cairo_out._draw_vertex(self, v)
+            ## Restore the atom colors
             if color:
                 self.atom_colors[v.symbol] = color
             else:
                 del self.atom_colors[v.symbol]
         else:
-            cairo_out._draw_vertex(self, v)
+            _cairo_out._draw_vertex(self, v)
 
     def mol_to_cairo(self, molSmiles, fragSmiles=None, file="mol.png"):
-        mol=OBMol()
-        loader=OBConversion()
-        loader.SetInAndOutFormats("smi","smi")
-        if not loader.ReadString(mol, molSmiles):
-            return None
+        import pybel
+        mol = pybel.readstring("smi", molSmiles) 
+        
         if fragSmiles:
-            pattern=OBSmartsPattern()
-            pattern.Init(fragSmiles)
-            matches = pattern.Match(mol) and pattern.GetMapList()
+            pattern=pybel.Smarts(fragSmiles)
+            matches = pattern.findall(mol)
             self.ob_matched = reduce(set.union, matches if matches != False else [], set())
         else:
             self.ob_matched = set()
-        import pybel
         from oasa.pybel_bridge import PybelConverter
-        o_mol, idx2oa = PybelConverter.pybel_to_oasa_molecule_with_atom_map(pybel.Molecule(mol))
+        o_mol, idx2oa = PybelConverter.pybel_to_oasa_molecule_with_atom_map(mol)
+        mol = pybel.readstring("smi", molSmiles) #
         from oasa.coords_generator import coords_generator
         gen = coords_generator(30)
         gen.calculate_coords(o_mol, bond_length=30, force=True)
@@ -926,13 +923,30 @@ class MolDraw(cairo_out):
         self.ob_matched = [idx2oa[i] for i in self.ob_matched]
         print self.ob_matched
         self.color_bonds = True
-        cairo_out.mol_to_cairo(self, o_mol, file)
+        _cairo_out.mol_to_cairo(self, o_mol, file)
+
+def mol_to_png(molSmiles, fragSmiles=None, file="mol.png", size=None):
+    d = cairo_out()
+    d.mol_to_cairo(molSmiles, fragSmiles, file)
+##    if size != None:
+##        import Image
+##        image = Image.open(file)
+##        width, height = image.size
+##        resize_factor = float(size) / max(width, height)
+##        width, height = int(width * resize_factor), int(height * resize_factor)
+##        image = image.resize((width, height), Image.ANTIALIAS)
+##        newimage = Image.new("RGB", size=(size, size), color=(255, 255, 255))
+##        newimage.paste(image, (size - width, size - height))
+##        newimage.save(file)
         
+    
 def _test_draw():
-    d = MolDraw(scaling=1.0)
-    d.mol_to_cairo("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Scc", "mol1.png")
-    d.mol_to_cairo("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "NCC", "mol2.png")
-    d.mol_to_cairo("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Ncc", "mol3.png")
+##    mol_to_png("CC1CC2C(CC(=O)O2)OC3CC4C(CC(C5C(O4)CC=CCC6C(O5)CC=CC7C(O6)CCCC8C(O7)(CC9C(O8)CC2C(O9)C(CC(O2)CC(=C)C=O)O)C)C)OC3(C1)C", "Scc", "mol1.png")
+    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Scc", "mol1.png")
+    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "NCC", "mol2.png")
+    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Ncc", "mol3.png")
+    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "NCCC", "mol3.png")
+##    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Ncc", "mol3.png", size=100)
     
 def _test():
     import orange
