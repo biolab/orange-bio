@@ -17,14 +17,26 @@ def writeMakeFileDepends():
     f = open("Makefile.depends", "wt")
 
     includePaths = []
+    macros = []
+    compileArgs = []
     for ext in modules:
         if ext.include_dirs <> []:
             for p in ext.include_dirs:
                 includePaths.append( "-I%s" % (p))
+        if ext.define_macros <> []:
+            for m in ext.define_macros:
+                macros.append( "-D%s=%s" % m)
+        if ext.extra_compile_args <> []:
+            for e in ext.extra_compile_args:
+                compileArgs.append(e)
     includePaths = " ".join(includePaths)
+    macros = " ".join(macros)
+    compileArgs = " ".join(compileArgs)
 
-    if includePaths <> "":
-        f.write("COMPILEOPTIONSMODULES = %s\n" % (includePaths))
+    compileOptions = " ".join([includePaths, macros, compileArgs])
+
+    if compileOptions <> "":
+        f.write("COMPILEOPTIONSMODULES = %s\n" % (compileOptions))
     f.write("DESTDIR = $(PYTHONSITEPKGS)/%s\n" % (destDir))
 
     f.write("modules:")
