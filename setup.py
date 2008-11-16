@@ -47,7 +47,7 @@ def writeMakeFileDepends():
     for ext in modules:
         objs = []
         for s in ext.sources:
-            if s[-2:] == '.c' or s[-4:] == '.cpp':
+            if s[-2:] == '.c' or s[-4:] == '.cpp' or s[-4:] == '.cxx':
                 objfname = os.path.splitext(os.path.join("..", s))[0] + ".o"
                 objs.append( objfname)
         objs = " ".join(objs)
