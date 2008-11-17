@@ -52,7 +52,7 @@ class OWDicty(OWWidget):
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
         self.experimentsWidget = QTreeWidget()
-        self.experimentsWidget.setHeaderLabels(["Strain", "Treatment", "Growth condition", "Platform"]) #, "Num. of replications", "Num. of tech replications"])
+        self.experimentsWidget.setHeaderLabels(["Strain", "Treatment", "Growth condition", "Platform", "Chips"]) #, "Num. of replications", "Num. of tech replications"])
         self.experimentsWidget.setSelectionMode(QTreeWidget.ExtendedSelection)
         self.experimentsWidget.setRootIsDecorated(False)
         self.experimentsWidget.setSortingEnabled(True)
@@ -102,13 +102,14 @@ class OWDicty(OWWidget):
         strains = self.dbc.annotationOptions("sample")["sample"]
         for i, strain in enumerate(strains):
             opt = self.dbc.annotationOptions(sample=strain)
+            nchips = len(self.dbc.search("norms", sample=strain))
             treatments = opt["treatment"]
             growthConds = opt["growthCond"]
             platforms = opt["platform"]
             for treatment in treatments:
                 for cond in growthConds:
                     for platform in platforms:
-                        self.experiments.append([strain, treatment, cond, platform]) #, str(len(opt["replicate"])), str(len(opt["techReplicate"]))])
+                        self.experiments.append([strain, treatment, cond, platform, str(nchips)]) #, str(len(opt["replicate"])), str(len(opt["techReplicate"]))])
                         self.items.append(MyTreeWidgetItem(self.experimentsWidget, self.experiments[-1]))
             self.progressBarSet((100.0 * i) / len(strains))
         self.progressBarFinished()
