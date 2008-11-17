@@ -8,21 +8,35 @@
 from __future__ import with_statement
 
 import orange
-#import orngChem_Old as orngChem
 from OWWidget import *
+from PyQt4.QtSvg import *
 
 import OWGUI
 import sys, os
-#import vis
+
+import shelve
+from cStringIO import StringIO
 
 import pickle
 
-localOpenEye = True
+import pybel
+import obiChem
+
+svg_error_string = """<?xml version="1.0" ?>
+<svg height="185" version="1.0" width="250" xmlns="http://www.w3.org/2000/svg">
+	<g stroke="#000" stroke-width="1.0">
+		<text font-family="Arial" font-size="16" stroke="rgb(0, 0, 0)" x="0.0" y="16.0">
+			%s
+		</text>
+	</g>
+</svg>
+"""
+
+oasaLocal = True
 try:
-    from openeye.oechem import *
-    from openeye.oedepict import *
+    import oasa
 except ImportError:
-    localOpenEye = False
+    oasaLocal = False
   
 class DrawContext(object):
     def __init__(self, molecule="", fragment="", size=200, imageprefix="", imagename="", title="", grayedBackground=False, useCached=False):
@@ -44,23 +58,8 @@ class DrawContext(object):
 
     def __ne__(self, other):
         return not self==other
-
-class Singleton(object):
-    __single_instances = {}
-    def __init__(self):
-        if self.__class__ in getattr(self, "_Singleton__single_instances"):
-            raise Exception("Creating a singleton class, use getinstance() instead")
-        else:
-            getattr(self, "_Singleton__single_instances")[self.__class__] = self
-    @classmethod
-    def getinstance(cls, *args, **kw):
-        instances = getattr(cls, "_Singleton__single_instances")
-        if cls in instances:
-            return instances[cls]
-        else:
-            return cls(*args, **kw)
             
-from threading import RLock as Lock
+from threading import RLock
 
 def synchronized(lock):
     def syncfunc(func):
@@ -71,139 +70,74 @@ def synchronized(lock):
         return f
     return syncfunc
 
-mutex = Lock()
-
-class ImageCacheManager(Singleton):
-    def __init__(self, maxSize=2000, imageprefix="image", ext=".png"):
-        Singleton.__init__(self)
-        self.maxSize = maxSize
-        self.imageprefix = imageprefix
-        self.ext = ext
-        self.usedIndices = set()
-        self.unusedIndices = set(range(maxSize))
-        self.currentImages = {}
-        self.cachedImages = {}
-        self.epoch = 0
-        self.cachefilename = "imageCache.pickle"
-        
-    @synchronized(mutex)
-    def setMaxSize(self, maxSize):
-        self.maxSize = maxSize
-
-    def getUnusedIndex(self):
-        return (set(range(max(len(self.cachedImages)+len(self.currentImages)+1, self.maxSize)))-self.usedIndices).pop()
-
-    @synchronized(mutex)
-    def getNewImageName(self, key):
-        index = self.getUnusedIndex()
-        self.usedIndices.add(index)
-        name = self.imageprefix+str(index)+self.ext
-        self.currentImages[key] = (index, name)
-        return name
-
-    @synchronized(mutex)
-    def __contains__(self, key):
-        return key in self.cachedImages or key in self.currentImages
-
-    @synchronized(mutex)
+class ImageCache(object):
+    __shared_state = {"shelve": None}
+    lock = RLock()
+    def __init__(self):
+        self.__dict__ = self.__shared_state
+        if not self.shelve:
+            import orngEnviron
+            self.shelve = shelve.open(os.path.join(orngEnviron.bufferDir, "molimages", "cache.pickle"))
+            
+    @synchronized(lock)
     def __getitem__(self, key):
-        if key in self.cachedImages:
-            self.currentImages[key] = self.cachedImages[key]
-            return self.cachedImages[key][1]
-        if key in self.currentImages:
-            return self.currentImages[key][1]
-        raise KeyError(key)
-
-    @synchronized(mutex)
-    def __delitem__(self, key):
-        if key in self.cachedImages:
-            del self.cachedImages[key]
-        elif key in self.currentImages:
-            del self.currentImages[key]
+        val_str = str(key)
+        if val_str in self.shelve:
+            return self.shelve[val_str]
         else:
-            raise KeyError(key)
-        
-    @synchronized(mutex)
-    def newEpoch(self):
-        self.cachedImages = dict([(key, value) for key, value in self.cachedImages.items()[-self.maxSize:]])
-        self.cachedImages.update(self.currentImages)
-        self.usedIndices = set([v[0] for v in self.cachedImages.values()])
-        self.currentImages = {}
-
-    @classmethod
-    @synchronized(mutex)
-    def getcachedinstance(cls, filename=None, *args, **kw):
-        instances = getattr(cls, "_Singleton__single_instances")
-        if cls in instances:
-            return instances[cls]
-        else:
-            try:
-                print "Loading image cache from "+filename
-                inst = pickle.load(open(filename))
-                instances[cls] = inst
-                return inst
-            except Exception, ex:
-                print "Image cache loading failed", filename, ex
-                inst = cls(*args, **kw)
-                inst.cachefilename = filename
-                return inst
-            
-    @synchronized(mutex)
-    def __del__(self):
-        self.dump()
-
-    @synchronized(mutex)
-    def dump(self):
-        try:
-            print "Dumping image cache to "+ self.cachefilename
-            pickle.dump(self, open(self.cachefilename, "w"))
-        except Exception, ex:
-            print "Dumping failed", ex
-            pass
-    
-class BigImage(QDialog):
-    def __init__(self, context, *args):
-        apply(QDialog.__init__, (self,)+args)
-        self.context=context
-        self.label=QLabel(self)
-        self.imagename=context.imagename or context.imageprefix+"_big.bmp"
-        self.imageSize=400
-        self.renderImage()
-
-    def renderImage(self):
-        try:
-            if self.context.fragment:
-                moleculeFragment2BMP(self.context.molecule, self.context.fragment, self.imagename, self.imageSize, self.context.title, self.context.grayedBackground)
+            mol_smiles = key[0]
+            frag_smiles = key[1] if len(key) > 1 else None
+            if oasaLocal:
+                s = StringIO()
+                obiChem.mol_to_svg(mol_smiles, frag_smiles, s)
+                s.seek(0)
+                self.shelve[val_str] = s.read()
             else:
-                molecule2BMP(self.context.molecule, self.imagename, self.imageSize, self.context.title, self.context.grayedBackground)
-        except IOError, er:
-            pix=QPixmap(self.imageSize, self.imageSize)
-            pix.fill()
-            painter=QPainter(pix)
-            painter.drawText(6, self.height()/2-4, "Unable to load")
-            painter.end()
-            self.label.setPixmap(pix)
-            self.label.resize(pix.width(), pix.height())
-            return
-        pix=QPixmap()
-        pix.load(self.imagename)
-        self.label.setPixmap(pix)
-        self.label.resize(pix.width(), pix.height())
+                f = urllib.urlopen("http://212.235.189.53/openEye/drawMol.py", urllib2.urlencode({'molSmiles': molSmiles, 'fragSmiles': fragSmiles}))
+                s = f.read()
+                self.shelve[val_str] = s
+            return self.shelve[val_str]
+
+    @synchronized(lock)
+    def __setitem__(self, key, value):
+        self.shelve[str(key)] = value
+
             
-    def resizeEvent(self, event):
-        apply(QDialog.resizeEvent, (self, event))
-        self.imageSize=min(event.size().width(), event.size().height())
-        self.renderImage()
-        
+    @synchronized(lock)
+    def __contains__(self, key):
+        return str(key) in self.shelve
+    
+    @synchronized(lock)
+    def sync(self):
+        if len(self.shelve.keys()) > 1000:
+            for key in self.shelve.keys()[:-900]:
+                del self.shelve[key]
+        self.shelve.sync()
+
+    def __del__(self):
+        self.sync()
+
 class MolWidget(QFrame):
+    def setSelected(self, val):
+        self.image.selected = val
+    def getSelected(self):
+        return self.image.selected
+    selected = property(getSelected, setSelected)
     def __init__(self, master, parent, context):
         QFrame.__init__(self, parent)
         self.master=master
         self.context=context
-        self.selected=False
         self.label=QLabel()
         self.label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-        self.image=MolImage(master, self, context)
+        try:
+            s = ImageCache()[context.molecule, context.fragment]
+            self.state = 1
+        except Exception, ex:
+            from traceback import print_exc
+            print_exc()
+            s = svg_error_string % "Error loading: "+str(ex)
+            self.state = 0
+        self.image=SVGImageThumbnail(s, self)
         self.image.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.label.setText(context.title)
         self.label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
@@ -220,77 +154,62 @@ class MolWidget(QFrame):
         self.label.repaint()
         self.image.repaint()
         
-class MolImage(QLabel):
-    def __init__(self, master, parent, context):
-        QLabel.__init__(self, parent)
-        self.context=context
-        self.master=master
-        #imagename=context.imagename or context.imageprefix+".bmp"
-        redraw=False
-        if context not in master.imageCache:
-            imagename = master.imageCache.getNewImageName(context)
-            self.context.imagename = imagename
-            try:
-                if master.failedCount>5 :
-                    raise IOError
-                if context.fragment:
-                    moleculeFragment2BMP(context.molecule, context.fragment, imagename, context.size, grayedBackground=context.grayedBackground)
-                else:
-                    molecule2BMP(context.molecule, imagename, context.size, grayedBackground=context.grayedBackground)
-            except IOError, err:
-                master.failedCount+=1
-                self.load("unknown")
-                self.selected=False
-                self.setFrameStyle(QFrame.Panel | QFrame.Raised)
-                self.show()
-                del master.imageCache[context]
-                #print err , "MI"
-                #raise err
-            else:
-                #master.failedCount-=1
-                self.load(imagename)
-                self.selected=False
-                self.setFrameStyle(QFrame.Panel | QFrame.Raised)
-                self.show()
-                
-        else:
-            imagename=master.imageCache[context]
-            context.imagename=imagename
-            self.load(imagename)
-            self.selected=False
-            self.setFrameStyle(QFrame.Panel | QFrame.Raised)
-            self.show()
-            master.fromCacheCount+=1
-        
-    def load(self, filename):
-        self.pix=QPixmap()
-        if not self.pix.load(filename):
-            self.pix=QPixmap(self.context.size, self.context.size)
-            self.pix.fill()
-            painter=QPainter(self.pix)
-            #painter.begin(self.pix)
-            painter.drawText(6, self.context.size/2-4, "Unable to load")
-            painter.end()
-            #print "Failed to load "+filename
-        self.resize(self.pix.width(), self.pix.height())
-        self.setPixmap(self.pix)
-
-    def paintEvent(self, event):
-        apply(QLabel.paintEvent,(self, event))
-        if self.parent().selected:
-            painter=QPainter(self)
-            painter.setPen(QPen(Qt.red, 2))
-            painter.drawRect(2, 2, self.width()-3, self.height()-3)
-
-    def mousePressEvent(self, event):
-        self.master.mouseAction(self.parent(), event)
-##        print self.x(), self.y(), event.pos().x(), event.pos().y()
+class SVGImageThumbnail(QFrame):
+    def setSelected(self, val):
+        self._selected = val
         self.update()
+    def getSelected(self):
+        return self._selected
+    selected = property(getSelected, setSelected)
+    
+    def __init__(self, file, parent):
+        QWidget.__init__(self, parent)
+        self.doc = file if type(file) == str else file.read()
+        self.renderer = QSvgRenderer(QByteArray(self.doc))
+        self.buffer = None
+        self.resize(200, 200)
+        self.selected = False
+        
+    def paintEvent(self, event):
+        if not self.buffer or self.buffer.size() != self.size():
+            defSize = self.renderer.defaultSize()
+            scaleFactor = self.width / max(defSize.width(), defSize.height())
+            self.buffer = QImage(self.size(), QImage.Format_ARGB32_Premultiplied)
+            self.buffer.fill(Qt.white)
+            painter = QPainter(self.buffer)
+            painter.setBrush(QBrush(Qt.white))
+            painter.drawRect(0, 0, self.width(), self.height())
+            painter.setViewport(self.width()/2 - scaleFactor*defSize.width()/2, self.height()/2 - scaleFactor*defSize.height()/2,
+                                scaleFactor*defSize.width(), scaleFactor*defSize.height())
+##            painter.scale(scaleFactor, scaleFactor)
+            self.renderer.render(painter)
+        painter = QPainter(self)
+        painter.setBrush(QBrush(Qt.white))
+        painter.drawRect(0, 0, self.width(), self.height())
+        painter.drawImage(0, 0, self.buffer)
+        if self.selected:
+            painter.setPen(QPen(QBrush(Qt.red), 2))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(0, 0, self.width(), self.height())
+            
+##    def sizeHint(self):
+##        return self.size()
 
     def mouseDoubleClickEvent(self, event):
-        context = DrawContext(self.context.molecule, self.context.fragment, self.context.size, self.master.imageprefix, "", self.context.title, self.context.grayedBackground)
-        d=BigImage(context, self)
-        d.show()
+        self._bigimage = BigSvgWidget()
+        self._bigimage.load(QByteArray(self.doc))
+        self._bigimage.show()
+
+    def mousePressEvent(self, event):
+        self.selected = not self.selected
+
+class BigSvgWidget(QSvgWidget):
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setBrush(QBrush(Qt.white))
+        painter.drawRect(0, 0, self.width(), self.height())
+        painter.end()
+        QSvgWidget.paintEvent(self, event)
         
 class ScrollArea(QScrollArea):
     def __init__(self, master, *args):
@@ -320,8 +239,6 @@ class OWMoleculeVisualizer(OWWidget):
                                                     DomainContextHandler.List + DomainContextHandler.SelectedRequired + DomainContextHandler.IncludeMetaAttributes,
                                                     selected="selectedMoleculeTitleAttrs"),
                                                   ContextField("moleculeSmilesAttr", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes)], maxAttributesToPickle=10000)} ##maxAttributesToPickle=10000 some bug in Context handler 
-    serverPwd = ""
-    uniqueWidgetImageId = 0
     def __init__(self, parent=None, signalManager=None, name="Molecule visualizer"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs=[("Molecules", ExampleTable, self.setMoleculeTable), ("Molecule subset", ExampleTable, self.setMoleculeSubset), ("Fragments", ExampleTable, self.setFragmentTable)]
@@ -340,12 +257,11 @@ class OWMoleculeVisualizer(OWWidget):
         self.imageSize=200
         self.numColumns=4
         self.commitOnChange=0
-        self.serverPassword=OWMoleculeVisualizer.serverPwd
         self.overRideCache=True
         ##GUI
         box=OWGUI.widgetBox(self.controlArea, "Info", addSpace = True)
         self.infoLabel=OWGUI.label(box, self, "Chemicals: ")
-##        if not localOpenEye:
+##        if not oasaLocal:
 ##            OWGUI.label(box, self, "OpenEye not installed, access to server required.")
 ##            self.serverInfo = OWGUI.label(box, self, "")
         box=OWGUI.radioButtonsInBox(self.controlArea, self, "showFragments", ["Show molecules", "Show fragments"], "Show", callback=self.showImages)
@@ -377,8 +293,6 @@ class OWMoleculeVisualizer(OWWidget):
         OWGUI.checkBox(box, self, "commitOnChange", "Commit on change")
         self.selectMarkedMoleculesButton=OWGUI.button(box, self, "Select &matched molecules", self.selectMarked)
         OWGUI.button(box, self, "&Commit", callback=self.commit)
-        box=OWGUI.widgetBox(self.controlArea,"Server Password", addSpace=True)
-        OWGUI.lineEdit(box, self, "serverPassword", callback=self.setServPwd)
         OWGUI.separator(self.controlArea)
         OWGUI.button(self.controlArea, self, "&Save to HTML", self.saveToHTML)
         OWGUI.rubber(self.controlArea)
@@ -403,22 +317,6 @@ class OWMoleculeVisualizer(OWWidget):
 ##        self.listBox.setFocusPolicy(QWidget.NoFocus)
 ##        self.mainArea.setLayout(self.mainAreaLayout)
 
-        try:
-            import orngEnviron
-            self.imageprefix = orngEnviron.bufferDir
-        except Exception, ex:
-            print ex
-            self.imageprefix=os.path.split(__file__)[0]
-        if "molimages" not in os.listdir(self.imageprefix):
-            try:
-                os.mkdir(self.imageprefix and self.imageprefix+"/molimages" or "molimages")
-            except:
-                pass
-        if self.imageprefix:
-            self.imageprefix+="\molimages\imageW"+str(self.uniqueWidgetImageId)+"_"
-        else:
-            self.imageprefix="molimages\imageW"+str(self.uniqueWidgetImageId)+"_"
-        OWMoleculeVisualizer.uniqueWidgetImageId+=1
         self.imageWidgets=[]
         self.candidateMolSmilesAttr=[]
         self.candidateMolTitleAttr=[None]
@@ -434,8 +332,6 @@ class OWMoleculeVisualizer(OWWidget):
         self.markFragmentsCheckBox.setDisabled(True)
         self.showFragmentsRadioButton.setDisabled(True)
         self.loadSettings()
-        OWMoleculeVisualizer.serverPwd=self.serverPassword
-        self.imageCache=ImageCacheManager.getcachedinstance(os.path.join(os.path.split(self.imageprefix)[0],"imageCache.pickle"), 2000, self.imageprefix, ".png")
         self.failedCount=0
         self.fromCacheCount=0
         
@@ -469,8 +365,7 @@ class OWMoleculeVisualizer(OWWidget):
             self.destroyImageWidgets()
             self.openContext("",data)
             self.send("Selected Molecules", None)
-        
-
+    
     def setMoleculeSubset(self, data):
         self.molSubset=data
         try:
@@ -494,24 +389,18 @@ class OWMoleculeVisualizer(OWWidget):
                 self.destroyImageWidgets()
         self.fragmentSmilesCombo.setDisabled(bool(data))
 
-    def setServPwd(self):
-        if self.serverPassword:
-            OWMoleculeVisualizer.serverPwd=self.serverPassword
-            self.showImages()
-
     def filterSmilesVariables(self, data):
         candidates=data.domain.variables+data.domain.getmetas().values()
         candidates=filter(lambda v:v.varType==orange.VarTypes.Discrete or v.varType==orange.VarTypes.String, candidates)
         if len(data)>20:
             data=data.select(orange.MakeRandomIndices2(data, 20))
         vars=[]
-        if localOpenEye:
-            isValidSmiles = lambda s: OEParseSmiles(OEGraphMol(), s)
-        else:
-            from openbabel import OBConversion, OBMol
-            loader = OBConversion()
-            loader.SetInAndOutFormats("smi", "smi")
-            isValidSmiles = lambda s: loader.ReadString(OBMol(), s)
+        def isValidSmiles(s):
+            try:
+                pybel.readstring("smi", s)
+            except IOError:
+                return False
+            return True
             
         import os
         tmpFd1=os.dup(1)
@@ -548,19 +437,10 @@ class OWMoleculeVisualizer(OWWidget):
         vars=self.molData.domain.variables+self.molData.domain.getmetas().values()
         self.moleculeTitleAttributeList=[attr.name for attr in vars]
         self.selectedMoleculeTitleAttrs=[]
-        """vars=self.molData.domain.variables+self.molData.domain.getmetas().values()
-##        self.moleculeTitleCombo.clear()
-##        self.moleculeTitleCombo.insertStrList(["None"]+[v.name for v in vars])
-        self.moleculeTitleListBox.clear()
-        self.moleculeTitleListBox.insertStrList(["None"]+[v.name for v in vars])
-        if self.moleculeTitleAttr>len(vars):
-            self.moleculeTitleAttr=0
-        self.candidateMolTitleAttr=[None]+[v for v in vars]"""
 
     def updateTitles(self):
         if not self.molData:
             return
-        #selected=filter(lambda (i,attr):self.moleculeTitleListBox.isSelected(i), list(enumerate(self.candidateMolTitleAttr))[1:])
         smilesAttr=self.candidateMolSmilesAttr[min(self.moleculeSmilesAttr, len(self.candidateMolSmilesAttr)-1)]
         attrs = self.molData.domain.variables+self.molData.domain.getmetas().values()
         selected=[attrs[i] for i in self.selectedMoleculeTitleAttrs]
@@ -614,7 +494,7 @@ class OWMoleculeVisualizer(OWWidget):
         self.scrollArea.setWidget(self.molWidget)
         self.molWidget.setLayout(self.gridLayout)
         self.imageWidgets=[]
-        self.imageCache.newEpoch()
+##        self.imageCache.newEpoch()
         self.failedCount=0
         self.fromCacheCount=0
         if self.showFragments and self.fragmentSmiles:
@@ -624,7 +504,7 @@ class OWMoleculeVisualizer(OWWidget):
                 #imagename=self.imageprefix+str(i)+".bmp"
                 #vis.molecule2BMP(fragment, imagename, self.imageSize)
 ##                image=MolImage(self,  self.molWidget, DrawContext(molecule=fragment, imagename=imagename, size=self.imageSize))
-                image=MolWidget(self, self.molWidget, DrawContext(molecule=fragment, size=self.imageSize, useCached=useCached))
+                image=MolWidget(self, self.molWidget, DrawContext(molecule=fragment, size=self.imageSize))
                 self.gridLayout.addWidget(image, i/correctedNumColumns, i%correctedNumColumns)
                 self.imageWidgets.append(image)
                 self.progressBarSet(i*100/len(self.fragmentSmiles))
@@ -694,7 +574,7 @@ class OWMoleculeVisualizer(OWWidget):
         self.warning()
         
         self.renderImages(useCached)
-        if not localOpenEye:
+        if not oasaLocal:
             if self.failedCount>0:
                 self.infoLabel.setText("%i chemicals\nFailed to retrieve %i images from server\n%i images \
                 from server\n%i images from local cache" % (len(self.imageWidgets), self.failedCount,
@@ -816,90 +696,13 @@ class OWMoleculeVisualizer(OWWidget):
 
     def saveSettings(self, *args, **kw):
         OWWidget.saveSettings(self, *args, **kw)
-        self.imageCache.dump()
-        
-def moleculeFragment2BMP(molSmiles, fragSmiles, filename, size=200, title="", grayedBackground=False):
-    """given smiles codes of molecle and a fragment will draw the molecule and save it
-    to a file"""
-    mol=OEGraphMol()
-    OEParseSmiles(mol, molSmiles)
-    depict(mol)
-    mol.SetTitle(title)
-    match=subsetSearch(mol, fragSmiles)
-    view=createMolView(mol, size)
-    colorSubset(view, mol, match)
-    if grayedBackground:
-        view.SetBackColor(245,245,245)
-    renderImage(view, filename)
+        ImageCache().sync()
 
 def molecule2BMP(molSmiles, filename, size=200, title="", grayedBackground=False):
-    """given smiles code of a molecule will draw the molecule and save it
-    to a file"""
-    mol=OEGraphMol()
-    OEParseSmiles(mol, molSmiles)
-    mol.SetTitle(title)
-    depict(mol)
-    view=createMolView(mol, size)
-    if grayedBackground:
-        view.SetBackColor(240,240,240)
-    renderImage(view, filename)
+    moleculeFragment2BMP(molSmiles, None, filename)
 
-def depict(mol):
-    """depict a molecule - i.e assign 2D coordinates to atoms"""
-    if mol.GetDimension()==3:
-        OEPerceiveChiral(mol)
-        OE3DToBondStereo(mol)
-        OE3DToAtomStereo(mol)
-    OEAddDepictionHydrogens(mol)
-    OEDepictCoordinates(mol)
-    OEMDLPerceiveBondStereo(mol)
-    OEAssignAromaticFlags(mol)
-
-def subsetSearch(mol, pattern):
-    """finds the matches of pattern in mol"""
-    pat=OESubSearch()
-    pat.Init(pattern)
-    return pat.Match(mol,1)
-
-def createMolView(mol, size=200, title=""):
-    """creates a view for the molecule mol"""
-    view=OEDepictView()
-    view.SetMolecule(mol)
-    view.SetLogo(False)
-    view.SetTitleSize(12)
-    view.AdjustView(size, size)
-    return view
-
-def colorSubset(view, mol, match):
-    """assigns a differnet color to atoms and bonds of mol in view that are present in match"""
-    for matchbase in match:
-        for mpair in matchbase.GetAtoms():
-            style=view.AStyle(mpair.target.GetIdx())
-            #set style
-            style.r=255
-            style.g=0
-            style.b=0
-
-    for matchbasem in match:
-        for mpair in matchbase.GetBonds():
-            style=view.BStyle(mpair.target.GetIdx())
-            #set style
-            style.r=255
-            style.g=0
-            style.b=0
-
-def renderImage(view, filename):
-    """renders the view to a filename"""
-    img=OE8BitImage(view.XRange(), view.YRange())
-    view.RenderImage(img)
-    ofs=oeofstream(filename)
-    OEWriteBMP(ofs, img)
-
-def render2OE8BitImage(view):
-    """renders the view to a OE8BitImage"""
-    img=OE8BitImage(view.XRange(), view.YRange())
-    view.RenderImage(img)
-    return view
+def moleculeFragment2BMP(molSmiles, fragSmiles, filename, size=200, title="", grayedBackground=False):
+    obiChem.mol_to_svg(molSmiles, fragSmiles, filename)
 
 def remoteMoleculeFragment2BMP(molSmiles, fragSmiles, filename, size=200, title="", grayedBackground=False):
     import cStringIO
@@ -957,21 +760,17 @@ def remoteMolecule2BMP(molSmiles, filename, size=200, title="", grayedBackground
     img.save(filename)
     #del img        
 
+
 def map_fragments(fragments, smiles, binary=True):
-    def molGraph(smiles):
-        mol=OEGraphMol()
-        OEParseSmiles(mol, smiles)
-        OEAssignAromaticFlags(mol)
-        return mol
-    ret={}
-    pat=OESubSearch()
+    import pybel
+    ret = {}
     for s in smiles:
-        c=molGraph(s)
+        mol = pybel.readstring("smi", s)
         d={}
         for f in fragments:
-            pat.Init(f)
+            pat = pybel.Smarts(f)
             count=0
-            for m in pat.Match(c,1):
+            if pat.findall(mol):
                 count+=1
             if binary:
                 d[f]=count!=0 and 1 or 0
@@ -980,32 +779,9 @@ def map_fragments(fragments, smiles, binary=True):
         ret[s]=d
     return ret
 
-def map_fragments_OB(fragments, smiles, binary=True):
-    from openbabel import OBMol, OBSmartsPattern, OBConversion
-    ret = {}
-    pat = OBSmartsPattern()
-    loader = OBConversion()
-    loader.SetInAndOutFormats("smi","smi")
-    for s in smiles:
-        mol = OBMol()
-        loader.ReadString(mol, s)
-        d={}
-        for f in fragments:
-            pat.Init(f)
-            count=0
-            if pat.Match(mol, True):
-                count+=1
-            if binary:
-                d[f]=count!=0 and 1 or 0
-            else:
-                d[f]=count
-        ret[s]=d
-    return ret  
-
-if not localOpenEye:
+if not oasaLocal:
     moleculeFragment2BMP = remoteMoleculeFragment2BMP
     molecule2BMP = remoteMolecule2BMP
-    map_fragments = map_fragments_OB
 
 if __name__=="__main__":
     app=QApplication(sys.argv)
