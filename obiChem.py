@@ -12,6 +12,7 @@ import pybel
 ##from pybel import *
 from copy import deepcopy
 import orange
+import sys, os
 
 
 debug=False
@@ -863,8 +864,12 @@ def ContaindIn(smiles, fragment):
 
 try:
     from oasa.cairo_out import cairo_out as _cairo_out
+    from oasa.svg_out import svg_out as _svg_out
 except ImportError:
     class _cairo_out(object):
+        def __init__(self, *args, **kwargs):
+            raise ImportError("OASA library not found")
+    class _svg_out(object):
         def __init__(self, *args, **kwargs):
             raise ImportError("OASA library not found")
 
@@ -905,7 +910,8 @@ class cairo_out(_cairo_out):
 
     def mol_to_cairo(self, molSmiles, fragSmiles=None, file="mol.png"):
         import pybel
-        mol = pybel.readstring("smi", molSmiles) 
+        molSmiles = max(molSmiles.split("."), key = lambda s:len(s))
+        mol = pybel.readstring("smi", molSmiles)
         
         if fragSmiles:
             pattern=pybel.Smarts(fragSmiles)
@@ -915,38 +921,110 @@ class cairo_out(_cairo_out):
             self.ob_matched = set()
         from oasa.pybel_bridge import PybelConverter
         o_mol, idx2oa = PybelConverter.pybel_to_oasa_molecule_with_atom_map(mol)
-        mol = pybel.readstring("smi", molSmiles) #
         from oasa.coords_generator import coords_generator
         gen = coords_generator(30)
         gen.calculate_coords(o_mol, bond_length=30, force=True)
 ##        self.oasa2obidx = dict([(value, key) for key, value in ix2oa.items()])
         self.ob_matched = [idx2oa[i] for i in self.ob_matched]
-        print self.ob_matched
         self.color_bonds = True
-        _cairo_out.mol_to_cairo(self, o_mol, file)
+        return _cairo_out.mol_to_cairo(self, o_mol, file)
 
+import xml.dom.minidom as dom
+class svg_out(_svg_out):
+    def __init__(self, **kwargs):
+        _svg_out.__init__(self, **kwargs)
+        self._curr_color = "rgb(0%, 0%, 0%)"
+
+    def _draw_edge(self, e):
+        v1, v2 = e.vertices
+        matched = v1 in self.ob_matched and v2 in self.ob_matched
+        if matched:
+            self._curr_color = "rgb(255, 0, 0)"
+        else:
+            self._curr_color = "rgb(0, 0, 0)"
+
+        _svg_out._draw_edge(self, e)
+
+    def _draw_vertex(self, v):
+        if v in self.ob_matched:
+            self._curr_color = "rgb(255, 0, 0)"
+        else:
+            self._curr_color = "rgb(0, 0, 0)"
+        _svg_out._draw_vertex(self, v)
+
+
+    def _draw_line( self, parent, start, end, line_width=1, capstyle=""):
+        x1, y1 = start
+        x2, y2 = end
+        from oasa import dom_extensions
+        line = dom_extensions.elementUnder( parent, 'line',
+                                            (( 'x1', str( x1)),
+                                             ( 'y1', str( y1)),
+                                             ( 'x2', str( x2)),
+                                             ( 'y2', str( y2)),
+                                             ( 'stroke', self._curr_color)))
+
+
+    def _draw_text( self, parent, xy, text, font_name="Arial", font_size=16):
+        x, y = xy
+        from oasa import dom_extensions
+        dom_extensions.textOnlyElementUnder( parent, "text", text,
+                                             (( "x", str( x)),
+                                              ( "y", str( y)),
+                                              ( "font-family", font_name),
+                                              ( "font-size", str( font_size)),
+                                              ( 'stroke', self._curr_color)))
+
+    def mol_to_svg(self, molSmiles, fragSmiles=None):
+        import pybel
+        molSmiles = max(molSmiles.split("."), key = lambda s:len(s))
+        mol = pybel.readstring("smi", molSmiles)
+        
+        if fragSmiles:
+            pattern=pybel.Smarts(fragSmiles)
+            matches = pattern.findall(mol)
+            self.ob_matched = reduce(set.union, matches if matches != False else [], set())
+        else:
+            self.ob_matched = set()
+        from oasa.pybel_bridge import PybelConverter
+        o_mol, idx2oa = PybelConverter.pybel_to_oasa_molecule_with_atom_map(mol)
+        from oasa.coords_generator import coords_generator
+        gen = coords_generator(30)
+        gen.calculate_coords(o_mol, bond_length=30, force=True)
+##        self.oasa2obidx = dict([(value, key) for key, value in ix2oa.items()])
+        self.ob_matched = [idx2oa[i] for i in self.ob_matched]
+        return _svg_out.mol_to_svg(self, o_mol)    
+        
 def mol_to_png(molSmiles, fragSmiles=None, file="mol.png", size=None):
     d = cairo_out()
-    d.mol_to_cairo(molSmiles, fragSmiles, file)
-##    if size != None:
-##        import Image
-##        image = Image.open(file)
-##        width, height = image.size
-##        resize_factor = float(size) / max(width, height)
-##        width, height = int(width * resize_factor), int(height * resize_factor)
-##        image = image.resize((width, height), Image.ANTIALIAS)
-##        newimage = Image.new("RGB", size=(size, size), color=(255, 255, 255))
-##        newimage.paste(image, (size - width, size - height))
-##        newimage.save(file)
-        
+    d.mol_to_cairo(molSmiles, fragSmiles)
+    if size != None:
+        import Image
+        image = Image.open(file)
+        width, height = image.size
+        resize_factor = float(size) / max(width, height)
+        width, height = int(width * resize_factor), int(height * resize_factor)
+        image = image.resize((width, height), Image.ANTIALIAS)
+        newimage = Image.new("RGB", size=(size, size), color=(255, 255, 255))
+        newimage.paste(image, (size - width, size - height))
+        newimage.save(file)
+
+def mol_to_svg(molSmiles, fragSmiles=None, file="mol.svg"):
+    c = svg_out()
+    tree = c.mol_to_svg(molSmiles, fragSmiles)
+    if type(file) == str:
+        file = open(file, "w")
+    file.write( tree.toprettyxml())
     
 def _test_draw():
 ##    mol_to_png("CC1CC2C(CC(=O)O2)OC3CC4C(CC(C5C(O4)CC=CCC6C(O5)CC=CC7C(O6)CCCC8C(O7)(CC9C(O8)CC2C(O9)C(CC(O2)CC(=C)C=O)O)C)C)OC3(C1)C", "Scc", "mol1.png")
-    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Scc", "mol1.png")
-    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "NCC", "mol2.png")
-    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Ncc", "mol3.png")
-    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "NCCC", "mol3.png")
-##    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Ncc", "mol3.png", size=100)
+##    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Scc", "mol1.png")
+##    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "NCC", "mol2.png")
+##    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Ncc", "mol3.png")
+##    mol_to_png("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "NCCC", "mol3.png")
+    mol_to_svg("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Scc", "mol1.svg")
+    mol_to_svg("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "Ncc", "mol2.svg")
+    mol_to_svg("CN(C)CCCN1c2ccccc2Sc3c1cc(cc3)C(F)(F)F", "NCC", "mol3.svg")
     
 def _test():
     import orange
