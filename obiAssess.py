@@ -134,53 +134,6 @@ class AT_loessLearner(object):
         except:
             return AT_loess(condprob=None)
 
-
-def assessE(data, subsets, rankingf=None, \
-        n=100, permutation="class", **kwargs):
-    """
-    Run assess algorithm on an example table.
-
-    data: orange example table. 
-    subsets: list of distinct subsets of data.
-    rankingf: function that returns correlation to class of each 
-        variable: it returns a list of correlation of each variable
-        value.
-    n: number of random permutations to sample null distribution.
-    permutation: "class" for permutating class, else permutate attribute 
-        order.
-
-    """
-
-    if not rankingf:
-        rankingf=rankingFromOrangeMeas(MA_edelmanParametric())
-
-    lcorall = rankingf(data)
-
-    enrichmentScoresAll = []
-
-    for iex,ex in enumerate(data):
-
-        enrichmentScores = [] #for this pair (example, geneset)
-
-        lcor = nth(lcorall, iex)
-        ordered = orderedPointersCorr(lcor)
-
-        def rev(l):
-           return numpy.argsort(l)
-
-        rev2 = rev(ordered)
-
-        for subset in subsets:
-            es = enrichmentScoreRanked(subset, lcor, ordered, rev2=rev2)[0]
-            enrichmentScores.append(es)
-
-        enrichmentScoresAll.append(enrichmentScores)
-
-        runOptCallbacks(kwargs)
-
-    #returns a list for each pathway
-    return [ [ list(a) ] for a in zip(*enrichmentScoresAll) ]
-
 def nth(l, n):
     return [a[n] for a in l]
 

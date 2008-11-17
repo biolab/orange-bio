@@ -308,7 +308,7 @@ chips chips""")
         o =  "|||".join([ self.aoidt(a) + "***" + b for a,b in q.items()])
         return o
 
-    def downloadMulti(self, command, ids, chunk=100, transformfn=None):
+    def downloadMulti(self, command, ids, chunk=100, transformfn=None, separatefn=None):
         """
         Results in the same order as in ids.
         """
@@ -339,11 +339,15 @@ chips chips""")
                 res, legend = self.sq(command.replace("$MULTI$", ",".join(unbuffered)),\
                     buffer=False)
             else:
-                # get legend from buffer
+                # get legend from buffer also
                 legend = self.fromBuffer(bufcommand().replace("$MULTI$", buffered[0]))[0]
 
             #split on different values of the first column - first attribute
-            antss = splitTableOnColumn(res, 0)
+
+            if not separatefn:
+                antss = splitTableOnColumn(res, 0)
+            else:
+                legend, antss = separatefn([legend]+res)
 
             #if transform before saving is requested, do it
             if transformfn:
@@ -540,6 +544,47 @@ chips chips""")
         antss = self.downloadMulti("action=get_normalized_data&ids=$MULTI$", ids, chunk=2, transformfn=sel)
         for a,legend in antss:
             yield a   
+
+    def chipNsN(self, ids, annots):
+        #new shorter format, watch for the same "chips.chip_map_id"
+        chip_map_ids = zip(ids,[ dict(a)['chips.chip_map_id'] for a in annots ])
+
+        def separateByChipsMaps(l):
+            begin = 0
+            cm = l[0][1]
+            cp = 0
+            for id,m in l[1:]:
+                cp += 1
+                if m != cm:
+                    yield l[begin:cp]
+                    cm = m
+                    begin = cp
+            yield l[begin:cp+1]
+        
+        sep = list(separateByChipsMaps(chip_map_ids))
+
+        def sel(res, legend):
+            #Drop unwanted columns - for efficiency
+            res = onlyColumns(res, legend, ["spot_id", 'M'])
+            legend = onlyColumns( [ legend ], legend, ["spot_id", 'M'])[0]
+            return res, legend
+
+        def separatefn(res):
+            #each one is own column
+            genes = nth(res,0)[1:]
+            cids = res[0][1:]
+            antss = {}
+            for i,cid in enumerate(cids):
+                col = i+1
+                vals = nth(res, col)[1:]
+                antss[cid] = [ list(a) for a in zip(genes, vals) ]
+            return ['spot_id', 'M'], antss
+
+        for part in sep:
+            pids = nth(part, 0)
+            antss = self.downloadMulti("action=get_normalized_data&mergeexperiments=1&ids=$MULTI$", pids, chunk=10, transformfn=sel, separatefn=separatefn)
+            for a, legend in antss:
+                yield a
 
     def chipRs(self, id):
         antss = self.downloadMulti("action=get_raw_data&ids=$MULTI$", ids, chunk=2)
@@ -991,17 +1036,23 @@ chips chips""")
 
         #downloads annotations
         cbc = CallBack(len(ids), optcb, callbacks=10)
-        read = self.dictionarize(ids, self.annotations, type, ids, callback=cbc.part)
+
+        readall = self.dictionarize(ids, self.annotations, type, ids, all=True, callback=cbc.part)
+
+        read = {}
+        for a,b in readall.items():
+            read[a] = self.keepOnlyMeaningful(b)
+
+        annotsinlist = []
+        for id in ids:
+            annotsinlist.append(readall[id])
+
         cbc.end()
 
         cbc = CallBack(1, optcb, callbacks=10)
 
         #make annotation groups
         etsa = self.groupAnnotations(read, join=join, separate=separate )
-        if type == "norms":
-            fun = self.chipNs
-        else:
-            fun = self.chipRs
 
         cbc.end()
 
@@ -1013,7 +1064,12 @@ chips chips""")
         #here download actually happens
 
         cbc = CallBack(len(ids), optcb, callbacks=999-50)
-        chipd = self.dictionarize(ids, fun, ids, callback=cbc.part)
+        if type == "norms":
+            chipd = self.dictionarize(ids, self.chipNsN, ids, annotsinlist, callback=cbc.part)
+            #chipd = self.dictionarize(ids, self.chipNs, ids, callback=cbc.part)
+        else:
+            chipd = self.dictionarize(ids, self.chipRs, ids, callback=cbc.part)
+
         cbc.end()
         
         #create example tables grouped according to user's wishes
