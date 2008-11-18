@@ -37,6 +37,18 @@ try:
     import oasa
 except ImportError:
     oasaLocal = False
+
+if oasaLocal:
+    def mol_to_svg(molSmiles, fragSmiles):
+        s = StringIO()
+        obiChem.mol_to_svg(molSmiles, fragSmiles, s)
+        s.seek(0)
+        return s.read()
+else:
+    def mol_to_svg(molSmiles, fragSmiles):
+        params = urllib2.urlencode({'molSmiles': molSmiles, 'fragSmiles': fragSmiles})
+        f = urllib.urlopen("http://212.235.189.53/openEye/drawMol.py", params)
+        return f.read()
   
 class DrawContext(object):
     def __init__(self, molecule="", fragment="", size=200, imageprefix="", imagename="", title="", grayedBackground=False, useCached=False):
@@ -73,11 +85,12 @@ def synchronized(lock):
 class ImageCache(object):
     __shared_state = {"shelve": None}
     lock = RLock()
+    @synchronized(lock)
     def __init__(self):
         self.__dict__ = self.__shared_state
         if not self.shelve:
             import orngEnviron
-            self.shelve = shelve.open(os.path.join(orngEnviron.bufferDir, "molimages", "cache.pickle"))
+            self.shelve = shelve.open(os.path.join(orngEnviron.bufferDir, "molimages", "cache.shelve"))
             
     @synchronized(lock)
     def __getitem__(self, key):
@@ -87,19 +100,13 @@ class ImageCache(object):
         else:
             mol_smiles = key[0]
             frag_smiles = key[1] if len(key) > 1 else None
-            if oasaLocal:
-                s = StringIO()
-                obiChem.mol_to_svg(mol_smiles, frag_smiles, s)
-                s.seek(0)
-                self.shelve[val_str] = s.read()
-            else:
-                f = urllib.urlopen("http://212.235.189.53/openEye/drawMol.py", urllib2.urlencode({'molSmiles': molSmiles, 'fragSmiles': fragSmiles}))
-                s = f.read()
-                self.shelve[val_str] = s
+            self.shelve[val_str] = mol_to_svg(mol_smiles, frag_smiles)
             return self.shelve[val_str]
 
     @synchronized(lock)
     def __setitem__(self, key, value):
+        if len(self.shelve) > 1000:
+            self.sync()
         self.shelve[str(key)] = value
 
             
@@ -123,6 +130,7 @@ class MolWidget(QFrame):
     def getSelected(self):
         return self.image.selected
     selected = property(getSelected, setSelected)
+
     def __init__(self, master, parent, context):
         QFrame.__init__(self, parent)
         self.master=master
@@ -162,6 +170,10 @@ class SVGImageThumbnail(QFrame):
         return self._selected
     selected = property(getSelected, setSelected)
     
+    @property
+    def highlight(self):
+        return self.parent().context.grayedBackground
+    
     def __init__(self, file, parent):
         QWidget.__init__(self, parent)
         self.doc = file if type(file) == str else file.read()
@@ -173,27 +185,27 @@ class SVGImageThumbnail(QFrame):
     def paintEvent(self, event):
         if not self.buffer or self.buffer.size() != self.size():
             defSize = self.renderer.defaultSize()
-            scaleFactor = self.width / max(defSize.width(), defSize.height())
+            scaleFactor = float(self.width()) / max(defSize.width(), defSize.height())
             self.buffer = QImage(self.size(), QImage.Format_ARGB32_Premultiplied)
-            self.buffer.fill(Qt.white)
+            self.buffer.fill(0)
             painter = QPainter(self.buffer)
-            painter.setBrush(QBrush(Qt.white))
-            painter.drawRect(0, 0, self.width(), self.height())
             painter.setViewport(self.width()/2 - scaleFactor*defSize.width()/2, self.height()/2 - scaleFactor*defSize.height()/2,
                                 scaleFactor*defSize.width(), scaleFactor*defSize.height())
-##            painter.scale(scaleFactor, scaleFactor)
             self.renderer.render(painter)
-        painter = QPainter(self)
+        painter = QPainter(self)            
         painter.setBrush(QBrush(Qt.white))
         painter.drawRect(0, 0, self.width(), self.height())
-        painter.drawImage(0, 0, self.buffer)
         if self.selected:
             painter.setPen(QPen(QBrush(Qt.red), 2))
+        if self.highlight:
+            painter.setBrush(QBrush(Qt.gray,  Qt.FDiagPattern))
+        else:
             painter.setBrush(Qt.NoBrush)
-            painter.drawRect(0, 0, self.width(), self.height())
-            
-##    def sizeHint(self):
-##        return self.size()
+        painter.drawRect(0, 0, self.width(), self.height())
+        painter.drawImage(0, 0, self.buffer)
+
+    def sizeHint(self):
+        return QSize(self.parent().master.imageSize, self.parent().master.imageSize)
 
     def mouseDoubleClickEvent(self, event):
         self._bigimage = BigSvgWidget()
@@ -201,7 +213,7 @@ class SVGImageThumbnail(QFrame):
         self._bigimage.show()
 
     def mousePressEvent(self, event):
-        self.selected = not self.selected
+        self.parent().master.mouseAction(self.parent(), event)
 
 class BigSvgWidget(QSvgWidget):
     def paintEvent(self, event):
@@ -219,22 +231,17 @@ class ScrollArea(QScrollArea):
         self.setMouseTracking(True)
         
     def resizeEvent(self, event):
-        print "in resizeEvent"
         QScrollArea.resizeEvent(self, event)
-        size=event.size()
-        w,h=self.width(), self.height()
-        oldNumColumns=self.master.numColumns
-        numColumns=w/(self.master.imageSize+4) or 1
-        if numColumns!=oldNumColumns:
-            self.master.numColumns=numColumns
-            print "in resizeEvent calling redrawImages"
-##            self.master.redrawImages(useCached=not self.master.overRideCache)
+        size = event.size()
+        w, h=self.width(), self.height()
+        oldNumColumns = self.master.numColumns
+        numColumns = w / (self.master.imageSize + self.master.gridLayout.horizontalSpacing()*2 + 20) or 1
+        if numColumns != oldNumColumns:
+            self.master.numColumns = numColumns
             self.master.rearrangeLayout()
-##        print self.maximumSize().height(), self.viewport().maximumSize().height()
-        
 
 class OWMoleculeVisualizer(OWWidget):
-    settingsList=["colorFragmets","showFragments", "serverPassword"]
+    settingsList=["colorFragmets","showFragments"]
     contextHandlers={"":DomainContextHandler("", [ContextField("moleculeTitleAttributeList",
                                                     DomainContextHandler.List + DomainContextHandler.SelectedRequired + DomainContextHandler.IncludeMetaAttributes,
                                                     selected="selectedMoleculeTitleAttrs"),
@@ -297,25 +304,18 @@ class OWMoleculeVisualizer(OWWidget):
         OWGUI.button(self.controlArea, self, "&Save to HTML", self.saveToHTML)
         OWGUI.rubber(self.controlArea)
         
-##        self.mainAreaLayout=QVBoxLayout(self.mainArea, QVBoxLayout.TopToBottom)
-##        self.mainAreaLayout=QVBoxLayout()
         spliter=QSplitter(Qt.Vertical)
         self.scrollArea=ScrollArea(self, spliter)
-##        self.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-##        self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-##        self.molWidget=QWidget(self.scrollView.viewport())
+        
         self.molWidget=QWidget()
         self.scrollArea.setWidget(self.molWidget)
-##        self.scrollArea.addChild(self.molWidget)
         self.mainArea.layout().addWidget(spliter)
         self.gridLayout=QGridLayout(self.molWidget)
         self.molWidget.setLayout(self.gridLayout)
-##        self.gridLayout.setAutoAdd(False)
+
         self.listBox=QListWidget(spliter)
-        self.connect(self.listBox, SIGNAL("currentRowChanged(int)"), self.fragmentSelection)
-##        self.scrollArea.setFocusPolicy(QWidget.StrongFocus)
-##        self.listBox.setFocusPolicy(QWidget.NoFocus)
-##        self.mainArea.setLayout(self.mainAreaLayout)
+
+        self.connect(self.listBox, SIGNAL("itemClicked(QListWidgetItem *)"), self.fragmentSelection)
 
         self.imageWidgets=[]
         self.candidateMolSmilesAttr=[]
@@ -349,7 +349,7 @@ class OWMoleculeVisualizer(OWWidget):
                 except:
                     self.molSubset=[]
             tmp=self.moleculeTitleAttributeList
-            self.openContext("",data)
+            self.openContext("", data)
             if tmp and not self.moleculeTitleAttributeList: ##openContext somtimes crashes internaly and silently clears title list
                 self.moleculeTitleAttributeList=tmp
             self.showImages()
@@ -471,7 +471,8 @@ class OWMoleculeVisualizer(OWWidget):
         self.markFragmentsCheckBox.setDisabled(len(self.fragmentSmiles)==1)
         self.selectMarkedMoleculesButton.setDisabled(True)
         
-    def fragmentSelection(self, index):
+    def fragmentSelection(self, item):
+        index = self.listBox.indexFromItem(item).row()
         if index == -1:
             index = 0
         self.selectedFragment=self.fragmentSmiles[index]
@@ -540,15 +541,9 @@ class OWMoleculeVisualizer(OWWidget):
             self.updateTitles()
         #print "done drawing"
         self.overRideCache=False
-##        import sip
-##        sip.delete(self.molWidget.layout())
-##        self.molWidget.setLayout(self.gridLayout)
-##        self.molWidget.layout().activate()
+        
         self.molWidget.setMinimumSize(self.gridLayout.sizeHint())
         self.molWidget.show()
-##        if self.imageWidgets:
-##            self.scrollView.viewport().setMaximumHeight(self.imageSize*(len(self.imageWidgets)/self.numColumns+1))
-##            print self.imageWidgets[-1].y()+self.imageWidgets[-1].height(), viewportHeight
 
     def destroyImageWidgets(self):
         for w in self.imageWidgets:
@@ -557,7 +552,7 @@ class OWMoleculeVisualizer(OWWidget):
         self.imageWidgets=[]
 
     def rearrangeLayout(self):
-        self.numColumns=self.scrollArea.width()/(self.imageSize+4) or 1
+        self.numColumns=self.scrollArea.width() / (self.imageSize + self.gridLayout.horizontalSpacing()*2 + 20) or 1
         self.molWidget = QWidget()
         self.gridLayout = QGridLayout()
         self.molWidget.setLayout(self.gridLayout)
@@ -570,7 +565,6 @@ class OWMoleculeVisualizer(OWWidget):
             
     def showImages(self, useCached=False):
         self.destroyImageWidgets()
-        #print "destroyed"
         self.warning()
         
         self.renderImages(useCached)
@@ -784,16 +778,17 @@ if not oasaLocal:
     molecule2BMP = remoteMolecule2BMP
 
 if __name__=="__main__":
-    app=QApplication(sys.argv)
-    from pywin.debugger import set_trace
-##    set_trace()
-    w=OWMoleculeVisualizer()
-##    app.setMainWidget(w)
-    w.show()
-    data=orange.ExampleTable("E://chem/chemdata/BCMData_growth_frag.tab")
-    
-    w.setMoleculeTable(data)
-##    data=orange.ExampleTable("E://chem//new//sf.tab")
-##    w.setFragmentTable(data)
-    app.exec_()
-    w.saveSettings()
+    pass
+##    app=QApplication(sys.argv)
+##    from pywin.debugger import set_trace
+####    set_trace()
+##    w=OWMoleculeVisualizer()
+####    app.setMainWidget(w)
+##    w.show()
+##    data=orange.ExampleTable("E://chem/chemdata/BCMData_growth_frag.tab")
+##    
+##    w.setMoleculeTable(data)
+####    data=orange.ExampleTable("E://chem//new//sf.tab")
+####    w.setFragmentTable(data)
+##    app.exec_()
+##    w.saveSettings()
