@@ -677,7 +677,7 @@ class KEGGInterfaceLocal(object):
         try:
             len(self._cigenes[org])
         except:
-            allGenes = self._genes[org] #just to load the database
+            allGenes = dict(self._genes[org]) #just to load the database
 
             for id in self._genes[org].keys():
                 if allGenes.get(id.upper(), id)!=id:
