@@ -458,8 +458,9 @@ chips chips""")
 
     def annotations(self, type, ids=None, all=False):
         """
-        Return annotations for type and ids. If ids are left blank,
-        all annotations are output.
+        Returns a generator returning annotations for specified type and ids. 
+        If ids are left blank, all annotations are outputed. Annotations are in the same order
+        as input ids.
         """
         
         inputids = False
@@ -986,15 +987,17 @@ chips chips""")
         """
         Returns a list of examples tables for a given search query and post-processing
         instructions.
+
         Parameters: 
             average: function used for combining multiple reading of the same spot on
-                a chip. If None, no averaging is done.
+                a chip. If None, no averaging is done. Fuction should take a list
+                of floats and return an "averaged" float.
             join: a list of annotation types which can be different in a single example
                 table. Chips are grouped in groups, which can contain chips which have
                 same annotations.
             separate: annotation types by which we consider groups as separate ones.
                 If blank, take all those not in join.
-            ids: a list of chip ids. If present, search use this ids instead of making
+            ids: a list of chip ids. If present, use this ids instead of making
                 a search.
 
         Defaults: Median averaging. Join by time.
