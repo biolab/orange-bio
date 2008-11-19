@@ -1,5 +1,6 @@
 import urllib2
 import os, sys, shutil
+import cPickle
 import tarfile
 import StringIO
 import obiGenomicsUpdate
@@ -10,80 +11,83 @@ from collections import defaultdict
 
 default_database_path = os.path.join(orngEnviron.bufferDir, "bigfiles", "Taxonomy")
 
-class MultipleSpeciesExceptions(Exception):
+class MultipleSpeciesException(Exception):
     pass
 
-def _download_taxonomy_NCBI(file=None, progressCallback=None):
-    if file == None:
-        file = os.path.join(default_database_path, "taxdump.tar.gz")
-    if type(file) == str:
-        file = tarfile.open(file, "w:gz")
-    fd = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz")
-    buffer = StringIO.StringIO()
-    shutil.copyfileobj(fd, buffer)
-    buffer.seek(0)
-    tFile = tarfile.open(None, "r:gz", buffer)
-    namesInfo = tFile.getmember("names.dmp")
-    nodesInfo = tFile.getmember("nodes.dmp")
-    file.addfile(namesInfo, tFile.extractfile(namesInfo))
-    file.addfile(nodesInfo, tFile.extractfile(nodesInfo))
-    file.close()
+class UnknownSpeciesIdentifier(Exception):
+    pass
 
-class _taxonomy(object):
-    def __init__(self, names, nodes):
-        self.names = names
-        self.nodes = nodes
-        
-def get_taxonomy(_cached=_taxonomy(None, None)):
-    if _cached.names and _cached.nodes:
-        return _cached
-    filename = os.path.join(default_database_path, "taxdump.tar.gz")
-    if not os.path.isfile(filename):
-        try:
-            os.mkdir(os.path.dirname(filename))
-        except Exception:
-            pass
-        _download_taxonomy_NCBI(tarfile.open(os.path.join(default_database_path, "taxdump.tar.gz"), "w"))
-    tfile = tarfile.open(filename)
-    names = tfile.extractfile("names.dmp").readlines()
-    nodes = tfile.extractfile("nodes.dmp").readlines()
-    namesDict = defaultdict(list)
-    for line in names:
-        if not line:
-            continue
-        line = line.rstrip("\t\n|").split("\t|\t")
-        id, name, unique_name, name_class = line
-        if unique_name:
-            namesDict[id].append((unique_name , name_class))
-        else:
-            namesDict[id].append((name , name_class))
+class Taxonomy(object):
+    __instance = None
+    def __init__(self, file=None):
+        if file:
+            self.ParseFile(file)
 
-    nodesDict = {}
-    for line in nodes:
-        if not line:
-            continue
-        line = line.split("\t|\t")[:3]
-        id, parent, rank = line
-        nodesDict[id] = (parent, rank)
-        
-    _cached.names = dict(namesDict)
-    _cached.nodes = nodesDict
-    return _cached
+    def ParseFile(self, file):
+        """Parse the taxdump.tar.gz file from NCBI
+        """
+        if type(file) == str:
+            tfile = tarfile.open(file)
+        names = tfile.extractfile("names.dmp").readlines()
+        nodes = tfile.extractfile("nodes.dmp").readlines()
+        self.names = namesDict = defaultdict(list)
+        for line in names:
+            if not line.strip():
+                continue
+            line = line.rstrip("\t\n|").split("\t|\t")
+            id, name, unique_name, name_class = line
+            
+            if unique_name:
+                namesDict[id].append((unique_name , name_class))
+            else:
+                namesDict[id].append((name , name_class))
+
+        self.nodes = nodesDict = {}
+        for line in nodes:
+            if not line.strip():
+                continue
+            line = line.split("\t|\t")[:3]
+            id, parent, rank = line
+            nodesDict[id] = (parent, rank)
+
+    @classmethod
+    def Load(cls):
+        if not Taxonomy.__instance:
+            Taxonomy.__instance = cPickle.load(open(os.path.join(default_database_path, "taxonomy.pickle")))
+        return Taxonomy.__instance
+
+    @staticmethod
+    def DownloadTaxonomy(file=None, progressCallback=None):
+        if file == None:
+            file = os.path.join(default_database_path, "taxdump.tar.gz")
+        if type(file) == str:
+            file = open(file, "wb")
+        fd = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz")
+        shutil.copyfileobj(fd, file)
+        file.close()
+        tax = Taxonomy(os.path.join(default_database_path, "taxdump.tar.gz"))
+        cPickle.dump(tax, open(os.path.join(default_database_path, "taxonomy.pickle"), "wb"))
+    
+    def __iter__(self):
+        return self.names.__iter__()
+
+    def __getitem__(self, id):
+        return self.names[id]
     
 def name(taxid):
-    tax = get_taxonomy()
+    tax = Taxonomy.Load()
     names = [name for name, type in tax.names[taxid] if type == "scientific name"]
     return names[0]
 
 def other_names(taxid):
-    tax = get_taxonomy()
+    tax = Taxonomy.Load()
     return tax.names[taxid]
 
 def search(string, onlySpecies=True):
-    tax = get_taxonomy()
+    tax = Taxonomy.Load()
     string = string.lower()
     match = []
-    for id, names in tax.names.items():
+    for id, names in tax.names.iteritems():
         if any(string in name.lower() for name, type in names):
             if onlySpecies == False or tax.nodes[id][1] == "species":
                 match.append(id)
