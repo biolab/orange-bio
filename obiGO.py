@@ -15,19 +15,6 @@ try:
 except Exception:
     default_database_path = os.curdir
 
-_verbose = False
-
-def verbose(f):
-    def func(*args, **kwargs):
-        if _verbose:
-            print "Starting", f.__name__
-            start = datetime.now()
-        ret = f(*args, **kwargs)
-        if _verbose:
-            print f.__name__, "computed in %i seconds" % (datetime.now() - start).seconds
-        return ret
-    return func
-
 builtinOBOObjects = ["""
 [Typedef]
 id: is_a
@@ -350,18 +337,27 @@ class Annotations(object):
         """
 ##        files = [name for name in os.listdir(default_database_path) if name.startswith("gene_association") and org in name and not name.endswith(".info")]
         import orngServerFiles
-        files = [file for dom, file in orngServerFiles.search([org]) if dom == "GO"]
+        ## Check if given org is a matching code for GO organism
+        files = [file for file in orngServerFiles.listfiles("GO") if file.startswith("gene_association") and org in file.split(".")[:2]]
         if not files:
-##            print "Annotation file not found on local disk."
-##            print "Searching on server ..."
             serverFiles = orngServerFiles.ServerFiles()
-            files = [file for dom, file in serverFiles.search([org]) if dom == "GO"]
-            if not files:
-                raise Exception, "No matching annotations found!"
-##            print "Downloading"
-            orngServerFiles.download("GO", files[0], serverFiles)
+            files = [file for file in serverFiles.listfiles("GO") if file.startswith("gene_association") and org in file.split(".")[:2]]
+        if not files:
+            import obiTaxonomy as tax
+            ids = tax.search(org)
+            ids = set(ids).intersection(Taxonomy().tax.keys())
+            codes = set(from_taxid(id) for id in ids)
+            if len(codes) > 1:
+                raise tax.MultipleSpeciesException, ", ".join(codes)
+            elif len(codes) == 0:
+                raise tax.UnknownSpeciesIdentifier, org
+            files = ["gene_association.%s.tar.gz" % codes.pop()]
+
+        path = os.path.join(orngServerFiles.localpath("GO"), files[0])
+        if not os.path.exists(path):
+            orngServerFiles.download("GO", files[0])
             
-        return cls(os.path.join(default_database_path, files[0]), ontology=ontology, progressCallback=progressCallback)
+        return cls(path, ontology=ontology, progressCallback=progressCallback)
     
     def ParseFile(self, file, progressCallback=None):
         """
@@ -520,6 +516,30 @@ class Annotations(object):
         os.remove(os.path.join(tmpDir, "gene_association." + org))
         os.remove(os.path.join(tmpDir, "gene_names.pickle"))
 
+class Taxonomy(object):
+    __shared_state = {"tax": None}
+    def __init__(self):
+        self.__dict__ = self.__shared_state
+        if not self.tax:
+            import orngServerFiles
+            path = orngServerFiles.localpath("GO", "taxonomy.pickle")
+            if os.path.isfile(path):
+                self.tax = cPickle.load(open(path))
+            else:
+                orngServerFiles.download("GO", "taxonomy.pickle")
+                self.tax = cPickle.load(open(path))
+                
+    def __getitem__(self, key):
+        return self.tax[key]
+    
+def from_taxid(id):
+    return Taxonomy()[id]
+
+def to_taxid(db_code):
+    r = [key for key, val in Taxonomy().tax.items() if val == db_code]
+    return r.pop()
+    
+
 class __progressCallbackWrapper:
     def __init__(self, callback):
         self.callback = callback
@@ -570,20 +590,27 @@ class Update(UpdateBase):
             ret.extend([(Update.UpdateAnnotation, (org,)) for org in orgs])
         return ret
 
-    def UpdateAnnotation(self, org):
-##        downloadAnnotationTo(org, os.path.join(self.local_database_path, "gene_association." + org), self.progressCallback)
-        Annotations.DownloadAnnotations(org, os.path.join(self.local_database_path, "gene_association." + org + ".tar.gz"), self.progressCallback)
-        self._update(Update.UpdateAnnotation, (org,), self.GetLastModified("http://www.geneontology.org/gene-associations/gene_association." + org + ".gz"))
-
     def UpdateOntology(self):
         Ontology.DownloadOntology(os.path.join(self.local_database_path, "gene_ontology_edit.obo.tar.gz"), self.progressCallback)
         self._update(Update.UpdateOntology, (), self.GetLastModified("http://www.geneontology.org/ontology/gene_ontology.obo"))
 
+    def UpdateAnnotation(self, org):
+        Annotations.DownloadAnnotations(org, os.path.join(self.local_database_path, "gene_association." + org + ".tar.gz"), self.progressCallback)
+        self._update(Update.UpdateAnnotation, (org,), self.GetLastModified("http://www.geneontology.org/gene-associations/gene_association." + org + ".gz"))
+        
+    def UpdateTaxonomy(self, org):
+        try:
+            tax = cPickle.load(os.path.join(self.local_database_path, "taxonomy.pickle"))
+        except Exception:
+            tax = {}
+        allCodes = self.GetAvailableOrganisms()
+        if any(code not in tax for code in allCodes):
+            pass
+            
+
 def _test1():
 ##    Ontology.DownloadOntology("ontology_arch.tar.gz")
 ##    Annotations.DownloadAnnotations("sgd", "annotations_arch.tar.gz")
-    global _verbose
-    _verbose = True
     def _print(f):
         print f
     o = Ontology("ontology_arch.tar.gz")
@@ -597,7 +624,7 @@ def _test1():
 ##    profile.runctx("a.GetEnrichedTerms(sorted(a.geneNames)[:100])", {"a":a}, {})
     a.GetEnrichedTerms(sorted(a.geneNames)[:100])#, progressCallback=_print)
     d1 = a.GetEnrichedTerms(sorted(a.geneNames)[:1000])#, progressCallback=_print)
-    d2 = verbose(GOTermFinder)(sorted(a.geneNames)[:1000])
+    d2 = GOTermFinder(sorted(a.geneNames)[:1000])
     print set(d2.keys()) - set(d1.keys())
     print set(d1.keys()) - set(d2.keys())
 ##    print a.GetEnrichedTerms(sorted(a.geneNames)[:100])#, progressCallback=_print)
