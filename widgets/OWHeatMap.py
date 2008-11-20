@@ -425,7 +425,7 @@ class OWHeatMap(OWWidget):
         if dlg.exec_():
             self.colorSettings = dlg.getColorSchemas()
             self.selectedSchemaIndex = dlg.selectedSchemaIndex
-            palette = dlg.getContinuousPalette("palette")
+            palette = dlg.getExtendedContinuousPalette("palette")
             unknown = dlg.getColor("unknown").rgb()
             underflow = dlg.getColor("underflow").rgb()
             overflow = dlg.getColor("overflow").rgb()
@@ -440,7 +440,7 @@ class OWHeatMap(OWWidget):
     def createColorDialog(self):
         c = OWColorPalette.ColorPaletteDlg(self, "Color Palette")
 ##        c.createDiscretePalette("discPalette", "Discrete Palette")
-        c.createContinuousPalette("palette", "Continuous Palette", initialColor1=QColor(Qt.blue), initialColor2=QColor(255, 255, 0).rgb())
+        c.createExtendedContinuousPalette("palette", "Continuous Palette", initialColor1=QColor(Qt.blue), initialColor2=QColor(255, 255, 0).rgb())
         box = c.createBox("otherColors", "Other Colors")
         c.createColorButton(box, "unknown", "Unknown", Qt.gray)
         box.layout().addSpacing(5)
