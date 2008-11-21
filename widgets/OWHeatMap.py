@@ -107,20 +107,19 @@ class OWHeatMap(OWWidget):
         OWGUI.separator(settingsTab)
 
         # define the color stripe to show the current palette
-        OWGUI.button(OWGUI.widgetBox(settingsTab, "Color"), self, "Set Color", callback=self.setColor, tooltip="Set the heatmap color palette")
-##        colorItems = [self.createColorStripe(i) for i in range(len(self.ColorPalettes))]
-##        palc = OWGUI.comboBox(settingsTab, self, "CurrentPalette", box="Colors", items=None, tooltip=None, callback=self.setColor)
+        box = OWGUI.widgetBox(settingsTab, "Color", orientation = "horizontal")
+        self.colorCombo = OWColorPalette.PaletteSelectorComboBox(self)
+        self.colorCombo.setPalettes("palette", self.createColorDialog())
+        self.colorCombo.setCurrentIndex(self.selectedSchemaIndex)
+        self.connect(self.colorCombo, SIGNAL("activated(int)"), self.setColor)
+        box.layout().addWidget(self.colorCombo, 2)
+        button = OWGUI.button(box, self, "Edit colors", callback=self.openColorDialog, tooltip="Edit the heatmap color palette")
+        
         OWGUI.separator(settingsTab)
-##        for cit in colorItems:
-##            palc.addItem(QIcon(cit), "") ## because of a string cast in the comboBox constructor
+
         OWGUI.checkBox(settingsTab, self, "SortGenes", "Sort genes", box="Sort", callback=self.constructHeatmap)
         OWGUI.rubber(settingsTab)
         
-##        palc.setCurrentItem(self.CurrentPalette)  #needed to update combobox after adding items. Maybe this could be useful to include in OWGUI as update() or similar?
-        
-
-##        self.tabs.insertTab(settingsTab, "Settings")
-
         # FILTER TAB
         tab = OWGUI.createTabPage(self.tabs, "Filter") #QVGroupBox(self)
         box = OWGUI.widgetBox(tab, "Threshold Values", addSpace=True) #QVButtonGroup("Threshold Values", tab)
@@ -135,7 +134,6 @@ class OWHeatMap(OWWidget):
         OWGUI.qwtHSlider(box, self, "Merge", label='Rows:', labelWidth=33, minValue=1, maxValue=500, step=1, callback=self.mergeChanged, precision=0, ticks=0)
         OWGUI.checkBox(box, self, 'MaintainArrayHeight', "Maintain array height")
         OWGUI.rubber(tab)
-##        self.tabs.insertTab(tab, "Filter")
 
         # INFO TAB
         tab = OWGUI.createTabPage(self.tabs, "Info") #QVGroupBox(self)
@@ -160,7 +158,6 @@ class OWHeatMap(OWWidget):
         OWGUI.checkBox(box, self, 'BShowAnnotation', "Annotation")
         self.balloonInfoBox = box
         OWGUI.rubber(tab)
-##        self.tabs.insertTab(tab, "Info")
 
         # FILES TAB
         self.filesTab = OWGUI.createTabPage(self.tabs, "Files")
@@ -190,7 +187,6 @@ class OWHeatMap(OWWidget):
         self.resize(700,400)
 
         # canvas with microarray
-##        self.layout = QVBoxLayout(self.mainArea)
         self.scene = HeatMapGraphicsScene()
         self.sceneView = MyGraphicsView(self.scene, self.mainArea)
         self.selection = SelectData(self, self.scene)
@@ -420,26 +416,32 @@ class OWHeatMap(OWWidget):
     ##########################################################################
     # callback functions
 
-    def setColor(self):
-        dlg = self.createColorDialog()
-        if dlg.exec_():
-            self.colorSettings = dlg.getColorSchemas()
-            self.selectedSchemaIndex = dlg.selectedSchemaIndex
-            palette = dlg.getExtendedContinuousPalette("palette")
-            unknown = dlg.getColor("unknown").rgb()
-            underflow = dlg.getColor("underflow").rgb()
-            overflow = dlg.getColor("overflow").rgb()
-            self.palette = [palette[float(i)/250].rgb() for i in range(250)] + [qRgb(255, 255, 255)]*3 +[underflow, overflow, unknown]
+    def setColor(self, index, dialog=None):
+        self.selectedSchemaIndex = index
+        if not dialog:
+            dialog = self.createColorDialog()
+
+        self.colorCombo.setPalettes("palette", dialog)
+        self.colorCombo.setCurrentIndex(self.selectedSchemaIndex)
+        palette = dialog.getExtendedContinuousPalette("palette")
+        unknown = dialog.getColor("unknown").rgb()
+        underflow = dialog.getColor("underflow").rgb()
+        overflow = dialog.getColor("overflow").rgb()
+        self.palette = [palette[float(i)/250].rgb() for i in range(250)] + [qRgb(255, 255, 255)]*3 +[underflow, overflow, unknown]
         
-##            self.graph.discPalette = dlg.getDiscretePalette("discPalette")
-##            self.graph.setCanvasBackground(dlg.getColor("Canvas"))
-##            self.graph.setGridColor(dlg.getColor("Grid"))
-##            self.updateGraph()
-            self.drawHeatMap()
+        self.drawHeatMap()
+        
+
+    def openColorDialog(self):
+        dialog = self.createColorDialog()
+        if dialog.exec_():
+            self.colorSettings = dialog.getColorSchemas()
+            self.selectedSchemaIndex = dialog.selectedSchemaIndex
+            self.colorCombo.setCurrentIndex(self.selectedSchemaIndex)
+            self.setColor(self.selectedSchemaIndex, dialog)
 
     def createColorDialog(self):
         c = OWColorPalette.ColorPaletteDlg(self, "Color Palette")
-##        c.createDiscretePalette("discPalette", "Discrete Palette")
         c.createExtendedContinuousPalette("palette", "Continuous Palette", initialColor1=QColor(Qt.blue), initialColor2=QColor(255, 255, 0).rgb())
         box = c.createBox("otherColors", "Other Colors")
         c.createColorButton(box, "unknown", "Unknown", Qt.gray)
@@ -450,12 +452,6 @@ class OWHeatMap(OWWidget):
         c.setColorSchemas(self.colorSettings, self.selectedSchemaIndex)
         return c
 
-##    def setColor(self):
-##        if self.CurrentPalette == len(self.ColorPalettes):
-##            self.CurrentPalette = 0
-##            # put a code here that allows to define ones own colors
-##        else:
-##            self.drawHeatMap()
 
     def setCutEnabled(self):
         self.sliderCutLow.box.setDisabled(not self.CutEnabled)
@@ -481,7 +477,7 @@ class OWHeatMap(OWWidget):
             switchFiles(self.selectedFile, self.selectedFile+1)
         
 
-    ##########################################################################
+    # ########################################################################
     # drawing
 
     def drawLegend(self, x, y, width, height, palette):
@@ -709,14 +705,12 @@ class OWHeatMap(OWWidget):
 class ImageItem(QGraphicsRectItem):
     def __init__(self, bitmap, scene, width, height, palette, depth=8, numColors=256, x=0, y=0, z=0):
         QGraphicsRectItem.__init__(self, None, scene)
-##        self.image = QImage(bitmap, width, height, depth, palette, numColors, QImage.LittleEndian)
         self.image = QImage(bitmap, width, height, QImage.Format_Indexed8)
         self.image.bitmap = bitmap # this is tricky: bitmap should not be freed,
                                    # else we get mess. hence, we store it in the object
         self.image.setColorTable(signedPalette(palette))
         #self.pixmap = QPixmap()
         #self.pixmap.convertFromImage(image, QPixmap.Color)
-##        self.scene = scene
         self.setRect(0, 0, width, height)
         self.setPos(x, y) #setX(x); self.setY(y); self.setZ(z)
         self.setZValue(z)
@@ -725,10 +719,9 @@ class ImageItem(QGraphicsRectItem):
     def paint(self, painter, options, widget=None):
         painter.drawImage(0, 0, self.image, 0, 0, -1, -1)
 
-##    def drawShape(self, painter):
-##        painter.drawImage(self.x(), self.y(), self.image, 0, 0, -1, -1)
+
         
-##################################################################################################
+# ################################################################################################
 # mouse event handler
 
 v_sel_width = 2
@@ -738,7 +731,6 @@ class HeatMapGraphicsScene(QGraphicsScene):
         QGraphicsScene.__init__(self, *args)
         self.clicked = False
         self.shiftPressed = False
-##        self.setFocus()
 
     def heatmapParameters(self, master, cellWidth, cellHeight):
         self.master = master
@@ -747,7 +739,6 @@ class HeatMapGraphicsScene(QGraphicsScene):
             self.dx + 2 * v_sel_width - 1, self.dy + 2 * v_sel_width - 1, None, self)
         self.selector.setPen(QPen(self.master.SelectionColors[self.master.CurrentPalette], v_sel_width))
         self.selector.setZValue(10)
-##        self.bubble = BubbleInfo(self.scene)
 
     def mouseMoveEvent(self, event):
         # handling of selection
@@ -762,7 +753,6 @@ class HeatMapGraphicsScene(QGraphicsScene):
         items = filter(lambda ci: ci.zValue()==z_heatmap, self.items(event.scenePos()))
         if len(items) == 0: # mouse over nothing special
             self.selector.hide()
-##            self.bubble.hide()
             self.update()
         else:
             item = items[0]
@@ -776,8 +766,6 @@ class HeatMapGraphicsScene(QGraphicsScene):
             # hm.getCellIntensity(row, col), hm.getRowIntensity(row)
             ex = hm.examples[hm.exampleIndices[row] : hm.exampleIndices[row+1]]
             self.selector.setPos(item.x()+col*self.dx-v_sel_width+1, item.y()+row*self.dy-v_sel_width+1)
-##            self.selector.setX(item.x()+col*self.dx-v_sel_width+1)
-##            self.selector.setY(item.y()+row*self.dy-v_sel_width+1)
             self.selector.show()
 
             # bubble, construct head
@@ -787,7 +775,6 @@ class HeatMapGraphicsScene(QGraphicsScene):
                 head = "Missing Data"
             if self.master.BShowColumnID:
                 head += "\n"+ex[0].domain.attributes[col].name
-##            self.bubble.head.setText(head)
             # bubble, construct body
             body = None
             if (self.master.BShowSpotIndex and self.master.BSpotVar) or \
@@ -807,12 +794,9 @@ class HeatMapGraphicsScene(QGraphicsScene):
                     if body: body += "\n"
                     else: body=""
                     body += reduce(lambda x,y: x + ' | ' + y, s)
-##            self.bubble.body.setText(body)
-##            self.bubble.show()
-##            self.bubble.move(event.x()+20, event.y()+20)
+
             QToolTip.showText(QPoint(event.screenPos().x(), event.screenPos().y()), "")
             QToolTip.showText(QPoint(event.screenPos().x(), event.screenPos().y()), head + body)
-##            self.canvas.update()
 
     def keyPressEvent(self, e):
         if e.key() == 4128:
@@ -841,84 +825,11 @@ class HeatMapGraphicsScene(QGraphicsScene):
 class MyGraphicsView(QGraphicsView):
     def __init__(self, *args):
         QGraphicsView.__init__(self, *args)
-##        self.canvas = args[0]
         self.clicked = False
         self.viewport().setMouseTracking(True)
         self.setFocusPolicy(Qt.ClickFocus)
         self.setFocus()
         self.shiftPressed = False
-##
-##    def heatmapParameters(self, master, cellWidth, cellHeight):
-##        self.master = master
-##        self.dx, self.dy = cellWidth, cellHeight
-##        self.selector = QGraphicsRectItem(0, 0, \
-##            self.dx + 2 * v_sel_width - 1, self.dy + 2 * v_sel_width - 1, None, self.scene)
-##        self.selector.setPen(QPen(self.master.SelectionColors[self.master.CurrentPalette], v_sel_width))
-##        self.selector.setZValue(10)
-##        self.bubble = BubbleInfo(self.scene)
-##
-##    def contentsMouseMoveEvent(self, event):
-##        # handling of selection
-##        if self.clicked:
-##            self.master.selection(self.clicked, (event.x(), event.y()))
-##
-##        # balloon handling
-##        try:
-##            if self.master <> None and not self.master.BShowballoon: return
-##        except:
-##            return
-##        items = filter(lambda ci: ci.z()==z_heatmap, self.scene.items(event.pos()))
-##        if len(items) == 0: # mouse over nothing special
-##            self.selector.hide()
-##            self.bubble.hide()
-##            self.canvas.update()
-##        else:
-##            item = items[0]
-##            hm = item.hm
-##            x, y = event.x() - item.x(), event.y() - item.y()
-##            if x<0 or y<0 or x>item.width-1 or y>item.height-1: 
-##                self.selector.hide()
-##                self.canvas.update()
-##                return
-##            col, row = int(x / self.dx), int(y / self.dy)
-##            # hm.getCellIntensity(row, col), hm.getRowIntensity(row)
-##            ex = hm.examples[hm.exampleIndices[row] : hm.exampleIndices[row+1]]
-##            self.selector.setX(item.x()+col*self.dx-v_sel_width+1)
-##            self.selector.setY(item.y()+row*self.dy-v_sel_width+1)
-##            self.selector.show()
-##
-##            # bubble, construct head
-##            if hm.getCellIntensity(row, col)!=None:
-##                head = "%6.4f" % hm.getCellIntensity(row, col)
-##            else:
-##                head = "Missing Data"
-##            if self.master.BShowColumnID:
-##                head += "\n"+ex[0].domain.attributes[col].name
-##            self.bubble.head.setText(head)
-##            # bubble, construct body
-##            body = None
-##            if (self.master.BShowSpotIndex and self.master.BSpotVar) or \
-##                    self.master.BShowAnnotation or self.master.BShowGeneExpression:
-##                for (i, e) in enumerate(ex):
-##                    if i>5:
-##                        body += "\n... (%d more)" % (len(ex)-5)
-##                        break
-##                    else:
-##                        s = []
-##                        if self.master.BShowSpotIndex and self.master.BSpotVar:
-##                            s.append(str(e[self.master.BSpotVar]))
-##                        if self.master.BShowGeneExpression:
-##                            s.append(str(e[col]))
-##                        if self.master.BShowAnnotation and self.master.BAnnotationVar:
-##                            s.append(str(e[self.master.BAnnotationVar]))
-##                    if body: body += "\n"
-##                    else: body=""
-##                    body += reduce(lambda x,y: x + ' | ' + y, s)
-##            self.bubble.body.setText(body)
-##            self.bubble.show()
-##            self.bubble.move(event.x()+20, event.y()+20)
-##            
-##            self.canvas.update()
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Shift:
@@ -931,20 +842,8 @@ class MyGraphicsView(QGraphicsView):
             self.scene().shiftPressed = False
         else:
             QGraphicsView.keyReleaseEvent(self, e)
-##
-##    def contentsMousePressEvent(self, event):
-##        # self.viewport().setMouseTracking(False)
-##        self.clicked = (event.x(), event.y())
-##        if not self.master.selection.start(self.clicked, self.clicked, self.shiftPressed):
-##            self.clicked = None
-##
-##    def contentsMouseReleaseEvent(self, event):
-##        if self.clicked:
-##            self.clicked = False
-##            self.canvas.update()
-##            self.master.selection.release()
 
-##################################################################################################
+# ################################################################################################
 # data selection
 
 def interval_position(x, l, forced=None):
@@ -1123,62 +1022,6 @@ class SelectData(object):
         if self.rows:
             self.squares = self.draw(self.rows)
 
-##################################################################################################
-# bubble info class
-
-bubbleBorder = 4
-
-class BubbleInfo(QGraphicsRectItem):
-    def __init__(self, *args):
-        QGraphicsRectItem.__init__(self, *args)
-##        self.canvas = args[0]
-        self.setBrush(QBrush(Qt.white))
-        #self.setPen(QPen(Qt.black, v_sel_width))
-        self.bubbleShadow = QGraphicsRectItem(self, self.scene())
-        self.bubbleShadow.setBrush(QBrush(Qt.black))
-        self.bubbleShadow.setPen(QPen(Qt.black))
-        self.head = QGraphicsSimpleTextItem(self, self.scene())
-        self.line = QGraphicsLineItem(self, self.scene())
-        self.body = QGraphicsSimpleTextItem(self, self.scene())
-        self.items = [self.head, self.line, self.body]
-        self.setZValue(110)
-        self.bubbleShadow.setZValue(109)
-        for i in self.items:
-            i.setZValue(111)
-
-    def move(self, x, y):
-        QCanvasRectangle.move(self, x, y)
-        self.setX(x); self.setY(y)
-        self.bubbleShadow.move(x+5, y+5)
-        for item in self.items:
-            item.setX(x + bubbleBorder)
-        w = max(100, self.head.boundingRect().width() + 2 * bubbleBorder, \
-                self.body.boundingRect().width() + 2 * bubbleBorder)
-        y += 2
-        self.head.setY(y)
-        y += self.head.boundingRect().height()
-        self.line.setPoints(0,0,w,0)
-        self.line.setX(x); self.line.setY(y)
-        y += 2
-        self.body.setY(y)
-        h = 2 * (2 + (self.body.text()<>None)) + self.head.boundingRect().height() \
-            + (self.body.text()<>None) * self.body.boundingRect().height()
-        self.setSize(w,h)
-        self.bubbleShadow.setSize(w,h)
-        
-    def show(self):
-        QCanvasRectangle.show(self)
-        self.bubbleShadow.show()
-        self.head.show()
-        if self.body.text():
-            self.line.show()
-            self.body.show()
-
-    def hide(self):
-        QCanvasRectangle.hide(self)
-        self.bubbleShadow.hide()
-        for item in self.items:
-            item.hide()
 
 ##################################################################################################
 # test script
