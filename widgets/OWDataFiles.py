@@ -31,7 +31,7 @@ class OWDataFiles(OWWidget):
     settingsList  = ["recentDirs", "selectedDirName", "applyOnChange"]
 
     def __init__(self, parent=None, signalManager = None, loaddata=1):
-        OWWidget.__init__(self, parent, signalManager, 'Data Files')
+        OWWidget.__init__(self, parent, signalManager, 'Data Files', wantMainArea = 0, resizingEnabled = 1)
 
         self.callbackDeposit = []
 
@@ -48,72 +48,59 @@ class OWDataFiles(OWWidget):
         self.applyOnChange = 0
         self.loadSettings()
 
-        # GUI
-        self.mainArea.setFixedWidth(0)
-        ca=QFrame(self.controlArea)
-        gl=QGridLayout(ca,4,1,5)
         # CONTROLS
-        box = QHGroupBox("Directory", ca)
-        gl.addWidget(box,0,0)
+        box = OWGUI.widgetBox(self.controlArea, "Directory", addSpace = True, orientation=0)
         self.dircombo=QComboBox(box)
+        box.layout().addWidget(self.dircombo)
         button = OWGUI.button(box, self, '...', callback = self.browseDirectory, disabled=0)
         button.setMaximumWidth(25)
         # connecting GUI to code
         self.connect(self.dircombo,SIGNAL('activated(int)'),self.selectDir)
 
         # info
-        box = QVGroupBox("Info", ca)
-        gl.addWidget(box,1,0)
-        self.infoa = QLabel('No data loaded.', box)
-        self.infob = QLabel('', box)
-        self.infoc = QLabel('', box)
+        box = OWGUI.widgetBox(self.controlArea, "Info", addSpace = True)
+        self.infoa = OWGUI.widgetLabel(box, 'No data loaded.')
+        self.infob = OWGUI.widgetLabel(box, '')
+        self.infoc = OWGUI.widgetLabel(box, '')
             
         # LIST VIEW
-        frmListView = QFrame(ca)
-        gl.addWidget(frmListView,2,0)
-        self.layout=QVBoxLayout(frmListView)
-        self.splitter = QSplitter(QSplitter.Vertical, frmListView)
-        self.layout.add(self.splitter)
-        self.tree = QListView(self.splitter)
-        self.tree.setAllColumnsShowFocus(1)
-        self.tree.addColumn('Directory/Data File')
-        self.tree.setColumnWidth(0, 379)
-        self.tree.setColumnWidthMode(0, QListView.Manual)
-        self.tree.setColumnAlignment(0, QListView.AlignLeft)
+        frmListView = OWGUI.widgetBox(self.controlArea, None, addSpace = True)
+        self.tree = QTreeWidget(frmListView)
+        self.tree.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.tree.setHeaderLabel("Directory/Data File")
+        frmListView.layout().addWidget(self.tree)
+        self.connect(self.tree,SIGNAL('itemSelectionChanged()'),self.selectionChanged)
 
         # Output
-        box = QVGroupBox("Output", ca)
-        gl.addWidget(box,3,0)
+        box = OWGUI.widgetBox(self.controlArea, "Output", addSpace = True)
         OWGUI.checkBox(box, self, 'applyOnChange', 'Commit data on selection change')
         self.commitBtn = OWGUI.button(box, self, "Commit", callback=self.sendData, disabled=1)
+        self.resize(300,600)
 
-        self.resize(425,425)
-            
         # initial settings            
         self.recentDirs=filter(os.path.exists,self.recentDirs)
         self.setDirlist()
-        self.dircombo.setCurrentItem(0)
-
+        self.dircombo.setCurrentIndex(0)
         if self.recentDirs!=[] and loaddata:
             self.loadData(self.recentDirs[0])
-
-##        self.commitBtn = OWGUI.button(box, self, "Test", callback=self.test)
             
     def setFileTree(self):
+        self.disconnect(self.tree,SIGNAL('itemSelectionChanged()'),self.selectionChanged)
         self.tree.clear()
         self.listitems = []
         for d in self.dataStructure:
             (dirname, files) = d
-            diritem = myCheckListItem(self.tree, dirname, QCheckListItem.CheckBox)
-            diritem.callback = self.selectionChanged
+            diritem = QTreeWidgetItem(self.tree, [dirname], QTreeWidgetItem.UserType)
+            diritem.setSelected(1)
             self.listitems.append(diritem)
-            diritem.setOpen(1)
+            diritem.setExpanded(1)
             diritem.name = dirname
             for f in files:
-                item = myCheckListItem(diritem, f.name, QCheckListItem.CheckBox)
-                item.callback = self.selectionChanged
+                item = QTreeWidgetItem(diritem, [f.name], QTreeWidgetItem.UserType)
+                item.setSelected(1)
                 self.listitems.append(item)
                 item.data = f
+        self.connect(self.tree,SIGNAL('itemSelectionChanged()'),self.selectionChanged)
                 
     def selectionChanged(self):
         if self.applyOnChange:
@@ -122,29 +109,24 @@ class OWDataFiles(OWWidget):
     # checks which data has been selected, builds a data structure, and sends it out
     def sendData(self):
         data = []
-        dir = self.tree.firstChild()
         # clear what has been previously sent
         for id in self.lastSentIds:
             self.send("Examples", None, id)
         self.lastSentIds = []
         # send new data
         id = 0
-        while dir:
-            if dir.isOn():
+        for tIdx in range(self.tree.topLevelItemCount()):
+            dir = self.tree.topLevelItem(tIdx)
+            if dir in self.tree.selectedItems():
                 files = []
-                f = dir.firstChild()
-                while f:
-                    if f.isOn():
+                for cIdx in range(dir.childCount()):
+                    f = dir.child(cIdx)
+                    if f in self.tree.selectedItems():
                         files.append(f.data)
                         self.send("Examples", f.data, id)
                         self.lastSentIds.append(id)
                         id += 1
-                    f = f.nextSibling()
-##                if len(files):
-##                    data.append((dir.name, files))
-                # it should also be possible to send out (dir.name, [])
                 data.append((dir.name, files))
-            dir = dir.nextSibling()
         self.send("Structured Data", data)
 
     # Loads the data from a root directory, sends the data to the output channels
@@ -253,58 +235,35 @@ class OWDataFiles(OWWidget):
     # displays a file dialog and selects a directory
     def browseDirectory(self):
         if len(self.recentDirs):
-            startdir=os.path.split(self.recentDirs[0][:-1])[0]
+            startdir=self.recentDirs[0]
         else:
             startdir ="."
-        dirname=str(QFileDialog.getExistingDirectory(startdir, None, '', 'Data Directory', 1))
+        dirname=str(QFileDialog.getExistingDirectory(self, 'Data Directory', startdir, QFileDialog.ShowDirsOnly))
         if len(dirname):
             self.loadData(str(dirname))
-##            self.addDirToList(dirname) # XXX do this only if loadData successfull
 
     def setDirlist(self):
         self.dircombo.clear()
         if len(self.recentDirs):
             for dir in self.recentDirs:
-                (upperdir,dirname)=os.path.split(dir[:-1]) #:-1 removes the trailing '\'
-                #leave out the path
-                self.dircombo.insertItem(dirname)
+                (upperdir,dirname)=os.path.split(dir)
+                # leave out the path
+                self.dircombo.insertItem(self.dircombo.count(), dirname)
         else:
-            self.dircombo.insertItem("(none)")
-
-##    def addDirToList(self, dir):
-##        # Add a directory to the start of the file list. 
-##        # If it exists, move it to the start of the list
-##        if dir in self.recentDirs:
-##            self.recentDirs.remove(dir)
-##        self.recentDirs.insert(0, str(dir))
-##        self.setDirlist()
-##        self.selectedDirName = dir
+            self.dircombo.insertItem(0,"(none)")
 
     # called when user makes a selection from the drop-down menu
     def selectDir(self, n):
         if self.recentDirs:
             self.loadData(self.recentDirs[n])
-##            self.addDirToList(self.recentDirs[n])
         else:
             self.loadData("(none)")
 
-
-class myCheckListItem(QCheckListItem):
-    def __init__(self, *args):
-        self.callback = None
-        QCheckListItem.__init__(self, *args)
-        self.setOn(1)
-
-    def stateChange(self, b):
-        if self.callback:
-            self.callback()
 
 
 if __name__=="__main__":
     a=QApplication(sys.argv)
     ow=OWDataFiles()
-    a.setMainWidget(ow)
-
     ow.show()
-    a.exec_loop()
+    a.exec_()
     ow.saveSettings()
