@@ -109,7 +109,12 @@ class OWHeatMap(OWWidget):
         # define the color stripe to show the current palette
         box = OWGUI.widgetBox(settingsTab, "Color", orientation = "horizontal")
         self.colorCombo = OWColorPalette.PaletteSelectorComboBox(self)
-        self.colorCombo.setPalettes("palette", self.createColorDialog())
+        try:
+            self.colorCombo.setPalettes("palette", self.createColorDialog())
+        except Exception, ex:
+            print >> sys.stderr, ex, "Error loading saved color palettes!\nCreating new default palette!"
+            self.colorSettings = None
+            self.colorCombo.setPalettes("palette", self.createColorDialog())
         self.colorCombo.setCurrentIndex(self.selectedSchemaIndex)
         self.connect(self.colorCombo, SIGNAL("activated(int)"), self.setColor)
         box.layout().addWidget(self.colorCombo, 2)
