@@ -16,14 +16,14 @@ class OWDataFilesSelector(OWWidget):
     settingsList  = ["applyOnChange"]
 
     def __init__(self, parent=None, signalManager = None):
-        OWWidget.__init__(self, parent, signalManager, 'Data Files Selector')
+        OWWidget.__init__(self, parent, signalManager, 'Data Files Selector', wantMainArea = 0, resizingEnabled = 1)
 
         self.callbackDeposit = []
 
         self.inputs = [("Structured Data", DataFiles, self.onDataInput)]
         self.outputs = [("Examples", ExampleTable), ("Structured Data", DataFiles)]
 
-        self.dataStructure = None;
+        self.dataStructure = None
         self.datasets = None
         self.lastSentIds = []
 
@@ -32,38 +32,71 @@ class OWDataFilesSelector(OWWidget):
         self.loadSettings()
 
         # GUI
-        self.mainArea.setFixedWidth(0)
-        ca=QFrame(self.controlArea)
-        gl=QGridLayout(ca,3,1,5)
-
         # info
-        box = QVGroupBox("Info", ca)
-        gl.addWidget(box,0,0)
-        self.infoa = QLabel('No data loaded.', box)
-        self.infob = QLabel('', box)
-        self.infoc = QLabel('', box)
+        box = OWGUI.widgetBox(self.controlArea, "Info", addSpace = True)
+        self.infoa = OWGUI.widgetLabel(box, 'No data loaded.')
+        self.infob = OWGUI.widgetLabel(box, '')
+        self.infoc = OWGUI.widgetLabel(box, '')
             
         # LIST VIEW
-        frmListView = QFrame(ca)
-        gl.addWidget(frmListView,1,0)
-        self.layout=QVBoxLayout(frmListView)
-        self.splitter = QSplitter(QSplitter.Vertical, frmListView)
-        self.layout.add(self.splitter)
-        self.tree = QListView(self.splitter)
-        self.tree.setAllColumnsShowFocus(1)
-        self.tree.addColumn('Directory/Data File')
-        self.tree.setColumnWidth(0, 379)
-        self.tree.setColumnWidthMode(0, QListView.Manual)
-        self.tree.setColumnAlignment(0, QListView.AlignLeft)
+        frmListView = OWGUI.widgetBox(self.controlArea, None, addSpace = True)
+        self.tree = QTreeWidget(frmListView)
+        self.tree.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.tree.setHeaderLabel("Directory/Data File")
+        frmListView.layout().addWidget(self.tree)
+        self.connect(self.tree,SIGNAL('itemSelectionChanged()'),self.selectionChanged)
 
         # Output
-        box = QVGroupBox("Output", ca)
-        gl.addWidget(box,2,0)
+        box = OWGUI.widgetBox(self.controlArea, "Output", addSpace = True)
         OWGUI.checkBox(box, self, 'applyOnChange', 'Commit data on selection change')
         self.commitBtn = OWGUI.button(box, self, "Commit", callback=self.sendData, disabled=1)
+        self.resize(300,600)
 
-        self.resize(425,425)
+    def setFileTree(self):
+        self.disconnect(self.tree,SIGNAL('itemSelectionChanged()'),self.selectionChanged)
+        self.tree.clear()
+        self.listitems = []
+        if self.dataStructure:
+            for d in self.dataStructure:
+                (dirname, files) = d
+                diritem = QTreeWidgetItem(self.tree, [dirname], QTreeWidgetItem.UserType)
+                diritem.setSelected(1)
+                self.listitems.append(diritem)
+                diritem.setExpanded(1)
+                diritem.name = dirname
+                for f in files:
+                    item = QTreeWidgetItem(diritem, [f.name], QTreeWidgetItem.UserType)
+                    item.setSelected(1)
+                    self.listitems.append(item)
+                    item.data = f
+        self.connect(self.tree,SIGNAL('itemSelectionChanged()'),self.selectionChanged)
 
+    def selectionChanged(self):
+        if self.applyOnChange and self.okToCommit:
+            self.sendData()
+
+    # checks which data has been selected, builds a data structure, and sends it out
+    def sendData(self):
+        data = []
+        # clear what has been previously sent
+        for id in self.lastSentIds:
+            self.send("Examples", None, id)
+        self.lastSentIds = []
+        # send new data
+        id = 0
+        for tIdx in range(self.tree.topLevelItemCount()):
+            dir = self.tree.topLevelItem(tIdx)
+            if dir in self.tree.selectedItems():
+                files = []
+                for cIdx in range(dir.childCount()):
+                    f = dir.child(cIdx)
+                    if f in self.tree.selectedItems():
+                        files.append(f.data)
+                        self.send("Examples", f.data, id)
+                        self.lastSentIds.append(id)
+                        id += 1
+                data.append((dir.name, files))
+        self.send("Structured Data", data)
 
     def onDataInput(self, dataStructure):
         self.dataStructure = dataStructure
@@ -135,72 +168,9 @@ class OWDataFilesSelector(OWWidget):
             self.sendData()
 
 
-    def setFileTree(self):
-        self.tree.clear()
-        self.listitems = []
-        if self.dataStructure:
-            for d in self.dataStructure:
-                (dirname, files) = d
-                diritem = myCheckListItem(self.tree, dirname, QCheckListItem.CheckBox)
-                diritem.callback = self.selectionChanged
-                self.listitems.append(diritem)
-                diritem.setOpen(1)
-                diritem.name = dirname
-                for f in files:
-                    item = myCheckListItem(diritem, f.name, QCheckListItem.CheckBox)
-                    item.callback = self.selectionChanged
-                    self.listitems.append(item)
-                    item.data = f
-
-    def selectionChanged(self):
-        if self.applyOnChange and self.okToCommit:
-            self.sendData()
-
-    # checks which data has been selected, builds a chip data structure, and sends it out
-    def sendData(self):
-        data = []
-        dir = self.tree.firstChild()
-        # clear what has been previously sent
-        for id in self.lastSentIds:
-            self.send("Examples", None, id)
-        self.lastSentIds = []
-        # send new data
-        id = 0
-        while dir:
-            if dir.isOn():
-                files = []
-                f = dir.firstChild()
-                while f:
-                    if f.isOn():
-                        files.append(f.data)
-                        self.send("Examples", f.data, id)
-                        self.lastSentIds.append(id)
-                        id += 1
-                    f = f.nextSibling()
-##                if len(files):
-##                    data.append((dir.name, files))
-                # it should also be possible to send out (dir.name, [])
-                data.append((dir.name, files))
-            dir = dir.nextSibling()
-        self.send("Structured Data", data)
-
-
-class myCheckListItem(QCheckListItem):
-    def __init__(self, *args):
-        self.callback = None
-        QCheckListItem.__init__(self, *args)
-        self.setOn(1)
-
-    def stateChange(self, b):
-        if self.callback:
-            self.callback()
-
-
 if __name__=="__main__":
     a=QApplication(sys.argv)
     ow=OWDataFilesSelector()
-    a.setMainWidget(ow)
-
     ow.show()
-    a.exec_loop()
+    a.exec_()
     ow.saveSettings()
