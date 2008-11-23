@@ -1,10 +1,10 @@
 """
 <name>Save Data Files</name>
 <description>Saves data to selected directory.</description>
-<contact>Tomaz Curk</contact>
 <category>Genomics</category>
 <icon>icons/DataFilesSave.png</icon>
 <priority>1055</priority>
+<contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
 from OWWidget import *
@@ -17,12 +17,11 @@ class OWDataFilesSave(OWWidget):
     settingsList  = ["recentDirs", "selectedDirName"]
 
     def __init__(self, parent=None, signalManager = None):
-        OWWidget.__init__(self, parent, signalManager, "Save Data Files")
+        OWWidget.__init__(self, parent, signalManager, "Save Data Files", wantMainArea = 0, resizingEnabled = 1)
 
         self.inputs = [("Structured Data", DataFiles, self.structuredData, Default)]
         self.outputs = []
-
-        self.dataStructure = None;
+        self.dataStructure = None
 
         # Settings
         self.recentDirs=[]
@@ -30,84 +29,95 @@ class OWDataFilesSave(OWWidget):
         self.loadSettings()
 
         # GUI
-        vb = OWGUI.widgetBox(self.space, orientation="horizontal")
-        
-        rfbox = OWGUI.widgetBox(vb, "Directory", orientation="horizontal")
+        rfbox = OWGUI.widgetBox(self.controlArea, "Directory", orientation="horizontal", addSpace = True)
         self.dircombo = QComboBox(rfbox)
-        browse = OWGUI.button(rfbox, self, '&Browse...', callback = self.browseDirectory, disabled=0)
-
-        fbox = OWGUI.widgetBox(vb, "Directory")
-        self.save = OWGUI.button(fbox, self, '&Save', callback = self.saveData, disabled=1)
+        rfbox.layout().addWidget(self.dircombo)
+        browse = OWGUI.button(rfbox, self, '&...', callback = self.browseDirectory, disabled=0)
+        browse.setMaximumWidth(25)
+        # info
+        box = OWGUI.widgetBox(self.controlArea, "Info", addSpace = True)
+        self.infoa = OWGUI.widgetLabel(box, 'No data on input.')
+        # Output
+        box = OWGUI.widgetBox(self.controlArea, "Output", addSpace = True)
+        self.save = OWGUI.button(box, self, '&Save', callback = self.saveData, disabled=1)
         self.adjustSize()
            
         # initial settings            
         self.recentDirs=filter(os.path.exists, self.recentDirs)
         self.setDirlist()
-        self.dircombo.setCurrentItem(0)
+        self.dircombo.setCurrentIndex(0)
+        self.resize(300,self.height())
 
     def structuredData(self, data):
         self.dataStructure = data
         self.save.setDisabled(self.dataStructure == None)
+        if self.dataStructure == None:
+            self.infoa.setText("No data on input.")
+        else:
+            self.infoa.setText("New data on input.")
             
-    # Saves data into root directory
     def saveData(self):
-        rootDir = self.recentDirs[self.dircombo.currentItem()]
+        # Saves data into root directory
+        rootDir = self.recentDirs[self.dircombo.currentIndex()]
         if rootDir == "(none)" or self.dataStructure == None:
+            self.infoa.setText("Select a directory first.")
             return
-
         # count number of files to save
         n = sum([sum([1 for d in ds]) for (sdn, ds) in self.dataStructure])	
         if n == 0:
+            self.infoa.setText("No files to save.")
             return
         pbStep = 100./n
         self.progressBarInit()
 
         for (subDirName, datasets) in self.dataStructure:
-            targetDir = rootDir + subDirName
+            targetDir = os.path.join(rootDir, subDirName)
             if not os.path.exists(targetDir):
                 try:
                     os.mkdir(targetDir)
                 except:
+                    self.infoa.setText("Could not create target directory: " + targetDir)
                     self.error("Could not create target directory: " + targetDir)
 
             for data in datasets:
-                fname = targetDir + '/' + data.name + '.tab'
+                fname = os.path.join(targetDir, data.name + '.tab')
                 orange.saveTabDelimited(fname, data)
                 self.progressBarAdvance(pbStep)
+        self.infoa.setText("Data saved to %s" % rootDir)
         self.progressBarFinished()
 
-    # displays a file dialog and selects a directory
     def browseDirectory(self):
+        # displays a file dialog and selects a directory
         if len(self.recentDirs):
-            startdir=os.path.split(self.recentDirs[0][:-1])[0]
+            startdir=self.recentDirs[0]
         else:
             startdir ="."
-        dirname=str(QFileDialog.getExistingDirectory(startdir, None, '', 'Select Directory to Save into', 1))
+        dirname=str(QFileDialog.getExistingDirectory(self, 'Select Directory to Save into', startdir, QFileDialog.ShowDirsOnly))
         if len(dirname):
             self.addDirToList(dirname)
-            self.saveData()
 
     def setDirlist(self):
         self.dircombo.clear()
         if len(self.recentDirs):
             for dir in self.recentDirs:
-                (upperdir,dirname)=os.path.split(dir[:-1]) #:-1 removes the trailing '\'
-                #leave out the path
-                self.dircombo.insertItem(dirname)
+                ### leave out the path
+                ##(upperdir,dirname)=os.path.split(dir)
+                self.dircombo.insertItem(self.dircombo.count(), dir)
         else:
-            self.dircombo.insertItem("(none)")
+            self.dircombo.insertItem(0, "(none)")
 
     def addDirToList(self, dir):
         # Add a directory to the start of the file list. 
         # If it exists, move it to the start of the list
+        dir = os.path.normpath(dir)
         if dir in self.recentDirs:
             self.recentDirs.remove(dir)
         self.recentDirs.insert(0, str(dir))
         self.setDirlist()
         self.selectedDirName = dir
 
-    # called when user makes a selection from the drop-down menu
     def selectDir(self, n):
+        # called when user makes a selection from the drop-down menu
         if self.recentDirs:
             self.loadData(self.recentDirs[n])
             self.addDirToList(self.recentDirs[n])
@@ -115,22 +125,9 @@ class OWDataFilesSave(OWWidget):
             self.loadData("(none)")
 
 
-class myCheckListItem(QCheckListItem):
-    def __init__(self, *args):
-        self.callback = None
-        QCheckListItem.__init__(self, *args)
-        self.setOn(1)
-
-    def stateChange(self, b):
-        if self.callback:
-            self.callback()
-
-
 if __name__=="__main__":
     a=QApplication(sys.argv)
     ow=OWDataFilesSave()
-    a.setMainWidget(ow)
-
     ow.show()
-    a.exec_loop()
+    a.exec_()
     ow.saveSettings()
