@@ -7,7 +7,9 @@ from urllib import urlretrieve
 from gzip import GzipFile
 import tarfile
 import shutil
+import sys, os
 from datetime import datetime
+from collections import defaultdict
 
 try:
     import orngServerFiles
@@ -116,6 +118,10 @@ class OBOObject(object):
                 return self.values[name]
         except KeyError:
             raise AttributeError(name)
+
+    def __iter__(self):
+        for typeId, id in self.related:
+            yield (typeId, self.ontology[id])
         
 class Term(OBOObject):
     pass
@@ -254,6 +260,9 @@ class Ontology(object):
     def __getitem__(self, name):
         return self.terms.__getitem__(name)
 
+    def __iter__(self):
+        return self.terms.itervalues()
+
     @staticmethod
     def DownloadOntology(file, progressCallback=None):
         tFile = tarfile.open(file, "w:gz") if type(file) == str else file
@@ -339,22 +348,27 @@ class Annotations(object):
         import orngServerFiles
         ## Check if given org is a matching code for GO organism
         files = [file for file in orngServerFiles.listfiles("GO") if file.startswith("gene_association") and org in file.split(".")[:2]]
+        name = org
         if not files:
+            print >> sys.stderr, "Annotation file not found on local drive\nSearching for annotations on server"
             serverFiles = orngServerFiles.ServerFiles()
             files = [file for file in serverFiles.listfiles("GO") if file.startswith("gene_association") and org in file.split(".")[:2]]
         if not files:
+            print >> sys.stderr, "Unable to find annotations for", org, "Matching name against NCBI Taxonomy"
             import obiTaxonomy as tax
             ids = tax.search(org)
             ids = set(ids).intersection(Taxonomy().tax.keys())
             codes = set(from_taxid(id) for id in ids)
             if len(codes) > 1:
-                raise tax.MultipleSpeciesException, ", ".join(codes)
+                raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (code, tax.name(id)) for code, id in zip(codes, ids)])
             elif len(codes) == 0:
                 raise tax.UnknownSpeciesIdentifier, org
+            name = tax.name(ids.pop())
             files = ["gene_association.%s.tar.gz" % codes.pop()]
 
         path = os.path.join(orngServerFiles.localpath("GO"), files[0])
         if not os.path.exists(path):
+            print >> sys.stderr, "Downloading annotations for", name
             orngServerFiles.download("GO", files[0])
             
         return cls(path, ontology=ontology, progressCallback=progressCallback)
@@ -448,8 +462,7 @@ class Annotations(object):
         annotationsDict = defaultdict(set)
         for ann in annotations:
             annotationsDict[ann.GO_ID].add(ann)
-##        allGenes = set(ann.geneName for ann in annotations)
-##        allRefGenes = set(ann.geneName for ann in refAnnotations)
+            
         terms = self.ontology.ExtractSuperGraph(annotationsDict.keys())
         res = {}
         milestones = set(range(0, len(terms), max(len(terms)/100, 1)))
@@ -458,13 +471,11 @@ class Annotations(object):
                 continue
             allAnnotations = self.GetAllAnnotations(term)
             allAnnotations.intersection_update(refAnnotations)
-            allAnnotatedGenes = set([ann.geneName for ann in allAnnotations]) #if ann.Aspect == aspect and ann.Evidence_code in evidenceCodes])
-##            mappedGenes = set(ann.geneName for ann in allAnnotations.intersection(annotations))
+            allAnnotatedGenes = set([ann.geneName for ann in allAnnotations])
             if len(genes) > len(allAnnotatedGenes): 
                 mappedGenes = genes.intersection(allAnnotatedGenes)
             else:
                 mappedGenes = allAnnotatedGenes.intersection(genes)
-##            mappedReferenceGenes = set(ann.geneName for ann in allAnnotations.intersection(refAnnotations))
             if len(reference) > len(allAnnotatedGenes):
                 mappedReferenceGenes = reference.intersection(allAnnotatedGenes)
             else:
@@ -491,6 +502,15 @@ class Annotations(object):
                 termAnnots.intersection_update(annotations)
                 dd[term].update([revGenesDict.get(ann.geneName, ann.geneName) for ann in termAnots])
         return dict(dd)
+
+    def __iter__(self):
+        return iter(self.annotations)
+
+    def __len__(self):
+        return len(self.annotations)
+
+    def __getitem__(self, index):
+        return self.annotations[index]
     
     @staticmethod
     def DownloadAnnotations(org, file, progressCallback=None):
@@ -517,6 +537,8 @@ class Annotations(object):
         os.remove(os.path.join(tmpDir, "gene_names.pickle"))
 
 class Taxonomy(object):
+    """Maps NCBI taxonomy ids to coresponding GO organism codes
+    """
     __shared_state = {"tax": None}
     def __init__(self):
         self.__dict__ = self.__shared_state
@@ -530,13 +552,13 @@ class Taxonomy(object):
                 self.tax = cPickle.load(open(path))
                 
     def __getitem__(self, key):
-        return self.tax[key]
+        return list(self.tax[key])
     
 def from_taxid(id):
-    return Taxonomy()[id]
+    return list(Taxonomy()[id]).pop()
 
 def to_taxid(db_code):
-    r = [key for key, val in Taxonomy().tax.items() if val == db_code]
+    r = [key for key, val in Taxonomy().tax.items() if db_code in val]
     return r.pop()
     
 
@@ -599,13 +621,23 @@ class Update(UpdateBase):
         self._update(Update.UpdateAnnotation, (org,), self.GetLastModified("http://www.geneontology.org/gene-associations/gene_association." + org + ".gz"))
         
     def UpdateTaxonomy(self, org):
-        try:
-            tax = cPickle.load(os.path.join(self.local_database_path, "taxonomy.pickle"))
-        except Exception:
-            tax = {}
-        allCodes = self.GetAvailableOrganisms()
-        if any(code not in tax for code in allCodes):
-            pass
+        exclude = ["goa_uniprot", "goa_pdb", "GeneDB_tsetse", "reactome", "goa_zebrafish", "goa_rat", "goa_mouse"]
+
+        orgs = self.GetAvailableOrganisms()
+        tax = defaultdict(set)
+
+        for org in orgs:
+            if org in exclude:
+                continue
+            try:
+                a = obiGO.Annotations(os.path.join(self.local_database_path, "gene_association." + org + ".tar.gz"))
+                taxons = set(ann.taxon for ann in a.annotations)
+                for taxId in [t.split(":")[-1] for t in taxons]:
+                    tax[taxId].add(org)
+            except Exception, ex:
+                print ex
+                
+        cPickle.dump(tax, open(os.path.join(path, "taxonomy.pickle"), "w"))
             
 
 def _test1():
