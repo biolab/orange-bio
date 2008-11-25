@@ -132,9 +132,8 @@ def collectionsPathname():
 
 
 def prettyfygo(god):
-    import go
-    go.loadGO()
-
+    ontology = obiGO.Ontology.Load()
+ 
     def translatens(a):
         if (a == "molecular_function"): return "MF"
         elif (a == "biological_process"): return "BP"
@@ -145,7 +144,7 @@ def prettyfygo(god):
 
     ndic = {}
     for a,b in god.items():
-        ndic["[GO " + translatens(go.loadedGO.termDict[a].namespace) + "] " + go.loadedGO.termDict[a].name] = b
+        ndic["[GO " + translatens(ontology.terms[a].namespace) + "] " + ontology.terms[a].name] = b
     return ndic
 
 
@@ -272,15 +271,6 @@ End genesets
 
 if __name__ == "__main__":
     #print keggGeneSets("sce").items()[:10]
-    import time
-    t = time.time()
-    #print goGeneSets("sgd").items()
-    for a,b in sorted(goGeneSets("sgd").items()):
-        pass
-    print time.time()-t
-    t = time.time()
-    #print goGeneSets("sgd").items()
-    for a,b in sorted(goGeneSets("sgd").items()):
-        pass
-    print time.time()-t
+    col = collections([":go:sce"])
+    print col.items()[:10]
     
