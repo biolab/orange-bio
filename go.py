@@ -287,10 +287,10 @@ def loadAnnotation(organism="sgd", forceReload=False, progressCallback=None):
     global loadedAnnotation
     if loadedAnnotation and loadedAnnotation.__file__.endswith(organism) and not forceReload:
         return
-##    try:
-    loadedAnnotation=loadAnnotationFrom(os.path.join(data_dir,"gene_association."+organism+".tar.gz"), progressCallback)#+".PyAnnotationDB")
-##    except Exception:
-##        loadedAnnotation=loadAnnotationFrom(os.path.join(data_dir, "UpdateAnnotation_('"+organism+"',).tar.gz"), progressCallback)#+".PyAnnotationDB")
+    try:
+        loadedAnnotation=loadAnnotationFrom(os.path.join(data_dir, "gene_association."+organism+".tar.gz"), progressCallback)#+".PyAnnotationDB")
+    except Exception:
+        loadedAnnotation=loadAnnotationFrom(os.path.join(data_dir, "gene_association."+organism+".tar.gz", "gene_association"), progressCallback)#+".PyAnnotationDB")
     global geneMapper
     geneMapper=loadedAnnotation.aliasMapper
 
@@ -302,7 +302,7 @@ def loadGO(forceReload=False, progressCallback=None):
     try:
         loadedGO=loadOntologyFrom(os.path.join(data_dir,"gene_ontology_edit.obo.tar.gz"), progressCallback)#.PyOntologyDB")
     except Exception:
-        loadedGO=loadOntologyFrom(os.path.join(data_dir,"UpdateOntology.tar.gz"), progressCallback)#.PyOntologyDB")
+        loadedGO=loadOntologyFrom(os.path.join(data_dir,"gene_ontology_edit.obo.tar.gz", "gene_ontology_edit.obo"), progressCallback)#.PyOntologyDB")
     global termMapper
     termMapper=loadedGO.aliasMapper
     
