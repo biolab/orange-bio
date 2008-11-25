@@ -261,7 +261,10 @@ class Ontology(object):
         return self.terms.__getitem__(name)
 
     def __iter__(self):
-        return self.terms.itervalues()
+        return iter(self.terms)
+
+    def __len__(self):
+        return len(self.terms)
 
     @staticmethod
     def DownloadOntology(file, progressCallback=None):
