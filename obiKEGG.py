@@ -13,6 +13,7 @@ import os, sys, tarfile
 import re
 
 import obiData
+import obiProb
 
 from cPickle import load, loads, dump
 from collections import defaultdict
@@ -26,17 +27,6 @@ except:
 base_ftp_path = "ftp://ftp.genome.jp/pub/kegg/"
 
 forceUpdate = False
-
-import htmllib
-class HTMLImageCollector(htmllib.HTMLParser):
-    def __init__(self):
-        self.images = []
-    def handle_image(self, source, *args):
-        self.images.append(source)
-
-def _image_from_file(f):
-    imgstr = f.read()
-    return Image.open(cStringIO.StringIO(imgstr))
     
 class KEGGInterface(object):
     def __init__(self):
@@ -92,6 +82,13 @@ class KEGGInterface(object):
         return self.serv.get_enzymes_by_gene(gene_id)
 
     def get_colored_pathway_image(self, pathway_id, objects):
+        import htmllib
+        class HTMLImageCollector(htmllib.HTMLParser):
+            def __init__(self):
+                self.images = []
+            def handle_image(self, source, *args):
+                self.images.append(source)
+
         obj_list = [ob[0] for ob in objects]
         fg_color = ["blue"]*len(objects)
         bg_color = [ob[1] for ob in objects]
@@ -192,9 +189,6 @@ class DBEnzymeEntry(DBEntry):
     cache = ["genes", "pathways", "name"]
     def get_genes(self):
         d = dict(self.get_subsections("GENES"))
-##        if org:
-##            return [org.lower()+":"+g.split("(")[0] for g in d.get(org.upper(), [])]
-##        else:
         return _collect(d.items(), lambda (org,genes):[org.lower()+":"+g.split("(")[0] for g in genes])
     def get_pathways(self):
         d = self.get_by_lines("PATHWAY")
@@ -240,13 +234,16 @@ class DBGeneEntry(DBEntry):
         return ["path:"+line.split()[1] for line in lines if len(line.split())>=2]
 
 class DBOrganismEntry(DBEntry):
-    cache = ["name", "annotation_type"]
+    cache = ["name", "annotation_type", "taxid"]
     def get_name(self):
         e = self.get_by_list("ENTRY")
         return e and e[0].strip() or "unknown"
     
     def get_annotation_type(self):
         return self.get_string("ANNOTATION")
+
+    def get_taxid(self):
+        return self.get_by_lines("TAXONOMY")[0].split(":")[-1].strip()
 
 class DBEntryWrapper(object):
     def __init__(self, wrapped):
@@ -257,17 +254,6 @@ class DBEntryWrapper(object):
             return lambda :self.__dict__[name[4:]]
         else:
             raise AttributeError(name)
-
-class Names(object):
-    def __init__(self, caseSensitive=False):
-        self._real = {}
-        self._upper = {}
-
-    def __getitem__(self, name):
-        if name in self._real:
-            return self._real[name]
-        elif name.upper() in self._upper:
-            return self._upper[name]
 
 class GenesDatabaseProxy(defaultdict):
     def __init__(self, interface, *args, **argskw):
@@ -281,16 +267,6 @@ class KEGGInterfaceLocal(object):
     _instanceCache = {}
     def __init__(self, update=False, local_database_path=None, download_progress_callback=None):
         self.local_database_path = local_database_path or default_database_path
-##        tarfiles = [name for name in os.listdir(self.local_database_path) if name.endswith(".tar.gz") and os.path.isfile(os.path.join(self.local_database_path, name))]
-##        tardirs = [name for name in os.listdir(self.local_database_path) if name.endswith(".tar.gz") and os.path.isdir(os.path.join(self.local_database_path, name))]
-##        self.openTarFiles = {}
-##        self.cachedExtractedFiles = {}
-##        self.inTarfileDict = dict([(os.path.normpath(name), filename) for filename in tarfiles for name in tarfile.open(os.path.join(self.local_database_path, filename)).getnames()])
-##        self.inTardirDict = {}
-##        for dir in tardirs:
-##             ls = list(os.walk(os.path.join(self.local_database_path, dir)))
-##             for path, dirs, files in ls:
-##                 self.inTardirDict.update(dict([(os.path.normpath(os.path.join(path, file).replace(dir, "", 1)), os.path.normpath(os.path.join(path, file))) for file in files]))
         self._build_index()
         self.update = update
         self.download_progress_callback = download_progress_callback
@@ -731,32 +707,6 @@ class KEGGInterfaceLocal(object):
             elif l.startswith("C"):
                 r[-1].children[-1].children.append(KOClass(l))
         return r
-        
-class p_value(object):
-    def __init__(self, max=1000):
-        self.max = max
-        self.lookup = [0]*(max+1)
-        for i in xrange(2, max+1):
-            self.lookup[i] = self.lookup[i-1] + math.log(i)
-            
-    def logbin(self, n ,r):
-        return self.lookup[n] - self.lookup[n-r] - self.lookup[r]
-    
-    def binomial(self, n, r, p):
-        if p==0.0:
-            if r==0:
-                return 0.0
-            else:
-                return 1.0
-        elif p==1.0:
-            if n==r:
-                return 0.0
-            else:
-                return 1.0
-        return math.exp(self.logbin(n, r) + r*math.log(p) + (n + r)*math.log(1.0-p))
-    
-    def __call__(self, p, mapped, all):
-        return reduce(lambda sum, i: sum+self.binomial(all, i, p), range(mapped, all+1), 0.0)
     
 class KEGGOrganism(object):
     def __init__(self, org, update=False, local_database_path=None):
@@ -767,6 +717,21 @@ class KEGGOrganism(object):
             self.api = KEGGInterfaceLocal._instanceCache[self.local_database_path]
         else:
             self.api = KEGGInterfaceLocal(update, self.local_database_path)
+        if org not in self.api._taxonomy:
+            names = [key for key, name in self.api._taxonomy.items() if org.lower() in name[-1].lower()]
+            if not names:
+                print >> sys.stderr, "Could not find", org, "in KEGG database\nSearching in NCBI taxonomy"
+                import obiTaxonomy as tax
+                res = tax.search(org)
+                res = set(res).intersection([entry.get_taxid() for entry in self.api._genome.values()])
+                if len(res) == 0:
+                    raise tax.UnknownSpeciesIdentifier, org
+                elif len(res) > 1:
+                    raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (from_taxid(id), tax.name(id)) for id in res])
+                print >> sys.stderr, "Found", tax.name(list(res)[0])
+                self.org = from_taxid(res.pop())
+            else:
+                self.org = names[0]
 
     def list_pathways(self):
         """Return a list of all organism specific pathways."""
@@ -796,7 +761,7 @@ class KEGGOrganism(object):
         """Return a list of all organism specific pathways that contain all the genes."""
         return self.api.get_pathways_by_genes(genes)
 
-    def get_enriched_pathways_by_genes(self, genes, reference=None, callback=None):
+    def get_enriched_pathways_by_genes(self, genes, reference=None, prob=obiProb.Binomial(), callback=None):
         """Return a dictionary with enriched pathways ids as keys and (list_of_genes, p_value, num_of_reference_genes) tuples as items."""
         allPathways = defaultdict(lambda :[[], 1.0, []])
         tmp_callback = self.api.download_progress_callback
@@ -814,11 +779,11 @@ class KEGGOrganism(object):
             tmp_callback = self.api.download_progress_callback
             self.api.download_progress_callback = None
         self.api.download_progress_callback = tmp_callback
-        _p = p_value(len(genes))
         reference = set(reference)
         for p_id, entry in allPathways.items():
             entry[2].extend(reference.intersection(self.api.get_genes_by_pathway(p_id)))
-            entry[1] = _p(float(len(entry[2]))/len(reference), len(entry[0]), len(genes))
+##            entry[1] = _p(float(len(entry[2]))/len(reference), len(entry[0]), len(genes))
+            entry[1] = prob.p_value(len(entry[0]), len(reference), len(entry[2]), len(genes))
         return dict([(pid, (genes, p, len(ref))) for pid, (genes, p, ref) in allPathways.items()])
 
     def get_pathways_by_enzymes(self, enzymes):
@@ -892,7 +857,18 @@ class KEGGPathway(object):
         """Return all compounds on the pathway."""
         return self.api.get_compounds_by_pathway(self.pathway_id)
 
-    
+def from_taxid(taxid):
+    api = KEGGInterfaceLocal()
+    org = [key for key, entry in api._genome.items() if entry.get_taxid() == taxid]
+    if not org:
+        raise ValueError, taxid
+    else:
+        return org[0]
+
+def to_taxid(org):
+    api = KEGGInterfaceLocal()
+    return api._genome[org].get_taxid()
+
 class KOClass(object):
     def __init__(self, text=None):
         self.children = []
@@ -1003,7 +979,6 @@ class Update(UpdateBase):
 
 
 import cStringIO
-import obiProb
 
 class Orthology(object):
     pass
