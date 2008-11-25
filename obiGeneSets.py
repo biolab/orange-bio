@@ -6,53 +6,12 @@ Maintainer: Marko Toplak
 
 import obiKEGG, obiGeneMatch, orange
 import os
-import go
+import obiGO
 
 def nth(l,n):
     return [ a[n] for a in l]
 
 collectionsPath = None
-
-def allparentsi(goid, parentsd):
-    parents = go.loadedGO.termDict[goid].parents
-    parentsr =  parents + reduce(lambda x,y: x+y, [ allparents(pid, parentsd) for pid in parents ], [])
-    return parentsr
-
-def allparents(goid, parentsd=None):
-    if parentsd != None and goid in parentsd:
-        return parentsd[goid]
-    else:
-        parentsr = list(set(allparentsi(goid, parentsd)))
-        if parentsd != None:
-            parentsd[goid] = parentsr
-        return parentsr
-
-parentsd = {}
-
-def _geneToTerms(goorg):
-    go.loadGO()
-    go.loadAnnotation(goorg)
-
-    gt = {}
-    for gene,data in go.loadedAnnotation.geneAnnotations.items():
-        for ant in data:
-            els = gt.get(gene,set())
-            els.add(ant.GOId)
-            gt[gene] = els
-
-    directAnnotationOnly = False
-    if not directAnnotationOnly:
-        for gene, data in gt.items():
-            addp = set()
-            for el in data:
-                addp.update(set(allparents(el, parentsd)))
-            data.update(addp)
-            gt[gene] = data
-
-    for gene, data in gt.items():
-        gt[gene] = sorted(data)    
- 
-    return gt
 
 def goGeneSets(goorg):
     """
@@ -60,19 +19,20 @@ def goGeneSets(goorg):
     of the organism provided.
     Returns a ditionary  of (GOid, genes)
     """
-    go.loadGO()
 
-    gt = _geneToTerms(goorg)
+    #gt = _geneToTerms(goorg)
 
-    td = go.loadedGO.termDict
+    ontology = obiGO.Ontology.Load()
+    annotations = obiGO.Annotations.Load(goorg, ontology=ontology)
+
+    terms = ontology.terms.keys()
 
     map = {} #map from set id to to it's genes
 
-    for gene,sets in gt.items():
-        for s in sets:
-            cs = map.get(s, set())
-            cs.add(gene)
-            map[s] = cs
+    for term in terms:
+        genes = annotations.GetAllGenes(term)
+        if len(genes):
+            map[term] = genes
 
     nmap = {}
     for a,b in map.items():
@@ -311,7 +271,16 @@ End genesets
 
 
 if __name__ == "__main__":
-    print keggGeneSets("sce").items()[:10]
-    print goGeneSets("sgd").items()[:10]
-
-
+    #print keggGeneSets("sce").items()[:10]
+    import time
+    t = time.time()
+    #print goGeneSets("sgd").items()
+    for a,b in sorted(goGeneSets("sgd").items()):
+        pass
+    print time.time()-t
+    t = time.time()
+    #print goGeneSets("sgd").items()
+    for a,b in sorted(goGeneSets("sgd").items()):
+        pass
+    print time.time()-t
+    
