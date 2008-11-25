@@ -214,7 +214,7 @@ def name(taxid):
     return Taxonomy()[taxid]
 
 def other_names(taxid):
-    return  Taxonomy.other_names(taxid)
+    return  Taxonomy().other_names(taxid)
 
 def search(string, onlySpecies=True):
     return Taxonomy().search(string, onlySpecies)
