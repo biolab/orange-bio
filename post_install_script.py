@@ -13,8 +13,11 @@ if len(sys.argv) <= 1 or len(sys.argv) > 1 and "remove" not in sys.argv[1]:
         w.show()
         w.exec_()
     except Exception, detail:
-##        print "Error: ", Exception, detail
-##        print "Widget OWUpdateGenomicsDatabases failed to run. Databases needed by Orange Genomics add-on can be downloaded and updated only in this widget."
-        # need to add support for update from text terminal
-        import orngServerFiles
-        orngServerFiles.consoleupdate()
+        ## on windows this is automaticaly run from the distutils installer
+        if sys.platform == "win32":
+            os.system("start " + sys.prefix+"""\\python.exe -c "import orngServerFiles; orngServerFiles.consoleupdate()" """)
+        else:
+            import orngServerFiles
+            orngServerFiles.consoleupdate()
+            
+        
