@@ -50,7 +50,7 @@ class TextDB(object):
         self.__dict__.update(kwargs)
         
         if file != None:
-            self._text = open(file).read()
+            self._text = open(file).read().replace("\r\n", "\n")
 
     def _find_all(self, string, start=0, text=None, unique=True):
         text = text if text != None else self._text_lower
