@@ -8,11 +8,11 @@ CCOMPILER = gcc
 LINKER = g++
 
 ifeq ($(OS), Darwin)
-  COMPILEOPTIONS = -arch i386 -arch ppc -fPIC -fpermissive -fno-common -w -O3 -I$(PYTHONINCLUDE)
-  LINKOPTIONS = -arch i386 -arch ppc -dynamiclib -headerpad_max_install_names -undefined dynamic_lookup -lstdc++
+  COMPILEOPTIONS = -fPIC -fpermissive -fno-common -w -O3 -I$(PYTHONINCLUDE)
+  LINKOPTIONS = -dynamiclib -headerpad_max_install_names -undefined dynamic_lookup -lstdc++ $(LDFLAGS)
 else
   COMPILEOPTIONS = -fPIC -fpermissive -w -O3 -I$(PYTHONINCLUDE)
-  LINKOPTIONS = -shared -lstdc++
+  LINKOPTIONS = -shared -lstdc++ $(LDFLAGS)
 endif
 
 all: modules
@@ -23,16 +23,16 @@ Makefile.depends: ../setup.py
 include Makefile.depends
 
 %.o: %.cxx
-	$(COMPILER) $(COMPILEOPTIONS) $(COMPILEOPTIONSMODULES) -c $< -o $@
+	$(COMPILER) $(COMPILEOPTIONS) $(CXXFLAGS) $(COMPILEOPTIONSMODULES) -c $< -o $@
 
 %.cxx: %.i
 	swig -python $<
 
 %.o: %.cpp
-	$(COMPILER) $(COMPILEOPTIONS) $(COMPILEOPTIONSMODULES) -c $< -o $@
+	$(COMPILER) $(COMPILEOPTIONS) $(CXXFLAGS) $(COMPILEOPTIONSMODULES) -c $< -o $@
 
 %.o: %.c
-	$(CCOMPILER) $(COMPILEOPTIONS) $(COMPILEOPTIONSMODULES) -c $< -o $@
+	$(CCOMPILER) $(COMPILEOPTIONS) $(CFLAGS) $(COMPILEOPTIONSMODULES) -c $< -o $@
 
 clean:
 	rm -f *.o ../*.so
