@@ -533,7 +533,7 @@ class Annotations(object):
 ##        tFile = tarfile.open(os.path.join(tmpDir, "gene_association." + org + ".tar.gz"), "w:gz")
         tFile.add(os.path.join(tmpDir, "gene_association." + org), "gene_association")
         annotation = Annotations(os.path.join(tmpDir, "gene_association." + org), progressCallback=progressCallback)
-        cPickle.dump(annotation.geneNames, open(os.path.join(tmpDir, "gene_names.pickle"), "w"))
+        cPickle.dump(annotation.geneNames, open(os.path.join(tmpDir, "gene_names.pickle"), "wb"))
         tFile.add(os.path.join(tmpDir, "gene_names.pickle"), "gene_names.pickle")
         tFile.close()
         os.remove(os.path.join(tmpDir, "gene_association." + org))
@@ -549,10 +549,10 @@ class Taxonomy(object):
             import orngServerFiles
             path = orngServerFiles.localpath("GO", "taxonomy.pickle")
             if os.path.isfile(path):
-                self.tax = cPickle.load(open(path))
+                self.tax = cPickle.load(open(path, "rb"))
             else:
                 orngServerFiles.download("GO", "taxonomy.pickle")
-                self.tax = cPickle.load(open(path))
+                self.tax = cPickle.load(open(path, "rb"))
                 
     def __getitem__(self, key):
         return list(self.tax[key])
@@ -640,7 +640,7 @@ class Update(UpdateBase):
             except Exception, ex:
                 print ex
                 
-        cPickle.dump(tax, open(os.path.join(path, "taxonomy.pickle"), "w"))
+        cPickle.dump(dict(tax), open(os.path.join(path, "taxonomy.pickle"), "wb"))
             
 
 def _test1():
