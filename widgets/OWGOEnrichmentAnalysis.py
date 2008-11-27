@@ -6,21 +6,21 @@
 <priority>103</priority>
 """
 
-##import go
 import obiGO
 import obiKEGG
 import sys, os, tarfile
 import OWGUI
+import orngServerFiles
 
 from os.path import join as p_join
 from OWWidget import *
 from collections import defaultdict
 from obiGeneMatch import GeneMatchMk2
+from functools import partial
 
-dataDir = os.path.join(orngEnviron.bufferDir, "bigfiles", "go/")
-##go.setDataDir(dataDir)
+dataDir = orngServerFiles.localpath("GO")
 
-def listDownloded():
+def listDownloaded():
     import orngServerFiles
     files = orngServerFiles.listfiles("GO")
     ret = {}
@@ -40,6 +40,23 @@ class TreeNode(object):
     def __init__(self, tuple, children):
         self.tuple = tuple
         self.children = children
+
+class GOTreeWidget(QTreeWidget):
+    def contextMenuEvent(self, event):
+        QTreeWidget.contextMenuEvent(self, event)
+        print event.x(), event.y()
+        term = self.itemAt(event.pos()).term
+        self._currMenu = QMenu()
+        self._currAction = self._currMenu.addAction("View term on AmiGO website")
+##        self.connect(self, SIGNAL("triggered(QAction*)"), partial(self.BrowserAction, term))
+        self.connect(self._currAction, SIGNAL("triggered()"), lambda :self.BrowserAction(term))
+        self._currMenu.popup(event.globalPos())
+
+    def BrowserAction(self, term):
+        import webbrowser
+        webbrowser.open("http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term="+term)
+
+        
     
 class OWGOEnrichmentAnalysis(OWWidget):
     settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex",
@@ -74,7 +91,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##            self.settingsList.append( varName)
             code = compile("self.%s = True" % (varName), ".", "single")
             exec(code)
-        self.annotationFiles = listDownloded()
+        self.annotationFiles = listDownloaded()
         self.annotationCodes = self.annotationFiles.keys()
         if not self.annotationCodes:
             self.error(0, "No downloaded annotations!!\nClick the update button and update annotationa for at least one organism!")
@@ -135,7 +152,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.mainArea.layout().addWidget(self.splitter)
 
         # list view
-        self.listView = QTreeWidget(self.splitter)
+        self.listView = GOTreeWidget(self.splitter)
         self.listView.setSelectionMode(QAbstractItemView.MultiSelection)
         self.listView.setAllColumnsShowFocus(1)
         self.listView.setColumnCount(len(self.DAGcolumns))
@@ -274,10 +291,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
             currCode = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
 ##            filename = p_join(dataDir, getOrgFileName(currCode))
             filename = p_join(dataDir, self.annotationFiles[currCode])
-            f = tarfile.open(filename)
-            info = [info for info in f.getmembers() if info.name.startswith("gene_names")].pop()
-##            print info.name
-            geneNames = cPickle.loads(f.extractfile(info).read().replace("\r\n", "\n"))
+            try:
+                f = tarfile.open(filename)
+                info = [info for info in f.getmembers() if info.name.startswith("gene_names")].pop()
+    ##            print info.name
+                geneNames = cPickle.loads(f.extractfile(info).read().replace("\r\n", "\n"))
+            except Exception, ex:
+                geneNames = cPickle.loads(open(p_join(filename, "gene_names.pickle")).read().replace("\r\n", "\n"))
             organismGenes = {currCode: set(geneNames)}
         candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
         candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, candidateGeneAttrs)
@@ -566,6 +586,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 displayNode.setText(3, "%.4f" % self.graph[term][1])
                 displayNode.setText(4, ", ".join(self.graph[term][0]))
                 displayNode.setText(5, "%.4f" % (enrichment(self.graph[term])/maxFoldEnrichment)) #(float(len(self.graph[term][0]))/self.graph[term][2]))
+                displayNode.setToolTip(0, "<p>" + self.ontology[term].__repr__().strip().replace("\n", "<br>") + "</p>")
                 displayNode.term=term
                 self.listViewItems.append(displayNode)
                 if term in self.termListViewItemDict:
@@ -680,7 +701,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     unselectedExamples.append(ex)
             self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
             self.send("Unselected Examples", unselectedExamples and orange.ExampleTable(unselectedExamples) or None)
-            
+
 
 class EnrichmentColumnItemDelegate(QItemDelegate):
     def paint(self, painter, option, index):
