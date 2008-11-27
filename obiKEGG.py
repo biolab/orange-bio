@@ -20,9 +20,14 @@ from collections import defaultdict
 
 try:
     import orngServerFiles
-    default_database_path = os.path.join(orngServerFiles.localpath(), "kegg//")
+    default_database_path = orngServerFiles.localpath("KEGG")
 except:
     default_database_path = os.path.join((os.path.split(__file__)[0] or "."), "data//kegg//")
+    
+try:
+    os.mkdir(default_database_path)
+except:
+    pass
 
 base_ftp_path = "ftp://ftp.genome.jp/pub/kegg/"
 
