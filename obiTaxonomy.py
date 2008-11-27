@@ -50,7 +50,7 @@ class TextDB(object):
         self.__dict__.update(kwargs)
         
         if file != None:
-            self._text = open(file).read().replace("\r\n", "\n")
+            self._text = open(file, "rb").read()
 
     def _find_all(self, string, start=0, text=None, unique=True):
         text = text if text != None else self._text_lower
@@ -106,7 +106,7 @@ class TextDB(object):
         self.insert([id] + list(entry))
 
     def create(self, filename):
-        f = open(filename, "w")
+        f = open(filename, "wb")
         f.write(self._text)
         def write(entry):
             f.write(self.entry_start_string + self.entry_separator_string.join(entry) + self.entry_end_string)
@@ -139,7 +139,7 @@ class Taxonomy(object):
     def search(self, string, onlySpecies=True):
         res = self._text.search(string)
         if onlySpecies:
-            res = [r for r in res if self._text[r][1] == "species"]
+            res = [r for r in res if "species" in self._text[r][1]]
         return res
 
     def __iter__(self):
