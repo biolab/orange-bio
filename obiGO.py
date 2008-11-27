@@ -361,13 +361,14 @@ class Annotations(object):
             import obiTaxonomy as tax
             ids = tax.search(org)
             ids = set(ids).intersection(Taxonomy().tax.keys())
-            codes = set(from_taxid(id) for id in ids)
+            codes = reduce(set.union, [from_taxid(id) for id in ids], set())
             if len(codes) > 1:
-                raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (code, tax.name(id)) for code, id in zip(codes, ids)])
+                raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (str(from_taxid(id)), tax.name(id)) for id in ids])
             elif len(codes) == 0:
                 raise tax.UnknownSpeciesIdentifier, org
-            name = tax.name(ids.pop())
-            files = ["gene_association.%s.tar.gz" % codes.pop()]
+	    name, code = tax.name(ids.pop()), codes.pop()
+	    print >> sys.stderr, "Found annotations for", name, "(%s)" % code
+            files = ["gene_association.%s.tar.gz" % code]
 
         path = os.path.join(orngServerFiles.localpath("GO"), files[0])
         if not os.path.exists(path):
@@ -558,11 +559,11 @@ class Taxonomy(object):
         return list(self.tax[key])
     
 def from_taxid(id):
-    return list(Taxonomy()[id]).pop()
+    return set(Taxonomy()[id])
 
 def to_taxid(db_code):
     r = [key for key, val in Taxonomy().tax.items() if db_code in val]
-    return r.pop()
+    return set(r)
     
 
 class __progressCallbackWrapper:
@@ -635,7 +636,7 @@ class Update(UpdateBase):
             try:
                 a = obiGO.Annotations(os.path.join(self.local_database_path, "gene_association." + org + ".tar.gz"))
                 taxons = set(ann.taxon for ann in a.annotations)
-                for taxId in [t.split(":")[-1] for t in taxons]:
+                for taxId in [t.split(":")[-1] for t in taxons if "|" not in t]: ## exclude taxons with cardinality 2
                     tax[taxId].add(org)
             except Exception, ex:
                 print ex
