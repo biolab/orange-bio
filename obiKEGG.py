@@ -365,16 +365,16 @@ class KEGGInterfaceLocal(object):
     def _load_pickled(self, filename=None, name=None, from_=None):
         if not filename and name:
 ##            return load(open(self.local_database_path+self._filenames[name]))
-            return loads(self._retrieve(self._filenames[name], from_).read().replace("\r\n", "\n"))
+            return loads(self._retrieve(self._filenames[name], from_, mode="rb").read().replace("\r\n", "\n"))
         else:
 ##            return load(open(self.local_database_path+filename))
-            return loads(self._retrieve(filename, from_).read().replace("\r\n", "\n"))
+            return loads(self._retrieve(filename, from_, mode="rb").read().replace("\r\n", "\n"))
 
     def _dump_pickled(self, object, filename=None, name=None):
         if not  filename and name:
-            dump(object, open(self.local_database_path+self._filenames[name], "w"))
+            dump(object, open(self.local_database_path+self._filenames[name], "wb"))
         else:
-            dump(object, open(self.local_database_path+filename, "w"))
+            dump(object, open(self.local_database_path+filename, "wb"))
     
     def _load_enzyme_database(self, from_=None):
         try:
@@ -453,7 +453,7 @@ class KEGGInterfaceLocal(object):
             except Exception:
                 pass
         
-    def _retrieve(self, filename, from_=None, mode="r"):
+    def _retrieve(self, filename, from_=None, mode="rb"):
         if forceUpdate == True or self.update == "Force update":
             self.downloader.retrieve(filename, update=self.update, progressCallback=self.download_progress_callback)
         if from_ and not os.path.exists(os.path.join(self.local_database_path, from_)):
