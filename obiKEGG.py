@@ -434,7 +434,7 @@ class KEGGInterfaceLocal(object):
                     
         if freshLoad:
             try:
-                dump(set(self._gene_alias[org].keys() + self._genes[org].keys()), open(self.local_database_path+org+"_genenames.pickle","w"))
+                dump(set(self._gene_alias[org].keys() + self._genes[org].keys()), open(self.local_database_path+org+"_genenames.pickle", "wb"))
             except Exception:
                 pass
         return self._genes[org]
