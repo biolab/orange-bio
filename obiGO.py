@@ -61,7 +61,11 @@ domain: OBO:TERM
 definition: Indicates that a term is the intersection of several others [OBO:defs]"""]
 
 class OBOObject(object):
-    def __init__(self, ontology=None, stanza=None):
+    """ Represents a generic OBO object (e.g. Term, Typedef, Instance, ...)
+    Example:
+    >>> OBOObject(r"[Term]\nid: FOO:001\nname: bar", ontology)
+    """
+    def __init__(self, stanza=None, ontology=None):
         self.ontology = ontology
         self._lines = []
         self.values = {}
@@ -92,11 +96,16 @@ class OBOObject(object):
         self.related = set(self.GetRelatedObjects())
 
     def GetRelatedObjects(self):
-        result = [(typeId, id) for typeId in ["is_a"] for id in self.values.get(typeId, [])] ##TODO add other builtin Typedef ids
+        """ Return a list of tuple pairs where the first element is relationship
+        typeId and the second id of object to whom the relationship applys to.
+        """
+        result = [(typeId, id) for typeId in ["is_a"] for id in self.values.get(typeId, [])] ##TODO add other defined Typedef ids
         result = result + [tuple(r.split(None, 1)) for r in self.values.get("relationship", [])]
         return result
 
     def __repr__(self):
+        """ Return a string representation of the object in OBO format
+        """
         repr = "[%s]\n" % type(self).__name__
         for tag, value, modifiers, comment in self._lines:
             repr = repr + tag + ": " + value
@@ -108,18 +117,24 @@ class OBOObject(object):
         return repr
 
     def __str__(self):
+        """ Return the OBO object id entry
+        """
         return self.id
 
-    def __getattr__(self, name):
+    def __getattr__(self, tag):
+        """ Return value for the tag
+        """
         try:
-            if name == "def_":
+            if tag == "def_":
                 return self.values["def"]
             else:
-                return self.values[name]
+                return self.values[tag]
         except KeyError:
-            raise AttributeError(name)
+            raise AttributeError(tag)
 
     def __iter__(self):
+        """ Iterates over related objects
+        """
         for typeId, id in self.related:
             yield (typeId, self.ontology[id])
         
@@ -135,18 +150,21 @@ class Instance(OBOObject):
 class Ontology(object):
     """Ontology is the main class representing a gene ontology."""
     def __init__(self, file=None, progressCallback=None):
-        """Initialize the ontology from file. The optional progressCallback will be called with a single argument to report on the progress.
+        """ Initialize the ontology from file. The optional progressCallback will be called with a single argument to report on the progress.
         """
         self.terms = {}
         self.typedefs = {}
         self.instances = {}
         self.slimsSubset = set()
-        if file:
+        if file and os.path.exists(file):
             self.ParseFile(file, progressCallback)
+        else:
+            fool = self.Load(progressCallback)
+            self.__dict__ = fool.__dict__ ## A fool and his attributes are soon parted
 
     @classmethod
     def Load(cls, progressCallback=None):
-        """A class method that tries to load the ontology file from default_database_path. It looks for a filename starting with 'gene_ontology'.
+        """ A class method that tries to load the ontology file from default_database_path. It looks for a filename starting with 'gene_ontology'.
         """
         filename = os.path.join(default_database_path, "gene_ontology_edit.obo.tar.gz")
         if not os.path.isfile(filename) and not os.path.isdir(filename):
@@ -161,7 +179,7 @@ class Ontology(object):
             raise Exception, "Could not locate ontology file"
         
     def ParseFile(self, file, progressCallback=None):
-        """Parse the file. file can be a filename string or an open filelike object. The optional progressCallback will be called with a single argument to report on the progress.
+        """ Parse the file. file can be a filename string or an open filelike object. The optional progressCallback will be called with a single argument to report on the progress.
         """
         if type(file) == str:
             if os.path.isfile(file) and tarfile.is_tarfile(file):
@@ -172,24 +190,23 @@ class Ontology(object):
                 f = open(os.path.join(file, "gene_ontology_edit.obo"))
         else:
             f = file
+        
         data = f.readlines()
         data = "".join([line for line in data if not line.startswith("!")])
         self.header = data[: data.index("[Term]")]
         c=re.compile("\[.+?\].*?\n\n", re.DOTALL)
-##        print "re find"
         data=c.findall(data)
-##        print "end re find"
-##        print len(data)
+
         milestones = set(i for i in range(0, len(data), max(len(data)/100, 1)))
         for i, block in enumerate(builtinOBOObjects + data):
             if block.startswith("[Term]"):
-                term = Term(self, block)
+                term = Term(block, self)
                 self.terms[term.id] = term
             elif block.startswith("[Typedef]"):
-                typedef = Typedef(self, block)
+                typedef = Typedef(block, self)
                 self.typedefs[typedef.id] = typedef
             elif block.startswith("[Instance]"):
-                instance = Instance(self, block)
+                instance = Instance(block, self)
                 self.instances[instance.id] = instance
             if progressCallback and i in milestones:
                 progressCallback(100.0*i/len(data))
@@ -200,12 +217,12 @@ class Ontology(object):
                 self.terms[parent].relatedTo.add((typeId, id))
 
     def GetDefinedSlimsSubsets(self):
-        """Return a list of defined subsets
+        """ Return a list of defined subsets
         """
         return [line.split()[1] for line in self.header.split("\n") if line.startswith("subsetdef:")]
 
     def SetSlimsSubset(self, subset):
-        """Set the slims term subset to subset. If subset is a string it must equal one of the defined subsetdef.
+        """ Set the slims term subset to subset. If subset is a string it must equal one of the defined subsetdef.
         """
         if type(subset) == str:
             self.slimsSubset = [id for id, term in self.terms.items() if subset in getattr(term, "subset", set())]
@@ -214,7 +231,7 @@ class Ontology(object):
         print self.slimsSubset
 
     def GetSlimTerms(self, termId):
-        """Return a list of slim terms for termId.
+        """ Return a list of slim terms for termId.
         """
         queue = set([termId])
         visited = set()
@@ -229,7 +246,7 @@ class Ontology(object):
         return slims
 
     def ExtractSuperGraph(self, terms):
-        """Return all super terms of terms up to the most general one.
+        """ Return all super terms of terms up to the most general one.
         """
         visited = set()
         queue = set(terms)
@@ -240,7 +257,7 @@ class Ontology(object):
         return visited
 
     def ExtractSubGraph(self, terms):
-        """Return all sub terms of terms.
+        """ Return all sub terms of terms.
         """
         visited = set()
         queue = set(terms)
@@ -251,19 +268,25 @@ class Ontology(object):
         return visited
 
     def GetTermDepth(self, term, cache_={}):
-        """Return the minimum depth of a term (length of the shortest path to this term from the top level term).
+        """ Return the minimum depth of a term (length of the shortest path to this term from the top level term).
         """
         if term not in cache:
             cache[term] = min([self.GetTermDepth(parent) + 1 for typeId, parent in self.terms[term].related] or [1])
         return cache[term]
 
-    def __getitem__(self, name):
-        return self.terms.__getitem__(name)
+    def __getitem__(self, id):
+        """ Return object with id (same as ontology.terms[id]
+        """
+        return self.terms[id]
 
     def __iter__(self):
+        """ Iterate over all ids in ontology
+        """
         return iter(self.terms)
 
     def __len__(self):
+        """ Return number of objects in ontology
+        """
         return len(self.terms)
 
     @staticmethod
@@ -331,8 +354,11 @@ class Annotations(object):
         self.annotations = []
         self.header = ""
         self.geneMapper = None
-        if file:
+        if file and os.path.exists(file):
             self.ParseFile(file, progressCallback)
+        elif file:
+            a = self.Load(file, ontology, progressCallback)
+            self.__dict__ = a.__dict__
 
     def SetOntology(self, ontology):
         self.allAnnotations = defaultdict(list)
@@ -341,7 +367,7 @@ class Annotations(object):
     def GetOntology(self):
         return self._ontology
 
-    ontology = property(GetOntology, SetOntology)
+    ontology = property(GetOntology, SetOntology, doc="Ontology object for annotations")
 
     @classmethod
     def Load(cls, org, ontology=None, progressCallback=None):
@@ -366,8 +392,8 @@ class Annotations(object):
                 raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (str(from_taxid(id)), tax.name(id)) for id in ids])
             elif len(codes) == 0:
                 raise tax.UnknownSpeciesIdentifier, org
-	    name, code = tax.name(ids.pop()), codes.pop()
-	    print >> sys.stderr, "Found annotations for", name, "(%s)" % code
+            name, code = tax.name(ids.pop()), codes.pop()
+            print >> sys.stderr, "Found annotations for", name, "(%s)" % code
             files = ["gene_association.%s.tar.gz" % code]
 
         path = os.path.join(orngServerFiles.localpath("GO"), files[0])
@@ -378,7 +404,12 @@ class Annotations(object):
         return cls(path, ontology=ontology, progressCallback=progressCallback)
     
     def ParseFile(self, file, progressCallback=None):
-        """
+        """ Parse and load the annotations from file. Report progress with progressCallback.
+        File can be:
+            - a tarball containing the association file named gene_association
+            - a directory name containing the association file named gene_association
+            - a path to the actual association file
+            - an open file-like object of the association file
         """
         if type(file) == str:
             if os.path.isfile(file) and tarfile.is_tarfile(file):
@@ -425,8 +456,10 @@ class Annotations(object):
         return dict([(alias(gene), gene) for gene in genes if alias(gene)])
 
     def _CollectAnnotations(self, id):
+        """ Recursive function collects and caches all annotations for id
+        """
         if id not in self.allAnnotations:
-            annotations = [self.termAnnotations[id]]
+            annotations = [self.termAnnotations[id]] ## annotations for this term alone
             for typeId, child in self.ontology[id].relatedTo:
                 aa = self._CollectAnnotations(child)
                 if type(aa) == set: ## if it was allready reduced in GetAllAnnotations
@@ -437,7 +470,7 @@ class Annotations(object):
         return self.allAnnotations[id]
 
     def GetAllAnnotations(self, id):
-        """Return a set of all annotations for this and all subterms.
+        """ Return a set of all annotations for this and all subterms.
         """
         if id not in self.allAnnotations or type(self.allAnnotations[id]) == list:
             annot_set = set()
@@ -448,14 +481,14 @@ class Annotations(object):
 
 
     def GetAllGenes(self, id, evidenceCodes = None):
-        """Return a list of genes annotated by specified evidence codes to this and all subterms."
+        """ Return a list of genes annotated by specified evidence codes to this and all subterms."
         """
         evidenceCodes = set(evidenceCodes or evidenceDict.keys())
         annotations = self.GetAllAnnotations(id)
         return list(set([ann.geneName for ann in annotations if ann.Evidence_code in evidenceCodes]))
 
     def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", prob=obiProb.Binomial(), progressCallback=None):
-        """Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count) for items and term ids as keys.
+        """ Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count) for items and term ids as keys.
         """
         revGenesDict = self.GetGeneNamesTranslator(genes)
         genes = set(revGenesDict.keys())
@@ -490,7 +523,7 @@ class Annotations(object):
         return res
 
     def GetAnnotatedTerms(self, genes, directAnnotationOnly=False, evidenceCodes=None, progressCallback=None):
-        """Return all terms that are annotated by genes with evidenceCodes.
+        """ Return all terms that are annotated by genes with evidenceCodes.
         """
         revGenesDict = self.GetGeneNamesTranslator(genes)
         genes = set(revGenesDict.keys())
@@ -504,16 +537,22 @@ class Annotations(object):
             for i, term in enumerate(terms):
                 termAnnots = self.GetAllAnnotations(term)
                 termAnnots.intersection_update(annotations)
-                dd[term].update([revGenesDict.get(ann.geneName, ann.geneName) for ann in termAnots])
+                dd[term].update([revGenesDict.get(ann.geneName, ann.geneName) for ann in termAnnots])
         return dict(dd)
 
     def __iter__(self):
+        """ Iterate over all AnnotationRecord objects in annotations
+        """
         return iter(self.annotations)
 
     def __len__(self):
+        """ Return the number of annotations
+        """
         return len(self.annotations)
 
     def __getitem__(self, index):
+        """ Return the i-th annotation record
+        """
         return self.annotations[index]
     
     @staticmethod
@@ -559,9 +598,13 @@ class Taxonomy(object):
         return list(self.tax[key])
     
 def from_taxid(id):
+    """ Return a set of GO organism codes that correspond to NCBI taxonomy id
+    """
     return set(Taxonomy()[id])
 
 def to_taxid(db_code):
+    """ Return a set of NCBI taxonomy ids from db_code GO organism annotations
+    """
     r = [key for key, val in Taxonomy().tax.items() if db_code in val]
     return set(r)
     
