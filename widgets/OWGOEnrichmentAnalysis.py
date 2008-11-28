@@ -117,7 +117,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use attribute names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.SetUseAttrNamesCallback)
         self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
         self.geneInfoLabel = OWGUI.label(self.geneAttrIndexCombo.box, self, "0 genes on input signal")
-        
        
 ##        box = OWGUI.widgetBox(self.inputTab, "GO update")
 ##        b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
@@ -129,7 +128,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.checkBox(box, self, "filterByNumOfInstances", "Number of instances", callback=self.FilterAndDisplayGraph)
         OWGUI.qwtHSlider(box, self, 'minNumOfInstances', label='#:', labelWidth=5, minValue=1, maxValue=1000, step=1.0, precision=1, ticks=0, maxWidth=60, callback=self.FilterAndDisplayGraph)
         OWGUI.checkBox(box, self, "filterByPValue", "p-value",callback=self.FilterAndDisplayGraph)
-        OWGUI.qwtHSlider(box, self, 'maxPValue', label='p:', labelWidth=5, minValue=0, maxValue=1, step=0.001, precision=3, ticks=0, maxWidth=60, callback=self.FilterAndDisplayGraph)
+        OWGUI.qwtHSlider(box, self, 'maxPValue', label='p:', labelWidth=5, minValue=0.001, maxValue=1, step=0.001, precision=3, ticks=0, logarithmic=True, maxWidth=60, callback=self.FilterAndDisplayGraph)
 
         box = OWGUI.widgetBox(self.filterTab, "Evidence codes in annotation", addSpace=True)
 ##        box.setMaximumWidth(150)
@@ -162,48 +161,24 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.listView.header().setSortIndicatorShown(True)
         self.listView.setSortingEnabled(True)
         self.listView.setItemDelegateForColumn(5, EnrichmentColumnItemDelegate(self))
-        
-        #self.listView.setColumnWidth(0, 300)
-        #self.listView.setColumnWidthMode(0, QListView.Manual)
-        #self.listView.setColumnAlignment(0, QListView.AlignLeft)
-        #self.listView.setSorting(-1)
-        #for dagColumnTitle in self.DAGcolumns[1:]:
-        #    col = self.listView.addColumn(dagColumnTitle)
-        #    self.listView.setColumnWidth(col, 100)
-        #    self.listView.setColumnWidthMode(col, QListView.Manual)
-        #    self.listView.setColumnAlignment(col, QListView.AlignCenter)
-        self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.ViewSelectionChanged)
-        self.listView.setRootIsDecorated (True)
+        self.listView.setRootIsDecorated(True)
 
+        
+        self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.ViewSelectionChanged)
+        
         # table of significant GO terms
-##        self.sigTermsTable = QTableWidget(self.splitter)
-##        self.sigTermsTable.setColumnCount(len(self.DAGcolumns))
-##        self.sigTermsTable.setHorizontalHeaderLabels(self.DAGcolumns)
-##        self.sigTermsTable.setRowCount(4)
         self.sigTerms = QTreeWidget(self.splitter)
         self.sigTerms.setColumnCount(len(self.DAGcolumns))
         self.sigTerms.setHeaderLabels(self.DAGcolumns)
-##        self.sigTerms.setRowCount(4)
-        ## hide the vertical header
-        #self.sigTermsTable.verticalHeader().hide()
-        #self.sigTermsTable.setLeftMargin(0)
+        self.sigTerms.setSortingEnabled(True)
         self.sigTerms.setSelectionMode(QAbstractItemView.MultiSelection)
-        #self.sigTermsTable.setColumnWidth(0, 300)
-        #for col in range(1, self.sigTermsTable.columnCount):
-        #    self.sigTermsTable.setColumnWidth(col, 100)
-##        self.header = self.sigTerms.horizontalHeader()
-        #for i in range(len(self.DAGcolumns)):
-        #    self.header.setLabel(i, self.DAGcolumns[i])
+        
         self.connect(self.sigTerms, SIGNAL("itemSelectionChanged()"), self.TableSelectionChanged)
         self.splitter.show()
 
         self.sigTableTermsSorted = []
         self.graph = {}
         self.loadedAnnotationCode = "---"
-        #header = self.listView.header()
-        #from new import instancemethod
-        #print(dir(header))
-        #header.paintSection = instancemethod(paintSection, header, type(header))
         
         self.inputTab.layout().addStretch(1)
         self.filterTab.layout().addStretch(1)
@@ -246,7 +221,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.Update()
 
     def Update(self):
-        #self.SetClusterDataset(self.clusterDataset)
         if self.clusterDataset:
             self.FilterUnknownGenes()
             graph = self.Enrichment()
@@ -276,7 +250,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.error(0, "No downloaded annotations!!\nClick the update button and update annotationa for at least one organism!")
         else:
             self.error(0)
-        #print go.getDataDir()
 
     def SetGenesComboBox(self):
         self.candidateGeneAttrs = self.clusterDataset.domain.variables + self.clusterDataset.domain.getmetas().values()
@@ -289,12 +262,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             organismGenes = dict([(o,set(go.getCachedGeneNames(o))) for o in self.annotationCodes])
         else:
             currCode = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
-##            filename = p_join(dataDir, getOrgFileName(currCode))
             filename = p_join(dataDir, self.annotationFiles[currCode])
             try:
                 f = tarfile.open(filename)
                 info = [info for info in f.getmembers() if info.name.startswith("gene_names")].pop()
-    ##            print info.name
                 geneNames = cPickle.loads(f.extractfile(info).read().replace("\r\n", "\n"))
             except Exception, ex:
                 geneNames = cPickle.loads(open(p_join(filename, "gene_names.pickle")).read().replace("\r\n", "\n"))
@@ -340,16 +311,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.SetGenesComboBox()
             self.FindBestGeneAttrAndOrganism()
             self.openContext("", data)
-##            if not go.loadedGO:
             if not self.ontology:
                 self.LoadOntology()
             if not self.annotations:
                 self.LoadAnnotation()
             
-            #if not go.loadedAnnotation:
             self.FilterUnknownGenes()
             graph = self.Enrichment()
-            #print graph
             self.SetGraph(graph)
         else:
             self.openContext("", None)
@@ -381,18 +349,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def LoadOntology(self):
         try:
             self.progressBarInit()
-##            go.loadedGO = go.loadOntologyFrom(p_join(dataDir, "UpdateOntology.tar.gz"), progressCallback=self.progressBarSet)
-##            f = tarfile.open(p_join(dataDir, "gene_ontology.tar.gz"))
-##            info = [info for info in f.getmembers() if info.name.startswith("gene_ontology")].pop()
-##            self.ontology = obiGO.Ontology(f.extractfile(info), progressCallback=self.progressBarSet)
             self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
-##            print self.ontology
             self.progressBarFinished()
         except IOError, er:
             response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the ontology.\nClik OK to download it?", "OK", "Cancel", "", 0, 1)
             if response==0:
                 self.UpdateGOAndAnnotation(tags = ["ontology", "GO", "essential"])
-##                go.loadedAnnotation = go.loadGOFrom(p_join(dataDir, "UpdateOntology.tar.gz"), progressCallback=self.progressBarSet)
                 self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
                 self.progressBarFinished()
             else:
@@ -406,12 +368,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
             self.progressBarInit()
             try:
-##                go.loadedAnnotation = go.loadAnnotationFrom(p_join(dataDir, getOrgFileName(self.annotationCodes[self.annotationIndex])), progressCallback=self.progressBarSet)
                 self.annotations = None
-##                f = tarfile.open(p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]]))
                 filename = p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]])
-##                info = [info for info in f.getmembers() if info.name.startswith("gene_association")].pop()
-##                self.annotations = obiGO.Annotations(f.extractfile(info), ontology=self.ontology, progressCallback=self.progressBarSet)
                 self.annotations = obiGO.Annotations(filename, ontology = self.ontology, progressCallback=self.progressBarSet)
             except IOError, er:
                 raise
