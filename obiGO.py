@@ -289,6 +289,9 @@ class Ontology(object):
         """
         return len(self.terms)
 
+    def __contains__(self, id):
+        return id in self.terms
+
     @staticmethod
     def DownloadOntology(file, progressCallback=None):
         tFile = tarfile.open(file, "w:gz") if type(file) == str else file
@@ -428,7 +431,7 @@ class Annotations(object):
                 continue
             
             a=AnnotationRecord(line)
-            if not a.geneName or not a.GOId:
+            if not a.geneName or not a.GOId or a.Qualifier == "NOT":
                 continue
             if a.geneName not in self.geneNames:
                 self.geneNames.add(a.geneName)
