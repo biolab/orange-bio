@@ -117,6 +117,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use attribute names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.SetUseAttrNamesCallback)
         self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
         self.geneInfoLabel = OWGUI.label(self.geneAttrIndexCombo.box, self, "0 genes on input signal")
+        OWGUI.button(OWGUI.widgetBox(self.inputTab, "Ontology and annotations info"), self, "View info", callback=self.ShowInfo)
        
 ##        box = OWGUI.widgetBox(self.inputTab, "GO update")
 ##        b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
@@ -660,6 +661,18 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
             self.send("Unselected Examples", unselectedExamples and orange.ExampleTable(unselectedExamples) or None)
 
+    def ShowInfo(self):
+        dialog = QDialog(self)
+        dialog.setModal(True)
+        dialog.setLayout(QVBoxLayout())
+        label = QLabel(dialog)
+        label.setText("Ontology:\n"+self.ontology.header if self.ontology else "Ontology not loaded!")
+        dialog.layout().addWidget(label)
+
+        label = QLabel(dialog)
+        label.setText("Annotations:\n"+self.annotations.header.replace("!", "") if self.annotations else "Annotations not loaded!")
+        dialog.layout().addWidget(label)
+        dialog.show()
 
 class EnrichmentColumnItemDelegate(QItemDelegate):
     def paint(self, painter, option, index):
