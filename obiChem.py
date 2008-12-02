@@ -602,8 +602,8 @@ class FragmentMiner(object):
 
     def LoadMolecules(self, smiles):
         mol=LoadMolFromSmiles(smiles)
-        if mol:
-            mol.StripSalts()
+##        if mol:
+##            mol.StripSalts()
         return mol
         
     def GetAllMolecules(self):
@@ -736,6 +736,7 @@ class FragmentMiner(object):
     
 def LoadMolFromSmiles(smiles):
     """Returns an OBMol construcetd from an SMILES code"""
+    smiles = sorted(smiles.split("."), key=len)[-1] ## Strip salts
     mol=OBMol()
     loader=OBConversion()
     loader.SetInAndOutFormats("smi","smi")
@@ -851,7 +852,7 @@ class FragmentBasedClassifier(object):
 
 def Count(smiles, fragment):
     mols=filter(lambda m:m, map(LoadMolFromSmiles, smiles))
-    for mol in mols: mol.StripSalts()
+##    for mol in mols: mol.StripSalts()
     pattern=OBSmartsPattern()
     pattern.Init(fragment)
     return len(filter(lambda m:pattern.Match(m, True), mols))
