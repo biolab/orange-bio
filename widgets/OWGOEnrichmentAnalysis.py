@@ -44,7 +44,7 @@ class TreeNode(object):
 class GOTreeWidget(QTreeWidget):
     def contextMenuEvent(self, event):
         QTreeWidget.contextMenuEvent(self, event)
-        print event.x(), event.y()
+##        print event.x(), event.y()
         term = self.itemAt(event.pos()).term
         self._currMenu = QMenu()
         self._currAction = self._currMenu.addAction("View term on AmiGO website")
@@ -127,7 +127,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.filterTab = OWGUI.createTabPage(self.tabs, "Filter")
         box = OWGUI.widgetBox(self.filterTab, "Filter GO Term Nodes", addSpace=True)
         OWGUI.checkBox(box, self, "filterByNumOfInstances", "Number of instances", callback=self.FilterAndDisplayGraph)
-        OWGUI.qwtHSlider(box, self, 'minNumOfInstances', label='#:', labelWidth=5, minValue=1, maxValue=1000, step=1.0, precision=1, ticks=0, maxWidth=60, callback=self.FilterAndDisplayGraph)
+        OWGUI.qwtHSlider(box, self, 'minNumOfInstances', label='#:', labelWidth=5, minValue=1, maxValue=100, step=1.0, precision=1, ticks=0, maxWidth=60, callback=self.FilterAndDisplayGraph)
         OWGUI.checkBox(box, self, "filterByPValue", "p-value",callback=self.FilterAndDisplayGraph)
         OWGUI.qwtHSlider(box, self, 'maxPValue', label='p:', labelWidth=5, minValue=0.001, maxValue=1, step=0.001, precision=3, ticks=0, logarithmic=True, maxWidth=60, callback=self.FilterAndDisplayGraph)
 
