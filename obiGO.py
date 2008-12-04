@@ -119,7 +119,7 @@ class OBOObject(object):
     def __str__(self):
         """ Return the OBO object id entry
         """
-        return self.id
+        return "%s: %s" % (self.id, self.name)
 
     def __getattr__(self, tag):
         """ Return value for the tag
@@ -133,9 +133,9 @@ class OBOObject(object):
             raise AttributeError(tag)
 
     def __iter__(self):
-        """ Iterates over related objects
+        """ Iterates over sub terms
         """
-        for typeId, id in self.related:
+        for typeId, id in self.relatedTo:
             yield (typeId, self.ontology[id])
         
 class Term(OBOObject):
@@ -248,6 +248,7 @@ class Ontology(object):
     def ExtractSuperGraph(self, terms):
         """ Return all super terms of terms up to the most general one.
         """
+        terms = [terms] if type(terms) == str else terms
         visited = set()
         queue = set(terms)
         while queue:
@@ -259,6 +260,7 @@ class Ontology(object):
     def ExtractSubGraph(self, terms):
         """ Return all sub terms of terms.
         """
+        terms = [terms] if type(terms) == str else terms
         visited = set()
         queue = set(terms)
         while queue:
@@ -528,6 +530,7 @@ class Annotations(object):
     def GetAnnotatedTerms(self, genes, directAnnotationOnly=False, evidenceCodes=None, progressCallback=None):
         """ Return all terms that are annotated by genes with evidenceCodes.
         """
+        genes = [genes] if type(genes) == str else genes
         revGenesDict = self.GetGeneNamesTranslator(genes)
         genes = set(revGenesDict.keys())
         evidenceCodes = set(evidenceCodes or evidenceDict.keys())
