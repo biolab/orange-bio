@@ -94,6 +94,10 @@ class OBOObject(object):
             else:
                 self.values[tag] = value
         self.related = set(self.GetRelatedObjects())
+        self.__dict__.update(self.values)
+        if "def" in self.__dict__:
+            self.__dict__["def_"] = self.def_
+        
 
     def GetRelatedObjects(self):
         """ Return a list of tuple pairs where the first element is relationship
