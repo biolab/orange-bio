@@ -723,20 +723,21 @@ class KEGGOrganism(object):
         else:
             self.api = KEGGInterfaceLocal(update, self.local_database_path)
         if org not in self.api._taxonomy:
-            names = [key for key, name in self.api._taxonomy.items() if org.lower() in name[-1].lower()]
-            if not names:
+            import obiTaxonomy as tax
+            ids = tax.to_taxid(org)
+            ids = set(ids).intersection([entry.get_taxid() for entry in self.api._genome.values()])
+##            names = [key for key, name in self.api._taxonomy.items() if org.lower() in name[-1].lower()]
+            if not ids:
                 print >> sys.stderr, "Could not find", org, "in KEGG database\nSearching in NCBI taxonomy"
                 import obiTaxonomy as tax
-                res = tax.search(org)
-                res = set(res).intersection([entry.get_taxid() for entry in self.api._genome.values()])
-                if len(res) == 0:
-                    raise tax.UnknownSpeciesIdentifier, org
-                elif len(res) > 1:
-                    raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (from_taxid(id), tax.name(id)) for id in res])
-                print >> sys.stderr, "Found", tax.name(list(res)[0])
-                self.org = from_taxid(res.pop())
-            else:
-                self.org = names[0]
+                ids = tax.search(org)
+                ids = set(ids).intersection([entry.get_taxid() for entry in self.api._genome.values()])
+            if len(ids) == 0:
+                raise tax.UnknownSpeciesIdentifier, org
+            elif len(ids) > 1:
+                raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (from_taxid(id), tax.name(id)) for id in ids])
+            print >> sys.stderr, "Found", tax.name(list(ids)[0]), "(%s)" % from_taxid(list(ids)[0]) 
+            self.org = from_taxid(ids.pop())
 
     def list_pathways(self):
         """Return a list of all organism specific pathways."""

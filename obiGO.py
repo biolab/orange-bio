@@ -384,26 +384,32 @@ class Annotations(object):
         """
 ##        files = [name for name in os.listdir(default_database_path) if name.startswith("gene_association") and org in name and not name.endswith(".info")]
         import orngServerFiles
+        import obiTaxonomy as tax
         ## Check if given org is a matching code for GO organism
-        files = [file for file in orngServerFiles.listfiles("GO") if file.startswith("gene_association") and org in file.split(".")[:2]]
-        name = org
-        if not files:
-            print >> sys.stderr, "Annotation file not found on local drive\nSearching for annotations on server"
-            serverFiles = orngServerFiles.ServerFiles()
-            files = [file for file in serverFiles.listfiles("GO") if file.startswith("gene_association") and org in file.split(".")[:2]]
-        if not files:
-            print >> sys.stderr, "Unable to find annotations for", org, "Matching name against NCBI Taxonomy"
+##        files = [file for file in orngServerFiles.listfiles("GO") if file.startswith("gene_association") and org in file.split(".")[:2]]
+##        name = org
+##        if not files:
+##            print >> sys.stderr, "Annotation file not found on local drive\nSearching for annotations on server"
+##            serverFiles = orngServerFiles.ServerFiles()
+##            files = [file for file in serverFiles.listfiles("GO") if file.startswith("gene_association") and org in file.split(".")[:2]]
+        ids = to_taxid(org)
+        if not ids:
+            import obiTaxonomy as tax
+            ids = tax.to_taxid(org)
+            ids = set(ids).intersection(Taxonomy().tax.keys())
+        if not ids:
+            print >> sys.stderr, "Unable to find annotations for", "'%s'" % org, "Matching name against NCBI Taxonomy"
             import obiTaxonomy as tax
             ids = tax.search(org)
             ids = set(ids).intersection(Taxonomy().tax.keys())
-            codes = reduce(set.union, [from_taxid(id) for id in ids], set())
-            if len(codes) > 1:
-                raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (str(from_taxid(id)), tax.name(id)) for id in ids])
-            elif len(codes) == 0:
-                raise tax.UnknownSpeciesIdentifier, org
-            name, code = tax.name(ids.pop()), codes.pop()
-            print >> sys.stderr, "Found annotations for", name, "(%s)" % code
-            files = ["gene_association.%s.tar.gz" % code]
+        codes = reduce(set.union, [from_taxid(id) for id in ids], set())
+        if len(codes) > 1:
+            raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (str(from_taxid(id)), tax.name(id)) for id in ids])
+        elif len(codes) == 0:
+            raise tax.UnknownSpeciesIdentifier, org
+        name, code = tax.name(ids.pop()), codes.pop()
+        print >> sys.stderr, "Found annotations for", name, "(%s)" % code
+        files = ["gene_association.%s.tar.gz" % code]
 
         path = os.path.join(orngServerFiles.localpath("GO"), files[0])
         if not os.path.exists(path):

@@ -211,13 +211,40 @@ class Taxonomy(object):
                 callback(i)
     
 def name(taxid):
+    """ Return the scientific name for organism with taxid.
+    """
     return Taxonomy()[taxid]
 
 def other_names(taxid):
+    """ Return a list of (name, name_type) tuples but exclude the scientific name.
+    """
     return  Taxonomy().other_names(taxid)
 
 def search(string, onlySpecies=True):
+    """ Search the NCBI taxonomy database for an organism
+    Arguments::
+            - *string*      Search string
+            - *onlySpecies* Return only taxids of species (and subspecies)
+    """
     return Taxonomy().search(string, onlySpecies)
+
+def to_taxid(code):
+    """ See if the code is a valid code in any database and return its taxid.
+    """
+    import obiKEGG, obiGO
+    results = set()
+    for test in [obiKEGG.to_taxid, obiGO.to_taxid]:
+        try:
+            r = test(code)
+            if type(r) == set:
+                results.update(r)
+            else:
+                results.add(r)
+        except Exception, ex:
+##            print ex
+            pass
+
+    return results
 
 import obiGenomicsUpdate
 
