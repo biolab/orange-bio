@@ -368,7 +368,7 @@ class OWHeatMap(OWWidget):
             self.groupClusters = []
             self.attrCluster = None
             self.mapping = None
-            sortData = lambda data, mapping: orange.ExampleTable([data[i] for i in mapping])
+            sortData = lambda data, mapping: orange.ExampleTable(data.domain, [data[i] for i in mapping])
             if self.SortGenes:
                 if self.SortGenes > 1: ## cluster sort
                     refData, self.groupClusters , self.mapping = self.orderClustering(self.unorderedData[self.refFile])
@@ -631,12 +631,10 @@ class OWHeatMap(OWWidget):
                     self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + c_spaceAverageX))
             x0 = x                    
             # plot the heatmap (and group label)
-            showClusters = (i == 0 and self.groupClusters and self.ShowClustering) #Add control
+            showClusters = (i == 0 and self.groupClusters and self.ShowClustering)
             ycoord = []
             y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + c_spaceAverageX)
-            if showClusters:
-                clusterWidth = 100.0
-                x += clusterWidth
+            
             self.heatmapPositionsX.append((x, x + self.widths[i]-1))
             for g in range(groups):
               if self.heights[g]:
@@ -646,9 +644,9 @@ class OWHeatMap(OWWidget):
                 ycoord.append(y)
                 if showClusters:
                     item = HierarchicalClusterItem(self.groupClusters[g], None, self.scene)
-                    item.setTransform(QTransform().scale(clusterWidth/item.rect().height(), self.heights[g]/float(len(item.cluster))).\
+                    item.setTransform(QTransform().scale(100.0/item.rect().height(), self.heights[g]/float(len(item.cluster))).\
                                     rotate(90).translate(0, -item.rect().height()))
-                    item.setPos(x-clusterWidth, y+self.CellHeight/2.0)
+                    item.setPos(-100, y+self.CellHeight/2.0)
                     
                 image = ImageItem(self.bmps[i][g], self.scene, self.imageWidth, \
                                   self.heights[g], palette, x=x, y=y, z=z_heatmap)
@@ -877,7 +875,8 @@ class HeatMapGraphicsScene(QGraphicsScene):
         if self.clicked:
             self.clicked = False
             self.update()
-            self.master.selection.release()        
+            self.master.selection.release()
+            
 
 class MyGraphicsView(QGraphicsView):
     def __init__(self, *args):
