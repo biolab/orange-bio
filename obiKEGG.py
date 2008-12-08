@@ -712,6 +712,10 @@ class KEGGInterfaceLocal(object):
             elif l.startswith("C"):
                 r[-1].children[-1].children.append(KOClass(l))
         return r
+
+    def get_gene_name(self, org, gene):
+        names = self._genes[org][gene].get_alt_names()
+        return names[len(self._genes[org][gene].get_db_links()):-1][0]
     
 class KEGGOrganism(object):
     def __init__(self, org, update=False, local_database_path=None):
@@ -822,6 +826,11 @@ class KEGGOrganism(object):
         of unknown genes.
         """
         return self.api.get_unique_gene_ids(self.org, genes, caseSensitive)
+
+    def get_gene_name(self, geneId):
+        """ Return all gene names for the given gene id
+        """
+        return self.api.get_gene_name(self.org, geneId)
 
 class KEGGPathway(object):
     def __init__(self, pathway_id, update=False, local_database_path=None):
