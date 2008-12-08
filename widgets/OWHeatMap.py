@@ -12,6 +12,7 @@ import OWGUI
 from OWWidget import *
 from OWDlgs import OWChooseImageSizeDlg
 from ColorPalette import signedPalette
+from OWClustering import HierarchicalClusterItem
 import OWColorPalette
 try:
     from OWDataFiles import DataFiles
@@ -78,6 +79,7 @@ class OWHeatMap(OWWidget):
         self.BSpotVar = None; self.BAnnotationVar = None  # these are names of variables
         self.BSpotIndx = None; self.BAnnotationIndx = None # these are id's of the combo boxes
         self.SortGenes = 1
+        self.ShowClustering = 1
         self.SelectionType = 0         # selection on a single data set
         self.setColorPalette()
         self.refFile = 0               # position index of a reference file
@@ -122,7 +124,8 @@ class OWHeatMap(OWWidget):
         
         OWGUI.separator(settingsTab)
 
-        OWGUI.checkBox(settingsTab, self, "SortGenes", "Sort genes", box="Sort", callback=self.constructHeatmap)
+##        OWGUI.checkBox(settingsTab, self, "SortGenes", "Sort genes", box="Sort", callback=self.constructHeatmap)
+        OWGUI.comboBox(settingsTab, self, "SortGenes", "Sort genes", items=["No sorting", "Sort genes", "Clustering", "Clustering with leaf ordering"], callback=self.constructHeatmap)
         OWGUI.rubber(settingsTab)
         
         # FILTER TAB
@@ -305,6 +308,8 @@ class OWHeatMap(OWWidget):
                 self.tabs.setTabEnabled(self.tabs.indexOf(self.filesTab), False)
             self.setMetaCombos() # set the two combo widgets according to the data
 
+        self.unorderedData = None
+        self.groupClusters = None
         if not blockUpdate:
             self.send('Examples', None)
             self.send('Structured Data', None)
@@ -331,14 +336,47 @@ class OWHeatMap(OWWidget):
         self.constructHeatmap(callback=pb.advance)
         self.scene.update()
         pb.finish()
+
+    def orderClustering(self, data):
+        import orngClustering
+        self.progressBarInit()
+        clusterRoots = []
+        orderedData = []
+        mapping = []
+        if data.domain.classVar and data.domain.classVar.values:
+            for val in data.domain.classVar.values:
+                tmpData = [ex for ex in data if ex.getclass()==val]
+                root = orngClustering.exampleTableClustering(orange.ExampleTable(tmpData), progressCallback=self.progressBarSet, order=self.SortGenes==3)
+                orderedData.extend([tmpData[i] for i in root.mapping])
+                mapping.extend([i+len(mapping) for i in root.mapping])
+                clusterRoots.append(root)
+            
+        else:
+            root = orngClustering.exampleTableClustering(data, progressCallback=self.progressBarSet, order=self.SortGenes==3)
+            orderedData.extend([data[i] for i in root.mapping])
+            mapping = list(root.mapping)
+            clusterRoots.append(root)
+
+        self.progressBarFinished()
+        return orange.ExampleTable(orderedData), clusterRoots, mapping
+            
         
     def constructHeatmap(self, callback=None):
         if len(self.data):
             self.heatmapconstructor = [None] * len(self.data)
-
+            self.unorderedData = self.data if not self.unorderedData else self.unorderedData
+            self.groupClusters = []
+            self.attrCluster = None
+            self.mapping = None
+            sortData = lambda data, mapping: orange.ExampleTable([data[i] for i in mapping])
             if self.SortGenes:
-                self.heatmapconstructor[self.refFile] = \
-                    orangene.HeatmapConstructor(self.data[self.refFile])
+                if self.SortGenes > 1: ## cluster sort
+                    refData, self.groupClusters , self.mapping = self.orderClustering(self.unorderedData[self.refFile])
+                    self.heatmapconstructor[self.refFile] = \
+                        orangene.HeatmapConstructor(sortData(self.data[self.refFile], self.mapping), None)
+                else:
+                    self.heatmapconstructor[self.refFile] = \
+                        orangene.HeatmapConstructor(self.data[self.refFile])
             else:
                 self.heatmapconstructor[self.refFile] = \
                     orangene.HeatmapConstructor(self.data[self.refFile], None)
@@ -346,8 +384,12 @@ class OWHeatMap(OWWidget):
 
             for i in range(len(self.data)):
                 if i <> self.refFile:
-                    self.heatmapconstructor[i] = orangene.HeatmapConstructor(self.data[i],
-                        self.heatmapconstructor[self.refFile])
+                    if self.mapping:
+                        self.heatmapconstructor[i] = orangene.HeatmapConstructor(sortData(self.data[i],self.mapping),
+                            self.heatmapconstructor[self.refFile])
+                    else:                        
+                        self.heatmapconstructor[i] = orangene.HeatmapConstructor(self.data[i],
+                            self.heatmapconstructor[self.refFile])
                     if callback: callback()
         else:
             self.heatmapconstructor = []
@@ -587,10 +629,14 @@ class OWHeatMap(OWWidget):
             if self.ShowDataFileNames and len(self.data)>1:
                 y1 = self.drawFileName(self.data[i].name, x, y, \
                     self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + c_spaceAverageX))
-            x0 = x
+            x0 = x                    
             # plot the heatmap (and group label)
+            showClusters = (i == 0 and self.groupClusters and self.ShowClustering) #Add control
             ycoord = []
             y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + c_spaceAverageX)
+            if showClusters:
+                clusterWidth = 100.0
+                x += clusterWidth
             self.heatmapPositionsX.append((x, x + self.widths[i]-1))
             for g in range(groups):
               if self.heights[g]:
@@ -598,6 +644,12 @@ class OWHeatMap(OWWidget):
                     y = self.drawGroupLabel(self.data[i][0].domain.classVar.values[g], x, y, self.imageWidth)          
                 if not i: self.imgStart.append(y)
                 ycoord.append(y)
+                if showClusters:
+                    item = HierarchicalClusterItem(self.groupClusters[g], None, self.scene)
+                    item.setTransform(QTransform().scale(clusterWidth/item.rect().height(), self.heights[g]/float(len(item.cluster))).\
+                                    rotate(90).translate(0, -item.rect().height()))
+                    item.setPos(x-clusterWidth, y+self.CellHeight/2.0)
+                    
                 image = ImageItem(self.bmps[i][g], self.scene, self.imageWidth, \
                                   self.heights[g], palette, x=x, y=y, z=z_heatmap)
                 image.hm = self.heatmaps[i][g] # needed for event handling
