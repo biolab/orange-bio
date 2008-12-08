@@ -489,7 +489,7 @@ class OWHeatMap(OWWidget):
 
     def createColorDialog(self):
         c = OWColorPalette.ColorPaletteDlg(self, "Color Palette")
-        c.createExtendedContinuousPalette("palette", "Continuous Palette", initialColor1=QColor(Qt.blue), initialColor2=QColor(255, 255, 0).rgb())
+        c.createExtendedContinuousPalette("palette", "Continuous Palette", initialColor1=QColor(Qt.blue), initialColor2=QColor(255, 255, 0).rgb(), extendedPassThroughColors = ((Qt.red, 1), (Qt.darkYellow, 1), (Qt.black, 1), (Qt.magenta, 1), (Qt.green, 1)))
         box = c.createBox("otherColors", "Other Colors")
         c.createColorButton(box, "unknown", "Unknown", Qt.gray)
         box.layout().addSpacing(5)
