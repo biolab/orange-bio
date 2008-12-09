@@ -118,6 +118,7 @@ class OWHeatMap(OWWidget):
             self.colorSettings = None
             self.colorCombo.setPalettes("palette", self.createColorDialog())
         self.colorCombo.setCurrentIndex(self.selectedSchemaIndex)
+        self.setColor(self.selectedSchemaIndex, update=False)
         self.connect(self.colorCombo, SIGNAL("activated(int)"), self.setColor)
         box.layout().addWidget(self.colorCombo, 2)
         button = OWGUI.button(box, self, "Edit colors", callback=self.openColorDialog, tooltip="Edit the heatmap color palette")
@@ -463,22 +464,25 @@ class OWHeatMap(OWWidget):
     ##########################################################################
     # callback functions
 
-    def setColor(self, index, dialog=None):
+    def getGammaCorrectedPalette(self):
+        return [QColor(*self.contPalette.getRGB(float(i)/250, gamma=self.Gamma)).rgb() for i in range(250)] + self.palette[-6:]
+
+    def setColor(self, index, dialog=None, update=True):
         self.selectedSchemaIndex = index
         if not dialog:
             dialog = self.createColorDialog()
 
         self.colorCombo.setPalettes("palette", dialog)
         self.colorCombo.setCurrentIndex(self.selectedSchemaIndex)
-        palette = dialog.getExtendedContinuousPalette("palette")
+        self.contPalette = palette = dialog.getExtendedContinuousPalette("palette")
         unknown = dialog.getColor("unknown").rgb()
         underflow = dialog.getColor("underflow").rgb()
         overflow = dialog.getColor("overflow").rgb()
-        self.palette = [palette[float(i)/250].rgb() for i in range(250)] + [qRgb(255, 255, 255)]*3 +[underflow, overflow, unknown]
-        
-        self.drawHeatMap()
-        
+        self.palette = [QColor(*palette.getRGB(float(i)/250, gamma=self.Gamma)).rgb() for i in range(250)] + [qRgb(255, 255, 255)]*3 +[underflow, overflow, unknown]
 
+        if update:        
+            self.drawHeatMap()
+        
     def openColorDialog(self):
         dialog = self.createColorDialog()
         if dialog.exec_():
@@ -528,7 +532,7 @@ class OWHeatMap(OWWidget):
     # drawing
 
     def drawLegend(self, x, y, width, height, palette):
-        legend = self.heatmapconstructor[0].getLegend(width, height, self.Gamma)
+        legend = self.heatmapconstructor[0].getLegend(width, height, 1.0) #self.Gamma)
 
         lo = self.CutEnabled and self.CutLow   or self.lowerBound
         hi = self.CutEnabled and self.CutHigh  or self.upperBound
@@ -600,7 +604,7 @@ class OWHeatMap(OWWidget):
         self.scene.heatmapParameters(self, self.CellWidth, self.CellHeight) # needed for event handling
 
 ##        palette = self.ColorPalettes[self.CurrentPalette]
-        palette = self.palette
+        palette = self.getGammaCorrectedPalette() if self.Gamma !=0 else self.palette
         groups = (not self.data[0].domain.classVar and 1) or \
                  len(self.data[0].domain.classVar.values) # mercy! (just had to do this)
 
@@ -609,7 +613,7 @@ class OWHeatMap(OWWidget):
             bmpl = []
             for g in range(groups):
                 bmp, self.imageWidth, imageHeight = hm[g].getBitmap(int(self.CellWidth), \
-                    int(self.CellHeight), lo, hi, self.Gamma)
+                    int(self.CellHeight), lo, hi, 1.0) #self.Gamma)
                 bmpl.append(bmp)
                 if not i: self.heights.append(imageHeight)
             self.bmps.append(bmpl)
@@ -619,7 +623,7 @@ class OWHeatMap(OWWidget):
         self.scene.setSceneRect(0, 0, 2000, totalHeight) # this needs adjustment
         x = c_offsetX; y0 = c_offsetY
 
-        self.legend = self.heatmapconstructor[0].getLegend(self.imageWidth, c_legendHeight, self.Gamma)
+        self.legend = self.heatmapconstructor[0].getLegend(self.imageWidth, c_legendHeight, 1.0) #self.Gamma)
         if self.LegendOnTop:
             y0 = self.drawLegend(x, y0, self.imageWidth, c_legendHeight, palette)
 
@@ -660,7 +664,7 @@ class OWHeatMap(OWWidget):
             if self.ShowAverageStripe:
                 for g in range(groups):
                     avg, avgWidth, avgHeight = self.heatmaps[i][g].getAverages(c_averageStripeWidth, \
-                        int(self.CellHeight), lo, hi, self.Gamma)
+                        int(self.CellHeight), lo, hi, 1.0) # self.Gamma)
                     ImageItem(avg, self.scene, avgWidth, avgHeight, palette, x=x, y=ycoord[g])
             x += self.imageWidth + self.SpaceX + self.ShowAverageStripe * \
                 (c_averageStripeWidth + c_spaceAverageX)
