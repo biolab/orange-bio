@@ -1,0 +1,36 @@
+<html>
+
+<head>
+<title>obiTaxonomy: NCBI Taxonomy</title>
+<link rel=stylesheet href="../style.css" type="text/css">
+<link rel=stylesheet href="style-print.css" type="text/css" media=print>
+</head>
+
+<body>
+<h1>obiTaxonomy: NCBI Taxonomy</h1>
+<p>obiTaxonomy is a library used for matching organism to NCBI Taxonomy ids and was created for organism name unification across different modules.</p>
+
+<p class=section>Functions</p>
+<dl class=methods>
+	<dt>name(taxid)</dt>
+	<dd>Return the scientific name for organism with taxid.</dd>
+	<dt>other_names(taxid)</dt>
+	<dd>Return a list of (name, name_type) tuples but exclude the scientific name.</dd>
+	<dt>search(string, onlySpecies=True)<dt>
+	<dd>Search the NCBI taxonomy database for an organism by <code>string</code>. If <code>onlySpecies</code> is True then search only in the species and subspecies nodes ob the taxonomy.</dd>
+	<dt>lineage(taxid)</dt>
+    <dd>Return a list of taxids ordered from the topmost node (root) to taxid.</dd>
+	<dt>to_taxid(code)</dt>
+	<dd>See if the <code>code</code> is a valid code in any database and return its taxid.</dd>
+</dl>
+
+<h2>Other modules</h2>
+<p>For full unification, each module (e.g. obiKEGG, obiGO, ...) should provide the following interface
+<dl class=section>
+	<dt>from_taxid(taxid)</dt>
+	<dd>Convert taxid to module's internal organism code.</dd>
+	<dt>to_taxid(organism)</dt>
+	<dd>Convert module's internal organism code to taxid.</dd>
+	<dt>organisms()</dt>
+	<dd>Returns a list of tuples (taxid, internal_name)</dd>
+</dl>
