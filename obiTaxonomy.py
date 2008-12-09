@@ -135,6 +135,13 @@ class Taxonomy(object):
         except Exception, ex:
             print >> sys.stderr, ex
             raise
+
+    def get_entry(self, id):
+        try:
+            entry = self._text[id]
+        except KeyError:
+            raise UnknownSpiciesIdentifier
+        return entry
                 
     def search(self, string, onlySpecies=True):
         res = self._text.search(string)
@@ -146,21 +153,22 @@ class Taxonomy(object):
         return iter(self._text)
 
     def __getitem__(self, id):
-        try:
-            entry = self._text[id]
-        except KeyError:
-            raise UnknownSpiciesIdentifier
+        entry = self.get_entry(id)
         return entry[2] ## item with index 2 is allways scientific name
 
     def other_names(self, id):
-        try:
-            entry = self._text[id]
-        except KeyError:
-            raise UnknownSpiciesIdentifier
+        entry = self.get_entry(id)
         info = self._info[id]
         names = entry[2:] ## indes 2 and larger are names
         return list(zip(names, info))[1:] ## exclude scientific name
-        
+
+    def rank(self, id):
+        entry = self.get_entry(id)
+        return entry[1]
+
+    def parent(self, id):
+        entry = self.get_entry(id)
+        return entry[0]
         
     @staticmethod
     def ParseTaxdumpFile(file=None, outputdir=None, callback=None):
@@ -228,6 +236,19 @@ def search(string, onlySpecies=True):
     """
     return Taxonomy().search(string, onlySpecies)
 
+def lineage(taxid):
+    """ Return a list of taxids ordered from the topmost node (root) to taxid.
+    """
+    tax = Taxonomy()
+    result = [taxid]
+    while True:
+        parent = tax.parent(result[-1])
+        result.append(parent)
+        if tax[parent] == "root" or parent=="1":
+            break
+    result.reverse()
+    return result
+    
 def to_taxid(code):
     """ See if the code is a valid code in any database and return its taxid.
     """
