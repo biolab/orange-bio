@@ -249,7 +249,7 @@ def lineage(taxid):
     result.reverse()
     return result
     
-def to_taxid(code):
+def to_taxid(code, mapTo=None):
     """ See if the code is a valid code in any database and return its taxid.
     """
     import obiKEGG, obiGO
@@ -262,8 +262,15 @@ def to_taxid(code):
             else:
                 results.add(r)
         except Exception, ex:
-##            print ex
             pass
+
+    if mapTo:
+##        tax = Taxonomy()
+##        for id in results:
+##            if any(id in mapTo for id in lineage(id)):
+##                
+##            containdIn = lambda id: [taxid in 
+        results = [id if not any(parent_id in lineage(r) for parent_id in mapTo) else [parent_id for parent_id in mapTo if parent_id in lineage(r)].pop() for r in results]
 
     return results
 

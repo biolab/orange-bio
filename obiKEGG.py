@@ -728,7 +728,7 @@ class KEGGOrganism(object):
             self.api = KEGGInterfaceLocal(update, self.local_database_path)
         if org not in self.api._taxonomy:
             import obiTaxonomy as tax
-            ids = tax.to_taxid(org)
+            ids = tax.to_taxid(org, mapTo=[entry.get_taxid() for entry in self.api._genome.values()])
             ids = set(ids).intersection([entry.get_taxid() for entry in self.api._genome.values()])
 ##            names = [key for key, name in self.api._taxonomy.items() if org.lower() in name[-1].lower()]
             if not ids:

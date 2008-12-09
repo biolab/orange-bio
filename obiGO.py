@@ -395,7 +395,7 @@ class Annotations(object):
         ids = to_taxid(org)
         if not ids:
             import obiTaxonomy as tax
-            ids = tax.to_taxid(org)
+            ids = tax.to_taxid(org, mapTo=Taxonomy().tax.keys())
             ids = set(ids).intersection(Taxonomy().tax.keys())
         if not ids:
             print >> sys.stderr, "Unable to find annotations for", "'%s'" % org, "Matching name against NCBI Taxonomy"
