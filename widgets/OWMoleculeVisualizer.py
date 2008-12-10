@@ -12,7 +12,7 @@ from OWWidget import *
 from PyQt4.QtSvg import *
 
 import OWGUI
-import sys, os
+import sys, os, urllib2, urllib
 
 import shelve
 from cStringIO import StringIO
@@ -46,8 +46,8 @@ if oasaLocal:
         return s.read()
 else:
     def mol_to_svg(molSmiles, fragSmiles):
-        params = urllib2.urlencode({'molSmiles': molSmiles, 'fragSmiles': fragSmiles})
-        f = urllib.urlopen("http://212.235.189.53/openEye/drawMol.py", params)
+        params = urllib.urlencode({'molSmiles': molSmiles, 'fragSmiles': fragSmiles})
+        f = urllib2.urlopen("http://asterix.fri.uni-lj.si/misc/bkchem/drawMol_oasa.py", params)
         return f.read()
   
 class DrawContext(object):
