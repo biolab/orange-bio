@@ -199,7 +199,8 @@ class OWHeatMap(OWWidget):
         self.scene = HeatMapGraphicsScene()
         self.sceneView = MyGraphicsView(self.scene, self.mainArea)
         self.selection = SelectData(self, self.scene)
-        # self.canvasView = QCanvasView(self.canvas, self.mainArea)
+        self.currentHighlightedCluster = None
+        self.selectedClusters = []
         self.mainArea.layout().addWidget(self.sceneView)
 
     def createColorStripe(self, palette):
@@ -776,7 +777,8 @@ class ImageItem(QGraphicsRectItem):
         self.show()
 
     def paint(self, painter, options, widget=None):
-        painter.drawImage(0, 0, self.image, 0, 0, -1, -1)
+        x, y, w, h = options.exposedRect.x(), options.exposedRect.y(), options.exposedRect.width(), options.exposedRect.height()
+        painter.drawImage(x, y, self.image, x, y, w, h)
 
 
         
@@ -790,6 +792,8 @@ class HeatMapGraphicsScene(QGraphicsScene):
         QGraphicsScene.__init__(self, *args)
         self.clicked = False
         self.shiftPressed = False
+        self.currentHighlightedCluster = None
+        self.selectedClusters = []
 
     def heatmapParameters(self, master, cellWidth, cellHeight):
         self.master = master
@@ -800,6 +804,7 @@ class HeatMapGraphicsScene(QGraphicsScene):
         self.selector.setZValue(10)
 
     def mouseMoveEvent(self, event):
+        QGraphicsScene.mouseMoveEvent(self, event)
         # handling of selection
         if self.clicked:
             self.master.selection(self.clicked, (event.scenePos().x(), event.scenePos().y()))
@@ -809,6 +814,12 @@ class HeatMapGraphicsScene(QGraphicsScene):
             if self.master <> None and not self.master.BShowballoon: return
         except:
             return
+        item = self.itemAt(event.scenePos())
+        if self.currentHighlightedCluster and self.currentHighlightedCluster != item:
+            self.currentHighlightedCluster.setHighlight(False)
+        if isinstance(item, HierarchicalClusterItem):
+            item.setHighlight(True)
+            self.currentHighlightedCluster = item
         items = filter(lambda ci: ci.zValue()==z_heatmap, self.items(event.scenePos()))
         if len(items) == 0: # mouse over nothing special
             self.selector.hide()
@@ -871,6 +882,17 @@ class HeatMapGraphicsScene(QGraphicsScene):
 
     def mousePressEvent(self, event):
         # self.viewport().setMouseTracking(False)
+        item = self.itemAt(event.scenePos())
+        if isinstance(item ,HierarchicalClusterItem):
+            leaves = list(item)
+            print len(leaves)
+            first, last = leaves[0], leaves[-1]
+            first_x, first_y = first.mapToScene(first.rect().topLeft()).x(), first.mapToScene(first.rect().topLeft()).y()
+            last_x, last_y = last.mapToScene(last.rect().topLeft()).x(), last.mapToScene(last.rect().topLeft()).y()
+            self.master.selection.start((first_x, first_y), (first_x, first_y), self.shiftPressed)
+            self.master.selection((first_x, first_y), (last_x, last_y))
+            self.master.selection.release()
+            return
         self.clicked = (event.scenePos().x(), event.scenePos().y())
         if not self.master.selection.start(self.clicked, self.clicked, self.shiftPressed):
             self.clicked = None
