@@ -159,7 +159,7 @@ class Taxonomy(object):
     def other_names(self, id):
         entry = self.get_entry(id)
         info = self._info[id]
-        names = entry[2:] ## indes 2 and larger are names
+        names = entry[2:] ## index 2 and larger are names
         return list(zip(names, info))[1:] ## exclude scientific name
 
     def rank(self, id):
@@ -169,7 +169,15 @@ class Taxonomy(object):
     def parent(self, id):
         entry = self.get_entry(id)
         return entry[0]
-        
+
+    def subnodes(self, id, levels=1):
+        res = self._text.search(self._text.entry_separator_string + id + self._text.entry_separator_string)
+        res = [r for r in res if self.get_entry(r)[0] == id]
+        if levels > 1:
+            for r in list(res):
+                res.extend(self.subnodes(r, levels-1))
+        return res
+    
     @staticmethod
     def ParseTaxdumpFile(file=None, outputdir=None, callback=None):
         from cStringIO import StringIO
@@ -265,12 +273,12 @@ def to_taxid(code, mapTo=None):
             pass
 
     if mapTo:
-##        tax = Taxonomy()
-##        for id in results:
-##            if any(id in mapTo for id in lineage(id)):
-##                
-##            containdIn = lambda id: [taxid in 
-        results = [id if not any(parent_id in lineage(r) for parent_id in mapTo) else [parent_id for parent_id in mapTo if parent_id in lineage(r)].pop() for r in results]
+        mapped = [[parent_id for parent_id in mapTo if parent_id in lineage(r)].pop() for r in results if any(parent_id in lineage(r) for parent_id in mapTo)]
+        if not mapped:
+            t = Taxonomy()
+            subnodes = dict([(r, t.subnodes(r, 4)) for r in results])
+            mapped = [id for id in mapTo if any(id in subnodes[r] for r in results)]
+        results = mapped
 
     return results
 
