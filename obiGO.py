@@ -1,21 +1,108 @@
 """obiGO is a Gene Ontology (GO) Handling Library.
 
 """
-from go import *
 
 from urllib import urlretrieve
 from gzip import GzipFile
 import tarfile
 import shutil
 import sys, os
+import re, cPickle
 from datetime import datetime
 from collections import defaultdict
+
+import obiProb
 
 try:
     import orngServerFiles
     default_database_path = os.path.join(orngServerFiles.localpath(), "GO")
 except Exception:
     default_database_path = os.curdir
+
+evidenceTypes = {
+##Experimental
+    'EXP': 'Inferred from Experiment',
+    'IDA': 'Inferred from Direct Assay',
+    'IPI': 'Inferred from Physical Interaction', ## [with <database:protein_name>]',
+    'IMP': 'Inferred from Mutant Phenotype',
+    'IGI': 'Inferred from Genetic Interaction', ## [with <database:gene_symbol[allele_symbol]>]',
+    'IEP': 'Inferred from Expression Pattern',
+##Computational Analysis Evidence Codes
+    'ISS': 'Inferred from Sequence Similarity', ## [with <database:sequence_id>] ',
+    'ISA': 'Inferred from Sequence Alignment',
+    'ISO': 'Inferred from Sequence Orthology',
+    'ISM': 'Inferred from Sequence Model',
+    'IGC': 'Inferred from Genomic Context',
+    'RCA': 'Inferred from Reviewed Computational Analysis',
+##Author Statement Evidence Codes
+    'TAS': 'Traceable author statement',
+    'NAS': 'Non-traceable author statement',
+##Curatorial Statement Evidence Codes
+    'IC': 'Inferred by curator',
+    'ND': 'No biological data available',
+##Computationally-assigned Evidence Codes
+    'IEA': 'Inferred from electronic annotation', ## [to <database:id>]',
+##Obsolete Evidence Codes
+    'NR': 'Not Recorded(Obsolete)'
+}
+##evidenceDict={"IMP":1, "IGI":2, "IPI":4, "ISS":8, "IDA":16, "IEP":32, "IEA":64,
+##              "TAS":128, "NAS":256, "ND":512, "IC":1024, "RCA":2048, "IGC":4096, "RCA":8192, "NR":16384}
+
+evidenceDict=defaultdict(int, [(e, 2**i) for i, e in enumerate(evidenceTypes.keys())])
+
+evidenceTypesOrdered = [
+'EXP',
+'IDA',
+'IPI',
+'IMP',
+'IGI',
+'IEP',
+##Computational Analysis Evidence Codes
+'ISS',
+'ISA',
+'ISO',
+'ISM',
+'IGC',
+'RCA',
+##Author Statement Evidence Codes
+'TAS',
+'NAS',
+##Curatorial Statement Evidence Codes
+'IC',
+'ND',
+##Computationally-assigned Evidence Codes
+'IEA',
+##Obsolete Evidence Codes
+'NR'
+]
+
+multiplicitySet=set(["alt_id","is_a","subset","synonym","related_synonym","exact_synonym","broad_synonym","narrow_synonym",
+                     "xref_analog","xref_unknown","relationship"])
+
+multipleTagSet = multiplicitySet
+
+annotationFields=["DB","DB_Object_ID","DB_Object_Symbol","Qualifier","GOID", "DB_Reference","Evidence","With_From","Aspect",
+                  "DB_Object_Name","DB_Object_Synonym","DB_Object_Type","taxon","Date","Assigned_by"]
+
+annotationFieldsDict={"DB":0,
+                      "DB_Object_ID":1,
+                      "DB_Object_Symbol":2,
+                      "Qualifier":3,
+                      "GO_ID":4,
+                      "GO ID":4,
+                      "DB_Reference":5,
+                      "DB:Reference":5,
+                      "Evidence_code":6,
+                      "Evidence code":6,
+                      "With_or_From":7,
+                      "With (or) From":7,
+                      "Aspect":8,
+                      "DB_Object_Name":9,
+                      "DB_Object_Synonym":10,
+                      "DB_Object_Type":11,
+                      "taxon":12,
+                      "Date":13,
+                      "Assigned_by":14}    
 
 builtinOBOObjects = ["""
 [Typedef]
@@ -594,6 +681,157 @@ class Annotations(object):
         tFile.close()
         os.remove(os.path.join(tmpDir, "gene_association." + org))
         os.remove(os.path.join(tmpDir, "gene_names.pickle"))
+
+def filterByPValue(terms, maxPValue=0.1):
+    """Filters the terms by the p-value. Asumes terms is is a dict with the same structure as returned from GOTermFinderFunc
+    """
+    return dict(filter(lambda (k,e): e[1]<maxPValue, terms.items()))
+
+def filterByFrequency(terms, minF=2):
+    """Filters the terms by the cluster frequency. Asumes terms is is a dict with the same structure as returned from GOTermFinderFunc
+    """
+    return dict(filter(lambda (k,e): len(e[0])>=minF, terms.items()))
+
+def filterByRefFrequency(terms, minF=4):
+    """Filters the terms by the reference frequency. Asumes terms is is a dict with the same structure as returned from GOTermFinderFunc
+    """
+    return dict(filter(lambda (k,e): e[2]>=minF, terms.items()))
+
+def drawEnrichmentGraph(termsList, clusterSize, refSize, filename="graph.png", width=None, height=None):
+	drawEnrichmentGraph_tostream(termsList, clusterSize, refSize, open(filename, "wb"), width, height)
+
+def drawEnrichmentGraph_tostream(GOTerms, clusterSize, refSize, fh, width=None, height=None):
+    def getParents(term):
+        parents = extractGODAG([term])
+        parents = filter(lambda t: t.id in GOTerms and t.id!=term, parents)
+        c = []
+        map(c.extend, [getParents(t.id) for t in parents])
+        parents = filter(lambda t: t not in c, parents)
+        return parents
+    parents = dict([(term, getParents(term)) for term in GOTerms])
+    #print "Parentes", parents
+    def getChildren(term):
+        return filter(lambda t: term in [p.id for p in parents[t]], GOTerms.keys())
+    topLevelTerms = filter(lambda t: not parents[t], parents.keys())
+    #print "Top level terms", topLevelTerms
+    termsList=[]
+    def collect(term, parent):
+        termsList.append(
+            ((float(len(GOTerms[term][0]))/clusterSize) / (float(GOTerms[term][2])/refSize),
+            len(GOTerms[term][0]),
+            GOTerms[term][2],
+            "%.4f" % GOTerms[term][1],
+            loadedGO.termDict[term].name,
+            loadedGO.termDict[term].id,
+            ", ".join(GOTerms[term][0]),
+            parent)
+            )
+##        print float(len(GOTerms[term][0])), float(GOTerms[term][2]), clusterSize, refSize
+        parent = len(termsList)-1
+        for c in getChildren(term):
+            collect(c, parent)
+                         
+    for topTerm in topLevelTerms:
+        collect(topTerm, None)
+
+    drawEnrichmentGraphPIL_tostream(termsList, fh, width, height)
+        
+def drawEnrichmentGraphPIL_tostream(termsList, fh, width=None, height=None):
+    from PIL import Image, ImageDraw, ImageFont
+    backgroundColor = (255, 255, 255)
+    textColor = (0, 0, 0)
+    graphColor = (0, 0, 255)
+    fontSize = height==None and 12 or (height-60)/len(termsList)
+    font = ImageFont.load_default()
+    try:
+        font = ImageFont.truetype("arial.ttf", fontSize)
+    except:
+        pass
+    getMaxTextHeightHint = lambda l: max([font.getsize(t)[1] for t in l])
+    getMaxTextWidthHint = lambda l: max([font.getsize(t)[0] for t in l])
+    maxFoldWidth = width!=None and min(150, width/6) or 150
+    maxFoldEnrichment = max([t[0] for t in termsList])
+    foldNormalizationFactor = float(maxFoldWidth)/maxFoldEnrichment
+    foldWidths = [int(foldNormalizationFactor*term[0]) for term in termsList]
+    treeStep = 10
+    treeWidth = {}
+    for i, term in enumerate(termsList):
+        treeWidth[i] = (term[7]==None and 1 or treeWidth[term[7]]+1)
+    treeStep = width!=None and min(treeStep, width/(6*max(treeWidth.values())) or 2) or treeStep
+    treeWidth = [w*treeStep + foldWidths[i] for i, w in treeWidth.items()]
+    treeWidth = max(treeWidth) - maxFoldWidth
+    verticalMargin = 10
+    horizontalMargin = 10
+##    print verticalMargin, maxFoldWidth, treeWidth
+##    treeWidth = 100
+    firstColumnStart = verticalMargin + maxFoldWidth + treeWidth + 10
+    secondColumnStart = firstColumnStart + getMaxTextWidthHint([str(t[1]) for t in termsList]+["List"]) + 2
+    thirdColumnStart = secondColumnStart + getMaxTextWidthHint([str(t[2]) for t in termsList]+["Total"]) + 2
+    fourthColumnStart = thirdColumnStart + getMaxTextWidthHint([str(t[3]) for t in termsList]+["p-value"]) + 4
+##    maxAnnotationTextWidth = width==None and getMaxTextWidthHint([str(t[4]) for t in termsList]+["Annotation"]) or (width - fourthColumnStart - verticalMargin) * 2 / 3
+    maxAnnotationTextWidth = width==None and getMaxTextWidthHint([str(t[4]) for t in termsList]+["Annotation"]) or max((width - fourthColumnStart - verticalMargin) * 2 / 3, getMaxTextWidthHint([t[4] for t in termsList]+["Annotation"]))
+    fifthColumnStart  = fourthColumnStart + maxAnnotationTextWidth + 4
+    maxGenesTextWidth = width==None and getMaxTextWidthHint([str(t[6]) for t in termsList]+["Genes"]) or (width - fourthColumnStart - verticalMargin) / 3
+    
+    legendHeight = font.getsize("1234567890")[1]*2
+    termHeight = font.getsize("A")[1]
+##    print fourthColumnStart, maxAnnotationTextWidth, verticalMargin
+    width = fifthColumnStart + maxGenesTextWidth + verticalMargin
+    height = len(termsList)*termHeight+2*(legendHeight+horizontalMargin)
+
+    image = Image.new("RGB", (width, height), backgroundColor)
+    draw = ImageDraw.Draw(image)
+
+    def truncText(text, maxWidth, append=""):
+        #print getMaxTextWidthHint([text]), maxAnnotationTextWidth
+        if getMaxTextWidthHint([text])>maxWidth:
+            while getMaxTextWidthHint([text+"..."+append])>maxWidth and text:
+                text = text[:-1]
+            if text:
+                text = text+"..."+append
+            else:
+                text = append
+        return text
+    currentY = horizontalMargin + legendHeight
+    connectAtX = {}
+    for i, term in enumerate(termsList):
+        draw.line([(verticalMargin, currentY+termHeight/2), (verticalMargin + foldWidths[i], currentY+termHeight/2)], width=termHeight-2, fill=graphColor)
+        draw.text((firstColumnStart, currentY), str(term[1]), font=font, fill=textColor)
+        draw.text((secondColumnStart, currentY), str(term[2]), font=font, fill=textColor)
+        draw.text((thirdColumnStart, currentY), str(term[3]), font=font, fill=textColor)
+        annotText = width!=None and truncText(str(term[4]), maxAnnotationTextWidth, str(term[5])) or str(term[4])
+        draw.text((fourthColumnStart, currentY), annotText, font=font, fill=textColor)
+        genesText = width!=None and truncText(str(term[6]), maxGenesTextWidth) or str(term[6])
+        draw.text((fifthColumnStart, currentY), genesText, font=font, fill=textColor)
+        lineEnd = term[7]==None and firstColumnStart-10 or connectAtX[term[7]]
+        draw.line([(verticalMargin+foldWidths[i]+1, currentY+termHeight/2), (lineEnd, currentY+termHeight/2)], width=1, fill=textColor)
+        if term[7]!=None:
+            draw.line([(lineEnd, currentY+termHeight/2), (lineEnd, currentY+termHeight/2 - termHeight*(i-term[7]))], width=1, fill=textColor)
+        connectAtX[i] = lineEnd - treeStep
+        currentY+=termHeight
+
+    currentY = horizontalMargin
+    draw.text((firstColumnStart, currentY), "list", font=font, fill=textColor)
+    draw.text((secondColumnStart, currentY), "total", font=font, fill=textColor)
+    draw.text((thirdColumnStart, currentY), "p-value", font=font, fill=textColor)
+    draw.text((fourthColumnStart, currentY), "Annnotation", font=font, fill=textColor)
+    draw.text((fifthColumnStart, currentY), "Genes", font=font, fill=textColor)
+
+    horizontalMargin = 0
+    #draw.line([(verticalMargin, height - horizontalMargin - legendHeight), (verticalMargin + maxFoldWidth, height - horizontalMargin - legendHeight)], width=1, fill=textColor)
+    draw.line([(verticalMargin, horizontalMargin + legendHeight), (verticalMargin + maxFoldWidth, horizontalMargin + legendHeight)], width=1, fill=textColor)
+    maxLabelWidth = getMaxTextWidthHint([" "+str(i) for i in range(int(maxFoldEnrichment+1))])
+    numOfLegendLabels = max(int(maxFoldWidth/maxLabelWidth), 2)
+    for i in range(numOfLegendLabels+1):
+        #draw.line([(verticalMargin + i*maxFoldWidth/10, height - horizontalMargin - legendHeight/2), (verticalMargin + i*maxFoldWidth/10, height - horizontalMargin - legendHeight)], width=1, fill=textColor)
+        #draw.text((verticalMargin + i*maxFoldWidth/10 - font.getsize(str(i))[0]/2, height - horizontalMargin - legendHeight/2), str(i), font=font, fill=textColor)
+
+        label = str(int(i*maxFoldEnrichment/numOfLegendLabels))
+        draw.line([(verticalMargin + i*maxFoldWidth/numOfLegendLabels, horizontalMargin + legendHeight/2), (verticalMargin + i*maxFoldWidth/numOfLegendLabels, horizontalMargin + legendHeight)], width=1, fill=textColor)
+        draw.text((verticalMargin + i*maxFoldWidth/numOfLegendLabels - font.getsize(label)[0]/2, horizontalMargin), label, font=font, fill=textColor)
+        
+    image.save(fh)
+        
 
 class Taxonomy(object):
     """Maps NCBI taxonomy ids to coresponding GO organism codes

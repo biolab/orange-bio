@@ -13,6 +13,9 @@ import os, tarfile
 
 import obiProb
 
+import warnings
+warnings.warn("GOLib library is deprecated!\nUse obiGO instead.",DeprecationWarning)
+
 try:
     import orngEnviron
     default_database_path = os.path.join(orngEnviron.bufferDir, "bigfiles", "go//")
