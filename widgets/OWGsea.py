@@ -49,8 +49,8 @@ def exportDistanceMatrix(resl):
 
     for i in range(len(resl)-1):
         for j in range(i+1, len(resl)):
-            gen1 = set(resl[i][1][6])
-            gen2 = set(resl[j][1][6])
+            gen1 = set(resl[i][1]['genes'])
+            gen2 = set(resl[j][1]['genes'])
             dm[i,j] = float(len(gen1 & gen2)) / len(gen1 | gen2)
 
     return dm
@@ -83,9 +83,9 @@ def exportET(resl):
     domain = orange.Domain(vars, False)
 
     examples = []
-    for name, (es, nes, pval, fdr, os, ts, genes) in resl:
+    for name, dicr in resl:
         collection, name = splitn(name)
-        examples.append([name, collection, nes, es, pval, min(fdr,1.0), str(os), str(ts),  ", ".join(genes)])
+        examples.append([name, collection, dicr['nes'], dicr['es'], dicr['p'], min(dicr['fdr'],1.0), str(dicr['size']), str(dicr['matched_size']),  ", ".join(dicr['genes'])])
 
     return orange.ExampleTable(domain, examples)
 
@@ -270,7 +270,7 @@ class OWGsea(OWWidget):
         self.keggLocalInterface = obiKEGG.KEGGInterfaceLocal(update=False)
         self.allOrganismCodes = self.keggLocalInterface.list_organisms()
 
-        local = [name.split("'")[-2] for name in orngServerFiles.listfiles("kegg") if "UpdateOrganism" in name and len(name.split("'"))>2]
+        local = [name.split(".")[0].split("_")[-1] for name in orngServerFiles.listfiles("KEGG") if "kegg_organism" in name]
         self.organismCodes = [(code, code + ": " + name) for code, name in self.allOrganismCodes.items() if code in local]
         self.organismCodes.sort()
         if not self.organismCodes:
@@ -459,7 +459,7 @@ class OWGsea(OWWidget):
         outat = set([])
         for item in self.listView.selectedItems():
             iname = self.lwiToGeneset[item]
-            outat.update(self.res[iname][6])
+            outat.update(self.res[iname]['genes'])
             
         dataOut =  dataWithAttrs(self.data,list(outat))
         self.send("Examples with selected genes only", dataOut)
@@ -478,22 +478,22 @@ class OWGsea(OWWidget):
         self.lwiToGeneset = {}
 
         def writeGenes(g):
-            return ", ".join(genes)
+            return ", ".join(g)
 
-        for name, (es, nes, pval, fdr, os, ts, genes) in res.items():
+        for name, rdic in res.items():
             splitndx = name.find("]")
             collection = name[1:splitndx]
             name1 = name[splitndx + 1:]
             item = QTreeWidgetItem(self.listView)
             item.setText(0, collection)
             item.setText(1, name1)
-            item.setText(2, "%0.3f" % nes)
-            item.setText(3, "%0.3f" % es)
-            item.setText(4, "%0.3f" % pval)
-            item.setText(5, "%0.3f" % min(fdr,1.0))
-            item.setText(6, str(os))
-            item.setText(7, str(ts))
-            item.setText(8, writeGenes(genes))
+            item.setText(2, "%0.3f" % rdic['nes'])
+            item.setText(3, "%0.3f" % rdic['es'])
+            item.setText(4, "%0.3f" % rdic['p'])
+            item.setText(5, "%0.3f" % min(rdic['fdr'],1.0))
+            item.setText(6, str(rdic['size']))
+            item.setText(7, str(rdic['matched_size']))
+            item.setText(8, writeGenes(rdic['genes']))
 
             self.lwiToGeneset[item] = name
 

@@ -68,16 +68,16 @@ gene set enrichment for given gene sets. To use it run
 
 <!-- es, nes, pval, fdr, os, ts, genes -->
 
-Method <code>runGSEA</code> returns a dictionary where key is a gene set label and its value a list
+Method <code>runGSEA</code> returns a dictionary where key is a gene set label and its value a dictionary
 of:
 <ul>
-<li> enrichment score,
-<li> normalised enrichment score,
-<li> P-value,
-<li> FDR,
-<li> whole gene set size,
-<li> matched genes from the gene set,
-<li> gene aliases for matched genes from the gene set.
+<li> enrichment score (key <code>es</code>),
+<li> normalised enrichment score (key <code>nes</code>),
+<li> P-value (key <code>p</code>),
+<li> FDR (key <code>fdr</code>),
+<li> whole gene set size (key <code>size</code>),
+<li> number of matched genes from the gene set (key <code>matched_size</code>),
+<li> gene names from the data set for matched genes from the gene set (key <code>genes</code>).
 </ul>
 
 <p>A note on gene name matching. Gene name matching is performed with the help of KEGG database. 

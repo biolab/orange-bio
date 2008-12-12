@@ -716,7 +716,17 @@ class GSEA(object):
             name = subset[0]
             oSize = len(subset[1][0])
             tSize = len(subset[1][1])
-            res[name] = list(gseal[i]) + [oSize, tSize] + [nsubsetsNames[i]]
+            #rlist = list(gseal[i]) + [oSize, tSize] + [nsubsetsNames[i]] #return list
+            rdict = {}
+            rdict['es'] = gseal[i][0]
+            rdict['nes'] = gseal[i][1]
+            rdict['p'] = gseal[i][2]
+            rdict['fdr'] = gseal[i][3]
+            rdict['size'] = oSize
+            rdict['matched_size'] = tSize
+            rdict['genes'] = nsubsetsNames[i]
+            res[name] = rdict
+        
 
         return res
 
@@ -822,10 +832,12 @@ if  __name__=="__main__":
 
     print "loaded data"
 
-    gen1 = collections([], default=True)
+    gen1 = collections([':kegg:hsa'], default=True)
     print gen1.items()[:10]
 
     res2 = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, organism="hsa")
     
-    print '\n'.join([ str(a) + ": " +str(b[:6]) for a,b in sorted(res2.items())])
+    print '\n'.join([ str(a) + ": " + str(
+        [ b[e] for e in ['nes','p','fdr']]) for a,b in sorted(res2.items())]
+        )
 
