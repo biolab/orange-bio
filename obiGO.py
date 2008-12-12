@@ -643,6 +643,13 @@ class Annotations(object):
                 dd[term].update([revGenesDict.get(ann.geneName, ann.geneName) for ann in termAnnots])
         return dict(dd)
 
+    def DrawEnrichmentGraph(self, terms, clusterSize, refSize=None, file="graph.png", width=None, height=None, precison=3):
+        refSize = len(self.geneNames) if refsSize == None else refSize
+        termsList = [(term, (float(len(terms[term][0]))/clusterSize) / (float(terms[term][2])/refSize),
+                          len(terms[term][0]), terms[term][2], terms[term][1], 1.0, terms[term][0]) for term in terms]
+                          
+        drawEnrichmentGraph(termsList, file, width, height, ontology=self.ontology, precison=precison)
+
     def __iter__(self):
         """ Iterate over all AnnotationRecord objects in annotations
         """
@@ -697,8 +704,14 @@ def filterByRefFrequency(terms, minF=4):
     """
     return dict(filter(lambda (k,e): e[2]>=minF, terms.items()))
 
-def drawEnrichmentGraph(termsList, clusterSize, refSize, filename="graph.png", width=None, height=None):
-	drawEnrichmentGraph_tostream(termsList, clusterSize, refSize, open(filename, "wb"), width, height)
+##def drawEnrichmentGraph(termsList, clusterSize, refSize, filename="graph.png", width=None, height=None):
+##    if type(termsList) == dict:
+##        termsList = [(term, (float(len(termsList[term][0]))/clusterSize) / (float(termsList[term][2])/refSize),
+##                      len(termsList[term][0]), termsList[term][2], termsList[term][1], 1.0, termsList[term][0]) for term in termsList]
+##                     
+##                     
+##                             
+##    drawEnrichmentGraph_tostreamMk2(termsList, open(filename, "wb"), width, height)
 
 def drawEnrichmentGraph_tostream(GOTerms, clusterSize, refSize, fh, width=None, height=None):
     def getParents(term):
@@ -735,8 +748,63 @@ def drawEnrichmentGraph_tostream(GOTerms, clusterSize, refSize, fh, width=None, 
         collect(topTerm, None)
 
     drawEnrichmentGraphPIL_tostream(termsList, fh, width, height)
-        
-def drawEnrichmentGraphPIL_tostream(termsList, fh, width=None, height=None):
+
+def drawEnrichmentGraph(enriched, file="graph.png", width=None, height=None, header=None, ontology = None, precison=3):
+    file = open(file, "wb") if type(file) == str else file
+    drawEnrichmentGraph_tostreamMk2(enriched, file,  width, height, header, ontology, precison)
+    
+def drawEnrichmentGraph_tostreamMk2(enriched, fh, width, height, header=None, ontology = None, precison=4):
+    ontology = ontology if ontology else Ontology()
+    header = header if header else ["List", "Total", "p-value", "FDR", "Names", "Genes"]
+    GOTerms = dict([(t[0], t) for t in enriched if t[0] in ontology])
+    def getParents(term):
+        parents = ontology.ExtractSuperGraph([term])
+        parents = [id for id in parents if id in GOTerms and id != term]
+        c = reduce(set.union, [set(ontology.ExtractSuperGraph([id])) - set([id]) for id in parents], set())
+        parents = [t for t in parents if t not in c]
+        return parents
+    parents = dict([(term, getParents(term)) for term in GOTerms])
+    #print "Parentes", parents
+    def getChildren(term):
+        return [id for id in GOTerms if term in parents[id]]
+    topLevelTerms = [id for id in parents if not parents[id]]
+    #print "Top level terms", topLevelTerms
+    termsList=[]
+    fmt = "%" + ".%if" % precison
+    def collect(term, parent):
+##        termsList.append(
+##            ((float(len(GOTerms[term][0]))/clusterSize) / (float(GOTerms[term][2])/refSize),
+##            len(GOTerms[term][0]),
+##            GOTerms[term][2],
+##            "%.4f" % GOTerms[term][1],
+##            loadedGO.termDict[term].name,
+##            loadedGO.termDict[term].id,
+##            ", ".join(GOTerms[term][0]),
+##            parent)
+##            )
+        termsList.append(GOTerms[term][1:4] + \
+                         (fmt % GOTerms[term][4],
+                          fmt % GOTerms[term][5],
+                          ontology[term].name,
+                          ", ".join(GOTerms[term][6])) + (parent,))
+##        print float(len(GOTerms[term][0])), float(GOTerms[term][2]), clusterSize, refSize
+        parent = len(termsList)-1
+        for c in getChildren(term):
+            collect(c, parent)
+                         
+    for topTerm in topLevelTerms:
+        collect(topTerm, None)
+    for entry in enriched:
+        if entry[0] not in ontology:
+            termsList.append(entry[1:4] + \
+                             (fmt % entry[4],
+                              fmt % entry[5],
+                              entry[0],
+                              ", ".join(entry[6])) + (None,))
+
+    drawEnrichmentGraphPIL_tostream(termsList, header, fh, width, height)
+    
+def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=None):
     from PIL import Image, ImageDraw, ImageFont
     backgroundColor = (255, 255, 255)
     textColor = (0, 0, 0)
@@ -756,7 +824,7 @@ def drawEnrichmentGraphPIL_tostream(termsList, fh, width=None, height=None):
     treeStep = 10
     treeWidth = {}
     for i, term in enumerate(termsList):
-        treeWidth[i] = (term[7]==None and 1 or treeWidth[term[7]]+1)
+        treeWidth[i] = (term[-1]==None and 1 or treeWidth[term[-1]]+1)
     treeStep = width!=None and min(treeStep, width/(6*max(treeWidth.values())) or 2) or treeStep
     treeWidth = [w*treeStep + foldWidths[i] for i, w in treeWidth.items()]
     treeWidth = max(treeWidth) - maxFoldWidth
@@ -765,18 +833,19 @@ def drawEnrichmentGraphPIL_tostream(termsList, fh, width=None, height=None):
 ##    print verticalMargin, maxFoldWidth, treeWidth
 ##    treeWidth = 100
     firstColumnStart = verticalMargin + maxFoldWidth + treeWidth + 10
-    secondColumnStart = firstColumnStart + getMaxTextWidthHint([str(t[1]) for t in termsList]+["List"]) + 2
-    thirdColumnStart = secondColumnStart + getMaxTextWidthHint([str(t[2]) for t in termsList]+["Total"]) + 2
-    fourthColumnStart = thirdColumnStart + getMaxTextWidthHint([str(t[3]) for t in termsList]+["p-value"]) + 4
+    secondColumnStart = firstColumnStart + getMaxTextWidthHint([str(t[1]) for t in termsList]+[headers[0]]) + 2
+    thirdColumnStart = secondColumnStart + getMaxTextWidthHint([str(t[2]) for t in termsList]+[headers[1]]) + 2
+    fourthColumnStart = thirdColumnStart + getMaxTextWidthHint([str(t[3]) for t in termsList]+[headers[2]]) + 2
+    fifthColumnStart = fourthColumnStart + getMaxTextWidthHint([str(t[4]) for t in termsList]+[headers[3]]) + 4
 ##    maxAnnotationTextWidth = width==None and getMaxTextWidthHint([str(t[4]) for t in termsList]+["Annotation"]) or (width - fourthColumnStart - verticalMargin) * 2 / 3
-    maxAnnotationTextWidth = width==None and getMaxTextWidthHint([str(t[4]) for t in termsList]+["Annotation"]) or max((width - fourthColumnStart - verticalMargin) * 2 / 3, getMaxTextWidthHint([t[4] for t in termsList]+["Annotation"]))
-    fifthColumnStart  = fourthColumnStart + maxAnnotationTextWidth + 4
-    maxGenesTextWidth = width==None and getMaxTextWidthHint([str(t[6]) for t in termsList]+["Genes"]) or (width - fourthColumnStart - verticalMargin) / 3
+    maxAnnotationTextWidth = width==None and getMaxTextWidthHint([str(t[5]) for t in termsList]+[headers[4]]) or max((width - fifthColumnStart - verticalMargin) * 2 / 3, getMaxTextWidthHint([t[5] for t in termsList]+[headers[4]]))
+    sixthColumnStart  = fifthColumnStart + maxAnnotationTextWidth + 4
+    maxGenesTextWidth = width==None and getMaxTextWidthHint([str(t[6]) for t in termsList]+[headers[5]]) or (width - fifthColumnStart - verticalMargin) / 3
     
     legendHeight = font.getsize("1234567890")[1]*2
     termHeight = font.getsize("A")[1]
 ##    print fourthColumnStart, maxAnnotationTextWidth, verticalMargin
-    width = fifthColumnStart + maxGenesTextWidth + verticalMargin
+    width = sixthColumnStart + maxGenesTextWidth + verticalMargin
     height = len(termsList)*termHeight+2*(legendHeight+horizontalMargin)
 
     image = Image.new("RGB", (width, height), backgroundColor)
@@ -795,27 +864,31 @@ def drawEnrichmentGraphPIL_tostream(termsList, fh, width=None, height=None):
     currentY = horizontalMargin + legendHeight
     connectAtX = {}
     for i, term in enumerate(termsList):
+        print term
         draw.line([(verticalMargin, currentY+termHeight/2), (verticalMargin + foldWidths[i], currentY+termHeight/2)], width=termHeight-2, fill=graphColor)
         draw.text((firstColumnStart, currentY), str(term[1]), font=font, fill=textColor)
         draw.text((secondColumnStart, currentY), str(term[2]), font=font, fill=textColor)
         draw.text((thirdColumnStart, currentY), str(term[3]), font=font, fill=textColor)
-        annotText = width!=None and truncText(str(term[4]), maxAnnotationTextWidth, str(term[5])) or str(term[4])
-        draw.text((fourthColumnStart, currentY), annotText, font=font, fill=textColor)
+        draw.text((fourthColumnStart, currentY), str(term[4]), font=font, fill=textColor)
+##        annotText = width!=None and truncText(str(term[5]), maxAnnotationTextWidth, str(term[5])) or str(term[4])
+        annotText = width!=None and truncText(str(term[5]), maxAnnotationTextWidth)
+        draw.text((fifthColumnStart, currentY), annotText, font=font, fill=textColor)
         genesText = width!=None and truncText(str(term[6]), maxGenesTextWidth) or str(term[6])
-        draw.text((fifthColumnStart, currentY), genesText, font=font, fill=textColor)
-        lineEnd = term[7]==None and firstColumnStart-10 or connectAtX[term[7]]
+        draw.text((sixthColumnStart, currentY), genesText, font=font, fill=textColor)
+        lineEnd = term[-1]==None and firstColumnStart-10 or connectAtX[term[-1]]
         draw.line([(verticalMargin+foldWidths[i]+1, currentY+termHeight/2), (lineEnd, currentY+termHeight/2)], width=1, fill=textColor)
-        if term[7]!=None:
-            draw.line([(lineEnd, currentY+termHeight/2), (lineEnd, currentY+termHeight/2 - termHeight*(i-term[7]))], width=1, fill=textColor)
+        if term[-1]!=None:
+            draw.line([(lineEnd, currentY+termHeight/2), (lineEnd, currentY+termHeight/2 - termHeight*(i-term[-1]))], width=1, fill=textColor)
         connectAtX[i] = lineEnd - treeStep
         currentY+=termHeight
 
     currentY = horizontalMargin
-    draw.text((firstColumnStart, currentY), "list", font=font, fill=textColor)
-    draw.text((secondColumnStart, currentY), "total", font=font, fill=textColor)
-    draw.text((thirdColumnStart, currentY), "p-value", font=font, fill=textColor)
-    draw.text((fourthColumnStart, currentY), "Annnotation", font=font, fill=textColor)
-    draw.text((fifthColumnStart, currentY), "Genes", font=font, fill=textColor)
+    draw.text((firstColumnStart, currentY), headers[0], font=font, fill=textColor)
+    draw.text((secondColumnStart, currentY), headers[1], font=font, fill=textColor)
+    draw.text((thirdColumnStart, currentY), headers[2], font=font, fill=textColor)
+    draw.text((fourthColumnStart, currentY), headers[3], font=font, fill=textColor)
+    draw.text((fifthColumnStart, currentY), headers[4], font=font, fill=textColor)
+    draw.text((sixthColumnStart, currentY), headers[5], font=font, fill=textColor)
 
     horizontalMargin = 0
     #draw.line([(verticalMargin, height - horizontalMargin - legendHeight), (verticalMargin + maxFoldWidth, height - horizontalMargin - legendHeight)], width=1, fill=textColor)
@@ -948,19 +1021,24 @@ def _test1():
         print f
     o = Ontology("ontology_arch.tar.gz")
     a = Annotations("annotations_arch.tar.gz", ontology=o)
-    import go
-    loadAnnotation("sgd")
-    loadGO()
-##    print a.GetAllGenes("GO:0008150")
-    import profile
+    
     a.GetEnrichedTerms(sorted(a.geneNames)[:100])#, progressCallback=_print)
 ##    profile.runctx("a.GetEnrichedTerms(sorted(a.geneNames)[:100])", {"a":a}, {})
     a.GetEnrichedTerms(sorted(a.geneNames)[:100])#, progressCallback=_print)
     d1 = a.GetEnrichedTerms(sorted(a.geneNames)[:1000])#, progressCallback=_print)
-    d2 = GOTermFinder(sorted(a.geneNames)[:1000])
-    print set(d2.keys()) - set(d1.keys())
-    print set(d1.keys()) - set(d2.keys())
+    
 ##    print a.GetEnrichedTerms(sorted(a.geneNames)[:100])#, progressCallback=_print)
+
+def _test2():
+##    o = Ontology()
+##    a = Annotations("sgd", ontology=o)
+##    clusterGenes = sorted(a.geneNames)[:2]
+##    terms = a.GetEnrichedTerms(sorted(a.geneNames)[:2])
+##    drawEnrichmentGraph(filterByPValue(terms), len(clusterGenes), len(a.geneNames))
+              
+    drawEnrichmentGraph([("bal", 1.0, 5, 6, 0.1, 0.4, ["vv"]),
+                        ("GO:0019079", 0.5, 5, 6, 0.1, 0.4, ["cc", "bb"]),
+                        ("GO:0022415", 0.4, 5, 7, 0.11, 0.4, ["cc1", "bb"])], open("graph.png", "wb"), None, None)
     
 if __name__ == "__main__":
-    _test1()
+    _test2()
