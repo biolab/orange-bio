@@ -792,6 +792,27 @@ def evaluateEtWith(fn, *args, **kwargs):
     return newf
 
 
+def hierarchyOutput(results, limitGenes=50):
+    """
+    Transforms results for use by hierarchy output from GO.
+
+    limitGenes - maximum number of genes on output.
+    """
+    trans = []
+    
+    print "OUTPUT"
+
+    for name, res in results.items():
+        try:
+            second = name.split(' ')[2]
+            name = second if second[:2] == 'GO' else name
+        except:
+            pass
+        
+        trans.append((name, abs(res["nes"]), res["matched_size"], res["size"], res["p"], min(res["fdr"], 1.0), res["genes"][:limitGenes]))
+
+    return trans
+
 if  __name__=="__main__":
     """
     data = orange.ExampleTable("sterolTalkHepa.tab")
@@ -832,12 +853,31 @@ if  __name__=="__main__":
 
     print "loaded data"
 
-    gen1 = collections([':kegg:hsa'], default=True)
-    print gen1.items()[:10]
+    import mMisc as m
 
-    res2 = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, organism="hsa")
+    #gen1 = collections([':kegg:hsa', ':go:hsa'], default=True)
+    gen1 = m.autoPck("fdkkdf.pck", "2", collections, [':kegg:hsa', ':go:hsa'], default=True)
+
     
+    #res2 = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, organism="hsa")
+    res2 = m.autoPck("fkdklfdlk.pck", "1", runGSEA, data, n=100, geneSets=gen1, permutation="gene", atLeast=3, organism="hsa")
+
+    res2 = dict([ (a,b) for a,b in res2.items() if b['p'] < 0.05 ])
+
+    ho = hierarchyOutput(res2)
+    
+    print len(ho)
+    ho = ho[:1000]
+
+
+    print ho
+
+    import obiGO
+    obiGO.drawEnrichmentGraph(ho, open("graph.png", "wb"), None, None)
+
+    """
     print '\n'.join([ str(a) + ": " + str(
         [ b[e] for e in ['nes','p','fdr']]) for a,b in sorted(res2.items())]
         )
+    """
 

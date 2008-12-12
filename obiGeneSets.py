@@ -144,7 +144,7 @@ def prettyfygo(god):
 
     ndic = {}
     for a,b in god.items():
-        ndic["[GO " + translatens(ontology.terms[a].namespace) + "] " + ontology.terms[a].name] = b
+        ndic["[GO " + translatens(ontology.terms[a].namespace) + "] " + a + " " + ontology.terms[a].name] = b
     return ndic
 
 
