@@ -644,7 +644,7 @@ class Annotations(object):
         return dict(dd)
 
     def DrawEnrichmentGraph(self, terms, clusterSize, refSize=None, file="graph.png", width=None, height=None, precison=3):
-        refSize = len(self.geneNames) if refsSize == None else refSize
+        refSize = len(self.geneNames) if refSize == None else refSize
         termsList = [(term, (float(len(terms[term][0]))/clusterSize) / (float(terms[term][2])/refSize),
                           len(terms[term][0]), terms[term][2], terms[term][1], 1.0, terms[term][0]) for term in terms]
                           
@@ -864,7 +864,6 @@ def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=N
     currentY = horizontalMargin + legendHeight
     connectAtX = {}
     for i, term in enumerate(termsList):
-        print term
         draw.line([(verticalMargin, currentY+termHeight/2), (verticalMargin + foldWidths[i], currentY+termHeight/2)], width=termHeight-2, fill=graphColor)
         draw.text((firstColumnStart, currentY), str(term[1]), font=font, fill=textColor)
         draw.text((secondColumnStart, currentY), str(term[2]), font=font, fill=textColor)
