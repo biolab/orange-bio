@@ -51,7 +51,7 @@ class OWHeatMap(OWWidget):
                     "ShowDataFileNames", "BAnnotationVar",
                     "SelectionType",
                     "CurrentPalette", "SortGenes", "colorSettings", "selectedSchemaIndex",
-                    "palette"]
+                    "palette", "ShowColumnLabels", "ColumnLabelPosition"]
 
     def __init__(self, parent=None, signalManager = None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
@@ -74,6 +74,8 @@ class OWHeatMap(OWWidget):
         self.MaintainArrayHeight = 0   # adjust cell height while changing the merge factor
         self.BShowballoon = 1          # balloon help
         self.ShowGeneAnnotations = 1   # show annotations for genes
+        self.ShowColumnLabels = 1
+        self.ColumnLabelPosition = 0
         self.ShowDataFileNames = 1     # show the names of the data sets (only in case of multiple files)
         self.BShowColumnID = 1; self.BShowSpotIndex = 1; self.BShowAnnotation = 1; self.BShowGeneExpression = 1
         self.BSpotVar = None; self.BAnnotationVar = None  # these are names of variables
@@ -154,6 +156,12 @@ class OWHeatMap(OWWidget):
         
         self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationIndx", items=[], callback=lambda x='BAnnotationVar', y='BAnnotationIndx': self.setMetaID(x, y))
 
+        box = OWGUI.widgetBox(tab, 'Column Labels')
+        columnLabelCB = OWGUI.checkBox(box, self, "ShowColumnLabels", "Display column labels", callback=self.drawHeatMap)
+        comboBox = OWGUI.comboBox(OWGUI.indentedBox(box), self, "ColumnLabelPosition", "Position", items=["Top", "Bottom"], callback=self.drawHeatMap)
+        columnLabelCB.disables.append(comboBox.box)
+        columnLabelCB.makeConsistent()
+        
         box = OWGUI.widgetBox(tab, "Ballon") #QVButtonGroup("Balloon", tab)
         OWGUI.checkBox(box, self, 'BShowballoon', "Show balloon", \
             callback=lambda: self.balloonInfoBox.setDisabled(not self.BShowballoon))
@@ -569,17 +577,18 @@ class OWHeatMap(OWWidget):
         # determine the appropriate font width for annotation
         # this part is ugly, we need to do it computationally
         font = QFont()
-        dummy = QGraphicsSimpleTextItem("dummy", None)
-        last = 2; offset = 0
-        for fsize in range(2,9):
-            font.setPointSize(fsize)
-            dummy.setFont(font)
-            if dummy.boundingRect().height() > self.CellHeight:
-                break
-            offset = (self.CellHeight - dummy.boundingRect().height())/2
-            last = fsize
-        font.setPointSize(last)
-        y += offset
+##        dummy = QGraphicsSimpleTextItem("dummy", None)
+##        last = 2; offset = 0
+##        for fsize in range(2,9):
+##            font.setPointSize(fsize)
+##            dummy.setFont(font)
+##            if dummy.boundingRect().height() > self.CellHeight:
+##                break
+##            offset = (self.CellHeight - dummy.boundingRect().height())/2
+##            last = fsize
+##        font.setPointSize(last)
+##        y += offset
+        font.setPixelSize(max(self.CellHeight - 1, 1))
 
         # annotate
         hm = self.heatmaps[0][group]
@@ -590,6 +599,31 @@ class OWHeatMap(OWWidget):
                 t.setPos(x, y)
                 t.show()
                 y += self.CellHeight
+
+    def drawColumnLabels(self, x, y, heatmap):
+        font = QFont()
+        font.setPixelSize(max(self.CellWidth - 1, 1))
+        maxY = y
+        items = []
+        if self.ShowColumnLabels:
+            angle = -90 #-90 if self.ColumnLabelPosition == 0 else 90
+            for attr in heatmap[0].examples.domain.attributes:
+                t = QGraphicsSimpleTextItem(str(attr.name), None, self.scene)
+                t.setFont(font)
+                t.setPos(x, y)
+                t.show()
+                x += self.CellWidth
+                maxY = max(y + t.boundingRect().width(), maxY)
+                t.rotate(angle)
+                items.append(t)
+
+        for item in items:
+            if self.ColumnLabelPosition == 0:
+                item.setPos(item.x(), maxY)
+            else:
+                item.setPos(item.x(), item.y() + item.boundingRect().width())
+
+        return maxY                
 
     def drawHeatMap(self):
         # remove everything from current canvas
@@ -639,6 +673,9 @@ class OWHeatMap(OWWidget):
             showClusters = (i == 0 and self.groupClusters and self.ShowClustering)
             ycoord = []
             y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + c_spaceAverageX)
+
+            if self.ColumnLabelPosition == 0:
+                y = self.drawColumnLabels(x, y, self.heatmaps[i]) + 2
             
             self.heatmapPositionsX.append((x, x + self.widths[i]-1))
             for g in range(groups):
@@ -659,7 +696,9 @@ class OWHeatMap(OWWidget):
                 image.height = self.heights[g]; image.width = self.imageWidth
                 if not i: self.imgEnd.append(y+self.heights[g]-1)
                 y += self.heights[g] + c_spaceY
-
+            
+            if self.ColumnLabelPosition == 1:
+                self.drawColumnLabels(x, y - c_spaceY + 2, self.heatmaps[i])
             x = x0
             # plot stripe with averages
             if self.ShowAverageStripe:
