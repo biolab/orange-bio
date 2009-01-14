@@ -115,7 +115,7 @@ def issequencens(x):
 
 #end utility functions
 
-socket.setdefaulttimeout(10)
+socket.setdefaulttimeout(30)
 
 verbose = 0
 
@@ -269,6 +269,7 @@ extractions extractions
 chips chips""")
 
     def __init__(self, address, buffer=None):
+        self.address = address
         self.db = DBInterface(address)
         self.buffer = buffer
         self.preload()
@@ -385,7 +386,7 @@ chips chips""")
         params = ""
         if len(kwargs) > 0: params += "&query=" + self.pq(kwargs)
         if ao: params += "&annotation_object_id=" +  self.aoidt(ao)
-        res,legend = self.sq("action=get_annotation_options%s" % (params))
+        res,legend = self.sq("action=get_annotation_options%s" % (params), bufadd=self.address)
         res = onlyColumns(res, legend, ['annotation_object_id', 'value' ])
 
         #join columns with the annotation object id
@@ -428,9 +429,9 @@ chips chips""")
             self.toBuffer(bufkey, res)
         return res
 
-    def sq(self, s1, buffer=True):
+    def sq(self, s1, buffer=True, bufadd=""):
         if buffer:
-            res = self.bufferFun(s1, self.db.get, s1)
+            res = self.bufferFun(bufadd + s1, self.db.get, s1)
         else:
             res = self.db.get(s1)
         return res[1:],res[0]
@@ -521,7 +522,7 @@ chips chips""")
                 dico[l[i][0]] = l[i][1][a]
 
             res,_ = self.sq("action=search&object_id=%s&query=%s" \
-                % (self.obidt(type), self.pq(dico)))
+                % (self.obidt(type), self.pq(dico)), bufadd=self.address)
 
             ares += res
 
@@ -547,7 +548,9 @@ chips chips""")
             yield a   
 
     def chipNsN(self, ids, annots):
+
         #new shorter format, watch for the same "chips.chip_map_id"
+
         chip_map_ids = zip(ids,[ dict(a)['chips.chip_map_id'] for a in annots ])
 
         def separateByChipsMaps(l):
@@ -563,7 +566,7 @@ chips chips""")
             yield l[begin:cp+1]
         
         sep = list(separateByChipsMaps(chip_map_ids))
-
+      
         def sel(res, legend):
             #Drop unwanted columns - for efficiency
             res = onlyColumns(res, legend, ["spot_id", 'M'])
@@ -571,18 +574,20 @@ chips chips""")
             return res, legend
 
         def separatefn(res):
-            #each one is own column
-            genes = nth(res,0)[1:]
-            cids = res[0][1:]
+            #each one is own rown
+            #genes are in the first row
+            genes = res[0][1:]
+            cids = nth(res,0)[1:]
+
             antss = {}
             for i,cid in enumerate(cids):
-                col = i+1
-                vals = nth(res, col)[1:]
+                row = i+1
+                vals = res[row][1:]
                 antss[cid] = [ list(a) for a in zip(genes, vals) ]
             return ['spot_id', 'M'], antss
 
         for part in sep:
-            pids = nth(part, 0)
+            pids = nth(part,0)
             antss = self.downloadMulti("action=get_normalized_data&mergeexperiments=1&ids=$MULTI$", pids, chunk=10, transformfn=sel, separatefn=separatefn)
             for a, legend in antss:
                 yield a
@@ -1050,6 +1055,8 @@ chips chips""")
         for id in ids:
             annotsinlist.append(readall[id])
 
+        print zip(ids,[ dict(a)['chips.chip_map_id'] for a in annotsinlist ])
+
         cbc.end()
 
         cbc = CallBack(1, optcb, callbacks=10)
@@ -1062,21 +1069,22 @@ chips chips""")
         #here could user intervent. till now downloads were small
 
         import time
-        #print time.time()
+        tstart =  time.time()
 
         #here download actually happens
 
         cbc = CallBack(len(ids), optcb, callbacks=999-50)
         if type == "norms":
-            #chipd = self.dictionarize(ids, self.chipNsN, ids, annotsinlist, callback=cbc.part)
-            chipd = self.dictionarize(ids, self.chipNs, ids, callback=cbc.part)
+            chipd = self.dictionarize(ids, self.chipNsN, ids, annotsinlist, callback=cbc.part)
+            #chipd = self.dictionarize(ids, self.chipNs, ids, callback=cbc.part)
         else:
             chipd = self.dictionarize(ids, self.chipRs, ids, callback=cbc.part)
 
         cbc.end()
         
         #create example tables grouped according to user's wishes
-        #print time.time()
+        if verbose:
+            print "DOWNLOAD TIME", time.time() - tstart
 
         cbc = CallBack(len(etsa)+1, optcb, callbacks=10)
         ets = self.exampleTables(chipd, etsa, spotmap=self.spotMap(), callback=cbc.part)
@@ -1245,13 +1253,9 @@ class BufferSQLite(object):
 if __name__=="__main__":
     verbose = 1
     #dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?", buffer=BufferSQLite("../tmpbuf1233"))
-    #dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?")
-    dbc = obiDicty.DatabaseConnection("http://purple.bioch.bcm.tmc.edu/~anup/index.php?")
+    dbc = DatabaseConnection("http://purple.bioch.bcm.tmc.edu/~anup/index.php?", buffer=BufferSQLite("../tmpbufnew"))
 
-    ao = dbc.annotations("norms")
-    print list(ao)[:10]
-    ao = dbc.annotations("norms", ids=["3900"])
-    print list(ao)[:10]
+    print dbc.annotationOptions()
 
     count = 0
     def cb():
@@ -1259,9 +1263,9 @@ if __name__=="__main__":
         count += 1
         #print "CBBB", count
 
-    ets = dbc.getData(sample='tagA-', callback=cb)
+    ets = dbc.getData(sample="tagA-", callback=cb)
     
     for i,et in enumerate(ets):
-        et.save("%s/T%d.tab" % ("multid1", i))
+        et.save("%s/T%d.tab" % ("multid2", i))
         print et.annot
 
