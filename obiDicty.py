@@ -1046,7 +1046,7 @@ chips chips""")
         for a,b in readall.items():
             read[a] = self.keepOnlyMeaningful(b)
 
-        annotsinlist = []
+        annotsinlist = [] #annotations in the same order
         for id in ids:
             annotsinlist.append(readall[id])
 
@@ -1068,8 +1068,8 @@ chips chips""")
 
         cbc = CallBack(len(ids), optcb, callbacks=999-50)
         if type == "norms":
-            chipd = self.dictionarize(ids, self.chipNsN, ids, annotsinlist, callback=cbc.part)
-            #chipd = self.dictionarize(ids, self.chipNs, ids, callback=cbc.part)
+            #chipd = self.dictionarize(ids, self.chipNsN, ids, annotsinlist, callback=cbc.part)
+            chipd = self.dictionarize(ids, self.chipNs, ids, callback=cbc.part)
         else:
             chipd = self.dictionarize(ids, self.chipRs, ids, callback=cbc.part)
 
@@ -1244,8 +1244,9 @@ class BufferSQLite(object):
 
 if __name__=="__main__":
     verbose = 1
-    dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?", buffer=BufferSQLite("../tmpbuf1233"))
+    #dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?", buffer=BufferSQLite("../tmpbuf1233"))
     #dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?")
+    dbc = obiDicty.DatabaseConnection("http://purple.bioch.bcm.tmc.edu/~anup/index.php?")
 
     ao = dbc.annotations("norms")
     print list(ao)[:10]
