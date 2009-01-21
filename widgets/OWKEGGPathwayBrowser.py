@@ -52,7 +52,7 @@ class PathwayView(QGraphicsView):
         self.popup.addAction("View linked pathway", self.PopupAction)
         
     def SetPathway(self, pathway=None, objects=[]):
-        print 'set pathway',pathway
+##        print 'set pathway',pathway
          
         self.pathway = pathway
         self.objects = objects
@@ -60,7 +60,7 @@ class PathwayView(QGraphicsView):
             pathway.api.download_progress_callback = self.master.progressBarSet
             self.master.progressBarInit()
             self.image = image = self.pathway.get_image()
-            print 'image:', image
+##            print 'image:', image
             self.bbDict = self.pathway.get_bounding_box_dict()
             self.master.progressBarFinished()
             self.ShowImage()
@@ -84,7 +84,7 @@ class PathwayView(QGraphicsView):
             image = self.image
             self.resizeFactor = 1
             
-        print self.pathway.local_database_path+"TmpPathwayImage.png"
+##        print self.pathway.local_database_path+"TmpPathwayImage.png"
         image.save(self.pathway.local_database_path+"TmpPathwayImage.png")
         self.pixmap = QPixmap(self.pathway.local_database_path+"TmpPathwayImage.png")
         w, h = image.size
@@ -155,7 +155,7 @@ class PathwayView(QGraphicsView):
     def resizeEvent(self, event):
         QGraphicsView.resizeEvent(self, event)
         
-        if self.master.autoResize and self.image:
+        if self.master.autoResize and self.image and self.pathway:
             self.ShowImage()
 
     def contextMenuEvent(self, event):
@@ -320,11 +320,11 @@ class OWKEGGPathwayBrowser(OWWidget):
         testOrgs = self.autoFindBestOrg and self.organismCodes or [self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]]
         for i, org in enumerate(testOrgs):
             try:
-                print obiKEGG.default_database_path + org + "_genenames.pickle"
+##                print obiKEGG.default_database_path + org + "_genenames.pickle"
 ##                geneNames = load(open(os.path.join(obiKEGG.default_database_path, org+"_genenames.pickle")))
-                geneNames = load(self.keggLocalInterface._retrieve(org+"_genenames.pickle"))
-            except:
-                print 'error 2'
+                geneNames = load(self.keggLocalInterface._retrieve(org+"_genenames.pickle", from_="kegg_organism_%s.tar.gz"%org))
+            except Exception, ex:
+##                print 'error 2', ex
                 continue
             for attr in self.geneAttrCandidates:
                 vals = [str(e[attr]).strip() for e in data if not e[attr].isSpecial()]
@@ -338,9 +338,9 @@ class OWKEGGPathwayBrowser(OWWidget):
         score = [(s, attr, org) for (attr, org), s in score.items()]
         score.sort()
         if not score:
-            self.useAttrNames = 0
-            self.geneAttrIndex = len(self.geneAttrCandidates)-1
-            self.organismIndex = 0
+            self.useAttrNames = 1
+            self.geneAttrIndex = min(len(self.geneAttrCandidates)-1, self.geneAttrIndex)
+##            self.organismIndex = 0
         elif score[-1][1]=="_var_names_":
             self.useAttrNames = 1
             self.geneAttrIndex = 0 #self.geneAttrCandidates.index(score[-2][1])
