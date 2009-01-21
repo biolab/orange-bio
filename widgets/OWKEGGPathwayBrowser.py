@@ -115,6 +115,8 @@ class PathwayView(QGraphicsView):
                 painter.drawRect(x1+1, y1+1, x2-x1, y2-y1)
                 
             painter.restore()
+        else:
+            painter.drawText(r.center(), "No image available")
 
     def GetObjects(self, x, y):
         def _in(x, y, bb):
