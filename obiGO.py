@@ -12,6 +12,7 @@ from datetime import datetime
 from collections import defaultdict
 
 import obiProb
+import orngEnviron
 
 try:
     import orngServerFiles
@@ -950,7 +951,7 @@ class Update(UpdateBase):
     def __init__(self, local_database_path=None, progressCallback=None):
         UpdateBase.__init__(self, local_database_path or getDataDir(), progressCallback)
     def CheckModified(self, addr, date=None):
-        return date > self.GetLastModified(addr) if date else True
+        return date < self.GetLastModified(addr) if date else True
         
     def CheckModifiedOrg(self, org):
         return self.CheckModified("http://www.geneontology.org/gene-associations/gene_association." + org + ".gz", self.LastModifiedOrg(org))
