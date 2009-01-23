@@ -307,6 +307,11 @@ class Ontology(object):
         for id, term in self.terms.items():
             for typeId, parent in term.related:
                 self.terms[parent].relatedTo.add((typeId, id))
+            try:
+                for alt_id in term.alt_id:
+                    self.aliasMapper[alt_id] = id
+            except Exception:
+                pass
 
     def GetDefinedSlimsSubsets(self):
         """ Return a list of defined subsets
@@ -334,7 +339,7 @@ class Ontology(object):
             if term in self.slimsSubset:
                 slims.add(term)
             else:
-                queue.update(set(id for typeId, id in self.terms[term].related) - visited)
+                queue.update(set(id for typeId, id in self[term].related) - visited)
         return slims
 
     def ExtractSuperGraph(self, terms):
@@ -346,7 +351,7 @@ class Ontology(object):
         while queue:
             term = queue.pop()
             visited.add(term)
-            queue.update(set(id for typeId, id in self.terms[term].related) - visited)
+            queue.update(set(id for typeId, id in self[term].related) - visited)
         return visited
 
     def ExtractSubGraph(self, terms):
@@ -358,20 +363,20 @@ class Ontology(object):
         while queue:
             term = queue.pop()
             visited.add(term)
-            queue.update(set(id for typeId, id in self.terms[term].relatedTo) - visited)
+            queue.update(set(id for typeId, id in self[term].relatedTo) - visited)
         return visited
 
     def GetTermDepth(self, term, cache_={}):
         """ Return the minimum depth of a term (length of the shortest path to this term from the top level term).
         """
         if term not in cache:
-            cache[term] = min([self.GetTermDepth(parent) + 1 for typeId, parent in self.terms[term].related] or [1])
+            cache[term] = min([self.GetTermDepth(parent) + 1 for typeId, parent in self[term].related] or [1])
         return cache[term]
 
     def __getitem__(self, id):
         """ Return object with id (same as ontology.terms[id]
         """
-        return self.terms[id]
+        return self.terms.get(id, self.terms.get(self.aliasMapper.get(id, id)))
 
     def __iter__(self):
         """ Iterate over all ids in ontology
