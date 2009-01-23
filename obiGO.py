@@ -313,6 +313,10 @@ class Ontology(object):
             except Exception:
                 pass
 
+        self.reverseAliasMapper = defaultdict(set)
+        for id in self.aliasMapper:
+            self.reverseAliasMapper[self.aliasMapper[id]].add(id)
+
     def GetDefinedSlimsSubsets(self):
         """ Return a list of defined subsets
         """
@@ -567,7 +571,10 @@ class Annotations(object):
         """ Recursive function collects and caches all annotations for id
         """
         if id not in self.allAnnotations:
-            annotations = [self.termAnnotations[id]] ## annotations for this term alone
+            if id in self.ontology.reverseAliasMapper:
+                annotations = [self.termAnnotations.get(alt_id, []) for alt_id in self.ontology.reverseAliasMapper[id]]
+            else:
+                annotations = [self.termAnnotations[id]] ## annotations for this term alone
             for typeId, child in self.ontology[id].relatedTo:
                 aa = self._CollectAnnotations(child)
                 if type(aa) == set: ## if it was allready reduced in GetAllAnnotations
@@ -580,13 +587,13 @@ class Annotations(object):
     def GetAllAnnotations(self, id):
         """ Return a set of all annotations for this and all subterms.
         """
+        id = self.ontology.aliasMapper.get(id, id)
         if id not in self.allAnnotations or type(self.allAnnotations[id]) == list:
             annot_set = set()
             for annots in self._CollectAnnotations(id):
                 annot_set.update(annots)
             self.allAnnotations[id] = annot_set
         return self.allAnnotations[id]
-
 
     def GetAllGenes(self, id, evidenceCodes = None):
         """ Return a list of genes annotated by specified evidence codes to this and all subterms."
