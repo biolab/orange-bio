@@ -306,7 +306,8 @@ class KEGGInterfaceLocal(object):
         elif len(org)==4 and org.startswith("e"):
             return "organisms_est/"+org+"/"
         else:
-            return "organisms_kaas/"+org+"/"
+##            return "organisms_kaas/"+org+"/"
+            return "organisms/"+org+"/"
         
     def _rel_pathway_dir(self, pathway_id):
         return "pathway/"+self._rel_org_dir(pathway_id.split(":")[-1][:-5])
@@ -940,7 +941,7 @@ class Update(UpdateBase):
         ret.extend([(Update.UpdateReference, ())] if (Update.UpdateReference, ()) not in self.shelve else [])
         ret.extend([(Update.UpdateEnzymeAndCompounds, ())] if (Update.UpdateEnzymeAndCompounds, ()) not in self.shelve else [])
         orgs = [org for org in self.api.list_organisms() if (Update.UpdateOrganism, (org,)) not in self.shelve]
-        ret.extend([(Update.UpdateOrganism , (org,)) for org in orgs])
+        ret.extend([(Update.UpdateOrganism , (org,)) for org in sorted(orgs)])
         return ret
 
 ##    @synchronized(updateLock)
