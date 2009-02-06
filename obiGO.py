@@ -460,7 +460,10 @@ class Annotations(object):
         self.annotations = []
         self.header = ""
         self.geneMapper = None
-        if file and os.path.exists(file):
+        if type(file) in [list, set, dict, Annotations]:
+            for ann in file:
+                self.AddAnnotation(ann)
+        elif file and os.path.exists(file):
             self.ParseFile(file, progressCallback)
         elif file:
             a = self.Load(file, ontology, progressCallback)
@@ -540,27 +543,36 @@ class Annotations(object):
                 continue
             
             a=AnnotationRecord(line)
-            if not a.geneName or not a.GOId or a.Qualifier == "NOT":
-                continue
-            if a.geneName not in self.geneNames:
-                self.geneNames.add(a.geneName)
-                self.geneAnnotations[a.geneName].append(a)
-                for alias in a.alias:
-                    self.aliasMapper[alias] = a.geneName
-                for alias in a.aditionalAliases:
-                    self.additionalAliases[alias] = a.geneName
-                self.aliasMapper[a.geneName] = a.geneName
-                self.aliasMapper[a.DB_Object_ID] = a.geneName
-                names = [a.DB_Object_ID, a.DB_Object_Symbol]
-                names.extend(a.alias)
-                for n in names:
-                    self.geneNamesDict[n] = names
-            else:
-                self.geneAnnotations[a.geneName].append(a)
-            self.annotations.append(a)
-            self.termAnnotations[a.GOId].append(a)
+            self.AddAnnotation(a)
             if progressCallback and i in milestones:
                 progressCallback(100.0*i/len(lines))
+
+    def AddAnnotation(self, a):
+        if not isinstance(a, AnnotationRecord):
+            a = AnnotationRecord(a)
+        if not a.geneName or not a.GOId or a.Qualifier == "NOT":
+            return
+        if a.geneName not in self.geneNames:
+            self.geneNames.add(a.geneName)
+            self.geneAnnotations[a.geneName].append(a)
+            for alias in a.alias:
+                self.aliasMapper[alias] = a.geneName
+            for alias in a.aditionalAliases:
+                self.additionalAliases[alias] = a.geneName
+            self.aliasMapper[a.geneName] = a.geneName
+            self.aliasMapper[a.DB_Object_ID] = a.geneName
+            names = [a.DB_Object_ID, a.DB_Object_Symbol]
+            names.extend(a.alias)
+            for n in names:
+                self.geneNamesDict[n] = names
+        else:
+            self.geneAnnotations[a.geneName].append(a)
+        self.annotations.append(a)
+        self.termAnnotations[a.GOId].append(a)
+        self.allAnnotations = defaultdict(list)
+##        if progressCallback and i in milestones:
+##            progressCallback(100.0*i/len(lines))
+            
 
     def GetGeneNamesTranslator(self, genes):
         def alias(gene):
@@ -572,7 +584,7 @@ class Annotations(object):
         """
         if id not in self.allAnnotations:
             if id in self.ontology.reverseAliasMapper:
-                annotations = [self.termAnnotations.get(alt_id, []) for alt_id in self.ontology.reverseAliasMapper[id]]
+                annotations = [self.termAnnotations.get(alt_id, []) for alt_id in self.ontology.reverseAliasMapper[id]] + [self.termAnnotations[id]]
             else:
                 annotations = [self.termAnnotations[id]] ## annotations for this term alone
             for typeId, child in self.ontology[id].relatedTo:
@@ -621,13 +633,14 @@ class Annotations(object):
         for i, term in enumerate(terms):
             if slimsOnly and term not in self.ontology.slimsSubset:
                 continue
-            allAnnotations = self.GetAllAnnotations(term)
-            allAnnotations.intersection_update(refAnnotations)
+            allAnnotations = self.GetAllAnnotations(term).intersection(refAnnotations)
+##            allAnnotations.intersection_update(refAnnotations)
             allAnnotatedGenes = set([ann.geneName for ann in allAnnotations])
-            if len(genes) > len(allAnnotatedGenes): 
-                mappedGenes = genes.intersection(allAnnotatedGenes)
-            else:
-                mappedGenes = allAnnotatedGenes.intersection(genes)
+            mappedGenes = genes.intersection(allAnnotatedGenes)
+            if not mappedGenes:
+                print term, sorted(genes)
+                print sorted(allAnnotatedGenes)
+                return
             if len(reference) > len(allAnnotatedGenes):
                 mappedReferenceGenes = reference.intersection(allAnnotatedGenes)
             else:
@@ -651,8 +664,8 @@ class Annotations(object):
         if not directAnnotationOnly:
             terms = self.ontology.ExtractSuperGraph(dd.keys())
             for i, term in enumerate(terms):
-                termAnnots = self.GetAllAnnotations(term)
-                termAnnots.intersection_update(annotations)
+                termAnnots = self.GetAllAnnotations(term).intersection(annotations)
+##                termAnnots.intersection_update(annotations)
                 dd[term].update([revGenesDict.get(ann.geneName, ann.geneName) for ann in termAnnots])
         return dict(dd)
 
@@ -663,6 +676,20 @@ class Annotations(object):
                           
         drawEnrichmentGraph(termsList, file, width, height, ontology=self.ontology, precison=precison)
 
+    def __add__(self, iterable):
+        """ Return a new Annotations object with combined annotations
+        """
+        return Annotations([a for a in self] + [a for a in iterable], ontology=self.ontology)
+
+    def __iadd__(self, iterable):
+        """ Add annotations to this instance
+        """
+        self.extend(iterable)
+        return self
+
+    def __contains__(self, item):
+        return item in self.annotations
+            
     def __iter__(self):
         """ Iterate over all AnnotationRecord objects in annotations
         """
@@ -677,6 +704,37 @@ class Annotations(object):
         """ Return the i-th annotation record
         """
         return self.annotations[index]
+
+    def __getslice__(self, *args):
+        return self.annotations.__getslice__(*args)
+
+    def add(self, line):
+        """ Add one annotation
+        """
+        self.AddAnnotation(line)
+
+    def append(self, line):
+        """ Add one annotation
+        """
+        self.AddAnnotation(line)
+
+    def extend(self, lines):
+        """ Add multiple annotations
+        """
+        for line in lines:
+            self.AddAnnotation(line)
+
+    def RemapGenes(self, map):
+        """ 
+        """
+        from copy import copy
+        for gene in map:
+            annotations = self.geneAnnotations[gene]
+            for ann in annotations:
+                for name in map[gene]:
+                    ann1 = copy(ann)
+                    ann1.geneName = name
+                    self.add(ann1)
     
     @staticmethod
     def DownloadAnnotations(org, file, progressCallback=None):
@@ -705,7 +763,7 @@ class Annotations(object):
 def filterByPValue(terms, maxPValue=0.1):
     """Filters the terms by the p-value. Asumes terms is is a dict with the same structure as returned from GOTermFinderFunc
     """
-    return dict(filter(lambda (k,e): e[1]<maxPValue, terms.items()))
+    return dict(filter(lambda (k,e): e[1]<=maxPValue, terms.items()))
 
 def filterByFrequency(terms, minF=2):
     """Filters the terms by the cluster frequency. Asumes terms is is a dict with the same structure as returned from GOTermFinderFunc
@@ -1051,6 +1109,21 @@ def _test2():
     drawEnrichmentGraph([("bal", 1.0, 5, 6, 0.1, 0.4, ["vv"]),
                         ("GO:0019079", 0.5, 5, 6, 0.1, 0.4, ["cc", "bb"]),
                         ("GO:0022415", 0.4, 5, 7, 0.11, 0.4, ["cc1", "bb"])], open("graph.png", "wb"), None, None)
+
+def _test3():
+    o = Ontology()
+    a = Annotations("sgd", ontology=o)
+    a = Annotations(list(a)[3:len(a)/3], ontology=o)
+    clusterGenes = sorted(a.geneNames)[:1] + sorted(a.geneNames)[-1:]
+##    clusterGenes = [g + "_" + str(i%5) for g in sorted(a.geneNames)[:2]]
+    exonMap = dict([(gene, [gene+"_E%i" %i for i in range(5)]) for gene in a.geneNames])
+    a.RemapGenes(exonMap)
+##    o.reverseAliasMapper = o.aliasMapper = {}
+    terms = a.GetEnrichedTerms(exonMap.values()[0][:2] + exonMap.values()[-1][2:])
+##    terms = a.GetEnrichedTerms(clusterGenes)
+    print terms
+##    a.DrawEnrichmentGraph(filterByPValue(terms), len(clusterGenes), len(a.geneNames))
+    a.DrawEnrichmentGraph(filterByPValue(terms, maxPValue=0.1), len(clusterGenes), len(a.geneNames))
     
 if __name__ == "__main__":
-    _test2()
+    _test3()
