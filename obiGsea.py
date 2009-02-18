@@ -478,148 +478,180 @@ def itOrFirst(data):
     else:
         return data[0]
 
+def takeClasses(datai, classValues=None):
+    """
+    Function joins class groups specified in an input pair
+    classValues. Each element of the pair is a list of class
+    values to be joined to first or second class. Group
+    classes in two new class values. If classValues is not 
+    specified, take only first two classes.
+
+    Input data can be a single data set or a list of data sets
+    with the same domain.
+
+    Returns transformed data sets / data sets. 
+    """
+
+    cv = itOrFirst(datai).domain.classVar
+    nclassvalues = None
+
+    if cv and len(itOrFirst(datai)) > 1:
+        oldcvals = [ a for a in cv.values ]
+        
+        if not classValues:
+            classValues = [ oldcvals[0], oldcvals[1] ]
+
+        toJoin = []
+
+        for vals in classValues:
+            if issequencens(vals):
+                toJoin.append(list(vals))
+            else:
+                toJoin.append([vals])
+
+        classValues = reduce(lambda x,y: x+y, toJoin)
+        classValues = [ str(a) for a in classValues ] # ok class values
+
+        #dictionary of old class -> new class
+        mapval = {}
+        nclassvalues = [] # need to preserver order
+
+        for joinvals in toJoin:
+            joinvalsn = "+".join([ str(val) for val in sorted(joinvals) ])
+            nclassvalues.append(joinvalsn)
+
+            for val in joinvals:
+                mapval[str(val)] = joinvalsn
+
+        #take only examples with classValues classes
+        nclass = orange.EnumVariable(cv.name, values=nclassvalues)
+        ndom = orange.Domain(itOrFirst(datai).domain.attributes, nclass)
+
+        def removeAndTransformClasses(data):
+            """
+            Removes unnecessary class values and joines them according
+            to function input.
+            """
+            examples = []
+            for ex in data:
+                if ex[cv] in classValues:
+                    vals = [ ex[a] for a in data.domain.attributes ]
+                    vals.append(mapval[str(ex[cv].value)])
+                    examples.append(vals)
+
+            return orange.ExampleTable(ndom, examples)
+
+        if iset(datai):
+            datai = removeAndTransformClasses(datai)
+        else:
+            datai = [ removeAndTransformClasses(data) for data in datai ]
+
+    return datai
+
+def removeBadAttributes(datai, atLeast=3):
+    """
+    Attributes need to be continuous, they need to have
+    at least one value. Remove other attributes.
+
+    For the attribute to be valid, it needs to have at least
+    [atLeast] values for every class value.
+
+    Return transformed data set / data sets and ignored attributes.
+    """
+
+    def attrOk(a, data):
+
+        a = data.domain.attributes.index(a)
+
+        #can't
+        if data.domain.attributes[a].varType != orange.VarTypes.Continuous:
+            return False
+
+        if not data.domain.classVar or len(data) == 1:
+
+            vals = [ex[a].value for ex in data if not ex[a].isSpecial()]
+            if len(vals) < 1:
+                return False 
+        
+        if len(data) > 1 and data.domain.classVar and atLeast > 0:
+
+            valc = [ [ex[a].value for ex in data \
+                        if not ex[a].isSpecial() and ex[-1] == data.domain.classVar[i] \
+                   ] for i in range(len(data.domain.classVar.values)) ]
+            minl = min( [ len(a) for a in valc ])
+            
+            if minl < atLeast:
+                #print "Less than atLeast"
+                return False
+
+        return True
+    
+
+    def notOkAttributes(data):
+        ignored = []
+        for a in data.domain.attributes:
+            if not attrOk(a, data):
+                #print "Removing", a
+                ignored.append(a)
+        return ignored
+    
+    ignored = []
+    if iset(datai):
+        ignored = set(notOkAttributes(datai))
+    else:
+        #ignore any attribute which is has less than atLeast values for each class
+        #ignored = set(reduce(lambda x,y: x+y, [ notOkAttributes(data) for data in datai ]))
+
+        #remove any attribute, which is ok in less than half of the dataset
+        ignored = []
+        for a in data.domain.attributes:
+            attrOks = sum([ attrOk(a, data) for data in datai ])
+            if attrOks < len(datai)/2:
+                ignored.append(a)
+
+
+    natts = [ a for a in itOrFirst(datai).domain.attributes if a not in ignored ]
+    #print ignored, natts, set(ignored) & set(natts)
+
+    ndom = orange.Domain(natts, itOrFirst(datai).domain.classVar)
+
+    datao = None
+    if iset(datai):
+        datao = orange.ExampleTable(ndom, datai)
+    else:
+        datao = [ orange.ExampleTable(ndom, data) for data in datai ]
+
+    return datao, ignored
+
+def keepOnlyMeanAttrs(datai, atLeast=3, classValues=None):
+    """
+    Attributes need to be continuous, they need to have
+    at least one value.
+
+    In order of attribute to be valid, it needs to have at least
+    [atLeast] values for every class value.
+
+    Keep only specified classes - group them in two values.
+    """
+    
+    datai = takeClasses(datai, classValues=classValues)
+    return removeBadAttributes(datai, atLeast=atLeast)
+
 class GSEA(object):
 
     def __init__(self, organism):
-        self.a = "blabla"
         self.genesets = {}
         self.organism = organism
 
-    def keepOnlyMeanAttrs(self, datai, atLeast=3, classValues=None):
-        """
-        Attributes need to be continuous, they need to have
-        at least one value.
-
-        In order of attribute to be valid, it needs to have at least
-        [atLeast] values for every class value.
-
-        Keep only specified classes - group them in two values.
-        """
-
-        cv = itOrFirst(datai).domain.classVar
-        nclassvalues = None
-
-        if cv:
-            oldcvals = [ a for a in cv.values ]
-            
-            if not classValues:
-                classValues = [ oldcvals[0], oldcvals[1] ]
-
-            toJoin = []
-
-            for vals in classValues:
-                if issequencens(vals):
-                    toJoin.append(list(vals))
-                else:
-                    toJoin.append([vals])
-
-            classValues = reduce(lambda x,y: x+y, toJoin)
-            classValues = [ str(a) for a in classValues ] # ok class values
-
-            #dictionary of old class -> new class
-            mapval = {}
-            nclassvalues = [] # need to preserver order
-
-            for joinvals in toJoin:
-                joinvalsn = "+".join([ str(val) for val in sorted(joinvals) ])
-                nclassvalues.append(joinvalsn)
-
-                for val in joinvals:
-                    mapval[str(val)] = joinvalsn
-
-            #take only examples with classValues classes
-            nclass = orange.EnumVariable(cv.name, values=nclassvalues)
-            ndom = orange.Domain(itOrFirst(datai).domain.attributes, nclass)
-
-            def removeAndTransformClasses(data):
-                """
-                Removes unnecessary class values and joines them according
-                to function input.
-                """
-                examples = []
-                for ex in data:
-                    if ex[cv] in classValues:
-                        vals = [ ex[a] for a in data.domain.attributes ]
-                        vals.append(mapval[str(ex[cv].value)])
-                        examples.append(vals)
-
-                return orange.ExampleTable(ndom, examples)
-
-            if iset(datai):
-                datai = removeAndTransformClasses(datai)
-            else:
-                datai = [ removeAndTransformClasses(data) for data in datai ]
-
-            #join specified classes
-
-        def attrOk(a, data):
-    
-            a = data.domain.attributes.index(a)
-
-            #can't
-            if data.domain.attributes[a].varType != orange.VarTypes.Continuous:
-                return False
-
-            if not data.domain.classVar:
-
-                vals = [ex[a].value for ex in data if not ex[a].isSpecial()]
-                if len(vals) < 1:
-                    return False 
-            
-            if len(data) > 1 and data.domain.classVar and atLeast > 0:
-
-                valc = [ [ex[a].value for ex in data \
-                            if not ex[a].isSpecial() and ex[-1] == data.domain.classVar[i] \
-                       ] for i in range(len(nclassvalues)) ]
-                minl = min( [ len(a) for a in valc ])
-                
-                if minl < atLeast:
-                    #print "Less than atLeast"
-                    return False
-
-            return True
-        
-
-        def notOkAttributes(data):
-            ignored = []
-            for a in data.domain.attributes:
-                if not attrOk(a, data):
-                    #print "Removing", a
-                    ignored.append(a)
-            return ignored
-        
-        ignored = []
-        if iset(datai):
-            ignored = set(notOkAttributes(datai))
-        else:
-            #ignore any attribute which is has less than atLeast values for each class
-            #ignored = set(reduce(lambda x,y: x+y, [ notOkAttributes(data) for data in datai ]))
-
-            #remove any attribute, which is ok in less than half of the dataset
-            ignored = []
-            for a in data.domain.attributes:
-                attrOks = sum([ attrOk(a, data) for data in datai ])
-                if attrOks < len(datai)/2:
-                    ignored.append(a)
-
-
-        natts = [ a for a in itOrFirst(datai).domain.attributes if a not in ignored ]
-        #print ignored, natts, set(ignored) & set(natts)
-
-        ndom = orange.Domain(natts, itOrFirst(datai).domain.classVar)
-
-        datao = None
-        if iset(datai):
-            datao = orange.ExampleTable(ndom, datai)
-        else:
-            datao = [ orange.ExampleTable(ndom, data) for data in datai ]
-
-        return datao, ignored, nclassvalues
-        
     def setData(self, data, classValues=None, atLeast=3, caseSensitive=False):
 
-        #if we have log2ratio in a single value column, transpose the matrix
         def transposeIfNeeded(data):
+            """
+            if we have log2ratio in a single value column, transpose the matrix
+            i.e. we have a single column with a continous variable. first
+            string variable then becomes the gene name
+            """
+
             columns = [a for a in data.domain] +  [ data.domain.getmeta(a) for a in list(data.domain.getmetas()) ]
             floatvars = [ a for a in columns if a.varType == orange.VarTypes.Continuous ]
             if len(floatvars) == 1:
@@ -635,10 +667,7 @@ class GSEA(object):
 
         data = transposeIfNeeded(data)
 
-
-        data, info, classValues  = self.keepOnlyMeanAttrs(data, classValues=classValues, atLeast=atLeast)
-        #print "removed attributes", info
-        #print "class values taken", classValues
+        data, info = keepOnlyMeanAttrs(data, classValues=classValues, atLeast=atLeast)
 
         self.data = data
         attrnames = [ a.name for a in itOrFirst(self.data).domain.attributes ]
@@ -702,8 +731,6 @@ class GSEA(object):
         if len(nsubsets) == 0:
             return {} # prevent pointless computation of attributee ranks
 
-        #print nsubsets
-
         if len(itOrFirst(self.data)) > 1:
            gseal = gseaE(self.data, nsubsets, n=n, **kwargs)
         else:
@@ -716,7 +743,6 @@ class GSEA(object):
             name = subset[0]
             oSize = len(subset[1][0])
             tSize = len(subset[1][1])
-            #rlist = list(gseal[i]) + [oSize, tSize] + [nsubsetsNames[i]] #return list
             rdict = {}
             rdict['es'] = gseal[i][0]
             rdict['nes'] = gseal[i][1]
@@ -814,70 +840,10 @@ def hierarchyOutput(results, limitGenes=50):
     return trans
 
 if  __name__=="__main__":
-    """
+
     data = orange.ExampleTable("sterolTalkHepa.tab")
+    gen1 = collections(['steroltalk.gmt'], default=False)
 
-    print "loaded data"
-
-    def novi():
-        print "done"
-
-    def give1(data):
-        return 1
-
-    import orngTest, orngStat
-
-    from math import sqrt
-
-    def knn(data):
-        learner = orange.kNNLearner(k=int(sqrt(len(data))))
-        res = orngTest.crossValidation([ learner ], data)
-        return orngStat.AUC(res)[0]**3
-
-    gen1 = collections(["c2.all.v2.5.symbols.gmt"], default=False)
-    print gen1.keys()[:100]
-
-    #data = orange.ExampleTable(data.domain, data[:1])
-
-    res2 = runGSEA(data, n=10, geneSets=gen1, permutation="class", callback=novi, atLeast=3, type="assess")
-    #res2 = runGSEA([data, data], n=100, geneSets=gen1, permutation="class", callback=novi, atLeast=3, rankingf=evaluateEtWith(knn))
+    out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, organism="hsa")
+    print out
     
-    print '\n'.join([ str(a) + ": " +str(b[:3]) for a,b in sorted(res2.items(), key=lambda x: x[1][2])])
-
-    """
-
-    import obiGeneSets
-
-    #data = orange.ExampleTable("holQ10_gs_orange.tab")
-    data = orange.ExampleTable("Pomeroy_orange.tab")
-
-    print "loaded data"
-
-    import mMisc as m
-
-    #gen1 = collections([':kegg:hsa', ':go:hsa'], default=True)
-    gen1 = m.autoPck("fdkkdf.pck", "2", collections, [':kegg:hsa', ':go:hsa'], default=True)
-
-    
-    #res2 = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, organism="hsa")
-    res2 = m.autoPck("fkdklfdlk.pck", "1", runGSEA, data, n=100, geneSets=gen1, permutation="gene", atLeast=3, organism="hsa")
-
-    res2 = dict([ (a,b) for a,b in res2.items() if b['p'] < 0.05 ])
-
-    ho = hierarchyOutput(res2)
-    
-    print len(ho)
-    ho = ho[:1000]
-
-
-    print ho
-
-    import obiGO
-    obiGO.drawEnrichmentGraph(ho, open("graph.png", "wb"), None, None)
-
-    """
-    print '\n'.join([ str(a) + ": " + str(
-        [ b[e] for e in ['nes','p','fdr']]) for a,b in sorted(res2.items())]
-        )
-    """
-

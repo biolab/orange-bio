@@ -1055,7 +1055,8 @@ chips chips""")
         for id in ids:
             annotsinlist.append(readall[id])
 
-        print zip(ids,[ dict(a)['chips.chip_map_id'] for a in annotsinlist ])
+        if verbose:
+            print zip(ids,[ dict(a)['chips.chip_map_id'] for a in annotsinlist ])
 
         cbc.end()
 
