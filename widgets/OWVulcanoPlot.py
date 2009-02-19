@@ -67,9 +67,11 @@ class VulcanoGraph(OWGraph):
             self.selectedCurve.setBrush(QBrush(Qt.blue))
             self.unselectedCurve.setData(getData(unselected, 0), getData(unselected, 1))
             self.updateSelectionArea()
+            self.master.infoLabel2.setText("%i selected genes" % len(selected))
         else:
             for curve in [self.selectedCurve, self.unselectedCurve, self.leftSelectionCurve, self.rightSelectionCurve]:
                 curve.setData([],[])
+            self.master.infoLabel2.setText("0 selected genes")
         self.replot()
 
     def getSelectionAxes(self, pos):
@@ -146,8 +148,8 @@ class OWVulcanoPlot(OWWidget):
     def __init__(self, parent=None, signalManager=None, name="Vulcano Plot"):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True)
         
-        self.inputs = [("Example Table", ExampleTable, self.setData)]
-        self.outputs =[("Example Table", ExampleTable)]
+        self.inputs = [("Examples", ExampleTable, self.setData)]
+        self.outputs =[("Examples with selected attributes", ExampleTable)]
 
         self.targetClass = 0
 
@@ -160,8 +162,11 @@ class OWVulcanoPlot(OWWidget):
         self.mainArea.layout().addWidget(self.graph)
 
         ## GUI
-        self.infoLabel = OWGUI.label(OWGUI.widgetBox(self.controlArea, "Info"), self, "")
+        box = OWGUI.widgetBox(self.controlArea, "Info")
+        self.infoLabel = OWGUI.label(box, self, "")
         self.infoLabel.setText("No data on input\n")
+        self.infoLabel2 = OWGUI.label(box, self, "")
+        self.infoLabel2.setText("0 selected genes")
 
         self.targetClassCombo = OWGUI.comboBox(self.controlArea, self, "targetClass", "Target Class", callback=self.plot)
 
@@ -180,7 +185,7 @@ class OWVulcanoPlot(OWWidget):
         
         OWGUI.rubber(self.controlArea)
 
-        self.resize(600, 600)
+        self.resize(700, 600)
 
     def setData(self, data=None):
         self.closeContext()
@@ -238,7 +243,7 @@ class OWVulcanoPlot(OWWidget):
             newdomain = orange.Domain(selected + [self.data.domain.classVar])
             newdomain.addmetas(self.data.domain.getmetas())
             data = orange.ExampleTable(newdomain, self.data)
-            self.send("Example Table", data)
+            self.send("Examples with selected attributes", data)
 
     def commitIf(self):
         if self.autoCommit:
