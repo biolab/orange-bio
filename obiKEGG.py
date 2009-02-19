@@ -500,7 +500,7 @@ class KEGGInterfaceLocal(object):
             rel_path = "pathway/"+self._rel_org_dir(org)
             ids = set(_collect(self._retrieve(rel_path+org+"_gene_map.tab", "kegg_organism_%s.tar.gz" % org).readlines(), lambda line:line.split()[1:]))
             pathways = self.list_pathways("map")
-            return dict([("path:"+org+id, pathways["path:map"+id]) for id in ids])
+            return dict([("path:"+org+id, pathways["path:map"+id]) for id in ids if "path:map"+id in pathways])
         
         #return load(open(self.local_database_path+"list_pathways_"+org+".pickle"))
 
