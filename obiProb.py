@@ -70,22 +70,29 @@ c = [1.0]
 for m in range(2, 100000):
     c.append( c[-1] + 1.0/m)
 
-def FDR(p_values, q=0.05, dependent=False, m=None):
-    if not(m):
+def FDR(p_values, dependent=False, m=None):
+    if not m:
         m = len(p_values)
     if m == 0:
         return []
 
     if dependent: # correct q for dependent tests
         k = c[m-1] if m <= len(c) else math.log(m) + 0.57721566490153286060651209008240243104215933593992
-        q = q/k
+        m = m * k
 
-    return [p for (i, p) in enumerate(p_values) if p <= (i+1.0)*q/m]
+    tmp_fdrs = [p*m/(i+1.0) for (i, p) in enumerate(p_values)]
+    fdrs = []
+    cmin = tmp_fdrs[-1]
+    for f in reversed(tmp_fdrs):
+        cmin = min(f, cmin)
+        fdrs.append( cmin)
+    fdrs.reverse()
+    return fdrs
 
-def Bonferroni(p_values, q=0.05, m=None):
-    if not(m):
+def Bonferroni(p_values, m=None):
+    if not m:
         m = len(p_values)
     if m == 0:
         return []
-    q = q/float(m)
-    return [p for p in p_values if p <= q]
+    m = float(m)
+    return [p/m for p in p_values]
