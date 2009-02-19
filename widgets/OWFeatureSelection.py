@@ -87,6 +87,8 @@ class OWFeatureSelection(OWWidget):
         self.scoreCache = {}
         self.cuts = {}
         self.discretizer = orange.EquiNDiscretization(numberOfIntervals=5)
+
+        self.resize(700, 600)        
         
     def SetData(self, data):
         self.error(0)
@@ -223,6 +225,5 @@ if __name__=="__main__":
     w = OWFeatureSelection()
     w.show()
     w.SetData(data)
-    app.setMainWidget(w)
-    app.exec_loop()
+    app.exec_()
     w.saveSettings()
