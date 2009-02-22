@@ -213,12 +213,17 @@ class OWVulcanoPlot(OWWidget):
             self.progressBarInit()
             milestones = set(range(0, len(self.data.domain.attributes), max(len(self.data.domain.attributes)/100, 1)))
             for i, attr in enumerate(self.data.domain.attributes):
-                sample1 = [float(ex[attr]) for ex in self.data if not ex[attr].isSpecial() and ex.getclass()==targetClass]
-                sample2 = [float(ex[attr]) for ex in self.data if not ex[attr].isSpecial() and ex.getclass()!=targetClass]
-                logratio = log(abs(mean(sample1)/mean(sample2)), 2)
-                t, pval = ttest_ind(sample1, sample2)
-                logpval = -log(pval, 10)
-                self.values[attr] = (logratio, logpval)
+                try:
+                    sample1 = [float(ex[attr]) for ex in self.data if not ex[attr].isSpecial() and ex.getclass()==targetClass]
+                    sample2 = [float(ex[attr]) for ex in self.data if not ex[attr].isSpecial() and ex.getclass()!=targetClass]
+                    logratio = log(abs(mean(sample1)/mean(sample2)), 2)
+                    t, pval = ttest_ind(sample1, sample2)
+                    logpval = -log(pval, 10)
+                    self.values[attr] = (logratio, logpval)
+                except Exception:
+                    pass
+##                    logratio, logpval = 0.0, 0.0
+                
                 if i in milestones:
                     self.progressBarSet(100.0*i/len(self.data.domain.attributes))
             self.progressBarFinished()
@@ -239,7 +244,7 @@ class OWVulcanoPlot(OWWidget):
     def commit(self):
         if self.data:
             check = lambda x,y:abs(x) >= self.graph.cutoffX and y >= self.graph.cutoffY
-            selected = [attr for attr in self.data.domain.attributes if check(*self.values[attr])]
+            selected = [attr for attr in self.data.domain.attributes if attr in self.values and check(*self.values[attr])]
             newdomain = orange.Domain(selected + [self.data.domain.classVar])
             newdomain.addmetas(self.data.domain.getmetas())
             data = orange.ExampleTable(newdomain, self.data)
@@ -252,7 +257,8 @@ class OWVulcanoPlot(OWWidget):
 if __name__ == "__main__":
     ap = QApplication(sys.argv)
     w = OWVulcanoPlot()
-    d = orange.ExampleTable("E:\\affy(HD-CC)_GS_C2cpC5.tab")
+##    d = orange.ExampleTable("E:\\affy(HD-CC)_GS_C2cpC5.tab")
+    d = orange.ExampleTable("E:\\steroltalk-smallchip.tab")
 ##    d = orange.ExampleTable("../../orange/doc/datasets/brown-selected.tab")
     w.setData(d)
     w.show()
