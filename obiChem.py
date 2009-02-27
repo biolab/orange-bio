@@ -864,13 +864,16 @@ def ContaindIn(smiles, fragment):
     return bool(pattern.Match(mol))
 
 try:
-    from oasa.cairo_out import cairo_out as _cairo_out
     from oasa.svg_out import svg_out as _svg_out
 except ImportError:
-    class _cairo_out(object):
+    class _svg_out(object):
         def __init__(self, *args, **kwargs):
             raise ImportError("OASA library not found")
-    class _svg_out(object):
+
+try:
+    from oasa.cairo_out import cairo_out as _cairo_out
+except ImportError:
+    class _cairo_out(object):
         def __init__(self, *args, **kwargs):
             raise ImportError("OASA library not found")
 
