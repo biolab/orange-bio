@@ -356,13 +356,13 @@ class OWHeatMap(OWWidget):
         if data.domain.classVar and data.domain.classVar.values:
             for val in data.domain.classVar.values:
                 tmpData = [ex for ex in data if ex.getclass()==val]
-                root = orngClustering.hierarchicalClustering_examples(orange.ExampleTable(tmpData), progressCallback=self.progressBarSet, order=self.SortGenes==3)
+                root = orngClustering.hierarchicalClustering(orange.ExampleTable(tmpData), progressCallback=self.progressBarSet, order=self.SortGenes==3)
                 orderedData.extend([tmpData[i] for i in root.mapping])
                 mapping.extend([i+len(mapping) for i in root.mapping])
                 clusterRoots.append(root)
             
         else:
-            root = orngClustering.hierarchicalClustering_examples(data, progressCallback=self.progressBarSet, order=self.SortGenes==3)
+            root = orngClustering.hierarchicalClustering(data, progressCallback=self.progressBarSet, order=self.SortGenes==3)
             orderedData.extend([data[i] for i in root.mapping])
             mapping = list(root.mapping)
             clusterRoots.append(root)
