@@ -619,7 +619,11 @@ class Annotations(object):
         """
         revGenesDict = self.GetGeneNamesTranslator(genes)
         genes = set(revGenesDict.keys())
-        reference = set(reference) if reference else self.geneNames
+        if reference:
+            refGenesDict = self.GetGeneNamesTranslator(reference)
+            reference = set(refGenesDict.keys())
+        else:
+            reference = self.geneNames
         evidenceCodes = set(evidenceCodes or evidenceDict.keys())
         annotations = [ann for gene in genes for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes and ann.Aspect == aspect]
         refAnnotations = set([ann for gene in reference for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes and ann.Aspect == aspect])
