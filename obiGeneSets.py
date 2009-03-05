@@ -65,7 +65,7 @@ def keggToGo(org):
     Converts KEGG organism to GO organism.
     """
     map = dict([ (b,a) for a,b in obiGeneMatch.GeneMatchMk2.dbOrgMap.items()])
-    return map.get(org, None)
+    return map.get(org, org)
 
 """
 CUSTOM GENESETS
