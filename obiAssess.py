@@ -155,15 +155,13 @@ class Assess(object):
 
         rev2 = rev(ordered)
 
-        for subset in self.nsubsets:
-            es = obiGsea.enrichmentScoreRanked(subset, lcor, ordered, rev2=rev2)[0]
-            enrichmentScores.append(es)
+        gsetsnumit = self.gsetsnum.items()
 
-        res = {}
-        for i,subset in enumerate(self.subsetsok):
-            name = subset[0]
-            res[name] = enrichmentScores[i]
-        return res
+        enrichmentScores = dict( 
+            (name, obiGsea.enrichmentScoreRanked(subset, lcor, ordered, rev2=rev2)[0]) \
+            for name,subset in gsetsnumit)
+    
+        return enrichmentScores
 
 class AssessLearner(object):
     
@@ -178,18 +176,18 @@ class AssessLearner(object):
         if rankingf == None:
             rankingf = AT_edelmanParametricLearner()
 
-        subsetsok = gso.selectGenesets(minSize=minSize, maxSize=maxSize, minPart=minPart)
-        nsubsets, nsubsetsNames = gso.genesIndicesAndNames(subsetsok)
+        oknames = gso.selectGenesets(minSize=minSize, maxSize=maxSize, minPart=minPart).keys()
+        gsetsnum = gso.to_gsetsnum(oknames)
 
         attrans = [ rankingf(iat, gso.data) for iat, at in enumerate(data.domain.attributes) ]
 
-        return Assess(attrans=attrans, nsubsets=nsubsets, subsetsok=subsetsok, nsubsetsNames=nsubsetsNames)
+        return Assess(attrans=attrans, gsetsnum=gsetsnum, genesets=gso.genesets)
 
 if __name__ == "__main__":
     
     data = orange.ExampleTable("sterolTalkHepa.tab")
     a = AssessLearner()
-    ass = a(data, "hsa", obiGeneSets.collections(["c2.all.v2.5.symbols.gmt"], default=False), rankingf=AT_loessLearner())
+    ass = a(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), rankingf=AT_loessLearner())
 
     ar = {}
 

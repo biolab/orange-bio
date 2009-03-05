@@ -550,6 +550,8 @@ def takeClasses(datai, classValues=None):
 
 def removeBadAttributes(datai, atLeast=3):
     """
+    Removes attributes which would obscure GSEA analysis.
+
     Attributes need to be continuous, they need to have
     at least one value. Remove other attributes.
 
@@ -560,6 +562,10 @@ def removeBadAttributes(datai, atLeast=3):
     """
 
     def attrOk(a, data):
+        """
+        Attribute is ok if it is continouous and if containg
+        at least atLest not unknown values.
+        """
 
         a = data.domain.attributes.index(a)
 
@@ -567,7 +573,7 @@ def removeBadAttributes(datai, atLeast=3):
         if data.domain.attributes[a].varType != orange.VarTypes.Continuous:
             return False
 
-        if not data.domain.classVar or len(data) == 1:
+        if len(data) == 1:
 
             vals = [ex[a].value for ex in data if not ex[a].isSpecial()]
             if len(vals) < 1:
@@ -632,8 +638,7 @@ def keepOnlyMeanAttrs(datai, atLeast=3, classValues=None):
     [atLeast] values for every class value.
 
     Keep only specified classes - group them in two values.
-    """
-    
+    """    
     datai = takeClasses(datai, classValues=classValues)
     return removeBadAttributes(datai, atLeast=atLeast)
 
@@ -642,8 +647,13 @@ class GSEA(object):
     def __init__(self, organism):
         self.genesets = {}
         self.organism = organism
+        self.gsweights = {}
+        self.namesToIndices = None
 
     def setData(self, data, classValues=None, atLeast=3, caseSensitive=False):
+        """
+        WARNING. DUE TO BAD DESIGN YOU MAY CALL THIS FUNCTION ONLY ONCE.
+        """
 
         def transposeIfNeeded(data):
             """
@@ -674,83 +684,97 @@ class GSEA(object):
         self.gm = obiGeneMatch.GeneMatch(attrnames, organism=self.organism, caseSensitive=caseSensitive)
  
     def addGeneset(self, genesetname, genes):
+        """
+        Add a single gene set. See addGenesets function.
+        Solely for backwards compatibility.
+        """
+        self.addGenesets({ genesetname: genes })
 
-        #t = time.time()
+    def addGenesets(self, gsdic):
+        """
+        Adds genesets from input dictionary. Also. performs gene matching. Adds
+        to a self.genesets: key is genesetname, it's values are individual
+        genes and match results.
+        """
+        for genesetname, genes in gsdic.iteritems():
 
-        if genesetname in self.genesets:
-            raise Exception("Geneset with the name " + \
-                + genesetname + " is already in genesets.")
-        else:
-            #print genesetname, genes
-            #matching to unified gene names
-            datamatch = self.gm.match(list(genes))
-    
-            #print "Matched", len(datamatch), "of", len(genes)
-            self.genesets[genesetname] = ( genes, datamatch )
-
-        #print "allf", time.time() - t
+            if genesetname in self.genesets:
+                raise Exception("Geneset with the name " + \
+                    + genesetname + " is already in genesets.")
+            else:
+                datamatch = self.gm.match(list(genes))
+                self.genesets[genesetname] = ( genes, datamatch )
 
     def selectGenesets(self, minSize=3, maxSize=1000, minPart=0.1):
-        subsets = self.genesets.items()
+        """ Returns a list of gene sets that have sizes in limits """
 
         def okSizes(orig, transl):
+            """compares sizes of genesets to limitations"""
             if len(transl) >= minSize and len(transl) <= maxSize \
                 and float(len(transl))/len(orig) >= minPart:
                 return True
             return False
 
-        subsetsok = [ (a,(b,c)) for a,(b,c) in subsets if okSizes(b,c) ]
+        return  dict( (a,(b,c)) for a,(b,c) in self.genesets.iteritems() if okSizes(b,c) )
 
-        return subsetsok
- 
-    def genesIndicesAndNames(self, subsetsok):
-        namesToIndices = dict( \
-            [(at.name, i) for i,at in enumerate(itOrFirst(self.data).domain.attributes)])
+    def genesIndices(self, genes):
+        """
+        Returns in attribute indices of given genes.
+        Buffers locations dictionary.
+        """
+        if not self.namesToIndices:
+            self.namesToIndices = dict( \
+                (at.name, i) for i,at in enumerate(itOrFirst(self.data).domain.attributes))
 
-        #print namesToIndices
-        #print self.toRealNames
+        return [ self.namesToIndices[gname] for gname in genes ]
 
-        nsubsets = []
-        nsubsetsNames = []
+    def compute_gene_weights(self, gsweights, gsetsnum, nattributes):
+        """
+        Computes gene set weights for all specified weights.
+        Expects gene sets in form { name: [ num_attributes ] }
+        GSWeights are 
+        """
+        pass
 
-        for subset in subsetsok:
-            nsubsets.append( \
-                [namesToIndices[b] for a,b in subset[1][1]])
-            nsubsetsNames.append([b for a,b in subset[1][1]])
-
-        return nsubsets, nsubsetsNames
-
+    def to_gsetsnum(self, names):
+        """
+        Returns a dictionary of gene sets with given names in gsetnums format.
+        """
+        return dict( (name,self.genesIndices(nth(self.genesets[name][1],1))) for name in names)
 
     def compute(self, minSize=3, maxSize=1000, minPart=0.1, n=100, **kwargs):
 
         subsetsok = self.selectGenesets(minSize=minSize, maxSize=maxSize, minPart=minPart)
-        nsubsets, nsubsetsNames = self.genesIndicesAndNames(subsetsok)
 
-        #we need a mapping from attribute names to their
+        geneweights = None
 
-        if len(nsubsets) == 0:
+        gsetsnum = self.to_gsetsnum(subsetsok.keys())
+        gsetsnumit = gsetsnum.items() #to fix order
+
+        if len(gsetsnum) == 0:
             return {} # prevent pointless computation of attributee ranks
 
+        if len(self.gsweights) > 0:
+            #set geneset
+            geneweights = [1]*len(data.domain.attributes)
+
         if len(itOrFirst(self.data)) > 1:
-           gseal = gseaE(self.data, nsubsets, n=n, **kwargs)
+            gseal = gseaE(self.data, nth(gsetsnumit,1), n=n, geneweights=geneweights, **kwargs)
         else:
-           rankings = [ self.data[0][at].native() for at in self.data.domain.attributes ]
-           gseal = gseaR(rankings, nsubsets, n=n, **kwargs)
+            rankings = [ self.data[0][at].native() for at in self.data.domain.attributes ]
+            gseal = gseaR(rankings, nth(gsetsnumit,1), nsubsets, n=n, **kwargs)
 
         res = {}
 
-        for i,subset in enumerate(subsetsok):
-            name = subset[0]
-            oSize = len(subset[1][0])
-            tSize = len(subset[1][1])
+        for name,gseale in zip(nth(gsetsnumit,0),gseal):
             rdict = {}
-            rdict['es'] = gseal[i][0]
-            rdict['nes'] = gseal[i][1]
-            rdict['p'] = gseal[i][2]
-            rdict['fdr'] = gseal[i][3]
-            rdict['size'] = oSize
-            rdict['matched_size'] = tSize
-            rdict['genes'] = nsubsetsNames[i]
+            rdict['es'] = gseale[0]
+            rdict['nes'] = gseale[1]
+            rdict['p'] = gseale[2]
+            rdict['fdr'] = gseale[3]
+            rdict['size'] = len(self.genesets[name][0])
+            rdict['matched_size'] = len(self.genesets[name][1])
+            rdict['genes'] = nth(self.genesets[name][1],1)
             res[name] = rdict
         
 
@@ -844,6 +868,8 @@ if  __name__=="__main__":
     data = orange.ExampleTable("sterolTalkHepa.tab")
     gen1 = collections(['steroltalk.gmt'], default=False)
 
+    import mMisc
+
     out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, organism="hsa")
-    print out
+    print "\n".join(map(str,sorted(out.items())))
     

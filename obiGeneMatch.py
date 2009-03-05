@@ -3,6 +3,12 @@ import obiKEGG
 def nth(l,n): return [ a[n] for a in l ]
 
 def GeneMatch(targets, organism, caseSensitive=False):
+    """
+    Most commonly used gene matcher. If names don't match directly 
+    (with respect to the caseSensitive setting), try to match them by KEGG 
+    unique ids. It is implemented as a <code>MatcherSequence</code> of 
+    <code>MatchName</code> and <code>MatchKEGG</code> objects.
+    """
     return MatcherSequence([MatchName(targets, caseSensitive=caseSensitive),
             MatchKEGG(targets, organism, caseSensitive=caseSensitive)])
 
@@ -21,23 +27,29 @@ def constructToRealNames(targets, caseSensitive):
     return trn
 
 def issequencens(x):
-    "Is x a sequence and not string ? We say it is if it has a __getitem__ method and it is not an instance of basestring."
+    """Is x a sequence and not string ? We say it is if it has a __getitem__ method and it 
+    is not an instance of basestring."""
     return hasattr(x, '__getitem__') and not isinstance(x, basestring)
 
 class Matcher(object):
 
-    def targets(self, targets):
+    def targets(self, tl):
+        """Set list on gene names tl as targets of this gene matcher. Abstract function."""
         notImplemented()
 
     def matchOne(self, gene):
+        """Returns matching target gene name."""
         notImplemented()
 
     def matchL(self, genes):
+        """Returns a list of tuples (gene, target), where gene is from list genes 
+        and target from matcher's targets."""
         return [ (gene, self.matchOne(gene)) for gene in genes if self.matchOne(gene) ]
 
     def match(self, genes):
         """
-        Genes can be a string or a single gene.
+        If input is a list, returns a list of tuples (gene, target), where gene is from 
+        list input and target from matcher's targets, else returns matching target gene name.
         """
         if issequencens(genes):
             return sorted(self.matchL(genes))
@@ -65,7 +77,9 @@ class MatchName(Matcher):
 
 class MatchKEGG(Matcher):
     """
-    Match by KEGG unique id.
+    Match gene names by KEGG unique id. Matcher matches genes with exactly the 
+    same name, possibly ignoring case. If case is not ignored, then this is really 
+    dumb "gene matching".
     """
     def __init__(self, targets, organism, caseSensitive=False):
         self.caseSensitive = caseSensitive
@@ -94,6 +108,10 @@ class MatchKEGG(Matcher):
         return self.toname.get(self.tounique(gene), None)
 
 class MatcherSequence(Matcher):
+    """
+    Allows you to chain gene matchers. An input gene goes through all matchers until a
+    match is found.
+    """
     
     def __init__(self, matchers):
         self.matchers = matchers
