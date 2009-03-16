@@ -46,7 +46,7 @@ class Binomial(LogBin):
     def p_value(self, k, N, m, n):
         subtract = n - k + 1 > k
         result = sum([self.__call__(i, N, m, n) for i in (range(k) if subtract else range(k, n+1))])
-        return 1.0 - result if subtract else result
+        return max(1.0 - result if subtract else result, 0.0)
 
 class Hypergeometric(LogBin):
 
@@ -62,7 +62,7 @@ class Hypergeometric(LogBin):
 ##        result = sum([math.exp(self._logbin(m, i) + self._logbin(N - m, n - i)) for i in (range(k) if subtract else range(k, n+1))])
         result = sum([self.__call__(i, N, m, n) for i in (range(k) if subtract else range(k, n+1))])
 ##        result /= math.exp(self._logbin(N, n))
-        return 1.0 - result if subtract else result
+        return max(1.0 - result if subtract else result, 0.0)
 
 
 ## to speed-up FDR, calculate ahead sum([1/i for i in range(1, m+1)]), for m in [1,100000]. For higher values of m use an approximation, with error less or equal to 4.99999157277e-006. (sum([1/i for i in range(1, m+1)])  ~ log(m) + 0.5772..., 0.5572 is an Euler-Mascheroni constant) 
