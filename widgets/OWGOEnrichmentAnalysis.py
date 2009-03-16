@@ -131,7 +131,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.spin(OWGUI.indentedBox(box), self, 'minNumOfInstances', 1, 100, step=1, label='#:', labelWidth=15, callback=self.FilterAndDisplayGraph, callbackOnReturn=True)
         OWGUI.checkBox(box, self, "filterByPValue", "Significance",callback=self.FilterAndDisplayGraph)
 ##        OWGUI.qwtHSlider(box, self, 'maxPValue', label='p:', labelWidth=5, minValue=0.001, maxValue=1, step=0.001, precision=3, ticks=0, logarithmic=True, maxWidth=60, callback=self.FilterAndDisplayGraph)
-        OWGUI.doubleSpin(OWGUI.indentedBox(box), self, 'maxPValue', 0.001, 1, step=0.001,  label='p:', labelWidth=15, callback=self.FilterAndDisplayGraph, callbackOnReturn=True)
+        OWGUI.doubleSpin(OWGUI.indentedBox(box), self, 'maxPValue', 1e-8, 1, step=1e-8,  label='p:', labelWidth=15, callback=self.FilterAndDisplayGraph, callbackOnReturn=True)
 
         box = OWGUI.widgetBox(self.filterTab, "Evidence codes in annotation", addSpace=True)
 ##        box.setMaximumWidth(150)
