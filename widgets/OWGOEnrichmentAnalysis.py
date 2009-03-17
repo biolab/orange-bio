@@ -111,10 +111,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##        self.evidenceCheckBoxDict = {}
 ##        for etype in go.evidenceTypesOrdered:
 ##            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=go.evidenceTypes[etype])
-        OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Annotation", "Signal"], box="Reference From", callback=self.Update)
+        OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Entire genome", "Input signal"], box="Reference", callback=self.Update)
         OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process", "Cellular component", "Molecular function"], box="Aspect", callback=self.Update)
-        self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene attribute", callback=self.Update)
-        OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use attribute names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.SetUseAttrNamesCallback)
+        self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene names", callback=self.Update)
+        OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use data attributes names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.SetUseAttrNamesCallback)
         self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
         self.geneInfoLabel = OWGUI.label(self.geneAttrIndexCombo.box, self, "0 genes on input signal")
         OWGUI.button(OWGUI.widgetBox(self.inputTab, "Ontology and annotations info"), self, "View info", callback=self.ShowInfo)
