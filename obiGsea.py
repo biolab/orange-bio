@@ -642,6 +642,40 @@ def keepOnlyMeanAttrs(datai, atLeast=3, classValues=None):
     datai = takeClasses(datai, classValues=classValues)
     return removeBadAttributes(datai, atLeast=atLeast)
 
+def data_single_meas_column(data):
+    """ 
+    Returns true if data seems to be in one column
+    (float variables) only. This column should contain 
+    the rankings
+    """
+    columns = [a for a in data.domain] +  [ data.domain.getmeta(a) for a in list(data.domain.getmetas()) ]
+    floatvars = [ a for a in columns if a.varType == orange.VarTypes.Continuous ]
+    if len(floatvars) == 1:
+        return True
+    else:
+        return False
+
+def transposeIfNeeded(data):
+    """
+    if we have log2ratio in a single value column, transpose the matrix
+    i.e. we have a single column with a continous variable. first
+    string variable then becomes the gene name
+    """
+
+    columns = [a for a in data.domain] +  [ data.domain.getmeta(a) for a in list(data.domain.getmetas()) ]
+    floatvars = [ a for a in columns if a.varType == orange.VarTypes.Continuous ]
+    if len(floatvars) == 1:
+        floatvar = floatvars[0]
+        stringvar = [ a for a in columns if a.varType == 6 ][0]
+
+        tup = [ (ex[stringvar].value, ex[floatvar].value) for ex in data ]
+        newdom = orange.Domain([orange.FloatVariable(name=a[0]) for a in tup ], False)
+        example = [ a[1] for a in tup ]
+        ndata = orange.ExampleTable(newdom, [example])
+        return ndata
+    return data
+
+
 class GSEA(object):
 
     def __init__(self, organism):
@@ -654,26 +688,6 @@ class GSEA(object):
         """
         WARNING. DUE TO BAD DESIGN YOU MAY CALL THIS FUNCTION ONLY ONCE.
         """
-
-        def transposeIfNeeded(data):
-            """
-            if we have log2ratio in a single value column, transpose the matrix
-            i.e. we have a single column with a continous variable. first
-            string variable then becomes the gene name
-            """
-
-            columns = [a for a in data.domain] +  [ data.domain.getmeta(a) for a in list(data.domain.getmetas()) ]
-            floatvars = [ a for a in columns if a.varType == orange.VarTypes.Continuous ]
-            if len(floatvars) == 1:
-                floatvar = floatvars[0]
-                stringvar = [ a for a in columns if a.varType == 6 ][0]
-
-                tup = [ (ex[stringvar].value, ex[floatvar].value) for ex in data ]
-                newdom = orange.Domain([orange.FloatVariable(name=a[0]) for a in tup ], False)
-                example = [ a[1] for a in tup ]
-                ndata = orange.ExampleTable(newdom, [example])
-                return ndata
-            return data
 
         data = transposeIfNeeded(data)
 
@@ -762,7 +776,7 @@ class GSEA(object):
             gseal = gseaE(self.data, nth(gsetsnumit,1), n=n, geneweights=geneweights, **kwargs)
         else:
             rankings = [ self.data[0][at].native() for at in self.data.domain.attributes ]
-            gseal = gseaR(rankings, nth(gsetsnumit,1), nsubsets, n=n, **kwargs)
+            gseal = gseaR(rankings, nth(gsetsnumit,1), n=n, **kwargs)
 
         res = {}
 

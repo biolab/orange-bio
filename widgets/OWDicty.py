@@ -11,18 +11,21 @@ import OWGUI
 
 import sys
 
+from collections import defaultdict
+
 
 class MyTreeWidgetItem(QTreeWidgetItem):
     def __contains__(self, text):
         return any(text.upper() in str(self.text(i)).upper() for i in range(self.columnCount()))    
     
 class OWDicty(OWWidget):
-    settingsList = ["serverToken", "platform", "platformList", "experiments", "selectedExperiments", "joinSelected", "separateSelected"]
+    settingsList = ["serverToken", "platform", "platformList", "experiments", "selectedExperiments", "joinSelected", "separateSelected", "server"]
     def __init__(self, parent=None, signalManager=None, name="Dicty database"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example tables", ExampleTable, Multiple)]
         self.serverToken = ""
         self.server = "http://www.ailab.si/dictyexpress/api/index.php"
+        #self.server = "http://asterix.fri.uni-lj.si/microarray/api/index.php"
 
         self.platform = None
         self.platformList = []
@@ -100,18 +103,33 @@ class OWDicty(OWWidget):
         self.items = []
         self.progressBarInit()
         strains = self.dbc.annotationOptions("sample")["sample"]
+
         for i, strain in enumerate(strains):
-            opt = self.dbc.annotationOptions(sample=strain)
-            nchips = len(self.dbc.search("norms", sample=strain))
-            treatments = opt["treatment"]
-            growthConds = opt["growthCond"]
-            platforms = opt["platform"]
-            for treatment in treatments:
-                for cond in growthConds:
-                    for platform in platforms:
-                        self.experiments.append([strain, treatment, cond, platform, str(nchips)]) #, str(len(opt["replicate"])), str(len(opt["techReplicate"]))])
-                        self.items.append(MyTreeWidgetItem(self.experimentsWidget, self.experiments[-1]))
+            chips = self.dbc.search("norms", sample=strain)
+            annotations = self.dbc.annotations("norms", chips)
+
+            elements = []
+
+            for annot in annotations:
+                d = dict(annot)
+                elements.append((d.get("treatment", ""), d.get("growthCond", ""), d.get("platform", "")))
+
+            def count_different(li):
+                """ Returns a map, where keys are different elements in li and values
+                their number"""
+                dc = defaultdict(int)
+                for a in li:
+                    dc[a] = dc[a] + 1
+                return dc
+
+            typeswcount = count_different(elements) #types with counts
+
+            for (treatment, cond, platform),num in typeswcount.items():
+                self.experiments.append([strain, treatment, cond, platform, str(num)]) 
+                self.items.append(MyTreeWidgetItem(self.experimentsWidget, self.experiments[-1]))
+
             self.progressBarSet((100.0 * i) / len(strains))
+
         self.progressBarFinished()
 
     def FillExperimentsWidget(self):

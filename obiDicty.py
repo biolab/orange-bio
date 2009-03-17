@@ -462,6 +462,7 @@ chips chips""")
         Returns a generator returning annotations for specified type and ids. 
         If ids are left blank, all annotations are outputed. Annotations are in the same order
         as input ids.
+        If all is True, all annotations are kept, else keep only "meaningful".
         """
         
         inputids = False

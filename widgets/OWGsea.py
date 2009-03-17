@@ -38,7 +38,13 @@ def comboboxItems(combobox, newitems):
         #combobox.setCurrentItem(i)
 
 def getClasses(data):
-    return [ a.value for a in data.domain.classVar ]
+    try:
+        return [ a.value for a in data.domain.classVar ]
+    except:
+        return None
+
+def already_have_correlations(data):
+    return len(data) == 1 or obiGsea.data_single_meas_column(data)
 
 def exportDistanceMatrix(resl):
     """
@@ -192,14 +198,15 @@ class PhenotypesSelection(QGroupBox):
 
     def setClasses(self, input, s1=0, s2=1):
 
-        self.classVals = sorted(input)
-        self.wishedState = [ 0 ] * len(self.classVals)
+        if input is not None:
+            self.classVals = sorted(input)
+            self.wishedState = [ 0 ] * len(self.classVals)
 
-        self.wishedState[s1] = 1
-        self.wishedState[s2] = 2
+            self.wishedState[s1] = 1
+            self.wishedState[s2] = 2
 
-        self.setupBoxes()
-        self.selectWanted()
+            self.setupBoxes()
+            self.selectWanted()
 
     def getSelection(self):
         sels = [ [ self.classVals[i] for i,a in enumerate(self.wishedState) if a == n+1 ]
@@ -539,16 +546,23 @@ class OWGsea(OWWidget):
             if hasattr(self, "btnApply"):
                 self.btnApply.setFocus()
 
-            selectedClasses = self.psel.getSelection()
-            fc = "Phenotype group empty. Stopped."
-            if len(selectedClasses[0]) == 0:
-                self.addComment(fc)
-                return
-            elif len(selectedClasses[1]) == 0:
-                self.addComment(fc)
-                return
-
             kwargs = {}
+            dkwargs = {}
+
+            if not already_have_correlations(self.data):
+                selectedClasses = self.psel.getSelection()
+                fc = "Phenotype group empty. Stopped."
+                if len(selectedClasses[0]) == 0:
+                    self.addComment(fc)
+                    return
+                elif len(selectedClasses[1]) == 0:
+                    self.addComment(fc)
+                    return
+
+                dkwargs["classValues"] = selectedClasses
+
+                permtype = self.permutationTypes[self.ptype][1]
+                kwargs["permutation"] = "class" if permtype == "p" else "genes"
 
             def ifr(case, t, f):
                 if case: return t
@@ -561,17 +575,7 @@ class OWGsea(OWWidget):
             kwargs["minPart"] = \
                 ifr(self.minSubsetPartC, self.minSubsetPart/100.0, 0.0)
 
-
-            if len(self.data) > 1:
-                permtype = self.permutationTypes[self.ptype][1]
-                kwargs["permutation"] = ifr(permtype == "p", "class", "genes") 
-
-            dkwargs = {}
-            if len(self.data) > 1:
-                dkwargs["classValues"] = selectedClasses
- 
             dkwargs["caseSensitive"] = self.csgm
-
 
             gso = obiGsea.GSEA(organism=organism)
             gso.setData(self.data, **dkwargs)
@@ -613,15 +617,18 @@ class OWGsea(OWWidget):
         self.data = data
 
         if data:
-            if len(data) == 1:
+            if already_have_correlations(data):
+
+                self.data = obiGsea.transposeIfNeeded(self.data)
+
                 #disable correlation type
                 comboboxItems(self.corTypeF, [])
                 self.corTypeF.setDisabled(True)
                 #set permutation type to fixed
-                self.permTypeF.setCurrentItem(1)
+                self.ptype = 1
                 self.permTypeF.setDisabled(True)
                 
-                self.psel.setClasses([])
+                self.psel.setClasses(None)
             else:
                 #enable correlation type
                 comboboxItems(self.corTypeF, nth(self.correlationTypes, 0))
@@ -649,22 +656,9 @@ if __name__=="__main__":
     ow=OWGsea()
     ow.show()
 
-    d = orange.ExampleTable('DLBCL_200a.tab')
-    #d = orange.ExampleTable('brown-selected.tab')
-    #d = orange.ExampleTable('DLBCL.tab')
-
-    #d = orange.ExampleTable('testCorrelated.tab')
-    #ow.setData(d)
-
-    #d = orange.ExampleTable("sterolTalkHepa.tab")
-    #d = orange.ExampleTable("holQ12_gs_orange.tab")
+    d = orange.ExampleTable('/home/marko/testData.tab')
+    #d = orange.ExampleTable('/home/marko/steroltalk/novi/steroltalk-smallchip.tab')
     ow.setData(d)
-
-    #d = orange.ExampleTable("demo.tab")
-    #ow.setData(d)
-
-    #d = orange.ExampleTable("tmp.tab")
-    #ow.setData(d)
 
     a.exec_()
     ow.saveSettings()
