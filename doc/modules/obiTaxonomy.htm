@@ -24,9 +24,12 @@ so that when you search for "sgd" or "mmu" you get the expected result.</p>
 	<dt>other_names(taxid)</dt>
 	<dd>Return a list of (name, name_type) tuples but exclude the scientific name.</dd>
 
-	<dt>search(string, onlySpecies=True)<dt>
-	<dd>Search the NCBI taxonomy database for an organism by <code>string</code>. If <code>onlySpecies</code> is True then search only in the species and subspecies nodes ob the taxonomy.</dd>
-
+	<dt>search(string, onlySpecies=True, exact=False)<dt>
+	<dd>Search the NCBI taxonomy database for an organism by <code>string</code>, returning a list of
+	taxonomy IDs where any of the organism's names includes a <code>string</code>. If <code>onlySpecies</code> is 
+	True then search only in the species and subspecies nodes ob the taxonomy. If <code>exact=True</code>, the entire
+	name has to match a given <code>string</code>.</dd>
+	
 	<dt>lineage(taxid)</dt>
     <dd>Return a list of taxids ordered from the topmost node (root) to taxid.</dd>
 
@@ -44,7 +47,7 @@ so that when you search for "sgd" or "mmu" you get the expected result.</p>
 	an organism you wish to include in this list, please contact the authors or post your wish on <a href="">Orange's Forum</a>.</dd>
 
 	<dt>essential_taxids()</dt>
-	<dd>Returns a set of taxonomy IDs, which is a subset of those returned by <code>common_taxids()<code>. This are also the organisms for which any annotation
+	<dd>Returns a set of taxonomy IDs, which is a subset of those returned by <code>common_taxids()</code>. This are also the organisms for which any annotation
 	information will be pre-loaded on your computer upon installation of Orange Bioinformatics.</dd>
 	
 </dl>
