@@ -212,6 +212,9 @@ class Taxonomy(object):
             for r in list(res):
                 res.extend(self.subnodes(r, levels-1))
         return res
+
+    def taxids(self):
+        return list(self)
     
     @staticmethod
     def ParseTaxdumpFile(file=None, outputdir=None, callback=None):
@@ -316,6 +319,9 @@ def to_taxid(code, mapTo=None):
         results = mapped
 
     return results
+
+def taxids():
+    return Taxonomy().taxids()
 
 import obiGenomicsUpdate
 
