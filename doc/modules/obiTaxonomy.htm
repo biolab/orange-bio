@@ -31,7 +31,11 @@ so that when you search for "sgd" or "mmu" you get the expected result.</p>
     <dd>Return a list of taxids ordered from the topmost node (root) to taxid.</dd>
 
 	<dt>to_taxid(code)</dt>
-	<dd>See if the <code>code</code> is a valid code in any database and return its taxid.</dd>
+	<dd>See if the organism <code>code</code> is a valid organism code (codes are obtained from, for instance,
+	KEGG and GO data bases) and return its taxid.</dd>
+
+	<dt>taxids()>
+	<dd>Returns a list of all (about half a million!) NCBI's taxonomy ID's.<dd>
 
 	<dt>common_taxids()</dt>
 	<dd>Returns a list of taxonomy IDs for common organisms (see list of <a href="http://www.ncbi.nlm.nih.gov/Taxonomy/">common organisms from NCBI</a>)
@@ -42,6 +46,7 @@ so that when you search for "sgd" or "mmu" you get the expected result.</p>
 	<dt>essential_taxids()</dt>
 	<dd>Returns a set of taxonomy IDs, which is a subset of those returned by <code>common_taxids()<code>. This are also the organisms for which any annotation
 	information will be pre-loaded on your computer upon installation of Orange Bioinformatics.</dd>
+	
 </dl>
 
 <p class=section>Examples</p>
