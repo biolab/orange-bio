@@ -10,6 +10,41 @@ import orngEnviron
 from urllib2 import urlopen
 from collections import defaultdict
 
+# list of common organisms from http://www.ncbi.nlm.nih.gov/Taxonomy
+def common_taxids():
+    """Return taxonomy IDs for common organisms."""
+    return ["3702",  # Arabidopsis thaliana
+            "9913",  # Bos taurus
+            "6239",  # Caenorhabditis elegans
+            "3055",  # Chlamydomonas reinhardtii
+            "7955",  # Danio rerio (zebrafish)
+            "44689", # Dictyostelium discoideum
+            "7227",  # Drosophila melanogaster
+            "562",   # Escherichia coli
+            "11103", # Hepatitis C virus
+            "9606",  # Homo sapiens
+            "10090", # Mus musculus
+            "2104",  # Mycoplasma pneumoniae
+            "4530",  # Oryza sativa
+            "5833",  # Plasmodium falciparum
+            "4754",  # Pneumocystis carinii
+            "10116", # Rattus norvegicus
+            "4932",  # Saccharomyces cerevisiae
+            "4896",  # Schizosaccharomyces pombe
+            "31033", # Takifugu rubripes
+            "8355",  # Xenopus laevis
+            "4577",  # Zea mays
+             ] 
+
+def essential_taxids():
+    """Return taxonomy IDs for organisms that are included in (default) Orange Bioinformatics installation."""
+    return ["44689", # Dictyostelium discoideum
+            "7227",  # Drosophila melanogaster
+            "9606",  # Homo sapiens
+            "10090", # Mus musculus
+            "4932",  # Saccharomyces cerevisiae
+            ] 
+
 default_database_path = os.path.join(orngEnviron.bufferDir, "bigfiles", "Taxonomy")
 
 class MultipleSpeciesException(Exception):
