@@ -274,13 +274,17 @@ def other_names(taxid):
     """
     return  Taxonomy().other_names(taxid)
 
-def search(string, onlySpecies=True):
+def search(string, onlySpecies=True, exact=False):
     """ Search the NCBI taxonomy database for an organism
     Arguments::
             - *string*      Search string
             - *onlySpecies* Return only taxids of species (and subspecies)
+            - *exact*       Return only taxids of organism that exactly match the string
     """
-    return Taxonomy().search(string, onlySpecies)
+    ids = Taxonomy().search(string, onlySpecies)
+    if exact:
+        ids = [id for id in ids if string in [name(id)] + other_names(id)]
+    return ids
 
 def lineage(taxid):
     """ Return a list of taxids ordered from the topmost node (root) to taxid.
