@@ -628,6 +628,10 @@ class KEGGInterfaceLocal(object):
         for id, bb in d:
             bbDict[id].append(bb)
         return bbDict
+
+    def get_gene_aliases(self, org):
+        self._genes[org] ## to load the genes and gene aliases
+        return self._gene_alias[org]
         
     def get_unique_gene_ids(self, org, genes, caseSensitive=True):
         if not caseSensitive:
@@ -647,7 +651,6 @@ class KEGGInterfaceLocal(object):
             else:
                 unknown.append(gene)
         return unique, conflicting, unknown
-
 
     def constructAliasMapper(self, org):
         try:
@@ -767,6 +770,10 @@ class KEGGOrganism(object):
     def get_genes(self):
         """Return a list of all organism genes."""
         return self.api.get_genes_by_organism(self.org)
+
+    def get_gene_aliases(self):
+        """Return a dictionary mapping gene aliases to unique gene ids """
+        return self.api.get_gene_aliases(self.org)
 
     def get_pathways_by_genes(self, genes):
         """Return a list of all organism specific pathways that contain all the genes."""
