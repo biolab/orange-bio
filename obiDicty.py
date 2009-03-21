@@ -951,6 +951,9 @@ chips chips""")
 
         for group in groups:
 
+            if verbose:
+                print  "joining group", group
+
             groupnames = []
             groupvals = []
 
@@ -981,6 +984,8 @@ chips chips""")
 
             if annotations:
                 annotc = self.allAnnotationVals( [annotations[v] for v in nth(pairs,1) ] )
+
+            annotc["chipids"] = nth(group[0], 1)
 
             setattr(et, "annot", annotc)
             exampleTables.append(et)
