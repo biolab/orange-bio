@@ -69,6 +69,12 @@ class NCBIGeneInfo(dict):
         else:
             dict.__init__(self, *args, **kwargs)
             
+        # following is a temporary fix before gene name matcher is complete (then, this code is to be replaced)
+        print self.keys()[:10]
+
+        self.translate = dict([(self[k].symbol, k) for k in self.keys()])
+        for k in self.keys():
+            self.translate.update([(s, k) for s in self[k].synonyms if s not in self.translate])
 
     @classmethod    
     def load(cls, file):
@@ -86,11 +92,12 @@ class NCBIGeneInfo(dict):
     def __call__(self, name):
         """ Search and return the GeneInfo object for gene_id
         """
-        translate = lambda a:a
-        id = translate(name)
+#        translate = lambda a:a
+        id = self.translate[name]
         return self.get_info(id)
 
     def __getitem__(self, key):
+#        return self.get(gene_id, self.matcher[gene_id])
         return GeneInfo(dict.__getitem__(self, key))
 
     def __setitem__(self, key, value):
