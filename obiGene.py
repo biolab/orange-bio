@@ -49,7 +49,16 @@ class NCBIGeneInfo(dict):
         """ An object for accessing NCBI gene info
         """
         if args and type(args[0]) in [str, unicode]:
-            self.taxid = args[0]
+            org = args[0]
+            taxids = obiTaxonomy.to_taxid(org, mapTo=[obiTaxonomy.common_taxids()])
+            if not taxids:
+                taxids = set(obiTaxonomy.common_taxids()).intersection(obiTaxonomy.search(org))
+            if len(taxids) == 0:
+                raise obiTaxonomy.UnknownSpeciesIdentifier, org
+            elif len(taxids) > 1:
+                raise obiTaxonomy.MultipleSpeciesException, ", ".join(["%s: %s" % (id, obiTaxonomy.name(id)) for id in taxids])
+##            self.taxid = args[0]
+            self.taxid = taxids.pop()
             if not os.path.exists(orngServerFiles.localpath("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)):
                 orngServerFiles.download("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)
             file = open(orngServerFiles.localpath("NCBI_geneinfo", "gene_info.%s.db" % self.taxid), "rb")
