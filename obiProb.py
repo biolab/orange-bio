@@ -1,5 +1,19 @@
 import math    
 
+def _lngamma(z):
+    x = 0
+    x += 0.1659470187408462e-06 / (z + 7)
+    x += 0.9934937113930748e-05 / (z + 6)
+    x -= 0.1385710331296526 / (z + 5)
+    x += 12.50734324009056 / (z + 4)
+    x -= 176.6150291498386 / (z + 3)
+    x += 771.3234287757674 / (z + 2)
+    x -= 1259.139216722289 / (z + 1)
+    x += 676.5203681218835 / (z)
+    x += 0.9999999999995183
+    
+    return math.log(x) - 5.58106146679532777 - z + (z - 0.5) * math.log(z + 6.5)
+        
 class LogBin(object):
     _max = 2
     _lookup = [0.0, 0.0]
@@ -8,19 +22,29 @@ class LogBin(object):
         self._extend(max)
 
     @classmethod
-    def  _extend(cls, max):
-        for i in xrange(cls._max, max):
-            cls._max_factorial *= i
-            cls._lookup.append(math.log(cls._max_factorial))
+    def _extend(cls, max):
+        for i in range(cls._max, max):
+            if i > 1000: ## an arbitrary cuttof
+                cls._lookup.append(cls._logfactorial(i))
+            else:
+                cls._max_factorial *= i
+                cls._lookup.append(math.log(cls._max_factorial))
         cls._max = max
 
     def _logbin(self, n, k):
         if n >= self._max:
             self._extend(n + 100)
-        if k < n:
+        if k < n and k >= 0:
             return self._lookup[n] - self._lookup[n - k] - self._lookup[k]
         else:
             return 0.0
+
+    @classmethod
+    def _logfactorial(cls, n):
+        if (n <= 1):
+            return 0.0
+        else:
+            return _lngamma(n + 1)
 
 class Binomial(LogBin):
 
@@ -37,7 +61,7 @@ class Binomial(LogBin):
             else:
                 return 0.0
         try:
-            return math.exp(self._logbin(n, k) + k * math.log(p) + (n - k) * math.log(1.0 - p))
+            return math.exp(self._logbin(n, k) + k * math.log(p) + (n - k) * math.log(1.0 - p)), 1.0
         except (OverflowError, ValueError), er:
             print k, N, m, n
             raise
@@ -51,6 +75,8 @@ class Binomial(LogBin):
 class Hypergeometric(LogBin):
 
     def __call__(self, k, N, m, n):
+        if k < max(0, n + m - N) or k > min(n, m):
+            return 0.0
         try:
             return math.exp(self._logbin(m, k) + self._logbin(N - m, n - k) - self._logbin(N, n))
         except (OverflowError, ValueError), er:
