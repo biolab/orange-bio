@@ -473,10 +473,19 @@ import obiGeneMatch
 def nth(l,n): return [ a[n] for a in l ]
 
 def itOrFirst(data):
+    """ Returns input if input is of type ExampleTable, else returns first
+    element of the input list """
     if iset(data):
         return data
     else:
         return data[0]
+
+def wrap_in_list(data):
+    """ Wraps orange.ExampleTable in a list """
+    if iset(data):
+        return [ data ]
+    else:
+        return data
 
 def takeClasses(datai, classValues=None):
     """
@@ -610,7 +619,7 @@ def removeBadAttributes(datai, atLeast=3):
 
         #remove any attribute, which is ok in less than half of the dataset
         ignored = []
-        for a in data.domain.attributes:
+        for a in itOrFirst(datai).domain.attributes:
             attrOks = sum([ attrOk(a, data) for data in datai ])
             if attrOks < len(datai)/2:
                 ignored.append(a)
@@ -662,18 +671,29 @@ def transposeIfNeeded(data):
     string variable then becomes the gene name
     """
 
-    columns = [a for a in data.domain] +  [ data.domain.getmeta(a) for a in list(data.domain.getmetas()) ]
-    floatvars = [ a for a in columns if a.varType == orange.VarTypes.Continuous ]
-    if len(floatvars) == 1:
-        floatvar = floatvars[0]
-        stringvar = [ a for a in columns if a.varType == 6 ][0]
+    def transpose_data(data):
+        columns = [a for a in data.domain] +  [ data.domain.getmeta(a) for a in list(data.domain.getmetas()) ]
+        floatvars = [ a for a in columns if a.varType == orange.VarTypes.Continuous ]
+        if len(floatvars) == 1:
+            floatvar = floatvars[0]
+            stringvar = [ a for a in columns if a.varType == 6 ][0]
 
-        tup = [ (ex[stringvar].value, ex[floatvar].value) for ex in data ]
-        newdom = orange.Domain([orange.FloatVariable(name=a[0]) for a in tup ], False)
-        example = [ a[1] for a in tup ]
-        ndata = orange.ExampleTable(newdom, [example])
-        return ndata
-    return data
+            tup = [ (ex[stringvar].value, ex[floatvar].value) for ex in data ]
+            newdom = orange.Domain([orange.FloatVariable(name=a[0]) for a in tup ], False)
+            example = [ a[1] for a in tup ]
+            ndata = orange.ExampleTable(newdom, [example])
+            return ndata
+        return data
+
+    single = iset(data)
+
+    transposed = [ transpose_data(d) for d in wrap_in_list(data) ]
+
+    if single:
+        return transposed[0]
+    else:
+        return transposed
+
 
 
 class GSEA(object):
