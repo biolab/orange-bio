@@ -217,10 +217,16 @@ class OBOObject(object):
         """ Return value for the tag
         """
         try:
-            if tag == "def_":
-                return self.values["def"]
+##            if tag!="def_":
+##                print tag
+            if hasattr(self, "values"):
+                return self.values["def" if tag == "def_" else tag]
             else:
-                return self.values[tag]
+                raise KeyError
+##            if tag == "def_":
+##                return self.values["def"]
+##            else:
+##                return self.values[tag]
         except KeyError:
             raise AttributeError(tag)
 
@@ -576,7 +582,7 @@ class Annotations(object):
 
     def GetGeneNamesTranslator(self, genes):
         def alias(gene):
-            return self.aliasMapper.get(gene, self.additionalAliases.get(gene, None))
+            return gene if gene in self.geneNames else self.aliasMapper.get(gene, self.additionalAliases.get(gene, None))
         return dict([(alias(gene), gene) for gene in genes if alias(gene)])
 
     def _CollectAnnotations(self, id):
@@ -641,10 +647,10 @@ class Annotations(object):
 ##            allAnnotations.intersection_update(refAnnotations)
             allAnnotatedGenes = set([ann.geneName for ann in allAnnotations])
             mappedGenes = genes.intersection(allAnnotatedGenes)
-            if not mappedGenes:
-                print term, sorted(genes)
-                print sorted(allAnnotatedGenes)
-                return
+##            if not mappedGenes:
+##                print >> sys.stderr, term, sorted(genes)
+##                print >> sys.stderr, sorted(allAnnotatedGenes)
+##                return
             if len(reference) > len(allAnnotatedGenes):
                 mappedReferenceGenes = reference.intersection(allAnnotatedGenes)
             else:
@@ -878,6 +884,7 @@ def drawEnrichmentGraph_tostreamMk2(enriched, fh, width, height, header=None, on
                               ", ".join(entry[6])) + (None,))
 
     drawEnrichmentGraphPIL_tostream(termsList, header, fh, width, height)
+##    drawEnrichmentGraphPylab_tostream(termsList, header, fh, width, height)
     
 def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=None):
     from PIL import Image, ImageDraw, ImageFont
@@ -978,8 +985,8 @@ def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=N
         draw.text((verticalMargin + i*maxFoldWidth/numOfLegendLabels - font.getsize(label)[0]/2, horizontalMargin), label, font=font, fill=textColor)
         
     image.save(fh)
-        
 
+    
 class Taxonomy(object):
     """Maps NCBI taxonomy ids to coresponding GO organism codes
     """
@@ -1104,23 +1111,23 @@ def _test1():
 ##    print a.GetEnrichedTerms(sorted(a.geneNames)[:100])#, progressCallback=_print)
 
 def _test2():
-##    o = Ontology()
-##    a = Annotations("sgd", ontology=o)
-##    clusterGenes = sorted(a.geneNames)[:2]
-##    terms = a.GetEnrichedTerms(sorted(a.geneNames)[:2])
-##    drawEnrichmentGraph(filterByPValue(terms), len(clusterGenes), len(a.geneNames))
+    o = Ontology()
+    a = Annotations("sgd", ontology=o)
+    clusterGenes = sorted(a.geneNames)[:2]
+    terms = a.GetEnrichedTerms(sorted(a.geneNames)[:2])
+    a.DrawEnrichmentGraph(filterByPValue(terms), len(clusterGenes), len(a.geneNames))
               
-    drawEnrichmentGraph([("bal", 1.0, 5, 6, 0.1, 0.4, ["vv"]),
-                        ("GO:0019079", 0.5, 5, 6, 0.1, 0.4, ["cc", "bb"]),
-                        ("GO:0022415", 0.4, 5, 7, 0.11, 0.4, ["cc1", "bb"])], open("graph.png", "wb"), None, None)
+##    drawEnrichmentGraph([("bal", 1.0, 5, 6, 0.1, 0.4, ["vv"]),
+##                        ("GO:0019079", 0.5, 5, 6, 0.1, 0.4, ["cc", "bb"]),
+##                        ("GO:0022415", 0.4, 5, 7, 0.11, 0.4, ["cc1", "bb"])], open("graph.png", "wb"), None, None)
 
 def _test3():
     o = Ontology()
     a = Annotations("sgd", ontology=o)
-    a = Annotations(list(a)[3:len(a)/3], ontology=o)
+##    a = Annotations(list(a)[3:len(a)/3], ontology=o)
     clusterGenes = sorted(a.geneNames)[:1] + sorted(a.geneNames)[-1:]
 ##    clusterGenes = [g + "_" + str(i%5) for g in sorted(a.geneNames)[:2]]
-    exonMap = dict([(gene, [gene+"_E%i" %i for i in range(5)]) for gene in a.geneNames])
+    exonMap = dict([(gene, [gene+"_E%i" %i for i in range(10)]) for gene in a.geneNames])
     a.RemapGenes(exonMap)
 ##    o.reverseAliasMapper = o.aliasMapper = {}
     terms = a.GetEnrichedTerms(exonMap.values()[0][:2] + exonMap.values()[-1][2:])
@@ -1130,4 +1137,4 @@ def _test3():
     a.DrawEnrichmentGraph(filterByPValue(terms, maxPValue=0.1), len(clusterGenes), len(a.geneNames))
     
 if __name__ == "__main__":
-    _test3()
+    _test2()
