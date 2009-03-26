@@ -86,7 +86,7 @@ class OWGeneInfo(OWWidget):
             attr = self.attributes[self.geneAttr]
             genes = [str(ex[attr]) for ex in self.data if not ex[attr].isSpecial()]
         info = obiGene.NCBIGeneInfo(self.organisms[self.organismIndex])
-        self.geneinfo = geneinfo = [(gene, info.get(gene, None)) for gene in genes + info.keys()[:5]]
+        self.geneinfo = geneinfo = [(gene, info.get(gene, None)) for gene in genes]
         self.treeWidget.clear()
         self.widgetItems = []
         self.progressBarInit()
@@ -106,8 +106,8 @@ class OWGeneInfo(OWWidget):
                 self.progressBarSet(100.0*i/len(geneinfo))
 ##        self.treeWidget.addTopLevelItems(self.widgetItems)
         self.progressBarFinished()
-        self.widgetItems[-1].setText(0, "")
-        self.treeWidget.update(self.treeWidget.indexFromItem(self.widgetItems[-1]))
+##        self.widgetItems[-1].setText(0, "")
+##        self.treeWidget.update(self.treeWidget.indexFromItem(self.widgetItems[-1]))
         self.treeWidget.viewport().update()
         self.infoLabel.setText("%i genes\n%i matched NCBI's IDs" % (len(genes), len(self.widgetItems)))
 
