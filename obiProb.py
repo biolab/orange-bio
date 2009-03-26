@@ -61,7 +61,7 @@ class Binomial(LogBin):
             else:
                 return 0.0
         try:
-            return max(math.exp(self._logbin(n, k) + k * math.log(p) + (n - k) * math.log(1.0 - p)), 1.0)
+            return min(math.exp(self._logbin(n, k) + k * math.log(p) + (n - k) * math.log(1.0 - p)), 1.0)
         except (OverflowError, ValueError), er:
             print k, N, m, n
             raise
@@ -78,7 +78,7 @@ class Hypergeometric(LogBin):
         if k < max(0, n + m - N) or k > min(n, m):
             return 0.0
         try:
-            return math.exp(self._logbin(m, k) + self._logbin(N - m, n - k) - self._logbin(N, n))
+            return min(math.exp(self._logbin(m, k) + self._logbin(N - m, n - k) - self._logbin(N, n)), 1.0)
         except (OverflowError, ValueError), er:
             print k, N, m, n
             raise
