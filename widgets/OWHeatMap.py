@@ -1,7 +1,7 @@
 """
 <name>Heat Map</name>
 <description>Microarray Heat Map</description>
-<contact>Blaz Zupan, Janez Demsar</contact>
+<contact>Ales Erjavec, Blaz Zupan, Janez Demsar</contact>
 <icon>icons/HeatMap.png</icon>
 <priority>50</priority>
 """
@@ -94,7 +94,7 @@ class OWHeatMap(OWWidget):
         
         self.loadSettings()
         self.data = []
-        self.maxHSize = 15; self.maxVSize = 15
+        self.maxHSize = 30; self.maxVSize = 15
 
 
         # GUI definition
@@ -602,7 +602,13 @@ class OWHeatMap(OWWidget):
 
     def drawColumnLabels(self, x, y, heatmap):
         font = QFont()
-        font.setPixelSize(max(self.CellWidth - 1, 1))
+        font.setPixelSize(min(max(self.CellWidth - 1, 1), 11))
+        t = QGraphicsSimpleTextItem("Dummy123", None, self.scene)
+        t.setFont(font)
+        if t.boundingRect().height() < self.CellWidth:
+            x += (self.CellWidth - t.boundingRect().height()) / 2
+        self.scene.removeItem(t)
+
         maxY = y
         items = []
         if self.ShowColumnLabels:
