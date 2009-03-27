@@ -571,7 +571,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         for i, (id, (genes, p_value, refCount)) in enumerate(terms):
 ##            text = [go.loadedGO.termDict[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
             text = [self.ontology[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
-            QTreeWidgetItem(self.sigTerms, text)
+            item = QTreeWidgetItem(self.sigTerms, text)
+            item.goId = id
 ##            for j,t in enumerate(text):
 ##                self.sigTermsTable.setItem(i, j, QTableWidgetItem(t))
                 
@@ -596,11 +597,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
         self.selectionChanging = 1
         self.selectedTerms = []
-        selectedRows = set([item.row() for item in self.sigTerms.selectedIndexes()])
+        selectedIds = set([self.sigTerms.itemFromIndex(index).goId for index in self.sigTerms.selectedIndexes()])
         
-        for row in range(self.sigTerms.topLevelItemCount()):
-            selected = row in selectedRows
-            term = self.sigTableTermsSorted[row]
+        for i in range(self.sigTerms.topLevelItemCount()):
+            item = self.sigTerms.topLevelItem(i)
+            selected = item.goId in selectedIds
+##            term = self.sigTableTermsSorted[row]
+            term = item.goId
             
             if selected:
                 self.selectedTerms.append(term)
