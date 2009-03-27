@@ -40,13 +40,15 @@ class OWGeneInfo(OWWidget):
         self.useAttr = False
         self.autoCommit = False
         self.searchString = ""
+        self.loadSettings()
         
         self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "")
         self.organisms = [name.split(".")[-2] for name in orngServerFiles.listfiles("NCBI_geneinfo")]
         self.orgaismsComboBox = OWGUI.comboBox(self.controlArea, self, "organismIndex", "Organism", items=[obiTaxonomy.name(id) for id in self.organisms], callback=self.setItems)
         box = OWGUI.widgetBox(self.controlArea, "Gene names")
         self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneAttr", "Gene atttibute", callback=self.setItems)
-        OWGUI.checkBox(box, self, "useAttr", "Use attribute names", callback=self.setItems, disables=[(self.geneAttrComboBox, -1)])
+        c = OWGUI.checkBox(box, self, "useAttr", "Use attribute names", callback=self.setItems, disables=[(-1, self.geneAttrComboBox)])
+        self.geneAttrComboBox.setDisabled(bool(self.useAttr))
 
         box = OWGUI.widgetBox(self.controlArea, "Commit")
         OWGUI.button(box, self, "Commit", callback=self.commit)
@@ -59,14 +61,14 @@ class OWGeneInfo(OWWidget):
         self.treeWidget.setRootIsDecorated(False)
         self.treeWidget.setSelectionMode(QAbstractItemView.ExtendedSelection)
 ##        self.treeWidget.setItemDelegate(LinkItemDelegate(self.treeWidget))
-        self.connect(self.treeWidget, SIGNAL("selectionChanged()"), self.commitIf)
+        self.connect(self.treeWidget, SIGNAL("itemSelectionChanged()"), self.commitIf)
         self.mainArea.layout().addWidget(self.treeWidget)
         
         box = OWGUI.widgetBox(self.mainArea, "", orientation="horizontal")
         OWGUI.button(box, self, "Select Filtered", callback=self.selectFiltered)
         OWGUI.button(box, self, "Clear Selection", callback=self.clearSelection)
 
-        self.geneinfo = []        
+        self.geneinfo = []
         
     def setData(self, data=None):
         self.data = data
@@ -121,7 +123,8 @@ class OWGeneInfo(OWWidget):
             self.commit()
 
     def commit(self):
-        selected = [item.info for item in self.widgetItems if not item.isHidden() and item.isSelected()]
+        selected = [self.treeWidget.itemFromIndex(index).info for index in self.treeWidget.selectedIndexes()]
+##        selected = [item.info for item in self.widgetItems if not item.isHidden() and item.isSelected()]
         if self.useAttr:
             attrs = [attr for attr, (name, gi) in zip(self.data.domain.attributes, self.geneinfo) if gi in selected]
             domain = orange.Domain(attrs, self.data.domain.classVar)
@@ -131,10 +134,7 @@ class OWGeneInfo(OWWidget):
             attr = self.attributes[self.geneAttr]
             geneinfo = dict(self.geneinfo)
             examples = [ex for ex in self.data if geneinfo.get(str(ex[attr])) in selected]
-            self.send("Selected Examples", orange.ExampleTable(examples) if examples else orange.ExampleTable(self.data.domain))
-        
-        
-        
+            self.send("Selected Examples", orange.ExampleTable(examples) if examples else None)
         
     def searchUpdate(self):
         searchStrings = self.searchString.lower().split()
