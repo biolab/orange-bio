@@ -28,7 +28,7 @@ class LinkItemDelegate(QItemDelegate):
         return size
 
 class OWGeneInfo(OWWidget):
-    settingsList = ["organimIndex", "geneAttr", "useAttr", "autoCommit"]
+    settingsList = ["organismIndex", "geneAttr", "useAttr", "autoCommit"]
     def __init__(self, parent=None, signalManager=None, name="Gene info"):
         OWWidget.__init__(self, parent, signalManager, name)
 
@@ -88,10 +88,12 @@ class OWGeneInfo(OWWidget):
             attr = self.attributes[self.geneAttr]
             genes = [str(ex[attr]) for ex in self.data if not ex[attr].isSpecial()]
         info = obiGene.NCBIGeneInfo(self.organisms[self.organismIndex])
-        self.geneinfo = geneinfo = [(gene, info.get(gene, None)) for gene in genes]
+        self.geneinfo = geneinfo = [(gene, info.get_info(gene, None)) for gene in genes]
+        print genes[:10]
         self.treeWidget.clear()
         self.widgetItems = []
         self.progressBarInit()
+##        milestones = set([i for i in range(0, len(geneinfo), max(len(geneinfo)/100, 1))])
         milestones = set([i for i in range(0, len(geneinfo), max(len(geneinfo)/100, 1))])
         for i, (gene, gi) in enumerate(geneinfo):
             if gi:

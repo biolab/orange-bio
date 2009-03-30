@@ -74,7 +74,8 @@ class NCBIGeneInfo(dict):
 
         self.translate = dict([(self[k].symbol, k) for k in self.keys()])
         for k in self.keys():
-            self.translate.update([(s, k) for s in self[k].synonyms if s not in self.translate])
+            self.translate.update([(s, k) for s in self[k].synonyms if s not in self.translate] + \
+                                  ([(self[k].locus_tag, k)] if self[k].locus_tag else [] ))
 
     @classmethod    
     def load(cls, file):
@@ -84,17 +85,19 @@ class NCBIGeneInfo(dict):
             file = open(file, "rb")
         return cls((line.split("\t", 3)[1], line) for line in file.read().split("\n") if line.strip() and not line.startswith("#"))
         
-    def get_info(self, gene_id):
+    def get_info(self, gene_id, def_=None):
         """ Search and return the GeneInfo object for gene_id
         """
-        return self[gene_id]
+        try:
+            return self(gene_id)
+        except KeyError:
+            return def_
         
     def __call__(self, name):
         """ Search and return the GeneInfo object for gene_id
         """
-#        translate = lambda a:a
-        id = self.translate[name]
-        return self.get_info(id)
+        id = self.translate.get(name, name)
+        return self[id]
 
     def __getitem__(self, key):
 #        return self.get(gene_id, self.matcher[gene_id])
