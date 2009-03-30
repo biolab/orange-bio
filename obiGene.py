@@ -141,8 +141,393 @@ class NCBIGeneInfo(dict):
         return info
         
 
-if __name__ == "__main__":
+ 
+
+"""
+Gene matcher.
+
+"Database" for each oranism is a list of sets of gene aliases.
+"""
+
+from collections import defaultdict
+import os
+
+BUFFER_PATH = None
+
+def ignore_case(gs):
+    """ Transform names in sets in list to lower case """
+    return [ set([a.lower() for a in g]) for g in gs ]
+
+def create_mapping(groups):
+    """ 
+    Returns mapping of aliases to the group index.
+
+    Unpickling the results of this function (binary format)
+    is slower than running it.
+    """
+    togroup = defaultdict(list)
+    for i,group in enumerate(groups):
+        for alias in group:
+            togroup[alias].append(i)
+    return togroup
+
+def join_sets(set1, set2):
+    """ 
+    Joins two gene set mapping. 
+
+    A group g1 from set1 is joined to a group of aliases g2 from set2, 
+    if and only if there intersection between g1 and g2 is not empty. 
+    Returned all joined groups + groups that were not matched (returned
+    unchanged).
+
+    The operation is commutatitve and associative.
+    """
+
+    cur = [ set(a) for a in set1 ]
+    currentmap = create_mapping(cur)
+
+    new = [] #new groups
+
+    #remember used to find unused
+    set1used = set() 
+    set2used = set()
+
+    for i, group in enumerate(set2):
+
+        #find groups of aliases (from set1)  intersecting with a current
+        #group from set2
+        cross = set(reduce(lambda x,y: x+y, 
+            [ currentmap[alias] for alias in group if alias in currentmap], []))
+
+        for c in cross:
+            #print c, group & set1[c], group, set1[c]
+            set1used.add(c)
+            set2used.add(i)
+            new.append(group | set1[c]) #add a union
+
+    #add groups without matches (from both sets)
+    set1add = set(range(len(set1))) - set1used
+    set2add = set(range(len(set2))) - set2used
+
+    for a in set1add:
+        new.append(set1[a])
+    for a in set2add:
+        new.append(set2[a])
+
+    return new
+ 
+def join_sets_l(lsets):
+    """
+    Joins multiple gene set mappings. Since joining is associative, we
+    can simply chain joining.
+    """
+    current = lsets[0]
+    for b in lsets[1:]:
+        current = join_sets(current, b)
+    return current
+
+class Matcher(object):
+
+    ignore_case = True
+
+    #def __init__(self, ignore_case=True):
+    #    self.ignore_case = ignore_case
+
+    def set_targets(self, tl):
+        """
+        Set list on gene names tl as targets of this gene matcher. 
+        Abstract function.
+        """
+        notImplemented()
+
+    def match(self, gene):
+        """Returns matching target gene name."""
+        notImplemented()
+
+class MatcherSequence(Matcher):
+    """
+    Chaining of gene matchers.
+    
+    User defines the order of gene matchers. Each gene is goes through
+    sequence of gene matchers until a match is found.
+    """
+    
+    def __init__(self, matchers):
+        self.matchers = matchers
+
+    def match(self, gene):
+        for matcher in self.matchers:
+            m = matcher.matchOne(gene)
+            if m != None:
+                return m
+        return None
+
+    def set_targets(self, targets):
+        for matcher in self.matchers:
+            matcher.set_targets(targets)
+
+def buffer_path():
+    """ Returns buffer path. Ignore it optionally. """
+    if BUFFER_PATH == None:
+        import orngEnviron
+        pth = os.path.join(orngEnviron.directoryNames["bufferDir"], 
+            "gene_matcher")
+        try:
+            os.makedirs(pth)
+        except:
+            pass
+        return pth
+    else:
+        return BUFFER_PATH
+
+
+def auto_pickle(filename, version, func, *args, **kwargs):
+    """
+    Run function func with given arguments and save results to
+    a file named filename. If results for a given filename AND
+    version were already saved, just read and return them.
+    """
+
+    import cPickle as pickle
+
+    output = None
+    outputOk = False
+
+    try:
+        f = open(filename,'rb')
+
+        try:
+            versionF = pickle.load(f)
+            if versionF == version:
+                outputOk = True
+                output = pickle.load(f)
+        except:
+            pass
+        finally:
+            f.close()
+
+    except:
+        pass
+
+    if not outputOk:
+        output = func(*args, **kwargs)
+
+        #save output before returning
+        f = open(filename,'wb')
+        pickle.dump(version, f, -1)
+        pickle.dump(output, f, -1)
+        f.close()
+
+    return output
+
+class MatcherAliases(Matcher):
+    """
+    Forges a new matcher from list of sets of given aliases.
+    """
+    def __init__(self, aliases):
+        print "running parent constructior"
+        self.aliases = aliases
+        self.mdict = create_mapping(self.aliases)
+
+    def to_ids(self, gene):
+        if self.ignore_case:
+            gene = gene.lower()
+        return self.mdict[gene]
+
+    def set_targets(self, targets):
+        d = defaultdict(list)
+        for target in targets:
+            ids = self.to_ids(target)
+            if ids != None:
+                for id in ids:
+                    d[id].append(target)
+        self.to_targets = d
+
+    def match(self, gene):
+        inputgeneids = self.to_ids(gene)
+        #return target genes with same ids
+        return set( \
+            reduce(lambda x,y:x+y, 
+                [ self.to_targets[igid] for igid in inputgeneids ], [])) 
+
+
+class MatcherAliasesPickled(MatcherAliases):
+    """
+    Gene matchers using pickling should extend this class.
+    
+    Loading is done in a lazy way. Therefore defining joined gene matchers
+    does not force full loading of its component, if they are not needed
+    (joined pickled file is already prepared).
+    """
+    
+    def set_aliases(self, aliases):
+        self.saved_aliases = aliases
+
+    def get_aliases(self):
+        if not self.saved_aliases: #loads aliases if not loaded
+            self.aliases = self.load_aliases()
+        return self.saved_aliases
+
+    aliases = property(get_aliases, set_aliases)
+
+    def get_mdict(self):
+        """ Creates mdict. Aliases are loaded if needed. """
+        if not self.saved_mdict:
+            self.saved_mdict = create_mapping(self.aliases)
+        return self.saved_mdict
+
+    def set_mdict(self, mdict):
+        self.saved_mdict = mdict
+
+    mdict = property(get_mdict, set_mdict)
+
+    def set_targets(self, targets):
+        MatcherAliases.set_targets(self, targets)
+
+    def filename(self):
+        """ Returns file name for saving aliases. """
+        notImplemented()
+        
+    def create_aliases_version(self):
+        """ Returns version of the source database state. """
+        notImplemented()
+
+    def create_aliases(self):
+        """ Returns gene aliases. """
+        notImplemented()
+
+    def load_aliases(self):
+        filename = os.path.join(buffer_path(), self.filename())
+        return auto_pickle(filename, self.create_aliases_version(), 
+            self.create_aliases)
+
+    def __init__(self):
+        self.aliases = []
+        self.mdict = {}
+        print self.filename() # test if valid filename can be built
+
+class MatcherAliasesKEGG(MatcherAliasesPickled):
+
+    def _organism_name(self, organism):
+        """ Returns internal KEGG organism name. Used to define file name. """
+        import obiKEGG #FIXME speed up name resolving
+        org = obiKEGG.KEGGOrganism(organism)
+        return org.org
+
+    def create_aliases(self):
+        organism = self._organism_name(self.organism)
+        import obiKEGG
+        org = obiKEGG.KEGGOrganism(self.organism)
+        genes = org.api._genes[org.org]
+        return ignore_case([ set([name]) | set(b.alt_names) for 
+            name,b in genes.items() ])
+
+    def create_aliases_version(self):
+        return "1"
+
+    def filename(self):
+        return "kegg_" + self._organism_name(self.organism)
+
+    def __init__(self, organism):
+        self.organism = organism
+        MatcherAliasesPickled.__init__(self)
+
+class MatcherAliasesGO(MatcherAliasesPickled):
+
+    def create_aliases(self):
+        import obiGO
+        annotations = obiGO.Annotations.Load(self.organism)
+        names = annotations.geneNamesDict
+        return ignore_case(map(set, list(set([ \
+            tuple(sorted(set([name]) | set(genes))) \
+            for name,genes in names.items() ]))))
+
+    def filename(self):
+        import obiGO #FIXME name resolving is too slow for now.
+        ao = obiGO.Annotations.Load(self.organism)
+        return "go_" + os.path.basename(ao.file)
+
+    def create_aliases_version(self):
+        return "1" #FIXME need support for GO versioning
+
+    def __init__(self, organism):
+        self.organism = organism
+        MatcherAliasesPickled.__init__(self)
+
+class MatcherAliasesPickledJoined(MatcherAliasesPickled):
+    """
+    Forges a new matcher by joining gene aliases from different sets.
+    """
+
+    def filename(self):
+        filenames = [ mat.filename() for mat in self.matchers ]
+        return "__".join(filenames)
+
+    def create_aliases(self):
+        return join_sets_l([ mat.aliases for mat in self.matchers ])
+
+    def create_aliases_version(self):
+        return [ mat.create_aliases_version() for mat in self.matchers ]
+
+    def __init__(self, matchers):
+        """ 
+        Join matchers together. Groups of aliases are joined if
+        they share a common name.
+        """
+        #FIXME: sorting of matchers to avoid multipying pickled files for
+        #different orderings.
+        self.matchers = matchers
+        MatcherAliasesPickled.__init__(self)
+        
+if __name__ == '__main__':
+    """
     info = NCBIGeneInfo("9606")
     gi = info(list(info)[0])
     print gi.tax_id, gi.synonyms, gi.dbXrefs, gi.symbol_from_nomenclature_authority, gi.full_name_from_nomenclature_authority
+    """
+
+    import obiGeneSets
+
+    def testsets():
+        return obiGeneSets.collections([":kegg:hsa", ":go:hsa"])
+
+    def names1():
+        import orange
+        data = orange.ExampleTable("DLBCL.tab")
+        return [ a.name for a in  data.domain.attributes ]
     
+    genesets = auto_pickle("testcol", "3", testsets)
+    names = auto_pickle("testnames", "4", names1)
+    print names[:100]
+ 
+    import time
+
+    print "loading time needs to be decreased to minimum"
+    t = time.time()
+    mat = MatcherAliasesKEGG("human")
+    print "kegg", time.time() - t
+    t = time.time()
+    mat2 = MatcherAliasesGO("goa_human")
+    print "go", time.time() - t
+    t = time.time()
+    mat3 = MatcherAliasesPickledJoined([mat,mat2])
+    print "join", time.time() - t
+
+    print "using targets"
+
+    mat.set_targets(names)
+    mat2.set_targets(names)
+    mat3.set_targets(names)
+
+    import mMisc as m
+
+    print "before genes"
+    genes = set(m.flatten(genesets.values()[:100]))
+    print len(genes)
+    print "after genes"
+
+    for g in sorted(genes):
+        print "KEGG", g, mat.match(g)
+        print "GO  ", g, mat2.match(g)
+        print "JOIN", g, mat3.match(g)
+
