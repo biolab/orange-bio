@@ -9,7 +9,7 @@ import obiTaxonomy
 import cPickle
 
 def variableMean(x):
-    vs = [v for v in x if v]
+    vs = [v for v in x if v and v<>"?"]
     if len(vs) == 0:
         return "?"
     return sum(vs)/len(vs)
@@ -31,47 +31,53 @@ class GDSInfo:
         f = file(path, "rb")
         self.info, self.excluded = cPickle.load(f)
     def keys(self): return self.info.keys()
-    def keys(self): return self.info.items()
+    def items(self): return self.info.items()
     def values(self): return self.info.values()
     def clear(self): return self.info.clear()
     def __getitem__(self, key): return self.info[key]
     def __setitem__(self, key, item): self.info[key] = item
+    def __len__(self): return len(self.info)
     
 
 class GeneData:
+    """Store mapping between spot id and gene."""
     def __init__(self, spot_id, gene_name, d):
         self.spot_id = spot_id
         self.gene_name = gene_name
         self.data = d
 
 class GDS():
-    def __init__(self, gdsname, verbose=True, force_download=False, cache=True):
+    """GEO DataSet class: read GEO datasets and convert them to ExampleTable."""
+    def __init__(self, gdsname, verbose=False, force_download=False, cache=True):
         self.gdsname = gdsname
         self.verbose = verbose
         self.force_download = force_download
         self.filename = orngServerFiles.localpath(DOMAIN, self.gdsname + ".soft.gz")
-        self.get_GDS_info() # to get the info
+        self._getinfo() # to get the info
         taxid = obiTaxonomy.search(self.info["sample_organism"], exact=True)
         self.info["taxid"] = taxid[0] if len(taxid)==1 else None
-        self.get_GDS_spotmap() # to get gene->spot and spot->gene mapping
+        self._getspotmap() # to get gene->spot and spot->gene mapping
         self.genes = self.gene2spots.keys()
+        self.info["gene_count"] = len(self.genes)
         self.gdsdata = None
         self.data = None
         
-    def download_gds_file(self):
+    def _download(self):
         """Download GDS data file if not in local cache or forced download requested."""
         localpath = orngServerFiles.localpath(DOMAIN)
         if self.force_download or not os.path.exists(self.filename):
-            if self.verbose:
-                print "Downloading %s" % self.gdsname
             ftp = obiData.FtpDownloader(FTP_NCBI, localpath, FTP_DIR)
-            ftp.retrieve(self.gdsname + ".soft.gz", progressCallback=orngMisc.ConsoleProgressBar() if self.verbose else None)
+            ftp.retrieve(self.gdsname + ".soft.gz", progressCallback=orngMisc.ConsoleProgressBar()
+                         if self.verbose else None)
+            if self.verbose:
+                # print "Downloading %s" % self.gdsname
+                print
 
-    def get_GDS_info(self):
-        """parses GDS data file and returns a dictionary with info"""
+    def _getinfo(self):
+        """Parse GDS data file and return a dictionary with info."""
         getstate = lambda x: x.split(" ")[0][1:] 
         getid = lambda x: x.rstrip().split(" ")[2]
-        self.download_gds_file()
+        self._download()
         f = gzip.open(self.filename)
         state = None; previous_state = None
     
@@ -118,8 +124,8 @@ class GDS():
 
         self.info = info
 
-    def get_GDS_spotmap(self, include_spots=None):
-        """return gene to spot and spot to genes mapings"""
+    def _getspotmap(self, include_spots=None):
+        """Return gene to spot and spot to genes mapings."""
         f = gzip.open(self.filename)
         for line in f:
             if line.startswith("!dataset_table_begin"):
@@ -139,8 +145,8 @@ class GDS():
         self.spot2gene = spot2gene
         self.gene2spots = gene2spots
         
-    def sample2class_values(self, classes=None, missing_class_value=None):
-        """return class values for GDS samples"""
+    def sample_to_class(self, classes=None, missing_class_value=None):
+        """Return class values for GDS samples."""
         samples = self.info["samples"]
         subsets = self.info["subsets"]
         if classes:
@@ -152,8 +158,8 @@ class GDS():
             sample2class[sample] = "|".join(classval) if classval else missing_class_value
         return sample2class
 
-    def get_GDS_data(self, filter_unknown=None):
-        """parses GDS data, returns data dictionary"""
+    def _parse_soft(self, filter_unknown=None):
+        """Parse GDS data, returns data dictionary."""
         f = gzip.open(self.filename)
         mfloat = lambda x: float(x) if x<>'null' else '?'
     
@@ -175,10 +181,11 @@ class GDS():
         
         self.gdsdata = data
     
-    def convert_to_ExampleTable(self, report_genes=True, merge_function=variableMean, classes=None, missing_class_value=None, transpose=False):
-        """convert parsed GEO format to orange, save by genes or by spots"""
+    def _to_ExampleTable(self, report_genes=True, merge_function=variableMean,
+                                classes=None, missing_class_value=None, transpose=False):
+        """Convert parsed GEO format to orange, save by genes or by spots."""
     
-        sample2class = self.sample2class_values(classes, missing_class_value)
+        sample2class = self.sample_to_class(classes, missing_class_value)
         cvalues = list(set(sample2class.values()))
         if None in cvalues:
             cvalues.remove(None)
@@ -190,7 +197,8 @@ class GDS():
                 atts = [orange.FloatVariable(name=gene) for gene in self.genes]
                 domain = orange.Domain(atts, classvar)
                 for (i, sampleid) in enumerate(self.info["samples"]):
-                    vals = [merge_function([self.gdsdata[spot].data[i] for spot in self.gene2spots[gene]]) for gene in self.genes]
+                    vals = [merge_function([self.gdsdata[spot].data[i] \
+                            for spot in self.gene2spots[gene]]) for gene in self.genes]
                     orng_data.append(vals + [sample2class[sampleid]])
                 
             else: # save by spots
@@ -209,7 +217,8 @@ class GDS():
             if report_genes: # save by genes
                 domain.addmeta(orange.newmetaid(), orange.StringVariable("gene"))
                 for g in self.genes:
-                    orng_data.append(map(lambda *x: merge_function(x), *[self.gdsdata[spot].data for spot in self.gene2spots[g]]))
+                    orng_data.append(map(lambda *x: merge_function(x),
+                                         *[self.gdsdata[spot].data for spot in self.gene2spots[g]]))
             else: # save by spots
                 domain.addmeta(orange.newmetaid(), orange.StringVariable("spot"))
                 spots = self.spot2gene.keys()
@@ -224,27 +233,34 @@ class GDS():
                     data[i]["spot"] = s
             return data
         
-    def get_data(self, report_genes=True, merge_function=variableMean, classes=None, missing_class_value=None, transpose=False, filter_unknown=None):
-        """loads GDS data and returns a corresponding orange data set, spot<->gene mappings and subset info"""
+    def getdata(self, report_genes=True, merge_function=variableMean,
+                 classes=None, missing_class_value=None,
+                 transpose=False, filter_unknown=None):
+        """Load GDS data and returns a corresponding orange data set,
+        spot<->gene mappings and subset info."""
         if self.verbose: print "Reading data ..."
         if not self.gdsdata:
-            self.get_GDS_data(filter_unknown = filter_unknown)
+            self._parse_soft(filter_unknown = filter_unknown)
         if filter_unknown:
             # some spots were filtered out, need to revise spot<>gene mappings
-            self.get_GDS_spotmap(include_spots=set(self.gdsdata.keys()))
+            self._getspotmap(include_spots=set(self.gdsdata.keys()))
         if self.verbose: print "Converting to example table ..."
-        self.data = self.convert_to_ExampleTable(merge_function=merge_function, classes=classes, transpose=transpose, report_genes=report_genes)
+        self.data = self._to_ExampleTable(merge_function=merge_function,
+                                                 classes=classes, transpose=transpose,
+                                                 report_genes=report_genes)
         return self.data
 
-def transposed(lists):
-   if not lists: return []
-   return map(lambda *row: list(row), *lists)
-
-def transposed2(lists, defval=0):
-   if not lists: return []
-   return map(lambda *row: [elem or defval for elem in row], *lists)
+    def __str__(self):
+        return "%s (%s), samples=%s, features=%s, genes=%s, subsets=%d" % \
+              (self.info["dataset_id"],
+               self.info["sample_organism"],
+               self.info['sample_count'],
+               self.info['feature_count'],
+               self.info['gene_count'],
+               len(self.info['subsets']),
+               )
 
 if __name__ == "__main__":
     gds = GDS("GDS10")
-    data = gds.get_data(report_genes=True, transpose=False)
+    data = gds.getdata(report_genes=True, transpose=False)
 #    data = GDS("GDS10", report_genes=True, transpose=False)
