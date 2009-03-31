@@ -1,6 +1,8 @@
-"""<name>Gene Info</name>
+"""
+<name>Gene Info</name>
 <description>This widget shows NCBI gene information</description>
-<contact>ales.erjevec(@at@)fri.uni-lj.si</contact>
+<priority>232</priority>
+<contact>Ales Erjavec (ales.erjevec(@at@)fri.uni-lj.si)</contact>
 """
 
 import obiGene, obiTaxonomy
@@ -88,13 +90,18 @@ class OWGeneInfo(OWWidget):
             self.clear()
 
     def setItems(self):
+        self.warning(0)
         if not self.data:
             return
         if self.useAttr:
             genes = [attr.name for attr in self.data.domain.attributes]
-        else:
+        elif self.attributes:
             attr = self.attributes[self.geneAttr]
             genes = [str(ex[attr]) for ex in self.data if not ex[attr].isSpecial()]
+        else:
+            genes = []
+        if not genes:
+            self.warning(0, "Could not extract genes from input dataset.")
         info = obiGene.NCBIGeneInfo(self.organisms[self.organismIndex])
         self.geneinfo = geneinfo = [(gene, info.get_info(gene, None)) for gene in genes]
 ##        print genes[:10]
