@@ -10,6 +10,14 @@ import OWGUI
 import obiGEO
 import orngServerFiles
 
+class SortableItem(QTreeWidgetItem):
+    def __lt__(self ,other):
+        widget = self.treeWidget()
+        column = widget.sortColumn()
+        if column in [2, 3, 4, 5]:
+            return int(self.text(column)) < int(other.text(column))
+        return QTreeWidgetItem.__lt__(self, other)
+    
 class LinkItem(QWidget):
     def __init__(self, pubmed_id, parent=None):
         QWidget.__init__(self, parent)
@@ -64,6 +72,7 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.setHeaderLabels(["ID", "Organism", "Samples", "Features", "Genes", "Subsets", "PubMedID"])
         self.treeWidget.setSelectionMode(QAbstractItemView.SingleSelection)
         self.treeWidget.setRootIsDecorated(False)
+        self.treeWidget.setSortingEnabled(True)
         self.mainArea.layout().addWidget(self.treeWidget)
         self.connect(self.treeWidget, SIGNAL("itemSelectionChanged ()"), self.updateSelection)
 ##        self.connect(self.treeWidget, SIGNAL("currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*))"), self.updateSelection)
@@ -82,7 +91,7 @@ class OWGEODatasets(OWWidget):
         self.treeItems = []
         info = obiGEO.GDSInfo()
         for name, gds in info.items():
-            item = QTreeWidgetItem(self.treeWidget, [gds["dataset_id"], gds["platform_organism"], str(len(gds["samples"])), str(gds["feature_count"]),
+            item = SortableItem(self.treeWidget, [gds["dataset_id"], gds["platform_organism"], str(len(gds["samples"])), str(gds["feature_count"]),
                                                      str(gds["gene_count"]), str(len(gds["subsets"])), ""])
             link = LinkItem(gds.get("pubmed_id"), self.treeWidget)
             self.treeWidget.setItemWidget(item, 6, link)
