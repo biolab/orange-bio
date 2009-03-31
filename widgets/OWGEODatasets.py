@@ -1,0 +1,121 @@
+"""<name>OWGEODatasets</name>
+<description>This widget provides access to Gene Expression Omnibus data sets, or GDS</description>
+<priority>251</priority>
+<contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si)</contact>
+"""
+
+import sys, os, glob
+from OWWidget import *
+import OWGUI
+import obiGEO
+import orngServerFiles
+
+class OWGEODatasets(OWWidget):
+    settingsList = ["sampleSubsets", "outputRows", "minSamples", "includeIf", "mergeSpots"]
+
+    def __init__(self, parent=None ,signalManager=None, name=" GEO Data sets"):
+        OWWidget.__init__(self, parent ,signalManager, name)
+
+        self.outputs = [("Example Table", ExampleTable)]
+
+        ## Settings
+        self.selectedSubsets = []
+        self.sampleSubsets = []
+        self.includeIf = False
+        self.minSamples = 3
+        self.autoCommit = False
+        self.outputRows = 0
+        self.mergeSpots = True
+        self.filterString = ""
+
+        self.loadSettings()
+
+        ## GUI
+        self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "\n")
+        box = OWGUI.widgetBox(self.controlArea, "Sample Subset")
+        OWGUI.listBox(box, self, "selectedSubsets", "sampleSubsets", selectionMode=QListWidget.ExtendedSelection)
+##        OWGUI.button(box, self, "Clear selection", callback=self.clearSubsetSelection)
+##        c = OWGUI.checkBox(box, self, "includeIf", "Include if at least", callback=self.commitIf)
+##        OWGUI.spin(OWGUI.indentedBox(box), self, "minSamples", 2, 100, posttext="samples", callback=self.commitIf)
+
+        box = OWGUI.widgetBox(self.controlArea, "Output")
+        OWGUI.radioButtonsInBox(box, self, "outputRows", ["Samples", "Genes"], "Rows") ##, callback=self.commitIf)
+        OWGUI.checkBox(box, self, "mergeSpots", "Merge spots of same gene") ##, callback=self.commitIf)
+
+        box = OWGUI.widgetBox(self.controlArea, "Output")
+        OWGUI.button(box, self, "Commit", callback=self.commit)
+##        OWGUI.checkBox(box, self, "autoCommit", "Commit automatically")
+        OWGUI.rubber(self.controlArea)
+
+        OWGUI.lineEdit(self.mainArea, self, "filterString", "Filter", callbackOnType=True, callback=self.filter)
+        self.treeWidget = QTreeWidget(self.mainArea)
+        self.treeWidget.setHeaderLabels(["ID", "Organism", "Features", "Genes", "Subsets", "PubMedID"])
+        self.treeWidget.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.treeWidget.setRootIsDecorated(False)
+        self.mainArea.layout().addWidget(self.treeWidget)
+        self.connect(self.treeWidget, SIGNAL("itemSelectionChanged ()"), self.updateSelection)
+##        self.connect(self.treeWidget, SIGNAL("currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*))"), self.updateSelection)
+        self.infoGDS = OWGUI.widgetLabel(OWGUI.widgetBox(self.mainArea, "Description"), "")
+        self.infoGDS.setWordWrap(True)
+
+        QTimer.singleShot(50, self.updateTable)
+        self.resize(700, 500)
+
+    def updateInfo(self):
+        gds_info = obiGEO.GDSInfo()
+        self.infoBox.setText("%i datasets\n%i datasets cached" %(len(gds_info), len(glob.glob(orngServerFiles.localpath("GEO") + "/GDS*"))))
+        
+    def updateTable(self):
+        self.treeWidget.clear()
+        self.treeItems = []
+        info = obiGEO.GDSInfo()
+        for name, gds in info.items():
+            item = QTreeWidgetItem(self.treeWidget, [gds["dataset_id"], gds["platform_organism"], str(gds["feature_count"]),
+                                                     str(len(gds["subsets"])), gds.get("pubmed_id", "")])
+            item.gdsName = name
+            item.gds = gds
+            self.treeItems.append(item)
+
+        self.updateInfo()
+
+    def updateSelection(self):
+        current = self.treeWidget.selectedItems()
+        if current:
+            self.currentItem = current[0]
+            self.setSubsets(current[0].gds)
+            self.infoGDS.setText(current[0].gds.get("description", ""))
+        else:
+            self.currentItem = None
+        
+    def setSubsets(self, gds):
+        self.sampleSubsets = ["%s (%d)" % (s["description"], len(s["sample_id"])) for s in gds["subsets"]]
+
+    def clearSubsetSelection(self):
+        pass
+
+    def filter(self):
+        filterStrings = self.filterString.lower().split()
+        searchKeys = ["platform_organism", "description"]
+        for item in self.treeItems:
+            item.setHidden(not all(any(s in item.gds.get(key, "").lower() for key in searchKeys) for s in filterStrings))
+
+    def commit(self):
+        if self.currentItem:
+            classes = [s["description"] for s in self.currentItem.gds["subsets"]]
+            classes = [classes[i] for i in self.selectedSubsets] or None
+            gds = obiGEO.GDS(self.currentItem.gdsName)
+            data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, classes=classes)
+            self.send("Example Table", data)
+        else:
+            pass
+
+    def commitIf(self):
+        if self.commitIf:
+            self.commit()
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    w = OWGEODatasets()
+    w.show()
+    app.exec_()
+    w.saveSettings()
