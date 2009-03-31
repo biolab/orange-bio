@@ -205,8 +205,8 @@ class GDS():
                 spots = self.spot2gene.keys()
                 atts = [orange.FloatVariable(name=id) for id in spots]
                 domain = orange.Domain(atts, classvar)
-                for (i, sampleid) in enumerate(info["samples"]):
-                    orng_data.append([data[spot].data[i] for spot in spots] + [sample2class[sampleid]])
+                for (i, sampleid) in enumerate(self.info["samples"]):
+                    orng_data.append([self.gdsdata[spot].data[i] for spot in spots] + [sample2class[sampleid]])
     
             return orange.ExampleTable(domain, orng_data)
     
