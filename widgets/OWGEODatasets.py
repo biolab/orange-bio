@@ -117,10 +117,10 @@ class OWGEODatasets(OWWidget):
         pass
 
     def filter(self):
-        filterStrings = self.filterString.lower().split()
+        filterStrings = [str(string) for string in self.filterString.lower().split()] ## filterString is in unicode
         searchKeys = ["platform_organism", "description"]
         for item in self.treeItems:
-            item.setHidden(not all(any(s in item.gds.get(key, "").lower() for key in searchKeys) for s in filterStrings))
+            item.setHidden(not all([any([s in item.gds.get(key, "").lower() for key in searchKeys]) for s in filterStrings]))
 
     def commit(self):
         if self.currentItem:
