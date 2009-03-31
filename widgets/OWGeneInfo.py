@@ -1,4 +1,6 @@
 """<name>Gene Info</name>
+<description>This widget shows NCBI gene information</description>
+<contact>ales.erjevec(@at@)fri.uni-lj.si</contact>
 """
 
 import obiGene, obiTaxonomy
@@ -42,7 +44,7 @@ class OWGeneInfo(OWWidget):
         self.searchString = ""
         self.loadSettings()
         
-        self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "")
+        self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "No data on input\n")
         self.organisms = [name.split(".")[-2] for name in orngServerFiles.listfiles("NCBI_geneinfo")]
         self.orgaismsComboBox = OWGUI.comboBox(self.controlArea, self, "organismIndex", "Organism", items=[obiTaxonomy.name(id) for id in self.organisms], callback=self.setItems)
         box = OWGUI.widgetBox(self.controlArea, "Gene names")
@@ -68,7 +70,11 @@ class OWGeneInfo(OWWidget):
         OWGUI.button(box, self, "Select Filtered", callback=self.selectFiltered)
         OWGUI.button(box, self, "Clear Selection", callback=self.clearSelection)
 
+        self.resize(700, 500)        
+
         self.geneinfo = []
+        self.widgetItems = []
+        self.data = None
         
     def setData(self, data=None):
         self.data = data
@@ -82,6 +88,8 @@ class OWGeneInfo(OWWidget):
             self.clear()
 
     def setItems(self):
+        if not self.data:
+            return
         if self.useAttr:
             genes = [attr.name for attr in self.data.domain.attributes]
         else:
@@ -89,7 +97,7 @@ class OWGeneInfo(OWWidget):
             genes = [str(ex[attr]) for ex in self.data if not ex[attr].isSpecial()]
         info = obiGene.NCBIGeneInfo(self.organisms[self.organismIndex])
         self.geneinfo = geneinfo = [(gene, info.get_info(gene, None)) for gene in genes]
-        print genes[:10]
+##        print genes[:10]
         self.treeWidget.clear()
         self.widgetItems = []
         self.progressBarInit()
@@ -118,6 +126,7 @@ class OWGeneInfo(OWWidget):
     def clear(self):
         self.infoLabel.setText("No data on input\n")
         self.treeWidget.clear()
+        self.geneAttrComboBox.clear()
         self.send("Selected Examples", None)
 
     def commitIf(self):
@@ -125,6 +134,8 @@ class OWGeneInfo(OWWidget):
             self.commit()
 
     def commit(self):
+        if not self.data:
+            return
         selected = [self.treeWidget.itemFromIndex(index).info for index in self.treeWidget.selectedIndexes()]
 ##        selected = [item.info for item in self.widgetItems if not item.isHidden() and item.isSelected()]
         if self.useAttr:
