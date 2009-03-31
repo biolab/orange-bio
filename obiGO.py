@@ -475,6 +475,26 @@ class Annotations(object):
             a = self.Load(file, ontology, progressCallback)
             self.__dict__ = a.__dict__
 
+    @classmethod
+    def organism_name_search(cls, org):
+        ids = to_taxid(org)
+        if not ids:
+            import obiTaxonomy as tax
+            ids = tax.to_taxid(org, mapTo=Taxonomy().tax.keys())
+        if not ids:
+            ids = tax.search(org, exact=True)
+            ids = set(ids).intersection(Taxonomy().tax.keys())
+        if not ids:
+            ids = tax.search(org)
+            ids = set(ids).intersection(Taxonomy().tax.keys())
+            
+        codes = reduce(set.union, [from_taxid(id) for id in ids], set())
+        if len(codes) > 1:
+            raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (str(from_taxid(id)), tax.name(id)) for id in ids])
+        elif len(codes) == 0:
+            raise tax.UnknownSpeciesIdentifier, org
+        return codes.pop()
+
     def SetOntology(self, ontology):
         self.allAnnotations = defaultdict(list)
         self._ontology = ontology
@@ -483,7 +503,7 @@ class Annotations(object):
         return self._ontology
 
     ontology = property(GetOntology, SetOntology, doc="Ontology object for annotations")
-
+    
     @classmethod
     def Load(cls, org, ontology=None, progressCallback=None):
         """A class method that tries to load the association file for the given organism from default_database_path.
@@ -985,6 +1005,7 @@ def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=N
         draw.text((verticalMargin + i*maxFoldWidth/numOfLegendLabels - font.getsize(label)[0]/2, horizontalMargin), label, font=font, fill=textColor)
         
     image.save(fh)
+
 
     
 class Taxonomy(object):

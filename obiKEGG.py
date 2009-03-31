@@ -747,6 +747,28 @@ class KEGGOrganism(object):
             print >> sys.stderr, "Found", tax.name(list(ids)[0]), "(%s)" % from_taxid(list(ids)[0]) 
             self.org = from_taxid(ids.pop())
 
+    @classmethod
+    def organism_name_search(cls, name):
+        api = KEGGInterfaceLocal()
+        if name in api._taxonomy:
+            return name ## valid KEGG organism code
+        else:
+            import obiTaxonomy as tax
+            allIds = [entry.get_taxid() for entry in api._genome.values()]
+            ids = tax.to_taxid(name, mapTo=allIds)
+            if not ids:
+                ids = tax.search(name, exact=True)
+                ids = set(ids).intersection(allIds)
+            if not ids:
+                ids = tax.search(name, exact=False)
+                ids = set(ids).intersection(allIds)
+            if len(ids) == 0:
+                raise tax.UnknownSpeciesIdentifier, name
+            elif len(ids) > 1:
+                raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (from_taxid(id), tax.name(id)) for id in ids])
+            return from_taxid(ids.pop())
+        
+
     def list_pathways(self):
         """Return a list of all organism specific pathways."""
         return self.api.list_pathways(self.org)
