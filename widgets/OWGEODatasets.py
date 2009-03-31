@@ -10,6 +10,18 @@ import OWGUI
 import obiGEO
 import orngServerFiles
 
+class LinkItem(QWidget):
+    def __init__(self, pubmed_id, parent=None):
+        QWidget.__init__(self, parent)
+        layout = QHBoxLayout()
+        if pubmed_id:
+            self.link = QLabel('<a href="http://www.ncbi.nlm.nih.gov/pubmed/%s">%s</a>' % (pubmed_id, pubmed_id), self)
+        else:
+            self.link = QLabel()
+        self.link.setOpenExternalLinks(True)
+        layout.addWidget(self.link)
+        self.setLayout(layout)
+        
 class OWGEODatasets(OWWidget):
     settingsList = ["sampleSubsets", "outputRows", "minSamples", "includeIf", "mergeSpots"]
 
@@ -39,7 +51,7 @@ class OWGEODatasets(OWWidget):
 ##        OWGUI.spin(OWGUI.indentedBox(box), self, "minSamples", 2, 100, posttext="samples", callback=self.commitIf)
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
-        OWGUI.radioButtonsInBox(box, self, "outputRows", ["Samples", "Genes"], "Rows") ##, callback=self.commitIf)
+        OWGUI.radioButtonsInBox(box, self, "outputRows", ["Samples", "Genes or spots"], "Rows") ##, callback=self.commitIf)
         OWGUI.checkBox(box, self, "mergeSpots", "Merge spots of same gene") ##, callback=self.commitIf)
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
@@ -49,7 +61,7 @@ class OWGEODatasets(OWWidget):
 
         OWGUI.lineEdit(self.mainArea, self, "filterString", "Filter", callbackOnType=True, callback=self.filter)
         self.treeWidget = QTreeWidget(self.mainArea)
-        self.treeWidget.setHeaderLabels(["ID", "Organism", "Features", "Genes", "Subsets", "PubMedID"])
+        self.treeWidget.setHeaderLabels(["ID", "Organism", "Samples", "Features", "Genes", "Subsets", "PubMedID"])
         self.treeWidget.setSelectionMode(QAbstractItemView.SingleSelection)
         self.treeWidget.setRootIsDecorated(False)
         self.mainArea.layout().addWidget(self.treeWidget)
@@ -70,8 +82,10 @@ class OWGEODatasets(OWWidget):
         self.treeItems = []
         info = obiGEO.GDSInfo()
         for name, gds in info.items():
-            item = QTreeWidgetItem(self.treeWidget, [gds["dataset_id"], gds["platform_organism"], str(gds["feature_count"]),
-                                                     str(len(gds["subsets"])), gds.get("pubmed_id", "")])
+            item = QTreeWidgetItem(self.treeWidget, [gds["dataset_id"], gds["platform_organism"], str(len(gds["samples"])), str(gds["feature_count"]),
+                                                     str(gds["gene_count"]), str(len(gds["subsets"])), ""])
+            link = LinkItem(gds.get("pubmed_id"), self.treeWidget)
+            self.treeWidget.setItemWidget(item, 6, link)
             item.gdsName = name
             item.gds = gds
             self.treeItems.append(item)
