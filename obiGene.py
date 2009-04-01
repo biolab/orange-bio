@@ -152,7 +152,7 @@ Gene matcher.
 from collections import defaultdict
 import os
 
-BUFFER_PATH = None
+gene_matcher_path = None
 
 def ignore_case(gs):
     """ Transform names in sets in list to lower case """
@@ -173,14 +173,14 @@ def create_mapping(groups):
 
 def join_sets(set1, set2):
     """ 
-    Joins two gene set mapping. 
+    Joins two sets of gene set mappings. 
 
     A group g1 from set1 is joined to a group of aliases g2 from set2, 
-    if and only if there intersection between g1 and g2 is not empty. 
-    Returned all joined groups + groups that were not matched (returned
-    unchanged).
+    if the groups share at least one gene. 
+    Returns all joined groups and groups that were not matched, which are
+    returned unchanged.
 
-    The operation is commutatitve and associative.
+    The operation both commutative and associative.
     """
 
     cur = [ set(a) for a in set1 ]
@@ -218,8 +218,7 @@ def join_sets(set1, set2):
  
 def join_sets_l(lsets):
     """
-    Joins multiple gene set mappings. Since joining is associative, we
-    can simply chain joining.
+    Joins multiple gene set mappings using join_sets function.
     """
     current = lsets[0]
     for b in lsets[1:]:
@@ -227,26 +226,30 @@ def join_sets_l(lsets):
     return current
 
 class Matcher(object):
+    """
+    Gene matcher tries to match an input gene to some target.
+    """
 
     ignore_case = True
 
     #def __init__(self, ignore_case=True):
     #    self.ignore_case = ignore_case
 
-    def set_targets(self, tl):
+    def set_targets(self, targets):
         """
-        Set list on gene names tl as targets of this gene matcher. 
+        Set input list of gene names as targets. 
         Abstract function.
         """
         notImplemented()
 
     def match(self, gene):
-        """Returns matching target gene name."""
+        """Returns a list of matching target gene names."""
         notImplemented()
 
 def buffer_path():
-    """ Returns buffer path. Ignore it optionally. """
-    if BUFFER_PATH == None:
+    """ Returns buffer path from Orange's setting folder if not 
+    defined differently (in gene_matcher_path). """
+    if  gene_matcher_path == None:
         import orngEnviron
         pth = os.path.join(orngEnviron.directoryNames["bufferDir"], 
             "gene_matcher")
@@ -256,12 +259,11 @@ def buffer_path():
             pass
         return pth
     else:
-        return BUFFER_PATH
-
+        return gene_matcher_path
 
 def auto_pickle(filename, version, func, *args, **kwargs):
     """
-    Run function func with given arguments and save results to
+    Run function func with given arguments and save the results to
     a file named filename. If results for a given filename AND
     version were already saved, just read and return them.
     """
@@ -300,21 +302,27 @@ def auto_pickle(filename, version, func, *args, **kwargs):
 
 class MatcherAliases(Matcher):
     """
-    Forges a new matcher from list of sets of given aliases.
+    Genes matcher based on a list of sets of given aliases.
 
-    When targets are set, each targets is mapped to ids of sets of aliases
-    and a reverse dictionary is made.
+    Target genes belonging to same sets of aliases as the input gene are 
+    returned as matching genes.
+
     """
     def __init__(self, aliases):
         self.aliases = aliases
         self.mdict = create_mapping(self.aliases)
 
     def to_ids(self, gene):
+        """ Return ids of sets of aliases the gene belongs to. """
         if self.ignore_case:
             gene = gene.lower()
         return self.mdict[gene]
 
     def set_targets(self, targets):
+        """
+        A reverse dictionary is made accordint to each target's membership
+        in the sets of aliases.
+        """
         d = defaultdict(list)
         for target in targets:
             ids = self.to_ids(target)
@@ -324,20 +332,28 @@ class MatcherAliases(Matcher):
         self.to_targets = d
 
     def match(self, gene):
+        """
+        Input gene is first mapped to ids of sets of aliases which contain
+        it. Target genes belonding to the same sets of aliases are returned
+        as input's match.
+        """
         inputgeneids = self.to_ids(gene)
         #return target genes with same ids
-        return set( \
+        return list(set( \
             reduce(lambda x,y:x+y, 
-                [ self.to_targets[igid] for igid in inputgeneids ], [])) 
+                [ self.to_targets[igid] for igid in inputgeneids ], [])))
 
 
 class MatcherAliasesPickled(MatcherAliases):
     """
-    Gene matchers using pickling should extend this class.
-    
-    Loading is done in a lazy way. Therefore defining joined gene matchers
-    does not force full loading of its component, if they are not needed
-    (joined pickled file is already prepared).
+    Gene matchers based on sets of aliases supporting pickling should
+    extend this class. Subclasses must define functions "filename", 
+    "create_aliases_version" and "create_aliases". Those are crucial for
+    pickling of gene aliases to work.
+
+    Loading of gene aliases is done lazily: they are loaded when they are
+    needed. Loading of aliases for components of joined matchers is often 
+    unnecessary and is therefore avoided. 
     """
     
     def set_aliases(self, aliases):
@@ -443,7 +459,11 @@ class MatcherAliasesGO(MatcherAliasesPickled):
 
 class MatcherAliasesPickledJoined(MatcherAliasesPickled):
     """
-    Forges a new matcher by joining gene aliases from different sets.
+    Creates a new matcher by joining gene aliases from different data sets.
+    Sets of aliases are joined if they contain common genes.
+
+    The joined gene matcher can only be pickled if the source gene
+    matchers are picklable.
     """
 
     def filename(self):
