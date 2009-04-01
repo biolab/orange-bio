@@ -307,7 +307,9 @@ class OWHeatMap(OWWidget):
             if id in ids:
                 indx = ids.index(id)
                 self.data[indx] = data
-                self.fileLB.changeItem(self.createListItem(data.name, indx), indx)
+##                self.fileLB.changeItem(self.createListItem(data.name, indx), indx)
+                self.fileLB.takeItem(indx)
+                self.fileLB.insertItem(indx, self.createListItem(data.name, indx))
             else:
                 self.fileLB.addItem(self.createListItem(data.name, len(self.data)))
                 self.data.append(data)
