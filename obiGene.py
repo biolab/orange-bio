@@ -244,28 +244,6 @@ class Matcher(object):
         """Returns matching target gene name."""
         notImplemented()
 
-class MatcherSequence(Matcher):
-    """
-    Chaining of gene matchers.
-    
-    User defines the order of gene matchers. Each gene is goes through
-    sequence of gene matchers until a match is found.
-    """
-    
-    def __init__(self, matchers):
-        self.matchers = matchers
-
-    def match(self, gene):
-        for matcher in self.matchers:
-            m = matcher.matchOne(gene)
-            if m != None:
-                return m
-        return None
-
-    def set_targets(self, targets):
-        for matcher in self.matchers:
-            matcher.set_targets(targets)
-
 def buffer_path():
     """ Returns buffer path. Ignore it optionally. """
     if BUFFER_PATH == None:
@@ -323,6 +301,9 @@ def auto_pickle(filename, version, func, *args, **kwargs):
 class MatcherAliases(Matcher):
     """
     Forges a new matcher from list of sets of given aliases.
+
+    When targets are set, each targets is mapped to ids of sets of aliases
+    and a reverse dictionary is made.
     """
     def __init__(self, aliases):
         print "running parent constructior"
@@ -397,9 +378,14 @@ class MatcherAliasesPickled(MatcherAliases):
         notImplemented()
 
     def load_aliases(self):
-        filename = os.path.join(buffer_path(), self.filename())
-        return auto_pickle(filename, self.create_aliases_version(), 
-            self.create_aliases)
+        fn = self.filename()
+        ver = self.create_aliases_version()
+        if fn != None and ver != None: 
+            filename = os.path.join(buffer_path(), fn)
+            return auto_pickle(filename, ver, self.create_aliases)
+        else:
+            #if either file version of version is None, do not pickle
+            return self.create_aliases()
 
     def __init__(self):
         self.aliases = []
@@ -460,14 +446,21 @@ class MatcherAliasesPickledJoined(MatcherAliasesPickled):
     """
 
     def filename(self):
-        filenames = [ mat.filename() for mat in self.matchers ]
-        return "__".join(filenames)
+        # do not pickle if any is unpicklable
+        try:
+            filenames = [ mat.filename() for mat in self.matchers ]
+            return "__".join(filenames)
+        except:
+            return None
 
     def create_aliases(self):
         return join_sets_l([ mat.aliases for mat in self.matchers ])
 
     def create_aliases_version(self):
-        return [ mat.create_aliases_version() for mat in self.matchers ]
+        try:
+            return "__".join([ mat.create_aliases_version() for mat in self.matchers ])
+        except:
+            return None
 
     def __init__(self, matchers):
         """ 
@@ -479,6 +472,42 @@ class MatcherAliasesPickledJoined(MatcherAliasesPickled):
         self.matchers = matchers
         MatcherAliasesPickled.__init__(self)
         
+class MatcherSequence(Matcher):
+    """
+    Chaining of gene matchers.
+    
+    User defines the order of gene matchers. Each gene is goes through
+    sequence of gene matchers until a match is found.
+    """
+    
+    def __init__(self, matchers):
+        self.matchers = matchers
+
+    def match(self, gene):
+        for matcher in self.matchers:
+            m = matcher.match(gene)
+            if m != None:
+                return m
+        return None
+
+    def set_targets(self, targets):
+        for matcher in self.matchers:
+            matcher.set_targets(targets)
+
+class MatcherDirect(Matcher):
+    """
+    Direct matching to targets.
+    """
+
+    def set_targets(self, targets):
+        aliases = ignore_case([ set([a]) for a in targets])
+        self.am = MatcherAliases(aliases)
+        self.am.set_targets(targets)
+
+    def match(self, gene):
+        return self.am.match(gene)
+                
+
 if __name__ == '__main__':
     """
     info = NCBIGeneInfo("9606")
@@ -486,6 +515,7 @@ if __name__ == '__main__':
     print gi.tax_id, gi.synonyms, gi.dbXrefs, gi.symbol_from_nomenclature_authority, gi.full_name_from_nomenclature_authority
     """
 
+    import time
     import obiGeneSets
 
     def testsets():
@@ -495,12 +525,15 @@ if __name__ == '__main__':
         import orange
         data = orange.ExampleTable("DLBCL.tab")
         return [ a.name for a in  data.domain.attributes ]
-    
+
     genesets = auto_pickle("testcol", "3", testsets)
     names = auto_pickle("testnames", "4", names1)
+
     print names[:100]
- 
-    import time
+
+    t = time.time()
+
+    fdsfd()
 
     print "loading time needs to be decreased to minimum"
     t = time.time()
