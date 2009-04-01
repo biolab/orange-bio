@@ -306,7 +306,6 @@ class MatcherAliases(Matcher):
     and a reverse dictionary is made.
     """
     def __init__(self, aliases):
-        print "running parent constructior"
         self.aliases = aliases
         self.mdict = create_mapping(self.aliases)
 
@@ -396,6 +395,7 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
 
     def _organism_name(self, organism):
         """ Returns internal KEGG organism name. Used to define file name. """
+        return "hsa"
         import obiKEGG #FIXME speed up name resolving
         org = obiKEGG.KEGGOrganism(organism)
         return org.org
@@ -429,6 +429,7 @@ class MatcherAliasesGO(MatcherAliasesPickled):
             for name,genes in names.items() ]))))
 
     def filename(self):
+        return "goa_human"
         import obiGO #FIXME name resolving is too slow for now.
         ao = obiGO.Annotations.Load(self.organism)
         return "go_" + os.path.basename(ao.file)
@@ -507,6 +508,25 @@ class MatcherDirect(Matcher):
     def match(self, gene):
         return self.am.match(gene)
                 
+GMDirect = MatcherDirect
+GMKEGG = MatcherAliasesKEGG
+GMGO = MatcherAliasesGO
+
+def matcher(matchers, add_direct=True):
+    """
+    Build a matcher from a sequence of matchers. If a sequence element is a
+    set, join matchers in that set.
+    """
+    seqmat = []
+    if add_direct:
+        seqmat.append(MatcherDirect())
+    for mat in matchers:
+        if isinstance(mat, set):
+            mat = MatcherAliasesPickledJoined(list(mat))
+            seqmat.append(mat)
+        else:
+            seqmat.append(mat)
+    return MatcherSequence(seqmat)
 
 if __name__ == '__main__':
     """
@@ -529,12 +549,6 @@ if __name__ == '__main__':
     genesets = auto_pickle("testcol", "3", testsets)
     names = auto_pickle("testnames", "4", names1)
 
-    print names[:100]
-
-    t = time.time()
-
-    fdsfd()
-
     print "loading time needs to be decreased to minimum"
     t = time.time()
     mat = MatcherAliasesKEGG("human")
@@ -546,11 +560,22 @@ if __name__ == '__main__':
     mat3 = MatcherAliasesPickledJoined([mat,mat2])
     print "join", time.time() - t
 
+    t = time.time()
+    mat4 = matcher([GMKEGG('human'),GMGO('human')], add_direct=False)
+    print "seq", time.time() - t
+
+    t = time.time()
+    mat5 = matcher([set([GMKEGG('human'),GMGO('human')])], add_direct=False)
+    print "vzp", time.time() - t
+
+
     print "using targets"
 
     mat.set_targets(names)
     mat2.set_targets(names)
     mat3.set_targets(names)
+    mat4.set_targets(names)
+    mat5.set_targets(names)
 
     import mMisc as m
 
@@ -563,4 +588,6 @@ if __name__ == '__main__':
         print "KEGG", g, mat.match(g)
         print "GO  ", g, mat2.match(g)
         print "JOIN", g, mat3.match(g)
+        print "SEQ ", g, mat4.match(g)
+        print "VZP ", g, mat5.match(g)
 
