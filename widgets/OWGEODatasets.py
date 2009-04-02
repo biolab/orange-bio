@@ -1,5 +1,5 @@
-"""<name>OWGEODatasets</name>
-<description>This widget provides access to Gene Expression Omnibus data sets, or GDS</description>
+"""<name>GEO DataSets</name>
+<description>Access to Gene Expression Omnibus data sets.</description>
 <priority>251</priority>
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si)</contact>
 """
@@ -59,7 +59,7 @@ class OWGEODatasets(OWWidget):
 ##        OWGUI.spin(OWGUI.indentedBox(box), self, "minSamples", 2, 100, posttext="samples", callback=self.commitIf)
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
-        OWGUI.radioButtonsInBox(box, self, "outputRows", ["Samples", "Genes or spots"], "Rows") ##, callback=self.commitIf)
+        OWGUI.radioButtonsInBox(box, self, "outputRows", ["Genes or spots", "Samples"], "Rows") ##, callback=self.commitIf)
         OWGUI.checkBox(box, self, "mergeSpots", "Merge spots of same gene") ##, callback=self.commitIf)
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
