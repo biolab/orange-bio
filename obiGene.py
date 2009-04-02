@@ -177,8 +177,8 @@ def join_sets(set1, set2):
 
     A group g1 from set1 is joined to a group of aliases g2 from set2, 
     if the groups share at least one gene. 
-    Returns all joined groups and groups that were not matched, which are
-    returned unchanged.
+    Returns all joined groups and groups that were not matched, which 
+    remain unchanged.
 
     The operation both commutative and associative.
     """
@@ -415,7 +415,7 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
         if hasattr(self, "_kegg_organism_code"):
             return self._kegg_organism_code
         else:
-            import obiKEGG #FIXME speed up name resolving
+            import obiKEGG 
             self._kegg_organism_code = obiKEGG.organism_name_search(organism)
             return self._kegg_organism_code
 
@@ -444,7 +444,7 @@ class MatcherAliasesGO(MatcherAliasesPickled):
         if hasattr(self, "_go_organism_code"):
             return self._go_organism_code
         else:
-            import obiGO #FIXME speed up name resolving
+            import obiGO
             self._go_organism_code = obiGO.organism_name_search(self.organism)
             return self._go_organism_code
 
@@ -457,7 +457,6 @@ class MatcherAliasesGO(MatcherAliasesPickled):
             for name,genes in names.items() ]))))
 
     def filename(self):
-##        return "goa_human"
         return "go_" + self._organism_name(self.organism)
 
     def create_aliases_version(self):
@@ -601,10 +600,12 @@ if __name__ == '__main__':
 
     print "using targets"
 
+    """
     mat.set_targets(names)
     mat2.set_targets(names)
     mat3.set_targets(names)
     mat4.set_targets(names)
+    """
     mat5.set_targets(names)
 
 ##    import mMisc as m
@@ -616,9 +617,11 @@ if __name__ == '__main__':
     print "after genes"
 
     for g in sorted(genes):
+        """
         print "KEGG", g, mat.match(g)
         print "GO  ", g, mat2.match(g)
         print "JOIN", g, mat3.match(g)
         print "SEQ ", g, mat4.match(g)
+        """
         print "VZP ", g, mat5.match(g)
 
