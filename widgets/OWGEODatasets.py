@@ -31,7 +31,7 @@ class LinkItem(QWidget):
         self.setLayout(layout)
         
 class OWGEODatasets(OWWidget):
-    settingsList = ["sampleSubsets", "outputRows", "minSamples", "includeIf", "mergeSpots"]
+    settingsList = ["outputRows", "minSamples", "includeIf", "mergeSpots"]
 
     def __init__(self, parent=None ,signalManager=None, name=" GEO Data sets"):
         OWWidget.__init__(self, parent ,signalManager, name)
@@ -90,7 +90,9 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.clear()
         self.treeItems = []
         info = obiGEO.GDSInfo()
-        for name, gds in info.items():
+        self.progressBarInit()
+        milestones = set(range(0, len(info), max(len(info)/100, 1)))
+        for i, (name, gds) in enumerate(info.items()):
             item = SortableItem(self.treeWidget, [gds["dataset_id"], gds["platform_organism"], str(len(gds["samples"])), str(gds["feature_count"]),
                                                      str(gds["gene_count"]), str(len(gds["subsets"])), ""])
             link = LinkItem(gds.get("pubmed_id"), self.treeWidget)
@@ -98,6 +100,10 @@ class OWGEODatasets(OWWidget):
             item.gdsName = name
             item.gds = gds
             self.treeItems.append(item)
+            if i in milestones:
+                self.progressBarSet(100.0*i/len(info))
+
+        self.progressBarFinished()                
 
         self.updateInfo()
 
@@ -126,8 +132,11 @@ class OWGEODatasets(OWWidget):
         if self.currentItem:
             classes = [s["description"] for s in self.currentItem.gds["subsets"]]
             classes = [classes[i] for i in self.selectedSubsets] or None
+            self.progressBarInit()
+            self.progressBarSet(10)
             gds = obiGEO.GDS(self.currentItem.gdsName)
             data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, classes=classes)
+            self.progressBarFinished()
             self.send("Example Table", data)
         else:
             pass
