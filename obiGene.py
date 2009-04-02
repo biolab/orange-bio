@@ -1,11 +1,3 @@
-
-ncbi_geneinfo_tags = ("tax_id", "gene_id", "symbol", "locus_tag", "synonyms",
-                      "dbXrefs", "chromosome", "map_location", "description", "type",
-                      "symbol_from_nomenclature_authority", "full_name_from_nomenclature_authority",
-                      "nomenclature_status", "other_designations", "modification_date")
-
-ncbi_multiple_cardinality_tags = ("synonyms", "dbXrefs", "other_designations")
-
 import os
 import obiTaxonomy
 import orngServerFiles
@@ -15,7 +7,14 @@ default_database_path = orngServerFiles.localpath("NCBI_geneinfo")
 class GeneInfo(object):
     """ An object representing the NCBI information for a gene.
     """
-    __slots__ = ncbi_geneinfo_tags
+
+    NCBI_GENEINFO_TAGS = ("tax_id", "gene_id", "symbol", "locus_tag", "synonyms",
+                          "dbXrefs", "chromosome", "map_location", "description", "type",
+                          "symbol_from_nomenclature_authority", "full_name_from_nomenclature_authority",
+                          "nomenclature_status", "other_designations", "modification_date")
+    NCBI_MULTIPLE_CARDINALITY_TAGS = ("synonyms", "dbXrefs", "other_designations")
+    
+    __slots__ = NCBI_GENEINFO_TAGS
     def __init__(self, line):
         """ Construct the GeneInfo object from a line in the NCBI gene_info file
         """
@@ -23,7 +22,7 @@ class GeneInfo(object):
         for attr, value in zip(self.__slots__, line):
             if value == "-":
                 value = None
-            if attr in ncbi_multiple_cardinality_tags:
+            if attr in GeneInfo.NCBI_MULTIPLE_CARDINALITY_TAGS:
                 value = value.split("|") if value != None else []
             setattr(self, attr, value)
 
@@ -41,7 +40,8 @@ class GeneInfo(object):
         return repr(self)
 
 class NCBIGeneInfo(dict):
-    _object_cache = {}
+    
+    _object_cache = {}    
     def __init__(self, *args, **kwargs):
         """ An dictionary like object for accessing NCBI gene info
         Arguments::
@@ -411,10 +411,13 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
 
     def _organism_name(self, organism):
         """ Returns internal KEGG organism name. Used to define file name. """
-        return "hsa"
-        import obiKEGG #FIXME speed up name resolving
-        org = obiKEGG.KEGGOrganism(organism)
-        return org.org
+##        return "hsa"
+        if hasattr(self, "_kegg_organism_code"):
+            return self._kegg_organism_code
+        else:
+            import obiKEGG #FIXME speed up name resolving
+            self._kegg_organism_code = obiKEGG.organism_name_search(organism)
+            return self._kegg_organism_code
 
     def create_aliases(self):
         organism = self._organism_name(self.organism)
@@ -425,7 +428,7 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
             name,b in genes.items() ])
 
     def create_aliases_version(self):
-        return "1"
+        return orngServerFiles.info("KEGG", "kegg_organism_%s.tar.gz" % self._organism_name(self.organism))["datetime"]
 
     def filename(self):
         return "kegg_" + self._organism_name(self.organism)
@@ -436,6 +439,15 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
 
 class MatcherAliasesGO(MatcherAliasesPickled):
 
+    def _organism_name(self, organism):
+        """ Returns internal GO organism name. Used to define file name. """
+        if hasattr(self, "_go_organism_code"):
+            return self._go_organism_code
+        else:
+            import obiGO #FIXME speed up name resolving
+            self._go_organism_code = obiGO.organism_name_search(self.organism)
+            return self._go_organism_code
+
     def create_aliases(self):
         import obiGO
         annotations = obiGO.Annotations.Load(self.organism)
@@ -445,13 +457,11 @@ class MatcherAliasesGO(MatcherAliasesPickled):
             for name,genes in names.items() ]))))
 
     def filename(self):
-        return "goa_human"
-        import obiGO #FIXME name resolving is too slow for now.
-        ao = obiGO.Annotations.Load(self.organism)
-        return "go_" + os.path.basename(ao.file)
+##        return "goa_human"
+        return "go_" + self._organism_name(self.organism)
 
     def create_aliases_version(self):
-        return "1" #FIXME need support for GO versioning
+        return orngServerFiles.info("GO", "gene_association.%s.tar.gz" % self._organism_name(self.organism))["datetime"]
 
     def __init__(self, organism):
         self.organism = organism
@@ -574,7 +584,7 @@ if __name__ == '__main__':
     mat = MatcherAliasesKEGG("human")
     print "kegg", time.time() - t
     t = time.time()
-    mat2 = MatcherAliasesGO("goa_human")
+    mat2 = MatcherAliasesGO("human")
     print "go", time.time() - t
     t = time.time()
     mat3 = MatcherAliasesPickledJoined([mat,mat2])
@@ -597,10 +607,11 @@ if __name__ == '__main__':
     mat4.set_targets(names)
     mat5.set_targets(names)
 
-    import mMisc as m
+##    import mMisc as m
 
     print "before genes"
-    genes = set(m.flatten(genesets.values()[:100]))
+##    genes = set(m.flatten(genesets.values()[:100]))
+    genes = reduce(set.union, genesets.values()[:100], set())
     print len(genes)
     print "after genes"
 

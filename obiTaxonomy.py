@@ -6,6 +6,7 @@ import StringIO
 import obiGenomicsUpdate
 import obiData
 import orngEnviron
+import orngServerFiles
 
 from urllib2 import urlopen
 from collections import defaultdict
@@ -52,6 +53,32 @@ class MultipleSpeciesException(Exception):
 
 class UnknownSpeciesIdentifier(Exception):
     pass
+
+def pickled_cache(filename=None, dependencies=[], maxSize=30):
+    def cached(func):
+        default_filename = os.path.join(orngEnviron.bufferDir, func.__module__ + "_" + func.__name__ + "_cache.pickle")
+        def f(*args, **kwargs):
+            version = tuple([orngServerFiles.info(domain, file)["datetime"] for domain, file in dependencies])
+            try:
+                cachedVersion, cache = cPickle.load(open(filename or default_filename, "rb"))
+                if cachedVersion != version:
+                    cache = {}
+            except IOError, er:
+                cacheVersion, cache = "no version", {}
+            allArgs = args + tuple([(key, tuple(value) if type(value) in [set, list] else value)\
+                                     for key, value in kwargs.items()])
+            if allArgs in cache:
+                return cache[allArgs]
+            else:
+                res = func(*args, **kwargs)
+                if len(cache) > maxSize:
+                    del cache[iter(cache).next()]
+                cache[allArgs] = res
+                cPickle.dump((version, cache), open(filename or default_filename, "wb"), protocol=cPickle.HIGHEST_PROTOCOL)
+                return res
+        return f
+
+    return cached
 
 def cached(func):
     """Cached one arg method
@@ -175,7 +202,7 @@ class Taxonomy(object):
         try:
             entry = self._text[id]
         except KeyError:
-            raise UnknownSpiciesIdentifier
+            raise UnknownSpeciesIdentifier
         return entry
                 
     def search(self, string, onlySpecies=True):
@@ -274,6 +301,7 @@ def other_names(taxid):
     """
     return  Taxonomy().other_names(taxid)
 
+@pickled_cache(None, [("Taxonomy", "ncbi_taxonomy.tar.gz")])
 def search(string, onlySpecies=True, exact=False):
     """ Search the NCBI taxonomy database for an organism
     Arguments::
@@ -283,7 +311,7 @@ def search(string, onlySpecies=True, exact=False):
     """
     ids = Taxonomy().search(string, onlySpecies)
     if exact:
-        ids = [id for id in ids if string in [name(id)] + other_names(id)]
+        ids = [id for id in ids if string in [name(id)] + [t[0] for t in other_names(id)]]
     return ids
 
 def lineage(taxid):
@@ -300,7 +328,7 @@ def lineage(taxid):
     return result
     
 def to_taxid(code, mapTo=None):
-    """ See if the code is a valid code in any database and return its taxid.
+    """ See if the code is a valid code in any database and return a set of its taxids.
     """
     import obiKEGG, obiGO
     results = set()

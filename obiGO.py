@@ -790,6 +790,12 @@ class Annotations(object):
         os.remove(os.path.join(tmpDir, "gene_association." + org))
         os.remove(os.path.join(tmpDir, "gene_names.pickle"))
 
+from obiTaxonomy import pickled_cache
+
+@pickled_cache(None, [("GO", "taxonomy.pickle"), ("Taxonomy", "ncbi_taxonomy.tar.gz")])
+def organism_name_search(name):
+    return Annotations.organism_name_search(name)
+
 def filterByPValue(terms, maxPValue=0.1):
     """Filters the terms by the p-value. Asumes terms is is a dict with the same structure as returned from GOTermFinderFunc
     """
@@ -1007,7 +1013,6 @@ def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=N
     image.save(fh)
 
 
-    
 class Taxonomy(object):
     """Maps NCBI taxonomy ids to coresponding GO organism codes
     """

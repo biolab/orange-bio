@@ -746,7 +746,7 @@ class KEGGOrganism(object):
                 raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (from_taxid(id), tax.name(id)) for id in ids])
             print >> sys.stderr, "Found", tax.name(list(ids)[0]), "(%s)" % from_taxid(list(ids)[0]) 
             self.org = from_taxid(ids.pop())
-
+            
     @classmethod
     def organism_name_search(cls, name):
         api = KEGGInterfaceLocal()
@@ -754,8 +754,10 @@ class KEGGOrganism(object):
             return name ## valid KEGG organism code
         else:
             import obiTaxonomy as tax
-            allIds = [entry.get_taxid() for entry in api._genome.values()]
-            ids = tax.to_taxid(name, mapTo=allIds)
+            ids = tax.to_taxid(name)
+            if not ids:
+                allIds = [entry.get_taxid() for entry in api._genome.values()]
+                ids = tax.to_taxid(name, mapTo=allIds)
             if not ids:
                 ids = tax.search(name, exact=True)
                 ids = set(ids).intersection(allIds)
@@ -767,7 +769,6 @@ class KEGGOrganism(object):
             elif len(ids) > 1:
                 raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (from_taxid(id), tax.name(id)) for id in ids])
             return from_taxid(ids.pop())
-        
 
     def list_pathways(self):
         """Return a list of all organism specific pathways."""
@@ -861,6 +862,22 @@ class KEGGOrganism(object):
         """ Return all gene names for the given gene id
         """
         return self.api.get_gene_name(self.org, geneId)
+
+    @property
+    def genes(self):
+        return self.api._genes[self.org]
+
+    def version(self):
+        """ Return the version of kegg gene data
+        """
+        return orngServerFiles.info("KEGG", "kegg_organism_%s.tar.gz" % self.org)["datetime"]
+    
+from obiTaxonomy import pickled_cache
+
+@pickled_cache(None, [("KEGG", "kegg_taxonomy.tar.gz"), ("Taxonomy", "ncbi_taxonomy.tar.gz")])
+def organism_name_search(name):
+    return KEGGOrganism.organism_name_search(name)
+    
 
 class KEGGPathway(object):
     def __init__(self, pathway_id, update=False, local_database_path=None):
