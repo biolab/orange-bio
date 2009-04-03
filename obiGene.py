@@ -230,11 +230,6 @@ class Matcher(object):
     Gene matcher tries to match an input gene to some target.
     """
 
-    ignore_case = True
-
-    #def __init__(self, ignore_case=True):
-    #    self.ignore_case = ignore_case
-
     def set_targets(self, targets):
         """
         Set input list of gene names as targets. 
@@ -245,6 +240,11 @@ class Matcher(object):
     def match(self, gene):
         """Returns a list of matching target gene names."""
         notImplemented()
+
+    def umatch(self, gene):
+        """Returns an unique (only one matching target) target or None"""
+        mat = self.match(gene)
+        return mat[0] if len(mat) == 1 else None
 
 def buffer_path():
     """ Returns buffer path from Orange's setting folder if not 
@@ -308,9 +308,10 @@ class MatcherAliases(Matcher):
     returned as matching genes.
 
     """
-    def __init__(self, aliases):
+    def __init__(self, aliases, ignore_case=True):
         self.aliases = aliases
         self.mdict = create_mapping(self.aliases)
+        self.ignore_case = ignore_case
 
     def to_ids(self, gene):
         """ Return ids of sets of aliases the gene belongs to. """
@@ -402,51 +403,45 @@ class MatcherAliasesPickled(MatcherAliases):
             #if either file version of version is None, do not pickle
             return self.create_aliases()
 
-    def __init__(self):
+    def __init__(self, ignore_case=True):
         self.aliases = []
         self.mdict = {}
+        self.ignore_case = True
         print self.filename() # test if valid filename can be built
 
 class MatcherAliasesKEGG(MatcherAliasesPickled):
 
     def _organism_name(self, organism):
         """ Returns internal KEGG organism name. Used to define file name. """
-##        return "hsa"
-        if hasattr(self, "_kegg_organism_code"):
-            return self._kegg_organism_code
-        else:
-            import obiKEGG 
-            self._kegg_organism_code = obiKEGG.organism_name_search(organism)
-            return self._kegg_organism_code
+        import obiKEGG 
+        return obiKEGG.organism_name_search(organism)
 
     def create_aliases(self):
         organism = self._organism_name(self.organism)
         import obiKEGG
         org = obiKEGG.KEGGOrganism(self.organism)
         genes = org.api._genes[org.org]
-        return ignore_case([ set([name]) | set(b.alt_names) for 
-            name,b in genes.items() ])
+        osets = ignore_case([ set([name]) | set(b.alt_names) for 
+                name,b in genes.items() ])
+        return osets
 
     def create_aliases_version(self):
-        return orngServerFiles.info("KEGG", "kegg_organism_%s.tar.gz" % self._organism_name(self.organism))["datetime"]
+        return "v4." + orngServerFiles.info("KEGG", "kegg_organism_%s.tar.gz" \
+            % self._organism_name(self.organism))["datetime"]
 
     def filename(self):
-        return "kegg_" + self._organism_name(self.organism)
+        return "kegg_" + self._organism_name(self.organism) 
 
-    def __init__(self, organism):
+    def __init__(self, organism, ignore_case=True):
         self.organism = organism
-        MatcherAliasesPickled.__init__(self)
+        MatcherAliasesPickled.__init__(self, ignore_case)
 
 class MatcherAliasesGO(MatcherAliasesPickled):
 
     def _organism_name(self, organism):
         """ Returns internal GO organism name. Used to define file name. """
-        if hasattr(self, "_go_organism_code"):
-            return self._go_organism_code
-        else:
-            import obiGO
-            self._go_organism_code = obiGO.organism_name_search(self.organism)
-            return self._go_organism_code
+        import obiGO
+        return obiGO.organism_name_search(self.organism)
 
     def create_aliases(self):
         import obiGO
@@ -460,11 +455,12 @@ class MatcherAliasesGO(MatcherAliasesPickled):
         return "go_" + self._organism_name(self.organism)
 
     def create_aliases_version(self):
-        return orngServerFiles.info("GO", "gene_association.%s.tar.gz" % self._organism_name(self.organism))["datetime"]
+        return "v3." + orngServerFiles.info("GO", "gene_association.%s.tar.gz" \
+            % self._organism_name(self.organism))["datetime"]
 
-    def __init__(self, organism):
+    def __init__(self, organism, ignore_case=True):
         self.organism = organism
-        MatcherAliasesPickled.__init__(self)
+        MatcherAliasesPickled.__init__(self, ignore_case)
 
 class MatcherAliasesPickledJoined(MatcherAliasesPickled):
     """
@@ -516,9 +512,9 @@ class MatcherSequence(Matcher):
     def match(self, gene):
         for matcher in self.matchers:
             m = matcher.match(gene)
-            if m != None:
+            if m: 
                 return m
-        return None
+        return []
 
     def set_targets(self, targets):
         for matcher in self.matchers:
@@ -541,16 +537,19 @@ GMDirect = MatcherDirect
 GMKEGG = MatcherAliasesKEGG
 GMGO = MatcherAliasesGO
 
+def issequencens(x):
+    return hasattr(x, '__getitem__') and not isinstance(x, basestring)
+
 def matcher(matchers, add_direct=True):
     """
     Build a matcher from a sequence of matchers. If a sequence element is a
-    set, join matchers in that set.
+    sequence, join matchers in the subsequence.
     """
     seqmat = []
     if add_direct:
         seqmat.append(MatcherDirect())
     for mat in matchers:
-        if isinstance(mat, set):
+        if issequencens(mat):
             mat = MatcherAliasesPickledJoined(list(mat))
             seqmat.append(mat)
         else:
@@ -594,9 +593,13 @@ if __name__ == '__main__':
     print "seq", time.time() - t
 
     t = time.time()
-    mat5 = matcher([set([GMKEGG('human'),GMGO('human')])], add_direct=False)
+    mat5 = matcher([[GMKEGG('human'),GMGO('human')]], add_direct=True)
     print "vzp", time.time() - t
 
+    import obiGeneMatch
+    mat6 = obiGeneMatch.GeneMatch([], 'hsa', caseSensitive=True)
+    
+    mat7 = matcher([GMKEGG('human')], add_direct=True)
 
     print "using targets"
 
@@ -607,14 +610,20 @@ if __name__ == '__main__':
     mat4.set_targets(names)
     """
     mat5.set_targets(names)
+    mat6.targets(names)
+    mat7.set_targets(names)
 
 ##    import mMisc as m
 
+    mat5 = mat7
+
     print "before genes"
-##    genes = set(m.flatten(genesets.values()[:100]))
-    genes = reduce(set.union, genesets.values()[:100], set())
+    genes = reduce(set.union, genesets.values()[:1000], set())
     print len(genes)
     print "after genes"
+
+    oldnone = 0
+    newnone = 0
 
     for g in sorted(genes):
         """
@@ -623,5 +632,16 @@ if __name__ == '__main__':
         print "JOIN", g, mat3.match(g)
         print "SEQ ", g, mat4.match(g)
         """
-        print "VZP ", g, mat5.match(g)
+        old = mat6.matchOne(g)
+        new = mat5.umatch(g)
 
+
+        if old and not new or not old and new:
+            if not old:
+                oldnone += 1
+            if not new:
+                newnone += 1
+            print "VZP ", g, mat5.umatch(g)
+            print "OLD ", g, mat6.matchOne(g)
+
+    print "OLDNONE", oldnone, "NEWNONE", newnone
