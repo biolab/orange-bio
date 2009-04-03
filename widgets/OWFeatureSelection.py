@@ -91,7 +91,7 @@ class OWFeatureSelection(OWWidget):
         check = OWGUI.checkBox(box, self, "computeNullDistribution", "Compute null distribution", callback=self.Update)
         check.disables.append(OWGUI.spin(box, self, "permutationsCount", min=1, max=10, label="Repetitions:", callback=self.Update, callbackOnReturn=True))
         check.disables.append(OWGUI.button(box, self, "Select w.r.t null distribution", callback=self.SelectPBest))
-        check.disables.append(OWGUI.doubleSpin(box, self, "selectPValue" , min=2e-7, max=1.0, step=1e-7, label="p-value:", callback=self.SelectPBest, callbackOnReturn=True))
+        check.disables.append(OWGUI.doubleSpin(box, self, "selectPValue" , min=2e-7, max=1.0, step=1e-7, label="p-value:"))
         check.makeConsistent()
         OWGUI.button(box, self, "Select n best features", callback=self.SelectNBest)
         OWGUI.spin(box, self, "selectNBest", 0, 10000, step=1, label="n:")
@@ -285,7 +285,7 @@ class OWFeatureSelection(OWWidget):
             print cut
         elif count:
             scoresHi = nullDist[-count:]
-            scoresLo = nullDist[:count - 1]
+            scoresLo = nullDist[:count]
             scores = [(abs(score), 1) for score in scoresHi] + [(abs(score), -1) for score in scoresLo]
             if self.scoreMethods[self.methodIndex][0] == "fold change": ## fold change is on a logaritmic scale
                 scores =  [(abs(math.log(max(min(score, 1e300), 1e-300), 2.0)), sign) for score, sign in scores]
