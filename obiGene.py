@@ -158,17 +158,32 @@ def ignore_case(gs):
     """ Transform names in sets in list to lower case """
     return [ set([a.lower() for a in g]) for g in gs ]
 
-def create_mapping(groups):
+def create_mapping(groups, lower=False):
     """ 
     Returns mapping of aliases to the group index.
 
     Unpickling the results of this function (binary format)
     is slower than running it.
+
+    TIMING NOTES: 
+    - lower() costs are neglible (< 10%)
+    - building sets instead of lists also costs about 10 percent
     """
-    togroup = defaultdict(list)
-    for i,group in enumerate(groups):
-        for alias in group:
-            togroup[alias].append(i)
+    import time
+    t = time.time()
+    togroup = defaultdict(set)
+
+    # code duplicated because running a function in relatively expensive here.
+    if lower: 
+        for i,group in enumerate(groups):
+            for alias in group:
+                togroup[alias.lower()].add(i)
+    else:
+        for i,group in enumerate(groups):
+            for alias in group:
+                togroup[alias].add(i)
+
+    print "create mapping", time.time() - t
     return togroup
 
 def join_sets(set1, set2):
@@ -196,8 +211,8 @@ def join_sets(set1, set2):
 
         #find groups of aliases (from set1)  intersecting with a current
         #group from set2
-        cross = set(reduce(lambda x,y: x+y, 
-            [ currentmap[alias] for alias in group if alias in currentmap], []))
+        cross = reduce(set.union, 
+            [ currentmap[alias] for alias in group if alias in currentmap], set())
 
         for c in cross:
             #print c, group & set1[c], group, set1[c]
@@ -310,8 +325,8 @@ class MatcherAliases(Matcher):
     """
     def __init__(self, aliases, ignore_case=True):
         self.aliases = aliases
-        self.mdict = create_mapping(self.aliases)
         self.ignore_case = ignore_case
+        self.mdict = create_mapping(self.aliases, self.ignore_case)
 
     def to_ids(self, gene):
         """ Return ids of sets of aliases the gene belongs to. """
@@ -370,7 +385,7 @@ class MatcherAliasesPickled(MatcherAliases):
     def get_mdict(self):
         """ Creates mdict. Aliases are loaded if needed. """
         if not self.saved_mdict:
-            self.saved_mdict = create_mapping(self.aliases)
+            self.saved_mdict = create_mapping(self.aliases, self.ignore_case)
         return self.saved_mdict
 
     def set_mdict(self, mdict):
@@ -421,12 +436,12 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
         import obiKEGG
         org = obiKEGG.KEGGOrganism(self.organism)
         genes = org.api._genes[org.org]
-        osets = ignore_case([ set([name]) | set(b.alt_names) for 
-                name,b in genes.items() ])
+        osets = [ set([name]) | set(b.alt_names) for 
+                name,b in genes.items() ]
         return osets
 
     def create_aliases_version(self):
-        return "v4." + orngServerFiles.info("KEGG", "kegg_organism_%s.tar.gz" \
+        return "v2." + orngServerFiles.info("KEGG", "kegg_organism_%s.tar.gz" \
             % self._organism_name(self.organism))["datetime"]
 
     def filename(self):
@@ -434,7 +449,7 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
 
     def __init__(self, organism, ignore_case=True):
         self.organism = organism
-        MatcherAliasesPickled.__init__(self, ignore_case)
+        MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
 
 class MatcherAliasesGO(MatcherAliasesPickled):
 
@@ -447,20 +462,20 @@ class MatcherAliasesGO(MatcherAliasesPickled):
         import obiGO
         annotations = obiGO.Annotations.Load(self.organism)
         names = annotations.geneNamesDict
-        return ignore_case(map(set, list(set([ \
+        return map(set, list(set([ \
             tuple(sorted(set([name]) | set(genes))) \
-            for name,genes in names.items() ]))))
+            for name,genes in names.items() ])))
 
     def filename(self):
         return "go_" + self._organism_name(self.organism)
 
     def create_aliases_version(self):
-        return "v3." + orngServerFiles.info("GO", "gene_association.%s.tar.gz" \
+        return "v2." + orngServerFiles.info("GO", "gene_association.%s.tar.gz" \
             % self._organism_name(self.organism))["datetime"]
 
     def __init__(self, organism, ignore_case=True):
         self.organism = organism
-        MatcherAliasesPickled.__init__(self, ignore_case)
+        MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
 
 class MatcherAliasesPickledJoined(MatcherAliasesPickled):
     """
@@ -525,9 +540,12 @@ class MatcherDirect(Matcher):
     Direct matching to targets.
     """
 
+    def __init__(self, ignore_case=True):
+        self.ignore_case = ignore_case
+
     def set_targets(self, targets):
-        aliases = ignore_case([ set([a]) for a in targets])
-        self.am = MatcherAliases(aliases)
+        aliases = [ set([a]) for a in targets]
+        self.am = MatcherAliases(aliases, ignore_case=self.ignore_case)
         self.am.set_targets(targets)
 
     def match(self, gene):
@@ -597,9 +615,9 @@ if __name__ == '__main__':
     print "vzp", time.time() - t
 
     import obiGeneMatch
-    mat6 = obiGeneMatch.GeneMatch([], 'hsa', caseSensitive=True)
+    mat6 = obiGeneMatch.GeneMatch([], 'hsa', caseSensitive=False)
     
-    mat7 = matcher([GMKEGG('human')], add_direct=True)
+    mat7 = matcher([GMDirect(ignore_case=True), GMKEGG('human', ignore_case=False)], add_direct=False)
 
     print "using targets"
 
@@ -619,6 +637,7 @@ if __name__ == '__main__':
 
     print "before genes"
     genes = reduce(set.union, genesets.values()[:1000], set())
+    genes = [ g.lower() for g in genes ]
     print len(genes)
     print "after genes"
 
