@@ -30,7 +30,7 @@ class ScoreHist(OWInteractiveHist):
             self.master.Commit()
         
 class OWFeatureSelection(OWWidget):
-    settingsList=["methodIndex", "autoCommit"]
+    settingsList=["methodIndex", "computeNullDistribution", "permutationsCount", "selectPValue", "autoCommit"]
 ##    contextHandlers={"":DomainContextHandler("",[])}
     def __init__(self, parent=None, signalManager=None, name="Feature selection"):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True, showSaveGraph=True)
@@ -38,24 +38,35 @@ class OWFeatureSelection(OWWidget):
         self.outputs = [("Examples with selected attributes", ExampleTable), ("Examples with remaining attributes", ExampleTable), ("Selected attributes", ExampleTable)]
 
         self.methodIndex = 0
+        self.computeNullDistribution = False
+        self.permutationsCount = 10
         self.autoCommit = False
         self.selectNBest = 20
-##        self.infoLabel = "No data on input"        
+        self.selectPValue = 0.01
 
         self.oneTailTestHi = oneTailTestHi = lambda attr, low, hi:self.scores.get(attr,0)>=hi
         self.oneTailTestLow = oneTailTestLow = lambda attr, low, hi:self.scores.get(attr,0)<=low
         self.twoTailTest = twoTailTest = lambda attr, low, hi:self.scores.get(attr,0)>=hi or self.scores.get(attr,0)<=low
         self.middleTest = middleTest = lambda attr, low, hi:self.scores.get(attr,0)<=hi and self.scores.get(attr,0)>=low
         self.histType = {oneTailTestHi:"hiTail", oneTailTestLow:"lowTail", twoTailTest:"twoTail", middleTest:"middle"}
-        self.scoreMethods = [("chi-square", orange.MeasureAttribute_chiSquare, oneTailTestHi),
-                             ("info gain", orange.MeasureAttribute_info, oneTailTestHi),
-                             ("signal to noise ratio", lambda attr, data: MA_signalToNoise()(attr, data), twoTailTest),
+##        self.scoreMethods = [("chi-square", orange.MeasureAttribute_chiSquare, oneTailTestHi),
+##                             ("info gain", orange.MeasureAttribute_info, oneTailTestHi),
+##                             ("signal to noise ratio", lambda attr, data: MA_signalToNoise()(attr, data), twoTailTest),
+##                             ("t-test",lambda attr, data: MA_t_test()(attr, data), twoTailTest),
+##                             ("t-test p-value",lambda attr, data: MA_t_test(prob=True)(attr, data), oneTailTestLow),
+##                             ("fold change", lambda attr, data: MA_fold_change()(attr, data), twoTailTest),
+##                             ("log2 fold change", lambda attr, data: math.log(max(min(MA_fold_change()(attr, data), 1e300), 1e-300), 2.0), twoTailTest),
+##                             ("anova", lambda attr, data: MA_anova()(attr, data), oneTailTestHi),
+##                             ("anova p-value", lambda attr, data: MA_anova(prob=True)(attr, data), oneTailTestLow)]
+        self.scoreMethods = [("fold change", lambda attr, data: MA_fold_change()(attr, data), twoTailTest),
+                             ("log2 fold change", lambda attr, data: math.log(max(min(MA_fold_change()(attr, data), 1e300), 1e-300), 2.0), twoTailTest),
                              ("t-test",lambda attr, data: MA_t_test()(attr, data), twoTailTest),
                              ("t-test p-value",lambda attr, data: MA_t_test(prob=True)(attr, data), oneTailTestLow),
-                             ("fold change", lambda attr, data: MA_fold_change()(attr, data), twoTailTest),
-                             ("log2 fold change", lambda attr, data: math.log(max(min(MA_fold_change()(attr, data), 1e300), 1e-300), 2.0), twoTailTest),
                              ("anova", lambda attr, data: MA_anova()(attr, data), oneTailTestHi),
-                             ("anova p-value", lambda attr, data: MA_anova(prob=True)(attr, data), oneTailTestLow)]
+                             ("anova p-value", lambda attr, data: MA_anova(prob=True)(attr, data), oneTailTestLow),
+                             ("signal to noise ratio", lambda attr, data: MA_signalToNoise()(attr, data), twoTailTest),
+                             ("info gain", orange.MeasureAttribute_info, oneTailTestHi),
+                             ("chi-square", orange.MeasureAttribute_chiSquare, oneTailTestHi)]
 
         boxHistogram = OWGUI.widgetBox(self.mainArea)
         self.histogram = ScoreHist(self, boxHistogram)
@@ -68,14 +79,25 @@ class OWFeatureSelection(OWWidget):
         box = OWGUI.widgetBox(self.controlArea, "Info", addSpace=True)
         self.dataInfoLabel = OWGUI.widgetLabel(box, "\n\n")
         self.selectedInfoLabel = OWGUI.widgetLabel(box, "")
-        OWGUI.radioButtonsInBox(self.controlArea, self, "methodIndex", [sm[0] for sm in self.scoreMethods], box="Score Method", callback=self.Update, addSpace=True)
+        self.testRadioBox = OWGUI.radioButtonsInBox(self.controlArea, self, "methodIndex", [sm[0] for sm in self.scoreMethods], box="Score Method", callback=self.Update, addSpace=True)
         ZoomSelectToolbar(self, self.controlArea, self.histogram, buttons=[ZoomSelectToolbar.IconSelect, ZoomSelectToolbar.IconZoom, ZoomSelectToolbar.IconPan])
         OWGUI.separator(self.controlArea)
+        
         box = OWGUI.widgetBox(self.controlArea, "Selection", addSpace=True)
+        box2 = OWGUI.widgetBox(box, "Threshold")
+        callback = lambda: self.histogram.setBoundary(self.histogram.lowerBoundary, self.histogram.upperBoundary)
+        self.upperBoundarySpin = OWGUI.doubleSpin(box2, self, "histogram.upperBoundary", min=-1e6, max=1e6, step= 1e-6, label="Upper:", callback=callback, callbackOnReturn=True)
+        self.lowerBoundarySpin = OWGUI.doubleSpin(box2, self, "histogram.lowerBoundary", min=-1e6, max=1e6, step= 1e-6, label="Lower:", callback=callback, callbackOnReturn=True)
+        check = OWGUI.checkBox(box, self, "computeNullDistribution", "Compute null distribution", callback=self.Update)
+        check.disables.append(OWGUI.spin(box, self, "permutationsCount", min=1, max=10, label="Repetitions:", callback=self.Update, callbackOnReturn=True))
+        check.disables.append(OWGUI.button(box, self, "Select w.r.t null distribution", callback=self.SelectPBest))
+        check.disables.append(OWGUI.doubleSpin(box, self, "selectPValue" , min=2e-7, max=1.0, step=1e-7, label="p-value:", callback=self.SelectPBest, callbackOnReturn=True))
+        check.makeConsistent()
         OWGUI.button(box, self, "Select n best features", callback=self.SelectNBest)
         OWGUI.spin(box, self, "selectNBest", 0, 10000, step=1, label="n:")
-        OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
+        box = OWGUI.widgetBox(self.controlArea, "Commit")
         OWGUI.button(box, self, "&Commit", callback=self.Commit)
+        OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
         OWGUI.rubber(self.controlArea)
 
         self.connect(self.graphButton, SIGNAL("clicked()"), self.histogram.saveToFile)
@@ -85,6 +107,7 @@ class OWFeatureSelection(OWWidget):
         self.data = None
         self.discData = None
         self.scoreCache = {}
+        self.nullDistCache = {}
         self.cuts = {}
         self.discretizer = orange.EquiNDiscretization(numberOfIntervals=5)
 
@@ -94,25 +117,34 @@ class OWFeatureSelection(OWWidget):
         self.error(0)
         self.warning(0)
         self.scoreCache = {}
+        self.nullDistCache = {}
         self.discData = None
         self.data = data
+        disabled = []
         if self.data and not data.domain.classVar:
             self.error(0, "Class var missing!")
+        elif len(self.data.domain.classVar.values) == 2:
+            disabled = [4, 5]
+        elif len(self.data.domain.classVar.values) > 2:
+           disabled = [0, 1, 2, 3, 6]
+        for i, button in enumerate(self.testRadioBox.buttons):
+            button.setDisabled(i in disabled)
         self.UpdateDataInfoLabel()
         self.Update()
         self.Commit()
 
-    def ComputeAttributeScore(self, data, scoreFunc):
-        if scoreFunc in self.scoreCache:
+    def ComputeAttributeScore(self, data, scoreFunc, useCache=True, progressCallback=None):
+        if scoreFunc in self.scoreCache and useCache:
             return self.scoreCache[scoreFunc]
         attributes = data.domain.attributes
-        if self.methodIndex in [2,3,4,5,6] and len(data.domain.classVar.values)>2:
+##        if self.methodIndex in [2,3,4,5,6] and len(data.domain.classVar.values)>2:
+        if self.methodIndex in [0,1,2,3,6] and len(data.domain.classVar.values) > 2:
             self.warning(0, self.scoreMethods[self.methodIndex][0]+" works only on two class data (using only first two class values for computation)")
         else:
             self.warning(0)
-        self.progressBarInit()
+##        self.progressBarInit()
         if scoreFunc==orange.MeasureAttribute_info or scoreFunc==orange.MeasureAttribute_chiSquare:
-            if self.discData:
+            if self.discData and useCache:
                 data = self.discData
                 newAttrs = data.domain.attributes
             else:
@@ -123,28 +155,64 @@ class OWFeatureSelection(OWWidget):
                 for i, ex in enumerate(data):
                     table.append(orange.Example(newDomain, ex))
                     self.progressBarSet(100.0*i/len(data))
-                self.discData = data = table
+                if useCache:
+                    self.discData = data = table
         else:
             newAttrs = attributes
         scores = {}
         milestones = set(range(0, len(attributes), max(len(attributes)/100, 1)))
         for i, (attr, newAttr) in enumerate(zip(attributes, newAttrs)):
             scores[attr] = scoreFunc(newAttr, data)
-            if i in milestones:
-                self.progressBarSet(100.0*i/len(attributes))
-        self.progressBarFinished()
-        self.scoreCache[scoreFunc] = scores
+            if progressCallback and i in milestones:
+                progressCallback(100.0*i/len(attributes))
+##        self.progressBarFinished()
+        if useCache:
+            self.scoreCache[scoreFunc] = scores
+        return scores
+
+    def ComputeNullDistribution(self, data, scoreFunc, progressCallback=None):
+        if (scoreFunc, self.permutationsCount) in self.nullDistCache:
+            return self.nullDistCache[scoreFunc, self.permutationsCount]
+
+        originalClasses = [ex.getclass() for ex in data]
+        scores = []
+        import random
+        for i in range(self.permutationsCount):
+            permClasses = list(originalClasses)
+            random.shuffle(permClasses)
+            for ex, class_ in zip(data, permClasses):
+                ex.setclass(class_)
+            _progressCallback = lambda val: progressCallback(100.0*i/self.permutationsCount + float(val)/self.permutationsCount) if \
+                               progressCallback else None
+            scores.extend(self.ComputeAttributeScore(data, scoreFunc, useCache=False, progressCallback=_progressCallback).values())
+
+        for ex, class_ in zip(data, originalClasses):
+            ex.setclass(class_)
+
+        self.nullDistCache[scoreFunc, self.permutationsCount] = scores
         return scores
         
     def Update(self):
         if self.data and self.data.domain.classVar:
-            self.scores = self.ComputeAttributeScore(self.data, self.scoreMethods[self.methodIndex][1])
+            self.progressBarInit()
+            self.scores = self.ComputeAttributeScore(self.data, self.scoreMethods[self.methodIndex][1], progressCallback=self.progressBarSet)
+            if self.computeNullDistribution:
+                self.nullDistribution = self.ComputeNullDistribution(self.data, self.scoreMethods[self.methodIndex][1], progressCallback=self.progressBarSet)
+            self.progressBarFinished()
             self.histogram.type = self.histType[self.scoreMethods[self.methodIndex][2]]
             self.histogram.setValues(self.scores.values())
             self.histogram.setBoundary(*self.cuts.get(self.methodIndex, (0, 0)))
-            if self.methodIndex in [2, 3, 5, 6]:
+            if self.computeNullDistribution:
+                nullY, nullX = numpy.histogram(self.nullDistribution, bins=100)
+                self.histogram.nullCurve = self.histogram.addCurve("nullCurve", Qt.black, Qt.black, 6, symbol = QwtSymbol.NoSymbol, style = QwtPlotCurve.Steps, xData = nullX, yData = nullY/self.permutationsCount)
+            state = dict(hiTail=(False, True), lowTail=(True, False), twoTail=(True, True))
+            for spin, visible in zip((self.upperBoundarySpin, self.lowerBoundarySpin), state[self.histogram.type]):
+                spin.setVisible(visible)
+            
+##            if self.methodIndex in [2, 3, 5, 6]:
+            if self.methodIndex in [0, 2, 4, 6]:
                 classValues = self.data.domain.classVar.values
-                if self.methodIndex == 5:
+                if self.methodIndex == 0: ## fold change is centered on 1.0
                     x1, y1 = (self.histogram.minx + 1) / 2 , self.histogram.maxy
                     x2, y2 = (self.histogram.maxx + 1) / 2 , self.histogram.maxy
                 else:
@@ -152,7 +220,7 @@ class OWFeatureSelection(OWWidget):
                     x2, y2 = (self.histogram.maxx) / 2 , self.histogram.maxy
                 self.histogram.addMarker(classValues[1], x1, y1)
                 self.histogram.addMarker(classValues[0], x2, y2)
-                self.histogram.replot()
+            self.histogram.replot()
             
         else:
             self.histogram.clear()
@@ -197,9 +265,38 @@ class OWFeatureSelection(OWWidget):
             scores = scores[-max(self.selectNBest, 1):]
             countHi = len([score for score, sign in scores if sign==1])
             countLo = len([score for score, sign in scores if sign==-1])
-            cutHi = scoresHi[-countHi][1] if countHi else scoresHi[-1][1]+1e-10
-            cutLo = scoresLo[countLo-1][1] if countLo else scoresLo[0][1]-1e-10
+            cutHi = scoresHi[-countHi][1] if countHi else scoresHi[-1][1] + 1e-7
+            cutLo = scoresLo[countLo-1][1] if countLo else scoresLo[0][1] - 1e-7
             self.histogram.setBoundary(cutLo, cutHi)
+
+    def SelectPBest(self):
+        if not self.nullDistribution:
+            return
+        nullDist = sorted(self.nullDistribution)
+        test = self.scoreMethods[self.methodIndex][2]
+        count = int(len(nullDist)*self.selectPValue)
+        if test == self.oneTailTestHi:
+            cut = nullDist[-count] if count else nullDist[-1] + 1e-7
+            self.histogram.setBoundary(cut, cut)
+            print cut
+        elif test == self.oneTailTestLow:
+            cut = nullDist[count - 1] if count else nullDist[0] - 1e-7
+            self.histogram.setBoundary(cut, cut)
+            print cut
+        elif count:
+            scoresHi = nullDist[-count:]
+            scoresLo = nullDist[:count - 1]
+            scores = [(abs(score), 1) for score in scoresHi] + [(abs(score), -1) for score in scoresLo]
+            if self.scoreMethods[self.methodIndex][0] == "fold change": ## fold change is on a logaritmic scale
+                scores =  [(abs(math.log(max(min(score, 1e300), 1e-300), 2.0)), sign) for score, sign in scores]
+            scores = sorted(scores)[-count:]
+            countHi = len([score for score, sign in scores if sign==1])
+            countLo = len([score for score, sign in scores if sign==-1])
+            cutHi = scoresHi[-countHi] if countHi else scoresHi[-1] + 1e-7
+            cutLo = scoresLo[countLo-1] if countLo else scoresLo[0] - 1e-7
+            self.histogram.setBoundary(cutLo, cutHi)
+        else:
+            self.histogram.setBoundary(nullDist[0] - 1e-7, nullDist[-1] + 1e-7)
         
     def Commit(self):
         if self.data and self.data.domain.classVar:
