@@ -1,6 +1,6 @@
 """
 <name>KEGG Pathway Browser</name>
-<description>Browser that - given a set of genes - searches and displays relevant KEGG pathways</description>
+<description>Browser for KEGG pathways that match a selected set of genes.</description>
 <priority>150</priority>
 <icon>icons/KEGG.png</icon>
 """

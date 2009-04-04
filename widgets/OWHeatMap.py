@@ -1,6 +1,6 @@
 """
 <name>Heat Map</name>
-<description>Microarray Heat Map</description>
+<description>Heatmap-based data visualization.</description>
 <contact>Ales Erjavec, Blaz Zupan, Janez Demsar</contact>
 <icon>icons/HeatMap.png</icon>
 <priority>50</priority>

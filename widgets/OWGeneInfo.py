@@ -1,8 +1,9 @@
 """
 <name>Gene Info</name>
-<description>This widget shows NCBI gene information</description>
+<description>Gene information data from NCBI.</description>
 <priority>232</priority>
 <contact>Ales Erjavec (ales.erjevec(@at@)fri.uni-lj.si)</contact>
+<icon>icons/GeneInfo.png</icon>
 """
 
 import obiGene, obiTaxonomy

@@ -1,6 +1,6 @@
 """
 <name>Update Genomics Databases</name>
-<description>Central widget for updating genomics databases</description>
+<description>Update of systems biology data bases.</description>
 <contact>Ales Erjavec</contact>
 <priority>5</priority>
 <icon>icons/UpdateDatabases.png</icon>

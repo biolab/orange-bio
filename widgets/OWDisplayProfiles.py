@@ -1,6 +1,6 @@
 """
-<name>Expression Profiles</name>
-<description>Displays gene expression profiles.</description>
+<name>Data Profiles</name>
+<description>Visualization of data profiles.</description>
 <contact>Tomaz Curk</contact>
 <icon>icons/ExpressionProfiles.png</icon>
 <priority>10</priority>

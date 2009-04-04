@@ -2,6 +2,7 @@
 <description>Access to Gene Expression Omnibus data sets.</description>
 <priority>251</priority>
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si)</contact>
+<icon>icons/GEODataSets.png</icon>
 """
 
 import sys, os, glob

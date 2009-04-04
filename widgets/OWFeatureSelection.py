@@ -1,6 +1,6 @@
 """
-<name>Feature Selection</name>
-<description>Feature selection</description>
+<name>Gene Selection</name>
+<description>Gene scoring and selection.</description>
 <priority>230</priority>
 <icon>icons/FeatureSelection.png</icon>
 """

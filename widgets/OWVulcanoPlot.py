@@ -3,6 +3,7 @@
 <description>Vulcano plot</description>
 <priority>231</priority>
 <contact>Ales Erjavec (ales.erjavec@fri.uni-lj.si)</contact>
+<icon>icons/VulcanoPlot.png</icon>
 """
 
 from OWWidget import *

@@ -1,6 +1,6 @@
 """
 <name>Dicty database</name>
-<description>Widget interface to dicty experaments</description>
+<description>Interface to dictyExpress database.</description>
 <icon>icons/dictyExpress.png</icon>
 <priority>250</priority>
 """
