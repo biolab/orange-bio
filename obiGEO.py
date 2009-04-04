@@ -303,7 +303,7 @@ def transpose_labels_to_class(data):
     
     newdata = []
     for a in data.domain.attributes:
-        newdata.append([_float_or_na(d[a]) for d in data] + [a.label])
+        newdata.append([_float_or_na(d[a]) for d in data] + [a.group])
 
     sample = orange.StringVariable("sample")
     id = orange.newmetaid()
