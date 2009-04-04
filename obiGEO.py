@@ -260,7 +260,61 @@ class GDS():
                len(self.info['subsets']),
                )
 
-if __name__ == "__main__":
-    gds = GDS("GDS10")
-    data = gds.getdata(report_genes=True, transpose=False)
-#    data = GDS("GDS10", report_genes=True, transpose=False)
+
+def _float_or_na(x):
+    if x.isSpecial():
+        return "?"
+    return float(x)
+
+def transpose_class_to_labels(data, attcol="sample"):
+    """Converts data with genes as attributes to data with genes in rows."""
+    if attcol in [v.name for v in data.domain.getmetas().values()]:
+        atts = [orange.FloatVariable(str(d[attcol])) for d in data]
+    else:
+        atts = [orange.FloatVariable("S%d" % i) for i in range(len(data))]
+    for i, d in enumerate(data):
+        atts[i].setattr("label", str(d.getclass()))
+    domain = orange.Domain(atts, False)
+    
+    newdata = []
+    for a in data.domain.attributes:
+        newdata.append([_float_or_na(d[a]) for d in data])
+
+    gene = orange.StringVariable("gene")
+    id = orange.newmetaid()
+    new = orange.ExampleTable(domain, newdata)
+    new.domain.addmeta(id, gene)
+    for i, d in enumerate(new):
+        d[gene] = data.domain.attributes[i].name
+
+    return new
+
+def transpose_labels_to_class(data):
+    """Converts data with genes in rows to data with genes as attributes."""
+    if "gene" in [v.name for v in data.domain.getmetas().values()]:
+        atts = [orange.FloatVariable(str(d["gene"])) for d in data]
+    else:
+        atts = [orange.FloatVariable("A%d" % i) for i in range(len(data))]        
+    classvalues = list(set([a.label for a in data.domain.attributes]))
+    classvar = orange.EnumVariable("class", values=classvalues)
+    domain = orange.Domain(atts + [classvar])
+    
+    newdata = []
+    for a in data.domain.attributes:
+        newdata.append([_float_or_na(d[a]) for d in data] + [a.label])
+
+    sample = orange.StringVariable("sample")
+    id = orange.newmetaid()
+    new = orange.ExampleTable(domain, newdata)
+    new.domain.addmeta(id, sample)
+    for i, d in enumerate(new):
+        d[sample] = data.domain.attributes[i].name
+
+    return new
+
+def transpose(data):
+    """Transposes data matrix, converts class information to attribute label and back"""
+    if data.domain.classVar:
+        return transpose_class_to_labels(data)
+    else:
+        return transpose_labels_to_class(data)
