@@ -13,6 +13,7 @@ from OWGraphTools import PolygonCurve
 from OWWidget import *
 from OWHist import OWInteractiveHist
 from OWToolbars import ZoomSelectToolbar
+from obiGEO import transpose
 
 import OWGUI
 
@@ -110,6 +111,7 @@ class OWFeatureSelection(OWWidget):
         self.nullDistCache = {}
         self.cuts = {}
         self.discretizer = orange.EquiNDiscretization(numberOfIntervals=5)
+        self.transposedData = False
 
         self.resize(700, 600)        
         
@@ -120,12 +122,18 @@ class OWFeatureSelection(OWWidget):
         self.nullDistCache = {}
         self.discData = None
         self.data = data
+        self.transposedData = False
         disabled = []
         if self.data and not data.domain.classVar:
-            self.error(0, "Class var missing!")
-        elif len(self.data.domain.classVar.values) == 2:
+            try:
+                self.data = data = transpose(data)
+                self.transposedData = True
+            except Exception, ex:
+                self.error(0, "Class var missing! " + str(ex))
+                self.data = None
+        if self.data and len(self.data.domain.classVar.values) == 2:
             disabled = [4, 5]
-        elif len(self.data.domain.classVar.values) > 2:
+        elif self.data and len(self.data.domain.classVar.values) > 2:
            disabled = [0, 1, 2, 3, 6]
         for i, button in enumerate(self.testRadioBox.buttons):
             button.setDisabled(i in disabled)
@@ -138,7 +146,7 @@ class OWFeatureSelection(OWWidget):
             return self.scoreCache[scoreFunc]
         attributes = data.domain.attributes
 ##        if self.methodIndex in [2,3,4,5,6] and len(data.domain.classVar.values)>2:
-        if self.methodIndex in [0,1,2,3,6] and len(data.domain.classVar.values) > 2:
+        if self.methodIndex in [0, 1, 2, 3, 6] and len(data.domain.classVar.values) > 2:
             self.warning(0, self.scoreMethods[self.methodIndex][0]+" works only on two class data (using only first two class values for computation)")
         else:
             self.warning(0)
@@ -303,10 +311,19 @@ class OWFeatureSelection(OWWidget):
             cutOffUpper = self.histogram.upperBoundary
             cutOffLower = self.histogram.lowerBoundary
             test = self.scoreMethods[self.methodIndex][2]
+            
             selectedAttrs = [attr for attr in self.data.domain.attributes if  test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
-            self.send("Examples with selected attributes", self.data.select(selectedAttrs+[self.data.domain.classVar]))
+            data = self.data.select(selectedAttrs+[self.data.domain.classVar])
+            if self.transposedData and selectedAttrs:
+                data = transpose(data)
+            self.send("Examples with selected attributes", data)
+            
             remainingAttrs = [attr for attr in self.data.domain.attributes if  not test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
-            self.send("Examples with remaining attributes", self.data.select(remainingAttrs+[self.data.domain.classVar]))
+            data = self.data.select(remainingAttrs+[self.data.domain.classVar])
+            if self.transposedData and remainingAttrs:
+                data = transpose(data)
+            self.send("Examples with remaining attributes", data)
+            
             domain = orange.Domain([orange.StringVariable("label"), orange.FloatVariable(self.scoreMethods[self.methodIndex][0])], False)
             self.send("Selected attributes", orange.ExampleTable([orange.Example(domain, [attr.name, self.scores.get(attr, 0)]) for attr in selectedAttrs]) if selectedAttrs else None)
             
