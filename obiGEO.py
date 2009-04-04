@@ -190,9 +190,9 @@ class GDS():
         if None in cvalues:
             cvalues.remove(None)
             
-        classvar = orange.EnumVariable(name="outcome", values=cvalues)
+        classvar = orange.EnumVariable(name="group", values=cvalues)
         orng_data = []
-        if transpose: # genes as attributes, samples as data instances
+        if transpose: # genes as attributes, samples in rows
             if report_genes: # save by genes
                 atts = [orange.FloatVariable(name=gene) for gene in self.genes]
                 domain = orange.Domain(atts, classvar)
@@ -210,8 +210,10 @@ class GDS():
     
             return orange.ExampleTable(domain, orng_data)
     
-        else: # samples as attributes, genes as data instances
+        else: # samples as attributes, genes in rows
             atts = [orange.FloatVariable(name=ss) for ss in self.info["samples"]]
+            for i, a in enumerate(atts):
+                a.setattr("group", sample2class[self.info["samples"][i]])
             domain  = orange.Domain(atts, False)
     
             if report_genes: # save by genes
@@ -273,7 +275,7 @@ def transpose_class_to_labels(data, attcol="sample"):
     else:
         atts = [orange.FloatVariable("S%d" % i) for i in range(len(data))]
     for i, d in enumerate(data):
-        atts[i].setattr("label", str(d.getclass()))
+        atts[i].setattr("group", str(d.getclass()))
     domain = orange.Domain(atts, False)
     
     newdata = []
@@ -295,7 +297,7 @@ def transpose_labels_to_class(data):
         atts = [orange.FloatVariable(str(d["gene"])) for d in data]
     else:
         atts = [orange.FloatVariable("A%d" % i) for i in range(len(data))]        
-    classvalues = list(set([a.label for a in data.domain.attributes]))
+    classvalues = list(set([a.group for a in data.domain.attributes]))
     classvar = orange.EnumVariable("class", values=classvalues)
     domain = orange.Domain(atts + [classvar])
     
