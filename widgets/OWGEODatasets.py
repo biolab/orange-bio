@@ -94,16 +94,21 @@ class OWGEODatasets(OWWidget):
         self.progressBarInit()
         milestones = set(range(0, len(info), max(len(info)/100, 1)))
         for i, (name, gds) in enumerate(info.items()):
-            item = SortableItem(self.treeWidget, [gds["dataset_id"], gds["platform_organism"], str(len(gds["samples"])), str(gds["feature_count"]),
+            item = SortableItem(None, [gds["dataset_id"], gds["platform_organism"], str(len(gds["samples"])), str(gds["feature_count"]),
                                                      str(gds["gene_count"]), str(len(gds["subsets"])), ""])
-            link = LinkItem(gds.get("pubmed_id"), self.treeWidget)
-            self.treeWidget.setItemWidget(item, 6, link)
+            item.link = LinkItem(gds.get("pubmed_id"), self.treeWidget)
+##            self.treeWidget.setItemWidget(item, 6, link)
             item.gdsName = name
             item.gds = gds
             self.treeItems.append(item)
             if i in milestones:
-                self.progressBarSet(100.0*i/len(info))
+                self.progressBarSet(100.0*i/len(info)/2)
 
+        self.treeWidget.addTopLevelItems(self.treeItems)
+        for i, item in enumerate(self.treeItems):
+            self.treeWidget.setItemWidget(item, 6, item.link)
+            if i in milestones:
+                self.progressBarSet(50.0 + 100.0*i/len(self.treeItems)/2)
         self.progressBarFinished()                
 
         self.updateInfo()
