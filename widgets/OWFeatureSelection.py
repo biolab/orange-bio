@@ -86,7 +86,7 @@ class OWFeatureSelection(OWWidget):
         
         box = OWGUI.widgetBox(self.controlArea, "Selection", addSpace=True)
         box2 = OWGUI.widgetBox(box, "Threshold")
-        callback = lambda: self.histogram.setBoundary(self.histogram.lowerBoundary, self.histogram.upperBoundary)
+        callback = lambda: self.histogram.setBoundary(self.histogram.lowerBoundary, self.histogram.upperBoundary) if self.data else None
         self.upperBoundarySpin = OWGUI.doubleSpin(box2, self, "histogram.upperBoundary", min=-1e6, max=1e6, step= 1e-6, label="Upper:", callback=callback, callbackOnReturn=True)
         self.lowerBoundarySpin = OWGUI.doubleSpin(box2, self, "histogram.lowerBoundary", min=-1e6, max=1e6, step= 1e-6, label="Lower:", callback=callback, callbackOnReturn=True)
         check = OWGUI.checkBox(box, self, "computeNullDistribution", "Compute null distribution", callback=self.Update)
@@ -112,6 +112,8 @@ class OWFeatureSelection(OWWidget):
         self.cuts = {}
         self.discretizer = orange.EquiNDiscretization(numberOfIntervals=5)
         self.transposedData = False
+        self.nullDistribution = []
+        self.scores = {}
 
         self.resize(700, 600)        
         
@@ -313,13 +315,19 @@ class OWFeatureSelection(OWWidget):
             test = self.scoreMethods[self.methodIndex][2]
             
             selectedAttrs = [attr for attr in self.data.domain.attributes if  test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
-            data = self.data.select(selectedAttrs+[self.data.domain.classVar])
+##            data = self.data.select(selectedAttrs+[self.data.domain.classVar])
+            newdomain = orange.Domain(selectedAttrs, self.data.domain.classVar)
+            newdomain.addmetas(self.data.domain.getmetas())
+            data = orange.ExampleTable(newdomain, self.data)
             if self.transposedData and selectedAttrs:
                 data = transpose(data)
             self.send("Examples with selected attributes", data)
             
             remainingAttrs = [attr for attr in self.data.domain.attributes if  not test(attr, cutOffLower, cutOffUpper)] #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]
-            data = self.data.select(remainingAttrs+[self.data.domain.classVar])
+##            data = self.data.select(remainingAttrs+[self.data.domain.classVar])
+            newdomain = orange.Domain(remainingAttrs, self.data.domain.classVar)
+            newdomain.addmetas(self.data.domain.getmetas())
+            data = orange.ExampleTable(newdomain, self.data)
             if self.transposedData and remainingAttrs:
                 data = transpose(data)
             self.send("Examples with remaining attributes", data)
