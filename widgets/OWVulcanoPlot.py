@@ -12,6 +12,7 @@ import OWGUI
 import orange
 from math import log
 from statc import mean, ttest_ind
+from obiGEO import transpose
 
 from OWToolbars import ZoomSelectToolbar
 
@@ -188,12 +189,21 @@ class OWVulcanoPlot(OWWidget):
 
         self.resize(700, 600)
 
+        self.transposedData = False
+
     def setData(self, data=None):
         self.closeContext()
         self.data = data
         self.targetClassCombo.clear()
         self.targetClass = 0
         self.error(0)
+        self.transposedData = False
+        if data and not data.domain.classVar:
+            try:
+                self.data = data = transpose(data)
+                self.transposedData = True
+            except Exception:
+                pass
         if data and data.domain.classVar:
             self.targetClassCombo.addItems([value for value in data.domain.classVar.values])
             self.infoLabel.setText("Genes: %i\nSamples: %i" %(len(data.domain.attributes), len(data)))
@@ -249,6 +259,8 @@ class OWVulcanoPlot(OWWidget):
             newdomain = orange.Domain(selected + [self.data.domain.classVar])
             newdomain.addmetas(self.data.domain.getmetas())
             data = orange.ExampleTable(newdomain, self.data)
+            if self.transposedData:
+                data = transpose(data)
             self.send("Examples with selected attributes", data)
 
     def commitIf(self):
