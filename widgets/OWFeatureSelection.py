@@ -187,6 +187,7 @@ class OWFeatureSelection(OWWidget):
         originalClasses = [ex.getclass() for ex in data]
         scores = []
         import random
+        random.seed(0)
         for i in range(self.permutationsCount):
             permClasses = list(originalClasses)
             random.shuffle(permClasses)
@@ -219,8 +220,8 @@ class OWFeatureSelection(OWWidget):
                 
                 minx = min(min(nullX), self.histogram.minx)
                 maxx = max(max(nullX), self.histogram.maxx)
-                maxy = max(max(nullY), self.histogram.maxy)
-                miny = min(min(nullY), self.histogram.miny)
+                miny = min(min(nullY/self.permutationsCount), self.histogram.miny)
+                maxy = max(max(nullY/self.permutationsCount), self.histogram.maxy)
 
                 self.histogram.setAxisScale(QwtPlot.xBottom, minx - (0.05 * (maxx - minx)), maxx + (0.05 * (maxx - minx)))
                 self.histogram.setAxisScale(QwtPlot.yLeft, miny - (0.05 * (maxy - miny)), maxy + (0.05 * (maxy - miny)))                                            
