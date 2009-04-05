@@ -213,8 +213,17 @@ class OWFeatureSelection(OWWidget):
             self.histogram.setValues(self.scores.values())
             self.histogram.setBoundary(*self.cuts.get(self.methodIndex, (0, 0)))
             if self.computeNullDistribution:
-                nullY, nullX = numpy.histogram(self.nullDistribution, bins=100)
+##                nullY, nullX = numpy.histogram(self.nullDistribution, bins=100)
+                nullY, nullX = numpy.histogram(self.nullDistribution, bins=self.histogram.xData)
                 self.histogram.nullCurve = self.histogram.addCurve("nullCurve", Qt.black, Qt.black, 6, symbol = QwtSymbol.NoSymbol, style = QwtPlotCurve.Steps, xData = nullX, yData = nullY/self.permutationsCount)
+                
+                minx = min(min(nullX), self.histogram.minx)
+                maxx = max(max(nullX), self.histogram.maxx)
+                maxy = max(max(nullY), self.histogram.maxy)
+                miny = min(min(nullY), self.histogram.miny)
+
+                self.histogram.setAxisScale(QwtPlot.xBottom, minx - (0.05 * (maxx - minx)), maxx + (0.05 * (maxx - minx)))
+                self.histogram.setAxisScale(QwtPlot.yLeft, miny - (0.05 * (maxy - miny)), maxy + (0.05 * (maxy - miny)))                                            
             state = dict(hiTail=(False, True), lowTail=(True, False), twoTail=(True, True))
             for spin, visible in zip((self.upperBoundarySpin, self.lowerBoundarySpin), state[self.histogram.type]):
                 spin.setVisible(visible)
