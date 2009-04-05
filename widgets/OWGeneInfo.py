@@ -49,6 +49,7 @@ class OWGeneInfo(OWWidget):
         
         self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "No data on input\n")
         self.organisms = [name.split(".")[-2] for name in orngServerFiles.listfiles("NCBI_geneinfo")]
+        
         self.orgaismsComboBox = OWGUI.comboBox(self.controlArea, self, "organismIndex", "Organism", items=[obiTaxonomy.name(id) for id in self.organisms], callback=self.setItems)
         box = OWGUI.widgetBox(self.controlArea, "Gene names")
         self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneAttr", "Gene atttibute", callback=self.setItems)
@@ -103,7 +104,14 @@ class OWGeneInfo(OWWidget):
             genes = []
         if not genes:
             self.warning(0, "Could not extract genes from input dataset.")
-        info = obiGene.NCBIGeneInfo(self.organisms[self.organismIndex])
+        self.warning(1)
+        if self.organisms:
+            info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
+        else:
+            self.warning(1, "No downloaded gene info files. Using human gene info.")
+            pb = OWGUI.ProgressBar(self, 100)
+            info = obiGene.NCBIGeneInfo("Homo sapiens", progressCallback=pb.advance)
+            pb.finish()
         self.geneinfo = geneinfo = [(gene, info.get_info(gene, None)) for gene in genes]
 ##        print genes[:10]
         self.treeWidget.clear()
@@ -111,6 +119,7 @@ class OWGeneInfo(OWWidget):
         self.progressBarInit()
 ##        milestones = set([i for i in range(0, len(geneinfo), max(len(geneinfo)/100, 1))])
         milestones = set([i for i in range(0, len(geneinfo), max(len(geneinfo)/100, 1))])
+        self.treeWidget.setUpdatesEnabled(False)
         for i, (gene, gi) in enumerate(geneinfo):
             if gi:
                 item = QTreeWidgetItem(self.treeWidget,
@@ -118,13 +127,20 @@ class OWGeneInfo(OWWidget):
                                         gi.chromosome or "", gi.description or "", ", ".join(gi.synonyms),
                                         gi.symbol_from_nomenclature_authority or ""])
                 item.info = gi
-                link = LinkItem(gi.gene_id, self.treeWidget)
-                self.treeWidget.setItemWidget(item, 0, link)
+                item.link = LinkItem(gi.gene_id, self.treeWidget)
+                self.treeWidget.setItemWidget(item, 0, item.link)
 ##                link.show()
                 self.widgetItems.append(item)
             if i in milestones:
                 self.progressBarSet(100.0*i/len(geneinfo))
 ##        self.treeWidget.addTopLevelItems(self.widgetItems)
+##        for i, item in enumerate(self.widgetItems):
+##            self.treeWidget.setItemWidget(item, 0, item.link)
+##            if i in milestones:
+##                self.progressBarSet(50 + 100.0*i/len(self.widgetItems)/2)
+        self.treeWidget.setUpdatesEnabled(True)
+        self.treeWidget.update()
+        self.treeWidget.repaint(0, 0, -1, -1)
         self.progressBarFinished()
 ##        self.widgetItems[-1].setText(0, "")
 ##        self.treeWidget.update(self.treeWidget.indexFromItem(self.widgetItems[-1]))
