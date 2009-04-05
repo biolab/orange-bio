@@ -103,21 +103,24 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.tabs = OWGUI.tabWidget(self.controlArea)
         ##Input tab
         self.inputTab = OWGUI.createTabPage(self.tabs, "Input")
-        box = OWGUI.widgetBox(self.inputTab, "Organism annotation", addSpace=True)
+        box = OWGUI.widgetBox(self.inputTab, "Info")
+        self.infoLabel = OWGUI.widgetLabel(box, "No data on input\n")
+        OWGUI.button(box, self, "Ontology/Annotation Info", callback=self.ShowInfo)
+        box = OWGUI.widgetBox(self.inputTab, "Organism", addSpace=True)
         self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.SetAnnotationCallback)
+        self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene names", callback=self.Update)
         #box = OWGUI.widgetBox(box, "Evidence codes in annotation", addSpace=True)
 ##        box = OWGUI.widgetBox(self.inputTab, "Evidence codes in annotation", addSpace=True)
 ##        box.setMaximumWidth(150)
 ##        self.evidenceCheckBoxDict = {}
 ##        for etype in go.evidenceTypesOrdered:
 ##            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=go.evidenceTypes[etype])
-        OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Entire genome", "Input signal"], box="Reference", callback=self.Update)
+        self.referenceRadioBox = OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Entire genome", "Reference set (input)"], box="Reference", callback=self.Update)
+        self.referenceRadioBox.buttons[1].setDisabled(True)
         OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process", "Cellular component", "Molecular function"], box="Aspect", callback=self.Update)
-        self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene names", callback=self.Update)
         OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use data attributes names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.SetUseAttrNamesCallback)
         self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
-        self.geneInfoLabel = OWGUI.label(self.geneAttrIndexCombo.box, self, "0 genes on input signal")
-        OWGUI.button(OWGUI.widgetBox(self.inputTab, "Ontology and annotations info"), self, "View info", callback=self.ShowInfo)
+##        self.geneInfoLabel = OWGUI.label(self.geneAttrIndexCombo.box, self, "0 genes on input signal")
        
 ##        box = OWGUI.widgetBox(self.inputTab, "GO update")
 ##        b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
@@ -309,7 +312,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def SetClusterDataset(self, data=None):
         self.closeContext()
         self.clusterDataset = data
-        self.geneInfoLabel.setText("")
+        self.infoLabel.setText("\n")
         if data:
             self.SetGenesComboBox()
             self.FindBestGeneAttrAndOrganism()
@@ -323,6 +326,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             graph = self.Enrichment()
             self.SetGraph(graph)
         else:
+            self.infoLabel.setText("No data on input\n")
             self.openContext("", None)
             self.ClearGraph()
             self.send("Selected Examples", None)
@@ -331,6 +335,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
     def SetReferenceDataset(self, data=None):
         self.referenceDataset=data
+        self.referenceRadioBox.buttons[1].setDisabled(not bool(data))
         if data and self.useReferenceDataset:
             graph = self.Enrichment(self.data)
             self.SetGraph(graph)
@@ -445,9 +450,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
             else:
                 self.information(0)
 ##        self.UpdateGOAliases(clusterGenes)
-        self.geneInfoLabel.setText("%i genes on input" % len(clusterGenes))
+##        self.geneInfoLabel.setText("%i genes on input" % len(clusterGenes))
+        genesCount = len(clusterGenes)
 ##        self.clusterGenes = clusterGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, clusterGenes)
         self.clusterGenes = clusterGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, clusterGenes)
+        self.infoLabel.setText("%i genes on input\n%i (%.1f%%) gene names matched" % (genesCount, len(clusterGenes), 100.0*len(clusterGenes)/genesCount if genesCount else 0.0))
 ##        print len(self.clusterGenes), self.clusterGenes[:5]
         referenceGenes = None
         if self.useReferenceDataset:
