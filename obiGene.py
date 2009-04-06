@@ -160,7 +160,8 @@ def ignore_case(gs):
 
 def create_mapping(groups, lower=False):
     """ 
-    Returns mapping of aliases to the group index.
+    Returns mapping of aliases to the group index. If lower
+    is True, lower case forms of gene aliases are mapped to indices.
 
     Unpickling the results of this function (binary format)
     is slower than running it.
@@ -186,9 +187,10 @@ def create_mapping(groups, lower=False):
     print "create mapping", time.time() - t
     return togroup
 
-def join_sets(set1, set2):
+def join_sets(set1, set2, lower=False):
     """ 
-    Joins two sets of gene set mappings. 
+    Joins two sets of gene set mappings. If lower is True, lower case
+    forms of gene aliases are compared.
 
     A group g1 from set1 is joined to a group of aliases g2 from set2, 
     if the groups share at least one gene. 
@@ -199,7 +201,7 @@ def join_sets(set1, set2):
     """
 
     cur = [ set(a) for a in set1 ]
-    currentmap = create_mapping(cur)
+    currentmap = create_mapping(cur, lower=lower)
 
     new = [] #new groups
 
@@ -207,12 +209,16 @@ def join_sets(set1, set2):
     set1used = set() 
     set2used = set()
 
+    fn = lambda x: x
+    if lower:
+        fn = lambda x: x.lower()
+
     for i, group in enumerate(set2):
 
         #find groups of aliases (from set1)  intersecting with a current
         #group from set2
         cross = reduce(set.union, 
-            [ currentmap[alias] for alias in group if alias in currentmap], set())
+            [ currentmap[fn(alias)] for alias in group if fn(alias) in currentmap], set())
 
         for c in cross:
             #print c, group & set1[c], group, set1[c]
@@ -231,13 +237,13 @@ def join_sets(set1, set2):
 
     return new
  
-def join_sets_l(lsets):
+def join_sets_l(lsets, lower=False):
     """
     Joins multiple gene set mappings using join_sets function.
     """
     current = lsets[0]
     for b in lsets[1:]:
-        current = join_sets(current, b)
+        current = join_sets(current, b, lower=lower)
     return current
 
 class Matcher(object):
@@ -378,6 +384,7 @@ class MatcherAliasesPickled(MatcherAliases):
     def get_aliases(self):
         if not self.saved_aliases: #loads aliases if not loaded
             self.aliases = self.load_aliases()
+        print "size of aliases ", len(self.saved_aliases)
         return self.saved_aliases
 
     aliases = property(get_aliases, set_aliases)
@@ -421,8 +428,8 @@ class MatcherAliasesPickled(MatcherAliases):
     def __init__(self, ignore_case=True):
         self.aliases = []
         self.mdict = {}
-        self.ignore_case = True
-        print self.filename() # test if valid filename can be built
+        self.ignore_case = ignore_case
+        self.filename() # test if valid filename can be built
 
 class MatcherAliasesKEGG(MatcherAliasesPickled):
 
@@ -490,28 +497,33 @@ class MatcherAliasesPickledJoined(MatcherAliasesPickled):
         # do not pickle if any is unpicklable
         try:
             filenames = [ mat.filename() for mat in self.matchers ]
+            if self.ignore_case:
+                filenames += [ "icj" ]
             return "__".join(filenames)
         except:
             return None
 
     def create_aliases(self):
-        return join_sets_l([ mat.aliases for mat in self.matchers ])
+        return join_sets_l([ mat.aliases for mat in self.matchers ], lower=self.ignore_case)
 
     def create_aliases_version(self):
         try:
-            return "__".join([ mat.create_aliases_version() for mat in self.matchers ])
+            return "v4_" + "__".join([ mat.create_aliases_version() for mat in self.matchers ])
         except:
             return None
 
-    def __init__(self, matchers):
+    def __init__(self, matchers, ignore_case=True):
         """ 
         Join matchers together. Groups of aliases are joined if
         they share a common name.
+
+        If ignore_case is True, ignores case when joining gene aliases.
         """
         #FIXME: sorting of matchers to avoid multipying pickled files for
         #different orderings.
+        print "Joined matcher"
         self.matchers = matchers
-        MatcherAliasesPickled.__init__(self)
+        MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
         
 class MatcherSequence(Matcher):
     """
@@ -558,17 +570,21 @@ GMGO = MatcherAliasesGO
 def issequencens(x):
     return hasattr(x, '__getitem__') and not isinstance(x, basestring)
 
-def matcher(matchers, add_direct=True):
+def matcher(matchers, direct=True, ignore_case=True):
     """
     Build a matcher from a sequence of matchers. If a sequence element is a
     sequence, join matchers in the subsequence.
+
+    direct - if True, add a direct matcher to targets
+    ignore_case - if True, ignores case when joining and with optionally
+        added direct matcher 
     """
     seqmat = []
-    if add_direct:
-        seqmat.append(MatcherDirect())
+    if direct:
+        seqmat.append(MatcherDirect(ignore_case=ignore_case))
     for mat in matchers:
         if issequencens(mat):
-            mat = MatcherAliasesPickledJoined(list(mat))
+            mat = MatcherAliasesPickledJoined(list(mat), ignore_case=ignore_case)
             seqmat.append(mat)
         else:
             seqmat.append(mat)
@@ -580,6 +596,8 @@ if __name__ == '__main__':
     gi = info(list(info)[0])
     print gi.tax_id, gi.synonyms, gi.dbXrefs, gi.symbol_from_nomenclature_authority, gi.full_name_from_nomenclature_authority
     """
+
+    #dobim z joinom prave stvari?
 
     import time
     import obiGeneSets
@@ -607,17 +625,19 @@ if __name__ == '__main__':
     print "join", time.time() - t
 
     t = time.time()
-    mat4 = matcher([GMKEGG('human'),GMGO('human')], add_direct=False)
+    mat4 = matcher([GMKEGG('human'),GMGO('human')], direct=False)
     print "seq", time.time() - t
 
     t = time.time()
-    mat5 = matcher([[GMKEGG('human'),GMGO('human')]], add_direct=True)
+    mat5 = matcher([[GMKEGG('human'),GMGO('human')]], direct=False, ignore_case=True)
     print "vzp", time.time() - t
 
-    import obiGeneMatch
-    mat6 = obiGeneMatch.GeneMatch([], 'hsa', caseSensitive=False)
+    import obiGeneMatch as ogm
+
+    mat6 = ogm.MatcherSequence([ogm.MatchKEGG([], 'hsa', caseSensitive=False)])
     
-    mat7 = matcher([GMDirect(ignore_case=True), GMKEGG('human', ignore_case=False)], add_direct=False)
+    mat7 = matcher([GMDirect(ignore_case=True), GMKEGG('human', ignore_case=True)], direct=False)
+    mat7 = matcher([GMKEGG('human', ignore_case=True)], direct=True)
 
     print "using targets"
 
@@ -629,15 +649,17 @@ if __name__ == '__main__':
     """
     mat5.set_targets(names)
     mat6.targets(names)
-    mat7.set_targets(names)
+    #mat7.set_targets(names)
 
 ##    import mMisc as m
 
-    mat5 = mat7
+    #mat5 = mat7
 
     print "before genes"
     genes = reduce(set.union, genesets.values()[:1000], set())
-    genes = [ g.lower() for g in genes ]
+    genes = list(genes)
+    #genes = [ g.lower() for g in genes ]
+    print genes[:20]
     print len(genes)
     print "after genes"
 
@@ -652,15 +674,19 @@ if __name__ == '__main__':
         print "SEQ ", g, mat4.match(g)
         """
         old = mat6.matchOne(g)
-        new = mat5.umatch(g)
-
+        new = mat5.match(g)
+  
+        """
+        if new or old:
+           print "old", old, "new", new
+        """
 
         if old and not new or not old and new:
             if not old:
                 oldnone += 1
             if not new:
                 newnone += 1
-            print "VZP ", g, mat5.umatch(g)
+            print "VZP ", g, mat5.match(g)
             print "OLD ", g, mat6.matchOne(g)
 
     print "OLDNONE", oldnone, "NEWNONE", newnone
