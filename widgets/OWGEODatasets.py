@@ -130,7 +130,7 @@ class OWGEODatasets(OWWidget):
 
     def filter(self):
         filterStrings = self.filterString.lower().split()
-        searchKeys = ["platform_organism", "description"]
+        searchKeys = ["dataset_id", "platform_organism", "description"]
         for item in self.treeItems:
             item.setHidden(not all([any([s in unicode(item.gds.get(key, "").lower(), errors="ignore") for key in searchKeys]) for s in filterStrings]))
 
