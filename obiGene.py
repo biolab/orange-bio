@@ -50,7 +50,8 @@ class NCBIGeneInfo(dict):
         Example::
             >>> info = NCBIGeneInfo("Homo sapiens")
         """
-        if args and type(args[0]) in [str, unicode]:
+
+        if args and isinstance(args[0], basestring):
             org = args[0]
             taxids = obiTaxonomy.to_taxid(org, mapTo=[obiTaxonomy.common_taxids()])
             if not taxids:
@@ -70,12 +71,13 @@ class NCBIGeneInfo(dict):
             dict.__init__(self, *args, **kwargs)
             
         # following is a temporary fix before gene name matcher is complete (then, this code is to be replaced)
-        print self.keys()[:10]
-
+        # dictionary from aliases to target name (target names are real ids)
         self.translate = dict([(self[k].symbol, k) for k in self.keys()])
         for k in self.keys():
             self.translate.update([(s, k) for s in self[k].synonyms if s not in self.translate] + \
                                   ([(self[k].locus_tag, k)] if self[k].locus_tag else [] ))
+
+        #if this is done with a gene matcher, pool target names
 
     @classmethod    
     def load(cls, file):
@@ -481,6 +483,53 @@ class MatcherAliasesGO(MatcherAliasesPickled):
         self.organism = organism
         MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
 
+class MatcherAliasesDictyBase(MatcherAliasesPickled):
+
+    def create_aliases(self):
+        import obiDicty
+        db = obiDicty.DictyBase()
+        #db.info, db.mappings
+        infoa = [ set([id,name]) | set(aliases) for id,(name,aliases,_) in db.info.items() ]
+        mappingsa = [ set(filter(None, a)) for a in db.mappings ]
+        joineda = join_sets(infoa, mappingsa, lower=True)
+        return joineda
+
+    def create_aliases_version(self):
+        import obiDicty
+        return "v1." + obiDicty.DictyBase.version()
+
+    def filename(self):
+        return "dictybase" 
+
+    def __init__(self, ignore_case=True):
+        MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
+
+class MatcherAliasesNCBI(MatcherAliasesPickled):
+
+    def _organism_name(self, organism):
+        """ Returns internal GO organism name. Used to define file name. """
+        import obiGO
+        return obiGO.organism_name_search(self.organism)
+
+    def create_aliases(self):
+        import obiGO
+        annotations = obiGO.Annotations.Load(self.organism)
+        names = annotations.geneNamesDict
+        return map(set, list(set([ \
+            tuple(sorted(set([name]) | set(genes))) \
+            for name,genes in names.items() ])))
+
+    def filename(self):
+        return "go_" + self._organism_name(self.organism)
+
+    def create_aliases_version(self):
+        return "v2." + orngServerFiles.info("GO", "gene_association.%s.tar.gz" \
+            % self._organism_name(self.organism))["datetime"]
+
+    def __init__(self, organism, ignore_case=True):
+        self.organism = organism
+        MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
+
 class MatcherAliasesPickledJoined(MatcherAliasesPickled):
     """
     Creates a new matcher by joining gene aliases from different data sets.
@@ -544,26 +593,6 @@ class MatcherSequence(Matcher):
         for matcher in self.matchers:
             matcher.set_targets(targets)
 
-class MatcherDictyBase(MatcherAliasesPickled):
-
-    def create_aliases(self):
-        import obiDicty
-        db = obiDicty.DictyBase()
-        #db.info, db.mappings
-        infoa = [ set([id,name]) | set(aliases) for id,(name,aliases,_) in db.info.items() ]
-        mappingsa = [ set(filter(None, a)) for a in db.mappings ]
-        joineda = join_sets(infoa, mappingsa, lower=True)
-        return joineda
-
-    def create_aliases_version(self):
-        import obiDicty
-        return "v1." + obiDicty.DictyBase.version()
-
-    def filename(self):
-        return "dictybase" 
-
-    def __init__(self, ignore_case=True):
-        MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
 
 class MatcherDirect(Matcher):
     """
@@ -584,6 +613,8 @@ class MatcherDirect(Matcher):
 GMDirect = MatcherDirect
 GMKEGG = MatcherAliasesKEGG
 GMGO = MatcherAliasesGO
+GMNCBI = MatcherAliasesNCBI
+GMDicty = MatcherAliasesDictyBase
 
 def issequencens(x):
     return hasattr(x, '__getitem__') and not isinstance(x, basestring)
@@ -628,8 +659,17 @@ if __name__ == '__main__':
         data = orange.ExampleTable("DLBCL.tab")
         return [ a.name for a in  data.domain.attributes ]
 
+    def namesd():
+        import orange
+        data = orange.ExampleTable("dd_ge_biorep1.tab")
+        print data.domain
+        kfdksf
+        #return [ a.name for a in  data.domain.attributes ]
+
+
     genesets = auto_pickle("testcol", "3", testsets)
     names = auto_pickle("testnames", "4", names1)
+    names = auto_pickle("testnamesdicty", "4", namesd)
 
     print "loading time needs to be decreased to minimum"
     t = time.time()
