@@ -1333,10 +1333,7 @@ class DictyBase(object):
         return pickle.dumps((info,mappings), -1)
 
     def __init__(self):
-        #FIXME - orngServerFiles needs a function which gets you
-        #a filehandle of the needed file and downloads it if
-        #it is needed
-        fn = orngServerFiles.localpath(self.domain, self.filename)
+        fn = orngServerFiles.localpath_download(self.domain, self.filename)
         self.info, self.mappings = pickle.load(open(fn, 'rb'))
 
 if __name__=="__main__":

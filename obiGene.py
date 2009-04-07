@@ -42,42 +42,53 @@ class GeneInfo(object):
 class NCBIGeneInfo(dict):
     
     _object_cache = {}    
-    def __init__(self, *args, **kwargs):
+    def __init__(self, organism, genematcher=None, **kwargs):
         """ An dictionary like object for accessing NCBI gene info
         Arguments::
-                - *organsim*    Organism id
+                - *organism*    Organism id
 
         Example::
             >>> info = NCBIGeneInfo("Homo sapiens")
         """
+        
+        self.taxid = self.organism_name_search(organism)
+        fname = orngServerFiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)
+        file = open(fname, "rb")
+        self.update(dict((line.split("\t", 3)[1], line) for line in file.read().split("\n") if line.strip() and not line.startswith("#")))
 
-        if args and isinstance(args[0], basestring):
-            org = args[0]
-            taxids = obiTaxonomy.to_taxid(org, mapTo=[obiTaxonomy.common_taxids()])
-            if not taxids:
-                taxids = set(obiTaxonomy.common_taxids()).intersection(obiTaxonomy.search(org))
-            if len(taxids) == 0:
-                raise obiTaxonomy.UnknownSpeciesIdentifier, org
-            elif len(taxids) > 1:
-                raise obiTaxonomy.MultipleSpeciesException, ", ".join(["%s: %s" % (id, obiTaxonomy.name(id)) for id in taxids])
-            
-            self.taxid = taxids.pop()
-            if not os.path.exists(orngServerFiles.localpath("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)):
-                orngServerFiles.download("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)
-            file = open(orngServerFiles.localpath("NCBI_geneinfo", "gene_info.%s.db" % self.taxid), "rb")
-            self.update(dict((line.split("\t", 3)[1], line) for line in file.read().split("\n") if line.strip() and not line.startswith("#")))
-
-        else:
-            dict.__init__(self, *args, **kwargs)
-            
         # following is a temporary fix before gene name matcher is complete (then, this code is to be replaced)
-        # dictionary from aliases to target name (target names are real ids)
+        # translate is a dictionary from aliases to target name (target names are real ids)
         self.translate = dict([(self[k].symbol, k) for k in self.keys()])
         for k in self.keys():
             self.translate.update([(s, k) for s in self[k].synonyms if s not in self.translate] + \
                                   ([(self[k].locus_tag, k)] if self[k].locus_tag else [] ))
 
+        """
+        self.matcher = genematcher
+        if self.matcher == None:
+            self.matcher = matcher([GMNCBI(self.taxid)])
+
         #if this is done with a gene matcher, pool target names
+        self.matcher.set_targets(self.keys())
+        """
+
+
+    @classmethod
+    def organism_version(cls, name):
+        oname = cls.organism_name_search(name)
+        orngServerFiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % oname) #FIXME, dirty hack
+        return orngServerFiles.info("NCBI_geneinfo", "gene_info.%s.db" % oname)["datetime"]
+
+    @classmethod
+    def organism_name_search(cls, org):
+        taxids = obiTaxonomy.to_taxid(org, mapTo=[obiTaxonomy.common_taxids()])
+        if not taxids:
+            taxids = set(obiTaxonomy.common_taxids()).intersection(obiTaxonomy.search(org))
+        if len(taxids) == 0:
+            raise obiTaxonomy.UnknownSpeciesIdentifier, org
+        elif len(taxids) > 1:
+            raise obiTaxonomy.MultipleSpeciesException, ", ".join(["%s: %s" % (id, obiTaxonomy.name(id)) for id in taxids])
+        return taxids.pop()
 
     @classmethod    
     def load(cls, file):
@@ -433,7 +444,6 @@ class MatcherAliasesPickled(MatcherAliases):
 class MatcherAliasesKEGG(MatcherAliasesPickled):
 
     def _organism_name(self, organism):
-        """ Returns internal KEGG organism name. Used to define file name. """
         import obiKEGG 
         return obiKEGG.organism_name_search(organism)
 
@@ -507,24 +517,23 @@ class MatcherAliasesDictyBase(MatcherAliasesPickled):
 class MatcherAliasesNCBI(MatcherAliasesPickled):
 
     def _organism_name(self, organism):
-        """ Returns internal GO organism name. Used to define file name. """
-        import obiGO
-        return obiGO.organism_name_search(self.organism)
+        return NCBIGeneInfo.organism_name_search(organism)
 
     def create_aliases(self):
-        import obiGO
-        annotations = obiGO.Annotations.Load(self.organism)
-        names = annotations.geneNamesDict
-        return map(set, list(set([ \
-            tuple(sorted(set([name]) | set(genes))) \
-            for name,genes in names.items() ])))
+        ncbi = NCBIGeneInfo(self.organism)
+        out = []
+        for k in ncbi.keys():
+            print k
+            out.append(set(filter(None, [k, ncbi[k].symbol, ncbi[k].locus_tag] + [ s for s in ncbi[k].synonyms ] )))
+        print out[:10]
+        return out
 
     def filename(self):
-        return "go_" + self._organism_name(self.organism)
+        return "ncbi_" + self._organism_name(self.organism)
 
     def create_aliases_version(self):
-        return "v2." + orngServerFiles.info("GO", "gene_association.%s.tar.gz" \
-            % self._organism_name(self.organism))["datetime"]
+        import random
+        return "v2." + NCBIGeneInfo.organism_version(self.organism) + str(random.random())
 
     def __init__(self, organism, ignore_case=True):
         self.organism = organism
@@ -662,55 +671,25 @@ if __name__ == '__main__':
     def namesd():
         import orange
         data = orange.ExampleTable("dd_ge_biorep1.tab")
-        print data.domain
-        kfdksf
-        #return [ a.name for a in  data.domain.attributes ]
-
+        names = [ ex["gene"].value for ex in data ]
+        return names
 
     genesets = auto_pickle("testcol", "3", testsets)
     names = auto_pickle("testnames", "4", names1)
     names = auto_pickle("testnamesdicty", "4", namesd)
 
-    print "loading time needs to be decreased to minimum"
-    t = time.time()
-    mat = MatcherAliasesKEGG("human")
-    print "kegg", time.time() - t
-    t = time.time()
-    mat2 = MatcherAliasesGO("human")
-    print "go", time.time() - t
-    t = time.time()
-    mat3 = MatcherAliasesPickledJoined([mat,mat2])
-    print "join", time.time() - t
-    t = time.time()
-    mat4 = matcher([GMKEGG('human'),GMGO('human')], direct=False)
-    print "seq", time.time() - t
-
-    t = time.time()
     mat5 = matcher([[GMKEGG('human'),GMGO('human')]], direct=False, ignore_case=True)
-    print "vzp", time.time() - t
-
     import obiGeneMatch as ogm
-
     mat6 = ogm.MatcherSequence([ogm.MatchKEGG([], 'hsa', caseSensitive=False)])
-    
-    mat7 = matcher([GMDirect(ignore_case=True), GMKEGG('human', ignore_case=True)], direct=False)
-    mat7 = matcher([GMKEGG('human', ignore_case=True)], direct=True)
-
-    mat8 = MatcherDictyBase()
+    mat7 = GMDicty()
+    mat8 = GMNCBI('Homo sapiens')
 
     print "using targets"
 
-    mat.set_targets(names)
-    mat2.set_targets(names)
-    mat3.set_targets(names)
-    mat4.set_targets(names)
     mat5.set_targets(names)
     mat6.targets(names)
     mat7.set_targets(names)
     mat8.set_targets(names)
-
-    fdsklfsd
-
 
 ##    import mMisc as m
 
@@ -719,35 +698,12 @@ if __name__ == '__main__':
     print "before genes"
     genes = reduce(set.union, genesets.values()[:1000], set())
     genes = list(genes)
-    #genes = [ g.lower() for g in genes ]
     print genes[:20]
     print len(genes)
     print "after genes"
 
-    oldnone = 0
-    newnone = 0
-
     for g in sorted(genes):
-        print "KEGG", g, mat.match(g)
-        print "GO  ", g, mat2.match(g)
-        print "JOIN", g, mat3.match(g)
-        print "SEQ ", g, mat4.match(g)
+        print "KGO ", g, mat5.match(g)
+        print "KEGG", g, mat6.match(g)
+        print "DICT", g, mat7.match(g)
 
-        continue
-        old = mat6.matchOne(g)
-        new = mat5.match(g)
-  
-        """
-        if new or old:
-           print "old", old, "new", new
-        """
-
-        if old and not new or not old and new:
-            if not old:
-                oldnone += 1
-            if not new:
-                newnone += 1
-            print "VZP ", g, mat5.match(g)
-            print "OLD ", g, mat6.matchOne(g)
-
-    print "OLDNONE", oldnone, "NEWNONE", newnone
