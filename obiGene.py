@@ -2,6 +2,8 @@ import os
 import obiTaxonomy
 import orngServerFiles
 
+import time
+
 default_database_path = orngServerFiles.localpath("NCBI_geneinfo")
 
 class GeneInfo(object):
@@ -42,7 +44,7 @@ class GeneInfo(object):
 class NCBIGeneInfo(dict):
     
     _object_cache = {}    
-    def __init__(self, organism, genematcher=None, **kwargs):
+    def __init__(self, organism, genematcher=None):
         """ An dictionary like object for accessing NCBI gene info
         Arguments::
                 - *organism*    Organism id
@@ -57,26 +59,32 @@ class NCBIGeneInfo(dict):
         self.update(dict((line.split("\t", 3)[1], line) for line in file.read().split("\n") if line.strip() and not line.startswith("#")))
 
         # following is a temporary fix before gene name matcher is complete (then, this code is to be replaced)
-        # translate is a dictionary from aliases to target name (target names are real ids)
+        # translate is a dictionary from aliases to target name (target names are real ids)a
+
+        """
         self.translate = dict([(self[k].symbol, k) for k in self.keys()])
         for k in self.keys():
             self.translate.update([(s, k) for s in self[k].synonyms if s not in self.translate] + \
                                   ([(self[k].locus_tag, k)] if self[k].locus_tag else [] ))
 
         """
+
+        # NOTE orig init time for gene matcher: 2.5s, new 4s: investigate the slowdown
+        # NOTE matches are not the same because aliases are build a bit
+        # differently (main name versus old aliases conflict!)
+
         self.matcher = genematcher
         if self.matcher == None:
             self.matcher = matcher([GMNCBI(self.taxid)])
 
         #if this is done with a gene matcher, pool target names
         self.matcher.set_targets(self.keys())
-        """
-
 
     @classmethod
     def organism_version(cls, name):
         oname = cls.organism_name_search(name)
-        orngServerFiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % oname) #FIXME, dirty hack
+        #FIXME, dirty hack to ensure file id downloaded
+        orngServerFiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % oname) 
         return orngServerFiles.info("NCBI_geneinfo", "gene_info.%s.db" % oname)["datetime"]
 
     @classmethod
@@ -109,7 +117,8 @@ class NCBIGeneInfo(dict):
     def __call__(self, name):
         """ Search and return the GeneInfo object for gene_id
         """
-        id = self.translate.get(name, name)
+        #id = self.translate.get(name, name)
+        id = self.matcher.umatch(name)
         return self[id]
 
     def __getitem__(self, key):
@@ -520,20 +529,17 @@ class MatcherAliasesNCBI(MatcherAliasesPickled):
         return NCBIGeneInfo.organism_name_search(organism)
 
     def create_aliases(self):
-        ncbi = NCBIGeneInfo(self.organism)
+        ncbi = NCBIGeneInfo(self.organism, genematcher=GMDirect())
         out = []
         for k in ncbi.keys():
-            print k
             out.append(set(filter(None, [k, ncbi[k].symbol, ncbi[k].locus_tag] + [ s for s in ncbi[k].synonyms ] )))
-        print out[:10]
         return out
 
     def filename(self):
         return "ncbi_" + self._organism_name(self.organism)
 
     def create_aliases_version(self):
-        import random
-        return "v2." + NCBIGeneInfo.organism_version(self.organism) + str(random.random())
+        return "v2." + NCBIGeneInfo.organism_version(self.organism)
 
     def __init__(self, organism, ignore_case=True):
         self.organism = organism
@@ -576,7 +582,6 @@ class MatcherAliasesPickledJoined(MatcherAliasesPickled):
         """
         #FIXME: sorting of matchers to avoid multipying pickled files for
         #different orderings.
-        print "Joined matcher"
         self.matchers = matchers
         MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
         
@@ -649,8 +654,9 @@ def matcher(matchers, direct=True, ignore_case=True):
     return MatcherSequence(seqmat)
 
 if __name__ == '__main__':
-    """
     info = NCBIGeneInfo("9606")
+
+    """
     gi = info(list(info)[0])
     print gi.tax_id, gi.synonyms, gi.dbXrefs, gi.symbol_from_nomenclature_authority, gi.full_name_from_nomenclature_authority
     """
@@ -676,13 +682,16 @@ if __name__ == '__main__':
 
     genesets = auto_pickle("testcol", "3", testsets)
     names = auto_pickle("testnames", "4", names1)
-    names = auto_pickle("testnamesdicty", "4", namesd)
+    #names = auto_pickle("testnamesdicty", "4", namesd)
 
+    for a in names:
+        prin
     mat5 = matcher([[GMKEGG('human'),GMGO('human')]], direct=False, ignore_case=True)
-    import obiGeneMatch as ogm
-    mat6 = ogm.MatcherSequence([ogm.MatchKEGG([], 'hsa', caseSensitive=False)])
     mat7 = GMDicty()
     mat8 = GMNCBI('Homo sapiens')
+    print "initialized all", time.time()-t
+    import obiGeneMatch as ogm
+    mat6 = ogm.MatcherSequence([ogm.MatchKEGG([], 'hsa', caseSensitive=False)])
 
     print "using targets"
 
@@ -706,4 +715,6 @@ if __name__ == '__main__':
         print "KGO ", g, mat5.match(g)
         print "KEGG", g, mat6.match(g)
         print "DICT", g, mat7.match(g)
+        print "NCBI", g, mat8.match(g)
+
 
