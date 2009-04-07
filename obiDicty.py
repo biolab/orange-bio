@@ -1257,8 +1257,88 @@ class BufferSQLite(object):
             print time.time() - t
         return rc
 
+
+
+import urllib2
+import orngServerFiles
+import pickle
+
+def download_url(url, repeat=2):
+    def do():
+        return urllib2.urlopen(url)
+
+    if repeat <= 0:
+        do()
+    else:
+        try:
+            return do()
+        except:
+            return download_url(url, repeat=repeat-1)
+
+def empty_none(s):
+    if s:
+        return s
+    else:
+        return None
+
+class DictyBase(object):
+
+    domain = "dictybase"
+    filename = "information_mappings.pck"
+    tags = [ "Dictyostelium discoideum", "gene", "essential", "dictyBase" ] 
+ 
+    @classmethod
+    def version(cls):
+        orngServerFiles.info(cls.domain, cls.filename)["datetime"]
+    
+    @classmethod
+    def download_information(cls):
+        """ 
+        Downloads gene information and parses it. 
+        Returns a dictionary {ID: (name, synonyms, products)}
+        """
+        s = download_url("http://www.dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=general&ID=gene_information.txt").read()
+        out = []
+        for l in txt2ll(s, separ='\t', lineSepar='\n')[1:]:
+            if len(l) == 4:
+                id = l[0]
+                name = l[1]
+                synonyms = filter(None, l[2].split(", "))
+                products = l[3]
+                out.append((id, name, synonyms, products))
+        return dict((a,(b,c,d)) for a,b,c,d in out)
+
+    @classmethod
+    def download_mappings(cls):
+        """ 
+        Downloads DDB-GeneID-UniProt mappings and parses them. 
+        Returns a list of (ddb, ddb_g, uniprot) triplets.
+        
+        2009/04/07: ddb's appear unique
+        """
+        s = download_url("http://www.dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=general&ID=DDB-GeneID-UniProt.txt").read()
+        out = []
+        for l in txt2ll(s, separ='\t', lineSepar='\n')[1:]:
+            if len(l) == 3:
+                ddb = empty_none(l[0])
+                ddb_g = empty_none(l[1])
+                uniprot = empty_none(l[2])
+                out.append((ddb, ddb_g, uniprot))
+        return out
+
+    @classmethod
+    def pickle_data(cls):
+        info = cls.download_information()
+        mappings = cls.download_mappings()
+        return pickle.dumps((info,mappings), -1)
+
+    def __init__(self):
+        pass   
+
 if __name__=="__main__":
     verbose = 1
+
+    """
     #dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?", buffer=BufferSQLite("../tmpbuf1233"))
     dbc = DatabaseConnection("http://purple.bioch.bcm.tmc.edu/~anup/index.php?", buffer=BufferSQLite("../tmpbufnew"))
 
@@ -1275,4 +1355,4 @@ if __name__=="__main__":
     for i,et in enumerate(ets):
         et.save("%s/T%d.tab" % ("multid2", i))
         print et.annot
-
+    """

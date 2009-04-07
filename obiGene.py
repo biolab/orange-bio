@@ -547,6 +547,20 @@ class MatcherSequence(Matcher):
         for matcher in self.matchers:
             matcher.set_targets(targets)
 
+class MatcherDictyBase(MatcherAliasesPickled):
+
+    def create_aliases(self):
+        return open_dictybase_aliases()
+
+    def create_aliases_version(self):
+        return "v2." + obiDicty.DictyBase.version()
+
+    def filename(self):
+        return "dictybase" 
+
+    def __init__(self, ignore_case=True):
+        MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
+
 class MatcherDirect(Matcher):
     """
     Direct matching to targets.
@@ -623,7 +637,6 @@ if __name__ == '__main__':
     t = time.time()
     mat3 = MatcherAliasesPickledJoined([mat,mat2])
     print "join", time.time() - t
-
     t = time.time()
     mat4 = matcher([GMKEGG('human'),GMGO('human')], direct=False)
     print "seq", time.time() - t
@@ -641,15 +654,13 @@ if __name__ == '__main__':
 
     print "using targets"
 
-    """
     mat.set_targets(names)
     mat2.set_targets(names)
     mat3.set_targets(names)
     mat4.set_targets(names)
-    """
     mat5.set_targets(names)
     mat6.targets(names)
-    #mat7.set_targets(names)
+    mat7.set_targets(names)
 
 ##    import mMisc as m
 
@@ -667,12 +678,12 @@ if __name__ == '__main__':
     newnone = 0
 
     for g in sorted(genes):
-        """
         print "KEGG", g, mat.match(g)
         print "GO  ", g, mat2.match(g)
         print "JOIN", g, mat3.match(g)
         print "SEQ ", g, mat4.match(g)
-        """
+
+        continue
         old = mat6.matchOne(g)
         new = mat5.match(g)
   
