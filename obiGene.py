@@ -170,8 +170,6 @@ def create_mapping(groups, lower=False):
     - lower() costs are neglible (< 10%)
     - building sets instead of lists also costs about 10 percent
     """
-    import time
-    t = time.time()
     togroup = defaultdict(set)
 
     # code duplicated because running a function in relatively expensive here.
@@ -184,7 +182,6 @@ def create_mapping(groups, lower=False):
             for alias in group:
                 togroup[alias].add(i)
 
-    print "create mapping", time.time() - t
     return togroup
 
 def join_sets(set1, set2, lower=False):
@@ -384,7 +381,7 @@ class MatcherAliasesPickled(MatcherAliases):
     def get_aliases(self):
         if not self.saved_aliases: #loads aliases if not loaded
             self.aliases = self.load_aliases()
-        print "size of aliases ", len(self.saved_aliases)
+        #print "size of aliases ", len(self.saved_aliases)
         return self.saved_aliases
 
     aliases = property(get_aliases, set_aliases)
@@ -550,10 +547,17 @@ class MatcherSequence(Matcher):
 class MatcherDictyBase(MatcherAliasesPickled):
 
     def create_aliases(self):
-        return open_dictybase_aliases()
+        import obiDicty
+        db = obiDicty.DictyBase()
+        #db.info, db.mappings
+        infoa = [ set([id,name]) | set(aliases) for id,(name,aliases,_) in db.info.items() ]
+        mappingsa = [ set(filter(None, a)) for a in db.mappings ]
+        joineda = join_sets(infoa, mappingsa, lower=True)
+        return joineda
 
     def create_aliases_version(self):
-        return "v2." + obiDicty.DictyBase.version()
+        import obiDicty
+        return "v1." + obiDicty.DictyBase.version()
 
     def filename(self):
         return "dictybase" 
@@ -652,6 +656,8 @@ if __name__ == '__main__':
     mat7 = matcher([GMDirect(ignore_case=True), GMKEGG('human', ignore_case=True)], direct=False)
     mat7 = matcher([GMKEGG('human', ignore_case=True)], direct=True)
 
+    mat8 = MatcherDictyBase()
+
     print "using targets"
 
     mat.set_targets(names)
@@ -661,6 +667,10 @@ if __name__ == '__main__':
     mat5.set_targets(names)
     mat6.targets(names)
     mat7.set_targets(names)
+    mat8.set_targets(names)
+
+    fdsklfsd
+
 
 ##    import mMisc as m
 

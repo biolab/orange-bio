@@ -1289,7 +1289,7 @@ class DictyBase(object):
  
     @classmethod
     def version(cls):
-        orngServerFiles.info(cls.domain, cls.filename)["datetime"]
+        return orngServerFiles.info(cls.domain, cls.filename)["datetime"]
     
     @classmethod
     def download_information(cls):
@@ -1333,10 +1333,17 @@ class DictyBase(object):
         return pickle.dumps((info,mappings), -1)
 
     def __init__(self):
-        pass   
+        #FIXME - orngServerFiles needs a function which gets you
+        #a filehandle of the needed file and downloads it if
+        #it is needed
+        fn = orngServerFiles.localpath(self.domain, self.filename)
+        self.info, self.mappings = pickle.load(open(fn, 'rb'))
 
 if __name__=="__main__":
     verbose = 1
+
+    a = DictyBase()
+    print len(a.info)
 
     """
     #dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?", buffer=BufferSQLite("../tmpbuf1233"))
