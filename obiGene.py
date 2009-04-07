@@ -75,7 +75,10 @@ class NCBIGeneInfo(dict):
 
         self.matcher = genematcher
         if self.matcher == None:
-            self.matcher = matcher([GMNCBI(self.taxid)])
+            if self.taxid == '44689':
+                self.matcher = matcher([[GMNCBI(self.taxid), GMDicty()]])
+            else:
+                self.matcher = matcher([GMNCBI(self.taxid)])
 
         #if this is done with a gene matcher, pool target names
         self.matcher.set_targets(self.keys())
@@ -118,6 +121,7 @@ class NCBIGeneInfo(dict):
         """ Search and return the GeneInfo object for gene_id
         """
         #id = self.translate.get(name, name)
+        print self.matcher.umatch(name), self.matcher.match(name)
         id = self.matcher.umatch(name)
         return self[id]
 
@@ -654,7 +658,12 @@ def matcher(matchers, direct=True, ignore_case=True):
     return MatcherSequence(seqmat)
 
 if __name__ == '__main__':
-    info = NCBIGeneInfo("9606")
+
+    m1 = matcher([[GMNCBI('44689'), GMDicty()]])
+    print m1.matchers[1].aliases[:100]
+
+    m2 = GMNCBI('44689')
+    print m2.aliases
 
     """
     gi = info(list(info)[0])
@@ -682,10 +691,16 @@ if __name__ == '__main__':
 
     genesets = auto_pickle("testcol", "3", testsets)
     names = auto_pickle("testnames", "4", names1)
-    #names = auto_pickle("testnamesdicty", "4", namesd)
+    names2 = auto_pickle("testnamesdicty", "4", namesd)
 
-    for a in names:
-        prin
+    info = NCBIGeneInfo('44689')
+    for a in names2:
+        print a
+        info.get_info(a)
+
+    fdsfsd()
+
+    t = time.time()
     mat5 = matcher([[GMKEGG('human'),GMGO('human')]], direct=False, ignore_case=True)
     mat7 = GMDicty()
     mat8 = GMNCBI('Homo sapiens')
