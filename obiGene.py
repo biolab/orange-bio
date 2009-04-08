@@ -161,15 +161,18 @@ class NCBIGeneInfo(dict):
         pass
 
     @staticmethod
-    def get_geneinfo_from_ncbi(progressCallback=None):
-        import urllib2, gzip
+    def get_geneinfo_from_ncbi(file, progressCallback=None):
+        import urllib2, gzip, shutil, tempfile
         from cStringIO import StringIO
-        data = StringIO(urllib2.urlopen("ftp://ftp.ncbi.nih.gov/gene/DATA/gene_info.gz").read())
-        info = NCBIGeneInfo.load(gzip.GzipFile(None, "rb", fileobj=data))
-        return info
+        if type(file) in [str, unicode]:
+            file = open(file, "wb")
         
-
- 
+        stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/gene/DATA/gene_info.gz")
+        tmpfile = tempfile.TemporaryFile()
+        shutil.copyfileobj(stream, tmpfile)
+        tmpfile.seek(0)
+        stream = gzip.GzipFile(None, "rb", fileobj=tmpfile)
+        shutil.copyfileobj(stream, file)
 
 """
 Gene matcher.
