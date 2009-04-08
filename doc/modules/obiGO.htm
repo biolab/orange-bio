@@ -47,6 +47,14 @@
     <dd>Return a list of slim terms for termId.</dd>
 	<dt>DownloadOntology(file, progressCallback=None)</dt>
 	<dd>A static method that downloads the ontology from the GO website and saves it in <code>file</code>.</dd>
+	<dt>__getitem__(termId)</dt>
+	<dd>return a Term object with <code>termID</code> as id or alt_id</dd>
+	<dt>__len__()</dt>
+	<dd>return the number of terms in the ontology</dd>
+	<dt>__iter__()</dt>
+	<dd>iterator over all term ids</dd>
+	<dt>__contains__(id)</dt>
+	<dd>check if a term with <code>id</code> is in the ontology (also checks alt_ids)</dd>
 </dl>
 
 <h2>Term</h2>
@@ -101,6 +109,14 @@
 	<dd>Return all terms that are annotated by genes with evidenceCodes.</dd>
 	<dt>DownloadAnnotations(org, file, progressCallback=None)</dt>
 	<dd>A static method that downloads the annotation file for organism <code>org</code> to <code>file</code></dd>
+	<dt>__contains__(annotation)</dt>
+	<dd>check in annotations is in this Annotations object</dd>
+	<dt>__iter__</dt>
+	<dd>iterate over all annotations in this object</dd>
+	<dt>__len__()</dt>
+	<dd>retrun the number of annotations in this object</dd>
+	<dt></dt>
+	<dd></dd>
 </dl>
 
 <h2>Examples</h2>
@@ -117,14 +133,14 @@ annotations.GetEnrichedTerms(["YGR270W", "YIL075C", "YDL007W"])
 gene = annotations.aliasMapper["YIL075C"]
 print gene, "(YIL075C) directly annotated to the folowing terms:"
 for a in annotations.geneAnnotations[gene]:
-    print ontology.terms[a.GO_ID].name, "with evidence code", a.Evidence_code
+    print ontology[a.GO_ID].name, "with evidence code", a.Evidence_code
     
 # Get all genes annotated to the same terms as YIL075C
 ids = set([a.GO_ID for a in annotations.geneAnnotations[gene]])
 for GOID in ids:
 	ants = annotations.GetAllAnnotations(GOID)
 	genes = set([a.geneName for a in ants])
-	print ", ".join(genes), "annotated to", GOID, ontology.terms[a.GO_ID].name
+	print ", ".join(genes), "annotated to", GOID, ontology[a.GO_ID].name
 </xmp>
 
 <p>Term enrichment (part of <a href="obiGO-enrichment.py">obiGO-enrichment.py</a>)</p>
@@ -132,7 +148,7 @@ for GOID in ids:
 print "Enriched terms:"
 for GOId, (genes, p_value, ref) in res.items():
     if p_value < 0.05:
-        print ontology.terms[GOId].name, "with p-value: %.4f" %p_value, ", ".join(genes)
+        print ontology[GOId].name, "with p-value: %.4f" %p_value, ", ".join(genes)
 
 # And again for slims
 ontology.SetSlimsSubset("goslim_yeast")
@@ -141,7 +157,7 @@ res = annotations.GetEnrichedTerms(["YGR270W", "YIL075C", "YDL007W"], slimsOnly=
 print "Enriched slim terms:"
 for GOId, (genes, p_value, _) in res.items():
     if p_value < 0.05:
-        print ontology.terms[GOId].name, "with p-value: %.4f" %p_value, ", ".join(genes)
+        print ontology[GOId].name, "with p-value: %.4f" %p_value, ", ".join(genes)
 </xmp>
 
 <p>Mapping to slim terms (part of <a href="obiGO-slim-mapping.py">obiGO-slim-mapping.py</a>)</p></p>
@@ -154,5 +170,5 @@ for term in terms:
 
 print "Genes: YGR270W, YIL075C and YDL007W map to the folowing slims terms:"
 for term in slims:
-    print term, ontology.terms[term].name
+    print term, ontology[term].name
 </xmp>
