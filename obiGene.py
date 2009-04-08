@@ -54,6 +54,8 @@ class NCBIGeneInfo(dict):
         """
         
         self.taxid = self.organism_name_search(organism)
+
+
         fname = orngServerFiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)
         file = open(fname, "rb")
         self.update(dict((line.split("\t", 3)[1], line) for line in file.read().split("\n") if line.strip() and not line.startswith("#")))
@@ -75,7 +77,7 @@ class NCBIGeneInfo(dict):
 
         self.matcher = genematcher
         if self.matcher == None:
-            if self.taxid == '44689':
+            if self.taxid == '352472':
                 self.matcher = matcher([[GMNCBI(self.taxid), GMDicty()]])
             else:
                 self.matcher = matcher([GMNCBI(self.taxid)])
@@ -94,7 +96,7 @@ class NCBIGeneInfo(dict):
     def organism_name_search(cls, org):
         taxids = obiTaxonomy.to_taxid(org, mapTo=[obiTaxonomy.common_taxids()])
         if not taxids:
-            taxids = set(obiTaxonomy.common_taxids()).intersection(obiTaxonomy.search(org))
+            taxids = set(obiTaxonomy.common_taxids()).intersection(obiTaxonomy.search(org, onlySpecies=False)) #onlySpecies=False needed to find correct dicty
         if len(taxids) == 0:
             raise obiTaxonomy.UnknownSpeciesIdentifier, org
         elif len(taxids) > 1:
@@ -659,11 +661,13 @@ def matcher(matchers, direct=True, ignore_case=True):
 
 if __name__ == '__main__':
 
-    m1 = matcher([[GMNCBI('44689'), GMDicty()]])
-    print m1.matchers[1].aliases[:100]
+    #m1 = matcher([[GMNCBI('44689'), GMDicty()]])
+    #print m1.matchers[1].aliases[:100]
 
-    m2 = GMNCBI('44689')
-    print m2.aliases
+    #m2 = GMNCBI('Dictyostelium discoideum')
+    #print m2.aliases
+
+
 
     """
     gi = info(list(info)[0])
@@ -693,7 +697,7 @@ if __name__ == '__main__':
     names = auto_pickle("testnames", "4", names1)
     names2 = auto_pickle("testnamesdicty", "4", namesd)
 
-    info = NCBIGeneInfo('44689')
+    info = NCBIGeneInfo('Dictyostelium discoideum')
     for a in names2:
         print a
         info.get_info(a)

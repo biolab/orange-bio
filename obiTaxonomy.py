@@ -19,7 +19,7 @@ def common_taxids():
             "6239",  # Caenorhabditis elegans
             "3055",  # Chlamydomonas reinhardtii
             "7955",  # Danio rerio (zebrafish)
-            "44689", # Dictyostelium discoideum
+            "352472", # Dictyostelium discoideum
             "7227",  # Drosophila melanogaster
             "562",   # Escherichia coli
             "11103", # Hepatitis C virus
@@ -39,7 +39,7 @@ def common_taxids():
 
 def essential_taxids():
     """Return taxonomy IDs for organisms that are included in (default) Orange Bioinformatics installation."""
-    return ["44689", # Dictyostelium discoideum
+    return ["352472", # Dictyostelium discoideum
             "7227",  # Drosophila melanogaster
             "9606",  # Homo sapiens
             "10090", # Mus musculus
