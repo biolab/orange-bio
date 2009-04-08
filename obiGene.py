@@ -123,7 +123,7 @@ class NCBIGeneInfo(dict):
         """ Search and return the GeneInfo object for gene_id
         """
         #id = self.translate.get(name, name)
-        print self.matcher.umatch(name), self.matcher.match(name)
+        #print self.matcher.umatch(name), self.matcher.match(name)
         id = self.matcher.umatch(name)
         return self[id]
 
