@@ -358,9 +358,11 @@ class OWHeatMap(OWWidget):
         mapping = []
         progressCallback = lambda value, caller=None: self.progressBarSet(value)
         if data.domain.classVar and data.domain.classVar.values:
-            for val in data.domain.classVar.values:
-                tmpData = [ex for ex in data if ex.getclass()==val]
-                root = orngClustering.hierarchicalClustering(orange.ExampleTable(tmpData), progressCallback=progressCallback, order=self.SortGenes==3)
+            valuesCount = len(data.domain.classVar.values)
+            for i, val in enumerate(data.domain.classVar.values):
+                self.progressBarSet(100.0*i/valuesCount)
+                tmpData = orange.ExampleTable([ex for ex in data if ex.getclass()==val])
+                root = orngClustering.hierarchicalClustering(tmpData, progressCallback=lambda value: progressCallback((100.0*i + value)/valuesCount), order=self.SortGenes==3)
                 orderedData.extend([tmpData[i] for i in root.mapping])
                 mapping.extend([i+len(mapping) for i in root.mapping])
                 clusterRoots.append(root)
@@ -386,8 +388,10 @@ class OWHeatMap(OWWidget):
             if self.SortGenes:
                 if self.SortGenes > 1: ## cluster sort
                     refData, self.groupClusters , self.mapping = self.orderClustering(self.unorderedData[self.refFile])
+                    sortedData = sortData(self.data[self.refFile], self.mapping)
                     self.heatmapconstructor[self.refFile] = \
-                        orangene.HeatmapConstructor(sortData(self.data[self.refFile], self.mapping), None)
+                        orangene.HeatmapConstructor(sortedData, None)
+                    self.heatmapconstructor[self.refFile].setattr("_sortedData", sortedData)
                 else:
                     self.heatmapconstructor[self.refFile] = \
                         orangene.HeatmapConstructor(self.data[self.refFile])
