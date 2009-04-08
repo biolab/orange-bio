@@ -28,7 +28,7 @@
 <p class=section>Methods</p>
 <dl class=attributes>
 	<dt>__init__(file=None, progressCallback=None)</dt>
-	<dd>Initialize the ontology from <code>file</code>. The optional <code>progressCallback</code> will be called with a single argument to report on the progress.</dd>
+	<dd>Initialize the ontology from <code>file</code> (if not given try and load ontology from default_database_path). The optional <code>progressCallback</code> will be called with a single argument to report on the progress.</dd>
 	<dt>Load(progressCallback=None)</dt>
 	<dd>A class method that tries to load the ontology file from default_database_path. It looks for a filename starting with 'gene_ontology'. The optional <code>progressCallback</code> will be called with a single argument to report on the progress.</dd>
 	<dt>ParseFile(file, progressCallback=None)</dt>
@@ -94,9 +94,9 @@
 <p class=section>Methods</p>
 <dl class=attributes>
 	<dt> __init__(file=None, ontology=None, progressCallback=None)</dt>
-	<dd>Initialize the annotations from <code>file</code> by calling <code>ParseFile</code> on it. The <code>ontology</code> argument if present must be an instance of Ontology class. The optional <code>progressCallback</code> will be called with a single argument to report on the progress.</dd>
+	<dd>Initialize the annotations from <code>file</code> by calling <code>ParseFile</code> on it. If file does not exist asume it is the name of the organism to be loaded from default_database_path. The <code>ontology</code> argument if present must be an instance of Ontology class. The optional <code>progressCallback</code> will be called with a single argument to report on the progress.</dd>
 	<dt>Load(org, ontology=None, progressCallback=None)</dt>
-	<dd>A class method that tries to load the association file for the given organism from default_database_path. It looks for a file name that starts with gene_association and contains the string <code>org</code></dd>
+	<dd>A class method that tries to load the association file for the given organism from default_database_path. It trys to match the <code>org</code> with GO organism codes and if it fails, searches for org in NCBI Taxonomy using obiTaxonomy module.</dd>
 	<dt>ParseFile(self, file, progressCallback=None)</dt>
 	<dd>Parse the <code>file</code>. <code>file</code> can be a file name string or an open filelike object. The optional <code>progressCallback</code> will be called with a single argument to report on the progress.</dd>
 	<dt>GetAllAnnotations(term)</dt>
