@@ -899,7 +899,7 @@ class HeatMapGraphicsScene(QGraphicsScene):
             if self.master.BShowColumnID:
                 head += "\n"+ex[0].domain.attributes[col].name
             # bubble, construct body
-            body = None
+            body = ""
             if (self.master.BShowSpotIndex and self.master.BSpotVar) or \
                     self.master.BShowAnnotation or self.master.BShowGeneExpression:
                 for (i, e) in enumerate(ex):
@@ -916,7 +916,7 @@ class HeatMapGraphicsScene(QGraphicsScene):
                             s.append(str(e[self.master.BAnnotationVar]))
                     if body: body += "\n"
                     else: body=""
-                    body += reduce(lambda x,y: x + ' | ' + y, s)
+                    body += reduce(lambda x,y: x + ' | ' + y, s, "")
 
             QToolTip.showText(QPoint(event.screenPos().x(), event.screenPos().y()), "")
             QToolTip.showText(QPoint(event.screenPos().x(), event.screenPos().y()), head + body)
