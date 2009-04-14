@@ -673,8 +673,9 @@ chips chips""")
         """
         Groups annotations by joining annotation options in 'join' to
         the same group while keeping annotations with different values
-        of options in 'separate' apart. If separate is None, use 
-        all annotation types not in join as separate.
+        of options in 'separate' apart. If join is None, set join to all 
+        annotation types. If separate is None, use all annotation types not 
+        in join as separate.
 
         Returns list of tuples. Each tuple describes a group and contains:
             1. [ (name, chipid) ] - a list of tuples containing group element 
@@ -690,6 +691,9 @@ chips chips""")
 
         ignore=['.*']
 
+        if join == None:
+            join = self.saoids.keys()
+    
         #If separate is None, use all annotation types not in join as separate.
         if separate == None:
             separate = sorted(set(self.saoids.keys())-set(join))
@@ -711,6 +715,7 @@ chips chips""")
         #all possible annotations
         annots = self.allAnnotationVals(annotationsIn.values())
 
+        #separate are not ignored. others are ignored!
         ignoreNot = separate + join
 
         def isIgnored(a):
@@ -734,8 +739,7 @@ chips chips""")
         #print "DIFF ANNOTS", diffannots
 
         """
-        Need to group
-        those which have everything the same except of join while
+        Group those which have everything the same except of join while
         ignoring annotation which match meaningless + ignore.
         """
     
@@ -898,7 +902,7 @@ chips chips""")
 
         return exampleTables
 
-    def exampleTables(self, chipsm, groups, spotmap={}, annotations=None, callback=None):
+    def exampleTables(self, chipsm, groups, spotmap={}, annotations=None, callback=None, chipidname=False, annots={}, newannotations=False):
         """
         Create example tables from chip readings, spot mappings and 
         group specifications.
@@ -955,10 +959,12 @@ chips chips""")
 
             groupnames = []
             groupvals = []
+            groupannots = []
 
             pairs = group[0]
 
             annotc = None
+
             if len(group) > 1:
                 annotc = group[1]
 
@@ -976,13 +982,20 @@ chips chips""")
                     putinds.append(putind)
                     vals[putind] = v
 
-                groupnames.append(name)
+                if chipidname:
+                    groupnames.append(chipid) 
+                else:
+                    groupnames.append(name)
+
+                if annots:
+                    groupannots.append(annots[chipid])
+
                 groupvals.append(vals)
 
-            et = createExampleTable(groupnames, groupvals, ddb)
+            et = createExampleTable(groupnames, groupvals, groupannots, ddb)
 
-            if annotations:
-                annotc = self.allAnnotationVals( [annotations[v] for v in nth(pairs,1) ] )
+            if newannotations:
+                annotc = self.allAnnotationVals( [annots[v] for v in nth(pairs,1) ] )
 
             annotc["chipids"] = nth(group[0], 1)
 
@@ -993,7 +1006,8 @@ chips chips""")
     
         return exampleTables
 
-    def getData(self, type="norms", join=["time"], separate=None, average=median, ids=None, callback=None, **kwargs):
+
+    def getData(self, type="norms", join=["time"], separate=None, average=median, ids=None, callback=None, chipidname=False, **kwargs):
         """
         Returns a list of examples tables for a given search query and post-processing
         instructions.
@@ -1013,44 +1027,22 @@ chips chips""")
         Defaults: Median averaging. Join by time.
         """
 
-        class CallBack():
-
-            def __init__(self, allparts, fn, callbacks=100):
-                self.allparts = allparts
-                self.lastreport = 0.00001
-                self.getparts = 0
-                self.increase = 1.0/callbacks
-                self.callbacks = callbacks
-                self.fn = fn
-                self.cbs = 0
-
-            def part(self):
-                self.getparts += 1
-                done = float(self.getparts)/self.allparts
-                while done > self.lastreport + self.increase:
-                    self.lastreport += self.increase
-                    self.fn()
-                    self.cbs += 1
-
-            def end(self):
-                while self.cbs < self.callbacks:
-                    self.fn()
-                    self.cbs += 1
 
         def optcb():
             if callback: callback()
+
+        cbc = CallBack(1, optcb, callbacks=10)
 
         if not ids:
             #returns ids of elements that match the search function
             ids = self.search(type, **kwargs)
 
-        cbc = CallBack(1, optcb, callbacks=10)
         cbc.end()
 
         #downloads annotations
         cbc = CallBack(len(ids), optcb, callbacks=10)
 
-        readall = self.dictionarize(ids, self.annotations, type, ids, all=True, callback=cbc.part)
+        readall = self.dictionarize(ids, self.annotations, type, ids, all=True, callback=cbc)
 
         read = {}
         for a,b in readall.items():
@@ -1066,10 +1058,8 @@ chips chips""")
         cbc.end()
 
         cbc = CallBack(1, optcb, callbacks=10)
-
         #make annotation groups
         etsa = self.groupAnnotations(read, join=join, separate=separate )
-
         cbc.end()
 
         #here could user intervent. till now downloads were small
@@ -1081,10 +1071,10 @@ chips chips""")
 
         cbc = CallBack(len(ids), optcb, callbacks=999-50)
         if type == "norms":
-            chipd = self.dictionarize(ids, self.chipNsN, ids, annotsinlist, callback=cbc.part)
-            #chipd = self.dictionarize(ids, self.chipNs, ids, callback=cbc.part)
+            chipd = self.dictionarize(ids, self.chipNsN, ids, annotsinlist, callback=cbc)
+            #chipd = self.dictionarize(ids, self.chipNs, ids, callback=cbc)
         else:
-            chipd = self.dictionarize(ids, self.chipRs, ids, callback=cbc.part)
+            chipd = self.dictionarize(ids, self.chipRs, ids, callback=cbc)
 
         cbc.end()
         
@@ -1093,7 +1083,7 @@ chips chips""")
             print "DOWNLOAD TIME", time.time() - tstart
 
         cbc = CallBack(len(etsa)+1, optcb, callbacks=10)
-        ets = self.exampleTables(chipd, etsa, spotmap=self.spotMap(), callback=cbc.part)
+        ets = self.exampleTables(chipd, etsa, spotmap=self.spotMap(), callback=cbc, chipidname=chipidname, annots=read)
         cbc.end()
 
         cbc = CallBack(len(ets), optcb, callbacks=10)
@@ -1105,14 +1095,25 @@ chips chips""")
                 eta = averageAttributes(et, fn=average)
                 eta.annot = et.annot
                 etsa.append(eta)
-                cbc.part()
+                cbc()
             ets = etsa
 
         cbc.end()
 
         return ets
 
-def createExampleTable(names, vals, ddb, cname="DDB"):
+    def get_single_data(self, type="norms", average=median, ids=None, 
+            callback=None, **kwargs):
+        """
+        Get data in a single example table with labels of individual attributes
+        set to annotations.
+        """
+        mtables = self.getData(type=type, join=None, separate=[], average=average, ids=ids, callback=callback, chipidname=True, **kwargs)
+        if len(mtables) != 1:
+            mtablesShouldHaveOnlyOneElementError()
+        return mtables[0]
+
+def createExampleTable(names, vals, annots, ddb, cname="DDB"):
     """
     Create an ExampleTable for this group. Attributes are those in
     names. 
@@ -1120,6 +1121,10 @@ def createExampleTable(names, vals, ddb, cname="DDB"):
     """
     attributes = [ orange.FloatVariable(n, numberOfDecimals=3) \
         for n in names ]
+
+    for a,an in zip(attributes, annots):
+        a.attributes = dict(an)
+
     domain = orange.Domain(attributes, False)
     ddbv = orange.StringVariable(cname)
     id = orange.newmetaid()
@@ -1199,6 +1204,35 @@ def floatOrUnknown(a):
         return float(a)
     except:
         return "?"
+
+class CallBack():
+    """
+    Converts "allparts" callbacks into by "callbacks"
+    specified number of callbacks of function fn.
+    """
+
+    def __init__(self, allparts, fn, callbacks=100):
+        self.allparts = allparts
+        self.lastreport = 0.00001
+        self.getparts = 0
+        self.increase = 1.0/callbacks
+        self.callbacks = callbacks
+        self.fn = fn
+        self.cbs = 0
+
+    def __call__(self):
+        self.getparts += 1
+        done = float(self.getparts)/self.allparts
+        while done > self.lastreport + self.increase:
+            self.lastreport += self.increase
+            self.fn()
+            self.cbs += 1
+
+    def end(self):
+        while self.cbs < self.callbacks:
+            self.fn()
+            self.cbs += 1
+
 
 class BufferSQLite(object):
 
