@@ -406,16 +406,16 @@ chips chips""")
     
     def inBuffer(self, addr):
         if self.buffer:
-            return self.buffer.contains(addr)
+            return self.buffer.contains(self.address + addr)
         else:
             return False
 
     def fromBuffer(self, addr):
-        return self.buffer.get(addr)
+        return self.buffer.get(self.address + addr)
 
     def toBuffer(self, addr, cont):
         if self.buffer:
-            return self.buffer.add(addr, cont)
+            return self.buffer.add(self.address + addr, cont)
 
     def bufferFun(self, bufkey, fn, *args, **kwargs):
         """
@@ -550,9 +550,9 @@ chips chips""")
             yield a   
 
     def chipNsN(self, ids, annots):
-
-        #new shorter format, watch for the same "chips.chip_map_id"
-
+        """
+        Download chips using new shorter format.
+        """
         chip_map_ids = zip(ids,[ dict(a)['chips.chip_map_id'] for a in annots ])
 
         def separateByChipsMaps(l):
