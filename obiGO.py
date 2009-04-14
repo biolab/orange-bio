@@ -399,7 +399,7 @@ class Ontology(object):
         return len(self.terms)
 
     def __contains__(self, id):
-        return id in self.terms
+        return id in self.terms or id in self.aliasMapper
 
     @staticmethod
     def DownloadOntology(file, progressCallback=None):
@@ -451,7 +451,7 @@ class AnnotationRecord(object):
 class Annotations(object):
     """Annotations object holds the annotations.
     """
-    def __init__(self, file=None, ontology=None, progressCallback=None):
+    def __init__(self, file=None, ontology=None, genematcher=None, progressCallback=None):
         """Initialize the annotations from file by calling ParseFile on it. The ontology must be an instance of Ontology class. The optional progressCallback will be called with a single argument to report on the progress.
         """
         self.file = file
@@ -459,22 +459,35 @@ class Annotations(object):
         self.allAnnotations = defaultdict(list)
         self.geneAnnotations = defaultdict(list)
         self.termAnnotations = defaultdict(list)
-        self.geneNames = set()
-        self.geneNamesDict = {}
-        self.aliasMapper = {}
+        self._geneNames = None
+        self._geneNamesDict = None
+        self._aliasMapper = None
         self.additionalAliases = {}
         self.annotations = []
         self.header = ""
-        self.geneMapper = None
+        self.genematcher = genematcher
+        self.taxid = None
         if type(file) in [list, set, dict, Annotations]:
             for ann in file:
                 self.AddAnnotation(ann)
+            if type(file, Annotations):
+                taxid = file.taxid
         elif file and os.path.exists(file):
             self.ParseFile(file, progressCallback)
+            try:
+                self.taxid = to_taxid(os.path.basename(file).split(".")[1]).pop()
+            except IOError:
+                pass
         elif file:
-            a = self.Load(file, ontology, progressCallback)
+            a = self.Load(file, ontology, genematcher, progressCallback)
             self.__dict__ = a.__dict__
-
+            self.taxid = to_taxid(organism_name_search(file)).pop()
+        if not self.genematcher and self.taxid:
+            import obiGene
+            self.genematcher = obiGene.matcher([obiGene.GMGO(self.taxid)] + ([obiGene.GMDicty()] if self.taxid == "352472"  else []))
+        if self.genematcher:
+            self.genematcher.set_targets(self.geneNames)
+        
     @classmethod
     def organism_name_search(cls, org):
         ids = to_taxid(org)
@@ -505,44 +518,39 @@ class Annotations(object):
     ontology = property(GetOntology, SetOntology, doc="Ontology object for annotations")
     
     @classmethod
-    def Load(cls, org, ontology=None, progressCallback=None):
+    def Load(cls, org, ontology=None, genematcher=None, progressCallback=None):
         """A class method that tries to load the association file for the given organism from default_database_path.
         """
-##        files = [name for name in os.listdir(default_database_path) if name.startswith("gene_association") and org in name and not name.endswith(".info")]
         import orngServerFiles
-        import obiTaxonomy as tax
-        ## Check if given org is a matching code for GO organism
-##        files = [file for file in orngServerFiles.listfiles("GO") if file.startswith("gene_association") and org in file.split(".")[:2]]
-##        name = org
-##        if not files:
-##            print >> sys.stderr, "Annotation file not found on local drive\nSearching for annotations on server"
-##            serverFiles = orngServerFiles.ServerFiles()
-##            files = [file for file in serverFiles.listfiles("GO") if file.startswith("gene_association") and org in file.split(".")[:2]]
-        ids = to_taxid(org)
-        if not ids:
-            import obiTaxonomy as tax
-            ids = tax.to_taxid(org, mapTo=Taxonomy().tax.keys())
-            ids = set(ids).intersection(Taxonomy().tax.keys())
-        if not ids:
-            print >> sys.stderr, "Unable to find annotations for", "'%s'" % org, "Matching name against NCBI Taxonomy"
-            import obiTaxonomy as tax
-            ids = tax.search(org)
-            ids = set(ids).intersection(Taxonomy().tax.keys())
-        codes = reduce(set.union, [from_taxid(id) for id in ids], set())
-        if len(codes) > 1:
-            raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (str(from_taxid(id)), tax.name(id)) for id in ids])
-        elif len(codes) == 0:
-            raise tax.UnknownSpeciesIdentifier, org
-        name, code = tax.name(ids.pop()), codes.pop()
-        print >> sys.stderr, "Found annotations for", name, "(%s)" % code
-        files = ["gene_association.%s.tar.gz" % code]
+##        import obiTaxonomy as tax
+##        
+##        ids = to_taxid(org)
+##        if not ids:
+##            import obiTaxonomy as tax
+##            ids = tax.to_taxid(org, mapTo=Taxonomy().tax.keys())
+##            ids = set(ids).intersection(Taxonomy().tax.keys())
+##        if not ids:
+##            print >> sys.stderr, "Unable to find annotations for", "'%s'" % org, "Matching name against NCBI Taxonomy"
+##            import obiTaxonomy as tax
+##            ids = tax.search(org)
+##            ids = set(ids).intersection(Taxonomy().tax.keys())
+##        codes = reduce(set.union, [from_taxid(id) for id in ids], set())
+##        if len(codes) > 1:
+##            raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (str(from_taxid(id)), tax.name(id)) for id in ids])
+##        elif len(codes) == 0:
+##            raise tax.UnknownSpeciesIdentifier, org
+##        name, code = tax.name(ids.pop()), codes.pop()
+        code = organism_name_search(org)
+##        print >> sys.stderr, "Found annotations for", name, "(%s)" % code
+        
+        file = "gene_association.%s.tar.gz" % code
 
-        path = os.path.join(orngServerFiles.localpath("GO"), files[0])
+        path = os.path.join(orngServerFiles.localpath("GO"), file)
         if not os.path.exists(path):
             print >> sys.stderr, "Downloading annotations for", name
-            orngServerFiles.download("GO", files[0])
-            
-        return cls(path, ontology=ontology, progressCallback=progressCallback)
+            orngServerFiles.download("GO", file)
+        print path
+        return cls(path, ontology=ontology, genematcher=genematcher, progressCallback=progressCallback)
     
     def ParseFile(self, file, progressCallback=None):
         """ Parse and load the annotations from file. Report progress with progressCallback.
@@ -578,31 +586,61 @@ class Annotations(object):
             a = AnnotationRecord(a)
         if not a.geneName or not a.GOId or a.Qualifier == "NOT":
             return
-        if a.geneName not in self.geneNames:
-            self.geneNames.add(a.geneName)
-            self.geneAnnotations[a.geneName].append(a)
-            for alias in a.alias:
-                self.aliasMapper[alias] = a.geneName
-            for alias in a.aditionalAliases:
-                self.additionalAliases[alias] = a.geneName
-            self.aliasMapper[a.geneName] = a.geneName
-            self.aliasMapper[a.DB_Object_ID] = a.geneName
-            names = [a.DB_Object_ID, a.DB_Object_Symbol]
-            names.extend(a.alias)
-            for n in names:
-                self.geneNamesDict[n] = names
-        else:
-            self.geneAnnotations[a.geneName].append(a)
+##        if a.geneName not in self.geneNames:
+##            self.geneNames.add(a.geneName)
+##            self.geneAnnotations[a.geneName].append(a)
+##            for alias in a.alias:
+##                self.aliasMapper[alias] = a.geneName
+##            for alias in a.aditionalAliases:
+##                self.additionalAliases[alias] = a.geneName
+##            self.aliasMapper[a.geneName] = a.geneName
+##            self.aliasMapper[a.DB_Object_ID] = a.geneName
+##            names = [a.DB_Object_ID, a.DB_Object_Symbol]
+##            names.extend(a.alias)
+##            for n in names:
+##                self.geneNamesDict[n] = names
+##        else:
+        self.geneAnnotations[a.geneName].append(a)
         self.annotations.append(a)
         self.termAnnotations[a.GOId].append(a)
         self.allAnnotations = defaultdict(list)
-##        if progressCallback and i in milestones:
-##            progressCallback(100.0*i/len(lines))
-            
+        
+        self._geneNames = None
+        self._geneNamesDict = None
+        self._aliasMapper = None
+
+    @property
+    def geneNamesDict(self):
+        if getattr(self, "_geneNamesDict", None) == None:
+            self._geneNamesDict = reduce(lambda dict, (alias, name) : dict[name].add(alias) or dict,
+                                         self.aliasMapper.items(), defaultdict(set))
+        return self._geneNamesDict
+
+    @property
+    def geneNames(self):
+        if getattr(self, "_geneNames", None) == None:
+            self._geneNames = set([ann.geneName for ann in self.annotations])
+        return self._geneNames
+
+    @property
+    def aliasMapper(self):
+        if getattr(self, "_aliasMapper", None) == None:
+            self._aliasMapper = reduce(lambda dict, ann: dict.update([(alias, ann.geneName) for alias in ann.alias +\
+                                                                      [ann.geneName, ann.DB_Object_Symbol]]) or dict,
+                                                                      self.annotations, {})
+        return self._aliasMapper
+    
+    def GetGeneNamesTranslator_(self, genes):
+        def alias(gene):
+            return gene if gene in self.geneNames else self.aliasMapper.get(gene, self.additionalAliases.get(gene, None))
+        return dict([(alias(gene), gene) for gene in genes if alias(gene)])
 
     def GetGeneNamesTranslator(self, genes):
         def alias(gene):
-            return gene if gene in self.geneNames else self.aliasMapper.get(gene, self.additionalAliases.get(gene, None))
+            if self.genematcher:
+                return self.genematcher.umatch(gene)
+            else:
+                return gene if gene in self.geneNames else self.aliasMapper.get(gene, self.additionalAliases.get(gene, None))
         return dict([(alias(gene), gene) for gene in genes if alias(gene)])
 
     def _CollectAnnotations(self, id):
@@ -909,8 +947,8 @@ def drawEnrichmentGraph_tostreamMk2(enriched, fh, width, height, header=None, on
                               entry[0],
                               ", ".join(entry[6])) + (None,))
 
-    drawEnrichmentGraphPIL_tostream(termsList, header, fh, width, height)
-##    drawEnrichmentGraphPylab_tostream(termsList, header, fh, width, height)
+##    drawEnrichmentGraphPIL_tostream(termsList, header, fh, width, height)
+    drawEnrichmentGraphPylab_tostream(termsList, header, fh, width, height)
     
 def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=None):
     from PIL import Image, ImageDraw, ImageFont
@@ -1012,7 +1050,57 @@ def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=N
         
     image.save(fh)
 
+def drawEnrichmentGraphPylab_tostream(termsList, headers, fh, width=None, height=None, show=True):
+    from matplotlib import pyplot as plt
+    from matplotlib.patches import Rectangle
+    
+    maxFoldWidth = width!=None and min(150, width/6) or 150
+    maxFoldEnrichment = max([t[0] for t in termsList])
+    foldNormalizationFactor = float(maxFoldWidth)/maxFoldEnrichment
+##    foldWidths = [int(foldNormalizationFactor*term[0]) for term in termsList]
+    foldWidths = [term[0] for term in termsList]
+    treeStep = maxFoldEnrichment*0.05
+    treeWidth = {}
 
+    for i, term in enumerate(termsList):
+        treeWidth[i] = (term[-1]==None and treeStep or treeWidth[term[-1]] + treeStep)
+    maxTreeWidth = max(treeWidth)
+
+    connectAt = {}
+    cellText = []
+    axes1 = plt.axes([0.1, 0.1, 0.2, 0.8])
+    for i, line in enumerate(termsList):
+        enrichment, n, m, p_val, fdr_val, name, genes, parent = line
+        r = Rectangle((0, len(termsList) - i - 0.4), enrichment, 0.8)
+        plt.gca().add_patch(r)
+        plt.plot([enrichment, connectAt.get(parent, maxFoldEnrichment + maxTreeWidth)], [len(termsList) - i, len(termsList) - i], color="black")
+        connectAt[i] = connectAt.get(parent, maxFoldEnrichment + maxTreeWidth) - treeStep
+        if parent != None:
+            plt.plot([connectAt.get(parent)]*2, [len(termsList) - i, len(termsList) - parent], color="black")
+        cellText.append((str(n), str(m), p_val, fdr_val, name, genes))
+
+##    from orngClustering import TableTextLayout
+##    text = TableTextLayout((maxFoldEnrichment*1.1, len(termsList)), cellText)
+    from orngClustering import TablePlot
+    if True:
+        axes2 = plt.axes([0.3, 0.1, 0.6, 0.8], sharey=axes1)
+        axes2.set_axis_off()
+        table = TablePlot((0, len(termsList)), axes=plt.gca())
+        for i, line in enumerate(cellText):
+            for j, text in enumerate(line):
+                table.add_cell(i, j,width=len(text), height=1, text=text, loc="left", edgecolor="w", facecolor="w")
+
+        table.set_figure(plt.gcf())
+        plt.gca().add_artist(table)
+        plt.gca()._set_artist_props(table)
+##    plt.text(3, 3, "\n".join(["\t".join(text) for text in cellText]))
+
+##    table = plt.table(cellText=cellText, colLabels=headers, loc="right")
+##    table.set_transform(plt.gca().transData)
+##    
+##    table.set_xy(20,20)
+    plt.show()
+    
 class Taxonomy(object):
     """Maps NCBI taxonomy ids to coresponding GO organism codes
     """
