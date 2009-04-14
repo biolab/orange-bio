@@ -3,6 +3,7 @@ from itertools import *
 import urllib2
 import orange
 import socket
+import os
 
 #utility functions - from Marko's mMisc.py
 
@@ -707,8 +708,6 @@ chips chips""")
                     raise Exception(a + " not top most annotation type." )
         forceTopMost(join)
 
-        #check separate input #TODO
-
         #all possible annotations
         annots = self.allAnnotationVals(annotationsIn.values())
 
@@ -1204,14 +1203,28 @@ def floatOrUnknown(a):
 class BufferSQLite(object):
 
     def __init__(self, filename, compress=True):
-        import sqlite3
-        self.conn = sqlite3.connect(filename)
         self.compress = compress
-        c = self.conn.cursor()
+        self.filename = filename
+        self.conn = self.connect()
+
+    def clear(self):
+        """
+        Removes all entries in the buffer
+        """
+        self.conn.close()
+        os.remove(self.filename)
+        self.conn = self.connect()
+
+
+    def connect(self):
+        import sqlite3
+        conn = sqlite3.connect(self.filename)
+        c = conn.cursor()
         c.execute('''create table if not exists buf
         (address text primary key, time text, con blob)''')
         c.close()
-        self.conn.commit()
+        conn.commit()
+        return conn
 
     def contains(self, addr):
         c = self.conn.cursor()
