@@ -43,7 +43,7 @@ class OWDicty(OWWidget):
         self.searchString = ""
         
         box = OWGUI.widgetBox(self.controlArea, "Cache")
-        OWGUI.button(box, self, "Clear cache", callback=None)
+        OWGUI.button(box, self, "Clear cache", callback=self.clear_buffer)
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
         box  = OWGUI.widgetBox(self.controlArea, "Server")
@@ -87,8 +87,8 @@ class OWDicty(OWWidget):
         self.error(0)
 
     def clear_buffer(self):
-        self.UpdateExperiments()
         self.buffer.clear()
+        self.UpdateExperiments()
 
     def UpdateExperiments(self):
         self.chipsl = []
@@ -147,12 +147,9 @@ class OWDicty(OWWidget):
 
         table = None
 
-        #FIXME join multiple tables!
         ids = []
         for item in self.experimentsWidget.selectedItems():
             ids += str(item.text(5)).split(",")
-
-        print ids
 
         table = self.dbc.get_single_data(ids=ids, callback=pb.advance)
 
