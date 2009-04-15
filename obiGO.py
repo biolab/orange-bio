@@ -947,8 +947,8 @@ def drawEnrichmentGraph_tostreamMk2(enriched, fh, width, height, header=None, on
                               entry[0],
                               ", ".join(entry[6])) + (None,))
 
-##    drawEnrichmentGraphPIL_tostream(termsList, header, fh, width, height)
-    drawEnrichmentGraphPylab_tostream(termsList, header, fh, width, height)
+    drawEnrichmentGraphPIL_tostream(termsList, header, fh, width, height)
+##    drawEnrichmentGraphPylab_tostream(termsList, header, fh, width, height)
     
 def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=None):
     from PIL import Image, ImageDraw, ImageFont
