@@ -505,7 +505,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             parents = lambda t: [term for typeId, term in  self.ontology[t].related]
             self.treeStructDict[term] = TreeNode(self.terms[term], [id for id in ids if term in parents(id)])
 ##            if not go.loadedGO.termDict[term].parents:
-            if not self.ontology[term].related:
+            if not self.ontology[term].related and not getattr(self.ontology[term], "is_obsolete", False):
                 self.treeStructRootKey = term
         return terms
         
@@ -543,6 +543,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         enrichment = lambda t:float(len(t[0])) / t[2] * (float(len(self.referenceGenes))/len(self.clusterGenes))
         maxFoldEnrichment = max([enrichment(term) for term in self.graph.values()] or [1])
         def addNode(term, parent, parentDisplayNode):
+            print term
             if (parent, term) in fromParentDict:
                 return
             if term in self.graph:
@@ -685,6 +686,19 @@ class OWGOEnrichmentAnalysis(OWWidget):
         label.setText("Annotations:\n"+self.annotations.header.replace("!", "") if self.annotations else "Annotations not loaded!")
         dialog.layout().addWidget(label)
         dialog.show()
+
+    def sendReport(self):
+        self.reportSettings("Filter", [("Min cluster size", self.minNumOfInstances),
+                                       ("Max p-value", self.maxPValue)])
+        self.reportSubsection("Enriched terms")
+        text = [["Term:", "list:", "reference:", "p-value:", "enrichment:"]] + \
+               [[self.sigTerms.topLevelItem(index).text(i) for i in (range(4) + [5])] for index in range(self.sigTerms.topLevelItemCount())]
+        widths = reduce(lambda widths, line: [max(w, len(t)) for w, t in zip(widths, line)], text, [0]*5)
+        table = " ".join(["%-" + str(w) + "s" for w in widths]) % tuple(text[0])
+        fmt = " ".join(["%" + str(w) + "s" for w in widths])
+        table += "\n" + "\n".join([fmt % tuple(line) for line in text[1:]])
+        table = "<PRE>%s\n</PRE>" % table
+        self.reportRaw(table)
 
 class EnrichmentColumnItemDelegate(QItemDelegate):
     def paint(self, painter, option, index):
