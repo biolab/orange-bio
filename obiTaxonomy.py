@@ -54,14 +54,16 @@ class MultipleSpeciesException(Exception):
 class UnknownSpeciesIdentifier(Exception):
     pass
 
-def pickled_cache(filename=None, dependencies=[], maxSize=30):
+def pickled_cache(filename=None, dependencies=[], version=1, maxSize=30):
+    """ Return a cache function decorator. 
+    """
     def cached(func):
         default_filename = os.path.join(orngEnviron.bufferDir, func.__module__ + "_" + func.__name__ + "_cache.pickle")
         def f(*args, **kwargs):
-            version = tuple([orngServerFiles.info(domain, file)["datetime"] for domain, file in dependencies])
+            currentVersion = tuple([orngServerFiles.info(domain, file)["datetime"] for domain, file in dependencies]) + (version,)
             try:
                 cachedVersion, cache = cPickle.load(open(filename or default_filename, "rb"))
-                if cachedVersion != version:
+                if cachedVersion != currentVersion:
                     cache = {}
             except IOError, er:
                 cacheVersion, cache = "no version", {}
@@ -74,7 +76,7 @@ def pickled_cache(filename=None, dependencies=[], maxSize=30):
                 if len(cache) > maxSize:
                     del cache[iter(cache).next()]
                 cache[allArgs] = res
-                cPickle.dump((version, cache), open(filename or default_filename, "wb"), protocol=cPickle.HIGHEST_PROTOCOL)
+                cPickle.dump((currentVersion, cache), open(filename or default_filename, "wb"), protocol=cPickle.HIGHEST_PROTOCOL)
                 return res
         return f
 
@@ -301,7 +303,7 @@ def other_names(taxid):
     """
     return  Taxonomy().other_names(taxid)
 
-@pickled_cache(None, [("Taxonomy", "ncbi_taxonomy.tar.gz")])
+@pickled_cache(None, [("Taxonomy", "ncbi_taxonomy.tar.gz")], version=1)
 def search(string, onlySpecies=True, exact=False):
     """ Search the NCBI taxonomy database for an organism
     Arguments::

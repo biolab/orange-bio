@@ -58,7 +58,7 @@ class NCBIGeneInfo(dict):
 
         fname = orngServerFiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)
         file = open(fname, "rb")
-        self.update(dict((line.split("\t", 3)[1], line) for line in file.read().split("\n") if line.strip() and not line.startswith("#")))
+        self.update(dict([(line.split("\t", 3)[1], line) for line in file.read().split("\n") if line.strip() and not line.startswith("#")]))
 
         # following is a temporary fix before gene name matcher is complete (then, this code is to be replaced)
         # translate is a dictionary from aliases to target name (target names are real ids)a
@@ -468,8 +468,8 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
     def create_aliases(self):
         organism = self._organism_name(self.organism)
         import obiKEGG
-        org = obiKEGG.KEGGOrganism(self.organism)
-        genes = org.api._genes[org.org]
+        org = obiKEGG.KEGGOrganism(self.organism, genematcher=GMDirect())
+        genes = org.genes
         osets = [ set([name]) | set(b.alt_names) for 
                 name,b in genes.items() ]
         return osets
@@ -494,7 +494,7 @@ class MatcherAliasesGO(MatcherAliasesPickled):
 
     def create_aliases(self):
         import obiGO
-        annotations = obiGO.Annotations.Load(self.organism)
+        annotations = obiGO.Annotations(self.organism, genematcher=GMDirect())
         names = annotations.geneNamesDict
         return map(set, list(set([ \
             tuple(sorted(set([name]) | set(genes))) \

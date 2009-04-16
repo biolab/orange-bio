@@ -701,7 +701,7 @@ class KEGGInterfaceLocal(object):
                 unique[aliasMapper[gene.upper()]] = gene
             else:
                 unknown.append(gene)
-        return unique, conflicting, unknown
+        return unique, conflicting, unknown    
 
     def get_ko_orthology(self):
         r = []
@@ -722,30 +722,33 @@ class KEGGInterfaceLocal(object):
         return names[len(self._genes[org][gene].get_db_links()):-1][0]
     
 class KEGGOrganism(object):
-    def __init__(self, org, update=False, local_database_path=None):
+    def __init__(self, org, genematcher=None, update=False, local_database_path=None):
         
         self.org = org
+        self.genematcher = genematcher
         self.local_database_path = local_database_path or default_database_path
         if self.local_database_path in KEGGInterfaceLocal._instanceCache:
             self.api = KEGGInterfaceLocal._instanceCache[self.local_database_path]
         else:
             self.api = KEGGInterfaceLocal(update, self.local_database_path)
-        if org not in self.api._taxonomy:
-            import obiTaxonomy as tax
-            ids = tax.to_taxid(org, mapTo=[entry.get_taxid() for entry in self.api._genome.values()])
-            ids = set(ids).intersection([entry.get_taxid() for entry in self.api._genome.values()])
-##            names = [key for key, name in self.api._taxonomy.items() if org.lower() in name[-1].lower()]
-            if not ids:
-                print >> sys.stderr, "Could not find", org, "in KEGG database\nSearching in NCBI taxonomy"
-                import obiTaxonomy as tax
-                ids = tax.search(org)
-                ids = set(ids).intersection([entry.get_taxid() for entry in self.api._genome.values()])
-            if len(ids) == 0:
-                raise tax.UnknownSpeciesIdentifier, org
-            elif len(ids) > 1:
-                raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (from_taxid(id), tax.name(id)) for id in ids])
-            print >> sys.stderr, "Found", tax.name(list(ids)[0]), "(%s)" % from_taxid(list(ids)[0]) 
-            self.org = from_taxid(ids.pop())
+        self.org = organism_name_search(org)
+    
+##        if org not in self.api._taxonomy:
+##            import obiTaxonomy as tax
+##            ids = tax.to_taxid(org, mapTo=[entry.get_taxid() for entry in self.api._genome.values()])
+##            ids = set(ids).intersection([entry.get_taxid() for entry in self.api._genome.values()])
+####            names = [key for key, name in self.api._taxonomy.items() if org.lower() in name[-1].lower()]
+##            if not ids:
+##                print >> sys.stderr, "Could not find", org, "in KEGG database\nSearching in NCBI taxonomy"
+##                import obiTaxonomy as tax
+##                ids = tax.search(org)
+##                ids = set(ids).intersection([entry.get_taxid() for entry in self.api._genome.values()])
+##            if len(ids) == 0:
+##                raise tax.UnknownSpeciesIdentifier, org
+##            elif len(ids) > 1:
+##                raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (from_taxid(id), tax.name(id)) for id in ids])
+##            print >> sys.stderr, "Found", tax.name(list(ids)[0]), "(%s)" % from_taxid(list(ids)[0]) 
+##            self.org = from_taxid(ids.pop())
             
     @classmethod
     def organism_name_search(cls, name):
@@ -770,6 +773,16 @@ class KEGGOrganism(object):
                 raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (from_taxid(id), tax.name(id)) for id in ids])
             return from_taxid(ids.pop())
 
+    def _set_genematcher(self, genematcher):
+        setattr(self, "_genematcher", genematcher)
+    def _get_genematcher(self):
+        if getattr(self, "_genematcher", None) == None:
+            import obiGene
+            self._genematcher = obiGene.matcher([obiGene.GMKEGG(self.org)])
+            self._genematcher.set_targets(self.genes.keys())
+        return self._genematcher
+    genematcher = property(_get_genematcher, _set_genematcher)
+    
     def list_pathways(self):
         """Return a list of all organism specific pathways."""
         return self.api.list_pathways(self.org)
@@ -856,7 +869,17 @@ class KEGGOrganism(object):
         ids to gene names in genes, the second is a list of conflicting gene names and the third is a list
         of unknown genes.
         """
-        return self.api.get_unique_gene_ids(self.org, genes, caseSensitive)
+        unique, conflicting, unknown = {}, [], []
+        for gene in genes:
+            names = self.genematcher.match(gene)
+            if len(names) == 1:
+                unique[names[0]] = gene
+            elif len(names) == 0:
+                unknown.append(gene)
+            else:
+                conflicting.append(gene)
+        return unique, conflicting, unknown
+##        return self.api.get_unique_gene_ids(self.org, genes, caseSensitive)
 
     def get_gene_name(self, geneId):
         """ Return all gene names for the given gene id
@@ -874,7 +897,7 @@ class KEGGOrganism(object):
     
 from obiTaxonomy import pickled_cache
 
-@pickled_cache(None, [("KEGG", "kegg_taxonomy.tar.gz"), ("Taxonomy", "ncbi_taxonomy.tar.gz")])
+@pickled_cache(None, [("KEGG", "kegg_taxonomy.tar.gz"), ("Taxonomy", "ncbi_taxonomy.tar.gz")], version=1)
 def organism_name_search(name):
     return KEGGOrganism.organism_name_search(name)
     
@@ -1040,243 +1063,6 @@ class Update(UpdateBase):
         return ["pathway//organisms//"+org for org in orgs] + ["pathway//map"]
 
 
-import cStringIO
-
-class Orthology(object):
-    pass
-
-class Brite(object):
-    pass
-
-class Organism(object):
-    def __init__(self, file):
-        self.file = file
-        self._cachedFiles = {}
-        self._cacheNames = {"genes": "genes.pickle"}
-
-    @classmethod
-    def Load(cls, org):
-        return Organism(os.path.join(default_database_path, org + "organism.tar.gz"))
-
-    def _open(self, filename):
-        filename = os.path.normpath(filename)
-        if filename not in self._cachedFiles:
-            self._cachedFiles[filename] = self._tarfile.extractfile(filename).read().replace("\r\n", "\n")
-        return cStringIO.StringIO(self._cachedFiles[filename])
-    
-    def __getattr__(self, name):
-        if name in self._cacheNames:
-            setattr(self, name, load(self._open(self._cacheNames[name])))
-            return getattr(self, name)
-        else:
-            raise AttributeError(name)
-
-    def GetPathways(self):
-        """Return a list of all organism specific pathways."""
-        return ["path:" + info.name.split(".")[0] for info in self._tarfile.getmembers() if info.name.endswith(".xml")]
-    
-    def GetLinkedPathways(self, pathway_id):
-        """Return a list of all organism specific pathways that pathway with pathway_id links to."""
-        pathway = KEGGPathwayMk2(self._open(pathway_id.split(":")[-1] + ".xml"))
-        return pathway.GetLinkedPathways()
-
-    def GetGenesByPathway(self, pathway_id):
-        """Return a list of all organism specific genes that are on the pathway with pathway_id."""
-        pathway = KEGGPathwayMk2(self._open(pathway_id.split(":")[-1] + ".xml"))
-        return pathway.GetGenes()
-
-    def GetEnzymesByPathway(self, pathway_id):
-        """Return a list of all organism specific enzymes that are on the pathway with pathway_id."""
-        pathway = KEGGPathwayMk2(self._open(pathway_id.split(":")[-1] + ".xml"))
-        return pathway.GetEnzymes()
-
-    def GetCompoundsByPathway(self, pathway_id):
-        """Return a list of all organism specific compounds that are on the pathway with pathway_id."""
-        pathway = KEGGPathwayMk2(self._open(pathway_id.split(":")[-1] + ".xml"))
-        return pathway.GetCompounds()
-    
-    def GetGenes(self):
-        """Return a list of all organism genes."""
-        return self.genes.keys()
-
-    def GetPathwaysByGene(self, gene):
-        """Return a list of all organism specific pathways that contain the gene."""
-        return self.genes[gene].get_pathways()
-
-    def GetEnrichedPathwaysByGenes(self, genes, reference=None, prob=obiProb.Binomial(), progressCallback=None):
-        """Return a dictionary with enriched pathways ids as keys and (list_of_genes, p_value, num_of_reference_genes) tuples as items."""
-        allPathways = defaultdict(lambda :[[], 1.0, []])
-        if not reference:
-            reference = self.GetGenes()
-        for i, gene in enumerate(genes):
-            pathways = self.GetPathwaysByGene(gene)
-            for pathway in pathways:
-                allPathways[pathway][0].append(gene)
-            if progressCallback:
-                progressCallback(i*100.0/len(genes))
-        
-        reference = set(reference)
-        for p_id, entry in allPathways.items():
-            entry[2].extend(reference.intersection(self.GetGenesByPathway(p_id)))
-            entry[1] = prob.p_value(len(entry[0]), len(reference), len(entry[2]), len(genes))
-        return dict([(pid, (genes, p, len(ref))) for pid, (genes, p, ref) in allPathways.items()])
-
-    def GetPathwaysByEnzyme(self, enzyme):
-        """Return a list of all organism specific pathways that contain the enzyme."""
-        return self.api.get_pathways_by_enzymes(enzymes)
-
-    def GetPathwaysByCompounds(self, compound):
-        """Return a list of all organism specific pathways that contain the compound."""
-        return self.api.get_pathways_by_compounds(compounds)
-
-    def GetEnzymesByCompound(self, compound_id):
-        """Return a list of all organism specific enzymes that are involved in a reaction with compound."""
-        return self.api.get_enzymes_by_compound(compound_id)
-
-    def GetCompoundsByEnzyme(self, enzyme_id):
-        """Return a list of all compounds that are involved in a reaction with the enzyme."""
-        return self.api.get_compounds_by_enzyme(enzyme_id)
-
-    def GetGenesByEnzyme(self, enzyme_id):
-        """Return a list of all genes that are involved with the production of enzyme."""
-        return self.api.get_genes_by_enzyme(enzyme_id, self.org)
-
-    def GetEnzymesByGene(self, gene_id):
-        """Return a list of all enzymes that are a product of gene."""
-        return self.api.get_enzymes_by_gene(gene_id)
-
-    def GetUniqueGeneIds(self, genes, caseSensitive=True):
-        """Return a tuple with three elements. The first is a dictionary mapping from unique gene
-        ids to gene names in genes, the second is a list of conflicting gene names and the third is a list
-        of unknown genes.
-        """
-        return self.api.get_unique_gene_ids(self.org, genes, caseSensitive)
-
-    @staticmethod
-    def UpdateOrganism(org, local, progressCallback=None):
-        buffer = os.path.join(orngEnviron.bufferDir, "kegg_tmp")
-        try:
-            f = tarfile.open(local)
-            f.extractall(buffer)
-            f.close()
-        except Exception:
-            pass
-
-        downloader = obiData.FtpDownloader("ftp.genome.jp", buffer, "/pub/kegg/", numOfThreads=7)
-        
-        if org == "map":
-            rel_path = "pathway/map/"
-        else:
-            for path in ["pathway/organisms/", "pathway/organisms_kaas/", "pathway/organisms_est/"]:
-                downloader.ftpWorker.statFtp("pub/kegg/" + path)
-                if org in downloader.ftpWorker.statCache.get("pub/kegg/" + path, {}):
-                    rel_path = path + org + "/"
-                    
-        if org != "map":
-            rel_genes_path = rel_path.replace("pathway", "genes")
-            downloader.ftpWorker.statFtp("pub/kegg/" + rel_genes_path)
-            files = downloader.ftpWorker.statCache["pub/kegg/" + rel_genes_path].keys()
-            names = [name for name in files if name.endswith(".ent")]
-            if len(names) == 1:
-                downloader.massRetrieve([(rel_genes_path + names[0], "genes")], blocking=False)
-                
-        xml_rel_path= "xml/map/" if map == org else "xml/organisms/" + org + "/"
-        downloader.ftpWorker.statFtp("pub/kegg/" + xml_rel_path)
-        pathways = [name.split(".")[0] for name in downloader.ftpWorker.statCache.get("pub/kegg/" + xml_rel_path, {}).keys()]
-        #print pathways
-        
-        gif_files = [(rel_path + pathway_id + ".gif", pathway_id + ".gif") for pathway_id in pathways]
-        downloader.massRetrieve(gif_files, blocking=True)
-        
-        xml_files = [(xml_rel_path + pathway_id + ".xml", pathway_id + ".xml") for pathway_id in pathways]
-        downloader.massRetrieve(xml_files, blocking=False)
-        
-        downloader.wait(progressCallback)
-        try:
-            genes = [DBEntryWrapper(DBGeneEntry(entry)) for entry in open(os.path.join(buffer, "genes")).read().split("///\n") if entry]
-            genes = dict([(org + ":" + entry.get_name(), entry) for entry in genes])
-            dump(genes, open(os.path.join(buffer, "genes.pickle"), "wb"))
-        except Exception:
-            pass
-        os.remove(os.path.join(buffer, "genes"))
-        f = tarfile.open(local, "w")
-        for filename in os.listdir(buffer):
-            f.add(os.path.join(buffer, filename), filename)
-        f.close()
-        import shutil
-        shutil.rmtree(buffer)
-        
-from xml.dom.minidom import parse, Text, Element
-
-class Pathway(object):
-    def __init__(self, file):
-        self.xml = parse(file)
-        self.xml_pathway = self.xml.childNodes[-1]
-        self.xml_elements = [node for node in self.xml_pathway.childNodes if node.__class__ == Element]
-        self.entrys = self.xml_pathway.getElementsByTagName("entry")
-        self.reactions = self.xml_pathway.getElementsByTagName("reaction")
-        self.relations = self.xml_pathway.getElementsByTagName("relation")
-        self.genes = [entry for entry in self.entrys if entry.attributes["type"].value == "gene"]
-        self.enzymes = [entry for entry in self.entrys if entry.attributes["type"].value == "enzyme"]
-        self.compounds = [entry for entry in self.entrys if entry.attributes["type"].value == "compound"]
-
-    @classmethod
-    def Load(cls, pathway_id):
-        o = Organism.Load(pathway_id.split(":")[-1][:-5])
-        return Pathway(o._open(pathway_id+".xml"))
-
-    def GetImage(self):
-        """Return an PIL image of the pathway."""
-        return Image.open(self._tarfile.extractfile(self.pathway_id.split(":")[-1] + ".gif"))
-
-    def GetColoredImage(self, objects):
-        """Return an PIL image of the pathway with marked objects."""
-        raise NotImplementedError("GetColoredImage")
-
-    def GetBoundingBox(self, object_id):
-        """Return a bounding box of the form (x1, y1, x2, y2) of object on the pathway image."""
-        return self.GetBoundingBoxDict()[object_id]
-
-    def GetBoundingBoxDict(self):
-        """Return a dictionary mapping all objects on the pathways to bounding boxes (x1, y1, x2, y2) on the pathway image."""
-        result = {}
-        for entry in self.entrys:
-            for graphics in entry.getElementsByTagName("graphics"):
-                result[entry.attributes["name"].value] = (graphics.attributes["type"].value,
-                                                          graphics.attributes["x"].value, graphics.attributes["y"].value,
-                                                          graphics.attributes["width"].value, graphics.attributes["height"].value)
-        return result
-
-    def GetLinkedPathways(self):
-        return [entry.attributes["name"].value for entry in self.entrys if entry.attributes["type"].value == "map"]
-
-    def GetGenes(self):
-        """Return all genes on the pathway."""
-        return [gene.attributes["name"].value for gene in self.genes]
-
-    def GetEnzymes(self):
-        """Return all enzymes on the pathway."""
-        return [enzyme.attributes["name"].value for enzyme in self.enzymes]
-
-    def GetCompounds(self):
-        """Return all compounds on the pathway."""
-        return [compound.attributes["name"].value for compound in self.compounds]
-
-class UpdateMk2(UpdateBase):
-    def __init__(self, local_database_path=None, progressCallback=None):
-        UpdateBase.__init__(self, local_database_path if local_database_path else default_database_path, progressCallback)
-        self.downloader = obiData.FtpDownloader("ftp.genome.jp", self.local_database_path, "/pub/kegg/", numOfThreads=10)
-        
-    def IsUpdatable(self, *args):
-        return True
-
-    def GetDownloadable(self, *args):
-        pass
-        
-    def UpdateOrganism(self, org):
-        KEGGOrganismMk2.UpdateOrganism(org, os.join(self.local_database_path, org + "_organism.tar.gz"))
-    
-            
 
 if __name__=="__main__":
     

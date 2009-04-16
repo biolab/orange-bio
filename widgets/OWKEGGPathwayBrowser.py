@@ -164,41 +164,41 @@ class PathwayView(QGraphicsView):
         objs = self.GetObjects(event.x(), event.y())
         menu = QMenu(self)
         action = menu.addAction("View pathway on KEGG website")
-        self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(1))
+        self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(1, objs))
         if any(id for id, bb in objs if id in self.objects):
-            menu.addAction("View genes on KEGG website")
-            self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(0))
+            action = menu.addAction("View genes on KEGG website")
+            self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(0, objs))
         if len(objs)==1 and objs[-1][0].startswith("path:"):
-            menu.addAction("View linked pathway")
-            self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(2))
+            action = menu.addAction("View linked pathway")
+            self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(2, objs))
         menu.popup(event.globalPos())
             
         #QGraphicsView.resizeEvent(self,e)
         #if self.scene().parent.FitToWindow:
         #    self.scene().displayTree(self.scene().rootCluster)
 
-    def PopupAction(self, id):
+    def PopupAction(self, id, objs):
         import webbrowser
         if id==0:
-            genes = [s.split(":")[-1].strip() for s, t in self.popup.objs if s in self.objects]
+            genes = [s.split(":")[-1].strip() for s, t in objs if s in self.objects]
             address = "http://www.genome.jp/dbget-bin/www_bget?"+self.pathway.org+"+"+"+".join(genes)
         elif id==1:
 ##            genes = [s for s, t in self.popup.objs]
 ##            s = reduce(lambda s,g:s.union(self.master.org.get_enzymes_by_gene(g)), genes, set())
 ##            address = "http://www.genome.jp/dbget-bin/www_bget?enzyme+"+"+".join([e.split(":")[-1] for e in s])
-            genes = [s.split(":")[-1].strip() for s, t in self.popup.objs if s in self.objects]
+            genes = [s.split(":")[-1].strip() for s, t in objs if s in self.objects]
             address = "http://www.genome.jp/dbget-bin/show_pathway?"+self.pathway.pathway_id.split(":")[-1]+(genes and "+"+"+".join(genes) or "")
         elif id==2:
             self.master.selectedObjects = defaultdict(list)
             self.master.Commit()
-            pathway = obiKEGG.KEGGPathway(self.popup.objs[-1][0])
+            pathway = obiKEGG.KEGGPathway(objs[-1][0])
             pathway.api = self.pathway.api
-            self.SetPathway(obiKEGG.KEGGPathway(self.popup.objs[-1][0]))
+            self.SetPathway(obiKEGG.KEGGPathway(objs[-1][0]))
             return
         try:
             webbrowser.open(address)
-        except:
-            print 'error 1'
+        except Exception, ex:
+            print "Failed to open", address, "due to", ex
             pass
     
 class OWKEGGPathwayBrowser(OWWidget):
@@ -452,7 +452,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.error(0, "Cannot extact gene names from input")
             genes = []
         if self.loadedOrganism!=self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]:
-            self.org = obiKEGG.KEGGOrganism(self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)], True)
+            self.org = obiKEGG.KEGGOrganism(self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)], update=True)
             self.org.api.download_progress_callback=self.progressBarSet
             self.loadedOrganism = self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]
         self.progressBarInit()
