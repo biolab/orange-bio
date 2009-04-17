@@ -320,7 +320,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.openContext("", data)
             if not self.ontology:
                 self.LoadOntology()
-            if not self.annotations:
+            if not self.annotations or self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
                 self.LoadAnnotation()
             
             self.FilterUnknownGenes()
@@ -686,9 +686,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
         dialog.show()
 
     def sendReport(self):
-        self.reportSettings("Filter", [("Min cluster size", self.minNumOfInstances),
-                                       ("Max p-value", self.maxPValue)])
-        self.reportSubsection("Enriched terms")
+        self.reportSettings("Settings", [("Organism", self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes) - 1)]),
+                                         ("Significance test", ("Binomial" if self.probFunc == 0 else "Hypergeometric") + (" with FDR" if self.useFDR else ""))])
+        self.reportSettings("Filter", ([("Min cluster size", self.minNumOfInstances)] if self.filterByNumOfInstances else []) + \
+                                      ([("Max p-value", self.maxPValue)] if self.filterByPValue else []))
+        self.reportSubsection("Enriched terms:")
         text = [["Term:", "list:", "reference:", "p-value:", "enrichment:"]] + \
                [[self.sigTerms.topLevelItem(index).text(i) for i in (range(4) + [5])] for index in range(self.sigTerms.topLevelItemCount())]
         widths = reduce(lambda widths, line: [max(w, len(t)) for w, t in zip(widths, line)], text, [0]*5)
