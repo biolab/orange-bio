@@ -549,7 +549,6 @@ class Annotations(object):
         if not os.path.exists(path):
             print >> sys.stderr, "Downloading annotations for", name
             orngServerFiles.download("GO", file)
-        print path
         return cls(path, ontology=ontology, genematcher=genematcher, progressCallback=progressCallback)
     
     def ParseFile(self, file, progressCallback=None):
@@ -643,16 +642,17 @@ class Annotations(object):
                 return gene if gene in self.geneNames else self.aliasMapper.get(gene, self.additionalAliases.get(gene, None))
         return dict([(alias(gene), gene) for gene in genes if alias(gene)])
 
-    def _CollectAnnotations(self, id):
+    def _CollectAnnotations(self, id, visited):
         """ Recursive function collects and caches all annotations for id
         """
-        if id not in self.allAnnotations:
+        if id not in self.allAnnotations and id not in visited:
             if id in self.ontology.reverseAliasMapper:
                 annotations = [self.termAnnotations.get(alt_id, []) for alt_id in self.ontology.reverseAliasMapper[id]] + [self.termAnnotations[id]]
             else:
                 annotations = [self.termAnnotations[id]] ## annotations for this term alone
+            visited.add(id)
             for typeId, child in self.ontology[id].relatedTo:
-                aa = self._CollectAnnotations(child)
+                aa = self._CollectAnnotations(child, visited)
                 if type(aa) == set: ## if it was allready reduced in GetAllAnnotations
                     annotations.append(aa)
                 else:
@@ -663,10 +663,11 @@ class Annotations(object):
     def GetAllAnnotations(self, id):
         """ Return a set of all annotations for this and all subterms.
         """
+        visited = set()
         id = self.ontology.aliasMapper.get(id, id)
         if id not in self.allAnnotations or type(self.allAnnotations[id]) == list:
             annot_set = set()
-            for annots in self._CollectAnnotations(id):
+            for annots in self._CollectAnnotations(id, set()):
                 annot_set.update(annots)
             self.allAnnotations[id] = annot_set
         return self.allAnnotations[id]
