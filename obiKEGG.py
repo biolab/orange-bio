@@ -773,6 +773,12 @@ class KEGGOrganism(object):
                 raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (from_taxid(id), tax.name(id)) for id in ids])
             return from_taxid(ids.pop())
 
+    @classmethod
+    def organism_version(cls, name):
+        name = organism_name_search(name)
+        orngServerFiles.localpath_download("KEGG", "kegg_organism_%s.tar.gz" % name)
+        return orngServerFiles.info("KEGG", "kegg_organism_%s.tar.gz" % name)["datetime"]
+
     def _set_genematcher(self, genematcher):
         setattr(self, "_genematcher", genematcher)
     def _get_genematcher(self):

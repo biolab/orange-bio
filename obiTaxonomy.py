@@ -57,10 +57,16 @@ class UnknownSpeciesIdentifier(Exception):
 def pickled_cache(filename=None, dependencies=[], version=1, maxSize=30):
     """ Return a cache function decorator. 
     """
+    def datetime_info(domain, filename):
+        try:
+            return orngServerFiles.info(domain, filename)["datetime"]
+        except IOError:
+            return orngServerFiles.ServerFiles().info(domain, filename)["datetime"]
+            
     def cached(func):
         default_filename = os.path.join(orngEnviron.bufferDir, func.__module__ + "_" + func.__name__ + "_cache.pickle")
         def f(*args, **kwargs):
-            currentVersion = tuple([orngServerFiles.info(domain, file)["datetime"] for domain, file in dependencies]) + (version,)
+            currentVersion = tuple([datetime_info(domain, file) for domain, file in dependencies]) + (version,)
             try:
                 cachedVersion, cache = cPickle.load(open(filename or default_filename, "rb"))
                 if cachedVersion != currentVersion:

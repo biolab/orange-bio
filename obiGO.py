@@ -508,6 +508,12 @@ class Annotations(object):
             raise tax.UnknownSpeciesIdentifier, org
         return codes.pop()
 
+    @classmethod
+    def organism_version(cls, name):
+        name = organism_name_search(name)
+        orngServerFiles.localpath_download("GO", "gene_association.%s.tar.gz" % name)
+        return orngServerFiles.info("GO", "gene_association.%s.tar.gz" % name)["datetime"]
+
     def SetOntology(self, ontology):
         self.allAnnotations = defaultdict(list)
         self._ontology = ontology
