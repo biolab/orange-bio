@@ -25,8 +25,8 @@ except:
     default_database_path = os.path.join((os.path.split(__file__)[0] or "."), "data//kegg//")
     
 try:
-    os.mkdir(default_database_path)
-except:
+    os.makedirs(default_database_path)
+except OSError, ex:
     pass
 
 base_ftp_path = "ftp://ftp.genome.jp/pub/kegg/"
