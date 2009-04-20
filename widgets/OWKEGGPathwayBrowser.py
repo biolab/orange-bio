@@ -8,6 +8,7 @@
 import sys
 import orange
 import obiKEGG, orngServerFiles
+import obiTaxonomy
 
 from OWWidget import *  
 import OWGUI
@@ -225,10 +226,11 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.keggLocalInterface = obiKEGG.KEGGInterfaceLocal(update=False)
         self.allOrganismCodes = self.keggLocalInterface.list_organisms()
 ##        update = obiKEGG.Update()
+        essential = [obiKEGG.from_taxid(tax) for tax in obiTaxonomy.essential_taxids()]
         local = [name.split(".")[0].split("_")[-1] for name in orngServerFiles.listfiles("KEGG") if "kegg_organism" in name]
-        self.organismCodes = [(code, name) for code, name in self.allOrganismCodes.items() if code in local]
+        self.organismCodes = [(code, name) for code, name in self.allOrganismCodes.items() if code in local or code in essential]
         self.organismCodes.sort()
-        items = [code+": "+desc for code, desc in self.organismCodes]
+        items = [desc for code, desc in self.organismCodes]
         self.organismCodes = [code for code, desc in self.organismCodes]
         if not items:
             self.error(0, "No downloaded organism data! Use the Update Genomics Databases widget to\ndownload KEGG pathways for your organism.")
