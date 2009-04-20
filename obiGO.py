@@ -553,7 +553,7 @@ class Annotations(object):
 
         path = os.path.join(orngServerFiles.localpath("GO"), file)
         if not os.path.exists(path):
-            print >> sys.stderr, "Downloading annotations for", name
+##            print >> sys.stderr, "Downloading", file
             orngServerFiles.download("GO", file)
         return cls(path, ontology=ontology, genematcher=genematcher, progressCallback=progressCallback)
     
