@@ -9,6 +9,7 @@
 import obiGO
 import obiKEGG
 import obiProb
+import obiTaxonomy
 import sys, os, tarfile
 import OWGUI
 import orngServerFiles
@@ -21,7 +22,7 @@ from functools import partial
 
 dataDir = orngServerFiles.localpath("GO")
 
-def listDownloaded():
+def listAvailable():
     import orngServerFiles
     files = orngServerFiles.listfiles("GO")
     ret = {}
@@ -30,6 +31,10 @@ def listDownloaded():
         td = dict([tuple(tag.split(":")) for tag in tags if tag.startswith("#") and ":" in tag])
         if "association" in file.lower():
             ret[td.get("#organism", file)] = file
+    orgMap = {"352472":"44689"}
+    essential = [obiGO.from_taxid(orgMap.get(id, id)).pop() for id in obiTaxonomy.essential_taxids()]
+    essentialNames = [obiTaxonomy.name(orgMap.get(id, id)) for id in obiTaxonomy.essential_taxids()]
+    ret.update(zip(essentialNames, essential))
     return ret
 
 def getOrgFileName(org):
@@ -94,8 +99,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##            self.settingsList.append( varName)
             code = compile("self.%s = True" % (varName), ".", "single")
             exec(code)
-        self.annotationFiles = listDownloaded()
-        self.annotationCodes = self.annotationFiles.keys()
+        self.annotationFiles = listAvailable()
+        self.annotationCodes = sorted(self.annotationFiles.keys())
         if not self.annotationCodes:
             self.error(0, "No downloaded annotations!!\nUse the Update Genomics Databases widget and download annotations for at least one organism!")
         else:
@@ -246,7 +251,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             curr = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
         else:
             curr = None
-        self.annotationFiles = listDownloaded()
+        self.annotationFiles = listAvailable()
         self.annotationCodes = self.annotationFiles.keys()
         index = curr and self.annotationCodes.index(curr) or 0
         self.annotationComboBox.clear()
@@ -316,12 +321,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.infoLabel.setText("\n")
         if data:
             self.SetGenesComboBox()
-            self.FindBestGeneAttrAndOrganism()
+##            index = self.annotationIndex = -42
             self.openContext("", data)
             if not self.ontology:
                 self.LoadOntology()
             if not self.annotations or self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
                 self.LoadAnnotation()
+
+##            if self.annotationIndex == -42:
+##                self.FindBestGeneAttrAndOrganism()
+##            else:
+##                self.annotationIndex = index
             
             self.FilterUnknownGenes()
             graph = self.Enrichment()
@@ -378,8 +388,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.progressBarInit()
             try:
                 self.annotations = None
-                filename = p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]])
-                self.annotations = obiGO.Annotations(filename, ontology = self.ontology, progressCallback=self.progressBarSet)
+##                filename = p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]])
+##                self.annotations = obiGO.Annotations(filename, ontology = self.ontology, progressCallback=self.progressBarSet)
+                self.annotations = obiGO.Annotations(self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)], ontology = self.ontology, progressCallback=self.progressBarSet)
             except IOError, er:
                 raise
             self.progressBarFinished()
