@@ -97,7 +97,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.annotationFiles = listDownloaded()
         self.annotationCodes = self.annotationFiles.keys()
         if not self.annotationCodes:
-            self.error(0, "No downloaded annotations!!\nClick the update button and update annotationa for at least one organism!")
+            self.error(0, "No downloaded annotations!!\nUse the Update Genomics Databases widget and download annotations for at least one organism!")
         else:
             self.error(0)
         #############

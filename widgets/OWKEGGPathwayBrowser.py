@@ -231,7 +231,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         items = [code+": "+desc for code, desc in self.organismCodes]
         self.organismCodes = [code for code, desc in self.organismCodes]
         if not items:
-            self.error(0, "No downloaded organism data!! Update the KEGG for your organism.")
+            self.error(0, "No downloaded organism data! Use the Update Genomics Databases widget to\ndownload KEGG pathways for your organism.")
 ##        if obiKEGG.Update.UpdateReference not in updatable:
 ##            self.warning(0, "Reference pathways are not downloaded. You will not be able to view all pathways in the orthology")
         cb = OWGUI.comboBox(self.controlArea, self, "organismIndex", box="Organism", items=items, callback=self.Update, addSpace=True)
