@@ -295,6 +295,15 @@ class Matcher(object):
         mat = self.match(gene)
         return mat[0] if len(mat) == 1 else None
 
+    def explain(self, gene):
+        """ 
+        Returns an gene matches with explanations as lists of tuples. 
+        Each tuple consists of a list of target genes in a set
+        of aliases matched to input gene, returned as a second part
+        of the tuple.
+        """
+        notImplemented()
+
 def buffer_path():
     """ Returns buffer path from Orange's setting folder if not 
     defined differently (in gene_matcher_path). """
@@ -393,6 +402,9 @@ class MatcherAliases(Matcher):
             reduce(lambda x,y:x+y, 
                 [ self.to_targets[igid] for igid in inputgeneids ], [])))
 
+    def explain(self, gene):
+        inputgeneids = self.to_ids(gene)
+        return [ (self.to_targets[igid], self.aliases[igid]) for igid in inputgeneids ]
 
 class MatcherAliasesPickled(MatcherAliases):
     """
@@ -586,7 +598,7 @@ class MatcherAliasesPickledJoined(MatcherAliasesPickled):
         except:
             return None
 
-    def __init__(self, matchers, ignore_case=True):
+    def __init__(self, matchers):
         """ 
         Join matchers together. Groups of aliases are joined if
         they share a common name.
@@ -596,6 +608,11 @@ class MatcherAliasesPickledJoined(MatcherAliasesPickled):
         #FIXME: sorting of matchers to avoid multipying pickled files for
         #different orderings.
         self.matchers = matchers
+        allic = set([ m.ignore_case for m in self.matchers ])
+        if len(allic) > 1:
+            notAllMatchersHaveEqualIgnoreCase()
+        ignore_case = list(allic)[0]
+
         MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
         
 class MatcherSequence(Matcher):
@@ -620,6 +637,12 @@ class MatcherSequence(Matcher):
         for matcher in self.matchers:
             matcher.set_targets(targets)
 
+    def explain(self, gene):
+        for matcher in self.matchers:
+            m = matcher.match(gene)
+            if m: 
+                return matcher.explain(gene)
+        return []
 
 class MatcherDirect(Matcher):
     """
@@ -652,15 +675,14 @@ def matcher(matchers, direct=True, ignore_case=True):
     sequence, join matchers in the subsequence.
 
     direct - if True, add a direct matcher to targets
-    ignore_case - if True, ignores case when joining and with optionally
-        added direct matcher 
+    ignore_case - if True, ignores case with optionally added direct matcher 
     """
     seqmat = []
     if direct:
         seqmat.append(MatcherDirect(ignore_case=ignore_case))
     for mat in matchers:
         if issequencens(mat):
-            mat = MatcherAliasesPickledJoined(list(mat), ignore_case=ignore_case)
+            mat = MatcherAliasesPickledJoined(list(mat))
             seqmat.append(mat)
         else:
             seqmat.append(mat)
@@ -709,8 +731,6 @@ if __name__ == '__main__':
         print a
         info.get_info(a)
 
-    fdsfsd()
-
     t = time.time()
     mat5 = matcher([[GMKEGG('human'),GMGO('human')]], direct=False, ignore_case=True)
     mat7 = GMDicty()
@@ -726,10 +746,6 @@ if __name__ == '__main__':
     mat7.set_targets(names)
     mat8.set_targets(names)
 
-##    import mMisc as m
-
-    #mat5 = mat7
-
     print "before genes"
     genes = reduce(set.union, genesets.values()[:1000], set())
     genes = list(genes)
@@ -738,7 +754,7 @@ if __name__ == '__main__':
     print "after genes"
 
     for g in sorted(genes):
-        print "KGO ", g, mat5.match(g)
+        print "KGO ", g, mat5.match(g), mat5.explain(g)
         print "KEGG", g, mat6.match(g)
         print "DICT", g, mat7.match(g)
         print "NCBI", g, mat8.match(g)
