@@ -90,11 +90,11 @@ class OWFeatureSelection(OWWidget):
         self.upperBoundarySpin = OWGUI.doubleSpin(box2, self, "histogram.upperBoundary", min=-1e6, max=1e6, step= 1e-6, label="Upper:", callback=callback, callbackOnReturn=True)
         self.lowerBoundarySpin = OWGUI.doubleSpin(box2, self, "histogram.lowerBoundary", min=-1e6, max=1e6, step= 1e-6, label="Lower:", callback=callback, callbackOnReturn=True)
         check = OWGUI.checkBox(box, self, "computeNullDistribution", "Compute null distribution", callback=self.Update)
-        check.disables.append(OWGUI.spin(box, self, "permutationsCount", min=1, max=10, label="Repetitions:", callback=self.Update, callbackOnReturn=True))
-        check.disables.append(OWGUI.button(box, self, "Select w.r.t null distribution", callback=self.SelectPBest))
+        check.disables.append(OWGUI.spin(box, self, "permutationsCount", min=1, max=10, label="Permutations:", callback=self.Update, callbackOnReturn=True))
+        check.disables.append(OWGUI.button(box, self, "Select w.r.t. null distribution", callback=self.SelectPBest))
         check.disables.append(OWGUI.doubleSpin(box, self, "selectPValue" , min=2e-7, max=1.0, step=1e-7, label="p-value:"))
         check.makeConsistent()
-        OWGUI.button(box, self, "Select n best features", callback=self.SelectNBest)
+        OWGUI.button(box, self, "Select most informative genes", callback=self.SelectNBest)
         OWGUI.spin(box, self, "selectNBest", 0, 10000, step=1, label="n:")
         box = OWGUI.widgetBox(self.controlArea, "Commit")
         OWGUI.button(box, self, "&Commit", callback=self.Commit)
@@ -247,11 +247,11 @@ class OWFeatureSelection(OWWidget):
             
     def UpdateDataInfoLabel(self):
         if self.data:
-            text = "%i data instances with\n%i attributes\n" % (len(self.data), len(self.data.domain.attributes))
+            text = "%i samples, %i genes\n" % (len(self.data), len(self.data.domain.attributes))
             if self.data.domain.classVar:
-                text = text+"Class var: %s" % self.data.domain.classVar.name
+                text = text+"Sample labels: %s" % self.data.domain.classVar.name
             else:
-                text = text+"Class var missing"
+                text = text+"Info with sample lables"
         else:
             text = "No data on input\n\n"
         self.dataInfoLabel.setText(text)
@@ -260,9 +260,9 @@ class OWFeatureSelection(OWWidget):
         self.cuts[self.methodIndex] = (cutOffLower, cutOffUpper)
         if self.data:
             test = self.scoreMethods[self.methodIndex][2]
-            self.selectedInfoLabel.setText("%i selected attributes" %len([attr for attr in self.data.domain.attributes if test(attr, cutOffLower, cutOffUpper)])) #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]))
+            self.selectedInfoLabel.setText("%i selected genes" %len([attr for attr in self.data.domain.attributes if test(attr, cutOffLower, cutOffUpper)])) #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]))
         else:
-            self.selectedInfoLabel.setText("0 selected attributes")
+            self.selectedInfoLabel.setText("0 selected genes")
 
     def SelectNBest(self):
         scores = self.scores.items()
