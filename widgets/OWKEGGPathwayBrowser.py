@@ -223,6 +223,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
+        self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "No data on input\n")
         self.keggLocalInterface = obiKEGG.KEGGInterfaceLocal(update=False)
         self.allOrganismCodes = self.keggLocalInterface.list_organisms()
 ##        update = obiKEGG.Update()
@@ -293,6 +294,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.openContext("", data)
             self.Update()
         else:
+            self.infoLabel.setText("No data on input\n")
             self.listView.clear()
             self.selectedObjects = defaultdict(list)
             self.pathwayView.SetPathway(None)
@@ -459,6 +461,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.loadedOrganism = self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]
         self.progressBarInit()
         uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes), self.caseSensitive)
+        self.infoLabel.setText("%i genes on input\n%i (%.1f%%) genes matched" % (len(genes), len(uniqueGenes), 100.0*len(uniqueGenes)/len(genes) if genes else 0.0))  
         self.progressBarFinished()
         if conflicting:
             print "Conflicting genes:", conflicting
