@@ -11,6 +11,8 @@ import OWGUI
 import obiGEO
 import orngServerFiles
 
+LOCAL_GDS_COLOR = Qt.green
+
 class SortableItem(QTreeWidgetItem):
     def __lt__(self ,other):
         widget = self.treeWidget()
@@ -76,7 +78,7 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.setSortingEnabled(True)
         self.mainArea.layout().addWidget(self.treeWidget)
         self.connect(self.treeWidget, SIGNAL("itemSelectionChanged ()"), self.updateSelection)
-##        self.connect(self.treeWidget, SIGNAL("currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*))"), self.updateSelection)
+##        self.connect(self.treeWidget, SIGNAL("currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*))"), self.updateSelection_)
         self.infoGDS = OWGUI.widgetLabel(OWGUI.widgetBox(self.mainArea, "Description"), "")
         self.infoGDS.setWordWrap(True)
 
@@ -100,6 +102,9 @@ class OWGEODatasets(OWWidget):
 ##            self.treeWidget.setItemWidget(item, 6, link)
             item.gdsName = name
             item.gds = gds
+            if os.path.exists(orngServerFiles.localpath(obiGEO.DOMAIN, gds["dataset_id"] + ".soft.gz")):
+                for i in range(6):
+                    item.setForeground(i, QBrush(LOCAL_GDS_COLOR))
             self.treeItems.append(item)
             if i in milestones:
                 self.progressBarSet(100.0*i/len(info)/2)
@@ -115,6 +120,7 @@ class OWGEODatasets(OWWidget):
 
     def updateSelection(self):
         current = self.treeWidget.selectedItems()
+##        print current
         if current:
             self.currentItem = current[0]
             self.setSubsets(current[0].gds)
@@ -144,6 +150,8 @@ class OWGEODatasets(OWWidget):
             data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, classes=classes)
             self.progressBarFinished()
             self.send("Example Table", data)
+            for i in range(6):
+                self.currentItem.setForeground(i, QBrush(LOCAL_GDS_COLOR))
         else:
             pass
 
