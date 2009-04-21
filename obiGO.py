@@ -512,7 +512,7 @@ class Annotations(object):
     def organism_version(cls, name):
         name = organism_name_search(name)
         orngServerFiles.localpath_download("GO", "gene_association.%s.tar.gz" % name)
-        return orngServerFiles.info("GO", "gene_association.%s.tar.gz" % name)["datetime"]
+        return "v2." + orngServerFiles.info("GO", "gene_association.%s.tar.gz" % name)["datetime"]
 
     def SetOntology(self, ontology):
         self.allAnnotations = defaultdict(list)
@@ -631,7 +631,7 @@ class Annotations(object):
     def aliasMapper(self):
         if getattr(self, "_aliasMapper", None) == None:
             self._aliasMapper = reduce(lambda dict, ann: dict.update([(alias, ann.geneName) for alias in ann.alias +\
-                                                                      [ann.geneName, ann.DB_Object_Symbol]]) or dict,
+                                                                      [ann.geneName, ann.DB_Object_ID]]) or dict,
                                                                       self.annotations, {})
         return self._aliasMapper
     
