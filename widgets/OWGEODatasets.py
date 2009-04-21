@@ -11,7 +11,7 @@ import OWGUI
 import obiGEO
 import orngServerFiles
 
-LOCAL_GDS_COLOR = Qt.green
+LOCAL_GDS_COLOR = Qt.darkGreen
 
 class SortableItem(QTreeWidgetItem):
     def __lt__(self ,other):
