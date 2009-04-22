@@ -11,7 +11,7 @@ import re, cPickle
 from datetime import datetime
 from collections import defaultdict
 
-import obiProb
+import obiProb, obiGene
 import orngEnviron
 
 try:
@@ -247,6 +247,7 @@ class Instance(OBOObject):
         
 class Ontology(object):
     """Ontology is the main class representing a gene ontology."""
+    version = 1
     def __init__(self, file=None, progressCallback=None):
         """ Initialize the ontology from file. The optional progressCallback will be called with a single argument to report on the progress.
         """
@@ -451,6 +452,7 @@ class AnnotationRecord(object):
 class Annotations(object):
     """Annotations object holds the annotations.
     """
+    version = 1
     def __init__(self, file=None, ontology=None, genematcher=None, progressCallback=None):
         """Initialize the annotations from file by calling ParseFile on it. The ontology must be an instance of Ontology class. The optional progressCallback will be called with a single argument to report on the progress.
         """
@@ -512,7 +514,7 @@ class Annotations(object):
     def organism_version(cls, name):
         name = organism_name_search(name)
         orngServerFiles.localpath_download("GO", "gene_association.%s.tar.gz" % name)
-        return "v2." + orngServerFiles.info("GO", "gene_association.%s.tar.gz" % name)["datetime"]
+        return ("v%i." % cls.version) + orngServerFiles.info("GO", "gene_association.%s.tar.gz" % name)["datetime"]
 
     def SetOntology(self, ontology):
         self.allAnnotations = defaultdict(list)
@@ -828,7 +830,7 @@ class Annotations(object):
         file.close()
 ##        tFile = tarfile.open(os.path.join(tmpDir, "gene_association." + org + ".tar.gz"), "w:gz")
         tFile.add(os.path.join(tmpDir, "gene_association." + org), "gene_association")
-        annotation = Annotations(os.path.join(tmpDir, "gene_association." + org), progressCallback=progressCallback)
+        annotation = Annotations(os.path.join(tmpDir, "gene_association." + org), genematcher=obiGene.GMDirect(), progressCallback=progressCallback)
         cPickle.dump(annotation.geneNames, open(os.path.join(tmpDir, "gene_names.pickle"), "wb"))
         tFile.add(os.path.join(tmpDir, "gene_names.pickle"), "gene_names.pickle")
         tFile.close()
@@ -1111,6 +1113,7 @@ def drawEnrichmentGraphPylab_tostream(termsList, headers, fh, width=None, height
 class Taxonomy(object):
     """Maps NCBI taxonomy ids to coresponding GO organism codes
     """
+    version = 1
     __shared_state = {"tax": None}
     def __init__(self):
         self.__dict__ = self.__shared_state
