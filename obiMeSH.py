@@ -1,10 +1,15 @@
-# TODO: Popravi moznost izbire enrichanih termov. Namesto tresholda daj funkcijo.
+"""
+Module for browsing any analyzing sets annotated with MeSH ontology.
+"""
+
 # TODO: Buffering za izbiro termov. Dodaj optimizacijo, ki uposteva vsebovanost.
 # TODO: Dodaj callback pri iskanju MeSH termov.
 # FIXME: Izbira atribut a.
 
 
 import orange
+import orngServerFiles
+
 from xml.sax import make_parser
 from xml.dom import minidom
 from xml.sax.handler import ContentHandler
@@ -12,7 +17,6 @@ from math import log,exp
 from urllib import urlopen
 from sgmllib import SGMLParser
 import os.path
-import orngServerFiles
 
 FUZZYMETAID = -12
 
@@ -54,69 +58,14 @@ class obiMeSH(object):
 			self.lookup.append(self.lookup[-1] + log(i))
 		self.dataLoaded = self.__loadOntologyFromDisk()
 
-#	def setDataDir(self, dataDir):
-#		self.path = dataDir
-#		self.dataLoaded = self.dataLoaded or self.__loadOntologyFromDisk()
 
-#	def getDataDir(self):
-#		"""Default for dataDir is "data", by calling these two methods the user can change the directory of the local "fast" data base.
-#		This influences downloadGO() and downloadAnnotation(...). above directory also buffers compound annotation"""
-#		return self.path
-
-#	def downloadOntology(self,callback=None):
-#		# ftp://nlmpubs.nlm.nih.gov/online/mesh/.meshtrees/mtrees2008.bin
-#		# ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2008.bin
-#		if callback:
-#			callback(1)
-#		ontology = urlopen("ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2008.bin")
-#		size = int(ontology.info().getheader("Content-Length"))
-#		rsize = 0
-#		results = list()
-#		for i in ontology:
-#			rsize += len(i)
-#			line = i.rstrip("\t\n")
-#			if(line == "*NEWRECORD"):
-#				if(len(results) > 0 and results[-1][1] == []):	# we skip nodes with missing mesh id
-#					results[-1] = ["",[],"No description."]
-#				else:
-#					results.append(["",[],"No description."])	
-#				if(len(results)%40 == 0):
-#					if callback:
-#						callback(1+int(rsize*94/size))
-#			parts = line.split(" = ")
-#			if(len(parts) == 2 and len(results)>0):
-#				if(parts[0] == "MH"):
-#					results[-1][0] = parts[1].strip("\t ") 
-#
-#				if(parts[0] == "MN"):
-#					results[-1][1].append(parts[1].strip("\t "))
-#				if(parts[0] == "MS"):
-#					results[-1][2] = parts[1].strip("\t ")
-#		ontology.close()
-#		__dataPath = os.path.join(os.path.dirname(__file__), self.path)
-#		output = file(os.path.join(__dataPath,'mesh-ontology.dat'), 'w')
-#		if callback:
-#			callback(98)
-#		for i in results:
-#			#print i[0] + "\t"
-#			output.write(i[0] + "\t")
-#			g=len(i[1])			
-#			for k in i[1]:
-#				g -= 1
-#				if(g > 0):
-#					# print k + ";"
-#					output.write(k + ";")
-#				else:
-#					# print k + "\t" + i[2]
-#					output.write(k + "\t" + i[2] + "\n")
-#		output.close()
-#		self.__loadOntologyFromDisk()
-#		if callback:
-#			callback(100)
-#		print "Ontology database has been updated."
-
-	def expandToFuzzyExamples(self, examples, a, b):
-		""" function will return new example table with some examples (effect is in (a,b)) expanded to fuzzy """
+	def expandToFuzzyExamples(self, examples, att, a, b):
+		"""
+		Function will return new 'fuzzy' example table. Every example from the input table will get two additional meta attributes ('fuzzy set' and 'u') \
+		based on 'a' and 'b' threshold (lower and higher) and attribute 'att'. Attribute 'fuzzy set' indicates name of the fuzzy set while atribute 'u' \ 
+		reflects example's degree of membership to particular fuzzy set. Note that input examples with values of 'att' lying on the (a,b) will be expanded \
+		into two fuzzy examples.
+		"""
 		mu = orange.FloatVariable("u")
 		mv = orange.StringVariable("fuzzy set")
 		examples.domain.addmeta(FUZZYMETAID, mu)
@@ -124,7 +73,7 @@ class obiMeSH(object):
 		newexamples = []
 		for j in range(0,len(examples)):
 			i = examples[j]
-			v = float(i['effect'])
+			v = float(i[att])
 			if v > a and v < b:  # we have to expand this example
 				newexamples.append(i)
 				i["fuzzy set"] = 'yes'
@@ -132,8 +81,6 @@ class obiMeSH(object):
 				examples.append(i)
 				examples[-1]["fuzzy set"] = "no"
 				examples[-1]["u"] = (b-v)/(b-a)
-				#newexamples[-1]["set"] = 'no'
-				#newexamples[-1]["u"] =  (b-v)/(b-a)
 			else:
 				if v > a:  #		u(yes) = 1.0
 					i["fuzzy set"] = 'yes'
@@ -141,14 +88,13 @@ class obiMeSH(object):
 				else: #		u(no) = 1.0
 					i["fuzzy set"] = 'no'
 					i["u"] = 1.0
-		#for i in newexamples:
-		#	examples.append(i)
 		return examples
 
-	def findSubset(self,examples,meshTerms, callback = None, MeSHtype = 'term'):
-		""" function examples which have at least one node on their path from list meshTerms
-			findSubset(all,['Aspirine']) will return a dataset with examples annotated as Aspirine """
-		# clone		
+	def findSubset(self, examples, meshTerms, callback=None, MeSHtype='term'):
+		"""
+		Function findSubset will return new example table containing examples which are annotated with at least one MeSH term from list 'meshTerms'.
+		"""
+		# clone
 		newdata = orange.ExampleTable(examples.domain)
 		self.solo_att = self.__findMeshAttribute(examples)
 		ids = list()
@@ -158,13 +104,11 @@ class obiMeSH(object):
 		# we couldn't find any mesh attribute
 		if self.solo_att == "Unknown":
 			return newdata
-		
 		if MeSHtype == 'term':
 			for i in meshTerms:
 				ids.extend(self.toID[i])
 		else:
 			ids = meshTerms
-
 		for e in examples:
 			try:
 				if callback:
@@ -179,7 +123,6 @@ class obiMeSH(object):
 				if self.toID.has_key(i):
 					endids.extend(self.toID[i])
 			allnodes = self.__findParents(endids)
-
 			# calculate intersection
 			isOk = False
 			for i in allnodes:
@@ -189,12 +132,12 @@ class obiMeSH(object):
 
 			if isOk:	  # intersection between example mesh terms and observed term group is None
 				newdata.append(e)
-
 		return newdata
 
-	def findTerms(self,ids, idType="cid", callback = None):
-		""" returns a dictionary with terms (term id) that apply to ids (cids or pmids). """
-
+	def findTerms(self, ids, idType="cid", callback=None):
+		"""
+		Function findTerms returns a dictionary containing annotated items from the list 'ids'.
+		"""
 		ret = dict()
 		if(not self.dataLoaded):
 			print "Annotation and ontology has never been loaded!"
@@ -233,58 +176,56 @@ class obiMeSH(object):
 		return ret
 
 
-	def findCIDSubset(self,examples,meshTerms, callback = None):
-		""" function examples which have at least one node on their path from list meshTerms findSubset([1,2,3], ['Aspirine']) will return a dataset with examples annotated as Aspirine"""
-
+	def findCIDSubset(self, examples, meshTerms, callback=None):
+		"""
+		Function findCIDSubset will return new list of examples (ids) containing examples which are annotated with at least one MeSH term from \
+		list 'meshTerms'.
+		"""
 		newdata = []
 		ids = list()
 		meshTerms = list(set(meshTerms))
 		for i in meshTerms:
 				if self.toID.has_key(i):
 					ids.extend(self.toID[i])
-
 		for e in examples:
 			if not self.fromCID.has_key(e):
 				continue
-
 			ends = self.fromCID[e]
 			endids = list()
 			for i in ends:
 				if self.toID.has_key(i):
 					endids.extend(self.toID[i])
 			allnodes = self.__findParents(endids)
-
 			# calculate intersection
 			isOk = False
 			for i in allnodes:
 				if ids.count(i) > 0:
 					isOk = True
 					break
-
 			if isOk:	  # intersection between example mesh terms and observed term group is None
 				newdata.append(e)
 		return newdata
 	
-	def findFrequentTerms(self,data,minSizeInTerm, treeData = False, callback=None):
-		""" Function iterates thru examples in data. For each example it computes a list of associated terms. At the end we get (for each term) number of examples which have this term. """
+	def findFrequentTerms(self, data, minSizeInTerm, treeData=False, callback=None):
+		"""
+		Function findFrequentTerms iterates thru examples in data. For every example it finds appropriate annotation (MeSH term). Result of this \
+		function is a dictionary where keys corespond to MeSH terms ids and a value is a number of examples annotated with particular MeSH term.
+		"""
 		# we build a dictionary 		meshID -> [description, noReference, [cids] ]
 		self.statistics = dict()
 		self.calculated = False
 		self.solo_att = self.__findMeshAttribute(data)
-
 		# post processing variables
 		ret = dict()
 		ids = []
 		succesors = dict()		# for each term id -> list of succesors
 		succesors["tops"] = []
-
 		# if we can't identify mesh attribute we return empty data structures
 		if self.solo_att == "Unknown":
 			if treeData:
 				return succesors, ret
 			else:
 				return ret
-
 		# plain frequency
 		t = 0.0
 		n = len(data)
@@ -292,7 +233,6 @@ class obiMeSH(object):
 			t = t + 1
 			if callback:
 				callback(int(t*100/n))
-
 			try:
 				endNodes = list(set(eval(i[self.solo_att].value))) # for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
 			except SyntaxError:
@@ -301,32 +241,27 @@ class obiMeSH(object):
 			# we find ID of end nodes
 			endIDs = []
 			for k in endNodes:
-				if(self.toID.has_key(k)):					# this should be always true, but anyway ...
+				if(self.toID.has_key(k)):	# this should be always true, but anyway ...
 					endIDs.extend(self.toID[k])
 				else:
 					print "Current ontology does not contain MeSH term ", k, "." 
-
 			# we find id of all parents
 			allIDs = self.__findParents(endIDs)
-
-			for k in allIDs:								# for every meshID we update statistics dictionary
-				if(not self.statistics.has_key(k)):			# first time meshID
+			for k in allIDs:	# for every meshID we update statistics dictionary
+				if(not self.statistics.has_key(k)):	# first time meshID
 					self.statistics[k] = 0
-				self.statistics[k] += 1						# counter increased
-
+				self.statistics[k] += 1	# counter increased
 		# post processing
 		for i in self.statistics.iterkeys():
-
 			if(self.statistics[i] >= minSizeInTerm ): 
 				ret[i] = self.statistics[i]
 				ids.append(i)
-
 		# we can also return tree data
 		if treeData: #we return also compulsory data for tree printing 
 			return self.__treeData(ids), ret 
 		else:
 			return ret
-	
+
 	def __treeData(self,ids):
 		succesors = dict()
 		succesors["tops"]= []
@@ -336,7 +271,6 @@ class obiMeSH(object):
 			for j in ids:
 				if(i != j and self.__isPrecedesor(i,j)):
 					succesors[i].append(j)
-		
 		# for each node from list above we remove its indirect succesors
 		# only  i -1-> j   remain
 		for i in succesors.iterkeys():
@@ -347,65 +281,61 @@ class obiMeSH(object):
 			for m in second_level_succs:
 				if succesors[i].count(m)>0:
 					succesors[i].remove(m)
-		
 		# we make a list of top nodes
 		tops = list(ids)
 		for i in ids:
 			for j in succesors[i]:
 				tops.remove(j)
-
 		# we pack tops table and succesors hash
 		succesors["tops"] = tops
 		return succesors  
 		
-	def findEnrichedTerms(self,reference, cluster, pThreshold=0.05, treeData = False, callback=None, fuzzy = False):
-		""" like above, but only includes enriched terms (with p value equal or less than pThreshold). Returns a list of (term_id,  term_description, countRef, countCluster, p-value,	enrichment/deprivement, list of corrensponding cids ... anything else necessary). It printOrder is true function returns results in nested lists. This means that at printing time we know if there is any relationship betwen terms"""
-
+	def findEnrichedTerms(self, reference, cluster, pThreshold=0.05, treeData=False, callback=None, fuzzy=False):
+		"""
+		Function findEnrichedTerms computes MeSH term enrichment based on a 'reference' and 'cluster' sets. It returns a dictionary where \
+		keys are enriched (their p-value lower that 'pThreshold') MeSH terms. Key values are lists made of several items (MeSH term id, \
+		MeSH term description, number of examples from the reference set, number of examples from the cluster set, p value, fold enrichment).
+		"""
 		self.clu_att = self.__findMeshAttribute(cluster)
 		self.ref_att = self.__findMeshAttribute(reference)
-	
-		if((not self.calculated or self.reference != reference or self.cluster != cluster) and self.ref_att != "Unknown" and self.clu_att != "Unknown"):	# Do have new data? Then we have to recalculate everything.
+		if((not self.calculated or self.reference != reference or self.cluster != cluster) and self.ref_att != "Unknown" and \
+		self.clu_att != "Unknown"):	# Do have new data? Then we have to recalculate everything.
 			self.reference = reference
 			self.cluster = cluster			
 			self.__calculateAll(callback, fuzzy)
-
 		# declarations
 		ret = dict()
 		ids = []
 		succesors = dict()		# for each term id -> list of succesors
 		succesors["tops"] = []
-		
 		# if some attributes were unknown
 		if (self.clu_att == "Unknown" or self.ref_att == "Unknown"):
 			if treeData:
 				return  succesors, ret
 			else:
 				return  ret
-
 		for i in self.statistics.iterkeys():
 			if(self.statistics[i][2] <= pThreshold ) :#or self.statistics[i][4] <= pThreshold ): # 
 				ret[i] = self.statistics[i]
 				ids.append(i)
-	
 		if treeData:
 			return self.__treeData(ids),ret 
 		else:
 			return ret
 
-	def printMeSH(self,data, selection = ["term","r","c", "p"], func = None):
-		"""for a dictinary of terms prints a MeSH ontology. Together with ontology should print things like number
-		of compounds, p-values (enrichment), ... see Printing the Tree in orngTree documentation for example of such
-		an implementation. The idea is to have only function for printing out the nested list of terms. """
+	def printMeSH(self, data, selection=["term","r","c", "p"], func=None):
+		"""
+		Function printMeSH can be used to print result (dictionary) from the findEnrichedTerms and findFrequentTerms functions.
+		"""
 		# first we calculate additional info for printing MeSH ontology
 		info = self.__treeData(data.keys())
 		for i in info["tops"]:
 			self.__pp(0,i,info,data, selection, funct = func)
 
-	def __pp(self, offset, item, relations, data, selection, funct = None):
+	def __pp(self, offset, item, relations, data, selection, funct=None):
 		mapping = {"term":0,"desc":1,"r":2,"c":3, "p":4, "fold":5, "func":6} 
 		for i in range(0,offset):
 			print " ",
-
 		if type(data[item]) == list:
 			pval = "%.4g" % data[item][2]
 			fold = "%.4g" % data[item][3]
@@ -415,32 +345,28 @@ class obiMeSH(object):
 					print i + "=" + print_data[mapping[i]],
 				else:
 					print print_data[mapping[i]],
-
 			if funct != None:
 				print " ", funct(print_data[0]),
-
 			#print self.toName[item], " r=" + str(data[item][1])  +" c="+ str(data[item][2])  ," p=" + str(pval) + " fold=" + str(fold)
 			print ""
 		else:
 			print self.toName[item], " freq=" + str(data[item])
-
 		for i in relations[item]:
 			self.__pp(offset + 2, i, relations, data, selection, funct = funct) 
 
-	def printHtmlMeSH(self,data, selection = ["term","r","c", "p"], func = None):
-		"""for a dictinary of terms prints a MeSH ontology. Together with ontology should print things like number
-		of compounds, p-values (enrichment), ... see Printing the Tree in orngTree documentation for example of such
-		an implementation. The idea is to have only function for printing out the nested list of terms. """
+	def printHtmlMeSH(self, data, selection=["term","r","c", "p"], func=None):
+		"""
+		Function printHtmlMeSH if used to print results (dictinary) from the findFrequentTerms and findFrequentTerms functins in HTML format. \
+		Together with the MeSH ontology it prints data like number of examples, p-values (enrichment).
+		"""
 		# first we calculate additional info for printing MeSH ontology
 		info = self.__treeData(data.keys())
 		w = {"term":"'95px'", "r":"'70px'","c":"'70px'","p":"'95px'"}
 		print "<table>\n<tr>"
 		for i in selection:
 			print "<th width=" + w[i] +" align='left'>" + i  +"</th>"
-
 		if func != None:
 			func("header","")
-
 		print "</tr>\n"
 		for i in info["tops"]:
 			self.__htmlpp(0,i,info,data, selection, funct = func)
@@ -475,26 +401,21 @@ class obiMeSH(object):
 		for i in relations[item]:
 			self.__htmlpp(offset + 2, i, relations, data, selection, funct = funct)
 
-	def findCompounds(self,terms, CIDs):
-		"""from CIDs found those compounds that match terms from the list"""
-		# why do we need such a specialized function?
-
-	def parsePubMed(self,filename, attributes = ["pmid", "title","abstract","mesh"], skipExamplesWithout = ["mesh"]):
+	def parsePubMed(self, filename, attributes=["pmid","title","abstract","mesh"], skipExamplesWithout=["mesh"]):
+		"""
+		Function parsePubMed can be used to parse (into Orange example table) PubMed search results (in XML).
+		"""
 		parser = make_parser()
 		handler = pubMedHandler()
 		parser.setContentHandler(handler)
-		
 		parser.parse(open(filename))
-
 		atts = []
 		for i in attributes:
 			atts.append(orange.StringVariable(i))
-		
 		domain = orange.Domain(atts,0)
 		data = orange.ExampleTable(domain)
 		print data.domain.attributes
 		mapping = {"pmid":0, "title":1, "abstract":2, "mesh":3, "affilation":4}
-		
 		for i in handler.articles:
 			r=[]
 			skip = False
@@ -524,8 +445,10 @@ class obiMeSH(object):
 					res.append(t) """
 		return res
 
-	def __findMeshAttribute(self,data):
-		""" function tries to find attribute which contains list os mesh terms """
+	def __findMeshAttribute(self, data):
+		"""
+		Function tries to find attribute which contains list of MeSH terms.
+		"""
 		# we get a list of attributes
 		dom = data.domain.attributes
 		for i in dom:			  # for each attribute
@@ -648,13 +571,15 @@ class obiMeSH(object):
 			self.statistics[i][3] = float(self.statistics[i][1]) / float(self.statistics[i][0] ) / self.ratio   # fold enrichment
 		self.calculated = True		
 
-	def __calcEnrichment(self,n,c,t,tc):
-		"""n - total number of chemicals ie. size(cluster + reference)
+	def __calcEnrichment(self, n, c, t, tc):
+		"""
+		Function calculates hypergeometric distribution based on the input parameters.
+		n - total number of items ie. size(cluster + reference)
 		c - cluster size ie. size(cluster)
-		t - number of all chemicals in observed term group
-		tc - number of cluster chemicals in observed term group"""
-		#print "choose ", n, " ", c, " ", t, " ", tc		
-		
+		t - number of all items in observed MeST term group
+		tc - number of cluster chemicals in observed term group
+		"""
+
 		# FIXME: Popravi cudno racunanje enrichmenta v mejnih primerih.
 		
 		result=0
@@ -667,7 +592,9 @@ class obiMeSH(object):
 		return self.lookup[n] - self.lookup[n-m] - self.lookup[m]
 
 	def __loadOntologyFromDisk(self):
-		""" Function loads MeSH ontology (pair cid & MeSH term) and MeSH graph data (graph structure) """
+		""" 
+		Function loads MeSH ontology and chemical annotation into internal data structures.
+		"""
 		self.toID = dict()  #   name -> [IDs] Be careful !!! One name can match many IDs!
 		self.toName = dict() #   ID -> name
 		self.toDesc = dict() # 	name -> description
@@ -717,7 +644,7 @@ class obiMeSH(object):
 
 class pubMedHandler(ContentHandler):
 	def __init__(self):
-		self.state = 0 		# 		0 start state, 1 pmid, 2 title, 3 abstract, 4 mesh 
+		self.state = 0 	#  0 start state, 1 pmid, 2 title, 3 abstract, 4 mesh 
 		self.articles = []
 		self.pmid = "0"
 		self.title = ""
@@ -773,7 +700,6 @@ class MappedMeSHParser(SGMLParser):
 	
 	def unknown_starttag(self, tag, attrs):
 		strattrs = "".join([' %s="%s"' % (key, value) for key, value in attrs])
-
 		if self.foundMeSH and tag=='a':
 			self.nextIsTerm = True
 	
@@ -797,8 +723,6 @@ class PubChemMeSHParser(SGMLParser):
 		self.indirectTerms = []
 		self.foundMeSH = False
 		SGMLParser.reset(self)
-		
-
 		# strategy as follows
 		# Beetween strings "Drug and Chemical Info" and ("Pharmalogical Action" or "PubMed via MeSH" or "PubMed MeSH Keyword Summary") find hyperlinks. Based on title attribute we can distingue direct MeSH terms beetween mapped terms.
 
@@ -809,7 +733,6 @@ class PubChemMeSHParser(SGMLParser):
 				self.next = 1
 			elif attrs[2][1] == 'MeSH Substance Name':
 				self.next = 2
-
 
 	def handle_data(self, text):
 		text = text.strip()
@@ -883,13 +806,18 @@ class CIDSParser(SGMLParser):
 			self.nextCID = False
 
 class pubChemAPI(object):
-	# buffer
+	"""
+	Class pubChemAPI is used to simplift the access to the pubChem database.
+	"""
 	def __init__(self):
 		self.data = ""
 		self.identifier = ""
 		self.database = ""
 
 	def getSMILE(self, id, typ):
+		"""
+		Function getSMILE takes chemicals id and its type and returns a SMILES representation. 
+		"""
 		dbs = {"sid":"pcsubstance", "cid":"pccompound"}
 		if not dbs.has_key(typ):
 			return "Unknown identifier"
@@ -911,7 +839,9 @@ class pubChemAPI(object):
 		return data
 
 	def getMeSHterms(self, cid):	
-		""" functions tries to find MeSH terms for given CID on the internet """
+		"""
+		Functions getMeSHterms tries to find MeSH annotation for given the CID in the pubChem database.
+		"""
 		usock = urlopen("http://pubchem.ncbi.nlm.nih.gov/summary/summary.cgi?cid="+ str(cid)  +"&viewopt=PubChem&hcount=100&tree=t#MeSH")
 		parser = PubChemMeSHParser()
 		text = usock.read()
@@ -931,7 +861,10 @@ class pubChemAPI(object):
 		allTerms = list(set(allTerms))
 		return allTerms
 
-	def getMolecularFormula(self, id, typ):	
+	def getMolecularFormula(self, id, typ):
+		"""
+		Functions getMolecularFormula tries to find molecular formula for the given the chemical id and type in the pubChem database.
+		"""
 		dbs = {"sid":"pcsubstance", "cid":"pccompound"}
 		if not dbs.has_key(typ):
 			return "Unknown identifier"
@@ -953,6 +886,9 @@ class pubChemAPI(object):
 		return data
 
 	def getCIDfromSID(self, sid):
+		"""
+		Functions getCIDfromSID converts compound id to substance id.
+		"""
 		dbs = {"sid":"pcsubstance", "cid":"pccompound"}
 		if not dbs.has_key("sid"):
 			return "Unknown identifier"
@@ -974,6 +910,9 @@ class pubChemAPI(object):
 		return data
 
 	def getPharmActionList(self, cid):
+		"""
+		Functions getPharmActionList finds pharmacological MeSH annotation for the given CID.
+		"""
 		dbs = {"sid":"pcsubstance", "cid":"pccompound"}
 		# maybe we already have the data ...
 		if cid == self.identifier and dbs["cid"] == self.database:
@@ -997,7 +936,10 @@ class pubChemAPI(object):
 					data.append(str(t.childNodes[0].data))
 		return data
 
-	def getCIDs(self,name,weight):
+	def getCIDs(self, name, weight):
+		"""
+		Functions getCIDs tries to find correct chemical id based on given chemical name and weight.
+		"""
 		offset = 0.005
 		url2fetch = "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pccompound&term="
 		url2fetch += name.replace(" ","%20") + "%20" + str(weight*(1-offset)) + ":" + str(weight*(1+offset)) + "[mw]&retmax=10000"
@@ -1013,6 +955,9 @@ class pubChemAPI(object):
 		return ret
 
 	def getCIDs(self,name):
+		"""
+		Functions getCIDs tries to find correct chemical id based on given chemical name.
+		"""
 		url2fetch = "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pccompound&term="
 		url2fetch += name.replace(" ","%20") + "&retmax=10000"
 		#print url2fetch
