@@ -722,6 +722,7 @@ class KEGGInterfaceLocal(object):
         return names[len(self._genes[org][gene].get_db_links()):-1][0]
     
 class KEGGOrganism(object):
+    version = 1
     def __init__(self, org, genematcher=None, update=False, local_database_path=None):
         
         self.org = org
@@ -909,6 +910,7 @@ def organism_name_search(name):
     
 
 class KEGGPathway(object):
+    version = 1
     def __init__(self, pathway_id, update=False, local_database_path=None):
         self.pathway_id = pathway_id
         self.org = pathway_id.split(":")[-1][:-5]
