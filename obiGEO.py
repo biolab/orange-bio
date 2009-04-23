@@ -213,7 +213,7 @@ class GDS():
         else: # samples as attributes, genes in rows
             atts = [orange.FloatVariable(name=ss) for ss in self.info["samples"]]
             for i, a in enumerate(atts):
-                a.setattr("group", sample2class[self.info["samples"][i]])
+                a.setattr("attributes", {"group": sample2class[self.info["samples"][i]]})
             domain  = orange.Domain(atts, False)
     
             if report_genes: # save by genes
