@@ -80,7 +80,13 @@ class OWFeatureSelection(OWWidget):
         box = OWGUI.widgetBox(self.controlArea, "Info", addSpace=True)
         self.dataInfoLabel = OWGUI.widgetLabel(box, "\n\n")
         self.selectedInfoLabel = OWGUI.widgetLabel(box, "")
-        self.testRadioBox = OWGUI.radioButtonsInBox(self.controlArea, self, "methodIndex", [sm[0] for sm in self.scoreMethods], box="Score Method", callback=self.Update, addSpace=True)
+
+        #self.testRadioBox = OWGUI.radioButtonsInBox(self.controlArea, self, "methodIndex", [sm[0] for sm in self.scoreMethods], box="Scoring Method", callback=self.Update, addSpace=True)
+        # OWGUI.comboBoxWithCaption(box, self, "ptype", items=nth(self.permutationTypes, 0), \
+        #             tooltip="Permutation type.", label="Permutate")
+        box1 = OWGUI.widgetBox(self.controlArea, "Scoring Method")
+        self.testRadioBox = OWGUI.comboBox(box1, self, "methodIndex", items=[sm[0] for sm in self.scoreMethods], callback=self.Update)
+
         ZoomSelectToolbar(self, self.controlArea, self.histogram, buttons=[ZoomSelectToolbar.IconSelect, ZoomSelectToolbar.IconZoom, ZoomSelectToolbar.IconPan])
         OWGUI.separator(self.controlArea)
         
@@ -89,12 +95,18 @@ class OWFeatureSelection(OWWidget):
         self.upperBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.upperBoundary", min=-1e6, max=1e6, step= 1e-6, label="Upper threshold:", callback=callback, callbackOnReturn=True)
         self.lowerBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.lowerBoundary", min=-1e6, max=1e6, step= 1e-6, label="Lower threshold:", callback=callback, callbackOnReturn=True)
         check = OWGUI.checkBox(box, self, "computeNullDistribution", "Compute null distribution", callback=self.Update)
+
         check.disables.append(OWGUI.spin(box, self, "permutationsCount", min=1, max=10, label="Permutations:", callback=self.Update, callbackOnReturn=True))
-        check.disables.append(OWGUI.button(box, self, "Select w.r.t. null distribution", callback=self.SelectPBest))
-        check.disables.append(OWGUI.doubleSpin(box, self, "selectPValue" , min=2e-7, max=1.0, step=1e-7, label="p-value:"))
+
+        box1 = OWGUI.widgetBox(box, orientation='horizontal')
+        check.disables.append(OWGUI.doubleSpin(box1, self, "selectPValue" , min=2e-7, max=1.0, step=1e-7, label="P-value:"))
+        check.disables.append(OWGUI.button(box1, self, "Select", callback=self.SelectPBest))
         check.makeConsistent()
-        OWGUI.button(box, self, "Select most informative genes", callback=self.SelectNBest)
-        OWGUI.spin(box, self, "selectNBest", 0, 10000, step=1, label="n:")
+
+        box1 = OWGUI.widgetBox(box, orientation='horizontal')
+        OWGUI.spin(box1, self, "selectNBest", 0, 10000, step=1, label="Best Ranked:")
+        OWGUI.button(box1, self, "Select", callback=self.SelectNBest)
+
         box = OWGUI.widgetBox(self.controlArea, "Commit")
         OWGUI.button(box, self, "&Commit", callback=self.Commit)
         OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
@@ -136,8 +148,8 @@ class OWFeatureSelection(OWWidget):
             disabled = [4, 5]
         elif self.data and len(self.data.domain.classVar.values) > 2:
            disabled = [0, 1, 2, 3, 6]
-        for i, button in enumerate(self.testRadioBox.buttons):
-            button.setDisabled(i in disabled)
+        #for i, button in enumerate(self.testRadioBox.buttons):
+        #    button.setDisabled(i in disabled)
         self.UpdateDataInfoLabel()
         self.Update()
         self.Commit()
@@ -352,7 +364,7 @@ class OWFeatureSelection(OWWidget):
 if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
-    data = orange.ExampleTable("testo.tab")
+    data = orange.ExampleTable("DLBCL_200a.tab")
     w = OWFeatureSelection()
     w.show()
     w.SetData(data)
