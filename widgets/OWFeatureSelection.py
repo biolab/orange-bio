@@ -85,10 +85,9 @@ class OWFeatureSelection(OWWidget):
         OWGUI.separator(self.controlArea)
         
         box = OWGUI.widgetBox(self.controlArea, "Selection", addSpace=True)
-        box2 = OWGUI.widgetBox(box, "Threshold")
         callback = lambda: self.histogram.setBoundary(self.histogram.lowerBoundary, self.histogram.upperBoundary) if self.data else None
-        self.upperBoundarySpin = OWGUI.doubleSpin(box2, self, "histogram.upperBoundary", min=-1e6, max=1e6, step= 1e-6, label="Upper:", callback=callback, callbackOnReturn=True)
-        self.lowerBoundarySpin = OWGUI.doubleSpin(box2, self, "histogram.lowerBoundary", min=-1e6, max=1e6, step= 1e-6, label="Lower:", callback=callback, callbackOnReturn=True)
+        self.upperBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.upperBoundary", min=-1e6, max=1e6, step= 1e-6, label="Upper threshold:", callback=callback, callbackOnReturn=True)
+        self.lowerBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.lowerBoundary", min=-1e6, max=1e6, step= 1e-6, label="Lower threshold:", callback=callback, callbackOnReturn=True)
         check = OWGUI.checkBox(box, self, "computeNullDistribution", "Compute null distribution", callback=self.Update)
         check.disables.append(OWGUI.spin(box, self, "permutationsCount", min=1, max=10, label="Permutations:", callback=self.Update, callbackOnReturn=True))
         check.disables.append(OWGUI.button(box, self, "Select w.r.t. null distribution", callback=self.SelectPBest))
@@ -353,7 +352,7 @@ class OWFeatureSelection(OWWidget):
 if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
-    data = orange.ExampleTable("E://leukemia.tab")
+    data = orange.ExampleTable("testo.tab")
     w = OWFeatureSelection()
     w.show()
     w.SetData(data)
