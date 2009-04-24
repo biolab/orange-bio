@@ -174,11 +174,21 @@ class DBInterface(object):
         except IOError:
             return self.raw(request, tryN=tryN-1)
 
-    def get(self, request):
+    def get(self, request, tryN=3):
         rawf = self.raw(request)
         if rawf == None:
             raise Exception("Connection error when contacting " + self.address + request)
+        if rawf[:1] == "<": #an error occurred - starting some html input
+            #TODO are there any other kinds of errors?
+            if tryN > 0:
+                print "trying again"
+                return self.get(request, tryN=tryN-1)
+            else:
+                raise Exception("Error with the database")
+
+
         a = txt2ll(rawf, separ='\t')
+        
         if a[-1][0] == "": #remove empty line on end
             a = a[:-1]
         return a
@@ -601,7 +611,7 @@ chips chips""")
   
     def spotId(self):
         res,legend = self.sq("action=spot_id_mapping")
-        res2 = onlyColumns(res, legend, ["spot_id", 'ddb', 'genename'])
+        res2 = onlyColumns(res, legend, ["spot_id", 'ddb_g', 'genename'])
         return res2
 
     def annotationTypes(self):
@@ -1389,7 +1399,6 @@ if __name__=="__main__":
     a = DictyBase()
     print len(a.info)
 
-    """
     #dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?", buffer=BufferSQLite("../tmpbuf1233"))
     dbc = DatabaseConnection("http://purple.bioch.bcm.tmc.edu/~anup/index.php?", buffer=BufferSQLite("../tmpbufnew"))
 
@@ -1406,4 +1415,3 @@ if __name__=="__main__":
     for i,et in enumerate(ets):
         et.save("%s/T%d.tab" % ("multid2", i))
         print et.annot
-    """

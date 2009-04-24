@@ -64,7 +64,7 @@ class OWDicty(OWWidget):
         self.loadSettings()
         self.dbc = None        
 
-        QTimer.singleShot(0, self.UpdateExperiments)
+        QTimer.singleShot(0, self.UpdateExperiments)        
 
         self.resize(600, 400)
 
@@ -73,6 +73,7 @@ class OWDicty(OWWidget):
         return [ i for i, new in enumerate(newList) if new in oldList]
     
     def Connect(self):
+
         address = self.server + "?"
         if self.serverToken:
             address += "token="+self.serverToken+"&"
