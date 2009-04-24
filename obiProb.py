@@ -21,15 +21,17 @@ class LogBin(object):
     def __init__(self, max=1000):
         self._extend(max)
 
-    @classmethod
-    def _extend(cls, max):
-        for i in range(cls._max, max):
+    @staticmethod
+    def _extend(max):
+        if max <= LogBin._max:
+            return
+        for i in range(LogBin._max, max):
             if i > 1000: ## an arbitrary cuttof
-                cls._lookup.append(cls._logfactorial(i))
+                LogBin._lookup.append(LogBin._logfactorial(i))
             else:
-                cls._max_factorial *= i
-                cls._lookup.append(math.log(cls._max_factorial))
-        cls._max = max
+                LogBin._max_factorial *= i
+                LogBin._lookup.append(math.log(LogBin._max_factorial))
+        LogBin._max = max
 
     def _logbin(self, n, k):
         if n >= self._max:
@@ -39,8 +41,8 @@ class LogBin(object):
         else:
             return 0.0
 
-    @classmethod
-    def _logfactorial(cls, n):
+    @staticmethod
+    def _logfactorial(n):
         if (n <= 1):
             return 0.0
         else:
