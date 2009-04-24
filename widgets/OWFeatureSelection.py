@@ -32,7 +32,7 @@ class ScoreHist(OWInteractiveHist):
             self.master.Commit()
         
 class OWFeatureSelection(OWWidget):
-    settingsList=["methodIndex", "dataLabelIndex", "computeNullDistribution", "permutationsCount", "selectPValue", "autoCommit"]
+    settingsList = ["methodIndex", "dataLabelIndex", "computeNullDistribution", "permutationsCount", "selectPValue", "autoCommit"]
 ##    contextHandlers={"":DomainContextHandler("",[])}
     def __init__(self, parent=None, signalManager=None, name="Gene selection"):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True, showSaveGraph=True)
@@ -145,7 +145,6 @@ class OWFeatureSelection(OWWidget):
         self.dataLabelComboBox.setDisabled(len(self.dataLabels) == 1)
         self.dataLabelIndex = max(min(self.dataLabelIndex, len(self.dataLabels) - 1), 0)
         
-        self.UpdateDataInfoLabel()
         self.Update()
         self.Commit()
 
@@ -278,22 +277,26 @@ class OWFeatureSelection(OWWidget):
         else:
             self.histogram.clear()
             
+        self.UpdateDataInfoLabel()
+            
     def UpdateDataInfoLabel(self):
-        if self.data:
-            text = "%i samples, %i genes\n" % (len(self.data), len(self.data.domain.attributes))
-            if self.data.domain.classVar:
-                text = text+"Sample labels: %s" % self.data.domain.classVar.name
+        data = self.transposedData if self.transposedData else self.data
+        if data:
+            text = "%i samples, %i genes\n" % (len(data), len(data.domain.attributes))
+            if data.domain.classVar:
+                text = text+"Sample labels: %s" % data.domain.classVar.name
             else:
                 text = text+"Info with sample lables"
         else:
-            text = "No data on input\n\n"
+            text = "No data on input\n"
         self.dataInfoLabel.setText(text)
 
     def UpdateSelectedInfoLabel(self, cutOffLower=0, cutOffUpper=0):
         self.cuts[self.methodIndex] = (cutOffLower, cutOffUpper)
-        if self.data:
+        data = self.transposedData if self.transposedData else self.data
+        if data:
             test = self.scoreMethods[self.methodIndex][2]
-            self.selectedInfoLabel.setText("%i selected genes" %len([attr for attr in self.data.domain.attributes if test(attr, cutOffLower, cutOffUpper)])) #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]))
+            self.selectedInfoLabel.setText("%i selected genes" %len([attr for attr in data.domain.attributes if test(attr, cutOffLower, cutOffUpper)])) #self.scores.get(attr,0)>cutOffUpper or self.scores.get(attr,0)<cutOffLower]))
         else:
             self.selectedInfoLabel.setText("0 selected genes")
 
