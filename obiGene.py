@@ -489,8 +489,6 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
     def create_aliases_version(self):
         import obiKEGG
         obiKEGG.KEGGOrganism.organism_version(self.organism)
-##        return "v2." + orngServerFiles.info("KEGG", "kegg_organism_%s.tar.gz" \
-##            % self._organism_name(self.organism))["datetime"]
 
     def filename(self):
         return "kegg_" + self._organism_name(self.organism) 
@@ -520,8 +518,6 @@ class MatcherAliasesGO(MatcherAliasesPickled):
     def create_aliases_version(self):
         import obiGO
         return "v2." + obiGO.Annotations.organism_version(self.organism)
-##        return "v2." + orngServerFiles.info("GO", "gene_association.%s.tar.gz" \
-##            % self._organism_name(self.organism))["datetime"]
 
     def __init__(self, organism, ignore_case=True):
         self.organism = organism

@@ -1009,7 +1009,7 @@ chips chips""")
 
             annotc["chipids"] = nth(group[0], 1)
 
-            setattr(et, "annot", annotc)
+            et.setattr("annot", annotc)
             exampleTables.append(et)
             
             if callback: callback()
@@ -1103,7 +1103,7 @@ chips chips""")
             etsa = []
             for et in ets:
                 eta = averageAttributes(et, fn=average)
-                eta.annot = et.annot
+                eta.setattr("annot", et.annot)
                 etsa.append(eta)
                 cbc()
             ets = etsa
@@ -1133,7 +1133,7 @@ def createExampleTable(names, vals, annots, ddb, cname="DDB"):
         for n in names ]
 
     for a,an in zip(attributes, annots):
-        a.attributes = dict(an)
+        a.setattr("attributes", dict(an))
 
     domain = orange.Domain(attributes, False)
     ddbv = orange.StringVariable(cname)
