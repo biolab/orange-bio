@@ -149,8 +149,8 @@ class OWFeatureSelection(OWWidget):
         self.Commit()
 
     def ComputeAttributeScore(self, data, scoreFunc, label="(None)", useCache=True, progressCallback=None):
-        if (scoreFunc, label) in self.scoreCache and useCache:
-            return self.scoreCache[scoreFunc, label]
+##        if (scoreFunc, label) in self.scoreCache and useCache:
+##            return self.scoreCache[scoreFunc, label]
         attributes = data.domain.attributes
 ##        if self.methodIndex in [2,3,4,5,6] and len(data.domain.classVar.values)>2:
         if self.methodIndex in [0, 1, 2, 3, 6] and len(data.domain.classVar.values) > 2:
@@ -356,7 +356,6 @@ class OWFeatureSelection(OWWidget):
         
     def Commit(self):
         data =  self.transposedData if self.transposedData else self.data
-        
         if data and data.domain.classVar:
             cutOffUpper = self.histogram.upperBoundary
             cutOffLower = self.histogram.lowerBoundary
@@ -471,7 +470,7 @@ def transpose_labels_to_class(data, classlabel="group"):
 if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
-    data = orange.ExampleTable("test-labels.tab")
+    data = orange.ExampleTable("E:\\out1.tab")
     w = OWFeatureSelection()
     w.show()
     w.SetData(data)
