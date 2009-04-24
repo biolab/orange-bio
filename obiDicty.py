@@ -1346,6 +1346,7 @@ class DictyBase(object):
  
     @classmethod
     def version(cls):
+        orngServerFiles.localpath_download(cls.domain, cls.filename)
         return orngServerFiles.info(cls.domain, cls.filename)["datetime"]
     
     @classmethod
