@@ -785,7 +785,10 @@ class KEGGOrganism(object):
     def _get_genematcher(self):
         if getattr(self, "_genematcher", None) == None:
             import obiGene
-            self._genematcher = obiGene.matcher([obiGene.GMKEGG(self.org)])
+            if self.org == "ddi":
+                self._genematcher = obiGene.matcher([[obiGene.GMKEGG(self.org),obiGene.GMDicty()]])
+            else:
+                self._genematcher = obiGene.matcher([obiGene.GMKEGG(self.org)])
             self._genematcher.set_targets(self.genes.keys())
         return self._genematcher
     genematcher = property(_get_genematcher, _set_genematcher)
