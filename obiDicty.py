@@ -653,19 +653,6 @@ chips chips""")
 
         return spotmapd
 
-    def allAnnotationVals(self, annots):
-        """
-        All annotation valuess for given annotations
-        in a dict of { name: set of possible values } pairs.
-        """
-        av = {}
-        for a in annots:
-            for name,val in a:
-                cvals = av.get(name, set([]))
-                cvals.add(val)
-                av[name] = cvals
-        return av
-
     def dictionarize(self, ids, fn, *args, **kwargs):
         """
         Creates a dictionary from id: function result.
@@ -723,7 +710,7 @@ chips chips""")
         forceTopMost(join)
 
         #all possible annotations
-        annots = self.allAnnotationVals(annotationsIn.values())
+        annots = allAnnotationVals(annotationsIn.values())
 
         #separate are not ignored. others are ignored!
         ignoreNot = separate + join
@@ -800,7 +787,7 @@ chips chips""")
         groups = groupDicts(candidates)
 
         def joinedAnnotation(group):
-            return self.allAnnotationVals([ annotationsIn[v] for v in group ])
+            return allAnnotationVals([ annotationsIn[v] for v in group ])
 
         def csorted(l):
             """
@@ -846,8 +833,12 @@ chips chips""")
         - table order - comparison of annotation valeues
         """
 
-        #respect specified order!
+        #respect specified order, but put sample in the front
         differentialNames = [ a for a in join if a in reallyDiff ]
+        if 'sample' in differentialNames: #if sample is present, put it to front
+            differentialNames.remove('sample')
+            differentialNames = [ "sample" ] + differentialNames
+
         differentialVals = [ csorted(diffannots[a]) for a in differentialNames ]
 
         def difV(li):
@@ -865,7 +856,8 @@ chips chips""")
             repetitions of the same value, enumerate them.
             """
             def aux(i,a):
-                name = '_'.join([ n + '=' + v for n,v in values ])
+                #leave out sample annotation
+                name = ','.join([ n + '=' + v if n != 'sample' else v for n,v in values ])
                 if len(inds) > 1:
                     name += "_" +  str(i)
                 return name
@@ -912,7 +904,7 @@ chips chips""")
 
         return exampleTables
 
-    def exampleTables(self, chipsm, groups, spotmap={}, annotations=None, callback=None, chipidname=False, annots={}, newannotations=False):
+    def exampleTables(self, chipsm, groups, spotmap={}, annotations=None, callback=None, chipidname=False, exclude_constant_labels=False, annots={}, newannotations=False):
         """
         Create example tables from chip readings, spot mappings and 
         group specifications.
@@ -992,20 +984,22 @@ chips chips""")
                     putinds.append(putind)
                     vals[putind] = v
 
+                #regarding chipid names
                 if chipidname:
                     groupnames.append(chipid) 
                 else:
                     groupnames.append(name)
 
                 if annots:
-                    groupannots.append(annots[chipid])
+                    #add chip id to annotations
+                    groupannots.append(annots[chipid]+ [['chipid', str(chipid)]])
 
                 groupvals.append(vals)
 
-            et = createExampleTable(groupnames, groupvals, groupannots, ddb)
+            et = createExampleTable(groupnames, groupvals, groupannots, ddb, exclude_constant_labels=exclude_constant_labels)
 
             if newannotations:
-                annotc = self.allAnnotationVals( [annots[v] for v in nth(pairs,1) ] )
+                annotc = allAnnotationVals( [annots[v] for v in nth(pairs,1) ] )
 
             annotc["chipids"] = nth(group[0], 1)
 
@@ -1017,7 +1011,7 @@ chips chips""")
         return exampleTables
 
 
-    def getData(self, type="norms", join=["time"], separate=None, average=median, ids=None, callback=None, chipidname=False, **kwargs):
+    def getData(self, type="norms", join=["time"],  exclude_constant_labels=False, separate=None, average=median, ids=None, callback=None, chipidname=False, **kwargs):
         """
         Returns a list of examples tables for a given search query and post-processing
         instructions.
@@ -1033,6 +1027,8 @@ chips chips""")
                 If blank, take all those not in join.
             ids: a list of chip ids. If present, use this ids instead of making
                 a search.
+            exclude_constant_labels: if a label has the same value in whole 
+            example table, remove it
 
         Defaults: Median averaging. Join by time.
         """
@@ -1093,7 +1089,7 @@ chips chips""")
             print "DOWNLOAD TIME", time.time() - tstart
 
         cbc = CallBack(len(etsa)+1, optcb, callbacks=10)
-        ets = self.exampleTables(chipd, etsa, spotmap=self.spotMap(), callback=cbc, chipidname=chipidname, annots=read)
+        ets = self.exampleTables(chipd, etsa, spotmap=self.spotMap(), callback=cbc, chipidname=chipidname, annots=read, exclude_constant_labels=exclude_constant_labels)
         cbc.end()
 
         cbc = CallBack(len(ets), optcb, callbacks=10)
@@ -1113,27 +1109,51 @@ chips chips""")
         return ets
 
     def get_single_data(self, type="norms", average=median, ids=None, 
-            callback=None, **kwargs):
+            callback=None, exclude_constant_labels=False, **kwargs):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations.
         """
-        mtables = self.getData(type=type, join=None, separate=[], average=average, ids=ids, callback=callback, chipidname=True, **kwargs)
+        mtables = self.getData(type=type, join=None, separate=[], average=average, ids=ids, callback=callback, chipidname=False, exclude_constant_labels=exclude_constant_labels, **kwargs)
         if len(mtables) != 1:
             mtablesShouldHaveOnlyOneElementError()
         return mtables[0]
 
-def createExampleTable(names, vals, annots, ddb, cname="DDB"):
+def allAnnotationVals(annots):
+    """
+    All annotation valuess for given annotations
+    in a dict of { name: set of possible values } pairs.
+    """
+    av = {}
+    for a in annots:
+        for name,val in a:
+            cvals = av.get(name, set([]))
+            cvals.add(val)
+            av[name] = cvals
+    return av
+
+
+
+def createExampleTable(names, vals, annots, ddb, cname="DDB", \
+        exclude_constant_labels=False):
     """
     Create an ExampleTable for this group. Attributes are those in
     names. 
-
     """
     attributes = [ orange.FloatVariable(n, numberOfDecimals=3) \
         for n in names ]
 
+    #exclusion of names with constant values
+    annotsvals = allAnnotationVals(annots)
+    oknames = set(annotsvals.keys())
+    if exclude_constant_labels:
+        oknames = set(nth(filter(lambda x: len(x[1]) > 1, 
+            annotsvals.items()), 0))
+
+    print oknames
+
     for a,an in zip(attributes, annots):
-        a.setattr("attributes", dict(an))
+        a.setattr("attributes", dict([(name,val) for name,val in an if name in oknames]))
 
     domain = orange.Domain(attributes, False)
     ddbv = orange.StringVariable(cname)
@@ -1395,7 +1415,7 @@ class DictyBase(object):
         self.info, self.mappings = pickle.load(open(fn, 'rb'))
 
 if __name__=="__main__":
-    verbose = 1
+    verbose = 0
 
     a = DictyBase()
     print len(a.info)
@@ -1411,8 +1431,14 @@ if __name__=="__main__":
         count += 1
         #print "CBBB", count
 
-    ets = dbc.getData(sample="tagA-", callback=cb)
+    et = dbc.get_single_data(sample=[ "tagA-", "pkaC-"], callback=cb, exclude_constant_labels=True)
+    print et.domain
+    print et.domain[0].attributes
     
+    """
+    ets = dbc.getData(sample="tagA-", callback=cb)
     for i,et in enumerate(ets):
         et.save("%s/T%d.tab" % ("multid2", i))
         print et.annot
+    """
+

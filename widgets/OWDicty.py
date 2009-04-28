@@ -27,7 +27,7 @@ except:
 bufferfile = os.path.join(bufferpath, "database.sq3")
 
 class OWDicty(OWWidget):
-    settingsList = ["serverToken", "platform", "selectedExperiments", "server", "buffertime"]
+    settingsList = ["serverToken", "platform", "selectedExperiments", "server", "buffertime", "excludeconstant" ]
     def __init__(self, parent=None, signalManager=None, name="Dicty database"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
@@ -41,9 +41,12 @@ class OWDicty(OWWidget):
         self.buffer = obiDicty.BufferSQLite(bufferfile)
 
         self.searchString = ""
+        self.excludeconstant = False
         
         box = OWGUI.widgetBox(self.controlArea, "Cache")
         OWGUI.button(box, self, "Clear cache", callback=self.clear_buffer)
+
+        OWGUI.checkBox(self.controlArea, self, "excludeconstant", "Exclude labels with constant values" )
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
         box  = OWGUI.widgetBox(self.controlArea, "Server")
@@ -152,7 +155,7 @@ class OWDicty(OWWidget):
         for item in self.experimentsWidget.selectedItems():
             ids += str(item.text(5)).split(",")
 
-        table = self.dbc.get_single_data(ids=ids, callback=pb.advance)
+        table = self.dbc.get_single_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant)
 
         end = int(time.time()-start)
         
