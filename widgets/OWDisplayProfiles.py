@@ -102,8 +102,9 @@ class boxPlotQwtPlotCurve(QwtPlotCurve):
         self.itemChanged()
 
 class profilesGraph(OWGraph):
-    def __init__(self, parent = None, name = None, title = ""):
+    def __init__(self, master, parent = None, name = None, title = ""):
         OWGraph.__init__(self, parent, name)
+        self.master = master
         self.setYRlabels(None)
         self.enableGridXB(0)
         self.enableGridYL(0)
@@ -161,13 +162,15 @@ class profilesGraph(OWGraph):
         avgCurveData = []
         boxPlotCurveData = []
         ccn = 0
-        if data.domain.classVar.varType <> orange.VarTypes.Discrete:
+        if data.domain.classVar and data.domain.classVar.varType <> orange.VarTypes.Discrete:
             print "error, class variable not discrete:", data.domain.classVar
             return
-        allc = len(data.domain.classVar.values)
-        for c in data.domain.classVar.values:
-            if progressBar <> None: progressBar(int(ccn*100.0/allc))
-            classSymb = QwtSymbol(QwtSymbol.Ellipse, QBrush(self.classBrighterColor[ccn]), QPen(self.classBrighterColor[ccn]), QSize(7,7)) ##self.black
+        classes = data.domain.classVar.values if data.domain.classVar else ["(No class)"]
+        allc = len(data.domain.classVar.values) if data.domain.classVar else 1
+##        print data, len(data)
+        for i, c in enumerate(classes):
+            if progressBar <> None: progressBar(i*100.0/len(classes))
+            classSymb = QwtSymbol(QwtSymbol.Ellipse, QBrush(self.classBrighterColor[i]), QPen(self.classBrighterColor[i]), QSize(7,7)) ##self.black
             self.showClasses.append(0)
 
             self.profileCurveKeys.append([])
@@ -176,7 +179,7 @@ class profilesGraph(OWGraph):
             gcn = 0
             grpcnx = 0
             for (grpname, grpattrs) in self.groups:
-                oneClassData = data.select({data.domain.classVar.name:c})
+                oneClassData = data.select({data.domain.classVar.name:c}) if data.domain.classVar else data
                 oneGrpData = oneClassData.select(orange.Domain(grpattrs, oneClassData.domain))
 
                 ## single profiles
@@ -286,9 +289,10 @@ class profilesGraph(OWGraph):
         self.updateCurveDisplay()
 
     def updateCurveDisplay(self):
-        for cNum in range(len(self.showClasses)):
-            showCNum = (self.showClasses[cNum] <> 0)
-
+        profilesCount = 0
+        for cNum in range(len(self.showClasses or [1])):
+            showCNum = (self.showClasses[cNum] <> 0) if len(self.showClasses) > 1 else True
+##            print cNum, showCNum
             ## single profiles
             bSingle = showCNum and self.showSingleProfiles
             bAve = showCNum and self.showAverageProfile ## 1 = show average profiles for now
@@ -296,6 +300,7 @@ class profilesGraph(OWGraph):
                 curve =  ckey #self.curve(ckey)
                 if curve <> None:
                     curve.setVisible(bSingle)
+                    profilesCount += 1 if bSingle else 0
 ##                    qp = self.curvePen(ckey)
                     qp = curve.pen()
                     if not(bAve):
@@ -310,6 +315,7 @@ class profilesGraph(OWGraph):
                 if curve <> None: curve.setVisible(bAve)
 
 ##        self.updateLayout()
+        self.master.infoLabel.setText("Showing %i profiles" % profilesCount)
         self.replot()
 
     def setShowClasses(self, list):
@@ -385,7 +391,7 @@ class OWDisplayProfiles(OWWidget):
         self.loadSettings()
 
         # GUI
-        self.graph = profilesGraph(self.mainArea, "")
+        self.graph = profilesGraph(self, self.mainArea, "")
         self.mainArea.layout().addWidget(self.graph)
         self.graph.hide()
         self.connect(self.graphButton, SIGNAL("clicked()"), self.graph.saveToFile)
@@ -397,6 +403,7 @@ class OWDisplayProfiles(OWWidget):
         GraphTab = OWGUI.createTabPage(self.tabs, "Graph")
 
         ## display options
+        self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(GraphTab, "Info"), "No data on input.")
         displayOptBox = OWGUI.widgetBox(GraphTab, "Display") #QVButtonGroup("Display", GraphTab)
         displayOptButtons = ['Majority Class', 'Majority Class Probability', 'Target Class Probability', 'Number of Instances']
         OWGUI.checkBox(displayOptBox, self, 'ShowSingleProfiles', 'Expression Profiles', tooltip='', callback=self.updateShowSingleProfiles)
@@ -597,8 +604,10 @@ class OWDisplayProfiles(OWWidget):
                 newet = orange.ExampleTable(self.MAdata[0].domain)
                 for idx, i in enumerate(list):
                     if i: newet.extend(self.MAdata[idx])
-            else:
+            elif self.MAdata[0].domain.classVar:
                 newet = self.MAdata[0].filter({self.MAdata[0].domain.classVar.name:selCls})
+            else:
+                newet = self.MAdata[0]
             self.send("Examples", newet)
     ##
 
@@ -634,9 +643,10 @@ class OWDisplayProfiles(OWWidget):
 
     def newdata(self):
         self.classQLB.clear()
-        if len(self.MAdata) > 1 or (len(self.MAdata) == 1 and self.MAdata[0].domain.classVar.varType == orange.VarTypes.Discrete):
+##        if len(self.MAdata) > 1 or (len(self.MAdata) == 1 and self.MAdata[0].domain.classVar.varType == orange.VarTypes.Discrete):
+        if len(self.MAdata) >= 1:
             ## classQLB
-            if len(self.MAdata) == 1:
+            if len(self.MAdata) == 1 and self.MAdata[0].domain.classVar and self.MAdata[0].domain.classVar.varType == orange.VarTypes.Discrete:
                 self.numberOfClasses = len(self.MAdata[0].domain.classVar.values)
             else:
                 self.numberOfClasses = len(self.MAdata)
@@ -647,20 +657,23 @@ class OWDisplayProfiles(OWWidget):
             ## update graphics
             ## classQLB
             self.classQVGB.show()
-            if len(self.MAdata) == 1:
+            if len(self.MAdata) == 1 and self.MAdata[0].domain.classVar and self.MAdata[0].domain.classVar.varType == orange.VarTypes.Discrete:
                 self.classValues = self.MAdata[0].domain.classVar.values.native()
             else:
                 self.classValues = [str(nd.name) for nd in self.MAdata]
 
-            print self.classValues
+            selection = QItemSelection()
             for cn in range(len(self.classValues)):
-                self.classQLB.addItem(QListWidgetItem(QIcon(ColorPixmap(self.classBrighterColor[cn])), self.classValues[cn]))
+                item = QListWidgetItem(QIcon(ColorPixmap(self.classBrighterColor[cn])), self.classValues[cn])
+                self.classQLB.addItem(item)
+                selection.select(self.classQLB.indexFromItem(item), self.classQLB.indexFromItem(item))
+            self.classQLB.selectionModel().select(selection, QItemSelectionModel.Select)
 ##            self.classQLB.selectAll()  ##or: if numberOfClasses > 0: self.classQLB.setSelected(0, 1)
 ##            self.update()
 
-            if len(self.MAdata) == 1 and self.MAdata[0].noclass:
-                pass
-##                self.classQVGB.hide()
+##            if len(self.MAdata) == 1 and self.MAdata[0].noclass:
+##                pass
+            self.classQVGB.setDisabled(len(self.MAdata) == 1 and self.MAdata[0].noclass)
         else:
             self.classColor = None
             self.classBrighterColor = None
@@ -673,16 +686,17 @@ class OWDisplayProfiles(OWWidget):
     def data(self, MAdata, id=None):
         ## if there is no class attribute, create a dummy one
         if MAdata and MAdata.domain.classVar == None:
-            noClass = orange.EnumVariable('file', values=['n', 'y'])
-            newDomain = orange.Domain(MAdata.domain.attributes + [noClass])
-            mname = MAdata.name ## remember name 
-            MAdata = MAdata.select(newDomain) ## because select forgets it
-            MAdata.name = mname
-            for e in MAdata: e.setclass('n')
+##            noClass = orange.EnumVariable('file', values=['n', 'y'])
+##            newDomain = orange.Domain(MAdata.domain.attributes + [noClass])
+##            mname = MAdata.name ## remember name 
+##            MAdata = MAdata.select(newDomain) ## because select forgets it
+##            MAdata.name = mname
+##            for e in MAdata: e.setclass('n')
             MAdata.setattr("noclass", 1) ## remember that there is no class to display
         elif MAdata and MAdata.domain.classVar.varType <> orange.VarTypes.Discrete:
             print "error, ignoring table, because its class variable not discrete:", MAdata.domain.classVar
-            MAdata = None
+##            MAdata = None
+            MAdata.setattr("noclass", 1) ## remember that there is no class to display
         elif MAdata:
             MAdata.setattr("noclass", 0) ## there are classes by default
 
@@ -711,6 +725,7 @@ class OWDisplayProfiles(OWWidget):
             print "hiding graph"
             self.graph.hide()
             self.classQVGB.hide()
+            self.infoLabel.setText("No data on input")
             return
 
         self.newdata()
@@ -728,7 +743,8 @@ if __name__ == "__main__":
     a = QApplication(sys.argv)
     owdm = OWDisplayProfiles()
 ##    a.setMainWidget(owdm)
-    d = orange.ExampleTable('wt with class')
+##    d = orange.ExampleTable('e:\\profiles')
+    d = orange.ExampleTable('e:\\profiles-classes')
     print len(d)
     owdm.data(d)
     owdm.show()
