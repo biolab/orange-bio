@@ -34,6 +34,7 @@ class LinkItemDelegate(QItemDelegate):
 
 class OWGeneInfo(OWWidget):
     settingsList = ["organismIndex", "geneAttr", "useAttr", "autoCommit"]
+    contextHandlers = {"":DomainContextHandler("", ["organismIndex", "geneAttr", "useAttr"])}
     def __init__(self, parent=None, signalManager=None, name="Gene info"):
         OWWidget.__init__(self, parent, signalManager, name)
 
@@ -45,6 +46,7 @@ class OWGeneInfo(OWWidget):
         self.useAttr = False
         self.autoCommit = False
         self.searchString = ""
+        self.selectionChangedFlag = False
         self.loadSettings()
         
         self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "No data on input\n")
@@ -57,8 +59,9 @@ class OWGeneInfo(OWWidget):
         self.geneAttrComboBox.setDisabled(bool(self.useAttr))
 
         box = OWGUI.widgetBox(self.controlArea, "Commit")
-        OWGUI.button(box, self, "Commit", callback=self.commit)
-        OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
+        b = OWGUI.button(box, self, "Commit", callback=self.commit)
+        c = OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
+        OWGUI.setStopper(self, b, c, "selectionChangedFlag", callback=self.commit)
         OWGUI.rubber(self.controlArea)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Filter", callbackOnType=True, callback=self.searchUpdate)
@@ -72,20 +75,24 @@ class OWGeneInfo(OWWidget):
         
         box = OWGUI.widgetBox(self.mainArea, "", orientation="horizontal")
         OWGUI.button(box, self, "Select Filtered", callback=self.selectFiltered)
-        OWGUI.button(box, self, "Clear Selection", callback=self.clearSelection)
-
+        OWGUI.button(box, self, "Clear Selection", callback=self.treeWidget.clearSelection)
+        
         self.resize(700, 500)        
 
         self.geneinfo = []
         self.widgetItems = []
         self.data = None
+        self.currentLoaded = None, None
+        self.selectionUpdateInProgress = False
         
     def setData(self, data=None):
+        self.closeContext()
         self.data = data
         if data:
             self.geneAttrComboBox.clear()
             self.attributes = [attr for attr in self.data.domain.variables + self.data.domain.getmetas().values() if attr.varType in [orange.VarTypes.String, orange.VarTypes.Discrete]]
             self.geneAttrComboBox.addItems([attr.name for attr in self.attributes])
+            self.openContext("", data)
             self.geneAttr = min(self.geneAttr, len(self.attributes) - 1)
             self.setItems()
         else:
@@ -106,7 +113,11 @@ class OWGeneInfo(OWWidget):
             self.warning(0, "Could not extract genes from input dataset.")
         self.warning(1)
         if self.organisms:
-            info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
+            org = self.organisms[min(self.organismIndex, len(self.organisms) - 1)]
+            info , currorg = self.currentLoaded
+            if currorg != org:
+                info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
+                self.currentLoaded = info, org
         else:
             self.warning(1, "No downloaded gene info files. Using human gene info.")
             pb = OWGUI.ProgressBar(self, 100)
@@ -154,8 +165,10 @@ class OWGeneInfo(OWWidget):
         self.send("Selected Examples", None)
 
     def commitIf(self):
-        if self.autoCommit:
+        if self.autoCommit and not self.selectionUpdateInProgress:
             self.commit()
+        else:
+            self.selectionChangedFlag = True
 
     def commit(self):
         if not self.data:
@@ -179,14 +192,12 @@ class OWGeneInfo(OWWidget):
             item.setHidden(not all(any(string in str(item.text(i)).lower() for i in range(7)) for string in searchStrings))
 
     def selectFiltered(self):
+        itemSelection = QItemSelection()
         for item in self.widgetItems:
-            item.setSelected(not item.isHidden())
-
-    def clearSelection(self):
-        for item in self.widgetItems:
-            item.setSelected(False)
-                
-
+            if not item.isHidden():
+                itemSelection.select(self.treeWidget.indexFromItem(item), self.treeWidget.indexFromItem(item))
+        self.treeWidget.selectionModel().select(itemSelection, QItemSelectionModel.Select | QItemSelectionModel.Rows)
+        
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     data = orange.ExampleTable("../../orange/doc/datasets/brown-selected.tab")
