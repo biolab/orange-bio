@@ -371,7 +371,8 @@ class profilesGraph(OWGraph):
 
 
 class OWDisplayProfiles(OWWidget):
-    settingsList = ["PointWidth", "CurveWidth", "AverageCurveWidth", "BoxPlotWidth", "ShowAverageProfile", "ShowSingleProfiles", "CutEnabled", "CutLow", "CutHigh"]
+    settingsList = ["SelectedClasses", "PointWidth", "CurveWidth", "AverageCurveWidth", "BoxPlotWidth", "ShowAverageProfile", "ShowSingleProfiles", "CutEnabled", "CutLow", "CutHigh"]
+    contextHandlers = {"": DomainContextHandler("", [ContextField("SelectedClasses")], loadImperfect=False)}
     def __init__(self, parent=None, signalManager = None):
         self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, signalManager, 'Expression Profiles', 1)
@@ -384,6 +385,7 @@ class OWDisplayProfiles(OWWidget):
         self.AverageCurveWidth = 4
         self.BoxPlotWidth = 2
         self.SelectedClasses = []
+        self.Classes = []
 
         self.CutLow = 0; self.CutHigh = 0; self.CutEnabled = 0
 
@@ -412,9 +414,9 @@ class OWDisplayProfiles(OWWidget):
         ## class selection (classQLB)
         self.classQVGB = OWGUI.widgetBox(GraphTab, "Classes") #QVGroupBox(GraphTab)
 ##        self.classQVGB.setTitle("Classes")
-        self.classQLB = OWGUI.listBox(self.classQVGB, self, "SelectedClasses", selectionMode=QListWidget.MultiSelection, callback=self.classSelectionChange) #QListBox(self.classQVGB)
+        self.classQLB = OWGUI.listBox(self.classQVGB, self, "SelectedClasses", "Classes", selectionMode=QListWidget.MultiSelection, callback=self.classSelectionChange) #QListBox(self.classQVGB)
 ##        self.classQLB.setSelectionMode(QListBox.Multi)
-        self.unselectAllClassedQLB = OWGUI.button(self.classQVGB, self, "(Un)Select All", callback=self.SUAclassQLB) #QPushButton("(Un)Select All", self.classQVGB)
+        self.unselectAllClassedQLB = OWGUI.button(self.classQVGB, self, "Unselect all", callback=self.SUAclassQLB) #QPushButton("(Un)Select All", self.classQVGB)
 ##        self.connect(self.unselectAllClassedQLB, SIGNAL("clicked()"), self.SUAclassQLB)
 ##        self.connect(self.classQLB, SIGNAL("selectionChanged()"), self.classSelectionChange)
 
@@ -573,12 +575,9 @@ class OWDisplayProfiles(OWWidget):
         
     ##
     def selectUnselectAll(self, qlb):
-        selected = 0
-        for i in range(qlb.count()):
-            if qlb.isSelected(i):
-                selected = 1
-                break
-        qlb.selectAll(not(selected))
+        self.SelectedClasses = range(len(self.Classes)) if len(self.SelectedClasses) != len(self.Classes)  else []
+        
+        self.classSelectionChange()
 
     def SUAclassQLB(self):
         self.selectUnselectAll(self.classQLB)
@@ -595,6 +594,7 @@ class OWDisplayProfiles(OWWidget):
 ##            else:
 ##                list.append( 0 )
         list = [1 if i in self.SelectedClasses else 0 for i in range(self.classQLB.count())]
+        self.unselectAllClassedQLB.setText("Select all" if len(self.SelectedClasses) != len(self.Classes) else "Unselect all")
         selCls = [self.classValues[i] for i in self.SelectedClasses]
         self.graph.setShowClasses(list)
         if selCls == []:
@@ -662,12 +662,15 @@ class OWDisplayProfiles(OWWidget):
             else:
                 self.classValues = [str(nd.name) for nd in self.MAdata]
 
-            selection = QItemSelection()
-            for cn in range(len(self.classValues)):
-                item = QListWidgetItem(QIcon(ColorPixmap(self.classBrighterColor[cn])), self.classValues[cn])
-                self.classQLB.addItem(item)
-                selection.select(self.classQLB.indexFromItem(item), self.classQLB.indexFromItem(item))
-            self.classQLB.selectionModel().select(selection, QItemSelectionModel.Select)
+##            selection = QItemSelection()
+##            for cn in range(len(self.classValues)):
+##                item = QListWidgetItem(QIcon(ColorPixmap(self.classBrighterColor[cn])), self.classValues[cn])
+##                self.classQLB.addItem(item)
+##                selection.select(self.classQLB.indexFromItem(item), self.classQLB.indexFromItem(item))
+##            self.classQLB.selectionModel().select(selection, QItemSelectionModel.Select)
+            self.Classes = [(QIcon(ColorPixmap(self.classBrighterColor[cn])), self.classValues[cn])  for cn in range(len(self.classValues))]
+            self.SelectedClasses = range(len(self.Classes))
+            
 ##            self.classQLB.selectAll()  ##or: if numberOfClasses > 0: self.classQLB.setSelected(0, 1)
 ##            self.update()
 
@@ -685,6 +688,7 @@ class OWDisplayProfiles(OWWidget):
 
     def data(self, MAdata, id=None):
         ## if there is no class attribute, create a dummy one
+        self.closeContext()
         if MAdata and MAdata.domain.classVar == None:
 ##            noClass = orange.EnumVariable('file', values=['n', 'y'])
 ##            newDomain = orange.Domain(MAdata.domain.attributes + [noClass])
@@ -706,7 +710,7 @@ class OWDisplayProfiles(OWWidget):
             print "domains:", MAdata.domain.attributes
             print "and,   :", self.MAdata[0].domain.attributes
             print "are not same"
-            MAdata = None
+##            MAdata = None
 
         ids = [d.id for d in self.MAdata]
         if not MAdata:
@@ -729,6 +733,16 @@ class OWDisplayProfiles(OWWidget):
             return
 
         self.newdata()
+        self.openContext("", MAdata)
+        self.classSelectionChange()
+
+    def sendReport(self):
+        self.startReport("%s" % self.windowTitle())
+        self.reportSettings("Settings", ([("Selected classes" , ",".join(self.Classes[i][1] for i in self.SelectedClasses))] if len(self.Classes) > 1 else []) +\
+                                        [("Show box plot", self.ShowAverageProfile),
+                                         ("Show profiles", self.ShowSingleProfiles)])
+        self.reportRaw("<p>%s</p>" % self.infoLabel.text())
+        self.reportImage(lambda *x: OWChooseImageSizeDlg(self.graph).saveImage(*x))
 
 # following is not needed, data handles these cases
 ##    def cdata(self, MAcdata):
@@ -744,7 +758,8 @@ if __name__ == "__main__":
     owdm = OWDisplayProfiles()
 ##    a.setMainWidget(owdm)
 ##    d = orange.ExampleTable('e:\\profiles')
-    d = orange.ExampleTable('e:\\profiles-classes')
+##    d = orange.ExampleTable('e:\\profiles-classes')
+    d = orange.ExampleTable('e:\\brown-selected')
     print len(d)
     owdm.data(d)
     owdm.show()
