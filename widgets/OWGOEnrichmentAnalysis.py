@@ -66,7 +66,7 @@ class GOTreeWidget(QTreeWidget):
     
 class OWGOEnrichmentAnalysis(OWWidget):
     settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex",
-                    "filterByNumOfInstances", "minNumOfInstances", "filterByPValue", "maxPValue", "selectionDirectAnnotation", "selectionDisjoint",
+                    "filterByNumOfInstances", "minNumOfInstances", "filterByPValue", "maxPValue", "selectionDirectAnnotation", "selectionDisjoint", "selectionType",
                     "selectionAddTermAsClass", "useAttrNames", "probFunc", "useFDR"]
     contextHandlers = {"": DomainContextHandler("", ["geneAttrIndex", "useAttrNames", "annotationIndex"], matchValues=1)}
     def __init__(self, parent=None, signalManager=None, name="GO Enrichment Analysis"):
@@ -152,7 +152,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         #box = OWGUI.widgetBox(self.selectTab, "Annotated genes", addSpace=True)
         box = OWGUI.radioButtonsInBox(self.selectTab, self, "selectionDirectAnnotation", ["Directly or Indirectly", "Directly"], box="Annotated genes", callback=self.ExampleSelection)
         box = OWGUI.widgetBox(self.selectTab, "Output", addSpace=True)
-        OWGUI.checkBox(box, self, "selectionDisjoint", "Disjoint/Inclusive", callback=self.ExampleSelection)
+##        OWGUI.checkBox(box, self, "selectionDisjoint", "Disjoint/Inclusive", callback=self.ExampleSelection)
+        OWGUI.radioButtonsInBox(box, self, "selectionDisjoint", btnLabels=["All selected genes", "Term-specific genes"], tooltips=["Outputs genes annotated to all selected GO terms", "Outputs genes that appear in only one of selected GO terms"], callback=self.ExampleSelection)
         OWGUI.checkBox(box, self, "selectionAddTermAsClass", "Add GO Term as class", callback=self.ExampleSelection)
 
         # ListView for DAG, and table for significant GOIDs
@@ -163,7 +164,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         # list view
         self.listView = GOTreeWidget(self.splitter)
-        self.listView.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.listView.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.listView.setAllColumnsShowFocus(1)
         self.listView.setColumnCount(len(self.DAGcolumns))
         self.listView.setHeaderLabels(self.DAGcolumns)
@@ -182,7 +183,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.sigTerms.setColumnCount(len(self.DAGcolumns))
         self.sigTerms.setHeaderLabels(self.DAGcolumns)
         self.sigTerms.setSortingEnabled(True)
-        self.sigTerms.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.sigTerms.setSelectionMode(QAbstractItemView.ExtendedSelection)
         
         self.connect(self.sigTerms, SIGNAL("itemSelectionChanged()"), self.TableSelectionChanged)
         self.splitter.show()
@@ -651,7 +652,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if self.selectionDirectAnnotation:
 ##            s = filter(lambda anno: anno.GOId in self.selectedTerms, go.loadedAnnotation.annotationList)
             s = filter(lambda anno: anno.GOId in self.selectedTerms, self.annotations.annotations)
-            selectedGenes = [anno.geneName for anno in s]
+            selectedGenes = set([anno.geneName for anno in s])
         else:        
             map(selectedGenes.extend, [v[0] for id, v in self.graph.items() if id in self.selectedTerms])
             
