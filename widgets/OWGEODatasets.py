@@ -79,6 +79,7 @@ class OWGEODatasets(OWWidget):
         self.mainArea.layout().addWidget(self.treeWidget)
         self.connect(self.treeWidget, SIGNAL("itemSelectionChanged ()"), self.updateSelection)
 ##        self.connect(self.treeWidget, SIGNAL("currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*))"), self.updateSelection_)
+        self.connect(self.treeWidget.model(), SIGNAL("layoutChanged()"), self.filter)
         self.infoGDS = OWGUI.widgetLabel(OWGUI.widgetBox(self.mainArea, "Description"), "")
         self.infoGDS.setWordWrap(True)
 
