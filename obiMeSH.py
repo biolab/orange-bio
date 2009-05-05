@@ -3,9 +3,6 @@ Module for browsing any analyzing sets annotated with MeSH ontology.
 """
 
 # TODO: Buffering za izbiro termov. Dodaj optimizacijo, ki uposteva vsebovanost.
-# TODO: Dodaj callback pri iskanju MeSH termov.
-# FIXME: Izbira atribut a.
-
 
 import orange
 import orngServerFiles
@@ -22,25 +19,18 @@ FUZZYMETAID = -12
 
 class obiMeSH(object):
 	def __init__(self):
-		#self.path = "data/MeSH"
-		# we check if all files from MeSH directory are localy present
-		# if not, download them
-		# if there is newer version, update them
-
+		"""
+		Function will initialize obiMeSH module and (in case of no MeSH ontology data) download necessary data using orngServerFiles.
+		"""
+		print "SVN version"
+		# we check if all files from MeSH directory are localy present. if not, download them
 		d = orngServerFiles.ServerFiles()
 		f = d.listfiles('MeSH')
 		l = orngServerFiles.listfiles('MeSH')
-		
 		for i in f:
 			if not i in l:
 				orngServerFiles.download('MeSH',i)
-				print 'downloading ', i
-			else:
-				df = d.info('MeSH', i)['datetime']
-				dl = orngServerFiles.info('MeSH', i)['datetime']
-				if df>dl:
-					print 'updating ', i
-					orngServerFiles.download('MeSH',i)
+				print 'Downloading MeSH ontology and chemical annotation. Please wait.', i
 		
 		self.reference = None
 		self.cluster = None
@@ -57,7 +47,6 @@ class obiMeSH(object):
 		for i in range(1, 8000):
 			self.lookup.append(self.lookup[-1] + log(i))
 		self.dataLoaded = self.__loadOntologyFromDisk()
-
 
 	def expandToFuzzyExamples(self, examples, att, a, b):
 		"""
