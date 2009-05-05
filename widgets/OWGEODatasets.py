@@ -54,7 +54,7 @@ class OWGEODatasets(OWWidget):
         self.loadSettings()
 
         ## GUI
-        self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "\n")
+        self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "\n\n")
         box = OWGUI.widgetBox(self.controlArea, "Sample Subset")
         OWGUI.listBox(box, self, "selectedSubsets", "sampleSubsets", selectionMode=QListWidget.ExtendedSelection)
 ##        OWGUI.button(box, self, "Clear selection", callback=self.clearSubsetSelection)
@@ -83,12 +83,18 @@ class OWGEODatasets(OWWidget):
         self.infoGDS = OWGUI.widgetLabel(OWGUI.widgetBox(self.mainArea, "Description"), "")
         self.infoGDS.setWordWrap(True)
 
+        self.treeItems = []        
+
         QTimer.singleShot(50, self.updateTable)
         self.resize(700, 500)
 
     def updateInfo(self):
         gds_info = obiGEO.GDSInfo()
-        self.infoBox.setText("%i datasets\n%i datasets cached" %(len(gds_info), len(glob.glob(orngServerFiles.localpath("GEO") + "/GDS*"))))
+        text = "%i datasets\n%i datasets cached\n" %(len(gds_info), len(glob.glob(orngServerFiles.localpath("GEO") + "/GDS*")))
+        filtered = len([item for item in self.treeItems if not item.isHidden()])
+        if len(self.treeItems) != filtered:
+            text += ("%i after filtering") % filtered
+        self.infoBox.setText(text)
         
     def updateTable(self):
         self.treeWidget.clear()
@@ -140,6 +146,7 @@ class OWGEODatasets(OWWidget):
         searchKeys = ["dataset_id", "platform_organism", "description"]
         for item in self.treeItems:
             item.setHidden(not all([any([s in unicode(item.gds.get(key, "").lower(), errors="ignore") for key in searchKeys]) for s in filterStrings]))
+        self.updateInfo()
 
     def commit(self):
         if self.currentItem:
