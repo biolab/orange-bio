@@ -581,7 +581,7 @@ class OWGsea(OWWidget):
             gso.setData(self.data, **dkwargs)
 
             for name,genes in self.geneSets.items():
-                gso.addGeneset(name, genes)
+                gso.addGenesets({ name: genes })
                 qApp.processEvents()
 
             self.res = gso.compute(n=self.perms, callback=pb.advance, **kwargs)
@@ -637,10 +637,6 @@ class OWGsea(OWWidget):
                 self.permTypeF.setDisabled(False)
                 #print "set classes"
                 self.psel.setClasses(getClasses(data))
-
-    def addGeneset(self, name, genes):
-        self.geneSets[name] = genes
-
 
     def chooseGeneSetsFile(self):
         """

@@ -87,15 +87,6 @@ class MA_t_test(object):
         if self.a == None: self.a = cv.values[0]
         if self.b == None: self.b = cv.values[1]
 
-        def stdev(l):
-            return stats.stdev(l)
-
-        def stdevm(l):
-            m = mean(l)
-            std = stdev(l)
-            #return minmally 0.2*|mi|, where mi=0 is adjusted to mi=1
-            return max(std, 0.2*abs(1.0 if m == 0 else m))
-
         def avWCVal(value):
             return [ex[i].value for ex in data if ex[cv] == value and not ex[i].isSpecial() ]
 
