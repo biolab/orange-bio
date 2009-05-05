@@ -481,6 +481,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 self.information(2)
             except Exception, er:
                 self.information(2, str(er)+" Using the annotation for reference")
+                referenceGenes = self.annotations.geneNames
         else:
             self.information(2)
 ##            referenceGenes = go.loadedAnnotation.geneNames
