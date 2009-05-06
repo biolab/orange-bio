@@ -286,6 +286,42 @@ class IdekerLearner(object):
 
         return Ideker(corgs=corgs)
 
+
+class SimpleFun(object):
+
+    def __init__(self, **kwargs):
+        for a,b in kwargs.items():
+            setattr(self, a, b)
+
+    def __call__(self, example):
+        return dict( (name, self.fn(example[i].value for i in ids)) \
+            for name,ids  in self.gsets.items() )
+
+class SimpleFunLearner(object):
+    """
+    Just applies a function taking attribute values of an example and
+    produces to all gene sets.    
+    """
+    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, fn=None):
+        data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+            minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
+        return SimpleFun(gsets=gsetsnum, fn=fn)
+
+class MedianLearner(object):
+    
+    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, fn=None):
+       sfl =  SimpleFunLearner()
+       return sfl(data, organism, geneSets, \
+            minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues, fn=statc.median)
+
+class MeanLearner(object):
+    
+    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, fn=None):
+       sfl =  SimpleFunLearner()
+       return sfl(data, organism, geneSets, \
+            minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues, fn=statc.mean)
+
+
 if __name__ == "__main__":
     
     data = orange.ExampleTable("sterolTalkHepa.tab")
