@@ -207,6 +207,8 @@ class GDS():
                 domain = orange.Domain(atts, classvar)
                 for (i, sampleid) in enumerate(self.info["samples"]):
                     orng_data.append([self.gdsdata[spot].data[i] for spot in spots] + [sample2class[sampleid]])
+            if missing_class_value == None:
+                orng_data = [example for example in orng_data if example[-1] != None]
     
             return orange.ExampleTable(domain, orng_data)
     
@@ -227,6 +229,11 @@ class GDS():
                 orng_data = [self.gdsdata[spot].data for spot in spots]
     
             data = orange.ExampleTable(domain, orng_data)
+            if missing_class_value == None:
+                domain = orange.Domain([attr for attr in atts if attr.attributes["group"] != None], False)
+                domain.addmetas(data.domain.getmetas())
+                data = orange.ExampleTable(domain, data)
+            
             if report_genes:
                 for i, g in enumerate(self.genes):
                     data[i]["gene"] = g
