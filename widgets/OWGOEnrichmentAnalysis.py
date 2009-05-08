@@ -10,7 +10,7 @@ import obiGO
 import obiKEGG
 import obiProb
 import obiTaxonomy
-import sys, os, tarfile
+import sys, os, tarfile, math
 import OWGUI
 import orngServerFiles
 
@@ -157,7 +157,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.checkBox(box, self, "selectionAddTermAsClass", "Add GO Term as class", callback=self.ExampleSelection)
 
         # ListView for DAG, and table for significant GOIDs
-        self.DAGcolumns = ['GO term', 'Cluster frequency', 'Reference frequency', 'p value', 'Genes', 'Enrichment']
+        self.DAGcolumns = ['GO term', 'Cluster', 'Reference', 'p value', 'Genes', 'Enrichment']
         #self.layout=QVBoxLayout(self.mainArea)
         self.splitter = QSplitter(Qt.Vertical, self.mainArea)
         self.mainArea.layout().addWidget(self.splitter)
@@ -558,15 +558,15 @@ class OWGOEnrichmentAnalysis(OWWidget):
             if (parent, term) in fromParentDict:
                 return
             if term in self.graph:
-                displayNode = QTreeWidgetItem(parentDisplayNode)
+                displayNode = GOTreeWidgetItem(self.ontology[term], self.graph[term], len(self.clusterGenes), len(self.referenceGenes), maxFoldEnrichment, parentDisplayNode)
 ##                displayNode.setText(0, go.loadedGO.termDict[term].name)
-                displayNode.setText(0, self.ontology[term].name)
-                displayNode.setText(1, str(len(self.graph[term][0])))
-                displayNode.setText(2, str(self.graph[term][2]))
-                displayNode.setText(3, "%.4f" % self.graph[term][1])
-                displayNode.setText(4, ", ".join(self.graph[term][0]))
-                displayNode.setText(5, "%.4f" % (enrichment(self.graph[term])/maxFoldEnrichment)) #(float(len(self.graph[term][0]))/self.graph[term][2]))
-                displayNode.setToolTip(0, "<p>" + self.ontology[term].__repr__().strip().replace("\n", "<br>") + "</p>")
+##                displayNode.setText(0, self.ontology[term].name)
+##                displayNode.setText(1, str(len(self.graph[term][0])))
+##                displayNode.setText(2, str(self.graph[term][2]))
+##                displayNode.setText(3, "%.4f" % self.graph[term][1])
+##                displayNode.setText(4, ", ".join(self.graph[term][0]))
+##                displayNode.setText(5, "%.4f" % (enrichment(self.graph[term])/maxFoldEnrichment)) #(float(len(self.graph[term][0]))/self.graph[term][2]))
+##                displayNode.setToolTip(0, "<p>" + self.ontology[term].__repr__().strip().replace("\n", "<br>") + "</p>")
                 displayNode.term=term
                 self.listViewItems.append(displayNode)
                 if term in self.termListViewItemDict:
@@ -590,12 +590,18 @@ class OWGOEnrichmentAnalysis(OWWidget):
         for i, (id, (genes, p_value, refCount)) in enumerate(terms):
 ##            text = [go.loadedGO.termDict[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
             text = [self.ontology[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
-            item = QTreeWidgetItem(self.sigTerms, text)
+            item = GOTreeWidgetItem(self.ontology[id], (genes, p_value, refCount), len(self.clusterGenes),
+                                    len(self.referenceGenes), maxFoldEnrichment, self.sigTerms)
             item.goId = id
 ##            for j,t in enumerate(text):
 ##                self.sigTermsTable.setItem(i, j, QTableWidgetItem(t))
                 
         self.listView.expandAll()
+        self.listView.resizeColumnToContents(0)
+##        print [item.sizeHint(0).width() for item in self.listViewItems]
+        width = min(self.listView.columnWidth(0), 500)
+        self.listView.setColumnWidth(0, width)
+        self.sigTerms.setColumnWidth(0, width)
         
     def ViewSelectionChanged(self):
         if self.selectionChanging:
@@ -713,10 +719,42 @@ class OWGOEnrichmentAnalysis(OWWidget):
         table = "<PRE>%s\n</PRE>" % table
         self.reportRaw(table)
 
+class GOTreeWidgetItem(QTreeWidgetItem):
+    def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes, maxFoldEnrichment, parent):
+        QTreeWidgetItem.__init__(self, parent)
+        self.term = term
+        self.enrichmentResult = enrichmentResult
+        self.nClusterGenes = nClusterGenes
+        self.nRefGenes = nRefGenes
+        self.maxFoldEnrichment = maxFoldEnrichment
+        self.enrichment = enrichment = lambda t:float(len(t[0])) / t[2] * (float(nRefGenes)/nClusterGenes)
+        self.setText(0, term.name)
+        fmt = "%" + str(-int(math.log(nClusterGenes))) + "i (%.2f%%)"
+##        self.setText(1, "%i (%.2f%%)" % (len(enrichmentResult[0]), 100.0*len(self.enrichmentResult[0])/nClusterGenes))
+        self.setText(1, fmt % (len(enrichmentResult[0]), 100.0*len(self.enrichmentResult[0])/nClusterGenes))
+        fmt = "%" + str(-int(math.log(nRefGenes))) + "i (%.2f%%)"
+##        self.setText(2, "%i (%.2f%%)" % (enrichmentResult[2], 100.0*enrichmentResult[2]/nRefGenes))
+        self.setText(2, fmt % (enrichmentResult[2], 100.0*enrichmentResult[2]/nRefGenes))
+        self.setText(3, "%.4f" % enrichmentResult[1])
+        self.setText(4, ", ".join(enrichmentResult[0]))
+        self.setText(5, "%.2f" % (enrichment(enrichmentResult))) #(float(len(self.graph[term][0]))/self.graph[term][2]))
+        self.setToolTip(0, "<p>" + term.__repr__()[6:].strip().replace("\n", "<br>"))
+        self.sortByData = [term.name, len(self.enrichmentResult[0]), enrichmentResult[2], enrichmentResult[1], ", ".join(enrichmentResult[0]), enrichment(enrichmentResult)]
+
+    def data(self, col, role):
+        if role == Qt.UserRole:
+            return QVariant(self.enrichment(self.enrichmentResult) / self.maxFoldEnrichment)
+        else:
+            return QTreeWidgetItem.data(self, col, role)
+
+    def __lt__(self, other):
+        col = self.treeWidget().sortColumn()
+        return self.sortByData[col] < other.sortByData[col]
+    
 class EnrichmentColumnItemDelegate(QItemDelegate):
     def paint(self, painter, option, index):
         self.drawBackground(painter, option, index)
-        value, ok = index.data(Qt.DisplayRole).toDouble()
+        value, ok = index.data(Qt.UserRole).toDouble()
         if ok:
             painter.save()
             painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
