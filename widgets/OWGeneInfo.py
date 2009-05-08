@@ -134,9 +134,9 @@ class OWGeneInfo(OWWidget):
         for i, (gene, gi) in enumerate(geneinfo):
             if gi:
                 item = QTreeWidgetItem(self.treeWidget,
-                                       ["", gi.symbol, gi.locus_tag or "",
-                                        gi.chromosome or "", gi.description or "", ", ".join(gi.synonyms),
-                                        gi.symbol_from_nomenclature_authority or ""])
+                                       ["", gi.symbol + " (%s)" % gene if gene != gi.symbol else gi.symbol,
+                                        gi.locus_tag or "", gi.chromosome or "", gi.description or "",
+                                        ", ".join(gi.synonyms), gi.symbol_from_nomenclature_authority or ""])
                 item.info = gi
                 item.link = LinkItem(gi.gene_id, self.treeWidget)
                 self.treeWidget.setItemWidget(item, 0, item.link)
@@ -144,11 +144,6 @@ class OWGeneInfo(OWWidget):
                 self.widgetItems.append(item)
             if i in milestones:
                 self.progressBarSet(100.0*i/len(geneinfo))
-##        self.treeWidget.addTopLevelItems(self.widgetItems)
-##        for i, item in enumerate(self.widgetItems):
-##            self.treeWidget.setItemWidget(item, 0, item.link)
-##            if i in milestones:
-##                self.progressBarSet(50 + 100.0*i/len(self.widgetItems)/2)
         self.treeWidget.setUpdatesEnabled(True)
         self.treeWidget.update()
         self.treeWidget.repaint(0, 0, -1, -1)
