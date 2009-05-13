@@ -730,6 +730,7 @@ class OWHeatMap(OWWidget):
 
         self.selection.redraw()
         self.scene.setSceneRect(self.scene.itemsBoundingRect())
+        self.scene.currentHighlightedCluster = None
         self.scene.update()
         
     def createHeatMap(self):
@@ -869,7 +870,10 @@ class HeatMapGraphicsScene(QGraphicsScene):
             return
         item = self.itemAt(event.scenePos())
         if self.currentHighlightedCluster and self.currentHighlightedCluster != item:
-            self.currentHighlightedCluster.setHighlight(False)
+            try:
+                self.currentHighlightedCluster.setHighlight(False)
+            except RuntimeError: ## Underlying object deleted. Why?
+                self.currentHighlightedCluster = None
         if isinstance(item, HierarchicalClusterItem):
             item.setHighlight(True)
             self.currentHighlightedCluster = item
