@@ -294,8 +294,8 @@ class SimpleFun(object):
             setattr(self, a, b)
 
     def __call__(self, example):
-        return dict( (name, self.fn(example[i].value for i in ids)) \
-            for name,ids  in self.gsets.items() )
+        return dict( (name, self.fn([example[i].value for i in ids])) \
+            for name,ids in self.gsets.items() )
 
 class SimpleFunLearner(object):
     """
@@ -327,7 +327,7 @@ if __name__ == "__main__":
     data = orange.ExampleTable("sterolTalkHepa.tab")
 
     #ass = AssessLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), rankingf=AT_loessLearner())
-    ass = IdekerLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False))
+    ass = MeanLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False))
 
     ar = {}
 
