@@ -190,6 +190,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         self.sigTableTermsSorted = []
         self.graph = {}
+        
         self.loadedAnnotationCode = "---"
         
         self.inputTab.layout().addStretch(1)
@@ -200,6 +201,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         self.keggOrg = None
         self.clusterDataset = None
+        self.referenceDataset = None
         self.ontology = None
         self.annotations = None
         self.probFunctions = [obiProb.Binomial(), obiProb.Hypergeometric()]
@@ -348,8 +350,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def SetReferenceDataset(self, data=None):
         self.referenceDataset=data
         self.referenceRadioBox.buttons[1].setDisabled(not bool(data))
-        if data and self.useReferenceDataset:
-            graph = self.Enrichment(self.data)
+        if self.clusterDataset and self.useReferenceDataset:
+            graph = self.Enrichment()
             self.SetGraph(graph)
 
     def FilterUnknownGenes(self):
@@ -480,8 +482,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 referenceGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, referenceGenes)
                 self.information(2)
             except Exception, er:
-                self.information(2, str(er)+" Using the annotation for reference")
+                self.information(2, str(er)+" Using entire genome for reference")
                 referenceGenes = self.annotations.geneNames
+                self.useReferenceDataset = 0
         else:
             self.information(2)
 ##            referenceGenes = go.loadedAnnotation.geneNames
@@ -559,14 +562,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 return
             if term in self.graph:
                 displayNode = GOTreeWidgetItem(self.ontology[term], self.graph[term], len(self.clusterGenes), len(self.referenceGenes), maxFoldEnrichment, parentDisplayNode)
-##                displayNode.setText(0, go.loadedGO.termDict[term].name)
-##                displayNode.setText(0, self.ontology[term].name)
-##                displayNode.setText(1, str(len(self.graph[term][0])))
-##                displayNode.setText(2, str(self.graph[term][2]))
-##                displayNode.setText(3, "%.4f" % self.graph[term][1])
-##                displayNode.setText(4, ", ".join(self.graph[term][0]))
-##                displayNode.setText(5, "%.4f" % (enrichment(self.graph[term])/maxFoldEnrichment)) #(float(len(self.graph[term][0]))/self.graph[term][2]))
-##                displayNode.setToolTip(0, "<p>" + self.ontology[term].__repr__().strip().replace("\n", "<br>") + "</p>")
                 displayNode.term=term
                 self.listViewItems.append(displayNode)
                 if term in self.termListViewItemDict:
@@ -652,7 +647,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         unselectedExamples = []
         selectedGenes = []
 
-        #change by Marko. don't do anything if there is no dataset 
+        #change by Marko. don't do anything if there is no3 dataset 
         if not self.clusterDataset:
             return
 
@@ -693,7 +688,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
     def ShowInfo(self):
         dialog = QDialog(self)
-        dialog.setModal(True)
+        dialog.setModal(False)
         dialog.setLayout(QVBoxLayout())
         label = QLabel(dialog)
         label.setText("Ontology:\n"+self.ontology.header if self.ontology else "Ontology not loaded!")
@@ -709,15 +704,39 @@ class OWGOEnrichmentAnalysis(OWWidget):
                                          ("Significance test", ("Binomial" if self.probFunc == 0 else "Hypergeometric") + (" with FDR" if self.useFDR else ""))])
         self.reportSettings("Filter", ([("Min cluster size", self.minNumOfInstances)] if self.filterByNumOfInstances else []) + \
                                       ([("Max p-value", self.maxPValue)] if self.filterByPValue else []))
-        self.reportSubsection("Enriched terms:")
-        text = [["Term:", "list:", "reference:", "p-value:", "enrichment:"]] + \
-               [[self.sigTerms.topLevelItem(index).text(i) for i in (range(4) + [5])] for index in range(self.sigTerms.topLevelItemCount())]
-        widths = reduce(lambda widths, line: [max(w, len(t)) for w, t in zip(widths, line)], text, [0]*5)
-        table = " ".join(["%-" + str(w) + "s" for w in widths]) % tuple(text[0])
-        fmt = " ".join(["%" + str(w) + "s" for w in widths])
-        table += "\n" + "\n".join([fmt % tuple(line) for line in text[1:]])
-        table = "<PRE>%s\n</PRE>" % table
-        self.reportRaw(table)
+##        self.reportSubsection("Enriched terms:")
+##        text = [["Term:", "list:", "reference:", "p-value:", "enrichment:"]] + \
+##               [[self.sigTerms.topLevelItem(index).text(i) for i in (range(4) + [5])] for index in range(self.sigTerms.topLevelItemCount())]
+##        widths = reduce(lambda widths, line: [max(w, len(t)) for w, t in zip(widths, line)], text, [0]*5)
+##        table = " ".join(["%-" + str(w) + "s" for w in widths]) % tuple(text[0])
+##        fmt = " ".join(["%" + str(w) + "s" for w in widths])
+##        table += "\n" + "\n".join([fmt % tuple(line) for line in text[1:]])
+##        table = "<PRE>%s\n</PRE>" % table
+        def _itemText(item, level):
+            text = '<tr><td>%s%s</td>' % ('&nbsp;' * level * 2 + '-', item.text(0))
+            text += ''.join('<td>%s</td>' % item.text(i) for i in range(1, 4) + [5]) + '</tr>\n'
+            for i in range(item.childCount()):
+                text += _itemText(item.child(i), level + 1)
+            return text 
+        tableText = '<table border= "1"><caption>Significant terms</caption><tr>' + ''.join('<th>%s</th>' % s for s in ["Term:", "List:", "Reference:", "P-value:", "Enrichment:"]) + '</td>'
+        treeText = '<table border= "1"><caption>Significant terms in ontology structure</caption><tr>' + ''.join('<th>%s</th>' % s for s in ["Term:", "List:", "Reference:", "P-value:", "Enrichment:"]) + '</td>'
+        
+        for index in range(self.sigTerms.topLevelItemCount()):
+            item = self.sigTerms.topLevelItem(index)
+            tableText += _itemText(item, 0) 
+##            text += '<tr>' + ''.join('<td>%s</td>' % item.text(i) for i in (range(4) + [5])) + '</tr>'
+        tableText += '</table>' 
+        
+        for index in range(self.listView.topLevelItemCount()):
+            item = self.listView.topLevelItem(index)
+            treeText += _itemText(item, 0)
+        
+        self.reportRaw(tableText)
+        self.reportRaw(treeText)
+        
+        
+        for index in range(self.sigTerms.topLevelItemCount()):
+            item = self.sigTerms.topLevelItem(index) 
 
 class GOTreeWidgetItem(QTreeWidgetItem):
     def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes, maxFoldEnrichment, parent):
