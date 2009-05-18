@@ -5,6 +5,8 @@
 <icon>icons/GEODataSets.png</icon>
 """
 
+from __future__ import with_statement
+
 import sys, os, glob
 from OWWidget import *
 import OWGUI
@@ -99,8 +101,9 @@ class OWGEODatasets(OWWidget):
     def updateTable(self):
         self.treeWidget.clear()
         self.treeItems = []
-        info = obiGEO.GDSInfo()
         self.progressBarInit()
+        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+            info = obiGEO.GDSInfo()
         milestones = set(range(0, len(info), max(len(info)/100, 1)))
         for i, (name, gds) in enumerate(info.items()):
             item = SortableItem(None, [gds["dataset_id"], gds["platform_organism"], str(len(gds["samples"])), str(gds["feature_count"]),
