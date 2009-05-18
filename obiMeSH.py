@@ -1,9 +1,6 @@
 """
 Module for browsing any analyzing sets annotated with MeSH ontology.
 """
-
-# TODO: Buffering za izbiro termov. Dodaj optimizacijo, ki uposteva vsebovanost.
-
 import orange
 import orngServerFiles
 
@@ -22,7 +19,7 @@ class obiMeSH(object):
 		"""
 		Function will initialize obiMeSH module and (in case of no MeSH ontology data) download necessary data using orngServerFiles.
 		"""
-		print "SVN version"
+		#print "SVN version"
 		# we check if all files from MeSH directory are localy present. if not, download them
 		d = orngServerFiles.ServerFiles()
 		f = d.listfiles('MeSH')
@@ -100,7 +97,7 @@ class obiMeSH(object):
 			ids = meshTerms
 		for e in examples:
 			try:
-				if callback:
+				if callback and c%10 == 0:
 					callback(int(c*100.0/l))
 				c = c + 1.0
 				ends = eval(e[self.solo_att].value)
@@ -220,7 +217,7 @@ class obiMeSH(object):
 		n = len(data)
 		for i in data:
 			t = t + 1
-			if callback:
+			if callback and t%10 == 0:
 				callback(int(t*100/n))
 			try:
 				endNodes = list(set(eval(i[self.solo_att].value))) # for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
@@ -370,7 +367,6 @@ class obiMeSH(object):
 			print_data = [self.toName[item], self.toDesc[self.toName[item]], str(data[item][0]), str(data[item][1]), str(pval), str(fold)]
 			for i in selection:
 				print "<td>"
-				
 				if i == "term":
 					for l in range(0,offset):
 						print "&nbsp;",
@@ -483,7 +479,7 @@ class obiMeSH(object):
 		# frequency from reference list
 		r = 0.0
 		for i in self.reference:
-			if callback:
+			if callback and r%10 == 0:
 				r += 1.0
 				callback(int(100*r/(n+cln)))
 			try:
@@ -522,7 +518,7 @@ class obiMeSH(object):
 		r=0.0
 		for i in self.cluster:
 			try:
-				if callback:
+				if callback and r%10 == 0:
 					r += 1.0
 					callback(int(100*r/(n+cln)))
 				endNodes = list(set(eval(i[self.clu_att].value))) # for every CID we look up for end nodes in mesh. for every end node we have to find its ID	
