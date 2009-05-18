@@ -737,7 +737,7 @@ class Annotations(object):
         annotations = [ann for gene in genes for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes]
         dd = defaultdict(set)
         for ann in annotations:
-            dd[ann.GO_ID].add(ann.geneName)
+            dd[ann.GO_ID].add(revGenesDict.get(ann.geneName, ann.geneName))
         if not directAnnotationOnly:
             terms = self.ontology.ExtractSuperGraph(dd.keys())
             for i, term in enumerate(terms):

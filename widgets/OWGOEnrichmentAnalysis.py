@@ -157,7 +157,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         box = OWGUI.radioButtonsInBox(self.selectTab, self, "selectionDirectAnnotation", ["Directly or Indirectly", "Directly"], box="Annotated genes", callback=self.ExampleSelection)
         box = OWGUI.widgetBox(self.selectTab, "Output", addSpace=True)
 ##        OWGUI.checkBox(box, self, "selectionDisjoint", "Disjoint/Inclusive", callback=self.ExampleSelection)
-        OWGUI.radioButtonsInBox(box, self, "selectionDisjoint", btnLabels=["All selected genes", "Term-specific genes"], tooltips=["Outputs genes annotated to all selected GO terms", "Outputs genes that appear in only one of selected GO terms"], callback=self.ExampleSelection)
+        OWGUI.radioButtonsInBox(box, self, "selectionDisjoint", btnLabels=["All selected genes", "Term-specific genes", "Shared term genes"], tooltips=["Outputs genes annotated to all selected GO terms", "Outputs genes that appear in only one of selected GO terms", "Outputs genes that appear in every selected terms"], callback=self.ExampleSelection)
         OWGUI.checkBox(box, self, "selectionAddTermAsClass", "Add GO Term as class", callback=self.ExampleSelection)
 
         # ListView for DAG, and table for significant GOIDs
@@ -657,19 +657,30 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if not self.clusterDataset:
             return
 
-        if self.selectionDirectAnnotation:
-##            s = filter(lambda anno: anno.GOId in self.selectedTerms, go.loadedAnnotation.annotationList)
-            s = filter(lambda anno: anno.GOId in self.selectedTerms, self.annotations.annotations)
-            selectedGenes = set([anno.geneName for anno in s])
-        else:        
-            map(selectedGenes.extend, [v[0] for id, v in self.graph.items() if id in self.selectedTerms])
+#        if self.selectionDirectAnnotation:
+###            s = filter(lambda anno: anno.GOId in self.selectedTerms, go.loadedAnnotation.annotationList)
+#            s = filter(lambda anno: anno.GOId in self.selectedTerms, self.annotations.annotations)
+#            selectedGenes = set([anno.geneName for anno in s])
+#        else:        
+        
+        selectedGenes = reduce(set.union, [v[0] for id, v in self.graph.items() if id in self.selectedTerms], set())
+        evidences = []
+        for etype in obiGO.evidenceTypesOrdered:
+            if getattr(self, "useEvidence"+etype):
+                evidences.append(etype)
+        allTerms = self.annotations.GetAnnotatedTerms(selectedGenes, directAnnotationOnly=self.selectionDirectAnnotation, evidenceCodes=evidences)
             
         if self.selectionDisjoint:
-            count = dict([(g, 0) for g in self.clusterGenes])
+            ##count = dict([(g, 0) for g in self.clusterGenes])
+            count = defaultdict(int)
             for term in self.selectedTerms:
-                for g in self.graph[term][0]:
+                ##for g in self.graph[term][0]:
+                for g in allTerms.get(term, []):
                     count[g]+=1
-            selectedGenes = [gene for gene, c in count.items() if c==1 and gene in selectedGenes]
+            ccount = 1 if self.selectionDisjoint==1 else len(self.selectedTerms)
+            selectedGenes = [gene for gene, c in count.items() if c==ccount and gene in selectedGenes]
+        else:
+            selectedGenes = reduce(set.union, [allTerms.get(term, []) for term in self.selectedTerms], set())
 
         if self.useAttrNames:
             vars = [self.clusterDataset.domain[gene] for gene in set(selectedGenes)]
