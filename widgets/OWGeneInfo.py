@@ -5,6 +5,7 @@
 <contact>Ales Erjavec (ales.erjevec(@at@)fri.uni-lj.si)</contact>
 <icon>icons/GeneInfo.png</icon>
 """
+from __future__ import with_statement
 
 import obiGene, obiTaxonomy
 import orange
@@ -116,7 +117,10 @@ class OWGeneInfo(OWWidget):
             org = self.organisms[min(self.organismIndex, len(self.organisms) - 1)]
             info , currorg = self.currentLoaded
             if currorg != org:
-                info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
+                self.progressBarInit()
+                with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+                    info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
+                self.progressBarFinished()
                 self.currentLoaded = info, org
         else:
             self.warning(1, "No downloaded gene info files. Using human gene info.")
