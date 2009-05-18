@@ -6,6 +6,8 @@
 <priority>103</priority>
 """
 
+from __future__ import with_statement
+
 import obiGO
 import obiKEGG
 import obiProb
@@ -23,7 +25,6 @@ from functools import partial
 dataDir = orngServerFiles.localpath("GO")
 
 def listAvailable():
-    import orngServerFiles
     files = orngServerFiles.listfiles("GO")
     ret = {}
     for file in files:
@@ -99,7 +100,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##            self.settingsList.append( varName)
             code = compile("self.%s = True" % (varName), ".", "single")
             exec(code)
-        self.annotationFiles = listAvailable()
+        self.progressBarInit()
+        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+            self.annotationFiles = listAvailable()
+        self.progressBarFinished()
         self.annotationCodes = sorted(self.annotationFiles.keys())
         if not self.annotationCodes:
             self.error(0, "No downloaded annotations!!\nUse the Update Genomics Databases widget and download annotations for at least one organism!")
@@ -371,7 +375,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def LoadOntology(self):
         try:
             self.progressBarInit()
-            self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
+            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+                self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
             self.progressBarFinished()
         except IOError, er:
             response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the ontology.\nClik OK to download it?", "OK", "Cancel", "", 0, 1)
@@ -383,17 +388,18 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 raise
         
     def LoadAnnotation(self):
-        if not self.annotationCodes:
-            response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "No annotations found.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
-            if response==0:
-                self.UpdateGOAndAnnotation(tags=["annotation", "go"])
+##        if not self.annotationCodes:
+##            response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "No annotations found.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
+##            if response==0:
+##                self.UpdateGOAndAnnotation(tags=["annotation", "go"])
         if self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
             self.progressBarInit()
             try:
                 self.annotations = None
 ##                filename = p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]])
 ##                self.annotations = obiGO.Annotations(filename, ontology = self.ontology, progressCallback=self.progressBarSet)
-                self.annotations = obiGO.Annotations(self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)], ontology = self.ontology, progressCallback=self.progressBarSet)
+                with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+                    self.annotations = obiGO.Annotations(self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)], ontology = self.ontology, progressCallback=self.progressBarSet)
             except IOError, er:
                 raise
             self.progressBarFinished()
