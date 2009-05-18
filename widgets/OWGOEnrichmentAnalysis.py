@@ -157,7 +157,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         box = OWGUI.radioButtonsInBox(self.selectTab, self, "selectionDirectAnnotation", ["Directly or Indirectly", "Directly"], box="Annotated genes", callback=self.ExampleSelection)
         box = OWGUI.widgetBox(self.selectTab, "Output", addSpace=True)
 ##        OWGUI.checkBox(box, self, "selectionDisjoint", "Disjoint/Inclusive", callback=self.ExampleSelection)
-        OWGUI.radioButtonsInBox(box, self, "selectionDisjoint", btnLabels=["All selected genes", "Term-specific genes", "Shared term genes"], tooltips=["Outputs genes annotated to all selected GO terms", "Outputs genes that appear in only one of selected GO terms", "Outputs genes that appear in every selected terms"], callback=self.ExampleSelection)
+        OWGUI.radioButtonsInBox(box, self, "selectionDisjoint", btnLabels=["All selected genes", "Term-specific genes", "Common term genes"], tooltips=["Outputs genes annotated to all selected GO terms", "Outputs genes that appear in only one of selected GO terms", "Outputs genes common to all selected GO terms"], callback=self.ExampleSelection)
         OWGUI.checkBox(box, self, "selectionAddTermAsClass", "Add GO Term as class", callback=self.ExampleSelection)
 
         # ListView for DAG, and table for significant GOIDs
