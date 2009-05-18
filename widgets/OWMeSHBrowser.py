@@ -19,17 +19,15 @@ class MyQTableWidgetItem(QTableWidgetItem):
 		self.data = text
 		
 	def key(self):	  # additional setting to correctly handle text and numerical sorting
-		try:					# sorting numerical column
+		try:	# sorting numerical column
 			e = float(self.data)
 			tdata = pval = "%.4g" % e
 			l = len(self.data)
 			pre = ""
 			
-			offset = 0		  # additional parameter to hadle exponent '2e-14' float format
+			offset = 0	# additional parameter to hadle exponent '2e-14' float format
 			if(tdata.count('e')>0 or tdata.count('E')>0):
 				pre="*"
-#			   print e
-#			   print tdata
 				offset = 1
 				
 			for i in range(0,40-l-offset):
@@ -109,7 +107,6 @@ class OWMeSHBrowser(OWWidget):
 		self.ref_att = OWGUI.label(box, self, "")
 		self.clu_att = OWGUI.label(box, self, "")
 		self.resize(960,600)
-			
 		OWGUI.separator(self.controlArea)
 		
 		self.optionsBox = OWGUI.widgetBox(self.controlArea, "Options")
@@ -117,7 +114,6 @@ class OWMeSHBrowser(OWWidget):
 		self.minf = OWGUI.lineEdit(self.optionsBox, self, "minExamplesInTerm", label="min. frequency:", orientation="horizontal", labelWidth=120, valueType=int)		
 		#OWGUI.checkBox(self.optionsBox, self, 'multi', 'Multiple selection', callback= self.checkClicked)
 		OWGUI.button(self.optionsBox, self, "Refresh", callback=self.refresh)
-
 
 		# right pane
 		self.col_size = [280,84,84,100,110]
@@ -163,7 +159,6 @@ class OWMeSHBrowser(OWWidget):
 		self.splitter.show()
 		self.optionsBox.setDisabled(1)
 
-
 	def tableSelectionChanged(self):
 		return True
 
@@ -173,7 +168,7 @@ class OWMeSHBrowser(OWWidget):
 		else:
 			self.sort_col = col
 			self.sort_dir = True
-			
+		
 		self.sigTermsTable.sortItems(self.sort_col,Qt.DescendingOrder)
 		#print "sortiram ", col, " ",row
 
@@ -212,14 +207,13 @@ class OWMeSHBrowser(OWWidget):
 		Function __updateData__ is used to display the results of the MeSH term enrichment analysis inside the widget components.
 		"""
 		self.lvItem2Mesh = dict()
-		
+
 		if(self.reference and self.cluster):
 			if(len(self.cluster) > len(self.reference)):
 				self.optionsBox.setDisabled(1)
-				QMessageBox.warning( None, "Invalid dataset length", "Cluster dataset is shorter than reference dataset. You should check if signals are connected to correct inputs." , QMessageBox.Ok)
 				return False
-
 			# everything is ok, now we can calculate enrichment and update labels, tree view and table data
+			#self.warning()
 			self.optionsBox.setDisabled(0)
 			self.progressBarInit()
 			self.treeInfo, self.results = self.mesh.findEnrichedTerms(self.reference,self.cluster,self.maxPValue, treeData= True, callback= self.progressBarSet)
@@ -277,8 +271,8 @@ class OWMeSHBrowser(OWWidget):
 
 			self.optionsBox.setDisabled(0)
 			self.progressBarInit()
-			self.treeInfo, self.results = self.mesh.findFrequentTerms(current_data,self.minExamplesInTerm, treeData= True, callback= self.progressBarSet)
-			self.progressBarFinished()
+			self.treeInfo, self.results=self.mesh.findFrequentTerms(current_data,self.minExamplesInTerm, treeData=True, callback=self.progressBarSet)
+ 			self.progressBarFinished()
 			if self.reference:
 				self.ref_att.setText("reference MeSH att: " + self.mesh.solo_att)
 			else:
@@ -324,7 +318,6 @@ class OWMeSHBrowser(OWWidget):
 		for i in self.treeInfo[parentID]:   # for each succesor
 			f = QTreeWidgetItem(parentLVI);
 			f.term = self.mesh.toName[i]
-			
 			data = [self.mesh.toName[i]]
 			if soloMode:
 				rfr = str(self.results[i])
@@ -335,9 +328,7 @@ class OWMeSHBrowser(OWWidget):
 				pval = "%.4g" % self.results[i][2]
 				fold = "%.4g" % self.results[i][3]
 				data.extend([rfr, cfr, pval, fold])
-
 			self.lvItem2Mesh[f]=(data[0],i)		# mapping   QTreeWidgetItem <-> mesh id
-
 			for t in range(len(data)):
 				f.setText(t,data[t])
 			self.__treeViewMaker__(f,i, soloMode)			
@@ -362,15 +353,18 @@ class OWMeSHBrowser(OWWidget):
 		"""
 		Function __switchGUI__ is capable of changing GUI based on number of connected inputs.
 		"""
+		if(len(self.cluster) > len(self.reference)):
+			self.optionsBox.setDisabled(1)
+			#self.warning("Cluster dataset is greater than reference dataset. Please check the widget inputs.")
+			QMessageBox.warning( None, "Invalid input dataset length", "Cluster dataset is longer than the reference dataset. Please check the widget inputs." , QMessageBox.Ok)
+			return False
 		if not self.reference and not self.cluster:
 			self.optionsBox.setDisabled(1)
 			return
-		
 		self.optionsBox.setDisabled(0)
 		solo = True
 		if self.reference and self.cluster:
 			solo = False
-
 		if solo:
 			self.maxp.setDisabled(1)
 			self.minf.setDisabled(0)
@@ -387,14 +381,11 @@ class OWMeSHBrowser(OWWidget):
 			for i in range(0,len(self.columns)):
 				self.meshLV.showColumn(i)
 				self.sigTermsTable.showColumn(i)
-				
 			self.sigTermsTable.setHorizontalHeaderLabels(self.columns)
 			self.meshLV.setHeaderLabels(self.columns)
-
 			for i in range(0,len(self.columns)):
 				self.meshLV.header().resizeSection(i,self.col_size[i])
 				self.sigTermsTable.horizontalHeader().resizeSection(i,self.col_size[i])
-
 			self.ratio.setText("ratio = %.4g" % self.mesh.ratio)
 
 	def getReferenceData(self, data):
@@ -403,7 +394,7 @@ class OWMeSHBrowser(OWWidget):
 		"""
 		if data:
 			self.reference = data
-			self.infoa.setText('%d reference instances' % len(data))
+			self.infoa.setText('%d reference examples' % len(data))
 		else:
 			self.reference = None
 			self.infoa.setText('No reference data.')
@@ -421,7 +412,7 @@ class OWMeSHBrowser(OWWidget):
 		"""
 		if data:
 			self.cluster = data
-			self.infob.setText('%d cluster instances' % len(data))
+			self.infob.setText('%d cluster examples' % len(data))
 		else:
 			self.cluster = None
 			self.infob.setText('No cluster data.')
