@@ -17,14 +17,14 @@ so that when you search for "sgd" or "mmu" you get the expected result.</p>
 <p>The module is also used through Orange Bioinformatics for organism name unification across different modules.</p>
 
 <p class=section>Functions</p>
-<dl class=methods>
+<dl class=attributes>
 	<dt>name(taxid)</dt>
 	<dd>Return the scientific name for organism with taxid.</dd>
 
 	<dt>other_names(taxid)</dt>
 	<dd>Return a list of (name, name_type) tuples but exclude the scientific name.</dd>
 
-	<dt>search(string, onlySpecies=True, exact=False)<dt>
+	<dt>search(string, onlySpecies=True, exact=False)</dt>
 	<dd>Search the NCBI taxonomy database for an organism by <code>string</code>, returning a list of
 	taxonomy IDs where any of the organism's names includes a <code>string</code>. If <code>onlySpecies</code> is 
 	True then search only in the species and subspecies nodes ob the taxonomy. If <code>exact=True</code>, the entire
@@ -60,32 +60,32 @@ so that when you search for "sgd" or "mmu" you get the expected result.</p>
 <xmp class=code>import obiTaxonomy
 
 for taxid in obiTaxonomy.common_taxids():
-    print "%-5s %s" % (taxid, obiTaxonomy.name(taxid))
+    print "%-6s %s" % (taxid, obiTaxonomy.name(taxid))
 </xmp>
 
 <p>The output of the script is:<p>
 
-<xmp class=code>3702  Arabidopsis thaliana
-9913  Bos taurus
-6239  Caenorhabditis elegans
-3055  Chlamydomonas reinhardtii
-7955  Danio rerio
-44689 Dictyostelium discoideum
-7227  Drosophila melanogaster
-562   Escherichia coli
-11103 Hepatitis C virus
-9606  Homo sapiens
-10090 Mus musculus
-2104  Mycoplasma pneumoniae
-4530  Oryza sativa
-5833  Plasmodium falciparum
-4754  Pneumocystis carinii
-10116 Rattus norvegicus
-4932  Saccharomyces cerevisiae
-4896  Schizosaccharomyces pombe
-31033 Takifugu rubripes
-8355  Xenopus laevis
-4577  Zea mays
+<xmp class=code>3702   Arabidopsis thaliana
+9913   Bos taurus
+6239   Caenorhabditis elegans
+3055   Chlamydomonas reinhardtii
+7955   Danio rerio
+352472 Dictyostelium discoideum AX4
+7227   Drosophila melanogaster
+562    Escherichia coli
+11103  Hepatitis C virus
+9606   Homo sapiens
+10090  Mus musculus
+2104   Mycoplasma pneumoniae
+4530   Oryza sativa
+5833   Plasmodium falciparum
+4754   Pneumocystis carinii
+10116  Rattus norvegicus
+4932   Saccharomyces cerevisiae
+4896   Schizosaccharomyces pombe
+31033  Takifugu rubripes
+8355   Xenopus laevis
+4577   Zea mays
 </xmp>
 
 <h2>Update from other Orange modules</h2>
