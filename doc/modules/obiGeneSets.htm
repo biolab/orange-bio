@@ -10,7 +10,7 @@
 <h1>obiGeneSets</h1>
 <index name="modules/gene sets">
 
-<p><code>obiGeneMatch</code> can forge gene sets using KEGG (cellular processes and pathways) and GO (gene ontology and annotations) database and read gene set collections in <code>gmt</code> format used by Molecular Signatures Database (MSigDB). Descriptions of module's functions follow.</p>
+<p><code>obiGeneSets</code> can forge gene sets using KEGG (cellular processes and pathways) and GO (gene ontology and annotations) database and read gene set collections in <code>gmt</code> format used by Molecular Signatures Database (MSigDB). Descriptions of module's functions follow.</p>
 
 <h2>goGeneSets</h2>
 
@@ -81,7 +81,7 @@ Loads and combines gene sets from various sources: GO, KEGG, <code>gmt</code> an
 <xmp class=code>collections([":kegg:mmu", ":go:mmu"])
 </xmp>
 
-<p>Open all default gene sets and custom pathways from &qout;specific.gmt&qout; file residing in the current working direcotory.</p>
+<p>Open all default gene sets and custom pathways from &quot;specific.gmt&quot; , located in the current working directory.</p>
 
 <xmp class=code>collections(["specific.gmt", default=True])
 </xmp>
