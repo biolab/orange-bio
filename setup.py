@@ -21,6 +21,6 @@ if __name__ == "__main__":
           packages = [ 'widgets', 'widgets.prototypes', 'doc' ],
           package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
           extra_path=("orange-bioinformatics", destDir),
-          py_modules = ['obiKEGG', 'obiGsea', 'obiData', 'obiGenomicsUpdate', 'stats', 'pstat', 'obiExpression', 'obiGO', 'obiProb', 'obiAssess', 'obiGeneSets', 'obiMeSH', 'obiDicty', 'obiTaxonomy', 'obiChem', 'obiGene', 'obiGEO', 'obiGeneMatch' ],
+          py_modules = ['obiKEGG', 'obiGsea', 'obiData', 'obiGenomicsUpdate', 'stats', 'pstat', 'obiExpression', 'obiGO', 'obiProb', 'obiAssess', 'obiGeneSets', 'obiMeSH', 'obiDicty', 'obiTaxonomy', 'obiChem', 'obiGene', 'obiGEO' ],
           scripts=["post_install_script.py"]
           )
