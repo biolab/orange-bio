@@ -9,7 +9,6 @@
 from __future__ import with_statement
 
 import obiGO
-import obiKEGG
 import obiProb
 import obiTaxonomy
 import sys, os, tarfile, math
@@ -19,7 +18,6 @@ import orngServerFiles
 from os.path import join as p_join
 from OWWidget import *
 from collections import defaultdict
-from obiGeneMatch import GeneMatchMk2
 from functools import partial
 
 dataDir = orngServerFiles.localpath("GO")
@@ -100,15 +98,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##            self.settingsList.append( varName)
             code = compile("self.%s = True" % (varName), ".", "single")
             exec(code)
-        self.progressBarInit()
-        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            self.annotationFiles = listAvailable()
-        self.progressBarFinished()
-        self.annotationCodes = sorted(self.annotationFiles.keys())
-        if not self.annotationCodes:
-            self.error(0, "No downloaded annotations!!\nUse the Update Genomics Databases widget and download annotations for at least one organism!")
-        else:
-            self.error(0)
+#        self.progressBarInit()
+#        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+#            self.annotationFiles = listAvailable()
+#        self.progressBarFinished()
+#        self.annotationCodes = sorted(self.annotationFiles.keys())
+#        if not self.annotationCodes:
+#            self.error(0, "No downloaded annotations!!\nUse the Update Genomics Databases widget and download annotations for at least one organism!")
+#        else:
+#            self.error(0)
+        self.annotationCodes = []
+        
         #############
         ##GUI
         #############
@@ -120,6 +120,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
         OWGUI.button(box, self, "Ontology/Annotation Info", callback=self.ShowInfo, tooltip="Show information on loaded ontology and annotations")
         box = OWGUI.widgetBox(self.inputTab, "Organism", addSpace=True)
         self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.SetAnnotationCallback, tooltip="Select organism")
+        
+        self.signalManager.setFreeze(1) ## freeze until annotation combo box is updateded with available annotations.
+        QTimer.singleShot(0, self.UpdateOrganismComboBox)
+        
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene names", callback=self.Update, tooltip="Use this attribute to extract gene names from input data")
         OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use data attributes names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.SetUseAttrNamesCallback, tooltip="Use attribute names for gene names")
         
@@ -203,12 +207,34 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
         self.resize(900, 800)
 
-        self.keggOrg = None
         self.clusterDataset = None
         self.referenceDataset = None
         self.ontology = None
         self.annotations = None
         self.probFunctions = [obiProb.Binomial(), obiProb.Hypergeometric()]
+        
+    def UpdateOrganismComboBox(self):
+        try:
+            if self.annotationCodes and len(self.annotationCodes) > self.annotationIndex:
+                currAnnotationCode = self.annotationCodes[self.annotationIndex]
+            else:
+                currAnnotationCode = None
+            self.progressBarInit()
+            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+                self.annotationFiles = listAvailable()
+            self.progressBarFinished()
+            self.annotationCodes = sorted(self.annotationFiles.keys())
+    #        if not self.annotationCodes:
+    #            self.error(0, "No downloaded annotations!!\nUse the Update Genomics Databases widget and download annotations for at least one organism!")
+    #        else:
+    #            self.error(0)
+            self.annotationComboBox.clear()
+            self.annotationComboBox.addItems(self.annotationCodes)
+#            self.annotationIndex = self.annotationCodes.index(currAnnotationCode) if currAnnotationCode in self.annotationCodes else 0
+            self.annotationComboBox.setCurrentIndex(self.annotationIndex)
+#            print "update", self.annotationIndex, currAnnotationCode
+        finally:
+            self.signalManager.setFreeze(0)
         
     def SetAnnotationCallback(self):
         self.LoadAnnotation()
@@ -323,6 +349,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.geneAttrIndex = candidateGeneAttrs.index(bestAttr)
     
     def SetClusterDataset(self, data=None):
+
         self.closeContext()
         self.clusterDataset = data
         self.infoLabel.setText("\n")
@@ -415,39 +442,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
                 self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
             self.loadedAnnotationCode=self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
-            if self.loadedAnnotationCode in GeneMatchMk2.dbOrgMap:
-                self.keggOrg = obiKEGG.KEGGOrganism(GeneMatchMk2.dbOrgMap[self.loadedAnnotationCode], update=False)
-                self.keggOrg.api.download_progress_callback = self.progressBarSet
-            else:
-                self.keggOrg = None
-
-    def UpdateGOAliases(self, genes):
-##        genes = [gene for gene in genes if gene not in go.loadedAnnotation.aliasMapper]
-        genes = [gene for gene in genes if gene not in self.annotations.aliasMapper]
-        if not self.keggOrg or not os.path.isfile(os.path.join(self.keggOrg.local_database_path,"genes//organisms//"+self.keggOrg.org+"//_genes.pickle")):
-            print "Gene translation failed"
-            return
-##        old = dict(go.loadedAnnotation.__annotation.aliasMapper)
-        dbNames = set([anno.DB for anno in go.loadedAnnotation.annotationList])
-        dbNames = [GeneMatchMk2.dbNameMap[db] for db in dbNames if db in GeneMatchMk2.dbNameMap]
-        org = GeneMatchMk2.dbOrgMap[self.loadedAnnotationCode]
-        try:
-            self.progressBarInit()
-            unique, c, u = self.keggOrg.get_unique_gene_ids(genes)
-            self.progressBarFinished()
-            for k, gene in unique.items():
-                links = self.keggOrg.api._genes[org][k].get_db_links()
-                for db in dbNames:
-                    if db in links and len(set([link for link in links[db] if link in go.loadedAnnotation.aliasMapper]))==1:
-                        go.loadedAnnotation.aliasMapper[gene] = go.loadedAnnotation.aliasMapper[set([link for link in links[db] if link in go.loadedAnnotation.aliasMapper]).pop()]
-                        break
-                altNames = self.keggOrg.api._genes[org][k].get_alt_names()
-                altNames = [name for name in altNames if name in go.loadedAnnotation.aliasMapper]
-                if len(set([go.loadedAnnotation.aliasMapper[name] for name in altNames]))==1:
-                    go.loadedAnnotation.aliasMapper[gene] = go.loadedAnnotation.aliasMapper[altNames[0]]
-        except IOError, ex:
-            print ex
-        return
     
     def Enrichment(self):
         if not self.annotations.ontology:
