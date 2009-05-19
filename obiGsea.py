@@ -468,7 +468,7 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
 
     return zip(enrichmentScores, nEnrichmentScores, enrichmentPVals, fdrs)
 
-import obiGeneMatch
+import obiGene
 
 def nth(l,n): return [ a[n] for a in l ]
 
@@ -698,7 +698,7 @@ def transposeIfNeeded(data):
 
 class GSEA(object):
 
-    def __init__(self, organism):
+    def __init__(self, organism=None, matcher=None):
         self.genesets = {}
         self.organism = organism
         self.gsweights = {}
@@ -715,7 +715,9 @@ class GSEA(object):
 
         self.data = data
         attrnames = [ a.name for a in itOrFirst(self.data).domain.attributes ]
-        self.gm = obiGeneMatch.GeneMatch(attrnames, organism=self.organism, caseSensitive=caseSensitive)
+        self.gm = obiGene.matcher([[obiGene.GMKEGG(self.organism, ignore_case=not caseSensitive)]], 
+            ignore_case=not caseSensitive, direct=True)
+        self.gm.set_targets(attrnames)
  
     def addGeneset(self, genesetname, genes):
         """
@@ -736,7 +738,7 @@ class GSEA(object):
                 raise Exception("Geneset with the name " + \
                     + genesetname + " is already in genesets.")
             else:
-                datamatch = self.gm.match(list(genes))
+                datamatch = filter(lambda x: x[1] != None, [ (gene, self.gm.umatch(gene)) for gene in genes])
                 self.genesets[genesetname] = ( genes, datamatch )
 
     def selectGenesets(self, minSize=3, maxSize=1000, minPart=0.1):
@@ -814,9 +816,9 @@ class GSEA(object):
 
         return res
 
-def runGSEA(data, organism, classValues=None, geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, **kwargs):
+def runGSEA(data, organism, classValues=None, geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, matcher=None, **kwargs):
 
-    gso = GSEA(organism=organism)
+    gso = GSEA(organism=organism, matcher=matcher)
     gso.setData(data, classValues=classValues, atLeast=atLeast)
     
     if geneSets == None:
@@ -900,7 +902,7 @@ def hierarchyOutput(results, limitGenes=50):
 if  __name__=="__main__":
 
     data = orange.ExampleTable("sterolTalkHepa.tab")
-    gen1 = collections(['steroltalk.gmt'], default=False)
+    gen1 = collections(['steroltalk.gmt', ':kegg:hsa'], default=False)
 
     import mMisc
 
