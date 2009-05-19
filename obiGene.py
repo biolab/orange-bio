@@ -732,13 +732,10 @@ if __name__ == '__main__':
     mat7 = GMDicty()
     mat8 = GMNCBI('Homo sapiens')
     print "initialized all", time.time()-t
-    import obiGeneMatch as ogm
-    mat6 = ogm.MatcherSequence([ogm.MatchKEGG([], 'hsa', caseSensitive=False)])
 
     print "using targets"
 
     mat5.set_targets(names)
-    mat6.targets(names)
     mat7.set_targets(names)
     mat8.set_targets(names)
 
@@ -751,7 +748,6 @@ if __name__ == '__main__':
 
     for g in sorted(genes):
         print "KGO ", g, mat5.match(g), mat5.explain(g)
-        print "KEGG", g, mat6.match(g)
         print "DICT", g, mat7.match(g)
         print "NCBI", g, mat8.match(g)
 

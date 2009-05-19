@@ -4,7 +4,7 @@ Getting genesets from KEGG and GO.
 Maintainer: Marko Toplak
 """
 
-import obiKEGG, obiGeneMatch, orange
+import obiKEGG, orange
 import os
 import obiGO
 
@@ -59,13 +59,6 @@ def addSource(dic, addition):
     return dict( \
         [ (addition + name,genes) for name,genes in dic.items() ]\
         )
-
-def keggToGo(org):
-    """
-    Converts KEGG organism to GO organism.
-    """
-    map = dict([ (b,a) for a,b in obiGeneMatch.GeneMatchMk2.dbOrgMap.items()])
-    return map.get(org, org)
 
 """
 CUSTOM GENESETS
@@ -178,7 +171,7 @@ def createCollection(lnf):
                 gen1.update(addSource(gen2, "[%s] " % "KEGG"))
 
             elif name == "go":
-                gen2 = goGeneSets(keggToGo(org))
+                gen2 = goGeneSets(org)
                 gen2 = prettyfygo(gen2)
                 gen1.update(addSource(gen2, ""))
 
@@ -267,7 +260,6 @@ def collections(l=[], default=False, path=collectionsPathname()):
 """
 End genesets
 """
-
 
 if __name__ == "__main__":
     #print keggGeneSets("sce").items()[:10]
