@@ -106,19 +106,22 @@ actions and therapeutic uses, including as an antiemetic and in the treatment of
 'Heterocyclic Compounds, 3-Ring'
 </xmp>
 
-<h3>Printing MeSH term enrichment</h3>
+<h3>Calculating and printing MeSH term enrichment</h3>
 
 <p>In the following example you can see how to calculate and pretty print enriched MeSH terms.</p>
+<p>part of <a href='obiMeSH-calculate-enrichment.py'>obiMeSH-calculate-enrichment.py</a></p>
 
-<xmp class=code>import orange
-import obiMeSH
+<xmp class=code>import obiMeSH
+import orange
 
-# load reference and cluster dataset
-r = orange.ExampleTable('D06-reference')
-c = orange.ExampleTable('D06-cluster')
-f = obiMeSH.obiMeSH()
-data = f.findEnrichedTerms(r,c)
-f.printMeSH(data)
+# load datasets
+reference = orange.ExampleTable('obiMeSH-reference-dataset.tab')
+cluster = orange.ExampleTable('obiMeSH-cluster-dataset.tab')
+
+# find and print enriched MeSH terms with p-value < 0.1
+d = obiMeSH.obiMeSH()
+enrichment = d.findEnrichedTerms(reference, cluster, pThreshold=0.1)
+d.printMeSH(enrichment)
 </xmp>
 
 <!--
