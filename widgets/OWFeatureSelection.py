@@ -142,7 +142,7 @@ class OWFeatureSelection(OWWidget):
             self.dataLabels = ["(None)"] + self.dataLabels
         self.dataLabelComboBox.addItems(self.dataLabels)
         
-        self.dataLabelComboBox.setDisabled(len(self.dataLabels) == 1)
+        self.dataLabelComboBox.setDisabled(len(self.dataLabels) <= 1)
         self.dataLabelIndex = max(min(self.dataLabelIndex, len(self.dataLabels) - 1), 0)
         
         self.Update()
@@ -212,6 +212,12 @@ class OWFeatureSelection(OWWidget):
         if not self.data:
             return
         self.error(0)
+        if not self.dataLabels and not self.data.domain.classVar:
+            self.error(0, "Class variable or attribute labels missing!")
+            return 
+        if (not self.dataLabels or self.dataLabels==["(None)"]) and self.data.domain.classVar.varType != orange.VarTypes.Discrete:
+            self.error(0, "Class variable must be discrete")
+            return 
         if self.dataLabels[self.dataLabelIndex] != "(None)":
             try:
                 data = transpose_labels_to_class(self.data, classlabel=self.dataLabels[self.dataLabelIndex])
