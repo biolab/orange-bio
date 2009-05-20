@@ -1,0 +1,143 @@
+name	mesh	dc
+string	string	d
+		class
+Chemical 68	['Todralazine']	yes
+Chemical 247	['Flurbiprofen']	yes
+Chemical 276	['Altretamine']	yes
+Chemical 42	['Naproxen']	yes
+Chemical 245	['Proglumide']	yes
+Chemical 246	['Nitrendipine']	yes
+Chemical 243	['Sulfanilamides']	yes
+Chemical 285	['Desoxycorticosterone']	yes
+Chemical 36	['Pyrimethamine']	yes
+Chemical 77	['Benzamides']	yes
+Chemical 249	['Bacitracin']	yes
+Chemical 204	['Theobromine']	yes
+Chemical 205	['Reserpine']	yes
+Chemical 290	['Imidazoles']	yes
+Chemical 289	['Scopoletin']	yes
+Chemical 209	['Capsaicin']	yes
+Chemical 250	['Piperidines']	yes
+Chemical 125	['Glipizide']	yes
+Chemical 261	['Propofol']	yes
+Chemical 30	['Chloramphenicol']	yes
+Chemical 262	['Amphetamines', 'Theophylline']	yes
+Chemical 257	['Lisuride']	yes
+Chemical 92	['Lynestrenol']	yes
+Chemical 274	['Phenoxybenzamine']	yes
+Chemical 160	['Dimethadione']	yes
+Chemical 171	['Phenothiazines']	yes
+Chemical 118	['Hesperidin']	yes
+Chemical 267	['Dehydroepiandrosterone']	yes
+Chemical 233	['Furans']	yes
+Chemical 238	['Ethynodiol Diacetate']	yes
+Chemical 45	['Dicyclomine']	yes
+Chemical 60	['Nifedipine']	yes
+Chemical 43	['Naphazoline']	yes
+Chemical 137	['Chlorhexidine']	yes
+Chemical 217	['Benzophenones']	yes
+Chemical 40	['Moxisylyte']	yes
+Chemical 219	['Flavonoids']	yes
+Chemical 253	['Xamoterol']	yes
+Chemical 254	['Rolipram']	yes
+Chemical 180	['Equilin']	yes
+Chemical 242	['Hydroquinones']	yes
+Chemical 225	['p-Aminohippuric Acid']	yes
+Chemical 38	['Diflunisal']	yes
+Chemical 221	['Coumarins']	yes
+Chemical 48	['Trichlorfon']	yes
+Chemical 72	['Diphenylacetic Acids']	yes
+Chemical 215	['Cantharidin']	yes
+Chemical 53	['Sulpiride']	yes
+Chemical 51	['Mefenamic Acid']	yes
+Chemical 50	['Triflupromazine']	yes
+Chemical 100	['Cyproheptadine']	yes
+Chemical 272	['Bretylium Tosylate']	yes
+Chemical 55	['Ethanolamines']	yes
+Chemical 224	['Parabens']	yes
+Chemical 41	['Piroxicam']	yes
+Chemical 218	['Promethazine']	yes
+Chemical 172	['Piperidines', 'Heterocyclic Compounds with 4 or More Rings', 'Azepines', 'Lactones', 'Alkaloids']	yes
+Chemical 46	['Benzoates']	yes
+Chemical 70	['Sulindac']	yes
+Chemical 69	['Imipramine']	yes
+Chemical 67	['Tolnaftate']	yes
+Chemical 74	['Prednisone']	yes
+Chemical 223	['Phenylacetates']	yes
+Chemical 71	['Amitriptyline']	yes
+Chemical 61	['Chlorpromazine']	yes
+Chemical 237	['Ibuprofen']	yes
+Chemical 88	['Khellin']	yes
+Chemical 66	['Acebutolol']	yes
+Chemical 63	['Pyridazines']	yes
+Chemical 62	['Diphenhydramine']	yes
+Chemical 39	['Niclosamide']	yes
+Chemical 52	['Acetohexamide']	yes
+Chemical 44	['Ticlopidine']	yes
+Chemical 94	['Disulfiram']	yes
+Chemical 17	['Levodopa']	yes
+Chemical 54	['Procaine']	yes
+Chemical 120	['Mefloquine']	yes
+Chemical 2	['Allantoin']	yes
+Chemical 47	['Lidocaine']	yes
+Chemical 7	['Amiloride']	yes
+Chemical 6	['Fluprednisolone']	yes
+Chemical 5	['Atracurium']	yes
+Chemical 33	['Triamterene']	yes
+Chemical 210	['Carbachol']	yes
+Chemical 31	['Epirizole']	yes
+Chemical 37	['Hexamethonium']	yes
+Chemical 35	['Troleandomycin']	yes
+Chemical 34	['Dapsone']	yes
+Chemical 21	['Pantothenic Acid']	yes
+Chemical 126	['Loxapine']	yes
+Chemical 18	['Idoxuridine']	yes
+Chemical 228	['Benzophenones']	yes
+Chemical 26	['Doxylamine']	yes
+Chemical 23	['Norethynodrel']	yes
+Chemical 161	['Papaverine']	yes
+Chemical 248	['Nimodipine']	yes
+Chemical 159	['Lasalocid']	yes
+Chemical 244	['Estrone']	yes
+Chemical 163	['Cefoxitin']	yes
+Chemical 96	['Mianserin']	yes
+Chemical 153	['Quinuclidinyl Benzilate']	yes
+Chemical 9	['Hydrochlorothiazide']	yes
+Chemical 239	['Butanones']	yes
+Chemical 158	['Propantheline']	yes
+Chemical 154	['Sulfamonomethoxine']	yes
+Chemical 129	['Methotrexate']	yes
+Chemical 298	['Remoxipride']	yes
+Chemical 186	['Tolmetin']	yes
+Chemical 197	['Paromomycin']	yes
+Chemical 32	['Dyphylline']	yes
+Chemical 4	['Metformin']	yes
+Chemical 182	['Doxycycline']	yes
+Chemical 177	['Mestranol']	yes
+Chemical 185	['Beclomethasone']	yes
+Chemical 64	['Miconazole']	yes
+Chemical 195	['Simvastatin']	yes
+Chemical 256	['Idazoxan']	yes
+Chemical 187	['Levobunolol']	yes
+Chemical 236	['Fluspirilene']	yes
+Chemical 119	['Perphenazine']	yes
+Chemical 49	['Carbamazepine']	yes
+Chemical 111	['Haloperidol']	yes
+Chemical 97	['Nocodazole']	yes
+Chemical 162	['4-Aminobenzoic Acid']	yes
+Chemical 284	['Megestrol Acetate']	yes
+Chemical 102	['Danazol']	yes
+Chemical 57	['Tolazoline']	yes
+Chemical 99	['Amoxapine']	yes
+Chemical 24	['Thiamphenicol']	yes
+Chemical 135	['Verapamil']	yes
+Chemical 130	['Astemizole']	yes
+Chemical 123	['Pirenzepine']	yes
+Chemical 141	['Imidazoles']	yes
+Chemical 133	['Cefotaxime']	yes
+Chemical 216	['Clioquinol']	yes
+Chemical 122	['Spironolactone']	yes
+Chemical 121	['Miconazole']	yes
+Chemical 192	['Raloxifene']	yes
+Chemical 127	['Hydroxyzine']	yes
+Chemical 65	['Isoxsuprine']	yes
