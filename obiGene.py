@@ -94,7 +94,7 @@ class NCBIGeneInfo(dict):
 
     @classmethod
     def organism_name_search(cls, org):
-        taxids = obiTaxonomy.to_taxid(org, mapTo=[obiTaxonomy.common_taxids()])
+        taxids = obiTaxonomy.to_taxid(org, mapTo=obiTaxonomy.common_taxids())
         if not taxids:
             taxids = set(obiTaxonomy.common_taxids()).intersection(obiTaxonomy.search(org, onlySpecies=False)) #onlySpecies=False needed to find correct dicty
         if len(taxids) == 0:
