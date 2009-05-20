@@ -1150,7 +1150,7 @@ def createExampleTable(names, vals, annots, ddb, cname="DDB", \
         oknames = set(nth(filter(lambda x: len(x[1]) > 1, 
             annotsvals.items()), 0))
 
-    print oknames
+    #print oknames
 
     for a,an in zip(attributes, annots):
         a.setattr("attributes", dict([(name,val) for name,val in an if name in oknames]))
