@@ -1,17 +1,18 @@
-import obiGeneMatch
+import obiGene
 import obiKEGG
 
 keggorg = obiKEGG.KEGGOrganism("mmu")
-testgenes = keggorg.get_genes() 
+kegg_genes = keggorg.get_genes() 
 
 targets = [ "Fndc4", "Itgb8", "Cdc34", "Olfr1403" ] 
 
-gm = obiGeneMatch.GeneMatch(targets, organism="mmu")
-match = gm.match(testgenes)
-print "Matches", match
+gm = obiGene.GMKEGG("mmu") #use KEGG aliases for gene matching
+gm.set_targets(targets)
 
 pnames = keggorg.list_pathways()
 
-for keggname, origname in match:
-	pwys = keggorg.get_pathways_by_genes([keggname])
-	print origname, "is in", [ pnames[p] for p in pwys ] 
+for keggname in kegg_genes:
+    match = gm.umatch(keggname)
+    if match:
+        pwys = keggorg.get_pathways_by_genes([keggname])
+        print match, "is in", [ pnames[p] for p in pwys ] 
