@@ -24,7 +24,6 @@
 
 <h3>Matcher</h3>
 
-
 <dl class=attributes>
 <dd>An abstract gene matcher class. All gene matchers should implement functions <code>set_targets</code>, <code>match</code> and <code>explain</code>. </dd>
 <dl class=attributes>
@@ -33,9 +32,9 @@
 <dt>match(gene)</dt>
 <dd>Returns a list of target gene aliases which share the same set of aliases with the input gene. If there are no matches it returns an empty list. Abstract.</dd>
 <dt>explain(gene)</dt>
-<dd>Returns gene matches with their explanations as a list of tuples. Each tuple consists of a list of target genes in a set of aliases mathced to the input gene. The set of aliases is returned as a second part of the tuple. Abstract.</dd>
+<dd>Returns gene matches with their explanations as a list of tuples. Each tuple consists of a list of target genes in a set of aliases matched to the input gene. The set of aliases is returned as a second part of the tuple. Abstract.</dd>
 <dt>umatch(gene)</dt>
-<dd>Return unique matching gene aliases. If the <code>match</code> funtion returns exactly one gene aliase, then it is returned. If not, the function returns <code>None</code>.</dd>
+<dd>Return unique matching gene aliases. If the <code>match</code> function returns exactly one gene alias, then it is returned. If not, the function returns <code>None</code>.</dd>
 </dl>
 </dl>
 
@@ -98,7 +97,7 @@
 
 <h3>matcher(targets, direct=True, ignore_case=True)</h3>
 <dl class=attributes>
-<dd>Builds a new matcher from the list of matchers. Chain matchers in the list. If a list elementh is another list, join the gene matchers in the list by joining overlapping sets of aliases.</dd>
+<dd>Builds a new matcher from the list of matchers. Chain matchers in the list. If a list element is another list, join the gene matchers in the list by joining overlapping sets of aliases.</dd>
 <dl class=arguments>
 <dt>direct</dt> 
 <dd>If True, insert an instance of MatcherDirect in front of the specified gene matcher sequence.</dd>
@@ -107,11 +106,67 @@
 </dl>
 </dl>
 
+<h2>Auxiliary functionality</h2>
+
+<h3>MatcherAliases</h3>
+
+<dl class=attributes>
+<dd>Gene matcher based on sets of aliases. A subclass of <code>Matcher</code>.</dd>
+<dl class=attributes>
+<dt>__init__(aliases, ignore_case=True)</dt>
+<dd>Constructs a gene matcher based on sets of aliases. Input aliases have to be represented as a list of sets, where the sets contain equivalent aliases for the given gene.</dd>
+<dt>to_ids(gene)</dt>
+<dd>Returns the index of the sets of aliases (as given to the constructor) which include input gene alias.</dd>
+</dl>
+</dl>
+
+<h3>MatcherAliasesPickled</h3>
+
+<dl class=attributes>
+<dd>An abstract class for alias matchers, which support pickling. A subclass of <code>MatcherAliases</code>. Its subclasses must implement functions <code>filename</code>, <code>create_aliases</code> and <code>create_aliases_version</code>. They are needed for automatic pickling to work. Loading of gene aliases is done lazily - only when really needed, as loading of aliases for individual components of joined gene matcher is often unnecessary.</dd>
+<dl class=attributes>
+<dt>filename()</dt>
+<dd>Returns the filename for the pickled file. Different organism and gene matcher combinations should have different filenames. Abstract.</dd>
+<dt>create_aliases()</dt>
+<dd>Returns a list of sets of gene aliases. Abstract.</dd>
+<dt>create_aliases_version()</dt>
+<dd>Returns the version of the gene aliases. If a file containing pickled gene matcher with the same version exists, it is read from file. If not, it is rebuild. Abstract.</dd>
+</dl>
+</dl>
+
+<h3>MatcherSequence</h3>
+
+<dl class=attributes>
+<dd>Supports chaining of gene matchers. User defines the order of used gene matchers. Gene matchers are queried in sequence until the match is found. The matching target aliases are then returned.</dd>
+<dl class=attributes>
+<dt>__init__(matchers)</dt>
+<dd>Input is a list of gene matcher objects (subclasses of type <code>Matcher</code>). </dd>
+</dl>
+</dl>
+
+<h3>MatcherAliasesPickledJoined</h3>
+
+<dl class=attributes>
+<dd>Creates a new matcher by joined gene aliases from input gene matchers. Sets of genes are joined if they contain common genes. The joined gene matcher is pickled only if all input gene matchers support pickling.</dd>
+<dl class=attributes>
+<dt>__init__(matchers)</dt>
+<dd>Constructs a joined gene matcher based on input matchers. The parameter <code>ignore_case</code> of the joined matcher is set to a common value of <code>ignore_case</code> in the input matches. </dd>
+</dl>
+</dl>
+
+
+
+</dl>
+</dl>
+
+
+
+
 <h2>Further examples</h2>
 
 <h3>Listing pathways with given genes</h3>
 
-<p>The following example works in conjuction with <code>obiKEGG</code>.  It takes a list of mouse gene names to find pathways with the given gene.</p>
+<p>The following example works in conjunction with <code>obiKEGG</code>.  It takes a list of mouse gene names to find pathways with the given gene.</p>
 
 <p class="header"><a href="geneMatch1.py">geneMatch1.py</a></p>
 
