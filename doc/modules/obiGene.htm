@@ -1,0 +1,151 @@
+<html>
+
+<head>
+<title>obiGene: gene matching and gene info</title>
+<link rel=stylesheet href="../style.css" type="text/css">
+<link rel=stylesheet href="style-print.css" type="text/css" media=print>
+</head>
+
+<body>
+<h1>obiGene: gene matching and gene info</h1>
+<index name="modules/gene match matching info">
+
+<p><code>obiGene</code> module provides access to NCBI gene info gene name matching.</p>
+
+<hr>
+
+<h2>Gene name matching</h2>
+
+<p>Genes usually have multiple aliases. When combining data from different sources (for example expression data from one dataset with gene sets from another one), care needs to be taken to match gene aliases representing the same genes. The implemented alias matching methods are based on sets of aliases, where each set contains a group of gene aliases for a single gene. Matching gene aliases are target gene aliases residing in the same sets of aliases as the query gene alias. Target gene aliases are gene aliases which the matcher outputs as matching results. </p>
+
+<h2>Common interface</h2>
+
+<p>Since all gene matcher are subclasses of class <code>Matcher</code>, they all support at least the methods <code>set_targets</code>, <code>match</code>, <code>explain</code>, <code>umatch</code>.</h2>
+
+<h3>Matcher</h3>
+
+
+<dl class=attributes>
+<dd>An abstract gene matcher class. All gene matchers should implement functions <code>set_targets</code>, <code>match</code> and <code>explain</code>. </dd>
+<dl class=attributes>
+<dt>set_targets(targets)</dt>
+<dd>Set gene aliases in the input list (of strings) as the target gene aliases. Abstract.</dd>
+<dt>match(gene)</dt>
+<dd>Returns a list of target gene aliases which share the same set of aliases with the input gene. If there are no matches it returns an empty list. Abstract.</dd>
+<dt>explain(gene)</dt>
+<dd>Returns gene matches with their explanations as a list of tuples. Each tuple consists of a list of target genes in a set of aliases mathced to the input gene. The set of aliases is returned as a second part of the tuple. Abstract.</dd>
+<dt>umatch(gene)</dt>
+<dd>Return unique matching gene aliases. If the <code>match</code> funtion returns exactly one gene aliase, then it is returned. If not, the function returns <code>None</code>.</dd>
+</dl>
+</dl>
+
+<h2>Concrete matchers and their use</h2>
+
+<p>Almost all matchers are subclasses of <code>MatcherAliasesPickled</code> class. The only exception is <code>MatcherDirect</code>, where caching would be pointless.</p>
+
+<h3>MatcherAlisesKEGG or GMKEGG</h3>
+
+<dl class=attributes>
+<dd>Uses aliases from the KEGG database for matching.</dd>
+<dl class=attributes>
+<dt>__init__(organism, ignore_case=True)</dt>
+<dd>Initialization of the gene matcher for the given organism.</dd>
+</dl>
+</dl>
+
+<h3>MatcherAlisesGO or GMGO</h3>
+
+<dl class=attributes>
+<dd>Uses aliases from GO annotations.</dd>
+<dl class=attributes>
+<dt>__init__(organism, ignore_case=True)</dt>
+<dd>Initialization of the gene matcher for the given organism.</dd>
+</dl>
+</dl>
+
+<h3>MatcherAlisesDictyBase or GMDicty</h3>
+
+
+<dl class=attributes>
+<dd>Uses the aliases from the Dictybase.</dd>
+<dl class=attributes>
+<dt>__init__(ignore_case=True)</dt>
+<dd>Initialization of  the gene matcher.</dd>
+</dl>
+</dl>
+
+<h3>MatcherAlisesNCBI or GMNCBI</h3>
+
+<dl class=attributes>
+<dd>Uses aliases from NCBI gene info database.</dd>
+<dl class=attributes>
+<dt>__init__(organism, ignore_case=True)</dt>
+<dd>Initialization of the gene matcher for the given organism.</dd>
+</dl>
+</dl>
+
+<h3>MatcherDirect or GMDirect</h3>
+
+<dl class=attributes>
+<dd>Direct matching to target gene aliases (possibly ignoring case).</dd>
+<dl class=attributes>
+<dt>__init__(ignore_case=True)</dt>
+<dd>Initialization.</dd>
+</dl>
+</dl>
+
+<p>Gene name matchers be either chained (first try with the first matcher and try with the next one if matching fails) or joined (overlapping sets of aliases are combined). This can be accomplished using the <code>matcher</code> function.</p>
+
+<h3>matcher(targets, direct=True, ignore_case=True)</h3>
+<dl class=attributes>
+<dd>Builds a new matcher from the list of matchers. Chain matchers in the list. If a list elementh is another list, join the gene matchers in the list by joining overlapping sets of aliases.</dd>
+<dl class=arguments>
+<dt>direct</dt> 
+<dd>If True, insert an instance of MatcherDirect in front of the specified gene matcher sequence.</dd>
+<dt>ignore_case</dt>
+<dd>Specifies handling of letter case for the added direct matcher.</dd>
+</dl>
+</dl>
+
+<h2>Further examples</h2>
+
+<h3>Listing pathways with given genes</h3>
+
+<p>The following example works in conjuction with <code>obiKEGG</code>.  It takes a list of mouse gene names to find pathways with the given gene.</p>
+
+<p class="header"><a href="geneMatch1.py">geneMatch1.py</a></p>
+
+<xmp class=code>import obiGene
+import obiKEGG
+
+keggorg = obiKEGG.KEGGOrganism("mmu")
+kegg_genes = keggorg.get_genes() 
+
+query = [ "Fndc4", "Itgb8", "Cdc34", "Olfr1403" ] 
+
+gm = obiGene.GMKEGG("mmu") #use KEGG aliases for gene matching
+gm.set_targets(kegg_genes) #set KEGG gene aliases as targets
+
+pnames = keggorg.list_pathways()
+
+for name in query:
+    match = gm.umatch(name) # matched kegg alias or None
+    if match:
+    	pwys = keggorg.get_pathways_by_genes([match])
+        print name, "is in", [ pnames[p] for p in pwys ] 
+</xmp>
+
+<p>Output:</p>
+
+<xmp class=code>Fndc4 is in []
+Itgb8 is in ['Cell adhesion molecules (CAMs)', 
+             'ECM-receptor interaction', 
+             'Regulation of actin cytoskeleton', 
+             'Focal adhesion']
+Cdc34 is in ['Ubiquitin mediated proteolysis']
+Olfr1403 is in ['Olfactory transduction']
+</xmp>
+
+</body>
+</html>
+
