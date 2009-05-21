@@ -294,6 +294,8 @@ class SimpleFun(object):
             setattr(self, a, b)
 
     def __call__(self, example):
+        #for  name,ids in self.gsets.items():
+        #    print name, [example[i].value for i in ids], self.fn([example[i].value for i in ids])
         return dict( (name, self.fn([example[i].value for i in ids])) \
             for name,ids in self.gsets.items() )
 
