@@ -1209,11 +1209,15 @@ def averageAttributes(data, joinc="DDB", fn=median):
 
     #apply function fn to each attribute
 
-    #print valuesddb[valuesddb.keys()[0]]
+    """
+    for i,at in enumerate(data.domain.attributes):
+        print valuesddb[at]["DDB_G0282817"], "CI" + data.annot["chipids"][i]
+    """
 
     for a in attributes:
         for n,v in valuesddb[a].items():
             valuesddb[a][n] = floatOrUnknown(fn(v))
+            #if n == "DDB_G0282817": print valuesddb[a][n]
 
     #create a new example table reusing the domain
     examples = []

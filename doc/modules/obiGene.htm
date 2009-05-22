@@ -10,7 +10,7 @@
 <h1>obiGene: gene matching and gene info</h1>
 <index name="modules/gene match matching info">
 
-<p><code>obiGene</code> module provides access to NCBI gene info gene name matching.</p>
+<p><code>obiGene</code> module provides access to NCBI gene info and gene name matching.</p>
 
 <hr>
 
@@ -20,7 +20,7 @@
 
 <h2>Common interface</h2>
 
-<p>Since all gene matcher are subclasses of class <code>Matcher</code>, they all support at least the methods <code>set_targets</code>, <code>match</code>, <code>explain</code>, <code>umatch</code>.</h2>
+<p>Since all gene matcher are subclasses of class <code>Matcher</code>, they all support methods <code>set_targets</code>, <code>match</code>, <code>explain</code>, <code>umatch</code>.</h2>
 
 <h3>Matcher</h3>
 
@@ -28,7 +28,7 @@
 <dd>An abstract gene matcher class. All gene matchers should implement functions <code>set_targets</code>, <code>match</code> and <code>explain</code>. </dd>
 <dl class=attributes>
 <dt>set_targets(targets)</dt>
-<dd>Set gene aliases in the input list (of strings) as the target gene aliases. Abstract.</dd>
+<dd>Set gene aliases in the input list (of strings) as target gene aliases. Abstract.</dd>
 <dt>match(gene)</dt>
 <dd>Returns a list of target gene aliases which share the same set of aliases with the input gene. If there are no matches it returns an empty list. Abstract.</dd>
 <dt>explain(gene)</dt>
@@ -69,7 +69,7 @@
 <dd>Uses the aliases from the Dictybase.</dd>
 <dl class=attributes>
 <dt>__init__(ignore_case=True)</dt>
-<dd>Initialization of  the gene matcher.</dd>
+<dd>Initialization of the gene matcher.</dd>
 </dl>
 </dl>
 
@@ -93,18 +93,57 @@
 </dl>
 </dl>
 
-<p>Gene name matchers be either chained (first try with the first matcher and try with the next one if matching fails) or joined (overlapping sets of aliases are combined). This can be accomplished using the <code>matcher</code> function.</p>
+<p>Gene name matchers can either be chained (try to apply them in sequence) or joined (overlapping sets of aliases are combined). This can be accomplished using the <code>matcher</code> function.</p>
 
 <h3>matcher(targets, direct=True, ignore_case=True)</h3>
 <dl class=attributes>
-<dd>Builds a new matcher from the list of matchers. Chain matchers in the list. If a list element is another list, join the gene matchers in the list by joining overlapping sets of aliases.</dd>
+<dd>Builds a new matcher from the list of matchers. Chain matchers in the input list. If a list element is another list, join matchers in the list by joining overlapping sets of aliases.</dd>
 <dl class=arguments>
 <dt>direct</dt> 
-<dd>If True, insert an instance of MatcherDirect in front of the specified gene matcher sequence.</dd>
+<dd>If True (default), insert an instance of MatcherDirect in front of the specified gene matcher sequence.</dd>
 <dt>ignore_case</dt>
 <dd>Specifies handling of letter case for the added direct matcher.</dd>
 </dl>
 </dl>
+
+<h3>Example: using different gene matchers to match onto KEGG gene aliases</h3>
+
+<p>The following example tries to match input genes onto KEGG gene aliases. As you can see in the results, GO aliases alone can not match onto KEGG database. For the last gene only joined GO and KEGG aliases produce a match.</p>
+
+<p class="header"><a href="geneMatch.py">geneMatch.py</a></p>
+
+<xmp class=code>import obiGene
+import obiKEGG
+
+targets = obiKEGG.KEGGOrganism("9606").get_genes() #human NCBI ID
+
+gmkegg = obiGene.GMKEGG("9606")
+gmgo = obiGene.GMGO("9606")
+gmkegggo = obiGene.matcher([[gmkegg, gmgo]], direct=False)
+
+gmkegg.set_targets(targets)
+gmgo.set_targets(targets)
+gmkegggo.set_targets(targets)
+
+genes = [ "cct7", "pls1", "gdi1", "nfkb2", "dlg7" ]
+
+print "%12s" % "gene", "%12s" % "KEGG", "%12s" % "GO", "%12s" % "KEGG+GO"
+for gene in genes:
+    print "%12s" % gene, "%12s" % gmkegg.umatch(gene), \
+          "%12s" % gmgo.umatch(gene), \
+          "%12s" % gmkegggo.umatch(gene)
+</xmp>
+
+<p>Output:</p>
+
+<xmp class=code>        gene         KEGG           GO      KEGG+GO
+        cct7    hsa:10574         None    hsa:10574
+        pls1     hsa:5357         None     hsa:5357
+        gdi1     hsa:2664         None     hsa:2664
+       nfkb2     hsa:4791         None     hsa:4791
+        dlg7         None         None     hsa:9787
+</xmp>
+
 
 <h2>Auxiliary functionality</h2>
 
@@ -153,13 +192,6 @@
 <dd>Constructs a joined gene matcher based on input matchers. The parameter <code>ignore_case</code> of the joined matcher is set to a common value of <code>ignore_case</code> in the input matches. </dd>
 </dl>
 </dl>
-
-
-
-</dl>
-</dl>
-
-
 
 
 <h2>Further examples</h2>

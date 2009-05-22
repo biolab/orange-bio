@@ -715,7 +715,7 @@ class GSEA(object):
 
         self.data = data
         attrnames = [ a.name for a in itOrFirst(self.data).domain.attributes ]
-        self.gm = obiGene.matcher([[obiGene.GMKEGG(self.organism, ignore_case=not caseSensitive)]], 
+        self.gm = obiGene.matcher([obiGene.GMKEGG(self.organism, ignore_case=not caseSensitive)], 
             ignore_case=not caseSensitive, direct=True)
         self.gm.set_targets(attrnames)
  
