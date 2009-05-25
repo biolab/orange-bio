@@ -427,7 +427,7 @@ class AnnotationRecord(object):
     The object also provides the folowing data members for quicker access: geneName, GOId, evidence,
     aspect and alias(a list of aliases)
     """
-    __slots__ = ["original", "geneName", "GOId", "evidence", "aspect", "alias", "aditionalAliases"]
+    __slots__ = ["original", "geneName", "GOId", "evidence", "aspect", "alias", "additionalAliases"]
     def __init__(self, fullText):
         self.original = tuple([t.strip() for t in fullText.split("\t")])
         self.geneName = self.original[2]
@@ -603,11 +603,6 @@ class Annotations(object):
                                                                       [ann.geneName, ann.DB_Object_ID]]) or dict,
                                                                       self.annotations, {})
         return self._aliasMapper
-    
-    def GetGeneNamesTranslator_(self, genes):
-        def alias(gene):
-            return gene if gene in self.geneNames else self.aliasMapper.get(gene, self.additionalAliases.get(gene, None))
-        return dict([(alias(gene), gene) for gene in genes if alias(gene)])
 
     def GetGeneNamesTranslator(self, genes):
         def alias(gene):
