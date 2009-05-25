@@ -195,7 +195,7 @@ class Taxonomy(object):
             self._info = TextDB(os.path.join(default_database_path, "ncbi_taxonomy.tar.gz", "ncbi_taxonomy_inf.db"))
             return
         except Exception, ex:
-            print >> sys.stderr, ex, "Could not load taxonomy from local cache\nAttempting to download from server."
+            pass
         try:
             import orngServerFiles as sf
             sf.download("Taxonomy", "ncbi_taxonomy.tar.gz")
@@ -203,7 +203,6 @@ class Taxonomy(object):
             self._info = TextDB(os.path.join(default_database_path, "ncbi_taxonomy.tar.gz", "ncbi_taxonomy_inf.db"))
             return
         except Exception, ex:
-            print >> sys.stderr, ex
             raise
 
     def get_entry(self, id):
