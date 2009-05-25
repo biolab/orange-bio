@@ -782,7 +782,7 @@ class Fragmenter(object):
         def getVal(var, fragment, smilesAttr, example, returnWhat):
             mol=LoadMolFromSmiles(str(example[smilesAttr]))
 ##            print "GetVal"
-            return fragment.ContainedIn(mol) and var(1) or var(0) if mol else None
+            return (fragment.ContainedIn(mol) and var(1) or var(0)) if mol else var(None)
         for var, frag in zip(fragVars, fragments):
             var.getValueFrom=partial(getVal,var, frag, smilesAttr)
         vars=data.domain.attributes+fragVars+(data.domain.classVar and [data.domain.classVar] or [])
