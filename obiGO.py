@@ -438,9 +438,9 @@ class AnnotationRecord(object):
 ##        for key, val in zip(annotationFields, self.original):
 ##            self.__dict__[key] = val
 
-        self.aditionalAliases = []
+        self.additionalAliases = []
         if ":" in self.DB_Object_Name:
-            self.aditionalAliases = _re_obj_name_.findall(self.DB_Object_Name.split(":")[0])
+            self.additionalAliases = _re_obj_name_.findall(self.DB_Object_Name.split(":")[0])
 
     def __getattr__(self, name):
         if name in annotationFieldsDict:
@@ -530,32 +530,12 @@ class Annotations(object):
         """A class method that tries to load the association file for the given organism from default_database_path.
         """
         import orngServerFiles
-##        import obiTaxonomy as tax
-##        
-##        ids = to_taxid(org)
-##        if not ids:
-##            import obiTaxonomy as tax
-##            ids = tax.to_taxid(org, mapTo=Taxonomy().tax.keys())
-##            ids = set(ids).intersection(Taxonomy().tax.keys())
-##        if not ids:
-##            print >> sys.stderr, "Unable to find annotations for", "'%s'" % org, "Matching name against NCBI Taxonomy"
-##            import obiTaxonomy as tax
-##            ids = tax.search(org)
-##            ids = set(ids).intersection(Taxonomy().tax.keys())
-##        codes = reduce(set.union, [from_taxid(id) for id in ids], set())
-##        if len(codes) > 1:
-##            raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (str(from_taxid(id)), tax.name(id)) for id in ids])
-##        elif len(codes) == 0:
-##            raise tax.UnknownSpeciesIdentifier, org
-##        name, code = tax.name(ids.pop()), codes.pop()
         code = organism_name_search(org)
-##        print >> sys.stderr, "Found annotations for", name, "(%s)" % code
         
         file = "gene_association.%s.tar.gz" % code
 
         path = os.path.join(orngServerFiles.localpath("GO"), file)
         if not os.path.exists(path):
-##            print >> sys.stderr, "Downloading", file
             orngServerFiles.download("GO", file)
         return cls(path, ontology=ontology, genematcher=genematcher, progressCallback=progressCallback)
     
@@ -593,20 +573,7 @@ class Annotations(object):
             a = AnnotationRecord(a)
         if not a.geneName or not a.GOId or a.Qualifier == "NOT":
             return
-##        if a.geneName not in self.geneNames:
-##            self.geneNames.add(a.geneName)
-##            self.geneAnnotations[a.geneName].append(a)
-##            for alias in a.alias:
-##                self.aliasMapper[alias] = a.geneName
-##            for alias in a.aditionalAliases:
-##                self.additionalAliases[alias] = a.geneName
-##            self.aliasMapper[a.geneName] = a.geneName
-##            self.aliasMapper[a.DB_Object_ID] = a.geneName
-##            names = [a.DB_Object_ID, a.DB_Object_Symbol]
-##            names.extend(a.alias)
-##            for n in names:
-##                self.geneNamesDict[n] = names
-##        else:
+        
         self.geneAnnotations[a.geneName].append(a)
         self.annotations.append(a)
         self.termAnnotations[a.GOId].append(a)
