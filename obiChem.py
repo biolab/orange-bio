@@ -776,7 +776,7 @@ class Fragmenter(object):
         
         miner=FragmentMiner(active, inactive, self.minSupport, self.maxSupport, canonicalPruning=self.canonicalPruning, findClosed=self.findClosed)
         self.fragments=fragments=miner.Search()
-        fragVars=[orange.FloatVariable(frag.ToSmiles(), numberOfDecimals=0) for frag in fragments]
+        fragVars=[orange.EnumVariable(frag.ToSmiles(), values=["0", "1"]) for frag in fragments]
         smilesInFragments=dict([(fragment, set([embeding.molecule.smilesCode for embeding in fragment.embedings]) ) for fragment in fragments])
         from functools import partial
         def getVal(var, fragment, smilesAttr, example, returnWhat):
