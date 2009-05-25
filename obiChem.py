@@ -760,7 +760,7 @@ class Fragmenter(object):
         self.maxSupport=maxSupport
         self.canonicalPruning=canonicalPruning
         self.findClosed=findClosed
-    def __call__(self, data, smilesAttr=None, activeFunc=lambda e:True):
+    def __call__(self, data, smilesAttr=None, activeFunc=lambda e:True, useCannonicalFragments=True):
         """Takes a data-set, and runs the FragmentMiner on it. Returns a new data-set and the fragments.
         The new data-set contains new attributes that represent the presence of a fragment that was found.
         Arguments:
@@ -768,6 +768,7 @@ class Fragmenter(object):
             smilesAttr  : the attribute in the data that contains the SMILES codes
             activeFunc  : a function that takes an example from the data-set and returns True if the example should be
                     considered as active (if none is provided all examples are considered active)
+            useCannonicalFragments  : if True use cannonical smiles for fragment attribute names else use regular smiles (defaut: True)
         """
         if not smilesAttr:
             smilesAttr=self.FindSmilesAttr(data)
@@ -776,13 +777,12 @@ class Fragmenter(object):
         
         miner=FragmentMiner(active, inactive, self.minSupport, self.maxSupport, canonicalPruning=self.canonicalPruning, findClosed=self.findClosed)
         self.fragments=fragments=miner.Search()
-        fragVars=[orange.EnumVariable(frag.ToSmiles(), values=["0", "1"]) for frag in fragments]
+        fragVars=[orange.EnumVariable(frag.ToCannonicalSmiles() if useCannonicalFragments else frag.ToSmiles(), values=["0", "1"]) for frag in fragments]
         smilesInFragments=dict([(fragment, set([embeding.molecule.smilesCode for embeding in fragment.embedings]) ) for fragment in fragments])
         from functools import partial
         def getVal(var, fragment, smilesAttr, example, returnWhat):
             mol=LoadMolFromSmiles(str(example[smilesAttr]))
 ##            print "GetVal"
-            print mol 
             return (fragment.ContainedIn(mol) and var(1) or var(0)) if mol else var(None)
         for var, frag in zip(fragVars, fragments):
             var.getValueFrom=partial(getVal,var, frag, smilesAttr)
