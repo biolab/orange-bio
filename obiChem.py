@@ -782,6 +782,7 @@ class Fragmenter(object):
         def getVal(var, fragment, smilesAttr, example, returnWhat):
             mol=LoadMolFromSmiles(str(example[smilesAttr]))
 ##            print "GetVal"
+            print mol 
             return (fragment.ContainedIn(mol) and var(1) or var(0)) if mol else var(None)
         for var, frag in zip(fragVars, fragments):
             var.getValueFrom=partial(getVal,var, frag, smilesAttr)
@@ -790,7 +791,7 @@ class Fragmenter(object):
         domain.addmetas(data.domain.getmetas())
         table=orange.ExampleTable(domain)
         for e in data:
-            vals=[e[attr] for attr in data.domain.attributes]+[1 if str(e[smilesAttr]) in smilesInFragments[fragment] else 0 for fragment in fragments]
+            vals=[e[attr] for attr in data.domain.attributes]+[1 if str(e[smilesAttr]) in smilesInFragments[fragment] else (None if e[smilesAttr].isSpecial() else 0) for fragment in fragments]
             vals=vals + [e.getclass()] if data.domain.classVar else vals
             ex=orange.Example(domain, vals)
             for key, val in e.getmetas().items():
