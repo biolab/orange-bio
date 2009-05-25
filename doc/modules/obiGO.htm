@@ -83,18 +83,18 @@
 	<dt>termAnnotations</dt>
 	<dd>A dictionary mapping a GO term id to a set of all annotations to that term</dd>
 	<dt>geneNames</dt>
-	<dd>A set of all gene names (all entrys from DB_Object_Symbol, DB_Object_Name and DB_Object_Synonym)</dd>
+	<dd>A set of all gene names (all entrys from DB_Object_Symbol)</dd>
 	<dt>geneNamesDict</dt>
-	<dd>A dictionary mapping each unique identifier from geneNames set to a list of all equivalent names</dd>
+	<dd>A dictionary mapping each unique identifier from DB_Object_ID, DB_Object_Symbol and DB_Object_Synonym to a list of all equivalent names</dd>
 	<dt>aliasMapper</dt>
-	<dd>A dictionary mapping each unique identifier from geneNames set to a DB_Object_Symbol equivalent</dd>
+	<dd>A dictionary mapping each unique identifier from DB_Object_ID, DB_Object_Symbol and DB_Object_Synonym to a DB_Object_Symbol equivalent</dd>
 	<dt>annotations</dt>
 	<dd>A list of all AnnotationRecord instances</dd>
 </dl>
 <p class=section>Methods</p>
 <dl class=attributes>
-	<dt> __init__(file=None, ontology=None, progressCallback=None)</dt>
-	<dd>Initialize the annotations from <code>file</code> by calling <code>ParseFile</code> on it. If file does not exist asume it is the name of the organism to be loaded from default_database_path. The <code>ontology</code> argument if present must be an instance of Ontology class. The optional <code>progressCallback</code> will be called with a single argument to report on the progress.</dd>
+	<dt> __init__(file=None, ontology=None, genematcher=None, progressCallback=None)</dt>
+	<dd>Initialize the annotations from <code>file</code> by calling <code>ParseFile</code> on it. If file does not exist asume it is the name of the organism to be loaded from default_database_path. The <code>ontology</code> argument if present must be an instance of Ontology class. <code>genematcher</code> should be an instance of obiGene.Macher and defaults to obiGene.GMGO. The optional <code>progressCallback</code> will be called with a single argument to report on the progress.</dd>
 	<dt>Load(org, ontology=None, progressCallback=None)</dt>
 	<dd>A class method that tries to load the association file for the given organism from default_database_path. It trys to match the <code>org</code> with GO organism codes and if it fails, searches for org in NCBI Taxonomy using obiTaxonomy module.</dd>
 	<dt>ParseFile(self, file, progressCallback=None)</dt>
@@ -103,7 +103,7 @@
 	<dd>Return all annotations that are annotated to term whose id entry equals <code>id</code></dd>
 	<dt>GetAllGenes(id, evidenceCodes=None)</dt>
 	<dd>Return a list of genes annotated by specified evidence codes to this and all subterms.</dd>
-	<dt>GetEnrichedTerms(genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", progressCallback=None)</dt>
+	<dt>GetEnrichedTerms(genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", prob=obiProb.Binomial(), progressCallback=None)</dt>
 	<dd>Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count) for items and term ids as keys.</dd>
 	<dt>GetAnnotatedTerms(genes, directAnnotationOnly=False, evidenceCodes=None, progressCallback=None)</dt>
 	<dd>Return all terms that are annotated by genes with evidenceCodes.</dd>
