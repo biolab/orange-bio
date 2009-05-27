@@ -4,6 +4,7 @@ import urllib2
 import orange
 import socket
 import os
+from collections import defaultdict
 
 #utility functions - from Marko's mMisc.py
 
@@ -797,6 +798,7 @@ chips chips""")
 
             return dd.values()
 
+
         groups = groupDicts(candidates)
 
         def joinedAnnotation(group):
@@ -854,15 +856,6 @@ chips chips""")
 
         differentialVals = [ csorted(diffannots[a]) for a in differentialNames ]
 
-        def difV(li):
-            """
-            Returns differential values for tuples of indices (input list).
-            (i,j) returns the i-th value for first differential name, 
-            and j-th values for second differential name.
-            """
-            #print "difV", li, [ differentialVals[i][v] for i,v in enumerate(li) ]
-            return [ differentialVals[i][v] for i,v in enumerate(li) ]
-
         def nameInds(values, inds):
             """
             Create attribute name for given values. If there are multiple 
@@ -872,38 +865,43 @@ chips chips""")
                 #leave out sample annotation
                 name = ','.join([ n + '=' + v if n != 'sample' else v for n,v in values ])
                 if len(inds) > 1:
-                    name += "_" +  str(i)
+                    name += ",id=" +  str(i)
                 return name
 
             return [ aux(i,a) for i,a in enumerate(inds) ]
  
-        def extractNeeded(annotations, needValues):
-            """
-            Returns indices (input list) of annotation with all values as 
-            specified in needValues.
-            """
-            ok = []
-            for i,an in enumerate(annotations):
-                sl = sum([ an[nam] != val for nam,val in needValues ])
-                if sl == 0: 
-                    ok.append(i)
-            return ok
-
         exampleTables = []
 
         for group in groups:
-
-            lens = [ len(a) for a in differentialVals ]
+        
             groupnames = []
             groupids = []
 
-            for valsi in mxrange([ b for b in lens ]):
+            gannots = [ ll2dic(annotationsIn[g]) for g in group ]
 
-                gannots = [ ll2dic(annotationsIn[g]) for g in group ]
+            #differentialNames, differentialVals - names and valus of differential
+            #descriptions. values are sorted
 
-                needValues = zip(differentialNames, difV(valsi))
-                inds = extractNeeded(gannots, needValues)
+            gad = defaultdict(list)
+            for i,ga in enumerate(gannots):
+                #keep only differentialNames
+                ga = [ (a,ga[a]) for a in differentialNames ]
+                #append to dictionary
+                gad[tuple(ga)].append(i)
 
+            #sort columns - by order of values
+            valorder = dict( (a, dict( (e,i) for i,e in enumerate(vals) )) \
+                for a,vals in zip(differentialNames, differentialVals) )
+
+            def orderinvals(l):
+                #variant lineary dependant of number of values of elements
+                #return [ b.index(a) for (n,a),b in zip(l, differentialVals) ]
+                return [ valorder[n][a] for n, a in l ] #asymptotically faster
+
+            gadkeys = sorted(gad.keys(), key=orderinvals)
+
+            for needValues in gadkeys:
+                inds = gad[needValues]
                 groupids = groupids + [ group[a] for a in inds ]
                 groupnames = groupnames + nameInds(needValues, inds)
 
