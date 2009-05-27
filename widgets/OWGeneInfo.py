@@ -14,25 +14,80 @@ import orngServerFiles
 from OWWidget import *
 import OWGUI
 
-class LinkItem(QWidget):
-    def __init__(self, gene_id, parent=None):
-        QWidget.__init__(self, parent)
-        layout = QHBoxLayout()
-        self.link = QLabel('<a href="http://www.ncbi.nlm.nih.gov/sites/entrez?Db=gene&Cmd=ShowDetailView&TermToSearch=%s">%s</a>' % (gene_id, gene_id), self)
-        self.link.setOpenExternalLinks(True)
-        layout.addWidget(self.link)
-        self.setLayout(layout)
-            
-class LinkItemDelegate(QItemDelegate):
-    def sizeHint(self, option, index):
-        size = QItemDelegate.sizeHint(self, option, index)
-        parent = self.parent()
-        item = parent.itemFromIndex(index)
-        widget = parent.itemWidget(item, 0)
-        if widget:
-            size = QSize(size.width(), widget.sizeHint().height())
-        return size
+from collections import defaultdict
+from functools import partial
 
+LinkRole = Qt.UserRole + 1
+
+class TreeModel(QAbstractItemModel):
+    def __init__(self, data, header, parent):
+        QAbstractItemModel.__init__(self, parent)
+        self._data = [[QVariant(s) for s in row] for row in data]
+        self._dataDict = {}
+        self._header = header
+        self._roleData = {Qt.DisplayRole:self._data}
+        self._roleData = partial(defaultdict, partial(defaultdict, partial(defaultdict, QVariant)))(self._roleData)
+    
+    def setColumnLinks(self, column, links):
+        font =QFont()
+        font.setUnderline(True)
+        font = QVariant(font)
+        for i, link in enumerate(links):
+            self._roleData[LinkRole][i][column] = QVariant(link)
+            self._roleData[Qt.FontRole][i][column] = font
+            self._roleData[Qt.ForegroundRole][i][column] = QVariant(QColor(Qt.blue))
+    
+    def setRoleData(self, role, row, col, data):
+        self._roleData[role][row][col] = data
+        
+    def data(self, index, role):
+        row, col = index.row(), index.column()
+        return self._roleData[role][row][col]
+        
+    def index(self, row, col, parent=QModelIndex()):
+        return self.createIndex(row, col, 0)
+    
+    def parent(self, index):
+        return QModelIndex()
+    
+    def rowCount(self, index):
+        if index.isValid():
+            return 0
+        else:
+            return len(self._data)
+        
+    def columnCount(self, index):
+        return len(self._header)
+
+    def headerData(self, section, orientation, role):
+        if role==Qt.DisplayRole:
+            return QVariant(self._header[section])
+        return QVariant()
+        
+class LinkStyledItemDelegate(QStyledItemDelegate):
+        
+    def sizeHint(self, option, index):
+        size = QStyledItemDelegate.sizeHint(self, option, index)
+        return QSize(size.width(), max(size.height(), 20))
+      
+    def editorEvent(self, event, model, option, index):
+        if event.type()==QEvent.MouseButtonPress:
+            self.mousePressState = QPersistentModelIndex(index), QPoint(event.pos())
+            
+        elif event.type()== QEvent.MouseButtonRelease:
+            link = index.data(LinkRole)
+            pressedIndex, pressPos = self.mousePressState
+            if pressedIndex == index and (pressPos - event.pos()).manhattanLength() < 5 and link.isValid():
+                 import webbrowser
+                 webbrowser.open(link.toString())
+            self.mousePressState = QModelIndex(), event.pos()
+            
+        elif event.type()==QEvent.MouseMove:
+            link = index.data(LinkRole)
+            self.parent().viewport().setCursor(Qt.PointingHandCursor if link.isValid() else Qt.ArrowCursor)
+            
+        return QStyledItemDelegate.editorEvent(self, event, model, option, index)
+        
 class OWGeneInfo(OWWidget):
     settingsList = ["organismIndex", "geneAttr", "useAttr", "autoCommit"]
     contextHandlers = {"":DomainContextHandler("", ["organismIndex", "geneAttr", "useAttr"])}
@@ -66,12 +121,15 @@ class OWGeneInfo(OWWidget):
         OWGUI.rubber(self.controlArea)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Filter", callbackOnType=True, callback=self.searchUpdate)
-        self.treeWidget = QTreeWidget(self.mainArea)
-        self.treeWidget.setHeaderLabels(["NCBI ID", "Symbol", "Locus Tag", "Chromosome", "Description", "Synonyms", "Nomenclature"])
+#        self.treeWidget = QTreeWidget(self.mainArea)
+        self.treeWidget = QTreeView(self.mainArea)
+        #self.treeWidget.setHeaderLabels(["NCBI ID", "Symbol", "Locus Tag", "Chromosome", "Description", "Synonyms", "Nomenclature"])
         self.treeWidget.setRootIsDecorated(False)
         self.treeWidget.setSelectionMode(QAbstractItemView.ExtendedSelection)
-##        self.treeWidget.setItemDelegate(LinkItemDelegate(self.treeWidget))
-        self.connect(self.treeWidget, SIGNAL("itemSelectionChanged()"), self.commitIf)
+        self.treeWidget.setItemDelegate(LinkStyledItemDelegate(self.treeWidget))
+        #self.connect(self.treeWidget, SIGNAL("itemSelectionChanged()"), self.commitIf)
+        self.treeWidget.viewport().setMouseTracking(True)
+        self.treeWidget.setSortingEnabled(True)
         self.mainArea.layout().addWidget(self.treeWidget)
         
         box = OWGUI.widgetBox(self.mainArea, "", orientation="horizontal")
@@ -81,7 +139,7 @@ class OWGeneInfo(OWWidget):
         self.resize(700, 500)        
 
         self.geneinfo = []
-        self.widgetItems = []
+        self.cells = []
         self.data = None
         self.currentLoaded = None, None
         self.selectionUpdateInProgress = False
@@ -113,57 +171,48 @@ class OWGeneInfo(OWWidget):
         if not genes:
             self.warning(0, "Could not extract genes from input dataset.")
         self.warning(1)
-        if self.organisms:
-            org = self.organisms[min(self.organismIndex, len(self.organisms) - 1)]
-            info , currorg = self.currentLoaded
-            if currorg != org:
-                self.progressBarInit()
-                with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                    info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
-                self.progressBarFinished()
-                self.currentLoaded = info, org
-        else:
-            self.warning(1, "No downloaded gene info files. Using human gene info.")
-            pb = OWGUI.ProgressBar(self, 100)
-            info = obiGene.NCBIGeneInfo("Homo sapiens", progressCallback=pb.advance)
-            pb.finish()
+        org = self.organisms[min(self.organismIndex, len(self.organisms) - 1)]
+        info , currorg = self.currentLoaded
+        if currorg != org:
+            self.progressBarInit()
+            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+                info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
+            self.progressBarFinished()
+            self.currentLoaded = info, org
+            
         self.geneinfo = geneinfo = [(gene, info.get_info(gene, None)) for gene in genes]
-##        print genes[:10]
-        self.treeWidget.clear()
-        self.widgetItems = []
+
         self.progressBarInit()
-##        milestones = set([i for i in range(0, len(geneinfo), max(len(geneinfo)/100, 1))])
         milestones = set([i for i in range(0, len(geneinfo), max(len(geneinfo)/100, 1))])
-        self.treeWidget.setUpdatesEnabled(False)
+        self.cells = cells = []
+        links = []
         for i, (gene, gi) in enumerate(geneinfo):
             if gi:
-                item = QTreeWidgetItem(self.treeWidget,
-                                       ["", gi.symbol + " (%s)" % gene if gene != gi.symbol else gi.symbol,
-                                        gi.locus_tag or "", gi.chromosome or "", gi.description or "",
-                                        ", ".join(gi.synonyms), gi.symbol_from_nomenclature_authority or ""])
-                item.info = gi
-                item.link = LinkItem(gi.gene_id, self.treeWidget)
-                self.treeWidget.setItemWidget(item, 0, item.link)
-##                link.show()
-                self.widgetItems.append(item)
+                cells.append([gi.gene_id, gi.symbol + " (%s)" % gene if gene != gi.symbol else gi.symbol,
+                            gi.locus_tag or "", gi.chromosome or "", gi.description or "",
+                            ", ".join(gi.synonyms), gi.symbol_from_nomenclature_authority or ""])
+                links.append("http://www.ncbi.nlm.nih.gov/sites/entrez?Db=gene&Cmd=ShowDetailView&TermToSearch=%s" % gi.gene_id)
+
             if i in milestones:
                 self.progressBarSet(100.0*i/len(geneinfo))
-        self.treeWidget.setUpdatesEnabled(True)
+        model = TreeModel(cells, ["NCBI ID", "Symbol", "Locus Tag", "Chromosome", "Description", "Synonyms", "Nomenclature"], self.treeWidget)
+        model.setColumnLinks(0, links)
+        proxyModel = QSortFilterProxyModel(self)
+        proxyModel.setSourceModel(model)
+        self.treeWidget.setModel(proxyModel)
+        self.connect(self.treeWidget.selectionModel(), SIGNAL("selectionChanged(QItemSelection , QItemSelection )"), self.commitIf)
         self.treeWidget.update()
-        self.treeWidget.repaint(0, 0, -1, -1)
         self.progressBarFinished()
-##        self.widgetItems[-1].setText(0, "")
-##        self.treeWidget.update(self.treeWidget.indexFromItem(self.widgetItems[-1]))
-        self.treeWidget.viewport().update()
-        self.infoLabel.setText("%i genes\n%i matched NCBI's IDs" % (len(genes), len(self.widgetItems)))
+
+        self.infoLabel.setText("%i genes\n%i matched NCBI's IDs" % (len(genes), len(cells)))
 
     def clear(self):
         self.infoLabel.setText("No data on input\n")
-        self.treeWidget.clear()
+        self.treeWidget.setModel(TreeModel([], ["NCBI ID", "Symbol", "Locus Tag", "Chromosome", "Description", "Synonyms", "Nomenclature"], self.treeWidget))
         self.geneAttrComboBox.clear()
         self.send("Selected Examples", None)
 
-    def commitIf(self):
+    def commitIf(self, *args):
         if self.autoCommit and not self.selectionUpdateInProgress:
             self.commit()
         else:
@@ -172,8 +221,11 @@ class OWGeneInfo(OWWidget):
     def commit(self):
         if not self.data:
             return
-        selected = [self.treeWidget.itemFromIndex(index).info for index in self.treeWidget.selectedIndexes()]
-##        selected = [item.info for item in self.widgetItems if not item.isHidden() and item.isSelected()]
+        
+        mapToSource = self.treeWidget.model().mapToSource
+        selectedIds = [self.cells[mapToSource(index).row()][0] for index in self.treeWidget.selectedIndexes()]
+        
+        selected = [gi for gene, gi in self.geneinfo if gi and gi.gene_id in selectedIds]
         if self.useAttr:
             attrs = [attr for attr, (name, gi) in zip(self.data.domain.attributes, self.geneinfo) if gi in selected]
             domain = orange.Domain(attrs, self.data.domain.classVar)
@@ -184,17 +236,33 @@ class OWGeneInfo(OWWidget):
             geneinfo = dict(self.geneinfo)
             examples = [ex for ex in self.data if geneinfo.get(str(ex[attr])) in selected]
             self.send("Selected Examples", orange.ExampleTable(examples) if examples else None)
-        
-    def searchUpdate(self):
+            
+    def rowFiltered(self, row):
         searchStrings = self.searchString.lower().split()
-        for item in self.widgetItems:
-            item.setHidden(not all(any(string in str(item.text(i)).lower() for i in range(7)) for string in searchStrings))
-
+        row = chr(255).join(self.cells[row]).lower()
+        return not all([s in row for s in searchStrings])
+    
+    def searchUpdate(self):
+        if not self.data:
+            return
+        searchStrings = self.searchString.lower().split()
+        index = self.treeWidget.model().sourceModel().index
+        mapFromSource = self.treeWidget.model().mapFromSource
+        for i, row in enumerate(self.cells):
+            row = chr(255).join(row).lower()
+            self.treeWidget.setRowHidden(mapFromSource(index(i, 0)).row(), QModelIndex(), not all([s in row for s in searchStrings]))
+        #self.treeWidget.model().setFilterRegExp(QRegExp(self.searchString, Qt.CaseInsensitive, QRegExp.FixedString))
+            
     def selectFiltered(self):
+        if not self.data:
+            return
         itemSelection = QItemSelection()
-        for item in self.widgetItems:
-            if not item.isHidden():
-                itemSelection.select(self.treeWidget.indexFromItem(item), self.treeWidget.indexFromItem(item))
+        
+        index = self.treeWidget.model().sourceModel().index
+        mapFromSource = self.treeWidget.model().mapFromSource
+        for i, row in enumerate(self.cells):
+            if not self.rowFiltered(i):
+                itemSelection.select(mapFromSource(index(i, 0)), mapFromSource(index(i, 0)))
         self.treeWidget.selectionModel().select(itemSelection, QItemSelectionModel.Select | QItemSelectionModel.Rows)
         
 if __name__ == "__main__":
