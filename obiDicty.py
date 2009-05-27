@@ -547,10 +547,23 @@ chips chips""")
     def chipR(self, id):
         return list(self.chipRs([id]))[0]
   
-    def chipNs(self, ids):
+    def chipNs(self, ids, remove_bad=True):
+        """
+        If removebad = True removes those with weights 0.
+        """
           
         def sel(res, legend):
             #Drop unwanted columns - for efficiency
+            res = onlyColumns(res, legend, ["spot_id", 'M', 'weights'])
+            legend = onlyColumns( [ legend ], legend, ["spot_id", 'M', 'weights'])[0]
+
+            def transf(a):
+                if a[2] == 0:
+                    return a[0], '', a[2]
+                else:
+                    return a[0], a[1], a[2]
+
+            res = [ transf(a) for a in res ]
             res = onlyColumns(res, legend, ["spot_id", 'M'])
             legend = onlyColumns( [ legend ], legend, ["spot_id", 'M'])[0]
             return res, legend
@@ -1011,7 +1024,7 @@ chips chips""")
         return exampleTables
 
 
-    def getData(self, type="norms", join=["time"],  exclude_constant_labels=False, separate=None, average=median, ids=None, callback=None, chipidname=False, **kwargs):
+    def getData(self, type="norms", join=["time"], exclude_constant_labels=False, separate=None, average=median, ids=None, callback=None, chipidname=False, format="short", **kwargs):
         """
         Returns a list of examples tables for a given search query and post-processing
         instructions.
@@ -1028,7 +1041,8 @@ chips chips""")
             ids: a list of chip ids. If present, use this ids instead of making
                 a search.
             exclude_constant_labels: if a label has the same value in whole 
-            example table, remove it
+                example table, remove it
+            format: if short, use short format for chip download
 
         Defaults: Median averaging. Join by time.
         """
@@ -1077,8 +1091,10 @@ chips chips""")
 
         cbc = CallBack(len(ids), optcb, callbacks=999-50)
         if type == "norms":
-            chipd = self.dictionarize(ids, self.chipNsN, ids, annotsinlist, callback=cbc)
-            #chipd = self.dictionarize(ids, self.chipNs, ids, callback=cbc)
+            if format == "short":
+                chipd = self.dictionarize(ids, self.chipNsN, ids, annotsinlist, callback=cbc)
+            else:
+                chipd = self.dictionarize(ids, self.chipNs, ids, callback=cbc)
         else:
             chipd = self.dictionarize(ids, self.chipRs, ids, callback=cbc)
 
