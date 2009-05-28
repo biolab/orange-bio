@@ -19,7 +19,7 @@ class obiMeSH(object):
 		"""
 		Function will initialize obiMeSH module and (in case of no MeSH ontology data) download necessary data using orngServerFiles.
 		"""
-		#print "SVN version"
+		print "SVN version"
 		# we check if all files from MeSH directory are localy present. if not, download them
 		d = orngServerFiles.ServerFiles()
 		f = d.listfiles('MeSH')
@@ -707,34 +707,46 @@ class PubChemMeSHParser(SGMLParser):
 		self.directTerms = []
 		self.indirectTerms = []
 		self.foundMeSH = False
+		self.foundIndirectMeSH = 0
 		SGMLParser.reset(self)
 		# strategy as follows
 		# Beetween strings "Drug and Chemical Info" and ("Pharmalogical Action" or "PubMed via MeSH" or "PubMed MeSH Keyword Summary") find hyperlinks. Based on title attribute we can distingue direct MeSH terms beetween mapped terms.
 
 	def unknown_starttag(self, tag, attrs): 
-		if self.foundMeSH and tag=='a' and len(attrs) > 2 and attrs[0][0] == 'name' and attrs[0][1] == 'gomesh': #print attrs
+		#if self.foundMeSH:
+		#print 'tag ', tag, attrs
+		if tag=='a' and len(attrs) > 2 and attrs[0][0] == 'name' and attrs[0][1] == 'gomesh': #print attrs
 			self.nextLink = attrs[1][1]
-			if attrs[2][1] == 'MeSH Heading':
-				self.next = 1
-			elif attrs[2][1] == 'MeSH Substance Name':
-				self.next = 2
 
 	def handle_data(self, text):
 		text = text.strip()
 		if text == '':
 			return
-				
-		if self.next == 1:
+		#print 'data ', text
+		if self.foundMeSH:
+			#print '*'
 			self.directTerms.append(text)
-			self.next = 0
-		elif self.next == 2:
+		
+		if self.foundIndirectMeSH == 2:
+			#print "indirect term", text, self.nextLink
 			self.indirectTerms.append((text,self.nextLink))
-			self.next = 0
+			self.foundIndirectMeSH = 0
+		
+		if self.foundIndirectMeSH == 1:
+			self.foundIndirectMeSH = 2
+				
+		if text == 'Drug and Chemical Information:':
+			self.foundIndirectMeSH = 1
 
-		if text == "Drug and Chemical Info from MeSH:":
+
+		if text == 'Pharmacological Action' or text == 'Medication Information':
+			self.foundIndirectMeSH = 0
+		if text == "Chemical Classification":
 			self.foundMeSH = True
-		elif (text == "Pharmacological Action" or text == "Classification" or text == "PubMed via MeSH" or text == "PubMed MeSH Keyword Summary"):
+		elif (text == "Safety and Toxicology" or text == "Classification" or text == "PubMed via MeSH" or text == "PubMed MeSH Keyword Summary"):
 			self.foundMeSH = False
+			if len(self.directTerms) > 0:
+				self.directTerms.pop()
 
 class SmilesParser(SGMLParser):
 	def reset(self):
@@ -835,7 +847,10 @@ class pubChemAPI(object):
 		usock.close()
 		parser.close()
 		allTerms = parser.directTerms
+		#print allTerms
 		for (k,i) in parser.indirectTerms:
+			#print k, i
+			#continue
 			usock = urlopen(i)
 			parser = MappedMeSHParser()
 			parser.feed(usock.read())
