@@ -19,7 +19,7 @@ class obiMeSH(object):
 		"""
 		Function will initialize obiMeSH module and (in case of no MeSH ontology data) download necessary data using orngServerFiles.
 		"""
-		print "SVN version"
+		#print "SVN version"
 		# we check if all files from MeSH directory are localy present. if not, download them
 		d = orngServerFiles.ServerFiles()
 		f = d.listfiles('MeSH')
@@ -108,7 +108,8 @@ class obiMeSH(object):
 			for i in ends:
 				if self.toID.has_key(i):
 					endids.extend(self.toID[i])
-			allnodes = self.__findParents(endids)
+			#allnodes = self.__findParents(endids)
+			allnodes = endids
 			# calculate intersection
 			isOk = False
 			for i in allnodes:
@@ -181,7 +182,8 @@ class obiMeSH(object):
 			for i in ends:
 				if self.toID.has_key(i):
 					endids.extend(self.toID[i])
-			allnodes = self.__findParents(endids)
+			#allnodes = self.__findParents(endids)
+			allnodes = endids
 			# calculate intersection
 			isOk = False
 			for i in allnodes:
@@ -232,7 +234,8 @@ class obiMeSH(object):
 				else:
 					print "Current ontology does not contain MeSH term ", k, "." 
 			# we find id of all parents
-			allIDs = self.__findParents(endIDs)
+			#allIDs = self.__findParents(endIDs)
+			allIDs = endIDs
 			for k in allIDs:	# for every meshID we update statistics dictionary
 				if(not self.statistics.has_key(k)):	# first time meshID
 					self.statistics[k] = 0
@@ -464,6 +467,7 @@ class obiMeSH(object):
 	def __calculateAll(self, callback, fuzzy):
 		"""calculates all statistics"""
 		# we build a dictionary 		meshID -> [description, noReference,noCluster, enrichment, deprivement, [cids] ]
+		#print "ok"
 		self.statistics = dict()
 		if fuzzy:
 			n = 0
@@ -506,8 +510,9 @@ class obiMeSH(object):
 					n = n-1
 				continue
 			# we find id of all parents
-			allIDs = self.__findParents(endIDs)
-			for k in list(set(allIDs)):								# for every meshID we update statistics dictionary
+			#allIDs = self.__findParents(endIDs) PATCH
+			allIDs = endIDs
+			for k in list(set(allIDs)):				# for every meshID we update statistics dictionary
 				if(not self.statistics.has_key(k)):			# first time meshID
 					self.statistics[k] = [ 0, 0, 0.0, 0.0 ]
 				if fuzzy:
@@ -542,7 +547,8 @@ class obiMeSH(object):
 					cln = cln-1
 				continue
 			# we find id of all parents
-			allIDs = self.__findParents(endIDs)								
+			#allIDs = self.__findParents(endIDs)
+			allIDs = endIDs
 			for k in list(set(allIDs)): # for every meshID we update statistics dictionary
 				if self.statistics.has_key(k):
 					if fuzzy:
