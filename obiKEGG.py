@@ -900,10 +900,10 @@ class KEGGOrganism(object):
     def genes(self):
         return self.api._genes[self.org]
 
-    def version(self):
-        """ Return the version of kegg gene data
-        """
-        return orngServerFiles.info("KEGG", "kegg_organism_%s.tar.gz" % self.org)["datetime"]
+#    def version(self):
+#        """ Return the version of kegg gene data
+#        """
+#        return orngServerFiles.info("KEGG", "kegg_organism_%s.tar.gz" % self.org)["datetime"]
     
 from obiTaxonomy import pickled_cache
 
