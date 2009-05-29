@@ -915,13 +915,15 @@ chips chips""")
 
         return exampleTables
 
-    def exampleTables(self, chipsm, groups, spotmap={}, annotations=None, callback=None, chipidname=False, exclude_constant_labels=False, annots={}, newannotations=False):
+    def exampleTables(self, chipsm, groups, spotmap={}, annotations=None, callback=None, chipidname=False, exclude_constant_labels=False, annots={}, newannotations=False, chipfn=None, chipfnargs=[], chipfnkwargs={}):
         """
         Create example tables from chip readings, spot mappings and 
         group specifications.
 
         groups are input from "groupAnnotations" function. 
         spotmap is a dictionary of { spotid: gene }
+
+        Callback: number of chipids + 2x number of groups
         """
 
         if verbose:
@@ -934,36 +936,15 @@ chips chips""")
 
         ids = flatten([ nth(g[0], 1) for g in groups ])
 
-        #where to put n-th occurance of some spot id
-        def outPositionMap(ids):
-            """
-            Where to put n-th occurance of some spot id.
-            Input: list of lists of ids.
-            Output: map of id,repetition -> position
-            """
-            
-            amap = {}
-
-            for lids in ids:
-
-                repeats = {}
-                for id in lids:
-                    rep = repeats.get(id, 0)
-                    repeats[id] = rep+1
-                    key = (id, rep)
-                    amap[key] = amap.get(key, 0) + 1
-
-            return dict( [ (k,i) for i,k in enumerate(sorted(amap.keys())) ] )
-
-        posMap = outPositionMap([ nth(c,0) for c in chipsm.values() ])
-        npos = len(posMap.values())
-
         if callback: callback()
 
-        ddb = [ "" for a in range(npos) ] 
+        amap = {}
+        amapnext = 0
 
-        for k,ind in posMap.items():
-            ddb[ind] = spotmap.get(k[0], "#"+k[0]) 
+        togen = []
+
+        if chipsm == None:
+            chipdl = chipfn(ids, *chipfnargs, **chipfnkwargs)            
 
         for group in groups:
 
@@ -983,17 +964,34 @@ chips chips""")
 
             for name,chipid in pairs:
 
-                vals = [ None ] * npos
+                if chipsm != None:
+                    chipdata = chipsm[chipid] # do efficiend loading
+                else:
+                    chipdata = chipdl.next()
 
+                if callback: callback()
+
+                #add to current position mapping
                 repeats = {}
-                putinds = []
-                for id,v in chipsm[chipid]:
+                for id,_ in chipdata:
                     rep = repeats.get(id, 0)
                     repeats[id] = rep+1
                     key = (id, rep)
-                    putind = posMap[key]
-                    putinds.append(putind)
+                    if key not in amap:
+                        amap[key] = amapnext
+                        amapnext += 1
+
+                vals = [ None ] * len(amap)
+
+                repeats = {}
+                for id,v in chipdata:
+                    rep = repeats.get(id, 0)
+                    repeats[id] = rep+1
+                    key = (id, rep)
+                    putind = amap[key]
                     vals[putind] = v
+
+                groupvals.append(vals)
 
                 #regarding chipid names
                 if chipidname:
@@ -1005,20 +1003,46 @@ chips chips""")
                     #add chip id to annotations
                     groupannots.append(annots[chipid]+ [['chipid', str(chipid)]])
 
-                groupvals.append(vals)
-
-            et = createExampleTable(groupnames, groupvals, groupannots, ddb, exclude_constant_labels=exclude_constant_labels)
-
             if newannotations:
                 annotc = allAnnotationVals( [annots[v] for v in nth(pairs,1) ] )
 
             annotc["chipids"] = nth(group[0], 1)
 
-            et.setattr("annot", annotc)
-            exampleTables.append(et)
+            togen.append((groupnames, groupvals, groupannots, annotc))
             
             if callback: callback()
+
+        ddb = [ None ]*len(amap)
+        for (a,rep),pos in amap.items():
+            ddb[pos] = spotmap.get(a, "#"+a)
+
+        #this is sorted position mapping: key -> sortedind
+        posMap = dict( (k,i) for i,k in enumerate(sorted(amap.keys())) )
+        revmap = dict( ( (i,k) for k,i in amap.items() ) )
+        #permutation[i] holds target of current [i]
+        permutation = [ posMap[revmap[i]] for i in range(len(amap)) ]
+
+        exampleTables = []
+
+        def enlength(a, tlen):
+            """ Adds Nones to the end of the list """
+            if len(a) < tlen:
+                return a + [ "None" ]*(tlen-len(a))
+            else:
+                return a
+
+        def enlengthl(l, tlen):
+            return [ enlength(a, tlen) for a in l ]
     
+        for groupnames, groupvals, groupannots, annotc in togen:
+            et = createExampleTable(groupnames, 
+                enlengthl(groupvals, len(ddb)),
+                groupannots, ddb, exclude_constant_labels=exclude_constant_labels, permutation=permutation)
+            et.setattr("annot", annotc)
+            exampleTables.append(et)
+
+            if callback: callback()
+
         return exampleTables
 
 
@@ -1086,24 +1110,23 @@ chips chips""")
         tstart =  time.time()
 
         #here download actually happens
+        chipfn = None
+        chipfnargs = []
 
-        cbc = CallBack(len(ids), optcb, callbacks=999-50)
         if type == "norms":
             if format == "short":
-                chipd = self.dictionarize(ids, self.chipNsN, ids, annotsinlist, callback=cbc)
+                chipfn, chipfnargs = self.chipNsN, [ annotsinlist ]
             else:
-                chipd = self.dictionarize(ids, self.chipNs, ids, callback=cbc)
+                chipfn = self.chipNs
         else:
-            chipd = self.dictionarize(ids, self.chipRs, ids, callback=cbc)
-
-        cbc.end()
+            chipfn = self.chipRs
         
         #create example tables grouped according to user's wishes
         if verbose:
             print "DOWNLOAD TIME", time.time() - tstart
 
-        cbc = CallBack(len(etsa)+1, optcb, callbacks=10)
-        ets = self.exampleTables(chipd, etsa, spotmap=self.spotMap(), callback=cbc, chipidname=chipidname, annots=read, exclude_constant_labels=exclude_constant_labels)
+        cbc = CallBack(len(etsa)*2+len(ids)+1, optcb, callbacks=999-40)
+        ets = self.exampleTables(None, etsa, spotmap=self.spotMap(), callback=cbc, chipidname=chipidname, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn, chipfnargs=chipfnargs)
         cbc.end()
 
         cbc = CallBack(len(ets), optcb, callbacks=10)
@@ -1149,7 +1172,7 @@ def allAnnotationVals(annots):
 
 
 def createExampleTable(names, vals, annots, ddb, cname="DDB", \
-        exclude_constant_labels=False):
+        exclude_constant_labels=False, permutation=None):
     """
     Create an ExampleTable for this group. Attributes are those in
     names. 
@@ -1174,11 +1197,15 @@ def createExampleTable(names, vals, annots, ddb, cname="DDB", \
     id = orange.newmetaid()
     domain.addmeta(id, ddbv)
 
-    examples = []
-    for v,d in izip(izip(*vals), ddb):
+    examples = [ None ]*len(ddb)
+    for i,(v,d) in enumerate(izip(izip(*vals), ddb)):
         ex = orange.Example(domain, [ floatOrUnknown(a) for a in v ])
         ex[cname] = d
-        examples.append(ex)
+
+        if permutation:
+            examples[permutation[i]] = ex
+        else:
+            examples[i] = ex
 
     return orange.ExampleTable(domain,examples)
 
