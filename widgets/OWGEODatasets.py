@@ -211,11 +211,11 @@ class OWGEODatasets(OWWidget):
         filterStrings = self.filterString.lower().split()
         searchKeys = ["dataset_id", "platform_organism", "description"]
         try:
-            string = chr(255).join([self.gds[row].get(key, "").lower() for key in searchKeys])
-        except Exception:
-            raise
-            string = chr(255).join([unicode(self.gds[row].get(key, "").lower(), errors="ignore") for key in searchKeys])
-        return not all([s in string for s in filterStrings])
+            string = " ".join([self.gds[row].get(key, "").lower() for key in searchKeys])
+            return not all([s in string for s in filterStrings])
+        except UnicodeDecodeError:
+            string = " ".join([unicode(self.gds[row].get(key, "").lower(), errors="ignore") for key in searchKeys])
+            return not all([s in string for s in filterStrings])
     
     def filter(self):
         filterStrings = self.filterString.lower().split()
