@@ -96,7 +96,7 @@ class OWGEODatasets(OWWidget):
     def __init__(self, parent=None ,signalManager=None, name=" GEO Data sets"):
         OWWidget.__init__(self, parent ,signalManager, name)
 
-        self.outputs = [("Example Table", ExampleTable)]
+        self.outputs = [("Expression Data", ExampleTable)]
 
         ## Settings
         self.selectedSubsets = []
@@ -167,7 +167,7 @@ class OWGEODatasets(OWWidget):
         self.gds = []
         for i, (name, gds) in enumerate(info.items()):
 
-            cells.append([gds["dataset_id"], gds["platform_organism"], len(gds["samples"]), gds["feature_count"],
+            cells.append([gds["dataset_id"], gds["title"], gds["platform_organism"], len(gds["samples"]), gds["feature_count"],
                           gds["gene_count"], len(gds["subsets"]), gds.get("pubmed_id", "")])
 
             gdsLinks.append("http://www.ncbi.nlm.nih.gov/sites/GDSbrowser?acc=%s" % gds["dataset_id"])
@@ -180,11 +180,11 @@ class OWGEODatasets(OWWidget):
             if i in milestones:
                 self.progressBarSet(100.0*i/len(info))
 
-        model = TreeModel(cells, ["ID", "Organism", "Samples", "Features", "Genes", "Subsets", "PubMedID"], self.treeWidget)
+        model = TreeModel(cells, ["ID", "Title", "Organism", "Samples", "Features", "Genes", "Subsets", "PubMedID"], self.treeWidget)
         model.setColumnLinks(0, gdsLinks)
-        model.setColumnLinks(6, pmLinks)
+        model.setColumnLinks(7, pmLinks)
         for i in localGDS:
-            model._roleData[Qt.ForegroundRole][i].update(zip(range(1, 6), [QVariant(QColor(LOCAL_GDS_COLOR))] * 5))
+            model._roleData[Qt.ForegroundRole][i].update(zip(range(1, 7), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
         proxyModel = QSortFilterProxyModel(self.treeWidget)
         proxyModel.setSourceModel(model)
         self.treeWidget.setModel(proxyModel)
@@ -219,7 +219,7 @@ class OWGEODatasets(OWWidget):
     
     def filter(self):
         filterStrings = self.filterString.lower().split()
-        searchKeys = ["dataset_id", "platform_organism", "description"]
+        searchKeys = ["dataset_id", "title", "platform_organism", "description"]
         mapFromSource = self.treeWidget.model().mapFromSource
         index = self.treeWidget.model().sourceModel().index
 #        mapFromSource = lambda i: self.treeWidget.model().mapFromSource(self.treeWidget.model().sourceModel().index(i, 0)).row()
@@ -243,7 +243,7 @@ class OWGEODatasets(OWWidget):
 
             model = self.treeWidget.model().sourceModel()
             row = self.gds.index(self.currentGds)
-            model._roleData[Qt.ForegroundRole][row].update(zip(range(1, 6), [QVariant(QColor(LOCAL_GDS_COLOR))] * 5))
+            model._roleData[Qt.ForegroundRole][row].update(zip(range(1, 7), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
             model.emit(SIGNAL("dataChanged(const QModelIndex &, const QModelIndex &)"), model.index(row, 0), model.index(row, 6))
             self.updateInfo()
         else:
