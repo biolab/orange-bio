@@ -9,7 +9,7 @@ from __future__ import with_statement
 
 import sys, os, glob
 from OWWidget import *
-import OWGUI
+import OWGUI, OWGUIEx
 import obiGEO
 import orngServerFiles
 
@@ -127,7 +127,7 @@ class OWGEODatasets(OWWidget):
 ##        OWGUI.checkBox(box, self, "autoCommit", "Commit automatically")
         OWGUI.rubber(self.controlArea)
 
-        OWGUI.lineEdit(self.mainArea, self, "filterString", "Filter", callbackOnType=True, callback=self.filter)
+        self.filterLineEdit = OWGUIEx.lineEditHint(self.mainArea, self, "filterString", "Filter", caseSensitive=False, matchAnywhere=True, listUpdateCallback=self.filter, callbackOnType=True, callback=self.filter, delimiters=" ")
         self.treeWidget = QTreeView(self.mainArea)
 
         self.treeWidget.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -142,6 +142,7 @@ class OWGEODatasets(OWWidget):
         self.infoGDS = OWGUI.widgetLabel(OWGUI.widgetBox(self.mainArea, "Description"), "")
         self.infoGDS.setWordWrap(True)
 
+        self.searchKeys = ["dataset_id", "title", "platform_organism", "description"]
         self.cells = []
         QTimer.singleShot(50, self.updateTable)
         self.resize(700, 500)
@@ -189,6 +190,10 @@ class OWGEODatasets(OWWidget):
         proxyModel.setSourceModel(model)
         self.treeWidget.setModel(proxyModel)
         self.connect(self.treeWidget.selectionModel(), SIGNAL("selectionChanged(QItemSelection , QItemSelection )"), self.updateSelection)
+        filterItems = " ".join([self.gds[i][key] for i in range(len(self.gds)) for key in self.searchKeys])
+        filterItems = reduce(lambda s, d: s.replace(d, " "), [",", ".", ":", "!", "?"], filterItems)
+        filterItems = sorted(set(filterItems.split(" ")))
+        self.filterLineEdit.setItems(filterItems)
         self.progressBarFinished()
 
         self.updateInfo()
@@ -209,17 +214,15 @@ class OWGEODatasets(OWWidget):
         
     def rowFiltered(self, row):
         filterStrings = self.filterString.lower().split()
-        searchKeys = ["dataset_id", "platform_organism", "description"]
         try:
-            string = " ".join([self.gds[row].get(key, "").lower() for key in searchKeys])
+            string = " ".join([self.gds[row].get(key, "").lower() for key in self.searchKeys])
             return not all([s in string for s in filterStrings])
         except UnicodeDecodeError:
-            string = " ".join([unicode(self.gds[row].get(key, "").lower(), errors="ignore") for key in searchKeys])
+            string = " ".join([unicode(self.gds[row].get(key, "").lower(), errors="ignore") for key in self.searchKeys])
             return not all([s in string for s in filterStrings])
     
     def filter(self):
         filterStrings = self.filterString.lower().split()
-        searchKeys = ["dataset_id", "title", "platform_organism", "description"]
         mapFromSource = self.treeWidget.model().mapFromSource
         index = self.treeWidget.model().sourceModel().index
 #        mapFromSource = lambda i: self.treeWidget.model().mapFromSource(self.treeWidget.model().sourceModel().index(i, 0)).row()
