@@ -145,7 +145,7 @@ class OWGEODatasets(OWWidget):
         self.searchKeys = ["dataset_id", "title", "platform_organism", "description"]
         self.cells = []
         QTimer.singleShot(50, self.updateTable)
-        self.resize(700, 500)
+        self.resize(1000, 600)
 
     def updateInfo(self):
         gds_info = obiGEO.GDSInfo()
@@ -194,6 +194,11 @@ class OWGEODatasets(OWWidget):
         filterItems = reduce(lambda s, d: s.replace(d, " "), [",", ".", ":", "!", "?"], filterItems)
         filterItems = sorted(set(filterItems.split(" ")))
         self.filterLineEdit.setItems(filterItems)
+        
+        for i in range(8):
+            self.treeWidget.resizeColumnToContents(i)
+        self.treeWidget.setColumnWidth(1, min(self.treeWidget.columnWidth(1), 300))
+        self.treeWidget.setColumnWidth(2, min(self.treeWidget.columnWidth(2), 200))
         self.progressBarFinished()
 
         self.updateInfo()
