@@ -288,6 +288,8 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.refData = None
         self.loadedOrganism = None
         
+        self.resize(800, 600)
+        
     def SetData(self, data=None):
         self.closeContext()
         self.data = data
@@ -429,6 +431,8 @@ class OWKEGGPathwayBrowser(OWWidget):
                 
         self.bestPValueItem = items and items[0] or None
         self.listView.expandAll()
+        for i in range(4):
+            self.listView.resizeColumnToContents(i)
 
     def UpdatePathwayView(self):
         items = self.listView.selectedItems()
