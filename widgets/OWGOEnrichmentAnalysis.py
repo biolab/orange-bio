@@ -205,7 +205,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.filterTab.layout().addStretch(1)
         self.selectTab.layout().addStretch(1)
         
-        self.resize(900, 800)
+        self.resize(1000, 800)
 
         self.clusterDataset = None
         self.referenceDataset = None
@@ -592,9 +592,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##                self.sigTermsTable.setItem(i, j, QTableWidgetItem(t))
                 
         self.listView.expandAll()
-        self.listView.resizeColumnToContents(0)
+        for i in range(4):
+            self.listView.resizeColumnToContents(i)
+            self.sigTerms.resizeColumnToContents(i)
+        self.sigTerms.resizeColumnToContents(5)
 ##        print [item.sizeHint(0).width() for item in self.listViewItems]
-        width = min(self.listView.columnWidth(0), 500)
+        width = min(self.listView.columnWidth(0), 350)
         self.listView.setColumnWidth(0, width)
         self.sigTerms.setColumnWidth(0, width)
         
