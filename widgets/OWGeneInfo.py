@@ -136,7 +136,7 @@ class OWGeneInfo(OWWidget):
         OWGUI.button(box, self, "Select Filtered", callback=self.selectFiltered)
         OWGUI.button(box, self, "Clear Selection", callback=self.treeWidget.clearSelection)
         
-        self.resize(700, 500)        
+        self.resize(1000, 700)        
 
         self.geneinfo = []
         self.cells = []
@@ -201,6 +201,9 @@ class OWGeneInfo(OWWidget):
         proxyModel.setSourceModel(model)
         self.treeWidget.setModel(proxyModel)
         self.connect(self.treeWidget.selectionModel(), SIGNAL("selectionChanged(QItemSelection , QItemSelection )"), self.commitIf)
+        for i in range(7):
+            self.treeWidget.resizeColumnToContents(i)
+            self.treeWidget.setColumnWidth(i, min(self.treeWidget.columnWidth(i), 200))
         self.treeWidget.update()
         self.progressBarFinished()
 
