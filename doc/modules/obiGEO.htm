@@ -1,0 +1,101 @@
+<html>
+<HEAD>
+<LINK REL=StyleSheet HREF="../style.css" TYPE="text/css">
+<LINK REL=StyleSheet HREF="../style-print.css" TYPE="text/css" MEDIA=print></LINK>
+</HEAD>
+
+<BODY>
+<h1>obiGEO: an interface to NCBI's Gene Expression Omnibus</h1>
+
+<index name="NCBI">
+<index name="Gene Expression Omnibus">
+<index name="microarray data sets">
+
+<p>obiGEO provides an interface
+to <a href="http://www.ncbi.nlm.nih.gov/">NCBI</a>'s 
+<a href="http://www.ncbi.nlm.nih.gov/geo/">Gene Expression Omnibus</a>
+repository. Currently, it only supports
+<a href="http://www.ncbi.nlm.nih.gov/sites/GDSbrowser">GEO
+DataSets</a> information querying and retreival.</p>
+
+<h2>GDSInfo</h2>
+
+<p><INDEX name="classes/GDSInfo (in obiGEO)">GDSInfo is the class that
+    can be used to retreive the infomation about
+    <a href=http://www.ncbi.nlm.nih.gov/sites/GDSbrowser>GEO Data
+    Sets</a>. The class accesses the Orange server file
+    that either resides on the local computer or is
+    automatically retreived from Orange server. Notice that the call
+    of this class does not access any NCBI's servers directly.</p>
+
+<p class=section>Methods</p>
+<dl class=attributes>
+<dt>GDSInfo(force_update=False)</dt>
+<dd><p>Constructor returning the object with GEO DataSets
+  information. If <code>force_update</code> is set
+  to <code>True</code>, the constructor will download GEO DataSets
+  information file (gds_info.pickled) from Orange server, otherwise,
+  it will first check if the local copy exists. The object returned
+  behaves like a dictionary: the keys are GEO DataSets IDs, and the
+  dictionary values for is a dictionary providing various information
+  about the particular data set.</p>
+
+<xmp class=code>>>> import obiGEO
+>>> info = obiGEO.GDSInfo()
+>>> info.keys()[:5]
+>>> ['GDS2526', 'GDS2524', 'GDS2525', 'GDS2522', 'GDS1618']
+>>> info['GDS2526']['title']
+'c-MYC depletion effect on carcinoma cell lines'
+>>> info['GDS2526']['platform_organism']
+'Homo sapiens'
+</xmp>
+</dd>
+</dl>
+
+<h2>GDS</h2>
+
+<p><INDEX name="classes/GDSInfo (in obiGEO)">GDS is a class that
+    provides methods for retreival of a specific GEO DataSet. The data
+    is provided as Orange's ExampleTable.
+
+<p class=section>Methods</p>
+<dl class=attributes>
+<dt>GDS(gdsname, verbose=False, force_download=False)</dt>
+<dd>Constructor returning the object to be used to retreive GEO
+  DataSet table (samples and gene expressions). <code>gdsname</code>
+  is an NCBI's ID for the data set in the form "GDSn" where "n" is a
+  GDS ID number. Construct checks a local cache directory if the
+  particular data file is loaded locally, else it downloads it from
+  <a href="ftp://ftp.ncbi.nih.gov/pub/geo/DATA/SOFT/GDS/">NCBI's GEO
+  FTP site</a>. The download is forced
+  if <code>force_download=True</code>. The compressed data file
+  resides in the cache directory after the call of the constructor
+  (call to <code>orngServerFiles.localpath("GEO")</code> reveals the
+  path of this directory).</p>
+
+<xmp class=code>>>> import obiGEO
+>>> gds = obiGEO.GDS("GDS1676")
+>>> print print ", ".join(gds.genes[:10])
+EXO1, BUB1B, LTB4R2, FOXA1, MEN1, LIFR, L1CAM, TRAF3, AKAP1, PIK3CD
+>>> gds.info["title"]
+'T cell leukemia cell response to human herpesvirus 6 infection: time course'
+>>> print gds
+GDS1676 (Homo sapiens), samples=8, features=2100, genes=667, subsets=8
+</xmp>
+</dd>
+
+<dt>getdata(report_genes=True, transpose=False,
+merge_function=variableMean, sample_type=None,
+missing_class_value=None, filter_unknown=None)</dt>
+<dd><p>The call of this method returns the data from GEO DataSet in
+  Orange format. Micorarray spots reported in the GEO data set can
+  either be merged according to their gene id's
+  (<code>report_genes=True</code>) or can be left as spots. The data
+  matrix can have spots/genes in rows and samples in columns
+  (default, <code>transpose=False</code>) or samples in rows and
+  spots/genes in columns (<code>transpose=True</code>). Argument <code>sample_type</code> defines the type of annotation, or (if <code>transpose=True</code>) the type of class labels to be included in the data set. Namely, with <code>sample_type</code>, the entire annotation of samples will be included either in the class value or in the <code>.attributes</code> field of each data set attributes.</p></dd>
+</dl>
+
+
+</body>
+</html>
