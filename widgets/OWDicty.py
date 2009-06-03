@@ -69,7 +69,7 @@ class OWDicty(OWWidget):
 
         QTimer.singleShot(0, self.UpdateExperiments)        
 
-        self.resize(600, 400)
+        self.resize(800, 600)
 
     def __updateSelectionList(self, oldList, oldSelection, newList):
         oldList = [oldList[i] for i in oldSelection]
@@ -132,6 +132,9 @@ class OWDicty(OWWidget):
                 self.items.append(MyTreeWidgetItem(self.experimentsWidget, experiment))
 
             self.progressBarSet((100.0 * i) / len(strains))
+            
+        for i in range(5):
+            self.experimentsWidget.resizeColumnToContents(i)
 
         self.progressBarFinished()
 

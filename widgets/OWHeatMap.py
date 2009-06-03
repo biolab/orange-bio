@@ -54,7 +54,7 @@ class OWHeatMap(OWWidget):
                     "palette", "ShowColumnLabels", "ColumnLabelPosition"]
 
     def __init__(self, parent=None, signalManager = None):
-        self.callbackDeposit = [] # deposit for OWGUI callback functions
+#        self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, signalManager, 'HeatMap', TRUE)
         
         self.inputs = [("Structured Data", DataFiles, self.chipdata, Single + NonDefault), ("Examples", ExampleTable, self.dataset, Default + Multiple)]
@@ -202,7 +202,7 @@ class OWHeatMap(OWWidget):
            ['Single data set', 'Multiple data sets'], box='Selection', callback=self.removeSelection)
         OWGUI.rubber(self.filesTab)
 
-        self.resize(700,400)
+        self.resize(800,400)
 
         # canvas with microarray
         self.scene = HeatMapGraphicsScene()

@@ -187,7 +187,7 @@ class OWVulcanoPlot(OWWidget):
         
         OWGUI.rubber(self.controlArea)
 
-        self.resize(700, 600)
+        self.resize(800, 600)
 
         self.transposedData = False
 
