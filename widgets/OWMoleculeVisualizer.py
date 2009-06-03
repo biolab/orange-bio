@@ -301,7 +301,7 @@ class OWMoleculeVisualizer(OWWidget):
         self.selectMarkedMoleculesButton=OWGUI.button(box, self, "Select &matched molecules", self.selectMarked)
         OWGUI.button(box, self, "&Commit", callback=self.commit)
         OWGUI.separator(self.controlArea)
-        OWGUI.button(self.controlArea, self, "&Save to HTML", self.saveToHTML)
+        OWGUI.button(self.controlArea, self, "&Save to HTML", self.saveToHTML, debuggingEnabled = 0)
         OWGUI.rubber(self.controlArea)
         
         spliter=QSplitter(Qt.Vertical)
@@ -325,7 +325,7 @@ class OWMoleculeVisualizer(OWWidget):
         self.molSubset=[]
         self.fragData=None
         self.ctrlPressed=FALSE
-        self.resize(600,600)
+        self.resize(800,600)
         self.listBox.setMaximumHeight(150)
         self.fragmentSmilesCombo.setDisabled(True)
         self.selectMarkedMoleculesButton.setDisabled(True)
