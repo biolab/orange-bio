@@ -99,8 +99,9 @@ class OWGEODatasets(OWWidget):
         self.outputs = [("Expression Data", ExampleTable)]
 
         ## Settings
-        self.selectedSubsets = []
-        self.sampleSubsets = []
+#        self.selectedSubsets = []
+#        self.sampleSubsets = []
+        self.selectedAnnotation = 0
         self.includeIf = False
         self.minSamples = 3
         self.autoCommit = False
@@ -112,8 +113,11 @@ class OWGEODatasets(OWWidget):
 
         ## GUI
         self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "\n\n")
-        box = OWGUI.widgetBox(self.controlArea, "Sample Subset")
-        OWGUI.listBox(box, self, "selectedSubsets", "sampleSubsets", selectionMode=QListWidget.ExtendedSelection)
+#        box = OWGUI.widgetBox(self.controlArea, "Sample Subset")
+#        OWGUI.listBox(box, self, "selectedSubsets", "sampleSubsets", selectionMode=QListWidget.ExtendedSelection)
+        box = OWGUI.widgetBox(self.controlArea, "Sample Annotations (Types)")
+        self.annotationCombo = OWGUI.comboBox(box, self, "selectedAnnotation", items=["Include all"])
+        
 ##        OWGUI.button(box, self, "Clear selection", callback=self.clearSubsetSelection)
 ##        c = OWGUI.checkBox(box, self, "includeIf", "Include if at least", callback=self.commitIf)
 ##        OWGUI.spin(OWGUI.indentedBox(box), self, "minSamples", 2, 100, posttext="samples", callback=self.commitIf)
@@ -209,13 +213,15 @@ class OWGEODatasets(OWWidget):
         current = [mapToSource(index).row() for index in current]
         if current:
             self.currentGds = self.gds[current[0]]
-            self.setSubsets(self.currentGds)
+            self.setAnnotations(self.currentGds)
             self.infoGDS.setText(self.currentGds.get("description", ""))
         else:
             self.currentGds = None
         
-    def setSubsets(self, gds):
-        self.sampleSubsets = ["%s (%d)" % (s["description"], len(s["sample_id"])) for s in gds["subsets"]]
+    def setAnnotations(self, gds):
+#        self.sampleSubsets = ["%s (%d)" % (s["description"], len(s["sample_id"])) for s in gds["subsets"]]
+        self.annotationCombo.clear()
+        self.annotationCombo.addItems(["Include all"] + list(set([sampleinfo["type"] for sampleinfo in gds["subsets"]])))
         
     def rowFiltered(self, row):
         filterStrings = self.filterString.lower().split()
@@ -240,14 +246,15 @@ class OWGEODatasets(OWWidget):
 
     def commit(self):
         if self.currentGds:
-            classes = [s["description"] for s in self.currentGds["subsets"]]
-            classes = [classes[i] for i in self.selectedSubsets] or None
+#            classes = [s["description"] for s in self.currentGds["subsets"]]
+#            classes = [classes[i] for i in self.selectedSubsets] or None
+            sample_type = self.annotationCombo.currentText()
             self.progressBarInit()
             self.progressBarSet(10)
             gds = obiGEO.GDS(self.currentGds["dataset_id"])
-            data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, classes=classes)
+            data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, sample_type=sample_type if sample_type!="Include all" else None)
             self.progressBarFinished()
-            self.send("Example Table", data)
+            self.send("Expression Data", data)
 
             model = self.treeWidget.model().sourceModel()
             row = self.gds.index(self.currentGds)
