@@ -180,7 +180,7 @@ class GDS():
         """Return a set of sample types."""
         return set([info["type"] for info in self.info["subsets"]])
     
-    def _parse_soft(self, filter_unknown=None):
+    def _parse_soft(self, remove_unknown=None):
         """Parse GDS data, returns data dictionary."""
         f = gzip.open(self.filename)
         mfloat = lambda x: float(x) if x<>'null' else '?'
@@ -197,7 +197,8 @@ class GDS():
             if line.startswith("!dataset_table_end"):
                 break
             d = line.rstrip().split("\t")
-            if filter_unknown and (float(d[2:].count('null')) / len(d[2:]) > filter_unknown):
+            if remove_unknown and (float(d[2:].count('null')) / len(d[2:]) > remove_unknown):
+                print "ZZZ", float(d[2:].count('null')) / len(d[2:]), d[2:]
                 continue 
             data[d[0]] = GeneData(d[0], d[1], [mfloat(v) for v in d[2:]])
         
@@ -206,8 +207,6 @@ class GDS():
     def _to_ExampleTable(self, report_genes=True, merge_function=spots_mean,
                                 sample_type=None, missing_class_value=None, transpose=False):
         """Convert parsed GEO format to orange, save by genes or by spots."""
-    
-
         orng_data = []
         if transpose: # samples in rows
             sample2class = self.sample_to_class(sample_type, missing_class_value)
@@ -263,19 +262,20 @@ class GDS():
         
     def getdata(self, report_genes=True, merge_function=spots_mean,
                  sample_type=None, missing_class_value=None,
-                 transpose=False, filter_unknown=None):
+                 transpose=False, remove_unknown=None):
         """Load GDS data and returns a corresponding orange data set,
         spot<->gene mappings and subset info."""
         if self.verbose: print "Reading data ..."
-        if not self.gdsdata:
-            self._parse_soft(filter_unknown = filter_unknown)
-        if filter_unknown:
+#        if not self.gdsdata:
+        self._parse_soft(remove_unknown = remove_unknown)
+        print "XXX", len(self.gdsdata)
+#        if remove_unknown:
             # some spots were filtered out, need to revise spot<>gene mappings
-            self._getspotmap(include_spots=set(self.gdsdata.keys()))
+        self._getspotmap(include_spots=set(self.gdsdata.keys()))
         if self.verbose: print "Converting to example table ..."
         self.data = self._to_ExampleTable(merge_function=merge_function,
-                                                 sample_type=sample_type, transpose=transpose,
-                                                 report_genes=report_genes)
+                                          sample_type=sample_type, transpose=transpose,
+                                          report_genes=report_genes)
         return self.data
 
     def __str__(self):
