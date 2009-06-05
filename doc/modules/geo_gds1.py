@@ -1,7 +1,4 @@
-# a regression script for obiGEO
-
 import obiGEO
-reload(obiGEO)
 
 gds_info = obiGEO.GDSInfo()
 
