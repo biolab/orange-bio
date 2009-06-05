@@ -86,14 +86,44 @@ GDS1676 (Homo sapiens), samples=8, features=2100, genes=667, subsets=8
 
 <dt>getdata(report_genes=True, transpose=False,
 merge_function=variableMean, sample_type=None,
-missing_class_value=None, filter_unknown=None)</dt>
+remove_unknown=None)</dt>
 <dd><p>The call of this method returns the data from GEO DataSet in
   Orange format. Micorarray spots reported in the GEO data set can
   either be merged according to their gene id's
   (<code>report_genes=True</code>) or can be left as spots. The data
   matrix can have spots/genes in rows and samples in columns
   (default, <code>transpose=False</code>) or samples in rows and
-  spots/genes in columns (<code>transpose=True</code>). Argument <code>sample_type</code> defines the type of annotation, or (if <code>transpose=True</code>) the type of class labels to be included in the data set. Namely, with <code>sample_type</code>, the entire annotation of samples will be included either in the class value or in the <code>.attributes</code> field of each data set attributes.</p></dd>
+  spots/genes in columns
+  (<code>transpose=True</code>). Argument <code>sample_type</code>
+  defines the type of annotation, or (if <code>transpose=True</code>)
+  the type of class labels to be included in the data set. Namely,
+  with <code>sample_type</code>, the entire annotation of samples will
+  be included either in the class value or in
+  the <code>.attributes</code> field of each data set
+  attributes. Genes with sample profiles that include unknown values
+  are retained by default (<code>filter_unknown=None</code>), but
+  could be removed if the proportion of samples with unknown values
+  is above the threshold set by <code>filter_unknown</code>.</p>
+
+<p>The following illustrates how <code>getdata</code> is used to
+  construct a data set with genes in rows and samples in
+  columns. Notice that the annotation about each sample is retained
+  in <code>.attributes</code>. 
+
+<xmp class=code>>>> import obiGEO
+>>> gds = obiGEO.GDS("GDS1676") 
+>>> data = gds.getdata()
+>>> len(data)
+667
+>>> data[0]
+[?, ?, -0.803, 0.128, 0.110, -2.000, -1.000, -0.358], {"gene":'EXO1'}
+>>> data.domain.attributes[0]
+FloatVariable 'GSM63816'
+>>> data.domain.attributes[0].attributes
+Out[191]: {'dose': '20 U/ml IL-2', 'infection': 'acute ', 'time': '1 d'}
+</xmp>
+
+</dd>
 </dl>
 
 
