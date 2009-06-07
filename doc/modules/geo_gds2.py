@@ -1,7 +1,8 @@
 import obiGEO
 reload(obiGEO)
 
-gds = obiGEO.GDS("GDS10")
+# gds = obiGEO.GDS("GDS10")
+gds = obiGEO.GDS("GDS1210")
 
 data = gds.getdata(report_genes=True, transpose=False)
 print "report_genes=True, transpose=False"
