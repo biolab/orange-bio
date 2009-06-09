@@ -284,7 +284,6 @@ class OWVulcanoPlot(OWWidget):
     def commit(self):
         check = lambda x,y:abs(x) >= self.graph.cutoffX and y >= self.graph.cutoffY
         if self.data and self.genesInColumns:
-            print self.values
             selected = [self.data[i] for i in range(len(self.data)) if i in self.values and check(*self.values[i])]
             if selected:
                 data = orange.ExampleTable(self.data.domain, selected)
