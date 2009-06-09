@@ -13,6 +13,7 @@ import orange
 from math import log
 from statc import mean, ttest_ind
 from obiGEO import transpose
+import obiExpression
 
 from OWToolbars import ZoomSelectToolbar
 
@@ -153,12 +154,14 @@ class OWVulcanoPlot(OWWidget):
         self.inputs = [("Examples", ExampleTable, self.setData)]
         self.outputs =[("Examples with selected attributes", ExampleTable)]
 
+        self.genesInColumns = False
         self.targetClass = 0
 
         self.showXTitle = True
         self.showYTitle = True
 
-        self.autoCommit = False        
+        self.autoCommit = False
+        self.selectionChangedFlag = False
 
         self.graph = VulcanoGraph(self)
         self.mainArea.layout().addWidget(self.graph)
@@ -169,8 +172,10 @@ class OWVulcanoPlot(OWWidget):
         self.infoLabel.setText("No data on input\n")
         self.infoLabel2 = OWGUI.label(box, self, "")
         self.infoLabel2.setText("0 selected genes")
-
-        self.targetClassCombo = OWGUI.comboBox(self.controlArea, self, "targetClass", "Target Class", callback=self.plot)
+        
+        box = OWGUI.widgetBox(self.controlArea, "Target Label (Class)")
+        self.genesInColumnsCheck = OWGUI.checkBox(box, self, "genesInColumns", "Genes in columns", callback=[self.setTargetCombo, self.plot])
+        self.targetClassCombo = OWGUI.comboBox(box, self, "targetClass", callback=self.plot)
 
         box = OWGUI.widgetBox(self.controlArea, "Settings")
         OWGUI.hSlider(box, self, "graph.symbolSize", label="Symbol size:   ", minValue=2, maxValue=20, step=1, callback = self.graph.updateSymbolSize)
@@ -180,8 +185,9 @@ class OWVulcanoPlot(OWWidget):
         ZoomSelectToolbar(self, self.controlArea, self.graph, buttons=[ZoomSelectToolbar.IconSelect, ZoomSelectToolbar.IconZoom, ZoomSelectToolbar.IconPan])
 
         box = OWGUI.widgetBox(self.controlArea, "Commit")
-        OWGUI.button(box, self, "Commit", callback=self.commit)
-        OWGUI.checkBox(box, self, "autoCommit", "Commit automatically")
+        b = OWGUI.button(box, self, "Commit", callback=self.commit)
+        cb = OWGUI.checkBox(box, self, "autoCommit", "Commit automatically")
+        OWGUI.setStopper(self, b, cb, "selectionChangedFlag", self.commitIf)
 
         self.connect(self.graphButton, SIGNAL("clicked()"), self.graph.saveToFile)
         
@@ -189,54 +195,77 @@ class OWVulcanoPlot(OWWidget):
 
         self.resize(800, 600)
 
-        self.transposedData = False
-
     def setData(self, data=None):
         self.closeContext()
         self.data = data
         self.targetClassCombo.clear()
         self.targetClass = 0
         self.error(0)
-        self.transposedData = False
-        if data and not data.domain.classVar:
-            try:
-                self.data = data = transpose(data)
-                self.transposedData = True
-            except Exception:
-                pass
-        if data and data.domain.classVar:
-            self.targetClassCombo.addItems([value for value in data.domain.classVar.values])
-            self.infoLabel.setText("Genes: %i\nSamples: %i" %(len(data.domain.attributes), len(data)))
-        elif data:
-            self.infoLabel.setText("No data on input\n")
-            self.error(0, "Class-labeled data set required.")
-            self.data = None
+        if data:
+            self.genesInColumns = not bool(data.domain.classVar)
+            self.genesInColumnsCheck.setDisabled(self.genesInColumns)
+            self.setTargetCombo()
+            self.error()
+            if not self.targets:
+                self.error(0, "Data set with no column labels (attribute tags) or row labels (classes).")
         else:
             self.infoLabel.setText("No data on input\n")
+            self.targets = []
         self.openContext("", data)
         self.plot()
-
+        
+    def setTargetCombo(self):
+        if self.genesInColumns:
+            self.targets = sorted(reduce(set.union, [attr.attributes.values() for attr in self.data.domain.attributes], set()))
+            measurements = [attr.attributes.values() for attr in self.data.domain.attributes] 
+        else:
+            self.targets = self.data.domain.classVar.values
+            measurements = [set([str(ex.getclass())]) for ex in self.data]
+                                
+        self.targetMeasurements = [len([m for m in measurements if target in m]) for target in self.targets]
+        
+        self.targetClassCombo.clear()
+        self.targetClassCombo.addItems(self.targets)
+#        self.targetClass = min(self.targetClass, len(self.targets) - 1)
+                             
     def plot(self):
 ##        self.graph.clear()
         self.values = {}
-        if self.data:
-            targetClass = self.data.domain.classVar(self.targetClass)
+        if self.data and self.targets:
+            self.warning(0)
+            targetClassIndex = min(self.targetClass, len(self.targets) - 1)
+            if self.targetMeasurements[targetClassIndex] < 2 or sum(self.targetMeasurements) - self.targetMeasurements[targetClassIndex] < 2:
+                self.warning(0, "Insufficient data to compute statistics. More than one measurement per class should be provided")
+            targetClass = self.targets[targetClassIndex]
             self.progressBarInit()
-            milestones = set(range(0, len(self.data.domain.attributes), max(len(self.data.domain.attributes)/100, 1)))
-            for i, attr in enumerate(self.data.domain.attributes):
-                try:
-                    sample1 = [float(ex[attr]) for ex in self.data if not ex[attr].isSpecial() and ex.getclass()==targetClass]
-                    sample2 = [float(ex[attr]) for ex in self.data if not ex[attr].isSpecial() and ex.getclass()!=targetClass]
-                    logratio = log(abs(mean(sample1)/mean(sample2)), 2)
-                    t, pval = ttest_ind(sample1, sample2)
-                    logpval = -log(pval, 10)
-                    self.values[attr] = (logratio, logpval)
-                except Exception:
-                    pass
-##                    logratio, logpval = 0.0, 0.0
-                
-                if i in milestones:
-                    self.progressBarSet(100.0*i/len(self.data.domain.attributes))
+#            milestones = set(range(0, len(self.data.domain.attributes), max(len(self.data.domain.attributes)/100, 1)))
+#            for i, attr in enumerate(self.data.domain.attributes):
+#                try:
+#                    sample1 = [float(ex[attr]) for ex in self.data if not ex[attr].isSpecial() and ex.getclass()==targetClass]
+#                    sample2 = [float(ex[attr]) for ex in self.data if not ex[attr].isSpecial() and ex.getclass()!=targetClass]
+#                    logratio = log(abs(mean(sample1)/mean(sample2)), 2)
+#                    t, pval = ttest_ind(sample1, sample2)
+#                    logpval = -log(pval, 10)
+#                    self.values[attr] = (logratio, logpval)
+#                except Exception:
+#                    pass
+###                    logratio, logpval = 0.0, 0.0
+#                
+#                if i in milestones:
+#                    self.progressBarSet(100.0*i/len(self.data.domain.attributes))
+            tt = obiExpression.ExpressionSignificance_TTest(self.data, useAttributeLabels=self.genesInColumns)(targetClass)
+            self.progressBarSet(25)
+            fold = obiExpression.ExpressionSignificance_FoldChange(self.data, useAttributeLabels=self.genesInColumns)(targetClass)
+            self.progressBarSet(50)
+            self.infoLabel.setText("%i genes on input" % len(fold))
+            import numpy
+            invalid = set([key for (key, (t, p)), (_, f) in zip(tt, fold) if any(v is numpy.ma.masked for v in [t, p, f]) or f==0.0])
+            tt = [t for t in tt if t[0] not in invalid]
+            fold = [f for f in fold if f[0] not in invalid]
+            self.progressBarSet(75)
+            logratio = numpy.log2(numpy.abs([v for k, v in fold]))
+            logpval = -numpy.log10([p for k, (t, p) in tt])
+            self.values = dict(zip([k for k, v in tt], zip(logratio, logpval)))
             self.progressBarFinished()
         self.graph.setPlotValues(self.values)
         self.setAxesTitles()
@@ -248,24 +277,37 @@ class OWVulcanoPlot(OWWidget):
 
     def updateTooltips(self):
         self.graph.tips.removeAll()
-        for attr, (logratio, logpval) in self.values.items():
+        for key, (logratio, logpval) in self.values.items():
             self.graph.tips.addToolTip(logratio, logpval, "<b>%s</b><hr>log2(ratio): %.5f<br>p-value: %.5f" \
-                                       %(attr.name, logratio, math.pow(10, -logpval)))
+                                       %(str(key) if self.genesInColumns else key.name, logratio, math.pow(10, -logpval)))
 
     def commit(self):
-        if self.data:
+        check = lambda x,y:abs(x) >= self.graph.cutoffX and y >= self.graph.cutoffY
+        if self.data and self.genesInColumns:
+            print self.values
+            selected = [self.data[i] for i in range(len(self.data)) if i in self.values and check(*self.values[i])]
+            if selected:
+                data = orange.ExampleTable(self.data.domain, selected)
+            else:
+                data = None
+        elif self.data:
             check = lambda x,y:abs(x) >= self.graph.cutoffX and y >= self.graph.cutoffY
-            selected = [attr for attr in self.data.domain.attributes if attr in self.values and check(*self.values[attr])]
+            selected = [attr for attr in self.data.domain.attributes if attr in self.values and check(*self.values[attr]) or attr.varType==orange.VarTypes.String]
             newdomain = orange.Domain(selected + [self.data.domain.classVar])
             newdomain.addmetas(self.data.domain.getmetas())
             data = orange.ExampleTable(newdomain, self.data)
-            if self.transposedData:
-                data = transpose(data)
-            self.send("Examples with selected attributes", data)
+        else:
+            data = None
+#            if self.transposedData:
+#                data = transpose(data)
+        self.send("Examples with selected attributes", data)
+        self.selectionChangedFlag = False
 
     def commitIf(self):
         if self.autoCommit:
             self.commit()
+        else:
+            self.selectionChangedFlag = True
         
 if __name__ == "__main__":
     ap = QApplication(sys.argv)
