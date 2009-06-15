@@ -268,7 +268,7 @@ class GDS():
         if self.verbose: print "Reading data ..."
 #        if not self.gdsdata:
         self._parse_soft(remove_unknown = remove_unknown)
-        print "XXX", len(self.gdsdata)
+#        print "XXX", len(self.gdsdata)
 #        if remove_unknown:
             # some spots were filtered out, need to revise spot<>gene mappings
         self._getspotmap(include_spots=set(self.gdsdata.keys()))
