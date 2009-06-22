@@ -91,7 +91,7 @@ class LinkStyledItemDelegate(QStyledItemDelegate):
 class OWGeneInfo(OWWidget):
     settingsList = ["organismIndex", "geneAttr", "useAttr", "autoCommit"]
     contextHandlers = {"":DomainContextHandler("", ["organismIndex", "geneAttr", "useAttr"])}
-    def __init__(self, parent=None, signalManager=None, name="Gene info"):
+    def __init__(self, parent=None, signalManager=None, name="Gene Info"):
         OWWidget.__init__(self, parent, signalManager, name)
 
         self.inputs = [("Examples", ExampleTable, self.setData)]
@@ -242,7 +242,7 @@ class OWGeneInfo(OWWidget):
             
     def rowFiltered(self, row):
         searchStrings = self.searchString.lower().split()
-        row = chr(255).join(self.cells[row]).lower()
+        row = unicode(" ".join(self.cells[row]).lower(), errors="ignore")
         return not all([s in row for s in searchStrings])
     
     def searchUpdate(self):
@@ -252,7 +252,7 @@ class OWGeneInfo(OWWidget):
         index = self.treeWidget.model().sourceModel().index
         mapFromSource = self.treeWidget.model().mapFromSource
         for i, row in enumerate(self.cells):
-            row = chr(255).join(row).lower()
+            row = unicode(" ".join(row).lower(), errors="ignore")
             self.treeWidget.setRowHidden(mapFromSource(index(i, 0)).row(), QModelIndex(), not all([s in row for s in searchStrings]))
         #self.treeWidget.model().setFilterRegExp(QRegExp(self.searchString, Qt.CaseInsensitive, QRegExp.FixedString))
             
