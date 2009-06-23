@@ -381,20 +381,49 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def SetReferenceDataset(self, data=None):
         self.referenceDataset=data
         self.referenceRadioBox.buttons[1].setDisabled(not bool(data))
+        self.referenceRadioBox.buttons[1].setText("Reference set")
         if self.clusterDataset and self.useReferenceDataset:
+            self.useReferenceDataset = 0 if not data else 1
             graph = self.Enrichment()
             self.SetGraph(graph)
+        elif self.clusterDataset:
+            self.UpdateReferenceSetButton()
+            
+        
+    def UpdateReferenceSetButton(self):
+        allgenes, refgenes = None, None
+        if self.referenceDataset:
+            try:
+                allgenes = self.GenesFromExampleTable(self.referenceDataset)
+            except Exception:
+                allgenes = []
+            refgenes, unknown = self.FilterAnnotatedGenes(allgenes)
+        self.referenceRadioBox.buttons[1].setDisabled(not bool(allgenes))
+        self.referenceRadioBox.buttons[1].setText("Reference set " + ("(%i genes, %i matched)" % (len(allgenes), len(refgenes)) if allgenes and refgenes else ""))
 
+    def GenesFromExampleTable(self, data):
+        if self.useAttrNames:
+            genes = [v.name for v in data.domain.variables]
+        else:
+            attr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs) - 1)]
+            genes = [str(ex[attr]) for ex in data if not ex[attr].isSpecial()]
+            if any("," in gene for gene in genes):
+                self.information(0, "Separators detected in gene names. Assuming multiple genes per example.")
+                genes = reduce(list.__add__, (genes.split(",") for genes in genes))
+        return genes
+        
+    def FilterAnnotatedGenes(self, genes):
+        matchedgenes = self.annotations.GetGeneNamesTranslator(genes).values()
+        return matchedgenes, [gene for gene in genes if gene not in matchedgenes]
+        
     def FilterUnknownGenes(self):
         if not self.useAttrNames:
             geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
             examples = []
             for ex in self.clusterDataset:
-##                if not any(n in go.loadedAnnotation.aliasMapper for n in str(ex[geneAttr]).split(",")):
                 if not any(n.strip() in self.annotations.aliasMapper or n.strip() in self.annotations.additionalAliases for n in str(ex[geneAttr]).split(",")):
                     examples.append(ex)
-##                if str(ex[geneAttr]) not in go.loadedAnnotation.aliasMapper:
-##                    examples.append(ex)
+
             self.send("Example With Unknown Genes", examples and orange.ExampleTable(examples) or None)
         else:
             self.send("Example With Unknown Genes", None)
@@ -430,11 +459,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             except IOError, er:
                 raise
             self.progressBarFinished()
-##            count = dict([(etype, 0) for etype in go.evidenceTypesOrdered])
-##            geneSets = dict([(etype, set()) for etype in go.evidenceTypesOrdered])
+
             count = defaultdict(int)
             geneSets = defaultdict(set)
-##            for anno in go.loadedAnnotation.annotationList:
+
             for anno in self.annotations.annotations:
                 count[anno.evidence]+=1
                 geneSets[anno.evidence].add(anno.geneName)
@@ -446,6 +474,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def Enrichment(self):
         if not self.annotations.ontology:
             self.annotations.ontology = self.ontology
+            
         if self.useAttrNames:
             clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
             self.information(0)
@@ -457,15 +486,14 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 clusterGenes = reduce(list.__add__, (genes.split(",") for genes in clusterGenes))
             else:
                 self.information(0)
-##        self.UpdateGOAliases(clusterGenes)
-##        self.geneInfoLabel.setText("%i genes on input" % len(clusterGenes))
+
         genesCount = len(clusterGenes)
-##        self.clusterGenes = clusterGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, clusterGenes)
+        
         self.clusterGenes = clusterGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, clusterGenes)
         self.infoLabel.setText("%i genes on input\n%i (%.1f%%) gene names matched" % (genesCount, len(clusterGenes), 100.0*len(clusterGenes)/genesCount if genesCount else 0.0))
-##        print len(self.clusterGenes), self.clusterGenes[:5]
+        
         referenceGenes = None
-        if self.useReferenceDataset:
+        if self.referenceDataset:
             try:
                 if self.useAttrNames:
                     referenceGenes = [v.name for v in self.referenceDataset.domain.variables]
@@ -477,17 +505,25 @@ class OWGOEnrichmentAnalysis(OWWidget):
                         referenceGenes = reduce(list.__add__, (genes.split(",") for genes in referenceGenes))
                     else:
                         self.information(1)
-##                self.UpdateGOAliases(referenceGenes)
-##                referenceGenes = filter(lambda g: g in go.loadedAnnotation.aliasMapper, referenceGenes)
+
+                refc = len(referenceGenes)
                 referenceGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, referenceGenes)
+                self.referenceRadioBox.buttons[1].setText("Reference set (%i genes, %i matched)" % (refc, len(referenceGenes)))
+                self.referenceRadioBox.buttons[1].setDisabled(False)
                 self.information(2)
             except Exception, er:
-                self.information(2, str(er)+" Using entire genome for reference")
+                if not self.referenceDataset:
+                    self.information(2, "Unable to extract gene names from reference dataset. Using entire genome for reference")
+                else:
+                    self.referenceRadioBox.buttons[1].setText("Reference set")
+                    self.referenceRadioBox.buttons[1].setDisabled(True)
                 referenceGenes = self.annotations.geneNames
                 self.useReferenceDataset = 0
         else:
+            self.useReferenceDataset = 0
+        if not self.useReferenceDataset:
             self.information(2)
-##            referenceGenes = go.loadedAnnotation.geneNames
+            self.information(1)
             referenceGenes = self.annotations.geneNames
         self.referenceGenes = referenceGenes
         evidences = []
@@ -497,15 +533,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
         aspect = ["P", "C", "F"][self.aspectIndex]
         self.progressBarInit()
         if clusterGenes:
-##            print clusterGenes[:5], referenceGenes[:5], evidences, aspect
-##            self.terms = terms = go.GOTermFinder(clusterGenes, referenceGenes, evidences, aspect=aspect, progressCallback=self.progressBarSet)
             self.terms = terms = self.annotations.GetEnrichedTerms(clusterGenes, referenceGenes, evidences, aspect=aspect,
                                                                    prob=self.probFunctions[self.probFunc], progressCallback=self.progressBarSet)
             if self.useFDR:
                 terms = sorted(terms.items(), key=lambda (_1, (_2, p, _3)): p)
                 p_vals = obiProb.FDR([p for _, (_, p, _) in terms])
                 self.terms = terms = dict([(id, (genes, p, ref)) for p, (id, (genes, _, ref)) in zip(p_vals, terms)])
-##            go.loadedAnnotation.__annotation.aliasMapper = old
         else:
             self.terms = terms = {}
         if not self.terms:
@@ -516,10 +549,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.treeStructDict = {}
         ids = self.terms.keys()
         for term in self.terms:
-##            self.treeStructDict[term] = TreeNode(self.terms[term], filter(lambda t:term in go.loadedGO.termDict[t].parents, ids))
             parents = lambda t: [term for typeId, term in  self.ontology[t].related]
             self.treeStructDict[term] = TreeNode(self.terms[term], [id for id in ids if term in parents(id)])
-##            if not go.loadedGO.termDict[term].parents:
             if not self.ontology[term].related and not getattr(self.ontology[term], "is_obsolete", False):
                 self.treeStructRootKey = term
         return terms
@@ -562,7 +593,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 return
             if term in self.graph:
                 displayNode = GOTreeWidgetItem(self.ontology[term], self.graph[term], len(self.clusterGenes), len(self.referenceGenes), maxFoldEnrichment, parentDisplayNode)
-                displayNode.term=term
+                displayNode.goId = term
                 self.listViewItems.append(displayNode)
                 if term in self.termListViewItemDict:
                     self.termListViewItemDict[term].append(displayNode)
@@ -609,7 +640,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.selectedTerms = []
         #selected = filter(lambda lvi: lvi.isSelected(), self.listViewItems)
         selected = self.listView.selectedItems()
-        self.selectedTerms = list(set([lvi.term for lvi in selected]))
+        self.selectedTerms = list(set([lvi.term.id for lvi in selected]))
         self.ExampleSelection()
         self.selectionChanging = 0
         
@@ -718,39 +749,40 @@ class OWGOEnrichmentAnalysis(OWWidget):
                                          ("Significance test", ("Binomial" if self.probFunc == 0 else "Hypergeometric") + (" with FDR" if self.useFDR else ""))])
         self.reportSettings("Filter", ([("Min cluster size", self.minNumOfInstances)] if self.filterByNumOfInstances else []) + \
                                       ([("Max p-value", self.maxPValue)] if self.filterByPValue else []))
-##        self.reportSubsection("Enriched terms:")
-##        text = [["Term:", "list:", "reference:", "p-value:", "enrichment:"]] + \
-##               [[self.sigTerms.topLevelItem(index).text(i) for i in (range(4) + [5])] for index in range(self.sigTerms.topLevelItemCount())]
-##        widths = reduce(lambda widths, line: [max(w, len(t)) for w, t in zip(widths, line)], text, [0]*5)
-##        table = " ".join(["%-" + str(w) + "s" for w in widths]) % tuple(text[0])
-##        fmt = " ".join(["%" + str(w) + "s" for w in widths])
-##        table += "\n" + "\n".join([fmt % tuple(line) for line in text[1:]])
-##        table = "<PRE>%s\n</PRE>" % table
-        def _itemText(item, level):
-            text = '<tr><td>%s%s</td>' % ('&nbsp;' * level * 2 + '-', item.text(0))
+
+        def treeDepth(item):
+            return 1 + max([treeDepth(item.child(i)) for i in range(item.childCount())] +[0])
+        
+        def printTree(item, level, treeDepth):
+            text = '<tr>' + '<td width=16px></td>' * level
+            text += '<td colspan="%i">%s: %s</td>' % (treeDepth - level, item.term.id, item.term.name)
             text += ''.join('<td>%s</td>' % item.text(i) for i in range(1, 4) + [5]) + '</tr>\n'
             for i in range(item.childCount()):
-                text += _itemText(item.child(i), level + 1)
-            return text 
-        tableText = '<table border= "1"><caption>Significant terms</caption><tr>' + ''.join('<th>%s</th>' % s for s in ["Term:", "List:", "Reference:", "P-value:", "Enrichment:"]) + '</td>'
-        treeText = '<table border= "1"><caption>Significant terms in ontology structure</caption><tr>' + ''.join('<th>%s</th>' % s for s in ["Term:", "List:", "Reference:", "P-value:", "Enrichment:"]) + '</td>'
+                text += printTree(item.child(i), level + 1, treeDepth)
+            return text
+        
+        treeDepth = max([treeDepth(self.listView.topLevelItem(i)) for i in range(self.listView.topLevelItemCount())] + [0])
+        
+        tableText = '<table>\n<tr>' + ''.join('<th>%s</th>' % s for s in ["Term:", "List:", "Reference:", "P-value:", "Enrichment:"]) + '</tr>'
+        
+        treeText = '<table>\n' +  '<th colspan="%i">%s</th>' % (treeDepth, "Term:") 
+        treeText += ''.join('<th>%s</th>' % s for s in ["List:", "Reference:", "P-value:", "Enrichment:"]) + '</tr>'
         
         for index in range(self.sigTerms.topLevelItemCount()):
             item = self.sigTerms.topLevelItem(index)
-            tableText += _itemText(item, 0) 
-##            text += '<tr>' + ''.join('<td>%s</td>' % item.text(i) for i in (range(4) + [5])) + '</tr>'
+            tableText += printTree(item, 0, 1) 
+###            text += '<tr>' + ''.join('<td>%s</td>' % item.text(i) for i in (range(4) + [5])) + '</tr>'
         tableText += '</table>' 
         
         for index in range(self.listView.topLevelItemCount()):
             item = self.listView.topLevelItem(index)
-            treeText += _itemText(item, 0)
+            treeText += printTree(item, 0, treeDepth)
         
+        self.reportSection("Enriched Terms")
         self.reportRaw(tableText)
+        
+        self.reportSection("Enriched Terms in the Ontology Tree")
         self.reportRaw(treeText)
-        
-        
-        for index in range(self.sigTerms.topLevelItemCount()):
-            item = self.sigTerms.topLevelItem(index) 
 
 class GOTreeWidgetItem(QTreeWidgetItem):
     def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes, maxFoldEnrichment, parent):
