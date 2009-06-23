@@ -127,7 +127,8 @@ class OWGEODatasets(OWWidget):
         OWGUI.checkBox(box, self, "mergeSpots", "Merge spots of same gene") ##, callback=self.commitIf)
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
-        OWGUI.button(box, self, "Commit", callback=self.commit)
+        self.commitButton = OWGUI.button(box, self, "Commit", callback=self.commit)
+        self.commitButton.setDisabled(True)
 ##        OWGUI.checkBox(box, self, "autoCommit", "Commit automatically")
         OWGUI.rubber(self.controlArea)
 
@@ -148,6 +149,7 @@ class OWGEODatasets(OWWidget):
 
         self.searchKeys = ["dataset_id", "title", "platform_organism", "description"]
         self.cells = []
+        self.currentGds = None
         QTimer.singleShot(50, self.updateTable)
         self.resize(1000, 600)
 
@@ -195,7 +197,7 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.setModel(proxyModel)
         self.connect(self.treeWidget.selectionModel(), SIGNAL("selectionChanged(QItemSelection , QItemSelection )"), self.updateSelection)
         filterItems = " ".join([self.gds[i][key] for i in range(len(self.gds)) for key in self.searchKeys])
-        filterItems = reduce(lambda s, d: s.replace(d, " "), [",", ".", ":", "!", "?"], filterItems)
+        filterItems = reduce(lambda s, d: s.replace(d, " "), [",", ".", ":", "!", "?", "(", ")"], filterItems.lower())
         filterItems = sorted(set(filterItems.split(" ")))
         self.filterLineEdit.setItems(filterItems)
         
@@ -217,6 +219,7 @@ class OWGEODatasets(OWWidget):
             self.infoGDS.setText(self.currentGds.get("description", ""))
         else:
             self.currentGds = None
+        self.commitButton.setDisabled(not bool(self.currentGds))
         
     def setAnnotations(self, gds):
 #        self.sampleSubsets = ["%s (%d)" % (s["description"], len(s["sample_id"])) for s in gds["subsets"]]
