@@ -1,6 +1,7 @@
 ## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
 
 import math
+import numpy
 import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
 import numpy.oldnumeric.linear_algebra as LinearAlgebra
 import numpyExtn
@@ -140,14 +141,30 @@ def orng2ma(aExampleTable):
     return MA.array(MA.array(ma, Numeric.PyObject, mask=mask).filled(1e20), Numeric.Float, mask=mask)
 
 
+##def ma2orng(arr2d, aDomain):
+##    """Converts MA.array to orange.ExampleTable where examples correspond to rows and attributes to columns.
+##    masked values converted to "?" (don't knows)
+##    arr2d.shape[1] must be equal to the number of the attributes of the given domain
+##    domain attributes mut be of type orange.FloatVariable
+##    """
+##    arr2d = MA.asarray(arr2d, Numeric.PyObject)
+##    assert MA.rank(arr2d) == 2, "2d array expected"
+##    assert len(aDomain.attributes) == arr2d.shape[1], "the shape of the array incompatible with the given domain"
+##    if aDomain.classVar != None:
+##        et = orange.ExampleTable(orange.Domain(aDomain.attributes, None), arr2d.tolist("?"))
+##        return orange.ExampleTable(aDomain, et)
+##    else:
+##        return orange.ExampleTable(aDomain, arr2d.tolist("?"))
+
 def ma2orng(arr2d, aDomain):
     """Converts MA.array to orange.ExampleTable where examples correspond to rows and attributes to columns.
     masked values converted to "?" (don't knows)
     arr2d.shape[1] must be equal to the number of the attributes of the given domain
     domain attributes mut be of type orange.FloatVariable
+    2009-06-23: adapted to numpy
     """
-    arr2d = MA.asarray(arr2d, Numeric.PyObject)
-    assert MA.rank(arr2d) == 2, "2d array expected"
+    arr2d = numpy.ma.asarray(arr2d, numpy.object)
+    assert numpy.ma.rank(arr2d) == 2, "2d array expected"
     assert len(aDomain.attributes) == arr2d.shape[1], "the shape of the array incompatible with the given domain"
     if aDomain.classVar != None:
         et = orange.ExampleTable(orange.Domain(aDomain.attributes, None), arr2d.tolist("?"))
