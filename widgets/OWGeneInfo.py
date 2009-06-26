@@ -208,6 +208,7 @@ class OWGeneInfo(OWWidget):
         self.progressBarFinished()
 
         self.infoLabel.setText("%i genes\n%i matched NCBI's IDs" % (len(genes), len(cells)))
+        self.matchedInfo = len(genes), len(cells)
 
     def clear(self):
         self.infoLabel.setText("No data on input\n")
@@ -267,6 +268,34 @@ class OWGeneInfo(OWWidget):
             if not self.rowFiltered(i):
                 itemSelection.select(mapFromSource(index(i, 0)), mapFromSource(index(i, 0)))
         self.treeWidget.selectionModel().select(itemSelection, QItemSelectionModel.Select | QItemSelectionModel.Rows)
+        
+    def sendReport(self):
+        import OWReport
+        genes, matched = self.matchedInfo
+        info, org = self.currentLoaded
+        self.reportRaw("<p>Input: %i genes of which %i (%.1f%%) matched NCBI synonyms<br>Organism: %s<br>Filter: %s</p>" % (genes, matched, 100.0 * matched / genes, obiTaxonomy.name(org), self.searchString))
+        self.reportSubsection("Gene list")
+        self.reportRaw(reportItemView(self.treeWidget))
+        
+def reportItemView(view):
+    model = view.model()
+    return reportItemModel(view, model)
+    
+def reportItemModel(view, model, index=QModelIndex()):
+    if not index.isValid() or model.hasChildren(index):
+        columnCount, rowCount = model.columnCount(index), model.rowCount(index)
+        if not index.isValid():
+            text = '<table>\n<tr>' + ''.join('<th>%s</th>' % model.headerData(i, Qt.Horizontal, Qt.DisplayRole).toString() for i in range(columnCount)) +'</tr>\n'
+        else:
+#            variant = model.data(index, Qt.DisplayRole)
+#            text = '<table' + (' caption="%s"' % variant.toString() if variant.isValid() else '') + '>\n'
+            pass
+        text += ''.join('<tr>' + ''.join('<td>' + reportItemModel(view, model, model.index(row, column, index)) + '</td>' for column in range(columnCount)) + '</tr>\n' for row in range(rowCount) if not view.isRowHidden(row, index))
+        text += '</table>'
+        return text
+    else:
+        variant = model.data(index, Qt.DisplayRole)
+        return str(variant.toString()) if variant.isValid() else ""
         
 if __name__ == "__main__":
     app = QApplication(sys.argv)
