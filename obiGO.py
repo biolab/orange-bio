@@ -1075,6 +1075,37 @@ def drawEnrichmentGraphPylab_tostream(termsList, headers, fh, width=None, height
 class Taxonomy(object):
     """Maps NCBI taxonomy ids to coresponding GO organism codes
     """
+    common_org_map = {"297284":"9913", "30523":"9913", # Bos taurus
+                      "5782":"352472", "44689":"352472", "366501":"352472", # Dictyostelium discoideum
+                      "83333": "562", # Escherichia coli
+                      "52545":"4530", "4532":"4530", "65489":"4530", "4533":"4530", "77588":"4530", "29689":"4530",
+                      "4538":"4530", "40148":"4530", "29690":"4530", "110450":"4530", "4534":"4530", "83309":"4530",
+                      "4528":"4530", "127571":"4530", "40149":"4530", "83307":"4530", "63629":"4530", "4536": "4530",
+                      "4535":"4530", "4537":"4530", "65491":"4530", "83308":"4530", "4529":"4530", "4530":"4530",
+                      "39946":"4530", "39947":"4530", "110451":"4530", "364100":"4530", "364099":"4530", "4539":"4530",
+                      }
+    code_map = {"3702":"tair",  # Arabidopsis thaliana
+                "9913":"goa_cow", # Bos taurus
+                "6239":"wb", # Caenorhabditis elegans
+                "3055":None, # Chlamydomonas reinhardtii
+                "7955":"zfin", # Danio rerio (zebrafish)
+                "352472":"dictyBase", # Dictyostelium discoideum
+                "7227": "fb", # Drosophila melanogaster
+                "562": "ecocyc", # Escherichia coli
+                "11103": None, # Hepatitis C virus
+                "9606": "goa_human",  # Homo sapiens
+                "10090": "mgi", # Mus musculus
+                "2104": None,  # Mycoplasma pneumoniae
+                "4530": "gramene_oryza",  # Oryza sativa
+                "5833": "GeneDB_Pfalciparum",  # Plasmodium falciparum
+                "4754": None,  # Pneumocystis carinii
+                "10116": "rgd", # Rattus norvegicus
+                "4932": "sgd",  # Saccharomyces cerevisiae
+                "4896": "GeneDB_Spombe", # Schizosaccharomyces pombe
+                "31033": None, # Takifugu rubripes
+                "8355": None,  # Xenopus laevis
+                "4577": None # Zea mays
+                }
     version = 1
     __shared_state = {"tax": None}
     def __init__(self):
@@ -1089,17 +1120,32 @@ class Taxonomy(object):
                 self.tax = cPickle.load(open(path, "rb"))
                 
     def __getitem__(self, key):
+        key = self.common_org_map.get(key, key)
+        return self.code_map[key]
         return list(self.tax[key])
+    
+#    @classmethod
+#    def get_taxonomy(cls):
+#        import urllib2 as url
+#        import sgmllib
+#        organisms
+#        class MyParser(sgmllib.SGMLParser):
+#            inTable = False
+#            def start_table(self, attributes):
+#                self.inTable = dict(attributes).get("summary", False)
+#            def end_table(self):
+#                self.inTable = False
+#            def start
     
 def from_taxid(id):
     """ Return a set of GO organism codes that correspond to NCBI taxonomy id
     """
-    return set(Taxonomy()[id])
+    return Taxonomy()[id]
 
 def to_taxid(db_code):
     """ Return a set of NCBI taxonomy ids from db_code GO organism annotations
     """
-    r = [key for key, val in Taxonomy().tax.items() if db_code in val]
+    r = [key for key, val in Taxonomy().code_map.items() if db_code == val]
     return set(r)
     
 

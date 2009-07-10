@@ -31,8 +31,8 @@ def listAvailable():
         if "association" in file.lower():
             ret[td.get("#organism", file)] = file
     orgMap = {"352472":"44689"}
-    essential = [obiGO.from_taxid(orgMap.get(id, id)).pop() for id in obiTaxonomy.essential_taxids()]
-    essentialNames = [obiTaxonomy.name(orgMap.get(id, id)) for id in obiTaxonomy.essential_taxids()]
+    essential = [obiGO.from_taxid(id) for id in obiTaxonomy.essential_taxids() if obiGO.from_taxid(id)]
+    essentialNames = [obiTaxonomy.name(id) for id in obiTaxonomy.essential_taxids()]
     ret.update(zip(essentialNames, essential))
     return ret
 
