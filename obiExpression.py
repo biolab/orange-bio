@@ -1,4 +1,5 @@
 import stats, orange, numpy, statc
+import obiExpression
 
 def mean(l):
     return float(sum(l))/len(l)

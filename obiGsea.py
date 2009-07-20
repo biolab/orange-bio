@@ -701,8 +701,13 @@ class GSEA(object):
     def __init__(self, organism=None, matcher=None):
         self.genesets = {}
         self.organism = organism
+
+        if organism != None:
+            print "WARNING: obiGsea - organism parameter is deprecated. Use matcher instead."
+
         self.gsweights = {}
         self.namesToIndices = None
+        self.gm = matcher
 
     def setData(self, data, classValues=None, atLeast=3, caseSensitive=False):
         """
@@ -714,8 +719,12 @@ class GSEA(object):
 
         self.data = data
         attrnames = [ a.name for a in itOrFirst(self.data).domain.attributes ]
-        self.gm = obiGene.matcher([obiGene.GMKEGG(self.organism, ignore_case=not caseSensitive)], 
-            ignore_case=not caseSensitive, direct=True)
+
+        if self.gm == None: #build a gene matcher, if if does not exists
+            self.gm = obiGene.matcher([obiGene.GMKEGG(self.organism, ignore_case=not caseSensitive)], 
+                ignore_case=not caseSensitive, direct=True)
+            print "WARNING: gene matcher build automatically for organism: " + self.organism
+
         self.gm.set_targets(attrnames)
  
     def addGeneset(self, genesetname, genes):
@@ -815,7 +824,7 @@ class GSEA(object):
 
         return res
 
-def runGSEA(data, organism, classValues=None, geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, matcher=None, **kwargs):
+def runGSEA(data, organism=None, classValues=None, geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, matcher=None, **kwargs):
 
     gso = GSEA(organism=organism, matcher=matcher)
     gso.setData(data, classValues=classValues, atLeast=atLeast)
@@ -904,7 +913,9 @@ if  __name__=="__main__":
     gen1 = collections(['steroltalk.gmt', ':kegg:hsa'], default=False)
 
     import mMisc
+    rankingf = rankingFromOrangeMeas(obiExpression.MA_anova())
+    matcher = obiGene.matcher([obiGene.GMKEGG('hsa')])
 
-    out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, organism="hsa")
+    out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf)
     print "\n".join(map(str,sorted(out.items())))
     

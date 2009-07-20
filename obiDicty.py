@@ -257,6 +257,8 @@ def chainLookup(a, dics, force=[]):
                 a = dic[a]
     return a
 
+defaddress = "http://purple.bioch.bcm.tmc.edu/~anup/index.php?"
+
 class DatabaseConnection(object):
 
     """
@@ -280,7 +282,7 @@ experiments experiments
 extractions extractions
 chips chips""")
 
-    def __init__(self, address, buffer=None):
+    def __init__(self, address=defaddress, buffer=None):
         self.address = address
         self.db = DBInterface(address)
         self.buffer = buffer
