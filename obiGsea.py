@@ -492,8 +492,8 @@ def takeClasses(datai, classValues=None):
     Function joins class groups specified in an input pair
     classValues. Each element of the pair is a list of class
     values to be joined to first or second class. Group
-    classes in two new class values. If classValues is not 
-    specified, take only first two classes.
+    classes in two new class values.
+    If class values are not specified, take all the classes.
 
     Input data can be a single data set or a list of data sets
     with the same domain.
@@ -508,7 +508,7 @@ def takeClasses(datai, classValues=None):
         oldcvals = [ a for a in cv.values ]
         
         if not classValues:
-            classValues = [ oldcvals[0], oldcvals[1] ]
+            classValues = oldcvals
 
         toJoin = []
 
@@ -708,7 +708,6 @@ class GSEA(object):
         """
         WARNING. DUE TO BAD DESIGN YOU MAY CALL THIS FUNCTION ONLY ONCE.
         """
-
         data = transposeIfNeeded(data)
 
         data, info = keepOnlyMeanAttrs(data, classValues=classValues, atLeast=atLeast)
