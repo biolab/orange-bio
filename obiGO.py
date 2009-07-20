@@ -452,7 +452,7 @@ class AnnotationRecord(object):
 class Annotations(object):
     """Annotations object holds the annotations.
     """
-    version = 1
+    version = 2
     def __init__(self, file=None, ontology=None, genematcher=None, progressCallback=None):
         """Initialize the annotations from file by calling ParseFile on it. The ontology must be an instance of Ontology class. The optional progressCallback will be called with a single argument to report on the progress.
         """
@@ -492,18 +492,19 @@ class Annotations(object):
         
     @classmethod
     def organism_name_search(cls, org):
-        ids = to_taxid(org)
+        ids = to_taxid(org) 
+        import obiTaxonomy as tax
         if not ids:
-            import obiTaxonomy as tax
-            ids = tax.to_taxid(org, mapTo=Taxonomy().tax.keys())
+            ids = [org] if org in Taxonomy().common_org_map.keys() + Taxonomy().code_map.keys() else []
+        if not ids:
+            ids = tax.to_taxid(org, mapTo=Taxonomy().keys())
         if not ids:
             ids = tax.search(org, exact=True)
-            ids = set(ids).intersection(Taxonomy().tax.keys())
+            ids = set(ids).intersection(Taxonomy().keys())
         if not ids:
             ids = tax.search(org)
-            ids = set(ids).intersection(Taxonomy().tax.keys())
-            
-        codes = reduce(set.union, [from_taxid(id) for id in ids], set())
+            ids = set(ids).intersection(Taxonomy().keys())
+        codes = set([from_taxid(id) for id in ids])
         if len(codes) > 1:
             raise tax.MultipleSpeciesException, ", ".join(["%s: %s" % (str(from_taxid(id)), tax.name(id)) for id in ids])
         elif len(codes) == 0:
@@ -1122,7 +1123,9 @@ class Taxonomy(object):
     def __getitem__(self, key):
         key = self.common_org_map.get(key, key)
         return self.code_map[key]
-        return list(self.tax[key])
+    
+    def keys(self):
+        return list(set(self.common_org_map.keys() + self.code_map.keys()))
     
 #    @classmethod
 #    def get_taxonomy(cls):
