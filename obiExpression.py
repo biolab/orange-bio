@@ -1,5 +1,4 @@
 import stats, orange, numpy, statc
-import obiExpression
 
 def mean(l):
     return float(sum(l))/len(l)
@@ -182,17 +181,41 @@ class ExpressionSignificance_Test(object):
         return ([i for i, v in enumerate(source) if v==value],
                 [i for i, v in enumerate(source) if v!=value])
         
-    def test_indices(self, target):
+    def test_indices(self, target, classes=None):
+        classes = self.classes if classes is None else classes
         if self.useAttributeLabels:
-            ind1 = [i for i, cl in enumerate(self.classes) if cl >= set([target])]
-            ind2 = [i for i, cl in enumerate(self.classes) if not cl >= set([target])]
+            if type(target) in [list, tuple]:
+                ind = [[i for i, cl in enumerate(self.classes) if cl >= set([t])] for t in target]
+            else:
+                ind1 = [i for i, cl in enumerate(self.classes) if cl >= set([target])]
+                ind2 = [i for i, cl in enumerate(self.classes) if not cl >= set([target])]
+                ind = [ind1, ind2]
         else:
-            ind1 = ma.nonzero(self.classes == target)[0]
-            ind2 = ma.nonzero(self.classes != target)[0]
-        return ind1, ind2
+            if type(target) in [list, tuple]:
+                ind = [ma.nonzero(self.classes == t)[0] for t in target]
+            else:
+                ind1 = ma.nonzero(self.classes == target)[0]
+                ind2 = ma.nonzero(self.classes != target)[0]
+                ind = [ind1, ind2]
+        return ind
     
     def __call__(self, target):
         raise NotImplementedError()
+    
+    def null_distribution(self, num, *args, **kwargs):
+        kwargs = dict(kwargs)
+        advance = lambda: None
+        if "advance" in kwargs:
+            advance = kwargs["advance"]
+            del kwargs["advance"]
+        results = []
+        originalClasses = self.classes.copy()
+        for i in range(num):
+            np.random.shuffle(self.classes)
+            results.append(self.__call__(*args, **kwargs))
+            advance()
+        self.classes = originalClasses
+        return results
     
 class ExpressionSignificance_TTest(ExpressionSignificance_Test):
     def __call__(self, target):
@@ -207,21 +230,127 @@ class ExpressionSignificance_FoldChange(ExpressionSignificance_Test):
         fold = ma.mean(a1, self.dim)/ma.mean(a2, self.dim)
         return zip(self.keys, fold)
     
+class ExpressionSignificance_SignalToNoise(ExpressionSignificance_Test):
+    def __call__(self, target):
+        ind1, ind2 = self.test_indices(target)
+        a1, a2 = self.array[ind1, :], self.array[ind2, :]
+        stn = (ma.mean(a1, self.dim) - ma.mean(a2, self.dim)) / (ma.sqrt(ma.var(a1, self.dim)) + ma.sqrt(ma.var(a2, self.dim)))
+        return zip(self.keys, stn)
+    
+class ExpressionSignificance_ANOVA(ExpressionSignificance_Test):
+    def __call__(self, target=None):
+        if target is not None:
+            indices = self.test_indices(target)
+        else:
+            indices = []
+        f, prob = aF_oneway(*[self.array[ind, :] for ind in indices], **dict(dim=0))
+        return zip(self.keys, zip(f, prob))
+        
+class ExpressionSignificance_ChiSquare(ExpressionSignificance_Test):
+    def __call__(self, target):
+        array = equi_n_discritization(self.array.copy(), intervals=5, dim=0)
+        ind1, ind2 = self.test_indices(target)
+        a1, a2 = array[ind1, :], array[ind2, :]
+        dist1, dist2  = [], []
+        dist = ma.zeros((array.shape[1], 2, 5))
+        for i in range(5):
+            dist1.append(ma.sum(ma.ones(a1.shape) * (a1 == i), 0))
+            dist2.append(ma.sum(ma.ones(a2.shape) * (a2 == i), 0))
+            dist[:, 0, i] = dist1[-1]
+            dist[:, 1, i] = dist2[-1] 
+        return zip(self.keys, achisquare_indtest(np.array(dist), dim=1))
+        
+class ExpressionSignificance_Info(ExpressionSignificance_Test):
+    def __call__(self, target):
+        array = equi_n_discritization(self.array.copy(), intervals=5, dim=1)
+        
+        ind1, ind2 = self.test_indices(target)
+        a1, a2 = array[ind1, :], array[ind2, :]
+        dist1, dist2 = [], []
+        dist = ma.zeros((array.shape[1], 2, 5))
+        for i in range(5):
+            dist1.append(ma.sum(ma.ones(a1.shape) * (a1 == i), 0))
+            dist2.append(ma.sum(ma.ones(a2.shape) * (a2 == i), 0))
+            dist[:, 0, i] = dist1[-1]
+            dist[:, 1, i] = dist2[-1]
+        classinfo = entropy(np.array([len(ind1), len(ind2)]))
+        E = ma.sum(entropy(dist, dim=1) * ma.sum(dist, 1), 1) / ma.sum(ma.sum(dist, 1), 1)
+        return zip(self.keys, classinfo - E)
+
 def attest_ind(a, b, dim=None):
-    if dim==None:
-        dim = 0
-        a, b = ma.ravel(a), ma.ravel(b)
     x1, x2 = ma.mean(a, dim), ma.mean(b, dim)
     v1, v2 = ma.var(a, dim), ma.var(b, dim)
     n1, n2 = a.shape[dim], b.shape[dim]
     df = float(n1+n2-2)
     svar = ((n1-1)*v1+(n2-1)*v2) / df
     t = (x1-x2)/ma.sqrt(svar*(1.0/n1 + 1.0/n2))
-#    probs = abetai(0.5*df,0.5,float(df)/(df+t*t))
     try:
-#        prob = [statc.betai(0.5*df,0.5,float(df)/(df+tsq)) for tsq in list(t*t)]
         prob = [statc.betai(0.5*df,0.5,df/(df+tsq)) if tsq is not ma.masked and df/(df+tsq) <= 1.0 else ma.masked  for tsq in t*t]
     except :
-        print "tsq:", tsq, type(tsq), (t*t).shape
+        print "tsq:", tsq
         raise
     return t, prob
+
+def aF_oneway(*args, **kwargs):
+    dim = kwargs.get("dim", None)
+    arrays = args
+    means = [ma.mean(a, dim) for a in arrays]
+    vars = [ma.var(a, dim) for a in arrays]
+    lens = [ma.sum(ma.array(ma.ones(a.shape), mask=a.mask), dim) for a in arrays]
+    alldata = ma.concatenate(arrays, dim)
+    bign =  ma.sum(ma.array(ma.ones(alldata.shape), mask=alldata.mask), dim)
+    sstot = ma.sum(alldata ** 2, dim) - (ma.sum(alldata, dim) ** 2) / bign
+    ssbn = ma.sum([(ma.sum(a, dim) ** 2) / L for a, L in zip(arrays, lens)], dim)
+    ssbn -= ma.sum(alldata, dim) ** 2 / bign
+    sswn = sstot - ssbn
+    dfbn = dfnum = float(len(args) - 1.0)
+    dfwn = bign - len(args) + 1.0
+    F = (ssbn / dfbn) / (sswn / dfwn)
+    prob = [statc.betai(0.5 * dfden, 0.5 * dfnum, dfden/float(dfden+dfnum*f)) if f is not ma.masked and dfden/float(dfden+dfnum*f) <= 1.0 \
+            and dfden/float(dfden+dfnum*f) >= 0.0 else ma.masked for dfden, f in zip (dfwn, F)]
+    return F, prob
+    
+def achisquare_indtest(observed, dim=None):
+    if dim == None:
+        dim == observed.ndim - 2
+    rowtotal = ma.sum(observed, dim + 1)
+    coltotal = ma.sum(observed, dim)
+    total = ma.sum(rowtotal, dim)
+    ones = ma.array(ma.ones(observed.shape))
+    expected = ones * rowtotal.reshape(rowtotal.shape[:dim] + (-1, 1))
+    a = (ones * coltotal[..., np.zeros(observed.shape[dim], dtype=int),:])
+    expected = expected * (a) / total.reshape((-1, 1, 1))
+    chisq = ma.sum(ma.sum((observed - expected) ** 2 / expected, dim + 1), dim)
+    return chisq
+    
+def equi_n_discritization(array, intervals=5, dim=1):
+    count = ma.sum(ma.array(ma.ones(array.shape, dtype=int), mask=array.mask), dim)
+    cut = ma.zeros(len(count), dtype=int)
+    sarray = ma.sort(array, dim)
+    r = count % intervals
+    pointsshape = list(array.shape)
+    pointsshape[dim] = 1
+    points = []
+    for i in range(intervals):
+        cutend = cut + count / intervals + numpy.ones(len(r)) * (r > i)
+        if dim == 1:
+            p = sarray[range(len(cutend)), numpy.array(cutend, dtype=int) -1]
+        else:
+            p = sarray[numpy.array(cutend, dtype=int) -1, range(len(cutend))]
+        points.append(p.reshape(pointsshape))
+        cut = cutend
+    darray = ma.array(ma.zeros(array.shape) - 1, mask=array.mask)
+    darray[ma.nonzero(array <= points[0])] = 0
+    for i in range(0, intervals):
+        darray[ma.nonzero((array > points[i]))] = i + 1 
+    return darray
+
+def entropy(array, dim=None):
+    if dim is None:
+        array = array.ravel()
+        dim = 0
+    n = ma.sum(array, dim)
+    array = ma.log(array) * array
+    sum = ma.sum(array, dim)
+    return (ma.log(n) - sum / n) / ma.log(2.0)
+    
