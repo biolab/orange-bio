@@ -206,6 +206,8 @@ class OWFeatureSelection(OWWidget):
             self.targets = targets = list(set([attr.attributes.get(target) for attr in self.data.domain.attributes]) - set([None]))
             target = targets[0], targets[1]
             self.genesInColumns = True
+        if self.methodIndex in [4, 5]: ## ANOVA
+            target = targets
         scoreFunc = self.scoreMethods[self.methodIndex][1] 
         pb = OWGUI.ProgressBar(self, 4 + self.permutationsCount if self.computeNullDistribution else 3)
         self.scores = dict(self.ComputeScores(self.data, scoreFunc, self.genesInColumns, target, advance=pb.advance))
@@ -233,7 +235,7 @@ class OWFeatureSelection(OWWidget):
             spin.setVisible(visible)
         
 ##            if self.methodIndex in [2, 3, 5, 6]:
-        if self.methodIndex in [0, 2, 4, 6]:
+        if self.methodIndex in [0, 2, 6]:
             if self.methodIndex == 0: ## fold change is centered on 1.0
                 x1, y1 = (self.histogram.minx + 1) / 2 , self.histogram.maxy
                 x2, y2 = (self.histogram.maxx + 1) / 2 , self.histogram.maxy
