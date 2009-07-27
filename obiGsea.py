@@ -1,11 +1,10 @@
 import orange
 import numpy
-import stats
 import random
 import time
-import math, os
 from obiExpression import *
 from obiGeneSets import *
+from collections import defaultdict
 
 """
 Gene set enrichment analysis.
@@ -698,26 +697,32 @@ def transposeIfNeeded(data):
 
 class GSEA(object):
 
-    def __init__(self, organism=None, matcher=None):
+    def __init__(self, data, organism=None, matcher=None,
+            classValues=None, atLeast=3, caseSensitive=False):
+        """
+        If the data set constains multiple measurements for a single gene,
+        all are considered. Individual constributions of such measurements
+        are not weighted down - each measurement is as important as they
+        would measure different genes.
+        """
+
         self.genesets = {}
         self.organism = organism
 
         if organism != None:
-            print "WARNING: obiGsea - organism parameter is deprecated. Use matcher instead."
+            print "WARNING: obiGsea - organism and caseSensitive parameters are deprecated. Use matcher instead."
 
         self.gsweights = {}
         self.namesToIndices = None
         self.gm = matcher
 
-    def setData(self, data, classValues=None, atLeast=3, caseSensitive=False):
-        """
-        WARNING. DUE TO BAD DESIGN YOU MAY CALL THIS FUNCTION ONLY ONCE.
-        """
+        #what is the class, what are the genes?
         data = transposeIfNeeded(data)
-
         data, info = keepOnlyMeanAttrs(data, classValues=classValues, atLeast=atLeast)
 
         self.data = data
+
+        #init attrnames
         attrnames = [ a.name for a in itOrFirst(self.data).domain.attributes ]
 
         if self.gm == None: #build a gene matcher, if if does not exists
@@ -726,6 +731,7 @@ class GSEA(object):
             print "WARNING: gene matcher build automatically for organism: " + self.organism
 
         self.gm.set_targets(attrnames)
+
  
     def addGeneset(self, genesetname, genes):
         """
@@ -743,8 +749,8 @@ class GSEA(object):
         for genesetname, genes in gsdic.iteritems():
 
             if genesetname in self.genesets:
-                raise Exception("Geneset with the name " + \
-                    + genesetname + " is already in genesets.")
+                raise Exception("Name " + \
+                    + genesetname + " is already used in genesets.")
             else:
                 datamatch = filter(lambda x: x[1] != None, [ (gene, self.gm.umatch(gene)) for gene in genes])
                 self.genesets[genesetname] = ( genes, datamatch )
@@ -767,10 +773,10 @@ class GSEA(object):
         Buffers locations dictionary.
         """
         if not self.namesToIndices:
-            self.namesToIndices = dict( \
-                (at.name, i) for i,at in enumerate(itOrFirst(self.data).domain.attributes))
-
-        return [ self.namesToIndices[gname] for gname in genes ]
+            self.namesToIndices = defaultdict(list)
+            for i,at in enumerate(itOrFirst(self.data).domain.attributes):
+                self.namesToIndices[at.name].append(i)
+        return reduce(lambda x,y:x+y, [ self.namesToIndices[gname] for gname in genes ], [])
 
     def compute_gene_weights(self, gsweights, gsetsnum, nattributes):
         """
@@ -795,8 +801,11 @@ class GSEA(object):
         gsetsnum = self.to_gsetsnum(subsetsok.keys())
         gsetsnumit = gsetsnum.items() #to fix order
 
+        gsetsnumit = gsetsnumit[:1]
+        #print gsetsnumit
+
         if len(gsetsnum) == 0:
-            return {} # prevent pointless computation of attributee ranks
+            return {} # quick return if no genesets
 
         if len(self.gsweights) > 0:
             #set geneset
@@ -820,22 +829,24 @@ class GSEA(object):
             rdict['matched_size'] = len(self.genesets[name][1])
             rdict['genes'] = nth(self.genesets[name][1],1)
             res[name] = rdict
-        
 
         return res
 
-def runGSEA(data, organism=None, classValues=None, geneSets=None, n=100, permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, matcher=None, **kwargs):
-
-    gso = GSEA(organism=organism, matcher=matcher)
-    gso.setData(data, classValues=classValues, atLeast=atLeast)
-    
+def runGSEA(data, organism=None, classValues=None, geneSets=None, n=100, 
+        permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, 
+        matcher=None, geneVar=None, phenVar=None, caseSensitive=False, 
+        **kwargs):
+    """
+    phenVar and geneVar specify the phenotype and gene variable.
+    """
+    gso = GSEA(data, organism=organism, matcher=matcher, 
+        classValues=classValues, atLeast=atLeast, caseSensitive=caseSensitive)
     if geneSets == None:
         genesets = collections(default=True)
-
-    for name,genes in geneSets.items():
-        gso.addGeneset(name, genes)
-
-    res1 = gso.compute(n=n, permutation=permutation, minSize=minSize, maxSize=maxSize, minPart=minPart, **kwargs)
+    gso.addGenesets(geneSets)
+    res1 = gso.compute(n=n, permutation=permutation, minSize=minSize,
+        maxSize=maxSize, minPart=minPart, geneVar=geneVar, phenVar=phenVar,
+        **kwargs)
     return res1
 
 def etForAttribute(datal,a):
@@ -894,8 +905,6 @@ def hierarchyOutput(results, limitGenes=50):
     """
     trans = []
     
-    print "OUTPUT"
-
     for name, res in results.items():
         try:
             second = name.split(' ')[2]
@@ -909,11 +918,12 @@ def hierarchyOutput(results, limitGenes=50):
 
 if  __name__=="__main__":
 
-    data = orange.ExampleTable("sterolTalkHepa.tab")
+    data = orange.ExampleTable("sterolTalkHepaM.tab")
     gen1 = collections(['steroltalk.gmt', ':kegg:hsa'], default=False)
 
-    import mMisc
-    rankingf = rankingFromOrangeMeas(obiExpression.MA_anova())
+    gen1 = dict([ ('[KEGG] Complement and coagulation cascades', gen1['[KEGG] Complement and coagulation cascades'])])
+
+    rankingf = rankingFromOrangeMeas(MA_anova())
     matcher = obiGene.matcher([obiGene.GMKEGG('hsa')])
 
     out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf)
