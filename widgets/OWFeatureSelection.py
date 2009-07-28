@@ -338,15 +338,13 @@ class OWFeatureSelection(OWWidget):
         
         scores = np.array(self.scores.items())
         scores[:, 1] = test(np.array(scores[:, 1], dtype=float), cutOffLower, cutOffUpper)
-        selected = [key for key, test in scores if test]
-        remaining = [key for key, test in scores if not test]
+        selected = set([key for key, test in scores if test])
+        remaining = set([key for key, test in scores if not test])
         if self.data and self.genesInColumns:
-            selected = set(selected)
             selected = [1 if i in selected else 0 for i, ex in enumerate(self.data)]
 #            newdata = orange.ExampleTable(self.data.domain, selected)
             newdata = self.data.select(selected)
             self.send("Examples with selected attributes", newdata)
-            remaining = set(remaining)
             remaining = [1 if i in remaining else 0 for i, ex in enumerate(self.data)]
             newdata = self.data.select(remaining)
 #            newdata = orange.ExampleTable(self.data.domain, remaining)
@@ -354,13 +352,13 @@ class OWFeatureSelection(OWWidget):
             
         elif self.data and not self.genesInColumns:
             
-            selectedAttrs = selected
+            selectedAttrs = [attr for attr in self.data.domain.attributes if attr in selected or attr.varType == orange.VarTypes.String]
             newdomain = orange.Domain(selectedAttrs, self.data.domain.classVar)
             newdomain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(newdomain, self.data)
             self.send("Examples with selected attributes", newdata if selectedAttrs else None)
             
-            remainingAttrs = remaining
+            remainingAttrs = [attr for attr in self.data.domain.attributes if attr in remaining]
             newdomain = orange.Domain(remainingAttrs, self.data.domain.classVar)
             newdomain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(newdomain, self.data)
