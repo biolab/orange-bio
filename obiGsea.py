@@ -663,11 +663,17 @@ def data_single_meas_column(data):
     else:
         return False
 
-def transposeIfNeeded(data):
+def transform_data(data, phenVar, geneVar):
     """
     if we have log2ratio in a single value column, transpose the matrix
     i.e. we have a single column with a continous variable. first
     string variable then becomes the gene name
+
+    The goal is to have different phenotypes annotated with a class,
+    and names of genes as attribute names.
+
+    If we have a single column, transpose it. 
+    If phenVar is one of the groups, transpose the matrix.
     """
 
     def transpose_data(data):
@@ -684,8 +690,9 @@ def transposeIfNeeded(data):
             return ndata
         return data
 
-    single = iset(data)
+    #transform every example table example tables
 
+    single = iset(data)
     transposed = [ transpose_data(d) for d in wrap_in_list(data) ]
 
     if single:
@@ -694,16 +701,62 @@ def transposeIfNeeded(data):
         return transposed
 
 
+def allgroups(data):
+    """
+    Return all phenotype descriptors of attributes with their values.
+    """
+    sd = defaultdict(set)
+    for attr in data.domain.attributes:
+        for key, value in attr.attributes.items():
+            sd[key].add(value)
+    return sd
+
+def phenotype_cands(data):
+    """
+    Return all phenotype candidate descriptors in a list of tuples 
+    (variable, values). Candidates are class variable, if it exists and 
+    attributes dictionaries of attributes.
+    Phenotype candidates must contain at least two differend values.
+    """
+    cv = []
+    if data.domain.classVar and data.domain.classVar.varType == orange.VarTypes.Discrete:
+        cv.append((data.domain.classVar, set(data.domain.classVar.values)))
+    cands = cv + sorted(allgroups(data).items())
+    return filter(lambda x: len(x[1]) >= 2, cands)
+
+def gene_cands(data, phenVar):
+    """
+    Returns all valid gene descriptors with regards to the choosen
+    phenotype variable.
+    Return variable descriptor for variables, name of the group for
+    descriptions in attr.attributes and True for the usage
+    of attribute names.
+    """
+    if is_variable(phenVar[0]):
+        #gene names could be in attributes or as gene names (marker True)
+        return [True] + nth(sorted(allgroups(data)),0)
+    else:
+        #gene names are values of some string attribute
+        columns = [a for a in data.domain] +  \
+            [ data.domain.getmeta(a) for a in list(data.domain.getmetas()) ]
+        stringvars = [ a for a in columns if a.varType == 6 ]
+        return stringvars
+
+def is_variable(phenVar):
+    return isinstance(phenVar, orange.Variable)
 
 class GSEA(object):
 
-    def __init__(self, data, organism=None, matcher=None,
-            classValues=None, atLeast=3, caseSensitive=False):
+    def __init__(self, data, organism=None, matcher=None, classValues=None, 
+        atLeast=3, caseSensitive=False, phenVar=None, geneVar=None):
         """
         If the data set constains multiple measurements for a single gene,
         all are considered. Individual constributions of such measurements
         are not weighted down - each measurement is as important as they
         would measure different genes.
+
+        phenVar and geneVar can ether be an orange attribute or a string.
+        If they are strings, then they describe a group.
         """
 
         self.genesets = {}
@@ -716,8 +769,8 @@ class GSEA(object):
         self.namesToIndices = None
         self.gm = matcher
 
-        #what is the class, what are the genes?
-        data = transposeIfNeeded(data)
+        data = transform_data(data, phenVar, geneVar)
+
         data, info = keepOnlyMeanAttrs(data, classValues=classValues, atLeast=atLeast)
 
         self.data = data
@@ -801,7 +854,7 @@ class GSEA(object):
         gsetsnum = self.to_gsetsnum(subsetsok.keys())
         gsetsnumit = gsetsnum.items() #to fix order
 
-        gsetsnumit = gsetsnumit[:1]
+        #gsetsnumit = gsetsnumit[:1]
         #print gsetsnumit
 
         if len(gsetsnum) == 0:
@@ -919,6 +972,15 @@ def hierarchyOutput(results, limitGenes=50):
 if  __name__=="__main__":
 
     data = orange.ExampleTable("sterolTalkHepaM.tab")
+    print phenotype_cands(data)
+    print is_variable(phenotype_cands(data)[0][0])
+
+    """
+    data = orange.ExampleTable("gene_three_lines_log.tab")
+    print phenotype_cands(data)
+    print is_variable(phenotype_cands(data)[0][0])
+    """
+
     gen1 = collections(['steroltalk.gmt', ':kegg:hsa'], default=False)
 
     gen1 = dict([ ('[KEGG] Complement and coagulation cascades', gen1['[KEGG] Complement and coagulation cascades'])])
