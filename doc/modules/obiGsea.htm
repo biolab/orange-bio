@@ -28,9 +28,7 @@ gene set enrichment for given gene sets. To use it run
 <dl class=arguments>
 
   <dt>data</dt>
-  <dd>An <A href="ExampleTable.htm"><CODE>ExampleTable</CODE></A> with gene expression data. An example
-  should correspond to a sample with its phenotype (class value). Attributes represent individual genes. Their names 
-  should be meaningful gene aliases.</dd>
+  <dd>An <A href="ExampleTable.htm"><CODE>ExampleTable</CODE></A> with gene expression data.</dd>
 
   <dt>matcher</dt>
   <dd>An initialized gene matcher.</dd> 
@@ -53,14 +51,20 @@ gene set enrichment for given gene sets. To use it run
   though they ignore gene-gene interactions.</dd>
 
   <dt>minSize, maxSize</dt>
-  <dd>Minimum and maximum number of genes from gene set also present in the data set for that gene set to be analysed.
+  <dd>Minimum and maximum number of genes from gene set also present in the data set for that gene set to be analyzed.
   Defaults: 3 and 1000.</dd>
 
   <dt>minPart</dt>
-  <dd>Minimum fraction of genes from the gene set also present in the data set for that gene set to be analysed. Default: 0.1.</dd> 
+  <dd>Minimum fraction of genes from the gene set also present in the data set for that gene set to be analyzed. Default: 0.1.</dd> 
 
   <dt>atLeast</dt>
-  <dd>Number of valid attribute values for each class value needed for a certain atribute (gene) to be considered in analysis. Attributes failing to meet this criterium are ignored. Default: 3.</dd>
+  <dd>Number of valid attribute values for each class value needed for a certain attribute (gene) to be considered in analysis. Attributes failing to meet this criterium are ignored. Default: 3.</dd>
+
+  <dt>phenVar</dt>
+  <dd>Explains marking of different phenotypes. By default the <CODE>data.domain.classVar</CODE> is used to distinguish them, if it exists. If the argument is set to <code>False</code>, GSEA presumes that the genes are already ranked. If the value of <code>phenVar</code> is a string, then an entry from <code>attributes</code> dictionary of individual attributes specifies the phenotype. In latter case, each attribute represents one sample.</dd>
+
+  <dt>geneVar</dt>
+  <dd>Specifies locations of gene names. If <code>True</code>, gene names are attribute names. If it is a string, then they are taken from the corresponding entry from <code>attributes</code> dictionary of individual attributes. If each attribute specifies a sample, then the user should pass the meta variable containing the gene names. Defaults to attribute names if each example specifies one sample.</dd>
 
 </dl>
 
@@ -70,7 +74,7 @@ Method <code>runGSEA</code> returns a dictionary where key is a gene set label a
 of:
 <ul>
 <li> enrichment score (key <code>es</code>),
-<li> normalised enrichment score (key <code>nes</code>),
+<li> normalized enrichment score (key <code>nes</code>),
 <li> P-value (key <code>p</code>),
 <li> FDR (key <code>fdr</code>),
 <li> whole gene set size (key <code>size</code>),
@@ -114,15 +118,15 @@ petal  -1.117  0.771 ['petal length', 'petal width']
 sepal   1.087  0.630 ['sepal length', 'sepal width']
 </xmp>
 
-<p>We can see that a "gene" labelled "petal color" was not used, because it couldn't be matched to any attribute in the data set.</p>
+<p>We can see that a "gene" labeled "petal color" was not used, because it couldn't be matched to any attribute in the data set.</p>
 
-<h3>Example 2: directly using correlation data</h3>
+<h3>Example 2: using correlation data directly</h3>
 
 <p>
 GSEA can also directly use correlation data between individual genes and a phenotype. Two kinds of input data trigger this functionality: (1) input data with only one example (attribute names are gene names) or (2) there is only one continuous attribute in the given data set's domain. In latter case gene correlations are read from the continuous attribute and the gene names are taken from the first <code>StringVariable</code> in the domain. We have choosen the latter representation for this example, since this is the formatting returned by <code>obiDicty</code> module. Only results for ten pathways are listed.
 </p>
 
-<p class="header"><a href="gsea1.py">gsea2.py</a></p>
+<p class="header"><a href="gsea2.py">gsea2.py</a></p>
 
 <xmp class=code>import obiDicty
 import obiGeneSets
@@ -175,6 +179,64 @@ LABEL                                       NES  P-VAL   SIZE MATCHED
 [KEGG] N-Glycan biosynthesis              1.384  0.111     22       6
 [KEGG] Terpenoid biosynthesis            -1.316  0.125      7       3
 [KEGG] Aminoacyl-tRNA biosynth           -1.105  0.292     42      12
+</xmp>
+
+<h3>Example 3: attributes as samples (from Gene Expression Omnibus)</h3>
+
+<p>
+Data sets where attributes represents samples can also be used, if <code>phenVar</code> and <code>geneVar</code> parameters are specified. 
+Only results for top ten pathways are listed. To obtain valid results, we would have to increase the number of data set permutations (parameter <code>n</code>).
+</p>
+
+<p class="header"><a href="gsea3.py">gsea3.py</a></p>
+
+<xmp class=code>import obiGeneSets
+import obiGsea
+import orange
+import obiGene
+import obiGEO
+
+import obiGEO
+gds = obiGEO.GDS("GDS10")
+data = gds.getdata() 
+
+print "Possible phenotype descriptors:"
+print map(lambda x: x[0], obiGsea.allgroups(data).items())
+
+matcher=obiGene.matcher([obiGene.GMKEGG("9606")])
+
+phenVar = "tissue"
+geneVar = "gene" #use gene meta variable for gene names
+
+genesets =  obiGeneSets.collections([":kegg:hsa"])
+res = obiGsea.runGSEA(data, matcher=matcher, minPart=0.05, geneSets=genesets, 
+    permutation="class", n=10, phenVar=phenVar, geneVar=geneVar)
+
+print
+print "GSEA results (choosen descriptor: tissue)"
+print "%-40s %6s %6s %6s %7s" % ("LABEL", "NES", "FDR", "SIZE", "MATCHED") 
+for name,resu in sorted(res.items(), key=lambda x: x[1]["fdr"])[:10]: 
+    print "%-40s %6.3f %6.3f %6d %7d" % (name[:30], resu["nes"], resu["fdr"], 
+        resu["size"], resu["matched_size"]) 
+</xmp>
+
+<p>Corresponding output:</p>
+
+<xmp class=code>Possible phenotype descriptors:
+['disease state', 'strain', 'tissue']
+
+GSEA results (choosen descriptor: tissue)
+LABEL                                       NES    FDR   SIZE MATCHED
+[KEGG] DNA replication                    1.783  0.000     36      35
+[KEGG] Cell cycle                         1.832  0.000    119      96
+[KEGG] T cell receptor signali            2.006  0.000     94      70
+[KEGG] Non-homologous end-join            1.795  0.000     14      13
+[KEGG] Glycine, serine and thr           -1.828  0.022     42      33
+[KEGG] Porphyrin and chlorophy           -1.829  0.028     41      24
+[KEGG] Thyroid cancer                     1.666  0.036     29      24
+[KEGG] Adipocytokine signaling           -1.880  0.037     67      53
+[KEGG] Ubiquitin mediated prot            1.597  0.051    137     112
+[KEGG] Glycosaminoglycan degra           -1.899  0.055     18      16
 </xmp>
 
 
