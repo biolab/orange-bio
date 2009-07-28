@@ -672,28 +672,95 @@ def transform_data(data, phenVar, geneVar):
     The goal is to have different phenotypes annotated with a class,
     and names of genes as attribute names.
 
+    If phenVar is False, then we can work, then the input already
+    consists of scores of differential expressions
+
     If we have a single column, transpose it. 
     If phenVar is one of the groups, transpose the matrix.
     """
 
-    def transpose_data(data):
-        columns = [a for a in data.domain] +  [ data.domain.getmeta(a) for a in list(data.domain.getmetas()) ]
-        floatvars = [ a for a in columns if a.varType == orange.VarTypes.Continuous ]
-        if len(floatvars) == 1:
-            floatvar = floatvars[0]
-            stringvar = [ a for a in columns if a.varType == 6 ][0]
+    def prepare_data(data, phenVar=None, geneVar=None):
 
-            tup = [ (ex[stringvar].value, ex[floatvar].value) for ex in data ]
-            newdom = orange.Domain([orange.FloatVariable(name=a[0]) for a in tup ], False)
-            example = [ a[1] for a in tup ]
-            ndata = orange.ExampleTable(newdom, [example])
-            return ndata
-        return data
+        def rorq(a, name):
+            """ Group annatation or question mark. """
+            try: 
+                return a.attributes[name]
+            except: 
+                return '?'
+   
+        #use class as phenotype by default, if it is present,
+        #if not, do not use any phenotype!
+        if phenVar == None: 
+            if not data.domain.classVar:
+                phenVar = False
+            else:
+                phenVar = data.domain.classVar
 
-    #transform every example table example tables
 
+        #TODO validate phenVar and geneVar?
+        #TODO autodetection of groups?
+
+        #transpose is not needed if phenVar is classVar or phenVar is False
+        #and there is only one sample
+        if phenVar == data.domain.classVar or \
+            (phenVar == False and len(data) == 1):
+
+            if geneVar == None: #if not specified, set as true in this stage
+                geneVar = True
+
+            floatvars = [ a for a in data.domain.attributes \
+                if a.varType == orange.VarTypes.Continuous ]
+
+            #rename attributes without touching the original variable
+            if geneVar != True:
+                fl2 = []
+
+                for a in floatvars:
+                    na = orange.FloatVariable(name=rorq(a, geneVar))
+                    na.getValueFrom = lambda e, rw: e[a]
+                    fl2.append(na)
+
+                floatvars = fl2
+
+            dom = orange.Domain(floatvars, phenVar)
+            return orange.ExampleTable(dom, data)
+
+        elif phenVar == False or phenVar != data.domain.classVar:
+
+            cands = allgroups(data)
+            pv = False
+            if phenVar != False:
+                pv = orange.EnumVariable(name="phenotype", 
+                    values=list(cands[phenVar]))
+
+            #take the only string attribute as a gene name
+            gc = gene_cands(data, False)
+            if geneVar == None:
+                if len(gc) == 1:
+                    geneVar = gc[0]
+                else:
+                    geneNamesUnspecifiedError()
+           
+            latts = [ orange.FloatVariable(name=ex[geneVar].value) \
+                for ex in data ]
+
+            domain = orange.Domain(latts, pv)
+
+            examples = []
+            for at in data.domain.attributes:
+                if at.varType == orange.VarTypes.Continuous:
+                    vals = [ ex[at].value for ex in data ]
+                    if pv != False: #add class value
+                        vals.append(rorq(at, phenVar))
+                    examples.append(orange.Example(domain, vals))
+
+            return orange.ExampleTable(domain, examples)
+        else:
+            wrongInputsError()
+
+    #transform all example tables
     single = iset(data)
-    transposed = [ transpose_data(d) for d in wrap_in_list(data) ]
+    transposed = [ prepare_data(d, phenVar, geneVar) for d in wrap_in_list(data) ]
 
     if single:
         return transposed[0]
@@ -724,15 +791,16 @@ def phenotype_cands(data):
     cands = cv + sorted(allgroups(data).items())
     return filter(lambda x: len(x[1]) >= 2, cands)
 
-def gene_cands(data, phenVar):
+def gene_cands(data, correct):
     """
     Returns all valid gene descriptors with regards to the choosen
     phenotype variable.
     Return variable descriptor for variables, name of the group for
     descriptions in attr.attributes and True for the usage
     of attribute names.
+    Correct is True, if the example table has genes as attributes.
     """
-    if is_variable(phenVar[0]):
+    if correct:
         #gene names could be in attributes or as gene names (marker True)
         return [True] + nth(sorted(allgroups(data)),0)
     else:
@@ -893,13 +961,13 @@ def runGSEA(data, organism=None, classValues=None, geneSets=None, n=100,
     phenVar and geneVar specify the phenotype and gene variable.
     """
     gso = GSEA(data, organism=organism, matcher=matcher, 
-        classValues=classValues, atLeast=atLeast, caseSensitive=caseSensitive)
+        classValues=classValues, atLeast=atLeast, caseSensitive=caseSensitive,
+        geneVar=geneVar, phenVar=phenVar)
     if geneSets == None:
         genesets = collections(default=True)
     gso.addGenesets(geneSets)
     res1 = gso.compute(n=n, permutation=permutation, minSize=minSize,
-        maxSize=maxSize, minPart=minPart, geneVar=geneVar, phenVar=phenVar,
-        **kwargs)
+        maxSize=maxSize, minPart=minPart, **kwargs)
     return res1
 
 def etForAttribute(datal,a):
@@ -971,23 +1039,21 @@ def hierarchyOutput(results, limitGenes=50):
 
 if  __name__=="__main__":
 
-    data = orange.ExampleTable("sterolTalkHepaM.tab")
-    print phenotype_cands(data)
-    print is_variable(phenotype_cands(data)[0][0])
+    #data = orange.ExampleTable("sterolTalkHepa.tab")
 
-    """
     data = orange.ExampleTable("gene_three_lines_log.tab")
-    print phenotype_cands(data)
-    print is_variable(phenotype_cands(data)[0][0])
-    """
 
     gen1 = collections(['steroltalk.gmt', ':kegg:hsa'], default=False)
-
-    gen1 = dict([ ('[KEGG] Complement and coagulation cascades', gen1['[KEGG] Complement and coagulation cascades'])])
+    #gen1 = dict([ ('[KEGG] Complement and coagulation cascades', gen1['[KEGG] Complement and coagulation cascades'])])
 
     rankingf = rankingFromOrangeMeas(MA_anova())
+
     matcher = obiGene.matcher([obiGene.GMKEGG('hsa')])
 
-    out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf)
+    #out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf)
+
+    geneVar = gene_cands(data, False)[1]
+    out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf, phenVar="group", geneVar=geneVar)
+
     print "\n".join(map(str,sorted(out.items())))
     
