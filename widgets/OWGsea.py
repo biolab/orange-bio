@@ -9,6 +9,7 @@
 from OWWidget import *
 import OWGUI
 import obiGsea
+import obiGeneSets
 from exceptions import Exception
 import cPickle as pickle
 
@@ -50,7 +51,6 @@ def exportDistanceMatrix(resl):
     """
     Input: results as a list of tuples
     """
-
     dm = orange.SymMatrix(len(resl))
 
     for i in range(len(resl)-1):
@@ -244,7 +244,8 @@ class OWGsea(OWWidget):
                     "gridSels",
                     "csgm",
                     "gsgo",
-                    "gskegg"]
+                    "gskegg",
+                    "buildDistances"]
 
     def __init__(self, parent=None, signalManager = None, name='GSEA'):
         OWWidget.__init__(self, parent, signalManager, name)
@@ -263,9 +264,10 @@ class OWGsea(OWWidget):
         self.minSubsetPart = 10
         self.minSubsetPartC = True
         self.perms = 100
-        self.csgm = True
+        self.csgm = False
         self.gsgo = False
         self.gskegg = False
+        self.buildDistances = False
 
         self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
@@ -301,6 +303,7 @@ class OWGsea(OWWidget):
 
         OWGUI.checkBox(box, self, "csgm", "Case sensitive gene matching")
 
+
         ma = self.mainArea
 
         self.listView = QTreeWidget(ma)
@@ -326,6 +329,9 @@ class OWGsea(OWWidget):
         self.resize(600,50)
  
         OWGUI.separator(ca)
+
+        OWGUI.checkBox(ca, self, "buildDistances", "Compute geneset distances")
+
         self.btnApply = OWGUI.button(ca, self, "&Compute", callback = self.compute, disabled=0)
         
         fileBox = OWGUI.widgetBox(ca, orientation='horizontal')
@@ -527,7 +533,7 @@ class OWGsea(OWWidget):
         if self.gskegg:
             collectionNames.append(":kegg:" + organism)
 
-        self.geneSets = obiGsea.collections(collectionNames, default=False)
+        self.geneSets = obiGeneSets.collections(collectionNames, default=False)
 
         clearListView(self.listView)
         self.addComment("Computing...")
@@ -577,8 +583,7 @@ class OWGsea(OWWidget):
 
             dkwargs["caseSensitive"] = self.csgm
 
-            gso = obiGsea.GSEA(organism=organism)
-            gso.setData(self.data, **dkwargs)
+            gso = obiGsea.GSEA(self.data, organism=organism, **dkwargs)
 
             for name,genes in self.geneSets.items():
                 gso.addGenesets({ name: genes })
@@ -595,22 +600,25 @@ class OWGsea(OWWidget):
                 resl = self.res.items()
 
                 etres = exportET(resl)
-
                 self.resultsOut(etres)
-                if self.dm == None:
-                    self.dm = exportDistanceMatrix(resl)
-                    
-                    for ex in etres:
-                        ex.name = str(ex[0])
-                    
-                    self.dm.setattr("items", etres)
 
-                self.genesetDistOut(self.dm)
+                if self.buildDistances:
+                    if self.dm == None:
+                        self.dm = exportDistanceMatrix(resl)
+                        
+                        for ex in etres:
+                            ex.name = str(ex[0])
+                        self.dm.setattr("items", etres)
+                else:
+                    self.dm = None
 
             else:
                 self.setSelMode(False)
                 clearListView(self.listView)
+                self.dm = None
                 self.addComment("No genesets found.")
+
+            self.genesetDistOut(self.dm)
 
 
     def setData(self, data):
@@ -652,8 +660,8 @@ if __name__=="__main__":
     ow=OWGsea()
     ow.show()
 
-    d = orange.ExampleTable('/home/marko/testData.tab')
-    #d = orange.ExampleTable('/home/marko/steroltalk/novi/steroltalk-smallchip.tab')
+    #d = orange.ExampleTable('/home/marko/testData.tab')
+    d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
     ow.setData(d)
 
     a.exec_()
