@@ -548,6 +548,9 @@ class OWGsea(OWWidget):
             kwargs = {}
             dkwargs = {}
 
+            dkwargs["phenVar"] = self.phenCands[self.selectedPhenVar][0]
+            dkwargs["geneVar"] = self.geneCands[self.selectedGeneVar]
+ 
             if not obiGsea.already_have_correlations(self.data):
 
                 selectedClasses = self.psel.getSelection()
@@ -628,7 +631,6 @@ class OWGsea(OWWidget):
                 self.ptype = 1
                 self.permTypeF.setDisabled(True)
 
-                self.psel.setClasses(None)
             else:
                 #enable correlation type
                 comboboxItems(self.corTypeF, nth(self.correlationTypes, 0))
@@ -637,21 +639,19 @@ class OWGsea(OWWidget):
                 self.permTypeF.setDisabled(False)
                 #print "set classes"
 
-                self.phenCombo.setDisabled(False)
+            self.phenCombo.clear()
+            self.phenCands = obiGsea.phenotype_cands(data)
+            self.phenCombo.addItems(map(lambda x: str(x[0]), self.phenCands))
 
-                self.phenCombo.clear()
-                self.phenCands = obiGsea.phenotype_cands(data)
-                self.phenCombo.addItems(map(lambda x: str(x[0]), self.phenCands))
+            self.phenCombo.setDisabled(len(self.phenCands) <= 1)
 
-                self.phenCombo.setDisabled(len(self.phenCands) <= 1)
-
-                self.selectedPhenVar = 0
-                self.phenComboChange()
+            self.selectedPhenVar = 0
+            self.phenComboChange()
 
 
     def phenComboChange(self):
         pv = self.phenCands[self.selectedPhenVar]
-        self.psel.setClasses(pv[1])
+        self.psel.setClasses(pv[1] if len(pv[1]) > 0 else None)
 
         def conv(x):
             if x == True:
@@ -660,7 +660,13 @@ class OWGsea(OWWidget):
                 return str(x)
 
         self.geneCombo.clear()
-        self.geneCands = obiGsea.gene_cands(self.data, obiGsea.is_variable(pv[0]))
+
+        look_cols = obiGsea.is_variable(pv[0])
+
+        if obiGsea.already_have_correlations(self.data):
+            look_cols = not obiGsea.need_to_transpose_single(self.data)
+
+        self.geneCands = obiGsea.gene_cands(self.data, look_cols)
         self.geneCombo.addItems(map(lambda x: conv(x), self.geneCands))
         self.selectedGeneVar = 0
 
@@ -682,6 +688,8 @@ if __name__=="__main__":
 
     #d = orange.ExampleTable('/home/marko/testData.tab')
     d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
+    #d = orange.ExampleTable('tmp.tab')
+    #d = orange.ExampleTable('../gene_three_lines_log.tab')
     ow.setData(d)
 
     a.exec_()

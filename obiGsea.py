@@ -778,6 +778,15 @@ def allgroups(data):
             sd[key].add(value)
     return sd
 
+def already_have_correlations(data):
+    return len(data) == 1 or data_single_meas_column(data)
+
+def need_to_transpose_single(data):
+    if len(data) == 1:
+        return False
+    else:
+        return True
+
 def phenotype_cands(data):
     """
     Return all phenotype candidate descriptors in a list of tuples 
@@ -785,11 +794,14 @@ def phenotype_cands(data):
     attributes dictionaries of attributes.
     Phenotype candidates must contain at least two differend values.
     """
-    cv = []
-    if data.domain.classVar and data.domain.classVar.varType == orange.VarTypes.Discrete:
-        cv.append((data.domain.classVar, set(data.domain.classVar.values)))
-    cands = cv + sorted(allgroups(data).items())
-    return filter(lambda x: len(x[1]) >= 2, cands)
+    if already_have_correlations(data):
+        return [ (False, set()) ]
+    else:
+        cv = []
+        if data.domain.classVar and data.domain.classVar.varType == orange.VarTypes.Discrete:
+            cv.append((data.domain.classVar, set(data.domain.classVar.values)))
+        cands = cv + sorted(allgroups(data).items())
+        return filter(lambda x: len(x[1]) >= 2, cands)
 
 def gene_cands(data, correct):
     """
