@@ -12,6 +12,7 @@ import obiGsea
 import obiGeneSets
 from exceptions import Exception
 import cPickle as pickle
+from collections import defaultdict
 
 def nth(l, n):
     return [ a[n] for a in l ]
@@ -23,14 +24,20 @@ def clearListView(lw):
     #    lw.takeItem(it)
     #    it = lw.firstChild()
 
-def dataWithAttrs(data, attributes):
-    attributes = dict([(a,1) for a in attributes])
-    newatts = [ a for a in data.domain.attributes if a.name in attributes ]
-    if data.domain.classVar:
-        domain = orange.Domain(newatts, data.domain.classVar)
-    else:
-        domain = orange.Domain(newatts, False)
-    return orange.ExampleTable(domain, data)
+def selectGenes(data, positions, how):
+    """ Select genes on given positions.
+    Parameter how specifies whether
+    examples or attributes should be selected. """
+    if how == "attributes":
+        newatts = [ data.domain.attributes[i] for i in positions ]
+        if data.domain.classVar:
+            domain = orange.Domain(newatts, data.domain.classVar)
+        else:
+            domain = orange.Domain(newatts, False)
+        domain.addmetas(data.domain.getmetas()) 
+        return orange.ExampleTable(domain, data)
+    elif how == "examples":
+        return orange.ExampleTable(data.domain, [data[i] for i in positions ])
 
 def comboboxItems(combobox, newitems):
     combobox.clear()
@@ -466,8 +473,16 @@ class OWGsea(OWWidget):
         for item in self.listView.selectedItems():
             iname = self.lwiToGeneset[item]
             outat.update(self.res[iname]['genes'])
+
+        #print "OUTGENES",  outat
+
+        select = sorted(set(reduce(lambda x,y: x | y, 
+            [ set(self.find_genes_dic[name]) for name in outat ],
+            set())))
+
+        #print "SELECT", select
             
-        dataOut =  dataWithAttrs(self.data,list(outat))
+        dataOut = selectGenes(self.data, select, self.find_genes_loc)
         self.send("Examples with selected genes only", dataOut)
 
     def resultsOut(self, data):
@@ -537,6 +552,9 @@ class OWGsea(OWWidget):
         self.res = res
         self.dm = dm
         
+        self.phenVar = self.phenCands[self.selectedPhenVar][0]
+        self.geneVar = self.geneCands[self.selectedGeneVar]
+
         if self.res == None and self.data:
             self.setSelMode(False)
 
@@ -548,9 +566,9 @@ class OWGsea(OWWidget):
             kwargs = {}
             dkwargs = {}
 
-            dkwargs["phenVar"] = self.phenCands[self.selectedPhenVar][0]
-            dkwargs["geneVar"] = self.geneCands[self.selectedGeneVar]
- 
+            dkwargs["phenVar"] = self.phenVar
+            dkwargs["geneVar"] = self.geneVar
+
             if not obiGsea.already_have_correlations(self.data):
 
                 selectedClasses = self.psel.getSelection()
@@ -598,6 +616,9 @@ class OWGsea(OWWidget):
 
                 etres = exportET(resl)
                 self.resultsOut(etres)
+
+                self.find_genes_dic, self.find_genes_loc = \
+                    find_genes_dic(self.res, self.data, self.geneVar)
 
                 if self.buildDistances:
                     if self.dm == None:
@@ -680,6 +701,35 @@ class OWGsea(OWWidget):
         filename = str(QFileDialog.getOpenFileName(self,  "Choose gene set collection", './', "Gene Collections (*.gmt *.pck)"))
         return filename
 
+def find_genes_dic(res, data, geneVar):
+    """
+    Builds a dictionary of where to find the genes to
+    avoid delay with choosing them.
+
+    If geneVar is True or it is a group parameter, then
+    use columns as genes: out of genes select only
+    those contained in selected pathways.
+    """
+
+    def rorq(a, name):
+        """ Group annatation or question mark. """
+        try: 
+            return a.attributes[name]
+        except: 
+            return '?'
+
+    d = defaultdict(list)
+    if geneVar == True or geneVar in obiGsea.allgroups(data):
+        for i,a in enumerate(data.domain.attributes):
+            if geneVar == True:
+                d[a.name].append(i)
+            else:
+                d[rorq(a, geneVar)].append(i)
+        return d, "attributes"
+    else:
+        for i,ex in enumerate(data):
+            d[ex[geneVar].value].append(i)
+        return d, "examples"
 
 if __name__=="__main__":
     a=QApplication(sys.argv)
@@ -687,9 +737,9 @@ if __name__=="__main__":
     ow.show()
 
     #d = orange.ExampleTable('/home/marko/testData.tab')
-    d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
+    #d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
     #d = orange.ExampleTable('tmp.tab')
-    #d = orange.ExampleTable('../gene_three_lines_log.tab')
+    d = orange.ExampleTable('../gene_three_lines_log.tab')
     ow.setData(d)
 
     a.exec_()

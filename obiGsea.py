@@ -537,15 +537,15 @@ def takeClasses(datai, classValues=None):
 
         def removeAndTransformClasses(data):
             """
-            Removes unnecessary class values and joines them according
+            Removes unnecessary class values and joins them according
             to function input.
             """
             examples = []
             for ex in data:
                 if ex[cv] in classValues:
-                    vals = [ ex[a] for a in data.domain.attributes ]
-                    vals.append(mapval[str(ex[cv].value)])
-                    examples.append(vals)
+                    nex = orange.Example(ndom, ex)
+                    nex[-1] = mapval[str(ex[cv].value)]
+                    examples.append(nex)
 
             return orange.ExampleTable(ndom, examples)
 
@@ -588,12 +588,15 @@ def removeBadAttributes(datai, atLeast=3):
                 return False 
         
         if len(data) > 1 and data.domain.classVar and atLeast > 0:
-
-            valc = [ [ex[a].value for ex in data \
-                        if not ex[a].isSpecial() and ex[-1] == data.domain.classVar[i] \
-                   ] for i in range(len(data.domain.classVar.values)) ]
-            minl = min( [ len(a) for a in valc ])
             
+            dc = dict( (v, 0) for v in data.domain.classVar.values )
+
+            for ex in data:
+                if not ex[a].isSpecial():
+                    dc[ex[-1].value] += 1
+
+            minl = min(dc.values())
+
             if minl < atLeast:
                 #print "Less than atLeast"
                 return False
@@ -1052,7 +1055,6 @@ def hierarchyOutput(results, limitGenes=50):
 if  __name__=="__main__":
 
     #data = orange.ExampleTable("sterolTalkHepa.tab")
-
     data = orange.ExampleTable("gene_three_lines_log.tab")
 
     gen1 = collections(['steroltalk.gmt', ':kegg:hsa'], default=False)
@@ -1065,7 +1067,11 @@ if  __name__=="__main__":
     #out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf)
 
     geneVar = gene_cands(data, False)[1]
-    out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf, phenVar="group", geneVar=geneVar)
+    phenVar = "group"
+    #geneVar = None
+    #phenVar = None
+
+    out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf, phenVar=phenVar, geneVar=geneVar)
 
     print "\n".join(map(str,sorted(out.items())))
     
