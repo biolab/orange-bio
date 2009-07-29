@@ -205,7 +205,11 @@ class PhenotypesSelection(QGroupBox):
 
             self.setupBoxes()
             self.selectWanted()
-
+        else:
+            self.classVals = []
+            self.setupBoxes()
+            self.selectWanted()
+ 
     def getSelection(self):
         sels = [ [ self.classVals[i] for i,a in enumerate(self.wishedState) if a == n+1 ]
             for n in range(2) ]
@@ -272,6 +276,7 @@ class OWGsea(OWWidget):
         self.ptype = 0
 
 
+
         import obiKEGG
         import orngServerFiles
 
@@ -303,6 +308,8 @@ class OWGsea(OWWidget):
         box2 = OWGUI.widgetBox(ca, "Descriptors")
         self.phenCombo = OWGUI.comboBox(box2, self, "selectedPhenVar", items=[], callback=self.phenComboChange, label="Phenotype:")
         self.geneCombo = OWGUI.comboBox(box2, self, "selectedGeneVar", items=[], label = "Gene:")
+
+        self.allowComboChangeCallback = False
 
         ma = self.mainArea
 
@@ -469,6 +476,9 @@ class OWGsea(OWWidget):
         if not self.selectable:
             return
 
+        if self.res == None:
+            return
+
         outat = set([])
         for item in self.listView.selectedItems():
             iname = self.lwiToGeneset[item]
@@ -543,15 +553,16 @@ class OWGsea(OWWidget):
 
         self.geneSets = obiGeneSets.collections(collectionNames, default=False)
 
-        clearListView(self.listView)
-        self.addComment("Computing...")
-
         self.resultsOut(None)
 
         qApp.processEvents()
         self.res = res
         self.dm = dm
-        
+
+        clearListView(self.listView)
+        self.addComment("Computing...")
+        qApp.processEvents()
+
         self.phenVar = self.phenCands[self.selectedPhenVar][0]
         self.geneVar = self.geneCands[self.selectedGeneVar]
 
@@ -640,6 +651,9 @@ class OWGsea(OWWidget):
 
 
     def setData(self, data):
+
+        self.allowComboChangeCallback = False
+
         self.data = data
 
         if data:
@@ -667,11 +681,20 @@ class OWGsea(OWWidget):
             self.phenCombo.setDisabled(len(self.phenCands) <= 1)
 
             self.selectedPhenVar = 0
+
+            self.allowComboChangeCallback = True
+
             self.phenComboChange()
 
 
+
     def phenComboChange(self):
+
+        if self.allowComboChangeCallback == False:
+            return
+
         pv = self.phenCands[self.selectedPhenVar]
+
         self.psel.setClasses(pv[1] if len(pv[1]) > 0 else None)
 
         def conv(x):
