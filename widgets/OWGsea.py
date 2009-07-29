@@ -38,15 +38,6 @@ def comboboxItems(combobox, newitems):
         combobox.insertItems(0, newitems)
         #combobox.setCurrentItem(i)
 
-def getClasses(data):
-    try:
-        return [ a.value for a in data.domain.classVar ]
-    except:
-        return None
-
-def already_have_correlations(data):
-    return len(data) == 1 or obiGsea.data_single_meas_column(data)
-
 def exportDistanceMatrix(resl):
     """
     Input: results as a list of tuples
@@ -268,6 +259,7 @@ class OWGsea(OWWidget):
         self.gsgo = False
         self.gskegg = False
         self.buildDistances = False
+        self.selectedPhenVar = 0
 
         self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
@@ -296,13 +288,14 @@ class OWGsea(OWWidget):
         self.tabs = OWGUI.tabWidget(self.controlArea)
 
         ca = OWGUI.createTabPage(self.tabs, "Basic")
-
         box = OWGUI.widgetBox(ca, 'Organism')
-       
+ 
         cb = OWGUI.comboBox(box, self, "otype", items=nth(self.organismCodes, 1))
-
         OWGUI.checkBox(box, self, "csgm", "Case sensitive gene matching")
 
+        box2 = OWGUI.widgetBox(ca, "Descriptors")
+        self.phenCombo = OWGUI.comboBox(box2, self, "selectedPhenVar", items=[], callback=self.phenComboChange, label="Phenotype:")
+        self.geneCombo = OWGUI.comboBox(box2, self, "selectedGeneVar", items=[], label = "Gene:")
 
         ma = self.mainArea
 
@@ -555,7 +548,8 @@ class OWGsea(OWWidget):
             kwargs = {}
             dkwargs = {}
 
-            if not already_have_correlations(self.data):
+            if not obiGsea.already_have_correlations(self.data):
+
                 selectedClasses = self.psel.getSelection()
                 fc = "Phenotype group empty. Stopped."
                 if len(selectedClasses[0]) == 0:
@@ -625,9 +619,7 @@ class OWGsea(OWWidget):
         self.data = data
 
         if data:
-            if already_have_correlations(data):
-
-                self.data = obiGsea.transposeIfNeeded(self.data)
+            if obiGsea.already_have_correlations(data):
 
                 #disable correlation type
                 comboboxItems(self.corTypeF, [])
@@ -635,7 +627,7 @@ class OWGsea(OWWidget):
                 #set permutation type to fixed
                 self.ptype = 1
                 self.permTypeF.setDisabled(True)
-                
+
                 self.psel.setClasses(None)
             else:
                 #enable correlation type
@@ -644,7 +636,35 @@ class OWGsea(OWWidget):
                 #allow change of permutation type
                 self.permTypeF.setDisabled(False)
                 #print "set classes"
-                self.psel.setClasses(getClasses(data))
+
+                self.phenCombo.setDisabled(False)
+
+                self.phenCombo.clear()
+                self.phenCands = obiGsea.phenotype_cands(data)
+                self.phenCombo.addItems(map(lambda x: str(x[0]), self.phenCands))
+
+                self.phenCombo.setDisabled(len(self.phenCands) <= 1)
+
+                self.selectedPhenVar = 0
+                self.phenComboChange()
+
+
+    def phenComboChange(self):
+        pv = self.phenCands[self.selectedPhenVar]
+        self.psel.setClasses(pv[1])
+
+        def conv(x):
+            if x == True:
+                return "Attribute names"
+            else:
+                return str(x)
+
+        self.geneCombo.clear()
+        self.geneCands = obiGsea.gene_cands(self.data, obiGsea.is_variable(pv[0]))
+        self.geneCombo.addItems(map(lambda x: conv(x), self.geneCands))
+        self.selectedGeneVar = 0
+
+        self.geneCombo.setDisabled(len(self.geneCands) <= 1)
 
     def chooseGeneSetsFile(self):
         """
