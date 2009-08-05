@@ -149,6 +149,7 @@ def proces_david(dav):
     return dict([(line[1].split("~")[0], dict(zip(keys, line))) for line in lines])
 
 terms = [["GO:0009058", "GO:0006119"], ["GO:0031967", "GO:0044455"], ["GO:0046933", "GO:0003824"]]
+print "Genes:"
 print "\n".join(cluster_genes)
 
 for aspect, terms, david in zip(["P", "C", "F"], terms, [proces_david(david_results_bp), proces_david(david_results_cc), proces_david(david_results_mf)]):
@@ -159,11 +160,11 @@ for aspect, terms, david in zip(["P", "C", "F"], terms, [proces_david(david_resu
         print "    Annotated genes in reference: %i from %i" % (enriched_terms[term][2], len(reference_genes))
         print "    Annotated genes in cluster: %i from %i" % (len(enriched_terms[term][0]), len(cluster_genes))
         print "    Enrichment: %.3f" % ((len(enriched_terms[term][0]) / len(cluster_genes)) / (enriched_terms[term][2]/len(reference_genes)))
-        print "    p-value: %f" % (enriched_terms[term][1])
+        print "    p-value (hypergeometric distribution): %f" % (enriched_terms[term][1])
         print "    Comment: results from NCBI David (%s):" % david_date
-        print "    Annotated genes in reference: %s from %s" % (david[term]["Pop Hits"], david[term]["Pop Total"])
-        print "    Annotated genes in cluster: %s from %s" % (david[term]["Count"], david[term]["List Total"])
-        print "    Enrichment: %s" % david[term]["Fold Enrichment"]
-        print "    p-value: %s" % david[term]["PValue"]
+        print "        Annotated genes in reference: %s from %s" % (david[term]["Pop Hits"], david[term]["Pop Total"])
+        print "        Annotated genes in cluster: %s from %s" % (david[term]["Count"], david[term]["List Total"])
+        print "        Enrichment: %s" % david[term]["Fold Enrichment"]
+        print "        p-value: %s" % david[term]["PValue"]
     
 
