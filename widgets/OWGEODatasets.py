@@ -91,7 +91,7 @@ class LinkStyledItemDelegate(QStyledItemDelegate):
     
         
 class OWGEODatasets(OWWidget):
-    settingsList = ["outputRows", "minSamples", "includeIf", "mergeSpots"]
+    settingsList = ["outputRows", "minSamples", "includeIf", "mergeSpots", "gdsSelectionStates", "splitterSettings"]
 
     def __init__(self, parent=None ,signalManager=None, name=" GEO Data sets"):
         OWWidget.__init__(self, parent ,signalManager, name)
@@ -108,6 +108,9 @@ class OWGEODatasets(OWWidget):
         self.outputRows = 0
         self.mergeSpots = True
         self.filterString = ""
+        self.gdsSelectionStates = {}
+        self.splitterSettings = ['\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xea\x00\x00\x00\xd7\x01\x00\x00\x00\x07\x01\x00\x00\x00\x02',
+                                 '\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xb5\x00\x00\x02\x10\x01\x00\x00\x00\x07\x01\x00\x00\x00\x01']
 
         self.loadSettings()
 
@@ -115,8 +118,8 @@ class OWGEODatasets(OWWidget):
         self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "\n\n")
 #        box = OWGUI.widgetBox(self.controlArea, "Sample Subset")
 #        OWGUI.listBox(box, self, "selectedSubsets", "sampleSubsets", selectionMode=QListWidget.ExtendedSelection)
-        box = OWGUI.widgetBox(self.controlArea, "Sample Annotations (Types)")
-        self.annotationCombo = OWGUI.comboBox(box, self, "selectedAnnotation", items=["Include all"])
+#        box = OWGUI.widgetBox(self.controlArea, "Sample Annotations (Types)")
+#        self.annotationCombo = OWGUI.comboBox(box, self, "selectedAnnotation", items=["Include all"])
         
 ##        OWGUI.button(box, self, "Clear selection", callback=self.clearSubsetSelection)
 ##        c = OWGUI.checkBox(box, self, "includeIf", "Include if at least", callback=self.commitIf)
@@ -133,20 +136,41 @@ class OWGEODatasets(OWWidget):
         OWGUI.rubber(self.controlArea)
 
         self.filterLineEdit = OWGUIEx.lineEditHint(self.mainArea, self, "filterString", "Filter", caseSensitive=False, matchAnywhere=True, listUpdateCallback=self.filter, callbackOnType=True, callback=self.filter, delimiters=" ")
-        self.treeWidget = QTreeView(self.mainArea)
-
+        splitter = QSplitter(Qt.Vertical, self.mainArea)
+        self.mainArea.layout().addWidget(splitter)
+        self.treeWidget = QTreeView(splitter)
+#        splitter.addWidget(self.treeWidget)
+        
         self.treeWidget.setSelectionMode(QAbstractItemView.SingleSelection)
         self.treeWidget.setRootIsDecorated(False)
         self.treeWidget.setSortingEnabled(True)
         self.treeWidget.setItemDelegate(LinkStyledItemDelegate(self.treeWidget))
-        self.mainArea.layout().addWidget(self.treeWidget)
+#        self.mainArea.layout().addWidget(self.treeWidget)
         self.connect(self.treeWidget, SIGNAL("itemSelectionChanged ()"), self.updateSelection)
         self.treeWidget.viewport().setMouseTracking(True)
 ##        self.connect(self.treeWidget, SIGNAL("currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*))"), self.updateSelection_)
 #        self.connect(self.treeWidget.model(), SIGNAL("layoutChanged()"), self.filter)
-        self.infoGDS = OWGUI.widgetLabel(OWGUI.widgetBox(self.mainArea, "Description"), "")
+        splitterH = QSplitter(Qt.Horizontal, splitter) 
+#        splitter.addWidget(splitterH)
+        box = OWGUI.widgetBox(splitterH, "Description")
+        self.infoGDS = OWGUI.widgetLabel(box, "")
         self.infoGDS.setWordWrap(True)
-
+        OWGUI.rubber(box)
+        
+        box = OWGUI.widgetBox(splitterH, "Sample Annotations")
+        self.annotationsTree = QTreeWidget(box)
+        self.annotationsTree.setHeaderLabels(["Type (Sample annotations)", "Sample count"])
+        self.annotationsTree.setRootIsDecorated(True)
+        box.layout().addWidget(self.annotationsTree)
+        self.connect(self.annotationsTree, SIGNAL("itemChanged(QTreeWidgetItem * , int)"), self.annotationSelectionChanged)
+        self._annotationsUpdating = False
+        self.splitters = splitter, splitterH
+        self.connect(splitter, SIGNAL("splitterMoved(int, int)"), self.splitterMoved)
+        self.connect(splitterH, SIGNAL("splitterMoved(int, int)"), self.splitterMoved)
+        
+        for sp, setting in zip(self.splitters, self.splitterSettings):
+            sp.restoreState(setting)
+            
         self.searchKeys = ["dataset_id", "title", "platform_organism", "description"]
         self.cells = []
         self.currentGds = None
@@ -155,7 +179,7 @@ class OWGEODatasets(OWWidget):
 
     def updateInfo(self):
         gds_info = obiGEO.GDSInfo()
-        text = "%i datasets\n%i datasets cached\n" %(len(gds_info), len(glob.glob(orngServerFiles.localpath("GEO") + "/GDS*")))
+        text = "%i datasets\n%i datasets cached\n" % (len(gds_info), len(glob.glob(orngServerFiles.localpath("GEO") + "/GDS*")))
         filtered = len([row for row in range(len(self.cells)) if self.rowFiltered(row)])
         if len(self.cells) != filtered:
             text += ("%i after filtering") % filtered
@@ -221,10 +245,42 @@ class OWGEODatasets(OWWidget):
             self.currentGds = None
         self.commitButton.setDisabled(not bool(self.currentGds))
         
+    
     def setAnnotations(self, gds):
 #        self.sampleSubsets = ["%s (%d)" % (s["description"], len(s["sample_id"])) for s in gds["subsets"]]
-        self.annotationCombo.clear()
-        self.annotationCombo.addItems(["Include all"] + list(set([sampleinfo["type"] for sampleinfo in gds["subsets"]])))
+#        self.annotationCombo.clear()
+#        self.annotationCombo.addItems(["Include all"] + list(set([sampleinfo["type"] for sampleinfo in gds["subsets"]])))
+        
+        self._annotationsUpdating = True
+        self.annotationsTree.clear()
+        annotations = reduce(lambda d, info: d[info["type"]].add(info["description"]) or d, gds["subsets"], defaultdict(set))
+        subsetscount = dict([(s["description"], str(len(s["sample_id"]))) for s in gds["subsets"]])
+        for type, subsets in annotations.items():
+            key = (gds["dataset_id"], type)
+            subsetItem = QTreeWidgetItem(self.annotationsTree, [type])
+            subsetItem.setFlags(subsetItem.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsTristate)
+            subsetItem.setCheckState(0, self.gdsSelectionStates.get(key, Qt.Checked))
+            subsetItem.key = key
+            for subset in subsets:
+                key = (gds["dataset_id"], type, subset)
+                item = QTreeWidgetItem(subsetItem, [subset, subsetscount.get(subset, "")])
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(0, self.gdsSelectionStates.get(key, Qt.Checked))
+                item.key = key
+        self._annotationsUpdating = False
+        self.annotationsTree.expandAll()
+        for i in range(self.annotationsTree.columnCount()):
+            self.annotationsTree.resizeColumnToContents(i)
+                
+    def annotationSelectionChanged(self, item, column):
+        if self._annotationsUpdating:
+            return 
+        for i in range(self.annotationsTree.topLevelItemCount()):
+            item = self.annotationsTree.topLevelItem(i)
+            self.gdsSelectionStates[item.key] = item.checkState(0)
+            for j in range(item.childCount()):
+                child = item.child(j)
+                self.gdsSelectionStates[child.key] = child.checkState(0)
         
     def rowFiltered(self, row):
         filterStrings = self.filterString.lower().split()
@@ -251,11 +307,35 @@ class OWGEODatasets(OWWidget):
         if self.currentGds:
 #            classes = [s["description"] for s in self.currentGds["subsets"]]
 #            classes = [classes[i] for i in self.selectedSubsets] or None
-            sample_type = self.annotationCombo.currentText()
+#            sample_type = self.annotationCombo.currentText()
+            sample_type = None
             self.progressBarInit()
             self.progressBarSet(10)
             gds = obiGEO.GDS(self.currentGds["dataset_id"])
             data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, sample_type=sample_type if sample_type!="Include all" else None)
+            self.progressBarSet(50)
+#            samples = set([self.annotationsTree.topLevelItem(i).child(j).key[2] for i in range(self.annotationsTree.topLevelItemCount()) for j in self.annotationsTree.topLevelItem(i).])
+            class itemiter(QTreeWidgetItemIterator):
+                def next(self):
+                    self.__iadd__(1)
+                    if self.value():
+                        return self.value()
+                    else:
+                        raise StopIteration
+                def __iter__(self):
+                    return self
+                
+            samples = set([str(item.text(0)) for item in itemiter(self.annotationsTree) if self.gdsSelectionStates.get(item.key, True)])
+            print samples
+            if self.outputRows:
+                select = [1 if samples.intersection(str(ex.getclass()).split("|")) else 0 for ex in data]
+                data = data.select(select)
+                data.domain.classVar.values = ["|".join([cl for cl in val.split("|") if cl in samples]) for val in data.domain.classVar.values]
+            else:
+                domain = orange.Domain([attr for attr in data.domain.attributes if samples.intersection(attr.attributes.values())], data.domain.classVar)
+                domain.addmetas(data.domain.getmetas())
+                data = orange.ExampleTable(domain, data)
+            
             self.progressBarFinished()
             self.send("Expression Data", data)
 
@@ -266,6 +346,9 @@ class OWGEODatasets(OWWidget):
             self.updateInfo()
         else:
             pass
+        
+    def splitterMoved(self, *args):
+        self.splitterSettings = [str(sp.saveState()) for sp in self.splitters]
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
