@@ -378,9 +378,12 @@ class KEGGInterfaceLocal(object):
 
     def _dump_pickled(self, object, filename=None, name=None):
         if not  filename and name:
-            dump(object, open(self.local_database_path+self._filenames[name], "wb"))
+            file = open(self.local_database_path+self._filenames[name], "wb")
         else:
-            dump(object, open(self.local_database_path+filename, "wb"))
+            file = open(self.local_database_path+filename, "wb")
+        dump(object, file)
+        file.flush()
+        file.close()
     
     def _load_enzyme_database(self, from_=None):
         try:
