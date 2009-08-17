@@ -239,7 +239,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.error(0, "No downloaded organism data! Use the Update Genomics Databases widget to\ndownload KEGG pathways for your organism.")
 ##        if obiKEGG.Update.UpdateReference not in updatable:
 ##            self.warning(0, "Reference pathways are not downloaded. You will not be able to view all pathways in the orthology")
-        cb = OWGUI.comboBox(self.controlArea, self, "organismIndex", box="Organism", items=items, callback=self.Update, addSpace=True)
+        cb = OWGUI.comboBox(self.controlArea, self, "organismIndex", box="Organism", items=items, callback=self.Update, addSpace=True, debuggingEnabled=0)
         cb.setMaximumWidth(200)
         
         box = OWGUI.widgetBox(self.controlArea, "Gene attribure")

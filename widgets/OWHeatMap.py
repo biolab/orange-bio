@@ -123,7 +123,7 @@ class OWHeatMap(OWWidget):
         self.setColor(self.selectedSchemaIndex, update=False)
         self.connect(self.colorCombo, SIGNAL("activated(int)"), self.setColor)
         box.layout().addWidget(self.colorCombo, 2)
-        button = OWGUI.button(box, self, "Edit colors", callback=self.openColorDialog, tooltip="Edit the heatmap color palette")
+        button = OWGUI.button(box, self, "Edit colors", callback=self.openColorDialog, tooltip="Edit the heatmap color palette", debuggingEnabled=0)
         
         OWGUI.separator(settingsTab)
 

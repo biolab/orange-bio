@@ -117,9 +117,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.inputTab = OWGUI.createTabPage(self.tabs, "Input")
         box = OWGUI.widgetBox(self.inputTab, "Info")
         self.infoLabel = OWGUI.widgetLabel(box, "No data on input\n")
-        OWGUI.button(box, self, "Ontology/Annotation Info", callback=self.ShowInfo, tooltip="Show information on loaded ontology and annotations")
+        OWGUI.button(box, self, "Ontology/Annotation Info", callback=self.ShowInfo, tooltip="Show information on loaded ontology and annotations", debuggingEnabled=0)
         box = OWGUI.widgetBox(self.inputTab, "Organism", addSpace=True)
-        self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.SetAnnotationCallback, tooltip="Select organism")
+        self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.SetAnnotationCallback, tooltip="Select organism", debuggingEnabled=0)
         
         self.signalManager.setFreeze(1) ## freeze until annotation combo box is updateded with available annotations.
         QTimer.singleShot(0, self.UpdateOrganismComboBox)
