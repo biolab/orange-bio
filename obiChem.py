@@ -7,8 +7,10 @@ Classes (see their corresponding __doc__ strings for further detail):
     Fragmenter      : A class that is used to fragment an ExampleTable
     FragmentBasedLearner    : A learner wrapper class that first runs the molecular fragmentation on the data
 """
-from openbabel import OBMol, OBAtom, OBBond, OBSmartsPattern, OBConversion, OBMolAtomIter, OBMolBondIter, OBAtomBondIter
-import pybel
+try:
+    from openbabel import OBMol, OBAtom, OBBond, OBSmartsPattern, OBConversion, OBMolAtomIter, OBMolBondIter, OBAtomBondIter
+except ImportError:
+    pass
 ##from pybel import *
 from copy import deepcopy
 import orange

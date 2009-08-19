@@ -18,9 +18,20 @@ import shelve
 from cStringIO import StringIO
 
 import pickle
-
-import pybel
 import obiChem
+
+class dummy_module(object):
+	def __init__(self, name):
+		self.name = name
+	def __getattr__(self, name):
+		raise ImportError(self.name)
+	def __nonzero__(self):
+		return False
+
+try:
+	import pybel
+except ImportError:
+	pybel = dummy_module("pybel")
 
 svg_error_string = """<?xml version="1.0" ?>
 <svg height="185" version="1.0" width="250" xmlns="http://www.w3.org/2000/svg">
@@ -90,6 +101,10 @@ class ImageCache(object):
         self.__dict__ = self.__shared_state
         if not self.shelve:
             import orngEnviron
+            try:
+            	os.mkdir(os.path.join(orngEnviron.bufferDir, "molimages"))
+            except OSError:
+            	pass
             self.shelve = shelve.open(os.path.join(orngEnviron.bufferDir, "molimages", "cache.shelve"))
             
     @synchronized(lock)
@@ -138,8 +153,9 @@ class MolWidget(QFrame):
         self.label=QLabel()
         self.label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
         try:
-            s = ImageCache()[context.molecule, context.fragment]
-            self.state = 1
+        	self.from_cache = (context.molecule, context.fragment) in ImageCache()
+        	s = ImageCache()[context.molecule, context.fragment]
+        	self.state = 1
         except Exception, ex:
             from traceback import print_exc
             print_exc()
@@ -313,9 +329,15 @@ class OWMoleculeVisualizer(OWWidget):
         self.gridLayout=QGridLayout(self.molWidget)
         self.molWidget.setLayout(self.gridLayout)
 
-        self.listBox=QListWidget(spliter)
+        if pybel:
+        	self.listBox=QListWidget(spliter)
+        else:
+        	self.listBox=QListWidget(None)
+        	self.listBox.setHidden(True)
 
         self.connect(self.listBox, SIGNAL("itemClicked(QListWidgetItem *)"), self.fragmentSelection)
+        
+        self.fragmentSmilesCombo.box.setDisabled(not pybel)
 
         self.imageWidgets=[]
         self.candidateMolSmilesAttr=[]
@@ -334,6 +356,9 @@ class OWMoleculeVisualizer(OWWidget):
         self.loadSettings()
         self.failedCount=0
         self.fromCacheCount=0
+        
+        if not pybel:
+        	self.showFragments = 0
         
     def setMoleculeTable(self, data):
         self.closeContext()
@@ -390,8 +415,9 @@ class OWMoleculeVisualizer(OWWidget):
         self.fragmentSmilesCombo.setDisabled(bool(data))
 
     def filterSmilesVariables(self, data):
-        candidates=data.domain.variables+data.domain.getmetas().values()
-        candidates=filter(lambda v:v.varType==orange.VarTypes.Discrete or v.varType==orange.VarTypes.String, candidates)
+#    	import pybel
+        candidates = data.domain.variables+data.domain.getmetas().values()
+        candidates = filter(lambda v:v.varType==orange.VarTypes.Discrete or v.varType==orange.VarTypes.String, candidates)
         if len(data)>20:
             data=data.select(orange.MakeRandomIndices2(data, 20))
         vars=[]
@@ -400,6 +426,8 @@ class OWMoleculeVisualizer(OWWidget):
                 pybel.readstring("smi", s)
             except IOError:
                 return False
+            except ImportError:
+            	return True
             return True
             
         import os
@@ -413,7 +441,7 @@ class OWMoleculeVisualizer(OWWidget):
         for var in candidates:
             count=0
             for e in data:
-                if isValidSmiles(str(e[var])):
+                if pybel and isValidSmiles(str(e[var])):
                     count+=1
             vars.append((count,var))
         names=[v.name for v in data.domain.variables+data.domain.getmetas().values()]
@@ -460,6 +488,8 @@ class OWMoleculeVisualizer(OWWidget):
             self.fragmentSmilesAttr=0
 
     def updateFragmentsListBox(self):
+    	if not pybel:
+    		return
         fAttr=self.candidateFragSmilesAttr[self.fragmentSmilesAttr]
         if fAttr:
             self.fragmentSmiles=[""]+[str(e[fAttr]) for e in self.fragData if not e[fAttr].isSpecial()]
@@ -472,6 +502,8 @@ class OWMoleculeVisualizer(OWWidget):
         self.selectMarkedMoleculesButton.setDisabled(True)
         
     def fragmentSelection(self, item):
+    	if not pybel:
+    		return
         index = self.listBox.indexFromItem(item).row()
         if index == -1:
             index = 0
@@ -541,6 +573,8 @@ class OWMoleculeVisualizer(OWWidget):
             self.updateTitles()
         #print "done drawing"
         self.overRideCache=False
+        self.fromCacheCount = sum(int(w.from_cache) for w in self.imageWidgets)
+        self.failedCount = len(self.imageWidgets) - sum(int(w.state) for w in self.imageWidgets)
         
         self.molWidget.setMinimumSize(self.gridLayout.sizeHint())
         self.molWidget.show()
@@ -570,9 +604,8 @@ class OWMoleculeVisualizer(OWWidget):
         self.renderImages(useCached)
         if not oasaLocal:
             if self.failedCount>0:
-                self.infoLabel.setText("%i chemicals\nFailed to retrieve %i images from server\n%i images \
-                from server\n%i images from local cache" % (len(self.imageWidgets), self.failedCount,
-                                                            len(self.imageWidgets)-self.failedCount-self.fromCacheCount, self.fromCacheCount))
+                self.infoLabel.setText("%i chemicals\nFailed to retrieve %i images from server\n%i images from server\n%i images from local cache" \
+									   % (len(self.imageWidgets), self.failedCount, len(self.imageWidgets)-self.failedCount-self.fromCacheCount, self.fromCacheCount))
                 self.warning("Failed to retrieve some images from server")
             elif self.fromCacheCount == len(self.imageWidgets):
                 self.infoLabel.setText("%i chemicals\nAll images from local cache" % len(self.imageWidgets))
@@ -603,6 +636,8 @@ class OWMoleculeVisualizer(OWWidget):
             self.commit()
 
     def selectMarked(self):
+    	if not pybel:
+    		return
         if not self.showFragments:
             molecules=[i.context.molecule for i in self.imageWidgets]
             fMap=map_fragments([self.selectedFragment], molecules)
@@ -618,7 +653,7 @@ class OWMoleculeVisualizer(OWWidget):
     def commit(self):
         if self.showFragments:
             sAttr=self.candidateMolSmilesAttr[self.moleculeSmilesAttr]
-            molecules=map(str, [e[sAttr] for e in self.molData])
+            molecules=[str(e[sAttr]) for e in self.molData]
             fragments=[i.context.molecule for i in self.imageWidgets if i.selected]
             fragmap=map_fragments(fragments, molecules)
             match=filter(lambda m:max(fragmap[m].values()), molecules)
@@ -756,7 +791,6 @@ def remoteMolecule2BMP(molSmiles, filename, size=200, title="", grayedBackground
 
 
 def map_fragments(fragments, smiles, binary=True):
-    import pybel
     ret = {}
     for s in smiles:
         mol = pybel.readstring("smi", s)
