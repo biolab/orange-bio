@@ -61,7 +61,7 @@ class OWFeatureSelection(OWWidget):
     def __init__(self, parent=None, signalManager=None, name="Gene selection"):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True, showSaveGraph=True)
         self.inputs = [("Examples", ExampleTable, self.SetData)]
-        self.outputs = [("Examples with selected attributes", ExampleTable), ("Examples with remaining attributes", ExampleTable), ("Selected attributes", ExampleTable)]
+        self.outputs = [("Example table with selected genes", ExampleTable), ("Example table with remaining genes", ExampleTable), ("Selected genes", ExampleTable)]
 
         self.methodIndex = 0
         self.dataLabelIndex = 0
@@ -71,6 +71,7 @@ class OWFeatureSelection(OWWidget):
         self.selectNBest = 20
         self.selectPValue = 0.01
         self.dataChangedFlag = False
+        self.addScoresToOutput = True
 
         self.oneTailTestHi = oneTailTestHi = lambda array, low, hi: array >= hi
         self.oneTailTestLow = oneTailTestLow = lambda array, low, hi: array <= low
@@ -126,7 +127,8 @@ class OWFeatureSelection(OWWidget):
         OWGUI.spin(box1, self, "selectNBest", 0, 10000, step=1, label="Best Ranked:")
         OWGUI.button(box1, self, "Select", callback=self.SelectNBest)
 
-        box = OWGUI.widgetBox(self.controlArea, "Commit")
+        box = OWGUI.widgetBox(self.controlArea, "Output")
+        OWGUI.checkBox(box, self, "addScoresToOutput", "Add gene scores to output", callback=self.CommitIf) 
         b = OWGUI.button(box, self, "&Commit", callback=self.Commit)
         cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
         OWGUI.setStopper(self, b, cb, "dataChangedFlag", self.Commit)
@@ -176,9 +178,9 @@ class OWFeatureSelection(OWWidget):
         self.Update()
         if not self.data:
             self.UpdateDataInfoLabel()
-            self.send("Examples with selected attributes", None)
-            self.send("Examples with remaining attributes", None)
-            self.send("Selected attributes", None)
+            self.send("Example table with selected genes", None)
+            self.send("Example table with remaining genes", None)
+            self.send("Selected genes", None)
     
     def ComputeScores(self, data, scoreFunc, useAttributeLabels, target=None, advance=lambda :None):
         scoreFunc = scoreFunc(data, useAttributeLabels)
@@ -341,36 +343,50 @@ class OWFeatureSelection(OWWidget):
         selected = set([key for key, test in scores if test])
         remaining = set([key for key, test in scores if not test])
         if self.data and self.genesInColumns:
-            selected = [1 if i in selected else 0 for i, ex in enumerate(self.data)]
-#            newdata = orange.ExampleTable(self.data.domain, selected)
-            newdata = self.data.select(selected)
-            self.send("Examples with selected attributes", newdata)
-            remaining = [1 if i in remaining else 0 for i, ex in enumerate(self.data)]
-            newdata = self.data.select(remaining)
-#            newdata = orange.ExampleTable(self.data.domain, remaining)
-            self.send("Examples with remaining attributes", remaining)
+            selected = sorted(selected)
+            newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in selected])
+            if self.addScoresToOutput:
+                scoreAttr = orange.FloatVariable(self.scoreMethods[self.methodIndex][0])
+                mid = orange.newmetaid()
+                newdata.domain.addmeta(mid, scoreAttr)
+                for ex, key in zip(newdata, selected):
+                    ex[mid] = self.scores[key]
+            self.send("Example table with selected genes", newdata)
+            remaining = sorted(remaining)
+            newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in remaining]) #ex in enumerate(self.data) if i in remaining])
+            if self.addScoresToOutput:
+                newdata.domain.addmeta(mid, scoreAttr)
+                for ex, key in zip(newdata, remaining):
+                    ex[mid] = self.scores[key]
+            self.send("Example table with remaining genes", newdata)
             
         elif self.data and not self.genesInColumns:
             
             selectedAttrs = [attr for attr in self.data.domain.attributes if attr in selected or attr.varType == orange.VarTypes.String]
             newdomain = orange.Domain(selectedAttrs, self.data.domain.classVar)
+            if self.addScoresToOutput:
+                for attr in newdomain.attributes:
+                    attr.attributes[self.scoreMethods[self.methodIndex][0]] = str(self.scores[attr])
             newdomain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(newdomain, self.data)
-            self.send("Examples with selected attributes", newdata if selectedAttrs else None)
+            self.send("Example table with selected genes", newdata if selectedAttrs else None)
             
             remainingAttrs = [attr for attr in self.data.domain.attributes if attr in remaining]
             newdomain = orange.Domain(remainingAttrs, self.data.domain.classVar)
+            if self.addScoresToOutput:
+                for attr in newdomain.attributes:
+                    attr.attributes[self.scoreMethods[self.methodIndex][0]] = str(self.scores[attr])
             newdomain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(newdomain, self.data)
-            self.send("Examples with remaining attributes", newdata if remainingAttrs else None)
+            self.send("Example table with remaining genes", newdata if remainingAttrs else None)
             
             domain = orange.Domain([orange.StringVariable("label"), orange.FloatVariable(self.scoreMethods[self.methodIndex][0])], False)
-            self.send("Selected attributes", orange.ExampleTable([orange.Example(domain, [attr.name, self.scores.get(attr, 0)]) for attr in selectedAttrs]) if selectedAttrs else None)
+            self.send("Selected genes", orange.ExampleTable([orange.Example(domain, [attr.name, self.scores.get(attr, 0)]) for attr in selectedAttrs]) if selectedAttrs else None)
             
         else:
-            self.send("Examples with selected attributes", None)
-            self.send("Examples with remaining attributes", None)
-            self.send("Selected attributes", None)
+            self.send("Example table with selected genes", None)
+            self.send("Example table with remaining genes", None)
+            self.send("Selected genes", None)
         self.dataChangedFlag = False
 
 if __name__=="__main__":
