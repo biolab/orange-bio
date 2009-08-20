@@ -175,11 +175,7 @@ class ExpressionSignificance_Test(object):
         self.dim = 0
         
     def _data_info(self, data):
-        return [set(attr.attributes.values()) for attr in data.domain.attributes], [ex.getclass() for ex in data] if data.domain.classVar else [None]*len(data)
-
-    def _separete(self, source, value):
-        return ([i for i, v in enumerate(source) if v==value],
-                [i for i, v in enumerate(source) if v!=value])
+        return [set(attr.attributes.items()) for attr in data.domain.attributes], [ex.getclass() for ex in data] if data.domain.classVar else [None]*len(data)
         
     def test_indices(self, target, classes=None):
         classes = self.classes if classes is None else classes
@@ -248,7 +244,7 @@ class ExpressionSignificance_ANOVA(ExpressionSignificance_Test):
         
 class ExpressionSignificance_ChiSquare(ExpressionSignificance_Test):
     def __call__(self, target):
-        array = equi_n_discritization(self.array.copy(), intervals=5, dim=0)
+        array = equi_n_discretization(self.array.copy(), intervals=5, dim=0)
         ind1, ind2 = self.test_indices(target)
         a1, a2 = array[ind1, :], array[ind2, :]
         dist1, dist2  = [], []
@@ -262,7 +258,7 @@ class ExpressionSignificance_ChiSquare(ExpressionSignificance_Test):
         
 class ExpressionSignificance_Info(ExpressionSignificance_Test):
     def __call__(self, target):
-        array = equi_n_discritization(self.array.copy(), intervals=5, dim=1)
+        array = equi_n_discretization(self.array.copy(), intervals=5, dim=1)
         
         ind1, ind2 = self.test_indices(target)
         a1, a2 = array[ind1, :], array[ind2, :]
@@ -323,7 +319,7 @@ def achisquare_indtest(observed, dim=None):
     chisq = ma.sum(ma.sum((observed - expected) ** 2 / expected, dim + 1), dim)
     return chisq
     
-def equi_n_discritization(array, intervals=5, dim=1):
+def equi_n_discretization(array, intervals=5, dim=1):
     count = ma.sum(ma.array(ma.ones(array.shape, dtype=int), mask=array.mask), dim)
     cut = ma.zeros(len(count), dtype=int)
     sarray = ma.sort(array, dim)

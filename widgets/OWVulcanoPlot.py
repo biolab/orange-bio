@@ -39,13 +39,19 @@ class VulcanoGraph(OWGraph):
 
         self.updatingAxes = False, None
 
+#    def splitSelected(self):
+#        items = self.plotValues.items()
+#        return ([key for key, (x, y) in items if abs(x) >= self.cutoffX and y >= self.cutoffY],
+#                [key for key, (x, y) in items if abs(x) < self.cutoffX or y < self.cutoffY])
+        
     def splitSelected(self):
-        items = self.plotValues.items()
-        return ([key for key, (x, y) in items if abs(x) >= self.cutoffX and y >= self.cutoffY],
-                [key for key, (x, y) in items if abs(x) < self.cutoffX or y < self.cutoffY])
+        test = (numpy.abs(self.plotData[:, 0]) >= self.cutoffX) & (self.plotData[:, 1] >= self.cutoffY)
+        return (self.plotData[numpy.nonzero(test)], self.plotData[numpy.nonzero(~test)])
+                
     
     def setPlotValues(self, values):
         self.plotValues = values
+        self.plotData = numpy.array(values.values())
         self.replot_(setScale=True)
 
     def updateSelectionArea(self):
@@ -56,7 +62,7 @@ class VulcanoGraph(OWGraph):
 
     def replot_(self, setScale=False):
         if self.plotValues:
-            data = numpy.array(self.plotValues.values())
+            data = self.plotData #numpy.array(self.plotValues.values())
             self.maxX = numpy.max(numpy.abs(data[:,0]))
             self.maxY = numpy.max(data[:, 1])
             if setScale:
@@ -66,9 +72,11 @@ class VulcanoGraph(OWGraph):
             selected, unselected = self.splitSelected()
             getData = lambda keys, dim: [self.plotValues[attr][dim] for attr in keys]
             
-            self.selectedCurve.setData(getData(selected, 0), getData(selected, 1))
+#            self.selectedCurve.setData(getData(selected, 0), getData(selected, 1))
+            self.selectedCurve.setData(selected[:,0], selected[:,1])
             self.selectedCurve.setBrush(QBrush(Qt.blue))
-            self.unselectedCurve.setData(getData(unselected, 0), getData(unselected, 1))
+#            self.unselectedCurve.setData(getData(unselected, 0), getData(unselected, 1))
+            self.unselectedCurve.setData(unselected[:, 0], unselected[:, 1])
             self.updateSelectionArea()
             self.master.infoLabel2.setText("%i selected genes" % len(selected))
         else:
@@ -216,16 +224,19 @@ class OWVulcanoPlot(OWWidget):
         
     def setTargetCombo(self):
         if self.genesInColumns:
-            self.targets = sorted(reduce(set.union, [attr.attributes.values() for attr in self.data.domain.attributes], set()))
-            measurements = [attr.attributes.values() for attr in self.data.domain.attributes] 
+            self.targets = sorted(reduce(set.union, [attr.attributes.items() for attr in self.data.domain.attributes], set()))
+            measurements = [attr.attributes.items() for attr in self.data.domain.attributes]
+            targets = ["%s: %s" % t for t in self.targets]
+            
         else:
             self.targets = self.data.domain.classVar.values
             measurements = [set([str(ex.getclass())]) for ex in self.data]
+            targets = self.targets
                                 
         self.targetMeasurements = [len([m for m in measurements if target in m]) for target in self.targets]
         
         self.targetClassCombo.clear()
-        self.targetClassCombo.addItems(self.targets)
+        self.targetClassCombo.addItems(targets)
 #        self.targetClass = min(self.targetClass, len(self.targets) - 1)
                              
     def plot(self):
@@ -237,22 +248,8 @@ class OWVulcanoPlot(OWWidget):
             if self.targetMeasurements[targetClassIndex] < 2 or sum(self.targetMeasurements) - self.targetMeasurements[targetClassIndex] < 2:
                 self.warning(0, "Insufficient data to compute statistics. More than one measurement per class should be provided")
             targetClass = self.targets[targetClassIndex]
+            print targetClass
             self.progressBarInit()
-#            milestones = set(range(0, len(self.data.domain.attributes), max(len(self.data.domain.attributes)/100, 1)))
-#            for i, attr in enumerate(self.data.domain.attributes):
-#                try:
-#                    sample1 = [float(ex[attr]) for ex in self.data if not ex[attr].isSpecial() and ex.getclass()==targetClass]
-#                    sample2 = [float(ex[attr]) for ex in self.data if not ex[attr].isSpecial() and ex.getclass()!=targetClass]
-#                    logratio = log(abs(mean(sample1)/mean(sample2)), 2)
-#                    t, pval = ttest_ind(sample1, sample2)
-#                    logpval = -log(pval, 10)
-#                    self.values[attr] = (logratio, logpval)
-#                except Exception:
-#                    pass
-###                    logratio, logpval = 0.0, 0.0
-#                
-#                if i in milestones:
-#                    self.progressBarSet(100.0*i/len(self.data.domain.attributes))
             tt = obiExpression.ExpressionSignificance_TTest(self.data, useAttributeLabels=self.genesInColumns)(targetClass)
             self.progressBarSet(25)
             fold = obiExpression.ExpressionSignificance_FoldChange(self.data, useAttributeLabels=self.genesInColumns)(targetClass)

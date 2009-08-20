@@ -197,17 +197,17 @@ class OWFeatureSelection(OWWidget):
             self.histogram.removeDrawingCurves()
             self.histogram.clear()
             return
-        target = self.dataLabels[self.dataLabelIndex]
-        if target == "(None)":
-            target = self.data.domain.classVar(0), self.data.domain.classVar(1)
+        targetLabel = self.dataLabels[self.dataLabelIndex]
+        if targetLabel == "(None)":
+            target = [self.data.domain.classVar(0), self.data.domain.classVar(1)]
             self.targets = targets = list(self.data.domain.classVar.values)
             self.genesInColumns = False
         else:
-            self.targets = targets = list(set([attr.attributes.get(target) for attr in self.data.domain.attributes]) - set([None]))
-            target = targets[0], targets[1]
+            self.targets = targets = list(set([attr.attributes.get(targetLabel) for attr in self.data.domain.attributes]) - set([None]))
+            target = [(targetLabel, targets[0]), (targetLabel, targets[1])]
             self.genesInColumns = True
         if self.methodIndex in [4, 5]: ## ANOVA
-            target = targets
+            target = targets if targetLabel == "(None)" else [(targetLabel, t) for t in targets]
         scoreFunc = self.scoreMethods[self.methodIndex][1] 
         pb = OWGUI.ProgressBar(self, 4 + self.permutationsCount if self.computeNullDistribution else 3)
         self.scores = dict(self.ComputeScores(self.data, scoreFunc, self.genesInColumns, target, advance=pb.advance))
@@ -242,8 +242,8 @@ class OWFeatureSelection(OWWidget):
             else:
                 x1, y1 = (self.histogram.minx) / 2 , self.histogram.maxy
                 x2, y2 = (self.histogram.maxx) / 2 , self.histogram.maxy
-            self.histogram.addMarker(targets[1], x1, y1)
-            self.histogram.addMarker(targets[0], x2, y2)
+            self.histogram.addMarker(self.targets[0], x1, y1)
+            self.histogram.addMarker(self.targets[1], x2, y2)
         self.histogram.replot()
         pb.advance()
         pb.finish()
