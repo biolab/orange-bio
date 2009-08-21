@@ -128,10 +128,11 @@ class OWFeatureSelection(OWWidget):
         OWGUI.button(box1, self, "Select", callback=self.SelectNBest)
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
-        OWGUI.checkBox(box, self, "addScoresToOutput", "Add gene scores to output", callback=self.CommitIf) 
         b = OWGUI.button(box, self, "&Commit", callback=self.Commit)
         cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
         OWGUI.setStopper(self, b, cb, "dataChangedFlag", self.Commit)
+        OWGUI.checkBox(box, self, "addScoresToOutput", "Add gene scores to output", callback=self.CommitIf) 
+        
         OWGUI.rubber(self.controlArea)
 
         self.connect(self.graphButton, SIGNAL("clicked()"), self.histogram.saveToFile)
