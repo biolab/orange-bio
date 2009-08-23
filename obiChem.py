@@ -371,8 +371,6 @@ class Fragment(Molecule):
         ContainedIn(smiles) : Returns True if the fragment is present in the molecule
                     represented by the smiles code argument
     """
-    writer=OBConversion()
-    writer.SetInAndOutFormats("smi","smi")
     def __init__(self, miner=None, excludeAtomList=[]):
         Molecule.__init__(self)
         self.embedings=[]
@@ -380,6 +378,8 @@ class Fragment(Molecule):
         self.excludeAtomList=excludeAtomList
         self.lastExtendedAtomicNum=0
         self.lastExtendedAtomIndex=0
+        self.writer=OBConversion()
+        self.writer.SetInAndOutFormats("smi","smi")
 
     def __deepcopy__(self, memo):
         f=Fragment()
@@ -588,8 +588,6 @@ class FragmentMiner(object):
     >>> for fragment in miner.Search():
     ... 	print fragment.ToSmiles() , "Support: %.3f" %fragment.Support()
     """
-    loader=OBConversion()
-    loader.SetInAndOutFormats("smi","smi")
     def __init__(self, active, inactive=[], minSupport=0.2, maxSupport=0.2, addWholeRings=True, canonicalPruning=True, findClosed=True):
         self.active=filter(lambda m:m, map(self.LoadMolecules, active))
         self.inactive=filter(lambda m:m, map(self.LoadMolecules, inactive))
@@ -601,6 +599,8 @@ class FragmentMiner(object):
         self.addWholeRings=addWholeRings
         self.canonicalPruning=canonicalPruning
         self.canonicalPruningSet={}
+        self.loader=OBConversion()
+        self.loader.SetInAndOutFormats("smi","smi")
 
     def LoadMolecules(self, smiles):
         mol=LoadMolFromSmiles(smiles)
