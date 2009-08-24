@@ -13,9 +13,9 @@ class disease(object):
         match = self.regex.match(string)
 #        print string
 #        print match.groups()
-        self.name, self.id, self.mapping = match.groups()[:3]
+        self.name, self.id, self.mapping = [s.strip() if s else s for s in match.groups()[:3]]
         if match.group("m2"):
-            self.mapping += match.group("m2")
+            self.mapping += " " + match.group("m2").strip()
         
 class OMIM(object):
     VERSION = 1
