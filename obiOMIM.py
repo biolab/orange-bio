@@ -6,7 +6,7 @@ import re
 from collections import defaultdict
 
 class disease(object):
-    regex = re.compile(r'(?P<name>.*?),? (?P<id>[0-9]+ )?(?P<m1>\([123?]\) )?(?P<m2>\([123?]\) )? *$')
+    regex = re.compile(r'(?P<name>.*?),? (?P<id>[0-9]{3,6} )?(?P<m1>\([123?]\) )?(?P<m2>\([123?]\) )? *$')
     __slots__ = ["name", "id", "mapping"]
     def __init__(self, morbidmap_line):
         string = morbidmap_line.split("|", 1)[0]
