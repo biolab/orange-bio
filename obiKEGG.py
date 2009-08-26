@@ -303,8 +303,8 @@ class KEGGInterfaceLocal(object):
             return "map/"
         elif self._genome[org].get_annotation_type()=="manual": ##            return "pathway/organisms/"+pathway_id.split(":")[-1][:-5]+"/"
             return "organisms/"+org+"/"
-        elif len(org)==4 and org.startswith("e"):
-            return "organisms_est/"+org+"/"
+#        elif len(org)==4 and org.startswith("e"):
+#            return "organisms_est/"+org+"/"
         else:
 ##            return "organisms_kaas/"+org+"/"
             return "organisms/"+org+"/"
@@ -418,10 +418,12 @@ class KEGGInterfaceLocal(object):
                     self._from_enzyme_to_compounds[e].append(id)
             self._dump_pickled(self._from_enzyme_to_compounds, name="_from_enzyme_to_compounds")
 
-    def _load_gene_database(self, org, from_=None):
+    def _load_gene_database(self, org, from_=None, freshLoad=False):
         rel_path = "genes/" + self._rel_org_dir(org)
         freshLoad = False
         try:
+            if freshLoad:
+                raise Exception
             self._genes[org] = self._load_pickled(rel_path + "_genes.pickle", from_=from_ or "kegg_organism_%s.tar.gz" % org)
         except Exception, ex:
 ##            print >> sys.stderr, ex
@@ -1004,7 +1006,7 @@ class Update(UpdateBase):
             return time
         if func == Update.UpdateOrganism:
             rel_path = self.api._rel_org_dir(args[0]).rstrip("/")
-            return max(_LastUpdate("pathway/"+rel_path), _LastUpdate("genes/"+rel_path))
+            return _LastUpdate("pathway/"+rel_path) #, _LastUpdate("genes/"+rel_path))
         elif func == Update.UpdateReference:
             return max(_LastUpdate("pathway/map"), _LastUpdate("pathway/map_title.tab"))
         elif func == Update.UpdateEnzymeAndCompounds:
@@ -1031,11 +1033,11 @@ class Update(UpdateBase):
     def UpdateOrganism(self, org):
         self.api.download_organism_data(org)
         rel_path = self.api._rel_org_dir(org)
-        try:
-            os.remove(os.path.join(self.local_database_path, "genes/", rel_path, "_genes.pickle"))
-        except Exception:
-            pass
-        self.api._load_gene_database(org, from_=".//") #to parse the .ent file and create the _genes.pickle file
+#        try:
+#            os.remove(os.path.join(self.local_database_path, "genes/", rel_path, "_genes.pickle"))
+#        except Exception:
+#            pass
+        self.api._load_gene_database(org, from_=".//", freshLoad=True) #to parse the .ent file and create the _genes.pickle file
         try:
             os.remove(os.path.join(self.local_database_path, "genes/", rel_path, self.api._taxonomy[org][0]+".ent"))
         except Exception:
