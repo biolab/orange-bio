@@ -1,0 +1,50 @@
+<html>
+
+<head>
+<title>obiOMIM: Online Mendelian Inheritance in Man</title>
+<link rel=stylesheet href="../style.css" type="text/css">
+<link rel=stylesheet href="style-print.css" type="text/css" media=print>
+</head>
+
+<body>
+<h1>obiOMIM Online Mendelian Inheritance in Man</h1>
+<p>obiOMIM provides an interface to <a href="http://www.ncbi.nlm.nih.gov/sites/entrez?db=omim">OMIM - Online Mendelian Inheritance in Man</a>
+database. For now it only supports mapping genes to diseases.</p>
+
+<p class=section>Functions</p>
+<dl class=attributes>
+	<dt>diseases()</dt>
+	<dd>Return all disease descriptors</dd>
+	<dt>genes()</dt>
+	<dd>Return a set of all genes referenced in OMIM</dd>
+	<dt>disease_genes(disease)</dt>
+	<dd>Return a set of all genes referenced by disease in OMIM</dd>
+	<dt>gene_diseases()</dt>
+	<dd>Return a dictionary {gene: set(disease_objects for gene), ...}</dd>
+<dt>
+
+<h2>Example</h2>
+<p>Create a network of connected diseases and save it in pajek .net format(part of <a href="obiOMIM-disease-network.py">obiOMIM-disease-network.py</a>)</p>
+<xmp class=code>import obiOMIM
+
+diseases = obiOMIM.diseases()
+genes = [obiOMIM.disease_genes(disease) for disease in diseases]
+
+vertices = []
+edges = []
+for i in range(len(diseases)):
+    vertices.append('%i "%s"\n' % (i + 1, diseases[i].name))
+    for j in range(i + 1, len(diseases)):
+        if set(genes[i]).intersection(genes[j]):
+            edges.append('%i %i "%s"\n' %(i + 1, j + 1))
+
+file = open("disease.net", "wb")
+file.write("*Vertices %i 2\n" % len(vertices))
+file.writelines(vertices)
+file.write("*Edges\n")
+file.writelines(edges)
+</xmp>
+
+
+
+
