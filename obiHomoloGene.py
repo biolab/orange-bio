@@ -64,10 +64,16 @@ class HomoloGene(object):
         return homologs.get(homolotaxid, None)
         
 def all_genes(taxid):
+    """ Return a set of all genes for organism with taxid
+    """
     return HomoloGene.get_instance().all_genes(taxid)
 
-def homologs(gene, taxid):
-    return HomoloGene.get_instance().homologs(gene, taxid)
+def homologs(genename, taxid):
+    """ Return a list of homologs (taxid, genename) for a homolog group that gene, taxid belong to 
+    """ 
+    return HomoloGene.get_instance().homologs(genename, taxid)
 
-def homolog(gene, taxid, homolotaxid):
-    return HomoloGene.get_instance().homolog(gene, taxid, homolotaxid)
+def homolog(genename, taxid, homolotaxid):
+    """ Return a homolog of genename, taxid in organism with holomotaxid or None if homolog does not exist.
+    """
+    return HomoloGene.get_instance().homolog(genename, taxid, homolotaxid)

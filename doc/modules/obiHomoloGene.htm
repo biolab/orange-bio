@@ -1,0 +1,35 @@
+<html>
+
+<head>
+<title>obiHomoloGene: Translation of homologs</title>
+<link rel=stylesheet href="../style.css" type="text/css">
+<link rel=stylesheet href="style-print.css" type="text/css" media=print>
+</head>
+
+<body>
+<h1>obiHomoloGene Translation of homolog genes</h1>
+<p>obiHomoloGene is an interface to <a href="http://www.ncbi.nlm.nih.gov/homologene/">HomoloGene</a>.
+<p class=section>Functions</p>
+<dl class=attributes>
+	<dt>all_genes(taxid)</dt>
+	<dd>Return a set of all genes for organism with <code>taxid</code></dd>
+	<dt>homologs(genename, taxid)</dt>
+	<dd>Return a list of homologs (homolog_taxid, homolog_genename) for a homolog group that <code>genename, taxid</code> belong to</dd>
+	<dt>homolog(genename, taxid, homolotaxid)</dt>
+	<dd>Return a homolog of <code>genename, taxid</code> in organism with holomotaxid or None if homolog does not exist.</dd>
+</dl>
+
+<h2>Examples</h2>
+<p>Mapping homologs from yeast to human (<a href="obiHomoloGene-yeast-to-human.py">obiHomoloGene-yeast-to-human.py</a>)</p>
+<xmp class=code>import orange
+import obiHomoloGene, obiTaxonomy, obiGene
+
+data = orange.ExampleTable("../../../../doc/datasets/brown-selected")
+
+geneinfo = obiGene.NCBIGeneInfo('4932')
+
+genes = [str(ex["gene"]) for ex in data]
+
+for gene in genes:
+    mappedgene = obiHomoloGene.homolog(geneinfo(gene).symbol, '4932', '9606')
+    print gene, mappedgene</xmp>
