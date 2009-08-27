@@ -36,7 +36,7 @@ for i in range(len(diseases)):
     vertices.append('%i "%s"\n' % (i + 1, diseases[i].name))
     for j in range(i + 1, len(diseases)):
         if set(genes[i]).intersection(genes[j]):
-            edges.append('%i %i "%s"\n' %(i + 1, j + 1))
+            edges.append('%i %i %i\n' %(i + 1, j + 1, len(set(genes[i]).intersection(genes[j]))))
 
 file = open("disease.net", "wb")
 file.write("*Vertices %i 2\n" % len(vertices))
