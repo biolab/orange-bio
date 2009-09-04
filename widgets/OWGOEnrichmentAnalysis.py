@@ -12,6 +12,7 @@ import obiGO
 import obiProb
 import obiTaxonomy
 import sys, os, tarfile, math
+import gc
 import OWGUI
 import orngServerFiles
 
@@ -35,6 +36,12 @@ def listAvailable():
     essentialNames = [obiTaxonomy.name(id) for id in obiTaxonomy.essential_taxids()]
     ret.update(zip(essentialNames, essential))
     return ret
+
+class _disablegc(object):
+    def __enter__(self):
+        gc.disable()
+    def __exit__(self, *args):
+        gc.enable()
 
 def getOrgFileName(org):
     import orngServerFiles
@@ -432,7 +439,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         try:
             self.progressBarInit()
             with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
+                with _disablegc():
+                    self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
             self.progressBarFinished()
         except IOError, er:
             response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the ontology.\nClik OK to download it?", "OK", "Cancel", "", 0, 1)
@@ -455,7 +463,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##                filename = p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]])
 ##                self.annotations = obiGO.Annotations(filename, ontology = self.ontology, progressCallback=self.progressBarSet)
                 with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                    self.annotations = obiGO.Annotations(self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)], ontology = self.ontology, progressCallback=self.progressBarSet)
+                    with _disablegc():
+                        self.annotations = obiGO.Annotations(self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)], ontology = self.ontology, progressCallback=self.progressBarSet)
             except IOError, er:
                 raise
             self.progressBarFinished()

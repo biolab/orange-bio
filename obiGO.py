@@ -178,7 +178,7 @@ class OBOObject(object):
             value = value.strip()
             self._lines.append((tag, value, modifiers, comment))
             if tag in multipleTagSet:
-                self.values[tag] = self.values.get(tag, []) + [value]
+                self.values.setdefault(tag, []).append(value) #[tag] = self.values.get(tag, []) + [value]
             else:
                 self.values[tag] = value
         self.related = set(self.GetRelatedObjects())
@@ -217,16 +217,10 @@ class OBOObject(object):
         """ Return value for the tag
         """
         try:
-##            if tag!="def_":
-##                print tag
             if hasattr(self, "values"):
                 return self.values["def" if tag == "def_" else tag]
             else:
                 raise KeyError
-##            if tag == "def_":
-##                return self.values["def"]
-##            else:
-##                return self.values[tag]
         except KeyError:
             raise AttributeError(tag)
 
@@ -296,7 +290,7 @@ class Ontology(object):
         c=re.compile("\[.+?\].*?\n\n", re.DOTALL)
         data=c.findall(data)
 
-        milestones = set(i for i in range(0, len(data), max(len(data)/100, 1)))
+        milestones = set(range(0, len(data), max(len(data)/90, 1)))
         for i, block in enumerate(builtinOBOObjects + data):
             if block.startswith("[Term]"):
                 term = Term(block, self)
@@ -308,21 +302,27 @@ class Ontology(object):
                 instance = Instance(block, self)
                 self.instances[instance.id] = instance
             if progressCallback and i in milestones:
-                progressCallback(100.0*i/len(data))
+                progressCallback(90.0*i/len(data))
         
         self.aliasMapper = {}
-        for id, term in self.terms.items():
+        self.reverseAliasMapper = defaultdict(set)
+        milestones = set(range(0, len(self.terms), max(len(self.terms)/10, 1)))
+        for i, (id, term) in enumerate(self.terms.iteritems()):
             for typeId, parent in term.related:
                 self.terms[parent].relatedTo.add((typeId, id))
             try:
-                for alt_id in term.alt_id:
-                    self.aliasMapper[alt_id] = id
-            except Exception:
+                self.aliasMapper.update([(alt_id, id) for alt_id in term.alt_id])
+                self.reverseAliasMapper[id].union_update(term.alt_id)
+#                for alt_id in term.alt_id:
+#                    self.aliasMapper[alt_id] = id
+            except AttributeError:
                 pass
+            if progressCallback and i in milestones:
+                progressCallback(90.0 + 10.0*i/len(self.terms))
 
-        self.reverseAliasMapper = defaultdict(set)
-        for id in self.aliasMapper:
-            self.reverseAliasMapper[self.aliasMapper[id]].add(id)
+#        self.reverseAliasMapper = defaultdict(set)
+#        for id in self.aliasMapper:
+#            self.reverseAliasMapper[self.aliasMapper[id]].add(id)
 
     def GetDefinedSlimsSubsets(self):
         """ Return a list of defined subsets
@@ -566,6 +566,7 @@ class Annotations(object):
             
             a=AnnotationRecord(line)
             self.AddAnnotation(a)
+#            self.annotations.append(a)
             if progressCallback and i in milestones:
                 progressCallback(100.0*i/len(lines))
 
