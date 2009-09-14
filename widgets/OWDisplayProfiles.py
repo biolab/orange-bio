@@ -9,6 +9,7 @@
 from OWTools import *
 from OWWidget import *
 from OWGraph import *
+from OWToolbars import ZoomSelectToolbar
 import OWGUI
 
 from OWGraph import ColorPaletteGenerator
@@ -121,8 +122,12 @@ class profilesGraph(OWGraph):
 
         self.showAverageProfile = 1
         self.showSingleProfiles = 0
+        self.curveWidth = 1
+        self.renderAntialiased = True
 ##        self.groups = [('grp1', ['0', '2', '4']), ('grp2', ['4', '6', '8', '10', '12', '14']), ('grp3', ['16', '18'])]
 
+        self.selectedCurves = []
+        self.highlightedCurve = None
         self.removeCurves()
 ##        self.connect(self, SIGNAL("plotMouseMoved(const QMouseEvent &)"), self.onMouseMoved)
 
@@ -187,7 +192,7 @@ class profilesGraph(OWGraph):
                 yVals = [[] for cn in range(len(grpattrs))]
                 alle = len(nativeData)
                 ecn = 0
-                for e in nativeData:
+                for e, example in zip(nativeData, oneClassData):
                     ecn += 1
                     progress = 100.0*(ccn + (float(gcn)/allg) * (float(ecn)/alle))
                     progress = int(round(progress / allc))
@@ -206,6 +211,7 @@ class profilesGraph(OWGraph):
                         xcn += 1
                         vcn += 1
                     curve = self.addCurve('', style = QwtPlotCurve.Lines)
+                    curve.example = example
                     if self.showAverageProfile:
                         curve.setPen(QPen(self.classColor[ccn], 1))
                     else:
@@ -316,6 +322,7 @@ class profilesGraph(OWGraph):
 
 ##        self.updateLayout()
         self.master.infoLabel.setText("Showing %i profiles" % profilesCount)
+        self.setCurveRenderHints()
         self.replot()
 
     def setShowClasses(self, list):
@@ -339,11 +346,14 @@ class profilesGraph(OWGraph):
         self.replot()
 
     def setCurveWidth(self, v):
+        fix = dict.fromkeys(self.selectedCurves, 2)
+        fix[self.highlightedCurve] = 3
         for cNum in range(len(self.showClasses)):
             for curve in self.profileCurveKeys[cNum]:
                 qp = curve.pen()
-                qp.setWidth(v)
+                qp.setWidth(v + fix.get(curve, 0))
 ##                curve.setPen(qp)
+        self.curveWidth = v
         self.replot()
 
     def setAverageCurveWidth(self, v):
@@ -364,17 +374,79 @@ class profilesGraph(OWGraph):
     def sizeHint(self):
         return QSize(170, 170)
 
-    def onMouseMoved(self, e):
-        (key, foo1, x, y, foo2) = self.closestCurve(e.pos().x(), e.pos().y())
-##        print e.pos().x(), e.pos().y(), key, foo1, x, y, foo2
-##        print self.invTransform(QwtPlot.xBottom, e.pos().x()), self.invTransform(QwtPlot.yLeft, e.pos().y())
+    def closestCurve(self, point):
+        pointDistances = [(curve,) + curve.closestPoint(point) for curve in self.itemList() if isinstance(curve, QwtPlotCurve) and curve.isVisible()]
+        return min(pointDistances, key=lambda t:t[-1]) if pointDistances else None
+
+    def curveUnderMouse(self, pos):
+        pos = self.canvas().mapFrom(self, pos)
+        curve, i, d = self.closestCurve(pos)
+        if d <= 5 and hasattr(curve, "example"):
+            return curve
+        else:
+            return None
+    
+    def mouseMoveEvent(self, event):
+        curve = self.curveUnderMouse(event.pos())
+        if self.highlightedCurve != curve:
+            if self.highlightedCurve:
+                self.highlightedCurve.setPen(QPen(self.highlightedCurve.pen().color(), self.curveWidth + (2 if self.highlightedCurve in self.selectedCurves else 0)))
+            if curve:
+                curve.setPen(QPen(curve.pen().color(), self.curveWidth + 3))
+            self.highlightedCurve = curve
+            self.replot()
+            
+            if curve:
+                QToolTip.showText(event.globalPos(), "")
+                QToolTip.showText(event.globalPos(), str(curve.example[self.master.profileLabel]))
+                                         
+        return OWGraph.mouseMoveEvent(self, event)
+    
+    def mousePressEvent(self, event):
+        curve = self.curveUnderMouse(event.pos())
+        if curve and event.button() == Qt.LeftButton and self.state == SELECT:
+            if self.master.ctrlPressed:
+                if curve in self.selectedCurves:
+                    self.setSelectedCurves([c for c in self.selectedCurves if c is not curve])
+                else:
+                    self.setSelectedCurves(self.selectedCurves + [curve])
+            else:
+                self.setSelectedCurves([curve])
+            self.replot()
+                
+        return OWGraph.mousePressEvent(self, event)
+    
+    def setCurveRenderHints(self):
+        for item in self.itemList():
+            if isinstance(item, QwtPlotCurve):
+                item.setRenderHint(QwtPlotCurve.RenderAntialiased, self.renderAntialiased)
+        self.replot()
+        
+    def setSelectedCurves(self, curves=[]):
+        for c in self.selectedCurves:
+            c.setPen(QPen(c.pen().color(), self.curveWidth))
+        for c in curves:
+            c.setPen(QPen(c.pen().color(), self.curveWidth + 2))
+        self.selectedCurves = curves
+        self.master.commitIf()
+        
+    def removeLastSelection(self):
+        self.setSelectedCurves(self.selectedCurves[:-1])
+        self.replot()
+        
+    def removeAllSelections(self):
+        self.setSelectedCurves([])
+        self.replot()
+        
+    def sendData(self):
+        self.master.commitIf()
 
 
 class OWDisplayProfiles(OWWidget):
-    settingsList = ["SelectedClasses", "PointWidth", "CurveWidth", "AverageCurveWidth", "BoxPlotWidth", "ShowAverageProfile", "ShowSingleProfiles", "CutEnabled", "CutLow", "CutHigh"]
+    settingsList = ["SelectedClasses", "PointWidth", "CurveWidth", "AverageCurveWidth", "BoxPlotWidth", "ShowAverageProfile", "ShowSingleProfiles", "CutEnabled", "CutLow", "CutHigh", "autoSendSelected"]
     contextHandlers = {"": DomainContextHandler("", [ContextField("SelectedClasses")], loadImperfect=False)}
     def __init__(self, parent=None, signalManager = None):
-        self.callbackDeposit = [] # deposit for OWGUI callback functions
+#        self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, signalManager, 'Expression Profiles', 1)
 
         #set default settings
@@ -386,8 +458,12 @@ class OWDisplayProfiles(OWWidget):
         self.BoxPlotWidth = 2
         self.SelectedClasses = []
         self.Classes = []
+        self.autoSendSelected = 0
+        self.selectionChangedFlag = False
 
         self.CutLow = 0; self.CutHigh = 0; self.CutEnabled = 0
+        
+        self.profileLabel = None
 
         #load settings
         self.loadSettings()
@@ -435,10 +511,12 @@ class OWDisplayProfiles(OWWidget):
         # SETTINGS TAB
         SettingsTab = OWGUI.createTabPage(self.tabs, "Settings") #QVGroupBox(self)
 
+        self.profileLabelComboBox = OWGUI.comboBox(SettingsTab, self, 'profileLabel', 'Profile Labels', sendSelectedValue=True, valueType=str)
         OWGUI.hSlider(SettingsTab, self, 'PointWidth', box='Point Width', minValue=0, maxValue=9, step=1, callback=self.updatePointWidth, ticks=1)
         OWGUI.hSlider(SettingsTab, self, 'CurveWidth', box='Profile Width', minValue=1, maxValue=9, step=1, callback=self.updateCurveWidth, ticks=1)
         OWGUI.hSlider(SettingsTab, self, 'AverageCurveWidth', box='Average Profile Width', minValue=1, maxValue=9, step=1, callback=self.updateAverageCurveWidth, ticks=1)
         OWGUI.hSlider(SettingsTab, self, 'BoxPlotWidth', box='Box Plot Width', minValue=0, maxValue=9, step=1, callback=self.updateBoxPlotWidth, ticks=1)
+        OWGUI.checkBox(SettingsTab, self, 'graph.renderAntialiased', "Render antialiased", callback=self.graph.setCurveRenderHints)
 
 
     ## graph y scale
@@ -451,6 +529,11 @@ class OWDisplayProfiles(OWWidget):
             self.sliderCutHigh.box.setDisabled(1)
 
 ##        self.tabs.insertTab(SettingsTab, "Settings")
+
+        self.toolbarSelection = ZoomSelectToolbar(self, self.controlArea, self.graph, self.autoSendSelected, buttons=(ZoomSelectToolbar.IconZoom, ZoomSelectToolbar.IconPan, ZoomSelectToolbar.IconSelect, ZoomSelectToolbar.IconSpace,
+                                                                       ZoomSelectToolbar.IconRemoveLast, ZoomSelectToolbar.IconRemoveAll, ZoomSelectToolbar.IconSendSelection))
+        cb = OWGUI.checkBox(self.controlArea, self, "autoSendSelected", "Auto send on selection change")
+        OWGUI.setStopper(self, self.toolbarSelection.buttonSendSelections, cb, "selectionChangedFlag", self.commit)
         
         # inputs
         # data and graph temp variables
@@ -464,10 +547,12 @@ class OWDisplayProfiles(OWWidget):
         self.classBrighterColor = None
         self.numberOfClasses  = 0
         self.classValues = []
+        self.ctrlPressed = False
+        self.attrIcons = self.createAttributeIconDict()
 
         self.graph.canvas().setMouseTracking(1)
 
-        self.zoomStack = []
+#        self.zoomStack = []
 ##        self.connect(self.graph,
 ##                     SIGNAL('plotMousePressed(const QMouseEvent&)'),
 ##                     self.onMousePressed)
@@ -490,70 +575,70 @@ class OWDisplayProfiles(OWWidget):
         self.sliderCutHigh.box.setDisabled(not self.CutEnabled)
         self.updateYaxis()
 
-    def onMousePressed(self, e):
-        if Qt.LeftButton == e.button():
-            # Python semantics: self.pos = e.pos() does not work; force a copy
-            self.xpos = e.pos().x()
-            self.ypos = e.pos().y()
-            self.graph.enableOutline(1)
-            self.graph.setOutlinePen(QPen(Qt.black))
-            self.graph.setOutlineStyle(Qwt.Rect)
-            self.zooming = 1
-            if self.zoomStack == []:
-                self.zoomState = (
-                    self.graph.axisScale(QwtPlot.xBottom).lBound(),
-                    self.graph.axisScale(QwtPlot.xBottom).hBound(),
-                    self.graph.axisScale(QwtPlot.yLeft).lBound(),
-                    self.graph.axisScale(QwtPlot.yLeft).hBound(),
-                    )
-        elif Qt.RightButton == e.button():
-            self.zooming = 0
-        # fake a mouse move to show the cursor position
-
-    # onMousePressed()
-
-    def onMouseReleased(self, e):
-        if Qt.LeftButton == e.button():
-            xmin = min(self.xpos, e.pos().x())
-            xmax = max(self.xpos, e.pos().x())
-            ymin = min(self.ypos, e.pos().y())
-            ymax = max(self.ypos, e.pos().y())
-            self.graph.setOutlineStyle(Qwt.Cross)
-            xmin = self.graph.invTransform(QwtPlot.xBottom, xmin)
-            xmax = self.graph.invTransform(QwtPlot.xBottom, xmax)
-            ymin = self.graph.invTransform(QwtPlot.yLeft, ymin)
-            ymax = self.graph.invTransform(QwtPlot.yLeft, ymax)
-            if xmin == xmax or ymin == ymax:
-                return
-            self.zoomStack.append(self.zoomState)
-            self.zoomState = (xmin, xmax, ymin, ymax)
-            self.graph.enableOutline(0)
-        elif Qt.RightButton == e.button():
-            if len(self.zoomStack):
-                xmin, xmax, ymin, ymax = self.zoomStack.pop()
-            else:
-                self.graph.setAxisAutoScale(QwtPlot.xBottom)
-                self.graph.setAxisAutoScale(QwtPlot.yLeft)
-                self.graph.replot()
-                return
-
-        self.graph.setAxisScale(QwtPlot.xBottom, xmin, xmax)
-        self.graph.setAxisScale(QwtPlot.yLeft, ymin, ymax)
-        self.graph.replot()
-
-    def saveToFile(self):
-        qfileName = QFileDialog.getSaveFileName("graph.png","Portable Network Graphics (.PNG)\nWindows Bitmap (.BMP)\nGraphics Interchange Format (.GIF)", None, "Save to..")
-        fileName = str(qfileName)
-        if fileName == "": return
-        (fil,ext) = os.path.splitext(fileName)
-        ext = ext.replace(".","")
-        ext = ext.upper()
-        cl = 0
-        for g in self.graphs:
-            if g.isVisible():
-                clfname = fil + "_" + str(cl) + "." + ext
-                g.saveToFileDirect(clfname, ext)
-            cl += 1
+#    def onMousePressed(self, e):
+#        if Qt.LeftButton == e.button():
+#            # Python semantics: self.pos = e.pos() does not work; force a copy
+#            self.xpos = e.pos().x()
+#            self.ypos = e.pos().y()
+#            self.graph.enableOutline(1)
+#            self.graph.setOutlinePen(QPen(Qt.black))
+#            self.graph.setOutlineStyle(Qwt.Rect)
+#            self.zooming = 1
+#            if self.zoomStack == []:
+#                self.zoomState = (
+#                    self.graph.axisScale(QwtPlot.xBottom).lBound(),
+#                    self.graph.axisScale(QwtPlot.xBottom).hBound(),
+#                    self.graph.axisScale(QwtPlot.yLeft).lBound(),
+#                    self.graph.axisScale(QwtPlot.yLeft).hBound(),
+#                    )
+#        elif Qt.RightButton == e.button():
+#            self.zooming = 0
+#        # fake a mouse move to show the cursor position
+#
+#    # onMousePressed()
+#
+#    def onMouseReleased(self, e):
+#        if Qt.LeftButton == e.button():
+#            xmin = min(self.xpos, e.pos().x())
+#            xmax = max(self.xpos, e.pos().x())
+#            ymin = min(self.ypos, e.pos().y())
+#            ymax = max(self.ypos, e.pos().y())
+#            self.graph.setOutlineStyle(Qwt.Cross)
+#            xmin = self.graph.invTransform(QwtPlot.xBottom, xmin)
+#            xmax = self.graph.invTransform(QwtPlot.xBottom, xmax)
+#            ymin = self.graph.invTransform(QwtPlot.yLeft, ymin)
+#            ymax = self.graph.invTransform(QwtPlot.yLeft, ymax)
+#            if xmin == xmax or ymin == ymax:
+#                return
+#            self.zoomStack.append(self.zoomState)
+#            self.zoomState = (xmin, xmax, ymin, ymax)
+#            self.graph.enableOutline(0)
+#        elif Qt.RightButton == e.button():
+#            if len(self.zoomStack):
+#                xmin, xmax, ymin, ymax = self.zoomStack.pop()
+#            else:
+#                self.graph.setAxisAutoScale(QwtPlot.xBottom)
+#                self.graph.setAxisAutoScale(QwtPlot.yLeft)
+#                self.graph.replot()
+#                return
+#
+#        self.graph.setAxisScale(QwtPlot.xBottom, xmin, xmax)
+#        self.graph.setAxisScale(QwtPlot.yLeft, ymin, ymax)
+#        self.graph.replot()
+#
+#    def saveToFile(self):
+#        qfileName = QFileDialog.getSaveFileName("graph.png","Portable Network Graphics (.PNG)\nWindows Bitmap (.BMP)\nGraphics Interchange Format (.GIF)", None, "Save to..")
+#        fileName = str(qfileName)
+#        if fileName == "": return
+#        (fil,ext) = os.path.splitext(fileName)
+#        ext = ext.replace(".","")
+#        ext = ext.upper()
+#        cl = 0
+#        for g in self.graphs:
+#            if g.isVisible():
+#                clfname = fil + "_" + str(cl) + "." + ext
+#                g.saveToFileDirect(clfname, ext)
+#            cl += 1
 
     def updateShowAverageProfile(self):
         self.graph.setShowAverageProfile(self.ShowAverageProfile)
@@ -597,18 +682,18 @@ class OWDisplayProfiles(OWWidget):
         self.unselectAllClassedQLB.setText("Select all" if len(self.SelectedClasses) != len(self.Classes) else "Unselect all")
         selCls = [self.classValues[i] for i in self.SelectedClasses]
         self.graph.setShowClasses(list)
-        if selCls == []:
-            self.send("Examples", None)
-        else:
-            if len(self.MAdata) > 1:
-                newet = orange.ExampleTable(self.MAdata[0].domain)
-                for idx, i in enumerate(list):
-                    if i: newet.extend(self.MAdata[idx])
-            elif self.MAdata[0].domain.classVar:
-                newet = self.MAdata[0].filter({self.MAdata[0].domain.classVar.name:selCls})
-            else:
-                newet = self.MAdata[0]
-            self.send("Examples", newet)
+#        if selCls == []:
+#            self.send("Examples", None)
+#        else:
+#            if len(self.MAdata) > 1:
+#                newet = orange.ExampleTable(self.MAdata[0].domain)
+#                for idx, i in enumerate(list):
+#                    if i: newet.extend(self.MAdata[idx])
+#            elif self.MAdata[0].domain.classVar:
+#                newet = self.MAdata[0].filter({self.MAdata[0].domain.classVar.name:selCls})
+#            else:
+#                newet = self.MAdata[0]
+#            self.send("Examples", newet)
     ##
 
     def calcGraph(self):
@@ -643,6 +728,7 @@ class OWDisplayProfiles(OWWidget):
 
     def newdata(self):
         self.classQLB.clear()
+        self.profileLabelComboBox.clear()
 ##        if len(self.MAdata) > 1 or (len(self.MAdata) == 1 and self.MAdata[0].domain.classVar.varType == orange.VarTypes.Discrete):
         if len(self.MAdata) >= 1:
             ## classQLB
@@ -677,6 +763,13 @@ class OWDisplayProfiles(OWWidget):
 ##            if len(self.MAdata) == 1 and self.MAdata[0].noclass:
 ##                pass
             self.classQVGB.setDisabled(len(self.MAdata) == 1 and self.MAdata[0].noclass)
+            attrs = self.MAdata[0].domain.variables + self.MAdata[0].domain.getmetas().values()
+            for attr in attrs:
+                self.profileLabelComboBox.addItem(self.attrIcons[attr.varType], attr.name)
+            stringAttrs = [attr for attr in attrs if attr.varType == orange.VarTypes.String]
+            discAttrs = [attr for attr in attrs if attr.varType == orange.VarTypes.Discrete]
+            attrs = stringAttrs[-1:] + discAttrs[-1:] + list(attrs[:1])
+            self.profileLabel = attrs[0].name
         else:
             self.classColor = None
             self.classBrighterColor = None
@@ -743,7 +836,26 @@ class OWDisplayProfiles(OWWidget):
                                          ("Show profiles", self.ShowSingleProfiles)])
         self.reportRaw("<p>%s</p>" % self.infoLabel.text())
         self.reportImage(lambda *x: OWChooseImageSizeDlg(self.graph).saveImage(*x))
-
+        
+    def keyPressEvent(self, event):
+        self.ctrlPressed = event.key() == Qt.Key_Control
+        return OWWidget.keyPressEvent(self, event)
+    
+    def keyReleaseEvent(self, event):
+        self.ctrlPressed = self.ctrlPressed and not event.key() == Qt.Key_Control
+        return OWWidget.keyReleaseEvent(self, event)
+    
+    def commitIf(self):
+        if self.autoSendSelected:
+            self.commit()
+        else:
+            self.selectionChangedFlag = True
+            
+    def commit(self):
+        data = [c.example for c in self.graph.selectedCurves if hasattr(c, "example")]
+        self.send("Examples", orange.ExampleTable(data) if data else None)
+        self.selectionChangedFlag = False
+    
 # following is not needed, data handles these cases
 ##    def cdata(self, MAcdata):
 ##        if not MAcdata:
@@ -759,7 +871,7 @@ if __name__ == "__main__":
 ##    a.setMainWidget(owdm)
 ##    d = orange.ExampleTable('e:\\profiles')
 ##    d = orange.ExampleTable('e:\\profiles-classes')
-    d = orange.ExampleTable('e:\\brown-selected')
+    d = orange.ExampleTable('../../../doc/datasets/brown-selected')
     print len(d)
     owdm.data(d)
     owdm.show()
