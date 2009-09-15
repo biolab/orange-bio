@@ -66,7 +66,10 @@ class TreeModel(QAbstractItemModel):
         return QVariant()
         
 class LinkStyledItemDelegate(QStyledItemDelegate):
-        
+    def __init__(self, *args):
+        QStyledItemDelegate.__init__(self, *args)
+        self.mousePressState = QModelIndex(), QPoint()
+            
     def sizeHint(self, option, index):
         size = QStyledItemDelegate.sizeHint(self, option, index)
         return QSize(size.width(), max(size.height(), 20))
