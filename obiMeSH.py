@@ -150,7 +150,6 @@ class obiMeSH(object):
 					#	for s in l:
 					#		fileHandle.write('\n' + str(i) + ';' + s )
 					#	fileHandle.close()
-					
 			return ret
 		elif idType == "pmid":  #FIXME PMID annotation
 			database = self.fromPMID
@@ -163,35 +162,27 @@ class obiMeSH(object):
 		return ret
 
 
-	def findCIDSubset(self, examples, meshTerms, callback=None):
+	def findCIDSubset(self, examples, meshTerms):
 		"""
 		Function findCIDSubset will return new list of examples (ids) containing examples which are annotated with at least one MeSH term from \
 		list 'meshTerms'.
 		"""
 		newdata = []
+		self.solo_att = self.__findMeshAttribute(examples)
 		ids = list()
 		meshTerms = list(set(meshTerms))
-		for i in meshTerms:
-				if self.toID.has_key(i):
-					ids.extend(self.toID[i])
+		# we couldn't find any mesh attribute
+		if self.solo_att == "Unknown":
+			return newdata
 		for e in examples:
-			if not self.fromCID.has_key(e):
+			try:
+				ends = eval(e[self.solo_att].value)
+			except SyntaxError:
 				continue
-			ends = self.fromCID[e]
-			endids = list()
-			for i in ends:
-				if self.toID.has_key(i):
-					endids.extend(self.toID[i])
-			#allnodes = self.__findParents(endids)
-			allnodes = endids
-			# calculate intersection
-			isOk = False
-			for i in allnodes:
-				if ids.count(i) > 0:
-					isOk = True
+			for i in meshTerms:
+				if i in ends:
+					newdata.append(e['cid'].value)
 					break
-			if isOk:	  # intersection between example mesh terms and observed term group is None
-				newdata.append(e)
 		return newdata
 	
 	def findFrequentTerms(self, data, minSizeInTerm, treeData=False, callback=None):
@@ -749,7 +740,7 @@ class PubChemMeSHParser(SGMLParser):
 			self.foundIndirectMeSH = 0
 		if text == "Chemical Classification":
 			self.foundMeSH = True
-		elif (text == "Safety and Toxicology" or text == "Classification" or text == "PubMed via MeSH" or text == "PubMed MeSH Keyword Summary"):
+		elif (text == "Safety and Toxicology" or text=="Literature" or text == "Classification" or text == "PubMed via MeSH" or text == "PubMed MeSH Keyword Summary"):
 			self.foundMeSH = False
 			if len(self.directTerms) > 0:
 				self.directTerms.pop()
@@ -771,6 +762,28 @@ class SmilesParser(SGMLParser):
 		if self.nextSmile:
 			self.smiles = text
 			self.nextSmile = False
+
+class CIDsParser(SGMLParser):
+	def reset(self):
+		self.cid = False
+		self.cids = []
+		SGMLParser.reset(self)
+
+	def unknown_starttag(self, tag, attrs): 
+		#print tag, " ", attrs
+		if tag=="id":
+			self.cid = True
+			
+	def unknown_endtag(self, tag): 
+		#print tag,
+		if tag=="id":
+			self.cid = False
+
+	def handle_data(self, text):
+		#print text
+		if self.cid and not text == '\n\t\t':
+			#print int(text.strip())
+			self.cids.append(int(text))
 
 class FormulaParser(SGMLParser):
 	def reset(self):
@@ -918,7 +931,8 @@ class pubChemAPI(object):
 	def getPharmActionList(self, cid):
 		"""
 		Functions getPharmActionList finds pharmacological MeSH annotation for the given CID.
-		"""
+		<Item Name="PharmActionList" Type="List">
+		""" 
 		dbs = {"sid":"pcsubstance", "cid":"pccompound"}
 		# maybe we already have the data ...
 		if cid == self.identifier and dbs["cid"] == self.database:
@@ -952,30 +966,23 @@ class pubChemAPI(object):
 		#print url2fetch
 		d = urlopen(url2fetch)
 		raw = d.read()
-		#print raw
-		data = self.__strip_ml_tags__(raw).split()
-		#print data
-		ret = []
-		for i in range(0,int(data[0])):
-			ret.append(int(data[3+i]))
-		return ret
+		e = CIDsParser()
+		e.feed(raw)
+		return e.cids
 
 	def getCIDs(self,name):
 		"""
 		Functions getCIDs tries to find correct chemical id based on given chemical name.
 		"""
+		#print "k"
 		url2fetch = "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pccompound&term="
 		url2fetch += name.replace(" ","%20") + "&retmax=10000"
 		#print url2fetch
 		d = urlopen(url2fetch)
 		raw = d.read()
-		#print raw
-		data = self.__strip_ml_tags__(raw).split()
-		#print data
-		ret = []
-		for i in range(0,int(data[1])):
-			ret.append(int(data[3+i]))
-		return ret
+		e = CIDsParser()
+		e.feed(raw)
+		return e.cids
 
 	def __strip_ml_tags__(self,in_text):
 		s_list = list(in_text)
