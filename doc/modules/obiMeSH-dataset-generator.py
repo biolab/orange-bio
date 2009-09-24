@@ -16,10 +16,8 @@ for i in names:
 	if len(cids) > 0:
 		names.remove(i)
 		cid = cids[0] # we hope that first CID is the right one
-		
 		# MeSH terms
-		terms = d.findTerms([int(cid)])[cid]
-		
+		terms = chem.getMeSHterms([int(cid)])[cid]
 		smiles = chem.getSMILE(int(cid),"cid")
 		print cid, "\t", i, "\t", smiles, "\t", terms
 		

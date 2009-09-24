@@ -9,7 +9,7 @@
 
 <index name="modules+multidimensional scaling">
 
-<p>This module provides the functionality to calculate <a href="http://www.nlm.nih.gov/bsd/disted/mesh/">MeSH</a> term enrichment and to annotate (MeSH ontology) supported examples (chemical compounds with CID, medical articles with PMID).</p>
+<p>This module provides the functionality to computer <a href="http://www.nlm.nih.gov/bsd/disted/mesh/">MeSH</a> term enrichment and to annotate (MeSH ontology) chemicals with MeSH terms.</p>
 
 <h2>obiMesh</h2>
 
@@ -35,7 +35,7 @@
 <DD>Similar to previous one except it returns html code. </DD>
 	
 <dt>findTerms(ids, idType="cid")</dt>
-<DD>Function returns a dictionary where keys are members of the list <code>ids</code> and values are lists of MeSH terms that apply to a key. With <code>idType</code> you can choose annotation ("cid" or TODO!!! "pmid").  </DD><dt>
+<DD>Function returns a dictionary where keys are members of the list <code>ids</code> and values are lists of MeSH terms that apply to a key. Note that this function is using a local annotation database.</DD><dt>
 		
 <dt>parsePubMed(filename, attributes = ["pmid", "title","abstract","mesh"], skipExamplesWithout = ["mesh"])</dt>
 <DD>Function parses <a href="http>//www.pubmed.gov">PubMed</a> XML file (search results saved in XML format) into Oranges <code>ExampleTable</code>. Of course you can select only certain attributes. At the moment supported attributes are "pmid" (PubMed ID), "title" (article title), "abstract" (article abstract), "mesh" (MeSH terms) and "affilation". </DD><dt>
@@ -43,10 +43,6 @@
 <dt>findSubset(examples, meshTerms, callback = None)</dt>
 <DD>Function return a new dataset (subset of <code>examples</code>) with examples that apply to one or more MeSH term from the list <code>meshTerms</code>. Argument <code>examples</code> has to be instance of <code>ExampleTable</code>. </DD><dt>
 	
-	<dt>findCIDSubset(examples, meshTerms, callback = None)</dt>
-	<DD>Function return a new list of (subset of <code>examples</code>) with CIDs that apply to one or more MeSH term from the list <code>meshTerms</code>. Argument <code>examples</code> has to be a list of integers. </DD><dt>
-	
-
 <p class=section>Attributes</p>
 <DL class =attributes></dl>
 	
@@ -60,12 +56,7 @@
 <DD>Dictionary <code>toName</code> provides mapping between MeSH term and MeSH term description.</code></DD>
 
 <dt>fromCID</dt>
-<DD>Dictionary <code>fromCID</code> provides mapping between CID (compound id) and a list of MeSH terms.</DD>
-
-<dt>fromPMID<dt>
-<DD>Dictionary <code>fromPMID</code> provides mapping between PMID (PubMed id) and a list of MeSH terms.</DD>
-
-
+<DD>Dictionary <code>fromCID</code> provides local mapping between CID (compound id) and a list of MeSH terms.</DD>
 
 
 <h2>Examples</h2>
@@ -201,22 +192,22 @@ All available CID numbers  [2726, 70413, 522335, 6240, 9683, 6431825, 4926, 8436
  465104, 486143, 467415, 114324, 117674, 117673, 3026449, 72287, 6420056, 3916, 24182520, 24182516, 91499, 67356, 66064, 
 66062, 6602611, 6444542, 6436410, 6436057, 5282418, 5282417, 5281881, 5281878, 5281032, 36207, 2913535, 17012, 5887, 5566, 
 5452, 4917, 4748, 4744, 4078, 3372]
-Classification MeSH terms  ['Chlorpromazine']
-Pharmacological action MeSH terms  ['Antiemetics', 'Antipsychotic Agents', 'Dopamine Antagonists']
+Classification MeSH terms  ['Organic Chemicals', 'Heterocyclic Compounds, 3-Ring', 'Phenothiazines', 'Sulfur Compounds', 'Heterocyclic Compounds', 'Chlorpromazine']
+Pharmacological action MeSH terms  ['Antiemetics', 'Autonomic Agents', 'Dopamine Antagonists', 'Central Nervous System Agents', 'Chemical Actions and Uses', 'Dopamine Agents', 'Gastrointestinal Agents', 'Molecular Mechanisms of Pharmacological Action', 'Pharmacologic Actions', 'Physiological Effects of Drugs', 'Therapeutic Uses', 'Tranquilizing Agents', 'Central Nervous System Depressants', 'Neurotransmitter Agents', 'Peripheral Nervous System Agents', 'Psychotropic Drugs', 'Antipsychotic Agents']
 Smiles notation  CN(C)CCCN1C2=CC=CC=C2SC3=C1C=C(C=C3)Cl
 </xmp>
 </P>
 
 <h3>Generating drug dataset with pubChemAPI and obiMeSH</h3>
 
-<p>In this example you can see how to print chemical dataset suitable usage in Orange. We will assume that our initial data is a set of drug names. Note that following procedure is vague and may not be accurate for all the chemicals. The crux of the problem is the fact that function getCIDs returns a list of CIDs. We assume that first CID is the one we are looking for but that is not always true. You should also note that for this problem it is better to use function findTerms from obiMeSH that getHeSMterms from pubChemAPI. This approach uses internal buffer database of MeSH annotations and is may be faster.</p>
+<p>In this example you can see how to print chemical dataset suitable for usage in Orange. We will assume that our initial data is a set of drug names. Note that following procedure is vague and may not be accurate for all the chemicals. The crux of the problem is the fact that function getCIDs returns a list of CIDs. We assume that first CID is the one we are looking for but that is not always true.</p>
 <br>
 <p>part of <a href='obiMeSH-dataset-generator.py'>obiMeSH-dataset-generator.py</a></p>
 <xmp class=code>for i in names:
 	cids = chem.getCIDs(i.strip())
 	if len(cids) > 0:
 		cid = cids[0] 		
-		terms = d.findTerms([int(cid)])[cid]
+		terms = chem.getMeSHterms([int(cid)])[cid]
 		smiles = chem.getSMILE(int(cid),"cid")
 		print cid, "\t", i, "\t", smiles, "\t", terms
 </xmp>
@@ -227,7 +218,7 @@ string	string	string	string
 
 6427782 	1,7-octadiene 	CC=CCC=CC 	[]
 24199357 	2-Dimethylamnoethyl cloride 	CC(C)C1=CC=C(C=C1)C2C(C(=O)NC(=S)N2)C#N.[K] 	[]
-3385 	5-fluorouracil 	C1=C(C(=O)NC(=O)N1)F 	['Fluorouracil']
+3385 	5-fluorouracil 	C1=C(C(=O)NC(=O)N1)F 	['Pyrimidines', 'Uracil', 'Fluorouracil', 'Pyrimidinones', 'Heterocyclic Compounds, 1-Ring', 'Heterocyclic Compounds']
 </xmp>
 </P>
 
