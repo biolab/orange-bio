@@ -712,8 +712,10 @@ class Annotations(object):
 
     def DrawEnrichmentGraph(self, terms, clusterSize, refSize=None, file="graph.png", width=None, height=None, precison=3):
         refSize = len(self.geneNames) if refSize == None else refSize
+        sortedterms = sorted(terms.items(), key=lambda term:term[1][1])
+        fdr = dict(zip([t[0] for t in sortedterms], obiProb.FDR([t[1][1] for t in sortedterms])))
         termsList = [(term, (float(len(terms[term][0]))/clusterSize) / (float(terms[term][2])/refSize),
-                          len(terms[term][0]), terms[term][2], terms[term][1], 1.0, terms[term][0]) for term in terms]
+                          len(terms[term][0]), terms[term][2], terms[term][1], fdr[term], terms[term][0]) for term in terms]
                           
         drawEnrichmentGraph(termsList, file, width, height, ontology=self.ontology, precison=precison)
 
