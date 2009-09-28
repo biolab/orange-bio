@@ -779,7 +779,11 @@ class Annotations(object):
                     ann1.geneName = name
                     self.add(ann1)
         self.genematcher = obiGene.GMDirect()
-        self.genematcher.set_targets(self.geneNames())
+        try:
+            del self._geneNames
+        except Exception:
+            pass
+        self.genematcher.set_targets(self.geneNames)
     
     @staticmethod
     def DownloadAnnotations(org, file, progressCallback=None):
