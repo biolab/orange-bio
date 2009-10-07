@@ -107,7 +107,7 @@ def loadGMT(s):
 def loadPickled(s):
     import cPickle
     s = possiblyReadFile(s)
-    gen2 = pickle.loads(s)
+    gen2 = cPickle.loads(s)
     return gen2
 
 def collectionsPathname():
