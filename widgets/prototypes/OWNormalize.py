@@ -18,7 +18,7 @@ import numpy.oldnumeric.mlab as MLab
 import numpy.oldnumeric.linear_algebra as LinearAlgebra
 import numpyExtn
 import orange
-from qttable import *
+#from qttable import *
 from OWWidget import *
 import OWGUI, OWToolbars
 from OWGraph import *
@@ -64,7 +64,7 @@ class OWNormalize(OWWidget):
     MergeOtherTypeMedian = 1
     MergeOtherTypeConc = 2
     # normalization curve styles
-    normCurveStyles = {0: QwtCurve.Lines, 1: QwtCurve.Spline}
+    normCurveStyles = {0: "normal", 1: "fitted"}
     # approximation function
     AppxFuncMed = 0
     AppxFuncLR = 1
@@ -185,16 +185,17 @@ class OWNormalize(OWWidget):
         self.controlArea.setFixedWidth(265)
         self.controlArea.setFixedWidth(275)
         # main area: two tabs: non-normalized and normalized MA plots
-        boxMainArea = QVBox(self.mainArea)
+        boxMainArea = OWGUI.widgetBox(self.mainArea)
         layoutMainArea = QVBoxLayout(self.mainArea)
         layoutMainArea.addWidget(boxMainArea)
+
         # main area: tabs
-        self.tabsMain = QTabWidget(boxMainArea, 'tabWidgetMainArea')
+        self.tabsMain = QTabWidget(boxMainArea)
         self.connect(self.tabsMain, SIGNAL("currentChanged(QWidget*)"), self.onTabMainCurrentChange)
-        self.boxMAnonNorm = QVGroupBox(self)
-        self.tabsMain.insertTab(self.boxMAnonNorm, "MA non-normalized")
-        self.boxMAnorm = QVGroupBox(self)
-        self.tabsMain.insertTab(self.boxMAnorm, "MA normalized")
+        self.boxMAnonNorm = QGroupBox(self)
+        self.tabsMain.addTab(self.boxMAnonNorm, "MA non-normalized")
+        self.boxMAnorm = QGroupBox(self)
+        self.tabsMain.addTab(self.boxMAnorm, "MA normalized")
 
         # reference to currently active MA graph (automatically set by onTabMainCurrentChange)
         self.graphMAcurrent = None
@@ -214,25 +215,25 @@ class OWNormalize(OWWidget):
         self.settingsProbeTrackingChange() # connect events mouseOnClick & mouseOnMove to self.graphMAnonNorm & self.graphMAnorm
         
         # control area: tabs
-        self.tabsCtrl = QTabWidget(self.controlArea, 'tabWidgetCtrlArea')
+        self.tabsCtrl = QTabWidget(self.controlArea)
         # tab 1: vars
-        boxVars = QVGroupBox(self)
-        self.tabsCtrl.insertTab(boxVars, "Var")
-        boxGroupBy = QVGroupBox('Group probes by', boxVars)
+        boxVars = QGroupBox(self)
+        self.tabsCtrl.addTab(boxVars, "Var")
+        boxGroupBy = QGroupBox('Group probes by', boxVars)
         self.cmbVarA = OWGUI.comboBox(boxGroupBy, self, "varNameA", label="ID", labelWidth=33, orientation="horizontal", callback=self.varABChange, sendSelectedValue=1, valueType=str)
         ### Var B, Type, Other, Additional, Optional, Opt.var, Extra, Alternative var, Alt.var 
         self.cmbVarB = OWGUI.comboBox(boxGroupBy, self, "varNameB", label="Alt.var", labelWidth=33, orientation="horizontal", callback=self.varABChange, sendSelectedValue=1, valueType=str)
-        boxFGI = QVGroupBox('Average foreground intensity', boxVars)
+        boxFGI = QGroupBox('Average foreground intensity', boxVars)
         self.cmbVarSignalSmpl = OWGUI.comboBox(boxFGI, self, "varNameSignalSmpl", label="Smpl", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         self.cmbVarSignalRef = OWGUI.comboBox(boxFGI, self, "varNameSignalRef", label="Ref", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
-        boxBGI = QVGroupBox('Average background intensity', boxVars)
+        boxBGI = QGroupBox('Average background intensity', boxVars)
         self.cmbVarBGSmpl = OWGUI.comboBox(boxBGI, self, "varNameBGSmpl", label="Smpl", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         self.cmbVarBGRef = OWGUI.comboBox(boxBGI, self, "varNameBGRef", label="Ref", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
-        boxBGSD = QVGroupBox('Background std. deviation', boxVars)
+        boxBGSD = QGroupBox('Background std. deviation', boxVars)
         self.cmbVarBGSmplSD = OWGUI.comboBox(boxBGSD, self, "varNameBGSmplSD", label="Smpl", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         self.cmbVarBGRefSD = OWGUI.comboBox(boxBGSD, self, "varNameBGRefSD", label="Ref", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         # tab 1: default var names
-        boxDefaultNames = QVGroupBox('Default variable names', boxVars)
+        boxDefaultNames = QGroupBox('Default variable names', boxVars)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameA", label="ID", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameB", label="Alt.var", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameSmpl1", label="Smpl 1", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
@@ -246,30 +247,30 @@ class OWNormalize(OWWidget):
         OWGUI.button(boxDefaultNames, self, "Search for Default Variables", callback=self.defaultVarAssignmentClick)
 
         # tab 2: normalization
-        boxNorm = QVGroupBox(self)
-        self.tabsCtrl.insertTab(boxNorm, "Norm")
+        boxNorm = QGroupBox(self)
+        self.tabsCtrl.addTab(boxNorm, "Norm")
         # tab 2: normalization: range, type
         self.boxNormRange = OWGUI.radioButtonsInBox(boxNorm, self, value="normRange", box='Normalization range', btnLabels=["Global, entire microarray", "Per type of probe", "Combined (w.r.t. num. of control probes)"], callback=self.settingsNormalizationChange)
-        self.boxMinNumControlProbes = QHBox(self.boxNormRange)
+        self.boxMinNumControlProbes = OWGUI.widgetBox(self.boxNormRange, orientation="horizontal")
         self.boxMinNumControlProbes.setEnabled(self.normRange==2)
         sldMinNumControlProbes = OWGUI.qwtHSlider(self.boxMinNumControlProbes, self, "minNumControlProbes", box="Min. number of control probes", minValue=2, maxValue=300, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMinNumControlProbes, SIGNAL("sliderReleased()"), self.settingsNormalizationChange)
         # tab 2: normalization type: loess settings
         boxApproxFunction = OWGUI.radioButtonsInBox(boxNorm, self, value="approxFunction", box='Approximation function', btnLabels=["Median (intensity independent)", "Linear regression", "Loess"], callback=self.settingsNormalizationChange)
 
-        self.boxLoessWindow = QHBox(boxApproxFunction)
+        self.boxLoessWindow = OWGUI.widgetBox(boxApproxFunction, orientation="horizontal")
         self.boxLoessWindow.setEnabled(self.approxFunction==OWNormalize.AppxFuncLoess)
         sldLoessWindow = OWGUI.qwtHSlider(self.boxLoessWindow, self, "loessWindow", box="Window size (% of points)", minValue=1, maxValue=99, step=1, precision=0, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldLoessWindow, SIGNAL("sliderReleased()"), self.settingsNormalizationChange)
 
-        self.boxLoessNumIter = QHBox(boxApproxFunction)
+        self.boxLoessNumIter =  OWGUI.widgetBox(boxApproxFunction, orientation="horizontal")
         self.boxLoessNumIter.setEnabled(self.approxFunction==OWNormalize.AppxFuncLoess)
         sldLoessNumIter = OWGUI.qwtHSlider(self.boxLoessNumIter, self, "loessNumIter", box="Number of robustifying iterations", minValue=1, maxValue=10, step=1, precision=0, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldLoessNumIter, SIGNAL("sliderReleased()"), self.settingsNormalizationChange)
 
         OWGUI.checkBox(boxApproxFunction, self, "includeNonControl", "Include non-control probes", callback=self.settingsNormalizationChange)
 
-        self.boxSldLoessWeight = QHBox(boxApproxFunction)
+        self.boxSldLoessWeight = OWGUI.widgetBox(boxApproxFunction, orientation="horizontal")
         self.boxSldLoessWeight.setEnabled(self.includeNonControl and self.approxFunction<>OWNormalize.AppxFuncMed)
         sldLoessWeight = OWGUI.qwtHSlider(self.boxSldLoessWeight, self, "loessWeight", box="Weight of non-control probes [0,1]", minValue=0, maxValue=1, step=0.01, precision=2, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldLoessWeight, SIGNAL("sliderReleased()"), self.settingsNormalizationChange)
@@ -277,30 +278,30 @@ class OWNormalize(OWWidget):
         OWGUI.button(boxNorm, self, "Set &Default Values", callback=self.normalizationAllChange)
 
         # tab 3: filters
-        boxFilters = QVGroupBox(self)
-        self.tabsCtrl.insertTab(boxFilters, "Filter")
+        boxFilters = QGroupBox(self)
+        self.tabsCtrl.addTab(boxFilters, "Filter")
         # tab 3: filters: subtract BG
         self.cbSubtrBG = OWGUI.checkBox(boxFilters, self, "subtrBG", "Subtract background", callback=self.settingsSubstrBGChange)
         # tab 3: filters: CV
-        self.boxMaxCV = QVGroupBox('Max. coeff. of variation (CV)', boxFilters)
+        self.boxMaxCV = QGroupBox('Max. coeff. of variation (CV)', boxFilters)
         OWGUI.checkBox(self.boxMaxCV, self, "useCV", "Enabled", callback=self.settingsFilterMaxCVChange)
         sldMaxCV = OWGUI.qwtHSlider(self.boxMaxCV, self, "maxCV", minValue=0, maxValue=2, step=0.01, precision=2, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMaxCV, SIGNAL("sliderReleased()"), self.settingsFilterMaxCVChange)
         self.lblInfoFilterMaxCV = QLabel("\n", self.boxMaxCV)
         # tab 3: filters: minIntensityRatio
-        boxMinIntRatio = QVGroupBox('Min. signal to background ratio', boxFilters)
+        boxMinIntRatio = QGroupBox('Min. signal to background ratio', boxFilters)
         OWGUI.checkBox(boxMinIntRatio, self, "useMinIntensity", "Enabled", callback=self.settingsFilterMinIntRatioChange)
         sldMinInt = OWGUI.qwtHSlider(boxMinIntRatio, self, "minIntensityRatio", minValue=0, maxValue=5, step=0.01, precision=2, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMinInt, SIGNAL("sliderReleased()"), self.settingsFilterMinIntRatioChange)
         self.lblInfoFilterMinIntRatio = QLabel("\n", boxMinIntRatio)
         # tab 3: filters: maxFGIntensity
-        boxMaxFGIntensity = QVGroupBox('Max. foreground intensity', boxFilters)
+        boxMaxFGIntensity = QGroupBox('Max. foreground intensity', boxFilters)
         OWGUI.checkBox(boxMaxFGIntensity, self, "useMaxFGIntensity", "Enabled", callback=self.settingsFilterMaxFGIntChange)
         sldMaxFGInt = OWGUI.qwtHSlider(boxMaxFGIntensity, self, "maxFGIntensity", minValue=0, maxValue=65536, step=100, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMaxFGInt, SIGNAL("sliderReleased()"), self.settingsFilterMaxFGIntChange)
         self.lblInfoFilterMaxFGInt = QLabel("\n", boxMaxFGIntensity)
         # tab 3: filters: maxBGIntensity
-        boxMaxBGIntensity = QVGroupBox('Max. background intensity', boxFilters)
+        boxMaxBGIntensity = QGroupBox('Max. background intensity', boxFilters)
         OWGUI.checkBox(boxMaxBGIntensity, self, "useMaxBGIntensity", "Enabled", callback=self.settingsFilterMaxBGIntChange)
         sldMaxBGInt = OWGUI.qwtHSlider(boxMaxBGIntensity, self, "maxBGIntensity", minValue=0, maxValue=4096, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMaxBGInt, SIGNAL("sliderReleased()"), self.settingsFilterMaxBGIntChange)
@@ -309,8 +310,9 @@ class OWNormalize(OWWidget):
         OWGUI.button(boxFilters, self, "Set &Default Values", callback=self.filtersAllChange)
 
         # tab 4: table probe/ratio/marker
-        boxProbes = QVGroupBox(boxVars)
-        self.tabsCtrl.insertTab(boxProbes, "Probe")
+        """
+        boxProbes = QGroupBox(boxVars)
+        self.tabsCtrl.addTab(boxProbes, "Probe")
         self.tblControls = QTable(boxProbes)
         self.tblControls.setNumCols(8)
         self.tblControls.setColumnWidth(OWNormalize.tcMarker, 20)
@@ -342,15 +344,15 @@ class OWNormalize(OWWidget):
         self.tblControls.hideColumn(OWNormalize.tcVarAAlias)
         self.tblControls.hideColumn(OWNormalize.tcVarB)
         # tab 4: buttons
-        boxBtns0 = QVGroupBox("Select probes where ID contains", boxProbes)
-        boxBtns00 = QHBox(boxBtns0)
+        boxBtns0 = QGroupBox("Select probes where ID contains", boxProbes)
+        boxBtns00 = OWGUI.widgetBox(boxBtns0, orientation="horizontal")
         OWGUI.lineEdit(boxBtns00, self, "controlName")
         OWGUI.button(boxBtns00, self, "Select", callback=self.btnSelectControlsClick)
-        boxBtns01 = QHBox(boxBtns0)
+        boxBtns01 = OWGUI.widgetBox(boxBtns0, orientation="horizontal")
         OWGUI.button(boxBtns01, self, "Select all", callback=self.btnSelectControlsAllClick)
         OWGUI.button(boxBtns01, self, "Unselect all", callback=self.btnUnselectControlsAllClick)
-        boxBtns1 = QVGroupBox("Set marker and ratio for selected probes", boxProbes)
-        boxBtns11 = QHBox(boxBtns1)
+        boxBtns1 = QGroupBox("Set marker and ratio for selected probes", boxProbes)
+        boxBtns11 = OWGUI.widgetBox(boxBtns1, orientation="horizontal")
         pxm = QPixmap(OWNormalize.sizeButtonColor,OWNormalize.sizeButtonColor)
         pxm.fill(self.probeColor)
         self.cmbProbeSymbol = OWGUI.comboBox(boxBtns11, self, "probeSymbolIdx")#, callback=self.cmbProbeSymbolActivated)
@@ -366,19 +368,20 @@ class OWNormalize(OWWidget):
         self.btnProbeColor.setPixmap(pxm)
         leRatio = OWGUI.lineEdit(boxBtns11, self, "ratioStr", tooltip="Enter a positive number for normalization controls, a minus for negative controls, leave empty for others.")
         self.connect(leRatio, SIGNAL("returnPressed()"), self.leRatioReturnPressed)
-        boxBtns12 = QHBox(boxBtns1)
+        boxBtns12 =  OWGUI.widgetBox(boxBtns1, orientation="horizontal")
         OWGUI.button(boxBtns12, self, "Set", callback=self.btnSetProbesClick)
         OWGUI.button(boxBtns12, self, "Clear", callback=self.btnClearProbesClick)
+        """
 
         # tab 5: output
-        boxOutput = QVGroupBox(self)
-        self.tabsCtrl.insertTab(boxOutput, "Out")
+        boxOutput = QGroupBox(self)
+        self.tabsCtrl.addTab(boxOutput, "Out")
         # tab 5: output: merge replicas
-        boxMerge = QVGroupBox('Merge replicas', boxOutput)
+        boxMerge = QGroupBox('Merge replicas', boxOutput)
         OWGUI.radioButtonsInBox(boxMerge, self, value="mergeLevel", btnLabels=["None", "ID &  Alt.var", "ID"], box="Group probes by matching variable(s)", callback=self.settingsOutputReplicasChange)
         self.rbgMergeIntensitiesType = OWGUI.radioButtonsInBox(boxMerge, self, value="mergeIntensitiesType", btnLabels=["Mean", "Median"], box="Average calculation", callback=self.settingsOutputReplicasChange)
         # tab 5: output: additional info
-        boxAdditional = QVGroupBox('Additional info', boxOutput)
+        boxAdditional = QGroupBox('Additional info', boxOutput)
         self.cbOutVarAAliases = OWGUI.checkBox(boxAdditional, self, "outVarAAliases", "ID alias", callback=self.settingsOutputChange)
         self.cbOutNumProbes = OWGUI.checkBox(boxAdditional, self, "outNumProbes", "Number of probes", callback=self.settingsOutputChange)
         OWGUI.checkBox(boxAdditional, self, "outNetSignal", "Net intensities", callback=self.settingsOutputChange)
@@ -386,30 +389,31 @@ class OWNormalize(OWWidget):
         OWGUI.checkBox(boxAdditional, self, "outMRaw", "M raw", callback=self.settingsOutputChange)
         OWGUI.checkBox(boxAdditional, self, "outMCentered", "M centered", callback=self.settingsOutputChange)
         # tab 5: output: other variables
-        boxOtherVars = QVGroupBox('Other variables', boxOutput)
-        self.lbVarOthers = QListBox(boxOtherVars)
-        self.lbVarOthers.setSelectionMode(QListBox.Multi)
+        boxOtherVars = QGroupBox('Other variables', boxOutput)
+        self.lbVarOthers = OWGUI.listBox(boxOtherVars, self)
+        self.lbVarOthers.setSelectionMode(QListWidget.MultiSelection)
         self.connect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
-        self.boxMergeOtherType = QVGroupBox("Merge", boxOutput)
+        self.boxMergeOtherType = QGroupBox("Merge", boxOutput)
         self.boxMergeOtherType.setEnabled(self.mergeLevel and len(self.varsOtherSelected) > 0)
         rbgMergeOtherType = OWGUI.radioButtonsInBox(self.boxMergeOtherType, self, value="mergeOtherType", btnLabels=["Mean", "Median", "Concatenate values"], box="Continuous variables", callback=self.settingsOutputOtherChange)
-        boxMergeOtherTypeD = QVGroupBox('Non-continuous variables', self.boxMergeOtherType)
+        boxMergeOtherTypeD = QGroupBox('Non-continuous variables', self.boxMergeOtherType)
         QLabel("Values are concatenated by default.", boxMergeOtherTypeD)
         self.cbMergeOtherRemoveDupl = OWGUI.checkBox(boxMergeOtherTypeD, self, "mergeOtherRemoveDupl", "Remove duplicate values", callback=self.settingsOutputOtherChange)
 
         # tab 6: settings
-        boxSettings = QVGroupBox(self)
-        self.tabsCtrl.insertTab(boxSettings, "Settings")
+        boxSettings = QGroupBox(self)
+        self.tabsCtrl.addTab(boxSettings, "Settings")
         # tab 6: settings: graph
-        boxGraph = QVGroupBox('Graph', boxSettings)
+        boxGraph = QGroupBox('Graph', boxSettings)
 ##        OWGUI.checkBox(boxGraph, self, "recomputeNormCurveOnChange", "Update normalization curve(s) on change", callback=self.settingsRecomputeNormCurveChange)
-        boxMSize = QHBox(boxGraph)
+        boxMSize = OWGUI.widgetBox(boxGraph, orientation="horizontal")
         QLabel("Marker size", boxMSize)
         cmbMarkerSize = OWGUI.comboBox(boxMSize, self, "markerSize", callback=self.settingsGraphChange, sendSelectedValue=1, valueType=int)
         for itemIdx, size in enumerate(range(3,16)):
-            cmbMarkerSize.insertItem(str(size))
+            cmbMarkerSize.addItem(str(size))
             if self.markerSize == size:
-                cmbMarkerSize.setCurrentItem(itemIdx)
+                pass
+                #cmbMarkerSize.setCurrentItem(itemIdx) TODO PORTING
         OWGUI.checkBox(boxGraph, self, "logAxisY", "Logarithmic Y axis", callback=lambda ax=0: self.settingsGraphAxisChange(ax))
         cbMergeReplicas = OWGUI.checkBox(boxGraph, self, value="mergeReplGraph", label="Merge replicas", callback=self.settingsGraphChange)
         cbMergeReplicas.setEnabled(False)
@@ -419,17 +423,17 @@ class OWNormalize(OWWidget):
         # ZoomSelectToolbar currently not used; should be connected to both MA graphs
         #self.zoomSelectToolbar = OWToolbars.ZoomSelectToolbar(self, boxGraph, self.graphMAnonNorm, self.autoSendSelection)
         # tab 6: settings: Probes
-        boxProbes = QVGroupBox("Probes", boxSettings)
+        boxProbes = QGroupBox("Probes", boxSettings)
         OWGUI.checkBox(boxProbes, self, 'displayVarAAliases', 'Display ID aliases', callback=self.adjustProbeTableColumns)
         # tab 6: settings: commit
-        boxCommit = QVGroupBox("Output", boxSettings)
+        boxCommit = QGroupBox("Output", boxSettings)
         OWGUI.checkBox(boxCommit, self, 'commitOnChange', 'Commit data on change', callback=self.commitChange)
         
         # control area: commit
         self.btnCommit = OWGUI.button(self.controlArea, self, "&Commit", callback=self.commitClicked, disabled=self.commitOnChange)
 ##        self.btnRecomputeNormCurve = OWGUI.button(self.controlArea, self, "&Update Normalization Curve(s)", callback=self.recomputeNormCurveClick)        
         # control area: info
-        boxProbeInfo = QVGroupBox("Info", self.controlArea)
+        boxProbeInfo = QGroupBox("Info", self.controlArea)
         self.lblProbeInfo = QLabel("\n\n", boxProbeInfo)
 
         self.resize(1000, 752)
@@ -483,8 +487,8 @@ class OWNormalize(OWWidget):
             - initialize self.probes
         """
         if D1 or D2: print "OWNormalize.onDataInput"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        # qApp.restoreOverrideCursor()  #TODO PORTING
+        # qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.progressBarInit()
         # move metas among normal variables, remove string variables and variables with duplicate names, store to self.data
         self.varsAll = {}
@@ -522,7 +526,7 @@ class OWNormalize(OWWidget):
             self.sendData(pbPortion)
         print "F: onDataInput"
         self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def defaultVarAssignmentClick(self):
@@ -530,8 +534,8 @@ class OWNormalize(OWWidget):
         """
         if D1: print "OWNormalize.defaultVarAssignmentClick"
         if self.data:
-            qApp.restoreOverrideCursor()
-            qApp.setOverrideCursor(QWidget.waitCursor)
+            #qApp.restoreOverrideCursor()  #TODO PORTING
+            #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
             self.progressBarInit()
             self.setDefaultVarAssignment()
             pbPortion = 1./(1+int(self.commitOnChange))
@@ -541,7 +545,7 @@ class OWNormalize(OWWidget):
             if self.commitOnChange:
                 self.sendData(pbPortion)
             self.progressBarFinished()
-            qApp.restoreOverrideCursor()
+            # qApp.restoreOverrideCursor()  #TODO PORTING
             
         
     def fillCmbVars(self):
@@ -931,8 +935,8 @@ class OWNormalize(OWWidget):
         """Handles input of probes data.
         """
         if D1 or D2: print "OWNormalize.onProbesInput"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.progressBarInit()
         self.dataProbes = dataProbes
         # update caption title
@@ -953,7 +957,7 @@ class OWNormalize(OWWidget):
         if self.commitOnChange:
             self.sendData(pbPortion)
         self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def processDataProbes(self, callback):
@@ -1054,8 +1058,8 @@ class OWNormalize(OWWidget):
         """Refresh listbox containing other variables and refill self.tblControls.
         """
         if D1: print "OWNormalize.varABChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.progressBarInit()
         pbPortion = 1./(1+int(self.commitOnChange))
         self.initProbes(pbPortion)
@@ -1064,7 +1068,7 @@ class OWNormalize(OWWidget):
         if self.commitOnChange:
             self.sendData(pbPortion)
         self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def varFBChange(self):
@@ -1072,8 +1076,8 @@ class OWNormalize(OWWidget):
         enables/disables Max. CV slider (tab Filter).
         """
         if D1 or D6: print "OWNormalize.varFBChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         # enable/disable Max. CV slider
         self.boxMaxCV.setEnabled(self.varNameBGSmplSD != "<none>" and self.varNameBGRefSD != "<none>")
         # update data
@@ -1088,22 +1092,22 @@ class OWNormalize(OWWidget):
             self.progressBarInit()
             self.sendData()
             self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def varOthersChange(self):
         """Updates list of selected other vars (lbVarOthers -> self.varsOtherSelected);
         enables merge options for other variables.
         """
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.fillVarsOtherSelected()
         self.boxMergeOtherType.setEnabled(self.mergeLevel and len(self.varsOtherSelected) > 0)
         if self.commitOnChange:
             self.progressBarInit()
             self.sendData()
             self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def fillVarsOtherSelected(self):        
@@ -1242,8 +1246,8 @@ class OWNormalize(OWWidget):
         """Sorts the table by column col; sets probe.tblRowIdx accordingly
         """
         if D1: print "OWNormalize.tblControlsSort"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         if col == self.sortby-1:
             self.sortby = - self.sortby
         else:
@@ -1254,7 +1258,7 @@ class OWNormalize(OWWidget):
         for row in range(self.tblControls.numRows()):
             pKey = str(self.tblControls.item(row, OWNormalize.tcPKey).text())
             self.probes[pKey].tblRowIdx = row
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def tblControlsValueChange(self, row, col):
@@ -1263,8 +1267,8 @@ class OWNormalize(OWWidget):
         if col == tcVarAAlias: updates probe.valAAlias and sends out probe data;
         """
         if D1 or D3: print "OWNormalize.tblControlsValueChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         if col == OWNormalize.tcRatio:
             pKey = str(self.tblControls.item(row, OWNormalize.tcPKey).text())
             ratio = str(self.tblControls.item(row, OWNormalize.tcRatio).text())
@@ -1294,7 +1298,7 @@ class OWNormalize(OWWidget):
                     self.progressBarInit()
                     self.sendData()
                     self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
                 
                 
 
@@ -1339,8 +1343,8 @@ class OWNormalize(OWWidget):
         """Select probes where ID contains self.controlName.
         """
         if D1: print "OWNormalize.btnSelectControlsClick"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.tblControls.setCurrentCell(-1,-1)
         numSelectionsOld = self.tblControls.numSelections()
         for idx in range(self.tblControls.numRows()):
@@ -1351,41 +1355,41 @@ class OWNormalize(OWWidget):
                 self.tblControls.addSelection(sel)
         if self.tblControls.numSelections() <> numSelectionsOld:
             self.activateSelectedProbes()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def btnSelectControlsAllClick(self):
         """Clears all selections and selects all probes.
         """
         if D1: print "OWNormalize.btnSelectControlsAllClick"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.tblControls.clearSelection(False)
         sel = QTableSelection()
         sel.init(0,OWNormalize.tcMarker)
         sel.expandTo(self.tblControls.numRows()-1,OWNormalize.tcVarB)
         self.tblControls.addSelection(sel)
         self.activateSelectedProbes()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def btnUnselectControlsAllClick(self):
         """Clears all selections and selects all probes.
         """
         if D1: print "OWNormalize.btnUnselectControlsAllClick"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.tblControls.setCurrentCell(-1,-1)
         self.tblControls.clearSelection(True)
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def leRatioReturnPressed(self):
         """If new ratio is entered and return pressed, selected controls get updated.
         """
         if D1: print "OWNormalize.leRatioReturnPressed"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.progressBarInit()
         self.updateSelectedProbes(self.ratioStr, self.probeColor, self.probeSymbolIdx, True, False, False)
         self.sendProbes()
@@ -1397,7 +1401,7 @@ class OWNormalize(OWWidget):
         if self.commitOnChange:
             self.sendData()
         self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def probeColorClick(self):
@@ -1415,8 +1419,8 @@ class OWNormalize(OWWidget):
         """Sets ratio, color and symbol for the selected controls.
         """
         if D1: print "OWNormalize.btnSetProbesClick"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        # qApp.restoreOverrideCursor()  #TODO PORTING
+        # qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.progressBarInit()
         self.updateSelectedProbes(self.ratioStr, self.probeColor, self.probeSymbolIdx, True, True, True)
         self.sendProbes()
@@ -1428,15 +1432,15 @@ class OWNormalize(OWWidget):
         if self.commitOnChange:
             self.sendData()
         self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        # qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def btnClearProbesClick(self):
         """Clears ratios for the selected controls
         """
         if D1: print "OWNormalize.btnClearProbesClick"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        # qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.progressBarInit()
         self.updateSelectedProbes("", ProbeSet.NoColor, QwtSymbol.None, True, True, True)
         self.sendProbes()
@@ -1448,7 +1452,7 @@ class OWNormalize(OWWidget):
         if self.commitOnChange:
             self.sendData()
         self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        # qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def updateSelectedProbes(self, ratioStr, color, symbol, updateRatio, updateColor, updateSymbol):
@@ -1618,8 +1622,8 @@ class OWNormalize(OWWidget):
 
     def settingsSubstrBGChange(self):
         if D1: print "OWNormalize.settingsSubstrBGChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        # qApp.restoreOverrideCursor()  #TODO PORTING
+        # qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.probes.setSubtrBG(self.subtrBG)
         self.setInfoProbes()
         self.setInfoFilterMaxCV()
@@ -1630,15 +1634,15 @@ class OWNormalize(OWWidget):
             self.progressBarInit()
             self.sendData()
             self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        # qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def settingsFilterMaxCVChange(self):
         """Handles changes of filter settings, which affects graph curves and ouput data.
         """
         if D1: print "OWNormalize.settingsFiltersChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        # qApp.restoreOverrideCursor()  #TODO PORTING
+        # qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.setProbeFilters()
         self.setInfoProbes()
         self.setInfoFilterMaxCV()
@@ -1647,15 +1651,15 @@ class OWNormalize(OWWidget):
             self.progressBarInit()
             self.sendData()
             self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def settingsFilterMinIntRatioChange(self):
         """Handles changes of filter settings, which affects graph curves and ouput data.
         """
         if D1: print "OWNormalize.settingsFiltersChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        # qApp.restoreOverrideCursor()  #TODO PORTING
+        # qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.setProbeFilters()
         self.setInfoProbes()
         self.setInfoFilterMinRatio()
@@ -1664,15 +1668,15 @@ class OWNormalize(OWWidget):
             self.progressBarInit()
             self.sendData()
             self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        # qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def settingsFilterMaxFGIntChange(self):
         """Handles changes of filter settings, which affects graph curves and ouput data.
         """
         if D1: print "OWNormalize.settingsFilterMaxFGIntChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.setProbeFilters()
         self.setInfoProbes()
         self.setInfoFilterMaxFGInt()
@@ -1681,15 +1685,15 @@ class OWNormalize(OWWidget):
             self.progressBarInit()
             self.sendData()
             self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        # qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def settingsFilterMaxBGIntChange(self):
         """Handles changes of filter settings, which affects graph curves and ouput data.
         """
         if D1: print "OWNormalize.settingsFilterMaxBGIntChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        # qApp.restoreOverrideCursor()  #TODO PORTING
+        # qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.setProbeFilters()
         self.setInfoProbes()
         self.setInfoFilterMaxBGInt()
@@ -1698,7 +1702,7 @@ class OWNormalize(OWWidget):
             self.progressBarInit()
             self.sendData()
             self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        # qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def setProbeFilters(self):      
@@ -1810,8 +1814,8 @@ class OWNormalize(OWWidget):
         """Handles changes of normalization type, which affects normalization curve and output data.
         """
         if D1: print "OWNormalize.settingsNormalizationChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.boxMinNumControlProbes.setEnabled(self.normRange==2)
         self.boxLoessWindow.setEnabled(self.approxFunction==OWNormalize.AppxFuncLoess)
         self.boxLoessNumIter.setEnabled(self.approxFunction==OWNormalize.AppxFuncLoess)
@@ -1821,13 +1825,13 @@ class OWNormalize(OWWidget):
             self.progressBarInit()
             self.sendData()
             self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        # qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def filtersAllChange(self):
         """handles changes caused by Set Default Values button"""
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        # qApp.restoreOverrideCursor()  #TODO PORTING
+        # qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         chngF = False
         # subtract background
         if self.subtrBG <> self._def_subtrBG:
@@ -1874,13 +1878,13 @@ class OWNormalize(OWWidget):
                 self.progressBarInit()
                 self.sendData()
                 self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def normalizationAllChange(self):
         """handles changes caused by Set Default Values button"""
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         chngN = False
         if self.normRange <> self._def_normRange:
             self.normRange = self._def_normRange
@@ -1910,7 +1914,7 @@ class OWNormalize(OWWidget):
                 self.progressBarInit()
                 self.sendData()
                 self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     ###################################################################################
@@ -1923,15 +1927,15 @@ class OWNormalize(OWWidget):
         enables / disables some output options.
         """
         if D1: print "OWNormalize.settingsOutputReplicasChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor() # TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor) #TODO PORTING
         self.rbgMergeIntensitiesType.setEnabled(self.mergeLevel)
         self.boxMergeOtherType.setEnabled(self.mergeLevel and len(self.varsOtherSelected) > 0)
         if self.commitOnChange:
             self.progressBarInit()
             self.sendData()
             self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor() #TODO PORTING
 
 
     def settingsOutputOtherChange(self):        
@@ -1939,46 +1943,46 @@ class OWNormalize(OWWidget):
         """
         if D1: print "OWNormalize.settingsOutputChange"
         if len(self.varsOtherSelected) > 0:
-            qApp.restoreOverrideCursor()
-            qApp.setOverrideCursor(QWidget.waitCursor)
+            #qApp.restoreOverrideCursor()  #TODO PORTING
+            #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
             if self.commitOnChange:
                 self.progressBarInit()
                 self.sendData()
                 self.progressBarFinished()
-            qApp.restoreOverrideCursor()
+            #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def settingsOutputChange(self): 
         """Handles changes of output settings; send out data.
         """
         if D1: print "OWNormalize.settingsOutputChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         if self.commitOnChange:
             self.progressBarInit()
             self.sendData()
             self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
         
     def settingsGraphAxisChange(self, axis):
         """Handles changes of graph axis settings; replot axes and curves.
         """
         if D1: print "OWNormalize.settingsGraphAxisChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.probes.setPlotParameters(self.logAxisY, self.markerSize, OWNormalize.normCurveStyles[self.normCurveStyleIdx], refresh=True)
         self.setGraphAxes([axis])
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
     def settingsGraphChange(self):
         """Handles changes of graph settings; replot curves.
         """
         if D1: print "OWNormalize.settingsGraphChange"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.probes.setPlotParameters(self.logAxisY, self.markerSize, OWNormalize.normCurveStyles[self.normCurveStyleIdx], refresh=True)
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
 ##    def settingsShowLegendChange(self):
@@ -2019,13 +2023,13 @@ class OWNormalize(OWWidget):
         """Handles Commit click, sends out examples and probes.
         """
         if D1: print "OWNormalize.commitClicked"
-        qApp.restoreOverrideCursor()
-        qApp.setOverrideCursor(QWidget.waitCursor)
+        #qApp.restoreOverrideCursor()  #TODO PORTING
+        #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.progressBarInit()
         self.sendData()
 ##        self.sendProbes()
         self.progressBarFinished()
-        qApp.restoreOverrideCursor()
+        #qApp.restoreOverrideCursor()  #TODO PORTING
 
 
 ##    ###################################################################
@@ -2888,7 +2892,7 @@ class Probes(dict):
             M,A = self.getMA(probe.pKey, True)
             # 2007-10-06 Numeric->numpy: PyQwt supports only Numeric, not numpy, therefore list() is used
             self.graphMAnonNorm.setCurveData(probe.curveMAnonNorm, list(A), list(M))
-            self.graphMAnonNorm.setCurveStyle(probe.curveMAnonNorm, QwtCurve.NoCurve)
+            self.graphMAnonNorm.setCurveStyle(probe.curveMAnonNorm, QwtPlotCurve.NoCurve)
             self._setProbeCurveSymbol(probe, False)
             change = True
         if change and refresh:
@@ -2908,7 +2912,7 @@ class Probes(dict):
             normM = self.getNormM(probe.pKey, True)
             # in second MA graph, plot normM instead of M 
             self.graphMAnorm.setCurveData(probe.curveMAnorm, list(A), list(normM))              
-            self.graphMAnorm.setCurveStyle(probe.curveMAnorm, QwtCurve.NoCurve)
+            self.graphMAnorm.setCurveStyle(probe.curveMAnorm, QwtPlotCurve.NoCurve)
             self._setProbeCurveSymbolNorm(probe, False)
             change = True
         if change and refresh:
@@ -3021,7 +3025,9 @@ class Probes(dict):
                             self.graphMAnonNorm.setCurveData(normCurve, list(Numeric.take(Aplot, Aargsort, 0)), list(Numeric.take(Mplot, Aargsort, 0)))    # added 2008-01-22
                             pen = QPen(condColors[condIdx],ProbeSet.PenWidthInactiveCurve)
                             self.graphMAnonNorm.setCurvePen(normCurve, pen)
-                            self.graphMAnonNorm.setCurveStyle(normCurve, self.normCurveStyle)
+                            self.graphMAnonNorm.setCurveStyle(normCurve, QwtPlotCurve.Lines)
+                            if self.normCurveStyle == "fitted":
+                                self.graphMAnonNorm.setCurveAttribute(QwtPlotCurve.Fitted)
 
                             # plot a normalization curve consisting only of ticks corresponding to the "right" probes
                             normCurveTicks = self.graphMAnonNorm.insertCurve("Norm. curve ticks %i: %s" % (condIdx, str(ncKey)), ncKey)
@@ -3034,7 +3040,7 @@ class Probes(dict):
                             self.graphMAnonNorm.setCurveData(normCurveTicks, list(Numeric.take(Aplot, Aargsort, 0)), list(Numeric.take(Mplot, Aargsort, 0)))    # added 2008-01-22
                             pen = QPen(condColors[condIdx],ProbeSet.PenWidthInactiveCurve)
                             self.graphMAnonNorm.setCurvePen(normCurveTicks, pen)
-                            self.graphMAnonNorm.setCurveStyle(normCurveTicks, QwtCurve.NoCurve)
+                            self.graphMAnonNorm.setCurveStyle(normCurveTicks, QwtPlotCurve.NoCurve)
                             # add markers: 5x5 circles
                             qSymbol = QwtSymbol(1, QBrush(QColor(255,255,255), QBrush.SolidPattern), pen, QSize(5,5))
                             self.graphMAnonNorm.setCurveSymbol(normCurveTicks, qSymbol)
@@ -3671,7 +3677,7 @@ if __name__=="__main__":
         signalManager = orngSignalManager.SignalManager(0)
         a=QApplication(sys.argv)
         ow=OWNormalize(signalManager = signalManager)
-        a.setMainWidget(ow)
+        #a.setMainWidget(ow)
         ow.show()
 
         # settings    
@@ -3704,8 +3710,8 @@ if __name__=="__main__":
         # DATA 1: horizontal line in the middle of the slide
         ow.defNameB = "yPos"
         ow.defaultVarAssignmentClick()
-        ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\PB, cholesterol\Tadeja 2nd image analysis\10vs10mg original data\0449yPos.txt", DC="<NO DATA>"))
-        ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\Sterolgene v0 mouse probeRatios (ID v0).tab"))
+        #TODO PORT ow.onDataInput(orange.ExampleTable(r"C:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\PB, cholesterol\Tadeja 2nd image analysis\10vs10mg original data\0449yPos.txt", DC="<NO DATA>"))
+        #TODO PORT ow.onProbesInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\Sterolgene v0 mouse probeRatios (ID v0).tab"))
 
 ##        # DATA 2: extremely low signal (only few genes pass the filters)
 ##        ow.onDataInput(orange.ExampleTable(r"c:\Documents and Settings\peterjuv\My Documents\STEROLTALK\Sterolgene v.0 mouse\PB, cholesterol\Tadeja drago\05vs10mg\chol.diet\2537.txt"))
@@ -3767,7 +3773,7 @@ if __name__=="__main__":
 ##        orange.saveTabDelimited(r"c:\Documents and Settings\peterjuv\My Documents\Orange\OWNormalize\test comp 2\output.tab", dt.data.values()[0])
 
         # exec, save settings 
-        a.exec_loop()
+        a.exec_()
         ow.saveSettings()
 
 
