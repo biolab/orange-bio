@@ -16,6 +16,7 @@ import statc
 import numpy
 import math
 import obiExpression
+import orngRegression
 
 def normcdf(x, mi, st):
     return 0.5*(2. - stats.erfcc((x - mi)/(st*math.sqrt(2))))
@@ -175,7 +176,6 @@ class Assess(object):
         return enrichmentScores
 
 
-
 class AssessLearner(object):
     """
     Uses the underlying GSEA code to select genes.
@@ -198,14 +198,11 @@ def selectGenesetsData(data, organism, geneSets, minSize=3, maxSize=1000, minPar
     """
     Returns gene sets and data which falling under upper criteria.
     """
-    gso = obiGsea.GSEA(organism=organism)
-    gso.setData(data, classValues=classValues, atLeast=0)
+    gso = obiGsea.GSEA(data, organism=organism, classValues=classValues, atLeast=0)
     gso.addGenesets(geneSets)
     oknames = gso.selectGenesets(minSize=minSize, maxSize=maxSize, minPart=minPart).keys()
     gsetsnum = gso.to_gsetsnum(oknames)
     return gso.data, oknames, gsetsnum
-
-
 
 def ideker_activity_score(ex, corg):
     """ activity score for a sample for pathway given by corgs """
@@ -286,6 +283,52 @@ class IdekerLearner(object):
 
         return Ideker(corgs=corgs)
 
+def pls_transform(example, constt):
+    inds, xmean, xstd, W = constt
+    dom = orange.Domain([example.domain.attributes[i1] for i1 in inds ], False)
+    newex = orange.ExampleTable(dom, [example])
+    ex = newex.toNumpy()[0]
+    print "ex", ex
+    ex = (ex - xmean) / xstd
+    print "ex", ex
+    print "W", W
+    return numpy.dot(ex,W)
+
+class PLS(object):
+
+    def __init__(self, **kwargs):
+        for a,b in kwargs.items():
+            setattr(self, a, b)
+
+    def __call__(self, example):
+        return dict( (name, pls_transform(example, constt)) \
+            for name, constt in self.constructt.items() )
+
+class PLSLearner(object):
+    """ Transforms gene sets using Principal Leasts Squares. """
+    
+    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+
+        data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+            minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
+    
+        constructt = {}
+
+        #build weight matrices for every gene set
+        for name, inds in gsetsnum.items():
+            print name, inds
+            dom2 = orange.Domain([ data.domain.attributes[i1] for i1 in inds ], data.domain.classVar)
+            data_gs = orange.ExampleTable(dom2, data)
+            pls = orngRegression.PLSRegressionLearner(data_gs, nc=1, y=[data_gs.domain.classVar], save_partial=True)
+            constructt[name] = inds, pls.XMean, pls.XStd, pls.W
+            pt1 = pls.T[0]
+            print "T", pls.T
+            print "T1_1", pt1
+            print data_gs[0]
+            pt2 = pls_transform(data[0], constructt[name])
+            print "T1_2", pt2
+
+        return PLS(constructt=constructt)
 
 class SimpleFun(object):
 
@@ -323,15 +366,41 @@ class MeanLearner(object):
        return sfl(data, organism, geneSets, \
             minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues, fn=statc.mean)
 
+def impute_missing(data):
+    #remove attributes with only unknown values
+    newatts = []
+    for at in data.domain.attributes:
+        svalues = [ 1 for a in data if a[at].isSpecial() ]
+        real = len(data) - len(svalues)
+        if real > 0:
+            newatts.append(at)
+
+    dom2 = orange.Domain(newatts, data.domain.classVar)
+    data = orange.ExampleTable(dom2, data)
+
+    #impute
+    import orngTree 
+    imputer = orange.ImputerConstructor_model() 
+    imputer.learnerContinuous = imputer.learnerDiscrete = orange.MajorityLearner()
+    imputer = imputer(data)
+
+    data = imputer(data)
+    return data
+
 
 if __name__ == "__main__":
     
     data = orange.ExampleTable("sterolTalkHepa.tab")
+    data = impute_missing(data)
 
     #ass = AssessLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), rankingf=AT_loessLearner())
-    ass = MeanLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False))
+    #ass = MeanLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False))
+    ass = PLSLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=["LK935_48h", "Rif_12h"])
+
+    fsdfsd()
 
     ar = {}
+
 
     print data.domain.classVar.values
 
@@ -345,4 +414,4 @@ if __name__ == "__main__":
 
     ol =  sorted(ar.items())
 
-    print '\n'.join([ str(a) + ": " +str(b) for a,b in ol])
+    #print '\n'.join([ str(a) + ": " +str(b) for a,b in ol])
