@@ -16,7 +16,6 @@ import statc
 import numpy
 import math
 import obiExpression
-import orngRegression
 
 def normcdf(x, mi, st):
     return 0.5*(2. - stats.erfcc((x - mi)/(st*math.sqrt(2))))
@@ -284,15 +283,112 @@ class IdekerLearner(object):
         return Ideker(corgs=corgs)
 
 def pls_transform(example, constt):
-    inds, xmean, xstd, W = constt
+
+    inds, xmean, W, P = constt
     dom = orange.Domain([example.domain.attributes[i1] for i1 in inds ], False)
     newex = orange.ExampleTable(dom, [example])
     ex = newex.toNumpy()[0]
-    print "ex", ex
-    ex = (ex - xmean) / xstd
-    print "ex", ex
-    print "W", W
-    return numpy.dot(ex,W)
+    ex = ex - xmean # same input transformation
+
+    nc = W.shape[1]
+
+    TR = numpy.empty((1, nc))
+    XR = ex
+
+    dot = numpy.dot
+
+    for i in range(nc):
+       t = dot(XR, W[:,i].T)
+       XR = XR - dot(numpy.array([t]).T, numpy.array([P[:,i]]))
+       TR[:,i] = t
+
+    return TR
+
+def PLSCall(data, y=None, x=None, nc=None, weight=None, save_partial=False):
+
+    def normalize(vector):
+        return vector / numpy.linalg.norm(vector)
+
+    if y == None:
+        y = [ data.domain.classVar ]
+    if x == None:
+        x = [v for v in data.domain.variables if v not in y]
+
+    Ncomp = nc if nc is not None else len(x)
+        
+    dataX = orange.ExampleTable(orange.Domain(x, False), data)
+    dataY = orange.ExampleTable(orange.Domain(y, False), data)
+   
+    # transformation to numpy arrays
+    X = dataX.toNumpy()[0]
+    Y = dataY.toNumpy()[0]
+
+    # data dimensions
+    n, mx = numpy.shape(X)
+    my = numpy.shape(Y)[1]
+
+    # Z-scores of original matrices
+    YMean = numpy.mean(Y, axis = 0)
+    YStd = numpy.std(Y, axis = 0)
+    XMean = numpy.mean(X, axis = 0)
+    XStd = numpy.std(X, axis = 0)
+    
+    #FIXME: standard deviation should never be 0. Ask Lan, if the following
+    #fix is ok.
+    XStd = numpy.maximum(XStd, 10e-16)
+    YStd = numpy.maximum(YStd, 10e-16)
+
+    #X = (X-XMean)/XStd
+    #Y = (Y-YMean)/YStd
+    X = (X-XMean)
+    Y = (Y-YMean)
+
+    P = numpy.empty((mx,Ncomp))
+    C = numpy.empty((my,Ncomp))
+    T = numpy.empty((n,Ncomp))
+    U = numpy.empty((n,Ncomp))
+    B = numpy.zeros((Ncomp,Ncomp))
+    W = numpy.empty((mx,Ncomp))
+    E,F = X,Y
+
+    dot = numpy.dot
+    norm = numpy.linalg.norm
+
+    #PLS1 - from Gutkin, shamir, Dror: SlimPLS
+
+    for i in range(Ncomp):
+
+        c = reduce(dot, [ F.T, E, E.T, F]) ** -0.5 #normalization factor
+        w = c*dot(E.T,F) #w_a
+        t = dot(E, w) #t_i
+        p = dot(E.T, t)/dot(t.T, t) #p_i
+        q = dot(F.T, t)/dot(t.T, t) #q_i
+            
+        E = E - dot(t, p.T)
+        F = F - dot(t, q.T)
+
+        T[:,i] = t.T
+        W[:,i] = w.T
+        P[:,i] = p.T
+        
+
+    """
+    print "T", T
+
+    #regenerate T - see if they match
+    
+    TR = numpy.empty((n,Ncomp))
+    XR = X
+
+    for i in range(Ncomp):
+       t = dot(XR, W[:,i].T)
+       XR = XR - dot(numpy.array([t]).T, numpy.array([P[:,i]]))
+       TR[:,i] = t
+
+    print "TR", TR
+    """
+
+    return XMean, W, P, T
 
 class PLS(object):
 
@@ -301,13 +397,27 @@ class PLS(object):
             setattr(self, a, b)
 
     def __call__(self, example):
-        return dict( (name, pls_transform(example, constt)) \
-            for name, constt in self.constructt.items() )
+
+        od = {}
+
+        for name, constt in self.constructt.items():
+            ts = pls_transform(example, constt)[0]
+            if len(ts) == 1:
+                od[name] = ts[0]
+            else:
+                for i,s in enumerate(ts):
+                   od[name + "_LC_" + str(i+1)] = s
+ 
+        return od
 
 class PLSLearner(object):
     """ Transforms gene sets using Principal Leasts Squares. """
     
-    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, components=1):
+        """
+        If more that 1 components are used, _LC_componetsNumber is appended to 
+        the name of the gene set.
+        """
 
         data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
             minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
@@ -316,17 +426,16 @@ class PLSLearner(object):
 
         #build weight matrices for every gene set
         for name, inds in gsetsnum.items():
-            print name, inds
             dom2 = orange.Domain([ data.domain.attributes[i1] for i1 in inds ], data.domain.classVar)
             data_gs = orange.ExampleTable(dom2, data)
-            pls = orngRegression.PLSRegressionLearner(data_gs, nc=1, y=[data_gs.domain.classVar], save_partial=True)
-            constructt[name] = inds, pls.XMean, pls.XStd, pls.W
-            pt1 = pls.T[0]
-            print "T", pls.T
-            print "T1_1", pt1
-            print data_gs[0]
+            xmean, W, P, T = PLSCall(data_gs, nc=components, y=[data_gs.domain.classVar], save_partial=True)
+            constructt[name] = inds, xmean, W, P
+
+            """
+            print "TO", T[0]
             pt2 = pls_transform(data[0], constructt[name])
-            print "T1_2", pt2
+            print "TR", pt2
+            """
 
         return PLS(constructt=constructt)
 
@@ -397,10 +506,7 @@ if __name__ == "__main__":
     #ass = MeanLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False))
     ass = PLSLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=["LK935_48h", "Rif_12h"])
 
-    fsdfsd()
-
     ar = {}
-
 
     print data.domain.classVar.values
 
