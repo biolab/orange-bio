@@ -308,13 +308,13 @@ def aF_oneway(*args, **kwargs):
     
 def achisquare_indtest(observed, dim=None):
     if dim == None:
-        dim == observed.ndim - 2
+        dim = observed.ndim - 2
     rowtotal = ma.sum(observed, dim + 1)
     coltotal = ma.sum(observed, dim)
     total = ma.sum(rowtotal, dim)
     ones = ma.array(ma.ones(observed.shape))
     expected = ones * rowtotal.reshape(rowtotal.shape[:dim] + (-1, 1))
-    a = (ones * coltotal[..., np.zeros(observed.shape[dim], dtype=int),:])
+    a = ones * coltotal[..., np.zeros(observed.shape[dim], dtype=int),:]
     expected = expected * (a) / total.reshape((-1, 1, 1))
     chisq = ma.sum(ma.sum((observed - expected) ** 2 / expected, dim + 1), dim)
     return chisq
