@@ -337,6 +337,8 @@ class OWGEODatasets(OWWidget):
             else:
                 domain = orange.Domain([attr for attr in data.domain.attributes if samples.intersection(attr.attributes.values())], data.domain.classVar)
                 domain.addmetas(data.domain.getmetas())
+                for attr in domain.attributes:
+                    attr.attributes = dict([(key, value) for key, value in attr.attributes.items() if value in samples])
                 data = orange.ExampleTable(domain, data)
             
             self.progressBarFinished()
