@@ -16,6 +16,8 @@ import statc
 import numpy
 import math
 import obiExpression
+import obiGene
+from collections import defaultdict
 
 def normcdf(x, mi, st):
     return 0.5*(2. - stats.erfcc((x - mi)/(st*math.sqrt(2))))
@@ -283,6 +285,9 @@ class IdekerLearner(object):
         return Ideker(corgs=corgs)
 
 def pls_transform(example, constt):
+    """
+    Uses calculated PLS weights to transform the given example.
+    """
 
     inds, xmean, W, P = constt
     dom = orange.Domain([example.domain.attributes[i1] for i1 in inds ], False)
@@ -496,28 +501,150 @@ def impute_missing(data):
     data = imputer(data)
     return data
 
+class SetSigOLD(object):
+
+    def __init__(self, **kwargs):
+        for a,b in kwargs.items():
+            setattr(self, a, b)
+
+    def __call__(self, example):
+        #return a dictionary geneset: value for every sample
+        test,_ = genesetsAsAttributes(self.learndata, [ example ], self.genesets, self.minGenes, self.maxGenes, domain=self.domain)
+        #print test[0]
+        return dict(  (at.name, test[0][at].value) for at in test.domain.attributes )
+
+class SetSigOLDLearner(object):
+    """
+    Just applies a function taking attribute values of an example and
+    produces to all gene sets.    
+    """
+    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+        #data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+        #    minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
+        gm = obiGene.matcher([obiGene.GMKEGG("hsa")])
+        gm.set_targets([g.name for g in data.domain.attributes])
+        genesets = genesetsInData(geneSets, gm)
+        learn,domain = genesetsAsAttributes(data, data, genesets, minSize, maxSize)
+        #learn here was the original output of tranformed learning set - we get the same output
+        #if we call the SetSigOLD with the same example
+        """
+        print "LEARN"
+        print learn.domain
+        for ex in learn:
+            print ex
+        """
+        return SetSigOLD(learndata=data, domain=domain, genesets=genesets, minGenes=minSize, maxGenes=maxSize)
+
+def setSig_example(ldata, ex, genesets):
+    """
+    Create an dictionary with (geneset_name, geneset_expression) for every
+    geneset on input.
+
+    ldata is class-annotated data
+    """
+    #seznam ocen genesetov za posamezen primer v ucni mzozici
+    pathways = {}
+
+    def setSig_example_geneset(ex, data):
+        """ ex contains only selected genes """
+
+        distances = [ [], [] ]    
+
+        def pearsonr(v1, v2):
+            try:
+                return statc.pearsonr(v1, v2)[0]
+            except:
+                return numpy.corrcoef([v1, v2])[0,1]
+
+        def pearson(ex1, ex2):
+            attrs = range(len(ex1.domain.attributes))
+            vals1 = [ ex1[i].value for i in attrs ]
+            vals2 = [ ex2[i].value for i in attrs ]
+            return pearsonr(vals1, vals2)
+
+        def ttest(ex1, ex2):
+            try:
+                return stats.lttest_ind(ex1, ex2)[0]
+            except:
+                return 0.0
+        
+        #maps class value to its index
+        classValueMap = dict( [ (val,i) for i,val in enumerate(data.domain.classVar.values) ])
+     
+        #create distances to all learning data - save or other class
+        for c in data:
+            distances[classValueMap[c[-1].value]].append(pearson(c, ex))
+
+        return ttest(distances[0], distances[1])
+           
+    for name, gs in genesets.items(): #for each geneset
+
+        #only select the subset of genes from the learning data
+        domain = orange.Domain([ldata.domain.attributes[ai] for ai in gs], ldata.domain.classVar)
+        datao = orange.ExampleTable(domain, ldata)
+        example = orange.Example(domain, ex) #domains need to be the same
+      
+        ocena = setSig_example_geneset(example, datao)
+        pathways[name] = ocena
+        
+    return pathways
+
+class SetSig(object):
+
+    def __init__(self, **kwargs):
+        for a,b in kwargs.items():
+            setattr(self, a, b)
+
+    def __call__(self, example):
+        return setSig_example(self.learndata, example, self.genesets)
+
+class SetSigLearner(object):
+
+    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+        data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+            minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
+        return SetSig(learndata=data, genesets=gsetsnum)
 
 if __name__ == "__main__":
     
+    data = orange.ExampleTable("DLBCL.tab")
+
+    """
     data = orange.ExampleTable("sterolTalkHepa.tab")
     data = impute_missing(data)
+    choosen_cv = [ "LK935_48h", "Rif_12h"]
+    ncl = orange.EnumVariable("cl", values=choosen_cv)
+    ncl.getValueFrom = lambda ex,rw: orange.Value(ncl, ex[-1].value)
+    ndom = orange.Domain(data.domain.attributes, ncl)
+    data = orange.ExampleTable(ndom, [ ex for ex in data if ex[-1].value in choosen_cv ])
+    """
+
+    choosen_cv = list(data.domain.classVar.values)
+
+    fp = int(9*len(data)/10)
+
+    ldata = orange.ExampleTable(data.domain, data[:fp])
+    tdata = orange.ExampleTable(data.domain, data[fp:])
+
+
+    gsets = obiGeneSets.collections(["steroltalk.gmt"], default=False)
+    #gsets = obiGeneSets.collections(["C2.CP.gmt", "C5.MF.gmt", "C5.BP.gmt"], default=False)
 
     #ass = AssessLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), rankingf=AT_loessLearner())
     #ass = MeanLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False))
-    ass = PLSLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=["LK935_48h", "Rif_12h"])
+    #ass = PLSLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv)
+    #ass = SetSigOLDLearner()(ldata, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv, minPart=0.0)
+    ass = SetSigLearner()(ldata, "hsa", gsets, classValues=choosen_cv, minPart=0.0)
 
-    ar = {}
+    ar = defaultdict(list)
 
     print data.domain.classVar.values
 
-    for d in data:
-        if d[-1].value in ["LK935_48h", "Rif_12h"]:
-            cr = ass(d)
-            for a,b in cr.items():
-                l = ar.get(a, [])
-                l.append(b)
-                ar[a] = l
+    for d in list(ldata) + list(tdata):
+        for a,b in ass(d).items():
+            ar[a].append(b)
 
     ol =  sorted(ar.items())
+    print ol
 
     #print '\n'.join([ str(a) + ": " +str(b) for a,b in ol])
