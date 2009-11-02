@@ -51,7 +51,7 @@ class TreeModel(QAbstractItemModel):
     def parent(self, index):
         return QModelIndex()
     
-    def rowCount(self, index):
+    def rowCount(self, index=QModelIndex()):
         if index.isValid():
             return 0
         else:
@@ -94,7 +94,7 @@ class LinkStyledItemDelegate(QStyledItemDelegate):
     
         
 class OWGEODatasets(OWWidget):
-    settingsList = ["outputRows", "minSamples", "includeIf", "mergeSpots", "gdsSelectionStates", "splitterSettings"]
+    settingsList = ["outputRows", "mergeSpots", "gdsSelectionStates", "splitterSettings", "currentGds", "autoCommit"]
 
     def __init__(self, parent=None ,signalManager=None, name=" GEO Data sets"):
         OWWidget.__init__(self, parent ,signalManager, name)
@@ -111,6 +111,9 @@ class OWGEODatasets(OWWidget):
         self.outputRows = 0
         self.mergeSpots = True
         self.filterString = ""
+        self.currentGds = None
+        self.selectionChanged = False
+        self.autoCommit = False
         self.gdsSelectionStates = {}
         self.splitterSettings = ['\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xea\x00\x00\x00\xd7\x01\x00\x00\x00\x07\x01\x00\x00\x00\x02',
                                  '\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xb5\x00\x00\x02\x10\x01\x00\x00\x00\x07\x01\x00\x00\x00\x01']
@@ -129,12 +132,14 @@ class OWGEODatasets(OWWidget):
 ##        OWGUI.spin(OWGUI.indentedBox(box), self, "minSamples", 2, 100, posttext="samples", callback=self.commitIf)
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
-        OWGUI.radioButtonsInBox(box, self, "outputRows", ["Genes or spots", "Samples"], "Rows") ##, callback=self.commitIf)
-        OWGUI.checkBox(box, self, "mergeSpots", "Merge spots of same gene") ##, callback=self.commitIf)
+        OWGUI.radioButtonsInBox(box, self, "outputRows", ["Genes or spots", "Samples"], "Rows", callback=self.commitIf)
+        OWGUI.checkBox(box, self, "mergeSpots", "Merge spots of same gene", callback=self.commitIf)
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
         self.commitButton = OWGUI.button(box, self, "Commit", callback=self.commit)
-        self.commitButton.setDisabled(True)
+#        self.commitButton.setDisabled(True)
+        cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on any change")
+        OWGUI.setStopper(self, self.commitButton, cb, "selectionChanged", self.commit)
 ##        OWGUI.checkBox(box, self, "autoCommit", "Commit automatically")
         OWGUI.rubber(self.controlArea)
 
@@ -176,7 +181,7 @@ class OWGEODatasets(OWWidget):
             
         self.searchKeys = ["dataset_id", "title", "platform_organism", "description"]
         self.cells = []
-        self.currentGds = None
+#        self.currentGds = None
         QTimer.singleShot(50, self.updateTable)
         self.resize(1000, 600)
 
@@ -234,6 +239,13 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.setColumnWidth(2, min(self.treeWidget.columnWidth(2), 200))
         self.progressBarFinished()
 
+        if self.currentGds:
+            gdss = [(i, model.data(model.index(i,0), Qt.DisplayRole)) for i in range(model.rowCount())]
+            current = [i for i, variant in gdss if  variant.isValid() and variant.toString() == self.currentGds["dataset_id"]]
+            if current:
+                mapFromSource = self.treeWidget.model().mapFromSource
+                self.treeWidget.selectionModel().select(mapFromSource(model.index(current[0], 0)), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+            
         self.updateInfo()
 
     def updateSelection(self, *args):
@@ -246,7 +258,8 @@ class OWGEODatasets(OWWidget):
             self.infoGDS.setText(self.currentGds.get("description", ""))
         else:
             self.currentGds = None
-        self.commitButton.setDisabled(not bool(self.currentGds))
+#        self.commitButton.setDisabled(not bool(self.currentGds))
+        self.commitIf()
         
     
     def setAnnotations(self, gds):
@@ -306,6 +319,12 @@ class OWGEODatasets(OWWidget):
 #            item.setHidden(not all([any([s in unicode(item.gds.get(key, "").lower(), errors="ignore") for key in searchKeys]) for s in filterStrings]))
         self.updateInfo()
 
+    def commitIf(self):
+        if self.autoCommit:
+            self.commit()
+        else:
+            self.selectionChanged = True
+            
     def commit(self):
         if self.currentGds:
 #            classes = [s["description"] for s in self.currentGds["subsets"]]
@@ -349,8 +368,7 @@ class OWGEODatasets(OWWidget):
             model._roleData[Qt.ForegroundRole][row].update(zip(range(1, 7), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
             model.emit(SIGNAL("dataChanged(const QModelIndex &, const QModelIndex &)"), model.index(row, 0), model.index(row, 6))
             self.updateInfo()
-        else:
-            pass
+        self.selectionChanged = False
         
     def splitterMoved(self, *args):
         self.splitterSettings = [str(sp.saveState()) for sp in self.splitters]
