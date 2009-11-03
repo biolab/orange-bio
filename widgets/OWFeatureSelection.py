@@ -220,8 +220,10 @@ class OWFeatureSelection(OWWidget):
         pb.advance()
         self.histogram.type = self.histType[self.scoreMethods[self.methodIndex][2]]
         self.histogram.setValues(self.scores.values())
-        self.histogram.setBoundary(*self.cuts.get(self.methodIndex, (self.histogram.minx if self.histogram.type in ["lowTail", "twoTail"] else self.histogram.maxx,
-                                                                     self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)))
+#        self.histogram.setBoundary(*self.cuts.get(None, (self.histogram.minx if self.histogram.type in ["lowTail", "twoTail"] else self.histogram.maxx,
+#                                                                     self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)))
+        self.histogram.setBoundary(self.histogram.minx if self.histogram.type in ["lowTail", "twoTail"] else self.histogram.maxx,
+                                   self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)
         if self.computeNullDistribution:
             nullY, nullX = numpy.histogram(self.nullDistribution, bins=self.histogram.xData)
             self.histogram.nullCurve = self.histogram.addCurve("nullCurve", Qt.black, Qt.black, 6, symbol = QwtSymbol.NoSymbol, style = QwtPlotCurve.Steps, xData = nullX, yData = nullY/self.permutationsCount)
