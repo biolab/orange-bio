@@ -1,5 +1,5 @@
 """
-<name>Update Genomics Databases</name>
+<name>Genomics Databases</name>
 <description>Update of systems biology data bases.</description>
 <contact>Ales Erjavec</contact>
 <priority>5</priority>
@@ -9,7 +9,7 @@
 from OWDatabasesUpdate import *
 
 class OWUpdateGenomicsDatabases(OWDatabasesUpdate): 
-    def __init__(self, parent=None, signalManager=None, name="Update Genomics Databases", **kwds):
+    def __init__(self, parent=None, signalManager=None, name="Genomics Databases", **kwds):
         OWDatabasesUpdate.__init__(self, parent, signalManager, name, domains = ["GO", "KEGG", "MeSH", "Taxonomy", "NCBI_geneinfo", "GEO", "dictybase", "OMIM", "HomoloGene"], **kwds)
 
 if __name__ == "__main__":
