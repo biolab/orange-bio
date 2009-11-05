@@ -33,7 +33,7 @@ def listAvailable():
             ret[td.get("#organism", file)] = file
     orgMap = {"352472":"44689"}
     essential = [obiGO.from_taxid(id) for id in obiTaxonomy.essential_taxids() if obiGO.from_taxid(id)]
-    essentialNames = [obiTaxonomy.name(id) for id in obiTaxonomy.essential_taxids()]
+    essentialNames = [obiTaxonomy.name(id) for id in obiTaxonomy.essential_taxids() if obiGO.from_taxid(id)]
     ret.update(zip(essentialNames, essential))
     return ret
 
@@ -68,8 +68,6 @@ class GOTreeWidget(QTreeWidget):
         import webbrowser
         webbrowser.open("http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term="+term)
 
-        
-    
 class OWGOEnrichmentAnalysis(OWWidget):
     settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex",
                     "filterByNumOfInstances", "minNumOfInstances", "filterByPValue", "maxPValue", "selectionDirectAnnotation", "selectionDisjoint", "selectionType",
@@ -126,13 +124,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.infoLabel = OWGUI.widgetLabel(box, "No data on input\n")
         OWGUI.button(box, self, "Ontology/Annotation Info", callback=self.ShowInfo, tooltip="Show information on loaded ontology and annotations", debuggingEnabled=0)
         box = OWGUI.widgetBox(self.inputTab, "Organism", addSpace=True)
-        self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.SetAnnotationCallback, tooltip="Select organism", debuggingEnabled=0)
+        self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.Update, tooltip="Select organism", debuggingEnabled=0)
         
         self.signalManager.setFreeze(1) ## freeze until annotation combo box is updateded with available annotations.
         QTimer.singleShot(0, self.UpdateOrganismComboBox)
         
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene names", callback=self.Update, tooltip="Use this attribute to extract gene names from input data")
-        OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use data attributes names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.SetUseAttrNamesCallback, tooltip="Use attribute names for gene names")
+        OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use data attributes names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.Update, tooltip="Use attribute names for gene names")
         
         self.referenceRadioBox = OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Entire genome", "Reference set (input)"], tooltips=["Use entire genome for reference", "Use genes from Referece Examples input signal as reference"], box="Reference", callback=self.Update)
         self.referenceRadioBox.buttons[1].setDisabled(True)
@@ -160,7 +158,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 ##        box.setMaximumWidth(150)
         self.evidenceCheckBoxDict = {}
         for etype in obiGO.evidenceTypesOrdered:
-            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.UpdateSelectedEvidences, tooltip=obiGO.evidenceTypes[etype])
+            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.Update, tooltip=obiGO.evidenceTypes[etype])
         
         ##Select tab
         self.selectTab = OWGUI.createTabPage(self.tabs, "Select")
@@ -219,6 +217,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.ontology = None
         self.annotations = None
         self.probFunctions = [obiProb.Binomial(), obiProb.Hypergeometric()]
+        self._progressBarStack = []
         
     def UpdateOrganismComboBox(self):
         try:
@@ -243,37 +242,37 @@ class OWGOEnrichmentAnalysis(OWWidget):
         finally:
             self.signalManager.setFreeze(0)
         
-    def SetAnnotationCallback(self):
-        self.LoadAnnotation()
-        if self.clusterDataset:
-            self.FilterUnknownGenes()
-            graph = self.Enrichment()
-            self.SetGraph(graph)
-
-    def UpdateSelectedEvidences(self):
-        if self.clusterDataset:
-            self.FilterUnknownGenes()
-            graph = self.Enrichment()
-            self.SetGraph(graph)
-
-    def SetReferenceCallback(self):
-        if self.clusterDataset:
-            self.FilterUnknownGenes()
-            graph = self.Enrichment()
-            self.SetGraph(graph)
-
-    def SetAspectCallback(self):
-        if self.clusterDataset:
-            self.FilterUnknownGenes()
-            graph = self.Enrichment()
-            self.SetGraph(graph)
-
-    def SetUseAttrNamesCallback(self):
-##        self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
-        self.Update()
+#    def SetAnnotationCallback(self):
+#        self.LoadAnnotation()
+#        if self.clusterDataset:
+#            self.FilterUnknownGenes()
+#            graph = self.Enrichment()
+#            self.SetGraph(graph)
+#
+#    def UpdateSelectedEvidences(self):
+#        if self.clusterDataset:
+#            self.FilterUnknownGenes()
+#            graph = self.Enrichment()
+#            self.SetGraph(graph)
+#
+#    def SetReferenceCallback(self):
+#        if self.clusterDataset:
+#            self.FilterUnknownGenes()
+#            graph = self.Enrichment()
+#            self.SetGraph(graph)
+#
+#    def SetAspectCallback(self):
+#        if self.clusterDataset:
+#            self.FilterUnknownGenes()
+#            self.SetGraph(graph)
+#
+#    def SetUseAttrNamesCallback(self):
+###        self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
+#        self.Update()
 
     def Update(self):
         if self.clusterDataset:
+            self.Load()
             self.FilterUnknownGenes()
             graph = self.Enrichment()
             self.SetGraph(graph)
@@ -362,21 +361,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.infoLabel.setText("\n")
         if data:
             self.SetGenesComboBox()
-##            index = self.annotationIndex = -42
             self.openContext("", data)
-            if not self.ontology:
-                self.LoadOntology()
-            if not self.annotations or self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
-                self.LoadAnnotation()
-
-##            if self.annotationIndex == -42:
-##                self.FindBestGeneAttrAndOrganism()
-##            else:
-##                self.annotationIndex = index
-            
-            self.FilterUnknownGenes()
-            graph = self.Enrichment()
-            self.SetGraph(graph)
+#            if not self.ontology:
+#                self.LoadOntology()
+#            if not self.annotations or self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
+#                self.LoadAnnotation()
+#            
+#            self.Load()
+#            self.FilterUnknownGenes()
+#            graph = self.Enrichment()
+#            self.SetGraph(graph)
+            self.Update()
         else:
             self.infoLabel.setText("No data on input\n")
             self.openContext("", None)
@@ -435,40 +430,78 @@ class OWGOEnrichmentAnalysis(OWWidget):
         else:
             self.send("Example With Unknown Genes", None)
 
-    def LoadOntology(self):
-        try:
-            self.progressBarInit()
-            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                with _disablegc():
-                    self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
-            self.progressBarFinished()
-        except IOError, er:
-            response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the ontology.\nClik OK to download it?", "OK", "Cancel", "", 0, 1)
-            if response==0:
-                self.UpdateGOAndAnnotation(tags = ["ontology", "GO", "essential"])
-                self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
-                self.progressBarFinished()
-            else:
-                raise
-        
-    def LoadAnnotation(self):
-##        if not self.annotationCodes:
-##            response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "No annotations found.\nClick OK to download it", "OK", "Cancel", "", 0, 1)
-##            if response==0:
-##                self.UpdateGOAndAnnotation(tags=["annotation", "go"])
-        if self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
-            self.progressBarInit()
-            try:
-                self.annotations = None
-##                filename = p_join(dataDir, self.annotationFiles[self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]])
-##                self.annotations = obiGO.Annotations(filename, ontology = self.ontology, progressCallback=self.progressBarSet)
-                with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                    with _disablegc():
-                        self.annotations = obiGO.Annotations(self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)], ontology = self.ontology, progressCallback=self.progressBarSet)
-            except IOError, er:
-                raise
-            self.progressBarFinished()
-
+#    def LoadOntology(self):
+#        try:
+#            self.progressBarInit()
+#            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+#                with _disablegc():
+#                    self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
+#            self.progressBarFinished()
+#        except IOError, er:
+#            response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the ontology.\nClik OK to download it?", "OK", "Cancel", "", 0, 1)
+#            if response==0:
+#                self.UpdateGOAndAnnotation(tags = ["ontology", "GO", "essential"])
+#                self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
+#                self.progressBarFinished()
+#            else:
+#                raise
+#    
+#    def LoadAnnotation(self, progressCallback=None):
+#        if self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
+#            self.progressBarInit()
+#            try:
+#                self.annotations = None
+#                with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+#                    with _disablegc():
+#                        self.annotations = obiGO.Annotations(self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)], ontology = self.ontology, progressCallback=self.progressBarSet)
+#            except IOError, er:
+#                raise
+#            self.progressBarFinished()
+#
+#            count = defaultdict(int)
+#            geneSets = defaultdict(set)
+#
+#            for anno in self.annotations.annotations:
+#                count[anno.evidence]+=1
+#                geneSets[anno.evidence].add(anno.geneName)
+#            for etype in obiGO.evidenceTypesOrdered:
+#                self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
+#                self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
+#            self.loadedAnnotationCode=self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
+    
+    def Load(self):
+        go_files, tax_files = orngServerFiles.listfiles("GO"), orngServerFiles.listfiles("Taxonomy")
+        calls = []
+        count = 0
+        if not tax_files:
+            calls.append(("Taxonomy", "ncbi_taxnomy.tar.gz"))
+            count += 1
+        org = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
+        if org != self.loadedAnnotationCode:
+            count += 1
+            if "gene_association.%s.tar.gz" % self.annotationFiles[org] not in go_files:
+                calls.append(("GO", "gene_association.%s.tar.gz" % self.annotationFiles[org]))
+                count += 1
+                
+        if "gene_ontology_edit.obo.tar.gz" not in go_files:
+            calls.append(("GO", "gene_ontology_edit.obo.tar.gz"))
+            count += 1
+        if not self.ontology:
+            count += 1
+        self.progressBarInit()
+        for i, args in enumerate(calls):
+            with orngServerFiles.DownloadProgress.setredirect(lambda value: self.progressBarSet(100.0 * i / count + value/count)):
+                print args
+                orngServerFiles.download(*args)
+            
+        i = len(calls)
+        if not self.ontology:
+            self.ontology = obiGO.Ontology(progressCallback=lambda value: self.progressBarSet(100.0 * i / count + value/count))
+            i+=1
+        if org != self.loadedAnnotationCode:
+            self.annotations = obiGO.Annotations(org, progressCallback=lambda value: self.progressBarSet(100.0 * i / count + value/count))
+            i+=1
+            self.loadedAnnotationCode = org
             count = defaultdict(int)
             geneSets = defaultdict(set)
 
@@ -478,8 +511,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
             for etype in obiGO.evidenceTypesOrdered:
                 self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
                 self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
-            self.loadedAnnotationCode=self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
-    
+                
+        self.progressBarFinished()
+            
     def Enrichment(self):
         if not self.annotations.ontology:
             self.annotations.ontology = self.ontology
@@ -752,7 +786,30 @@ class OWGOEnrichmentAnalysis(OWWidget):
         label.setText("Annotations:\n"+self.annotations.header.replace("!", "") if self.annotations else "Annotations not loaded!")
         dialog.layout().addWidget(label)
         dialog.show()
-
+        
+#    def progressBarInit(self, expect=0):
+#        if not self._progressBarStack:
+#            OWWidget.progressBarInit(self)
+#        if expect:
+#            self._progressBarStack.extend([1] * expect)
+#
+#    def progressBarSet(self, value):
+#        if self._progressBarStack:    
+#            OWWidget.progressBarSet(self, 100.0 * - 100.0 * sum(self._progressBarStack) / len(self._progressBarStack) + value / len(self._progressBarStack))
+#        else:
+#            OWWidget.progressBarSet(self, value)
+#        
+#    def progressBarFinished(self, flush=False):
+#        if self._progressBarStack:
+#            if 1 in self._progressBarStack:
+#                self._progressBarStack[self._progressBarStack.index(1)] = 0
+#            else:
+#                self._progressBarStack = []
+#        if flush:
+#            self._progressBarStack = []
+#        if self._progressBarStack:
+#            OWWidget.progressBarFinished(self)
+        
     def sendReport(self):
         self.reportSettings("Settings", [("Organism", self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes) - 1)]),
                                          ("Significance test", ("Binomial" if self.probFunc == 0 else "Hypergeometric") + (" with FDR" if self.useFDR else ""))])
