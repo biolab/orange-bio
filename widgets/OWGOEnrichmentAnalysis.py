@@ -70,7 +70,7 @@ class GOTreeWidget(QTreeWidget):
         webbrowser.open("http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term="+term)
 
 class OWGOEnrichmentAnalysis(OWWidget):
-    settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex", "geneMatcherSettings"
+    settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex", "geneMatcherSettings",
                     "filterByNumOfInstances", "minNumOfInstances", "filterByPValue", "maxPValue", "selectionDirectAnnotation", "selectionDisjoint", "selectionType",
                     "selectionAddTermAsClass", "useAttrNames", "probFunc", "useFDR"]
     contextHandlers = {"": DomainContextHandler("", ["geneAttrIndex", "useAttrNames", "annotationIndex", "geneMatcherSettings"], matchValues=1)}
