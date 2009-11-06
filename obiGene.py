@@ -565,18 +565,19 @@ class MatcherAliasesNCBI(MatcherAliasesPickled):
         
 class MatcherAliasesAffy(MatcherAliasesPickled):
     def create_aliases(self):
-        filename = orngServerFiles.localpath_download("Affy", self.organims + ".pickle")
+        filename = orngServerFiles.localpath_download("Affy", self.organism + ".pickle")
         import cPickle
         return cPickle.load(open(filename, "rb"))
     
     def filename(self):
-        return "affy_" + self.organims
+        return "affy_" + self.organism
     
     def create_aliases_version(self):
-        return orngServerFiles.info("Affy", self.organims + ".pickle")["datetime"]
+        orngServerFiles.localpath_download("affy", self.organism + ".pickle")
+        return orngServerFiles.info("Affy", self.organism + ".pickle")["datetime"]
         
     def __init__(self, organism, **kwargs):
-        self.organims = organism
+        self.organism = organism
         MatcherAliasesPickled.__init__(self, **kwargs)
 
 class MatcherAliasesPickledJoined(MatcherAliasesPickled):
