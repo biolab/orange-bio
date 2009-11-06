@@ -157,9 +157,6 @@ class NCBIGeneInfo(dict):
     def items(self):
         return list(self.iteritems())
 
-    def search(self, string, exact=False):
-        pass
-
     @staticmethod
     def get_geneinfo_from_ncbi(file, progressCallback=None):
         import urllib2, gzip, shutil, tempfile
@@ -565,6 +562,22 @@ class MatcherAliasesNCBI(MatcherAliasesPickled):
     def __init__(self, organism, ignore_case=True):
         self.organism = organism
         MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
+        
+class MatcherAliasesAffy(MatcherAliasesPickled):
+    def create_aliases(self):
+        filename = orngServerFiles.localpath_download("Affy", self.organims + ".pickle")
+        import cPickle
+        return cPickle.load(open(filename, "rb"))
+    
+    def filename(self):
+        return "affy_" + self.organims
+    
+    def create_aliases_version(self):
+        return orngServerFiles.info("Affy", self.organims + ".pickle")["datetime"]
+        
+    def __init__(self, organism, **kwargs):
+        self.organims = organism
+        MatcherAliasesPickled.__init__(self, **kwargs)
 
 class MatcherAliasesPickledJoined(MatcherAliasesPickled):
     """
@@ -661,6 +674,7 @@ GMKEGG = MatcherAliasesKEGG
 GMGO = MatcherAliasesGO
 GMNCBI = MatcherAliasesNCBI
 GMDicty = MatcherAliasesDictyBase
+GMAffy = MatcherAliasesAffy
 
 def issequencens(x):
     return hasattr(x, '__getitem__') and not isinstance(x, basestring)
