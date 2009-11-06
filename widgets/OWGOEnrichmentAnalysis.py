@@ -11,6 +11,7 @@ from __future__ import with_statement
 import obiGO
 import obiProb
 import obiTaxonomy
+import obiGene
 import sys, os, tarfile, math
 import gc
 import OWGUI
@@ -32,7 +33,7 @@ def listAvailable():
         if "association" in file.lower():
             ret[td.get("#organism", file)] = file
     orgMap = {"352472":"44689"}
-    essential = [obiGO.from_taxid(id) for id in obiTaxonomy.essential_taxids() if obiGO.from_taxid(id)]
+    essential = ["gene_association.%s.tar.gz" % obiGO.from_taxid(id) for id in obiTaxonomy.essential_taxids() if obiGO.from_taxid(id)]
     essentialNames = [obiTaxonomy.name(id) for id in obiTaxonomy.essential_taxids() if obiGO.from_taxid(id)]
     ret.update(zip(essentialNames, essential))
     return ret
@@ -69,10 +70,10 @@ class GOTreeWidget(QTreeWidget):
         webbrowser.open("http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term="+term)
 
 class OWGOEnrichmentAnalysis(OWWidget):
-    settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex",
+    settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex", "geneMatcherSettings"
                     "filterByNumOfInstances", "minNumOfInstances", "filterByPValue", "maxPValue", "selectionDirectAnnotation", "selectionDisjoint", "selectionType",
                     "selectionAddTermAsClass", "useAttrNames", "probFunc", "useFDR"]
-    contextHandlers = {"": DomainContextHandler("", ["geneAttrIndex", "useAttrNames", "annotationIndex"], matchValues=1)}
+    contextHandlers = {"": DomainContextHandler("", ["geneAttrIndex", "useAttrNames", "annotationIndex", "geneMatcherSettings"], matchValues=1)}
     def __init__(self, parent=None, signalManager=None, name="GO Enrichment Analysis"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Cluster Examples", ExampleTable, self.SetClusterDataset, Default), ("Reference Examples", ExampleTable, self.SetReferenceDataset, Single + NonDefault)] #, ("Structured Data", DataFiles, self.chipdata, Single + NonDefault)]
@@ -84,6 +85,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.aspectIndex = 0
         self.geneAttrIndex = 0
         self.useAttrNames = False
+        self.geneMatcherSettings = [True, False, False, False]
         self.filterByNumOfInstances = False
         self.minNumOfInstances = 1
         self.filterByPValue = True
@@ -131,6 +133,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene names", callback=self.Update, tooltip="Use this attribute to extract gene names from input data")
         OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use data attributes names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.Update, tooltip="Use attribute names for gene names")
+        OWGUI.button(self.geneAttrIndexCombo.box, self, "Gene matcher settings", callback=self.UpdateGeneMatcher)
         
         self.referenceRadioBox = OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Entire genome", "Reference set (input)"], tooltips=["Use entire genome for reference", "Use genes from Referece Examples input signal as reference"], box="Reference", callback=self.Update)
         self.referenceRadioBox.buttons[1].setDisabled(True)
@@ -241,35 +244,16 @@ class OWGOEnrichmentAnalysis(OWWidget):
 #            print "update", self.annotationIndex, currAnnotationCode
         finally:
             self.signalManager.setFreeze(0)
-        
-#    def SetAnnotationCallback(self):
-#        self.LoadAnnotation()
-#        if self.clusterDataset:
-#            self.FilterUnknownGenes()
-#            graph = self.Enrichment()
-#            self.SetGraph(graph)
-#
-#    def UpdateSelectedEvidences(self):
-#        if self.clusterDataset:
-#            self.FilterUnknownGenes()
-#            graph = self.Enrichment()
-#            self.SetGraph(graph)
-#
-#    def SetReferenceCallback(self):
-#        if self.clusterDataset:
-#            self.FilterUnknownGenes()
-#            graph = self.Enrichment()
-#            self.SetGraph(graph)
-#
-#    def SetAspectCallback(self):
-#        if self.clusterDataset:
-#            self.FilterUnknownGenes()
-#            self.SetGraph(graph)
-#
-#    def SetUseAttrNamesCallback(self):
-###        self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
-#        self.Update()
-
+            
+    def UpdateGeneMatcher(self):
+        dialog = GeneMatcherDialog(self, defaults=self.geneMatcherSettings, modal=True)
+        if dialog.exec_():
+            self.geneMatcherSettings = [getattr(dialog, item[0]) for item in dialog.items]
+            if self.annotations:
+                self.SetGeneMatcher()
+                if self.clusterDataset:
+                    self.Update()
+                
     def Update(self):
         if self.clusterDataset:
             self.Load()
@@ -423,52 +407,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
             geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
             examples = []
             for ex in self.clusterDataset:
-                if not any(n.strip() in self.annotations.aliasMapper or n.strip() in self.annotations.additionalAliases for n in str(ex[geneAttr]).split(",")):
+                if not any(self.annotations.genematcher.match(n.strip()) for n in str(ex[geneAttr]).split(",")):
                     examples.append(ex)
 
             self.send("Example With Unknown Genes", examples and orange.ExampleTable(examples) or None)
         else:
             self.send("Example With Unknown Genes", None)
 
-#    def LoadOntology(self):
-#        try:
-#            self.progressBarInit()
-#            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-#                with _disablegc():
-#                    self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
-#            self.progressBarFinished()
-#        except IOError, er:
-#            response = QMessageBox.warning(self, "GOEnrichmentAnalysis", "Unable to load the ontology.\nClik OK to download it?", "OK", "Cancel", "", 0, 1)
-#            if response==0:
-#                self.UpdateGOAndAnnotation(tags = ["ontology", "GO", "essential"])
-#                self.ontology = obiGO.Ontology.Load(progressCallback=self.progressBarSet)
-#                self.progressBarFinished()
-#            else:
-#                raise
-#    
-#    def LoadAnnotation(self, progressCallback=None):
-#        if self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
-#            self.progressBarInit()
-#            try:
-#                self.annotations = None
-#                with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-#                    with _disablegc():
-#                        self.annotations = obiGO.Annotations(self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)], ontology = self.ontology, progressCallback=self.progressBarSet)
-#            except IOError, er:
-#                raise
-#            self.progressBarFinished()
-#
-#            count = defaultdict(int)
-#            geneSets = defaultdict(set)
-#
-#            for anno in self.annotations.annotations:
-#                count[anno.evidence]+=1
-#                geneSets[anno.evidence].add(anno.geneName)
-#            for etype in obiGO.evidenceTypesOrdered:
-#                self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
-#                self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
-#            self.loadedAnnotationCode=self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
-    
     def Load(self):
         go_files, tax_files = orngServerFiles.listfiles("GO"), orngServerFiles.listfiles("Taxonomy")
         calls = []
@@ -479,8 +424,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         org = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
         if org != self.loadedAnnotationCode:
             count += 1
-            if "gene_association.%s.tar.gz" % self.annotationFiles[org] not in go_files:
-                calls.append(("GO", "gene_association.%s.tar.gz" % self.annotationFiles[org]))
+            if self.annotationFiles[org] not in go_files:
+                calls.append(("GO", self.annotationFiles[org]))
                 count += 1
                 
         if "gene_ontology_edit.obo.tar.gz" not in go_files:
@@ -492,14 +437,15 @@ class OWGOEnrichmentAnalysis(OWWidget):
         for i, args in enumerate(calls):
             with orngServerFiles.DownloadProgress.setredirect(lambda value: self.progressBarSet(100.0 * i / count + value/count)):
                 print args
-                orngServerFiles.download(*args)
+                orngServerFiles.localpath_download(*args)
             
         i = len(calls)
         if not self.ontology:
             self.ontology = obiGO.Ontology(progressCallback=lambda value: self.progressBarSet(100.0 * i / count + value/count))
             i+=1
         if org != self.loadedAnnotationCode:
-            self.annotations = obiGO.Annotations(org, progressCallback=lambda value: self.progressBarSet(100.0 * i / count + value/count))
+            code = self.annotationFiles[org].split(".")[-3]
+            self.annotations = obiGO.Annotations(code, progressCallback=lambda value: self.progressBarSet(100.0 * i / count + value/count), genematcher=obiGene.GMDirect())
             i+=1
             self.loadedAnnotationCode = org
             count = defaultdict(int)
@@ -514,9 +460,27 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 
         self.progressBarFinished()
             
+    def SetGeneMatcher(self):
+        if self.annotations:
+            taxid = self.annotations.taxid
+            matchers = []
+            for matcher, use in zip([obiGene.GMGO, obiGene.GMKEGG, obiGene.GMNCBI, obiGene.GMAffy], self.geneMatcherSettings):
+                if use:
+                    try:
+                        matchers.append(matcher(taxid))
+                    except Exception, ex:
+                        print ex
+            matchers.reverse()
+#            print matchers
+            self.annotations.genematcher = obiGene.matcher(matchers)
+            self.annotations.genematcher.set_targets(self.annotations.geneNames)
+            
     def Enrichment(self):
         if not self.annotations.ontology:
             self.annotations.ontology = self.ontology
+            
+        if isinstance(self.annotations.genematcher, obiGene.GMDirect):
+            self.SetGeneMatcher()
             
         if self.useAttrNames:
             clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
@@ -532,7 +496,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         genesCount = len(clusterGenes)
         
-        self.clusterGenes = clusterGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, clusterGenes)
+        self.clusterGenes = clusterGenes = self.annotations.GetGeneNamesTranslator(clusterGenes).values()
+        
+#        self.clusterGenes = clusterGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, clusterGenes)
         self.infoLabel.setText("%i genes on input\n%i (%.1f%%) gene names matched" % (genesCount, len(clusterGenes), 100.0*len(clusterGenes)/genesCount if genesCount else 0.0))
         
         referenceGenes = None
@@ -550,7 +516,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
                         self.information(1)
 
                 refc = len(referenceGenes)
-                referenceGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, referenceGenes)
+#                referenceGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, referenceGenes)
+                referenceGenes = self.annotations.GetGeneNamesTranslator(referenceGenes).values()
                 self.referenceRadioBox.buttons[1].setText("Reference set (%i genes, %i matched)" % (refc, len(referenceGenes)))
                 self.referenceRadioBox.buttons[1].setDisabled(False)
                 self.information(2)
@@ -895,6 +862,27 @@ class EnrichmentColumnItemDelegate(QItemDelegate):
             painter.restore()
         else:
             QItemDelegate.paint(self, painter, option, index)
+        
+        
+class GeneMatcherDialog(OWWidget):
+    items = [("useGO", "Use gene names from Gene Ontology annotations"),
+             ("useKEGG", "Use gene names from KEGG Genes database"),
+             ("useNCBI", "Use gene names from NCBI Gene info database"),
+             ("useAffy", "Use Affymetrix platform reference ids")]
+    settingsList = [item[0] for item in items]
+    def __init__(self, parent=None, defaults=[True, False, False, False], enabled=[False, True, True, True], **kwargs):
+        OWWidget.__init__(self, parent, **kwargs)
+        for item, default in zip(self.items, defaults):
+            setattr(self, item[0], default)
+            
+        self.loadSettings()
+        for item, enable in zip(self.items, enabled):
+            cb = OWGUI.checkBox(self, self, *item)
+            cb.setEnabled(enable)
+            
+        box = OWGUI.widgetBox(self, orientation="horizontal")
+        OWGUI.button(box, self, "OK", callback=self.accept)
+        OWGUI.button(box, self, "Cancel", callback=self.reject)
         
         
 if __name__=="__main__":
