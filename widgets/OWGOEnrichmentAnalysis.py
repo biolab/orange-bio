@@ -473,7 +473,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             matchers.reverse()
 #            print matchers
             self.annotations.genematcher = obiGene.matcher(matchers)
-            self.annotations.genematcher.set_targets(self.annotations.geneNames)
+            self.progressBarInit()
+            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+                self.annotations.genematcher.set_targets(self.annotations.geneNames)
+            self.progressBarFinished()
             
     def Enrichment(self):
         if not self.annotations.ontology:
