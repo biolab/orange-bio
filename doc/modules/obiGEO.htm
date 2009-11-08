@@ -100,10 +100,10 @@ remove_unknown=None)</dt>
   with <code>sample_type</code>, the entire annotation of samples will
   be included either in the class value or in
   the <code>.attributes</code> field of each data set
-  attributes. Genes with sample profiles that include unknown values
-  are retained by default (<code>filter_unknown=None</code>), but
-  could be removed if the proportion of samples with unknown values
-  is above the threshold set by <code>filter_unknown</code>.</p>
+  attributes. Spots with sample profiles that include unknown values
+  are retained by default (<code>remove_unknown=None</code>). They are
+  removed if the proportion of samples with unknown values
+  is above the threshold set by <code>remove_unknown</code>.</p>
 
 <p>The following illustrates how <code>getdata</code> is used to
   construct a data set with genes in rows and samples in
