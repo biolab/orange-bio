@@ -198,10 +198,9 @@ class GDS():
                 break
             d = line.rstrip().split("\t")
             if remove_unknown and (float(d[2:].count('null')) / len(d[2:]) > remove_unknown):
-                print "ZZZ", float(d[2:].count('null')) / len(d[2:]), d[2:]
+#                print "ZZZ", float(d[2:].count('null')) / len(d[2:]), d[2:]
                 continue 
             data[d[0]] = GeneData(d[0], d[1], [mfloat(v) for v in d[2:]])
-        
         self.gdsdata = data
     
     def _to_ExampleTable(self, report_genes=True, merge_function=spots_mean,
@@ -215,11 +214,11 @@ class GDS():
                 cvalues.remove(None)
             classvar = orange.EnumVariable(name=sample_type or "class", values=cvalues)
             if report_genes: # save by genes
-                atts = [orange.FloatVariable(name=gene) for gene in self.genes]
+                atts = [orange.FloatVariable(name=gene) for gene in self.gene2spots.keys()]
                 domain = orange.Domain(atts, classvar)
                 for (i, sampleid) in enumerate(self.info["samples"]):
                     vals = [merge_function([self.gdsdata[spot].data[i] \
-                            for spot in self.gene2spots[gene]]) for gene in self.genes]
+                            for spot in self.gene2spots[gene]]) for gene in self.gene2spots.keys()]
                     orng_data.append(vals + [sample2class[sampleid]])
                 
             else: # save by spots
@@ -242,7 +241,7 @@ class GDS():
     
             if report_genes: # save by genes
                 domain.addmeta(orange.newmetaid(), orange.StringVariable("gene"))
-                for g in self.genes:
+                for g in self.gene2spots.keys():
                     orng_data.append(map(lambda *x: merge_function(x),
                                          *[self.gdsdata[spot].data for spot in self.gene2spots[g]]))
             else: # save by spots
@@ -253,7 +252,7 @@ class GDS():
             data = orange.ExampleTable(domain, orng_data)
 
             if report_genes:
-                for i, g in enumerate(self.genes):
+                for i, g in enumerate(self.gene2spots.keys()):
                     data[i]["gene"] = g
             else:
                 for i, s in enumerate(spots):
@@ -268,7 +267,6 @@ class GDS():
         if self.verbose: print "Reading data ..."
 #        if not self.gdsdata:
         self._parse_soft(remove_unknown = remove_unknown)
-#        print "XXX", len(self.gdsdata)
 #        if remove_unknown:
             # some spots were filtered out, need to revise spot<>gene mappings
         self._getspotmap(include_spots=set(self.gdsdata.keys()))
