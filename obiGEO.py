@@ -315,8 +315,20 @@ def transpose_class_to_labels(data, attcol="sample"):
 
     return new
 
-def transpose_labels_to_class(data, class_label="class"):
+def transpose_labels_to_class(data, class_label=None):
     """Converts data with genes in rows to data with genes as attributes."""
+    # if no class_label (attribute type) given, guess it from the data
+    if not class_label:
+        l = []
+        for a in data.domain.attributes:
+            l.extend(a.attributes.keys())
+        l = list(set(l))
+        class_label = l[0]
+        if len(set(l)) > 1:
+            import warnings
+            warnings.warn("More than single attribute label types (%s), took %s"
+                          % (", ".join(l), class_label))
+
     if "gene" in [v.name for v in data.domain.getmetas().values()]:
         atts = [orange.FloatVariable(str(d["gene"])) for d in data]
     else:
@@ -327,7 +339,7 @@ def transpose_labels_to_class(data, class_label="class"):
     
     newdata = []
     for a in data.domain.attributes:
-        newdata.append([_float_or_na(d[a]) for d in data] + [a.group])
+        newdata.append([_float_or_na(d[a]) for d in data] + [a.attributes[class_label]])
 
     sample = orange.StringVariable("sample")
     id = orange.newmetaid()
