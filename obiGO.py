@@ -338,6 +338,9 @@ class Ontology(object):
             self.slimsSubset = set(subset)
 #        print self.slimsSubset
 
+    def GetSlimsSubset(self, subset):
+        return [id for id, term in self.terms.items() if subset in getattr(term, "subset", set())]
+
     def GetSlimTerms(self, termId):
         """ Return a list of slim terms for termId.
         """
