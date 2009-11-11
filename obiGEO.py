@@ -332,9 +332,15 @@ def transpose_labels_to_class(data, class_label=None):
     if "gene" in [v.name for v in data.domain.getmetas().values()]:
         atts = [orange.FloatVariable(str(d["gene"])) for d in data]
     else:
-        atts = [orange.FloatVariable("A%d" % i) for i in range(len(data))]        
+        atts = [orange.FloatVariable("A%d" % i) for i in range(len(data))]
+        
     classvalues = list(set([a.attributes[class_label] for a in data.domain.attributes]))
-    classvar = orange.EnumVariable(class_label, values=classvalues)
+    
+    if all(map(lambda x: isinstance(x, (int, long, float, complex)), classvalues)):
+        classvar = orange.FloatVariable(class_label)
+    else:
+        classvar = orange.EnumVariable(class_label, values=classvalues)
+        
     domain = orange.Domain(atts + [classvar])
     
     newdata = []
