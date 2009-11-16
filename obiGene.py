@@ -225,8 +225,10 @@ def join_sets(set1, set2, lower=False):
     The operation both commutative and associative.
     """
 
-    cur = [ set(a) for a in set1 ]
-    currentmap = create_mapping(cur, lower=lower)
+    set1 = [ set(a) for a in set1 ]
+    set2 = [ set(a) for a in set2 ]
+
+    currentmap = create_mapping(set1, lower=lower)
 
     new = [] #new groups
 
@@ -573,7 +575,7 @@ class MatcherAliasesAffy(MatcherAliasesPickled):
         return "affy_" + self.organism
     
     def create_aliases_version(self):
-        orngServerFiles.localpath_download("affy", self.organism + ".pickle")
+        orngServerFiles.localpath_download("Affy", self.organism + ".pickle")
         return orngServerFiles.info("Affy", self.organism + ".pickle")["datetime"]
         
     def __init__(self, organism, **kwargs):
