@@ -334,25 +334,13 @@ def PLSCall(data, y=None, x=None, nc=None, weight=None, save_partial=False):
 
     # Z-scores of original matrices
     YMean = numpy.mean(Y, axis = 0)
-    YStd = numpy.std(Y, axis = 0)
     XMean = numpy.mean(X, axis = 0)
-    XStd = numpy.std(X, axis = 0)
     
-    #FIXME: standard deviation should never be 0. Ask Lan, if the following
-    #fix is ok.
-    XStd = numpy.maximum(XStd, 10e-16)
-    YStd = numpy.maximum(YStd, 10e-16)
-
-    #X = (X-XMean)/XStd
-    #Y = (Y-YMean)/YStd
     X = (X-XMean)
     Y = (Y-YMean)
 
     P = numpy.empty((mx,Ncomp))
-    C = numpy.empty((my,Ncomp))
     T = numpy.empty((n,Ncomp))
-    U = numpy.empty((n,Ncomp))
-    B = numpy.zeros((Ncomp,Ncomp))
     W = numpy.empty((mx,Ncomp))
     E,F = X,Y
 
@@ -375,23 +363,6 @@ def PLSCall(data, y=None, x=None, nc=None, weight=None, save_partial=False):
         T[:,i] = t.T
         W[:,i] = w.T
         P[:,i] = p.T
-        
-
-    """
-    print "T", T
-
-    #regenerate T - see if they match
-    
-    TR = numpy.empty((n,Ncomp))
-    XR = X
-
-    for i in range(Ncomp):
-       t = dot(XR, W[:,i].T)
-       XR = XR - dot(numpy.array([t]).T, numpy.array([P[:,i]]))
-       TR[:,i] = t
-
-    print "TR", TR
-    """
 
     return XMean, W, P, T
 
@@ -436,13 +407,82 @@ class PLSLearner(object):
             xmean, W, P, T = PLSCall(data_gs, nc=components, y=[data_gs.domain.classVar], save_partial=True)
             constructt[name] = inds, xmean, W, P
 
-            """
-            print "TO", T[0]
-            pt2 = pls_transform(data[0], constructt[name])
-            print "TR", pt2
-            """
-
         return PLS(constructt=constructt)
+
+class PCA(object):
+
+    def __init__(self, **kwargs):
+        for a,b in kwargs.items():
+            setattr(self, a, b)
+
+    def __call__(self, example):
+        od = {}
+
+        for name, constt in self.constructt.items():
+            ts = pca_transform(example, constt)[0]
+            od[name] = ts
+
+        return od
+
+def pca_transform(example, constt):
+    inds, evals, evect, xmean = constt
+    dom = orange.Domain([example.domain.attributes[i1] for i1 in inds ], False)
+    newex = orange.ExampleTable(dom, [example])
+    arr = newex.toNumpy()[0]
+    arr = arr - xmean # same input transformation
+
+    ev0 = numpy.reshape(evect[0], (numpy.size(evect[0]), 1))
+    pp = numpy.dot(arr, ev0)
+    a = numpy.reshape(pp, (numpy.size(pp),)) 
+
+    #ONLY FOR ONE DIMENSION
+
+    return a
+
+def pca(data, snapshot=0):
+    "Perform PCA on M, return eigenvectors and eigenvalues, sorted."
+    M = data.toNumpy("a")[0]
+    XMean = numpy.mean(M, axis = 0)
+    M = M - XMean
+
+    T, N = numpy.shape(M)
+    # if there are less rows T than columns N, use snapshot method
+    if (T < N) or snapshot:
+        C = numpy.dot(M, numpy.transpose(M))
+        evals, evecsC = numpy.linalg.eig(C)
+        evecsC = numpy.transpose(evecsC)
+        #evecs = 1./sqrt(abs(evals)) * dot(evecs, t(evecsC))
+        evecs = numpy.transpose(numpy.transpose(1./numpy.sqrt(numpy.abs(evals))) * numpy.transpose(numpy.dot(evecsC, M)))
+    else:
+        K = numpy.dot(numpy.transpose(M), M)
+        evals, evecs = numpy.linalg.eig(K)
+        evecs = numpy.transpose(evecs)
+    # sort the eigenvalues and eigenvectors, decending order
+    order = (numpy.argsort(numpy.abs(evals))[::-1])
+    evecs = numpy.take(evecs, order, 0)
+    evals = numpy.take(evals, order)
+    return evals, evecs, XMean
+
+class PCALearner(object):
+    """ Transforms gene sets using Principal Leasts Squares. """
+    
+    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+
+        data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+            minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
+    
+        constructt = {}
+
+        #build weight matrices for every gene set
+        for name, inds in gsetsnum.items():
+            dom2 = orange.Domain([ data.domain.attributes[i1] for i1 in inds ], data.domain.classVar)
+
+            data_gs = orange.ExampleTable(dom2, data)
+            evals, evect, xmean = pca(data_gs)
+            constructt[name] = inds, evals, evect, xmean
+
+        return PCA(constructt=constructt)
+
 
 class SimpleFun(object):
 
@@ -500,40 +540,6 @@ def impute_missing(data):
 
     data = imputer(data)
     return data
-
-class SetSigOLD(object):
-
-    def __init__(self, **kwargs):
-        for a,b in kwargs.items():
-            setattr(self, a, b)
-
-    def __call__(self, example):
-        #return a dictionary geneset: value for every sample
-        test,_ = genesetsAsAttributes(self.learndata, [ example ], self.genesets, self.minGenes, self.maxGenes, domain=self.domain)
-        #print test[0]
-        return dict(  (at.name, test[0][at].value) for at in test.domain.attributes )
-
-class SetSigOLDLearner(object):
-    """
-    Just applies a function taking attribute values of an example and
-    produces to all gene sets.    
-    """
-    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
-        #data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
-        #    minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
-        gm = obiGene.matcher([obiGene.GMKEGG("hsa")])
-        gm.set_targets([g.name for g in data.domain.attributes])
-        genesets = genesetsInData(geneSets, gm)
-        learn,domain = genesetsAsAttributes(data, data, genesets, minSize, maxSize)
-        #learn here was the original output of tranformed learning set - we get the same output
-        #if we call the SetSigOLD with the same example
-        """
-        print "LEARN"
-        print learn.domain
-        for ex in learn:
-            print ex
-        """
-        return SetSigOLD(learndata=data, domain=domain, genesets=genesets, minGenes=minSize, maxGenes=maxSize)
 
 def setSig_example(ldata, ex, genesets):
     """
