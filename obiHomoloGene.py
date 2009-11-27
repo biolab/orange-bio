@@ -43,9 +43,9 @@ class HomoloGene(object):
     def load(self):
         orngServerFiles.localpath_download("HomoloGene", "homologene.data")
         lines = open(orngServerFiles.localpath("HomoloGene", "homologene.data"), "rb").read().split("\n")[:-1]
-        self._homologs = {}
-        self._homologs_by_group = defaultdict(list)
+        self._homologs = {} 
         self._homologs = dict([((h.taxonomy_id, h.gene_symbol), h) for h in [_homolog(line) for line in lines]])
+        self._homologs_by_group = reduce(lambda dict, h: dict[h.group_id].append(h) or dict, self._homologs.values(), defaultdict(list))
 #        for line in lines:
 #            h = _homolog(line)
 #            self._homologs[h.taxonomy_id, h.gene_symbol] = h
@@ -56,7 +56,8 @@ class HomoloGene(object):
     
     def homologs(self, gene, taxid):
         group = self._homologs.get((taxid, gene), _homolog("")).group_id
-        homologs = [h for h in self._homologs.itervalues() if h.group_id == group] #self._homologs_by_group[group]
+#        homologs = [h for h in self._homologs.itervalues() if h.group_id == group] 
+        homologs = self._homologs_by_group[group]
         return [(h.taxonomy_id, h.gene_symbol) for h in homologs]
         
     def homolog(self, gene, taxid, homolotaxid):
