@@ -11,7 +11,7 @@ import orange
 import obiKEGG, orngServerFiles
 import obiTaxonomy
 
-from OWWidget import *  
+from OWWidget import *
 import OWGUI
 from collections import defaultdict
 
@@ -23,10 +23,13 @@ class PathwayToolTip(object):
         self.parent = parent
 
     def maybeTip(self, p):
-        objs = [(id, bb) for id, bb in  self.parent.GetObjects(p.x() ,p.y()) if id in self.parent.objects]
+        objs = [(id, bb) for id, bb in self.parent.GetObjects(p.x() ,p.y()) if id in self.parent.objects]
         if objs:
             genes = map(self.parent.master.uniqueGenesDict.get, dict(objs).keys())
+            name = objs[0][1].get("name", "")
             text = "<br>".join(genes)
+            if name:
+                text = "<p>" + name + "</p>" + text
 ##            self.tip(QRect(p.x()-2, p.y()-2, 4, 4), text)
             QToolTip.showText(self.parent.mapToGlobal(p), text, self.parent, QRect(p.x()-2, p.y()-2, 4, 4))
 
@@ -44,7 +47,7 @@ class PathwayView(QGraphicsView):
         
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
-        self.bbDict = {}
+        self.graphics_items = []
         self.pixmap = None
         self.image = None       
         
@@ -59,41 +62,40 @@ class PathwayView(QGraphicsView):
         self.pathway = pathway
         self.objects = objects
         if pathway:
-            pathway.api.download_progress_callback = self.master.progressBarSet
             self.master.progressBarInit()
-            with orngServerFiles.DownloadProgress.setredirect(self.master.progressBarSet):
-                self.image = image = self.pathway.get_image()
-##                print 'image:', image
-                self.bbDict = self.pathway.get_bounding_box_dict()
-            self.master.progressBarFinished()
+            self.image = image = self.pathway.get_image()
+#            self.bbDict = self.pathway.get_bounding_box_dict()
+            self.graphics_items = [(item, self.pathway.graphics(item)) for item in objects] 
             self.ShowImage()
-##            image.save(self.pathway.local_database_path+"TmpPathwayImage.png")
-##            self.pixmap = QPixmap(obiKEGG.default_database_path+"TmpPathwayImage.png")
-##            w, h = image.size
-##            self.resizeContents(w, h)
-##            self.updateContents(self.contentsX(), self.contentsY() ,self.viewport().width(), self.viewport().height())
         else:
             self.bbDict = {}
+            self.graphics_items = []
             self.pixmap = None
             self.scene.setSceneRect(QRectF(0, 0, 0, 0))
 
     def ShowImage(self):
         if self.master.autoResize:
             import Image
-            w, h = self.image.size
+            image = Image.open(self.image)
+            w, h = image.size
             self.resizeFactor = factor = min(self.width() / float(w), self.height() / float(h))
-            image = self.image.resize((int(w*factor), int(h*factor)), Image.ANTIALIAS)
+            resized = image.resize((int(w*factor), int(h*factor)), Image.ANTIALIAS)
+            image = os.path.join(obiKEGG.DEFAULT_DATABASE_PATH, "TmpPathwayImage.png")
+            resized.save(image)
         else:
-            image = self.image
+            image = self.pathway.get_image()
             self.resizeFactor = 1
-            
-##        print self.pathway.local_database_path+"TmpPathwayImage.png"
-        image.save(self.pathway.local_database_path+"TmpPathwayImage.png")
-        self.pixmap = QPixmap(self.pathway.local_database_path+"TmpPathwayImage.png")
-        w, h = image.size
+        
+        self.pixmap = QPixmap(image)
+        w, h = self.pixmap.size().width(), self.pixmap.size().height()
         self.scene.setSceneRect(QRectF(0, 0, w, h))
         #self.updateSceneRect(QRectF(self.contentsRect().x(),self.contentsRect().y(),self.contentsRect().width(), self.contentsRect().height()))
         self.updateSceneRect(QRectF(0, 0, w, h))
+        
+    def getGraphics(self, graphics):
+        type, x, y, w, h = graphics.get("type", "rectangle"), graphics.get("x", 0), graphics.get("y", 0), graphics.get("width", 0), graphics.get("height", 0)
+        x, y, w, h = [float(c) * self.resizeFactor for c in [x, y, w, h]]
+        return type, x, y, w, h
 
     def drawBackground(self, painter, r):
         QGraphicsView.drawBackground(self, painter, r)
@@ -101,44 +103,54 @@ class PathwayView(QGraphicsView):
         cy = r.y()
         
         if self.pixmap:
-            #print 'cx',cx,'cy',cy
             painter.drawPixmap(0, 0, self.pixmap)
             painter.save()
 
             painter.setPen(QPen(Qt.blue, 2, Qt.SolidLine))
             painter.setBrush(QBrush(Qt.NoBrush))
-            for rect in reduce(lambda a,b:a.union(b), [bbList for id, bbList in self.bbDict.items() if id in self.objects], set()):
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
-                #print 'x1', x1, 'y1', y1, 'x2', x2, 'y2',y2
-                painter.drawRect(x1+1, y1+1, x2-x1, y2-y1)
+            marked_elements = [entry for entry in self.pathway.entrys() if any([object in entry.name for object in self.objects])]
+#            for rect in reduce(lambda a,b:a.union(b), [bbList for id, bbList in self.bbDict.items() if id in self.objects], set()):
+            
+            for element in marked_elements:
+                graphics = element.graphics
+                type, x, y, w, h = self.getGraphics(graphics)
+                if type == "rectangle":
+                    painter.drawRect(x - w/2, y - h/2, w, h)
+                elif type == "roundrectangle":
+                    painter.drawRoundedRect(x - w/2, y - h/2, w, h, 10, 10, Qt.RelativeSize)
+                elif type == "circle":
+                    painter.drawEllipse(x, y, w, h)
                 
             painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
-            for rect in self.master.selectedObjects.keys():
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
-                painter.drawRect(x1+1, y1+1, x2-x1, y2-y1)
+            for graphics in self.master.selectedObjects.keys(): 
+                type, x, y, w, h = self.getGraphics(dict(graphics))
+                if type == "rectangle":
+                    painter.drawRect(x - w/2, y - h/2, w, h)
+                elif type == "roundrectangle":
+                    painter.drawRoundedRect(x - w/2, y - h/2, w, h, 10, 10, Qt.RelativeSize)
+                elif type == "circle":
+                    painter.drawEllipse(x, y, w, h)
                 
             painter.restore()
         else:
             painter.drawText(r.center(), "No image available")
 
     def GetObjects(self, x, y):
-        def _in(x, y, bb):
-##            if bb[0]=="rect":
-            x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), bb)
-            return x>=x1 and y>=y1 and x<x2 and y<y2
-##            else:
-##                x1, y1, r = map(lambda x:int(self.resizeFactor*x), bb[1:])
-##                return abs(x1-x)<=r and abs(y1-y)<=r
+        def _in(x, y, graphics):
+            type, x1, y1, w, h = self.getGraphics(graphics)
+            if type == "rectangle":
+                return abs(x1 - x) <= w/2 and abs(y1 - y) <= h/2
+            else:
+                return abs(x1 - x) <= w and abs(y1 - y) <= h
         point = self.mapToScene(x, y)
         x = point.x()
         y = point.y()
-        #print 'contents x',x,'y',y
+
         objs = []
-        for id, bbList in self.bbDict.items():
-##            if id in self.objects:
-            for bb in bbList:
-                if _in(x, y, bb):
-                    objs.append((id, bb))
+        for id, graphics_list in self.graphics_items:
+            for graphics in graphics_list:
+                if _in(x, y, graphics):
+                    objs.append((id, graphics))
         return objs
     
     def mouseMoveEvent(self, event):
@@ -146,14 +158,14 @@ class PathwayView(QGraphicsView):
 
     def mousePressEvent(self, event):
         x, y = event.x(), event.y()
-        #print 'mouse x',x,'y',y
         old = set(self.master.selectedObjects.keys())
         objs = self.GetObjects(x, y)
-        if event.button()==Qt.LeftButton:
+        if event.button() == Qt.LeftButton:
             self.master.SelectObjects([(id, bb) for (id, bb) in objs if id in self.objects])
-            for rect in set(self.master.selectedObjects.keys()).union(old):
-                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
-                self.updateScene([QRectF(x1-2, y1-2, x2-x1+2, y2-y1+2)])
+            for graphics in set(self.master.selectedObjects.keys()).union(old):
+#                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
+                type, x, y, w, h, = self.getGraphics(dict(graphics))
+                self.updateScene([QRectF(x - w, y - h, 2 * w, 2 * h)])
         else:
             QGraphicsView.mousePressEvent(self, event)
 
@@ -175,10 +187,6 @@ class PathwayView(QGraphicsView):
             action = menu.addAction("View linked pathway")
             self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(2, objs))
         menu.popup(event.globalPos())
-            
-        #QGraphicsView.resizeEvent(self,e)
-        #if self.scene().parent.FitToWindow:
-        #    self.scene().displayTree(self.scene().rootCluster)
 
     def PopupAction(self, id, objs):
         import webbrowser
@@ -190,7 +198,7 @@ class PathwayView(QGraphicsView):
 ##            s = reduce(lambda s,g:s.union(self.master.org.get_enzymes_by_gene(g)), genes, set())
 ##            address = "http://www.genome.jp/dbget-bin/www_bget?enzyme+"+"+".join([e.split(":")[-1] for e in s])
             genes = [s.split(":")[-1].strip() for s, t in objs if s in self.objects]
-            address = "http://www.genome.jp/dbget-bin/show_pathway?"+self.pathway.pathway_id.split(":")[-1]+(genes and "+"+"+".join(genes) or "")
+            address = "http://www.genome.jp/dbget-bin/show_pathway?"+self.pathway.name.split(":")[-1]+(genes and "+"+"+".join(genes) or "")
         elif id==2:
             self.master.selectedObjects = defaultdict(list)
             self.master.Commit()
@@ -226,12 +234,14 @@ class OWKEGGPathwayBrowser(OWWidget):
 
         self.controlArea.setMaximumWidth(250)
         self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "No data on input\n")
-        self.keggLocalInterface = obiKEGG.KEGGInterfaceLocal(update=False)
-        self.allOrganismCodes = self.keggLocalInterface.list_organisms()
-##        update = obiKEGG.Update()
-        essential = [obiKEGG.from_taxid(tax) for tax in obiTaxonomy.essential_taxids()]
+        
+        genome = obiKEGG.KEGGGenome()
+        self.allOrganismCodes = genome 
+
+        essential = genome.essential_organisms()
+        
         local = [name.split(".")[0].split("_")[-1] for name in orngServerFiles.listfiles("KEGG") if "kegg_organism" in name]
-        self.organismCodes = [(code, name) for code, name in self.allOrganismCodes.items() if code in local or code in essential]
+        self.organismCodes = [(code, organism.definition) for code, organism in self.allOrganismCodes.items() if code in local or code in essential]
         self.organismCodes.sort()
         items = [desc for code, desc in self.organismCodes]
         self.organismCodes = [code for code, desc in self.organismCodes]
@@ -368,52 +378,53 @@ class OWKEGGPathwayBrowser(OWWidget):
             return
         self.progressBarInit()
         with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            allPathways = self.org.list_pathways()
+            allPathways = self.org.pathways()
 ##            allRefPathways = obiKEGG.KEGGInterfaceLocal().list_pathways(org="map")
-            allRefPathways = self.keggLocalInterface.list_pathways(org="map")
+            allRefPathways = obiKEGG.pathways("map")
         self.progressBarFinished()
         items = []
         if self.showOrthology:
-##            self.koOrthology = obiKEGGobiKEGG.KEGGInterfaceLocal().get_ko_orthology()
             self.progressBarInit()
             with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                self.koOrthology = self.keggLocalInterface.get_ko_orthology()
+                self.koOrthology = obiKEGG.KEGGBrite("ko00001")
             self.progressBarFinished()
             self.listView.setRootIsDecorated(True)
             path_ids = set([s[-5:] for s in self.pathways.keys()])
-            def _walkCollect(koClass):
-                if koClass.ko_class_id in path_ids:
-                    return [koClass]
+            def _walkCollect(koEntry):
+                num = koEntry.title[:5] if koEntry.title else None
+                if num  in path_ids:
+                    return [koEntry] + reduce(lambda li,c:li+_walkCollect(c), [child for child in koEntry.entrys], [])
                 else:
-                    c = reduce(lambda li,c:li+_walkCollect(c), [child for child in koClass.children], [])
-                    return c + (c and [koClass] or [])
+                    c = reduce(lambda li,c:li+_walkCollect(c), [child for child in koEntry.entrys], [])
+                    return c + (c and [koEntry] or [])
             allClasses = reduce(lambda li1, li2: li1+li2, [_walkCollect(c) for c in self.koOrthology], [])
-            def _walkCreate(koClass, lvItem):
+            def _walkCreate(koEntry, lvItem):
                 item = QTreeWidgetItem(lvItem)
-                id = "path:"+self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]+koClass.ko_class_id
-                if koClass.ko_class_id in path_ids:
+                id = "path:"+self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)] + koEntry.title[:5]
+                if koEntry.title[:5] in path_ids:
                     genes, p_value, ref = self.pathways[id]
-                    item.setText(0, allPathways.get(id, id))
+                    item.setText(0, obiKEGG.KEGGPathway(id).title) #allPathways.get(id, id))
+                    print id, obiKEGG.KEGGPathway(id).title
                     item.setText(1, "%.5f" % p_value)
                     item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
                     item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
                     item.pathway_id = id
                 else:
-                    item.setText(0, allPathways.get(id, koClass.class_name))
+                    item.setText(0, obiKEGG.KEGGPathway(id).title if id in allPathways else koEntry.title)
                     if id in allPathways:
                         item.pathway_id = id
-                    elif "path:map"+koClass.ko_class_id in allRefPathways:
-                        item.pathway_id = "path:map"+koClass.ko_class_id
+                    elif "path:map" + koEntry.title[:5] in allRefPathways:
+                        item.pathway_id = "path:map" + koEntry.title[:5]
                     else:
                         item.pathway_id = None
                 
-                for child in koClass.children:
+                for child in koEntry.entrys:
                     if child in allClasses:
-                        _walkCreate(child, item)                
+                        _walkCreate(child, item)
             
-            for koClass in self.koOrthology:
-                if koClass in allClasses:
-                    _walkCreate(koClass, self.listView)
+            for koEntry in self.koOrthology:
+                if koEntry in allClasses:
+                    _walkCreate(koEntry, self.listView)
                     
             self.listView.update()
         else:
@@ -422,7 +433,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             pathways.sort(lambda a,b:cmp(a[1][1], b[1][1]))
             for id, (genes, p_value, ref) in pathways:
                 item = QTreeWidgetItem(self.listView)
-                item.setText(0, allPathways.get(id, id))
+                item.setText(0, obiKEGG.KEGGPathway(id).title) #allPathways.get(id, id))
                 item.setText(1, "%.5f" % p_value)
                 item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
                 item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
@@ -448,7 +459,7 @@ class OWKEGGPathwayBrowser(OWWidget):
                 return
             self.pathway = obiKEGG.KEGGPathway(item.pathway_id)
 ##            self.pathway.api.download_progress_callback = self.progressBarSet
-            self.pathway.api = self.org.api
+#            self.pathway.api = self.org.api
             #print 'pathway:', self.pathway
             self.pathwayView.SetPathway(self.pathway, self.pathways.get(item.pathway_id, [[]])[0])
             
@@ -469,8 +480,8 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.error(0, "Cannot extact gene names from input")
             genes = []
         if self.loadedOrganism!=self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]:
-            self.org = obiKEGG.KEGGOrganism(self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)], update=True)
-            self.org.api.download_progress_callback=self.progressBarSet
+            self.org = obiKEGG.KEGGOrganism(self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)])
+#            self.org.api.download_progress_callback=self.progressBarSet
             self.loadedOrganism = self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]
         self.progressBarInit()
         with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
@@ -503,7 +514,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.revUniqueGenesDict = dict([(val, key) for key, val in self.uniqueGenesDict.items()])
         self.progressBarInit()
         with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            self.pathways = self.org.get_enriched_pathways_by_genes(self.genes, reference, callback=self.progressBarSet)
+            self.pathways = self.org.get_enriched_pathways(self.genes, reference, callback=self.progressBarSet)
         self.progressBarFinished()
         self.UpdateListView()
 ##        print self.bestPValueItem
@@ -514,17 +525,19 @@ class OWKEGGPathwayBrowser(OWWidget):
         if (not self.selectedObjects or self.ctrlPressed) and not objs:
             return
         if self.ctrlPressed:
-            for id, rect in objs:
-                if id in self.selectedObjects[rect]:
-                    self.selectedObjects[rect].pop(self.selectedObjects[rect].index(id))
-                    if not self.selectedObjects[rect]:
-                        del self.selectedObjects[rect]
+            for id, graphics in objs:
+                graphics = tuple(sorted(graphics.items()))
+                if id in self.selectedObjects[graphics]:
+                    self.selectedObjects[graphics].pop(self.selectedObjects[graphics].index(id))
+                    if not self.selectedObjects[graphics]:
+                        del self.selectedObjects[graphics]
                 else:
-                    self.selectedObjects[rect].append(id)
+                    self.selectedObjects[graphics].append(id)
         else:
             self.selectedObjects.clear()
-            for id, rect in objs:
-                self.selectedObjects[rect].append(id)
+            for id, graphics in objs:
+                graphics = tuple(sorted(graphics.items()))
+                self.selectedObjects[graphics].append(id)
         if self.autoCommit:
             self.Commit()
             
@@ -567,7 +580,7 @@ class OWKEGGPathwayBrowser(OWWidget):
 
 if __name__=="__main__":
     app = QApplication(sys.argv)
-    data = orange.ExampleTable("../../orange/doc/datasets/brown-selected.tab")
+    data = orange.ExampleTable("../../../../orange/doc/datasets/brown-selected.tab")
     w = OWKEGGPathwayBrowser()
 ##    app.setMainWidget(w)
     w.show()
