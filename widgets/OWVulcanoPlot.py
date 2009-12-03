@@ -201,6 +201,8 @@ class OWVulcanoPlot(OWWidget):
         
         OWGUI.rubber(self.controlArea)
 
+        self.data = None
+        
         self.resize(800, 600)
 
     def setData(self, data=None):
@@ -224,13 +226,13 @@ class OWVulcanoPlot(OWWidget):
         
     def setTargetCombo(self):
         if self.genesInColumns:
-            self.targets = sorted(reduce(set.union, [attr.attributes.items() for attr in self.data.domain.attributes], set()))
-            measurements = [attr.attributes.items() for attr in self.data.domain.attributes]
+            self.targets = sorted(reduce(set.union, [attr.attributes.items() for attr in (self.data.domain.attributes if self.data else [])], set()))
+            measurements = [attr.attributes.items() for attr in (self.data.domain.attributes if self.data else [])]
             targets = ["%s: %s" % t for t in self.targets]
             
         else:
-            self.targets = self.data.domain.classVar.values
-            measurements = [set([str(ex.getclass())]) for ex in self.data]
+            self.targets = list(self.data.domain.classVar.values if self.data else [])
+            measurements = [set([str(ex.getclass())]) for ex in (self.data if self.data else [])]
             targets = self.targets
                                 
         self.targetMeasurements = [len([m for m in measurements if target in m]) for target in self.targets]
