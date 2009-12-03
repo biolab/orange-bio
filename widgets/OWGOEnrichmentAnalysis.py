@@ -133,7 +133,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene names", callback=self.Update, tooltip="Use this attribute to extract gene names from input data")
         OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use data attributes names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.Update, tooltip="Use attribute names for gene names")
-        OWGUI.button(self.geneAttrIndexCombo.box, self, "Gene matcher settings", callback=self.UpdateGeneMatcher, tooltip="Open gene matching settings dialog")
+        OWGUI.button(self.geneAttrIndexCombo.box, self, "Gene matcher settings", callback=self.UpdateGeneMatcher, tooltip="Open gene matching settings dialog", debuggingEnabled=0)
         
         self.referenceRadioBox = OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Entire genome", "Reference set (input)"], tooltips=["Use entire genome for reference", "Use genes from Referece Examples input signal as reference"], box="Reference", callback=self.Update)
         self.referenceRadioBox.buttons[1].setDisabled(True)
