@@ -133,7 +133,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene names", callback=self.Update, tooltip="Use this attribute to extract gene names from input data")
         OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use data attributes names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.Update, tooltip="Use attribute names for gene names")
-        OWGUI.button(self.geneAttrIndexCombo.box, self, "Gene matcher settings", callback=self.UpdateGeneMatcher)
+        OWGUI.button(self.geneAttrIndexCombo.box, self, "Gene matcher settings", callback=self.UpdateGeneMatcher, tooltip="Open gene matching settings dialog")
         
         self.referenceRadioBox = OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Entire genome", "Reference set (input)"], tooltips=["Use entire genome for reference", "Use genes from Referece Examples input signal as reference"], box="Reference", callback=self.Update)
         self.referenceRadioBox.buttons[1].setDisabled(True)
@@ -220,6 +220,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.ontology = None
         self.annotations = None
         self.probFunctions = [obiProb.Binomial(), obiProb.Hypergeometric()]
+        self.selectedTerms = []
         self._progressBarStack = []
         
     def UpdateOrganismComboBox(self):
@@ -436,7 +437,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.progressBarInit()
         for i, args in enumerate(calls):
             with orngServerFiles.DownloadProgress.setredirect(lambda value: self.progressBarSet(100.0 * i / count + value/count)):
-                print args
+#                print args
                 orngServerFiles.localpath_download(*args)
             
         i = len(calls)
@@ -697,12 +698,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         #change by Marko. don't do anything if there is no3 dataset 
         if not self.clusterDataset:
             return
-
-#        if self.selectionDirectAnnotation:
-###            s = filter(lambda anno: anno.GOId in self.selectedTerms, go.loadedAnnotation.annotationList)
-#            s = filter(lambda anno: anno.GOId in self.selectedTerms, self.annotations.annotations)
-#            selectedGenes = set([anno.geneName for anno in s])
-#        else:        
         
         selectedGenes = reduce(set.union, [v[0] for id, v in self.graph.items() if id in self.selectedTerms], set())
         evidences = []
