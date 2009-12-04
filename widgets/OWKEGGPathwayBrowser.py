@@ -62,7 +62,7 @@ class PathwayView(QGraphicsView):
         self.pathway = pathway
         self.objects = objects
         if pathway:
-            self.master.progressBarInit()
+#            self.master.progressBarInit()
             self.image = image = self.pathway.get_image()
 #            self.bbDict = self.pathway.get_bounding_box_dict()
             self.graphics_items = [(item, self.pathway.graphics(item)) for item in objects] 
@@ -321,6 +321,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         if data:
             self.SetBestGeneAttrAndOrganism()
             self.openContext("", data)
+            print self.organismIndex
             self.Update()
         else:
             self.infoLabel.setText("No data on input\n")
@@ -350,42 +351,43 @@ class OWKEGGPathwayBrowser(OWWidget):
             data = data.select(orange.MakeRandomIndices2(data, 20))
         from cPickle import load
         score = {}
-        self.progressBarInit()
-        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            attrNames = [str(v.name).strip() for v in self.data.domain.attributes]
-            testOrgs = self.autoFindBestOrg and self.organismCodes or [self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]]
-            for i, org in enumerate(testOrgs):
-                try:
-    ##                print obiKEGG.default_database_path + org + "_genenames.pickle"
-    ##                geneNames = load(open(os.path.join(obiKEGG.default_database_path, org+"_genenames.pickle")))
-                    geneNames = load(self.keggLocalInterface._retrieve(org+"_genenames.pickle", from_="kegg_organism_%s.tar.gz"%org))
-                except Exception, ex:
-    ##                print 'error 2', ex
-                    continue
-                for attr in self.geneAttrCandidates:
-                    vals = [str(e[attr]).strip() for e in data if not e[attr].isSpecial()]
-                    vals = reduce(list.__add__, (split_and_strip(val, ",") for val in vals), [])
-                    match = filter(lambda v:v in geneNames, vals)
-                    score[(attr, org)] = len(match)
-                match = [v for v in attrNames if v in geneNames]
-                score[("_var_names_", org)] = len(match)
-                self.progressBarSet(i*100.0/len(self.organismCodes))
-        self.progressBarFinished()
-        score = [(s, attr, org) for (attr, org), s in score.items()]
-        score.sort()
-        if not score:
-            self.useAttrNames = 1
-            self.geneAttrIndex = min(len(self.geneAttrCandidates)-1, self.geneAttrIndex)
-##            self.organismIndex = 0
-        elif score[-1][1]=="_var_names_":
-            self.useAttrNames = 1
-            self.geneAttrIndex = 0 #self.geneAttrCandidates.index(score[-2][1])
-            self.organismIndex = self.organismCodes.index(score[-1][2])
-        else:
-            self.useAttrNames = 0
-            self.geneAttrIndex = self.geneAttrCandidates.index(score[-1][1])
-            self.organismIndex = self.organismCodes.index(score[-1][2])
-##        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
+        return
+#        self.progressBarInit()
+#        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+#            attrNames = [str(v.name).strip() for v in self.data.domain.attributes]
+#            testOrgs = self.autoFindBestOrg and self.organismCodes or [self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]]
+#            for i, org in enumerate(testOrgs):
+#                try:
+#    ##                print obiKEGG.default_database_path + org + "_genenames.pickle"
+#    ##                geneNames = load(open(os.path.join(obiKEGG.default_database_path, org+"_genenames.pickle")))
+#                    geneNames = load(self.keggLocalInterface._retrieve(org+"_genenames.pickle", from_="kegg_organism_%s.tar.gz"%org))
+#                except Exception, ex:
+#    ##                print 'error 2', ex
+#                    continue
+#                for attr in self.geneAttrCandidates:
+#                    vals = [str(e[attr]).strip() for e in data if not e[attr].isSpecial()]
+#                    vals = reduce(list.__add__, (split_and_strip(val, ",") for val in vals), [])
+#                    match = filter(lambda v:v in geneNames, vals)
+#                    score[(attr, org)] = len(match)
+#                match = [v for v in attrNames if v in geneNames]
+#                score[("_var_names_", org)] = len(match)
+#                self.progressBarSet(i*100.0/len(self.organismCodes))
+#        self.progressBarFinished()
+#        score = [(s, attr, org) for (attr, org), s in score.items()]
+#        score.sort()
+#        if not score:
+#            self.useAttrNames = 1
+#            self.geneAttrIndex = min(len(self.geneAttrCandidates)-1, self.geneAttrIndex)
+###            self.organismIndex = 0
+#        elif score[-1][1]=="_var_names_":
+#            self.useAttrNames = 1
+#            self.geneAttrIndex = 0 #self.geneAttrCandidates.index(score[-2][1])
+#            self.organismIndex = self.organismCodes.index(score[-1][2])
+#        else:
+#            self.useAttrNames = 0
+#            self.geneAttrIndex = self.geneAttrCandidates.index(score[-1][1])
+#            self.organismIndex = self.organismCodes.index(score[-1][2])
+###        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
                 
                 
     def PreDownload(self, org=None):
