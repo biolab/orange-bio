@@ -217,7 +217,6 @@ class _field_mutators(object):
     orthology = to_id_list
     pathway = classmethod(lambda cls, text, field: [t[1].split()[0] for t in cls.to_id_list(text, field)])
     codon_usage = classmethod(lambda cls, text, field: text.replace(field, " " * len(field)))
-#    dblinks = to_id_list
     structure = to_id_list
     motif = to_dict
     pathway = to_ids
@@ -234,8 +233,6 @@ class _field_mutators(object):
         return dict([(db.lower(), [name for name in links.split(" ")]) for db, links in links])
     
     dblinks = to_dict
-    
-#    genes = classmethod(lambda cls, text, field: cls.to_dict(text, field)
 
 def entry_decorate(cls):
     reserved_map = {"class": "class_"}
@@ -648,11 +645,12 @@ class KEGGOrganism(object):
     def get_enriched_pathways(self, genes, reference=None, prob=obiProb.Binomial(), callback=None):
         """Return a dictionary with enriched pathways ids as keys and (list_of_genes, p_value, num_of_reference_genes) tuples as items."""
         allPathways = defaultdict(lambda :[[], 1.0, []])
+        milestones = set(range(0, len(genes), max(len(genes)/100, 1)))
         for i, gene in enumerate(genes):
             pathways = self.pathways([gene])
             for pathway in pathways:
                 allPathways[pathway][0].append(gene)
-            if callback:
+            if callback and i in milestones:
                 callback(i*100.0/len(genes))
         reference = set(reference if reference is not None else self.genes.keys())
         for p_id, entry in allPathways.items():
