@@ -6,6 +6,8 @@ import re
 from collections import defaultdict
 
 class disease(object):
+    """ A class representing a disease in the OMIM database
+    """
     regex = re.compile(r'(?P<name>.*?),? (?P<id>[0-9]{3,6} )?(?P<m1>\([123?]\) )?(?P<m2>\([123?]\) )? *$')
     __slots__ = ["name", "id", "mapping"]
     def __init__(self, morbidmap_line):
@@ -64,14 +66,23 @@ class OMIM(object):
             for gene in genes:
                 d[gene].add(disease)
         return d
+    
 def diseases():
+    """ Return all disease objects
+    """
     return OMIM.get_instance().diseases()
         
 def genes():
+    """ Return a set of all genes referenced in OMIM 
+    """
     return OMIM.get_instance().genes()
 
 def disease_genes(disease):
+    """ Return a set of all genes referenced by disease in OMIM 
+    """
     return OMIM.get_instance().disease_genes(disease)
 
-def genes_diseases():
+def gene_diseases():
+    """ Return a dictionary {gene: set(disease_objects for gene), ...}
+    """
     return OMIM.get_instance().gene_diseases()
