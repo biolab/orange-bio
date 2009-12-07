@@ -274,40 +274,52 @@ class ExpressionSignificance_Info(ExpressionSignificance_Test):
         return zip(self.keys, classinfo - E)
 
 def attest_ind(a, b, dim=None):
+    """ Return the t-test statistics on arrays a and b over the dim axis.
+    Returns both the t statistic as well as the p-value
+    """
+#    dim = a.ndim - 1 if dim is None else dim
     x1, x2 = ma.mean(a, dim), ma.mean(b, dim)
     v1, v2 = ma.var(a, dim), ma.var(b, dim)
-    n1, n2 = a.shape[dim], b.shape[dim]
+    n1, n2 = (a.shape[dim], b.shape[dim]) if dim is not None else (a.size, b.size)
     df = float(n1+n2-2)
     svar = ((n1-1)*v1+(n2-1)*v2) / df
     t = (x1-x2)/ma.sqrt(svar*(1.0/n1 + 1.0/n2))
-    try:
+    if t.ndim == 0:
+        return (t, statc.betai(0.5*df,0.5,df/(df+t**2)) if t is not ma.masked and df/(df+t**2) <= 1.0 else ma.masked)
+    else:
         prob = [statc.betai(0.5*df,0.5,df/(df+tsq)) if tsq is not ma.masked and df/(df+tsq) <= 1.0 else ma.masked  for tsq in t*t]
-    except :
-        print "tsq:", tsq
-        raise
-    return t, prob
+        return t, prob
 
 def aF_oneway(*args, **kwargs):
     dim = kwargs.get("dim", None)
     arrays = args
     means = [ma.mean(a, dim) for a in arrays]
     vars = [ma.var(a, dim) for a in arrays]
-    lens = [ma.sum(ma.array(ma.ones(a.shape), mask=a.mask), dim) for a in arrays]
-    alldata = ma.concatenate(arrays, dim)
+    lens = [ma.sum(ma.array(ma.ones(a.shape), mask=ma.asarray(a).mask), dim) for a in arrays]
+    alldata = ma.concatenate(arrays, dim if dim is not None else 0)
     bign =  ma.sum(ma.array(ma.ones(alldata.shape), mask=alldata.mask), dim)
     sstot = ma.sum(alldata ** 2, dim) - (ma.sum(alldata, dim) ** 2) / bign
     ssbn = ma.sum([(ma.sum(a, dim) ** 2) / L for a, L in zip(arrays, lens)], dim)
+#    print ma.sum(alldata, dim) ** 2 / bign, ssbn
     ssbn -= ma.sum(alldata, dim) ** 2 / bign
     sswn = sstot - ssbn
     dfbn = dfnum = float(len(args) - 1.0)
-    dfwn = bign - len(args) + 1.0
+    dfwn = bign - len(args) # + 1.0
     F = (ssbn / dfbn) / (sswn / dfwn)
-    prob = [statc.betai(0.5 * dfden, 0.5 * dfnum, dfden/float(dfden+dfnum*f)) if f is not ma.masked and dfden/float(dfden+dfnum*f) <= 1.0 \
+    if F.ndim == 0 and dfwn.ndim == 0:
+        return (F,statc.betai(0.5 * dfwn, 0.5 * dfnum, dfwn/float(dfwn+dfnum*F)) if F is not ma.masked and dfwn/float(dfwn+dfnum*F) <= 1.0 \
+                and dfwn/float(dfwn+dfnum*F) >= 0.0 else ma.masked)
+    else:
+        prob = [statc.betai(0.5 * dfden, 0.5 * dfnum, dfden/float(dfden+dfnum*f)) if f is not ma.masked and dfden/float(dfden+dfnum*f) <= 1.0 \
             and dfden/float(dfden+dfnum*f) >= 0.0 else ma.masked for dfden, f in zip (dfwn, F)]
-    return F, prob
+        return F, prob
     
 def achisquare_indtest(observed, dim=None):
-    if dim == None:
+    if observed.ndim == 2:
+        observed = ma.array([observed])
+        if dim is not None:
+            dim += 1 
+    if dim is None:
         dim = observed.ndim - 2
     rowtotal = ma.sum(observed, dim + 1)
     coltotal = ma.sum(observed, dim)
