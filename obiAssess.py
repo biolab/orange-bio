@@ -260,7 +260,7 @@ class IdekerLearner(object):
                 data2 = orange.ExampleTable(orange.Domain([asv], data.domain.classVar), data)
                 return abs(tscorec(data2, 0)) #FIXME absolute - nothing in the article about it
                     
-            #greedily find CORGS procing the beset separation
+            #greedily find CORGS procing the best separation
             g = S(sortedinds[:1])
             bg = 1
             for a in range(2, len(sortedinds)+1):
@@ -304,7 +304,7 @@ def pls_transform(example, constt):
 
     for i in range(nc):
        t = dot(XR, W[:,i].T)
-       XR = XR - dot(numpy.array([t]).T, numpy.array([P[:,i]]))
+       XR = XR - t*numpy.array([P[:,i]])
        TR[:,i] = t
 
     return TR
@@ -350,11 +350,10 @@ def PLSCall(data, y=None, x=None, nc=None, weight=None, save_partial=False):
     #PLS1 - from Gutkin, shamir, Dror: SlimPLS
 
     for i in range(Ncomp):
-
-        c = reduce(dot, [ F.T, E, E.T, F]) ** -0.5 #normalization factor
-        w = c*dot(E.T,F) #w_a
-        t = dot(E, w) #t_i
-        p = dot(E.T, t)/dot(t.T, t) #p_i
+        w = dot(E.T,F)
+        w = w/norm(w) #normalize w in Gutkin et al the do w*c, where c is 1/norm(w)
+        t = dot(E, w) #t_i -> a row vector
+        p = dot(E.T, t)/dot(t.T, t) #p_i t.T is a row vector - this is inner(t.T, t.T)
         q = dot(F.T, t)/dot(t.T, t) #q_i
             
         E = E - dot(t, p.T)
@@ -429,13 +428,10 @@ def pca_transform(example, constt):
     dom = orange.Domain([example.domain.attributes[i1] for i1 in inds ], False)
     newex = orange.ExampleTable(dom, [example])
     arr = newex.toNumpy()[0]
-    arr = arr - xmean # same input transformation
+    arr = arr - xmean # same input transformation - a row in a matrix
 
-    ev0 = numpy.reshape(evect[0], (numpy.size(evect[0]), 1))
-    pp = numpy.dot(arr, ev0)
-    a = numpy.reshape(pp, (numpy.size(pp),)) 
-
-    #ONLY FOR ONE DIMENSION
+    ev0 = evect[0] #this is a row in a matrix - do a dot product
+    a = numpy.dot(arr, ev0)
 
     return a
 
@@ -443,20 +439,21 @@ def pca(data, snapshot=0):
     "Perform PCA on M, return eigenvectors and eigenvalues, sorted."
     M = data.toNumpy("a")[0]
     XMean = numpy.mean(M, axis = 0)
+    print XMean.shape, M.shape
     M = M - XMean
 
     T, N = numpy.shape(M)
     # if there are less rows T than columns N, use snapshot method
     if (T < N) or snapshot:
         C = numpy.dot(M, numpy.transpose(M))
-        evals, evecsC = numpy.linalg.eig(C)
-        evecsC = numpy.transpose(evecsC)
-        #evecs = 1./sqrt(abs(evals)) * dot(evecs, t(evecsC))
-        evecs = numpy.transpose(numpy.transpose(1./numpy.sqrt(numpy.abs(evals))) * numpy.transpose(numpy.dot(evecsC, M)))
+        evals, evecsC = numpy.linalg.eig(C) #columns of evecsC are eigenvectors
+        evecs = numpy.dot(M.T, evecsC)/numpy.sqrt(numpy.abs(evals))
     else:
         K = numpy.dot(numpy.transpose(M), M)
         evals, evecs = numpy.linalg.eig(K)
-        evecs = numpy.transpose(evecs)
+    
+    evecs = numpy.transpose(evecs)
+
     # sort the eigenvalues and eigenvectors, decending order
     order = (numpy.argsort(numpy.abs(evals))[::-1])
     evecs = numpy.take(evecs, order, 0)
@@ -613,9 +610,10 @@ class SetSigLearner(object):
 
 if __name__ == "__main__":
     
-    data = orange.ExampleTable("DLBCL.tab")
-
     """
+    data = orange.ExampleTable("DLBCL.tab")
+    """
+
     data = orange.ExampleTable("sterolTalkHepa.tab")
     data = impute_missing(data)
     choosen_cv = [ "LK935_48h", "Rif_12h"]
@@ -623,24 +621,25 @@ if __name__ == "__main__":
     ncl.getValueFrom = lambda ex,rw: orange.Value(ncl, ex[-1].value)
     ndom = orange.Domain(data.domain.attributes, ncl)
     data = orange.ExampleTable(ndom, [ ex for ex in data if ex[-1].value in choosen_cv ])
+    
     """
-
     choosen_cv = list(data.domain.classVar.values)
+    """
 
     fp = int(9*len(data)/10)
 
     ldata = orange.ExampleTable(data.domain, data[:fp])
     tdata = orange.ExampleTable(data.domain, data[fp:])
 
-
     gsets = obiGeneSets.collections(["steroltalk.gmt"], default=False)
     #gsets = obiGeneSets.collections(["C2.CP.gmt", "C5.MF.gmt", "C5.BP.gmt"], default=False)
 
     #ass = AssessLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), rankingf=AT_loessLearner())
     #ass = MeanLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False))
-    #ass = PLSLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv)
+    ass = PLSLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv)
     #ass = SetSigOLDLearner()(ldata, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv, minPart=0.0)
-    ass = SetSigLearner()(ldata, "hsa", gsets, classValues=choosen_cv, minPart=0.0)
+    #ass = SetSigLearner()(ldata, "hsa", gsets, classValues=choosen_cv, minPart=0.0)
+    #ass = PCALearner()(ldata, "hsa", gsets, classValues=choosen_cv, minPart=0.0)
 
     ar = defaultdict(list)
 
