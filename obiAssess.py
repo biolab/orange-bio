@@ -446,11 +446,11 @@ def pca(data, snapshot=0):
     # if there are less rows T than columns N, use snapshot method
     if (T < N) or snapshot:
         C = numpy.dot(M, numpy.transpose(M))
-        evals, evecsC = numpy.linalg.eig(C) #columns of evecsC are eigenvectors
+        evals, evecsC = numpy.linalg.eigh(C) #columns of evecsC are eigenvectors
         evecs = numpy.dot(M.T, evecsC)/numpy.sqrt(numpy.abs(evals))
     else:
         K = numpy.dot(numpy.transpose(M), M)
-        evals, evecs = numpy.linalg.eig(K)
+        evals, evecs = numpy.linalg.eigh(K)
     
     evecs = numpy.transpose(evecs)
 
@@ -636,10 +636,10 @@ if __name__ == "__main__":
 
     #ass = AssessLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), rankingf=AT_loessLearner())
     #ass = MeanLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False))
-    ass = PLSLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv)
+    #ass = PLSLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv)
     #ass = SetSigOLDLearner()(ldata, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv, minPart=0.0)
     #ass = SetSigLearner()(ldata, "hsa", gsets, classValues=choosen_cv, minPart=0.0)
-    #ass = PCALearner()(ldata, "hsa", gsets, classValues=choosen_cv, minPart=0.0)
+    ass = PCALearner()(ldata, "hsa", gsets, classValues=choosen_cv, minPart=0.0)
 
     ar = defaultdict(list)
 
