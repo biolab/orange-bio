@@ -18,16 +18,18 @@ from functools import partial
 
 LOCAL_GDS_COLOR = Qt.darkGreen
 
-LinkRole = Qt.UserRole + 1
+LinkRole = OWGUI.OrangeUserRole.next()
 
 class TreeModel(QAbstractItemModel):
     def __init__(self, data, header, parent):
         QAbstractItemModel.__init__(self, parent)
         self._data = [[QVariant(s) for s in row] for row in data]
         self._dataDict = {}
-        self._header = header
+        self._header = {Qt.Horizontal: dict([(i, {Qt.DisplayRole: h}) for i, h in enumerate(header)])}
         self._roleData = {Qt.DisplayRole:self._data}
-        self._roleData = partial(defaultdict, partial(defaultdict, partial(defaultdict, QVariant)))(self._roleData)
+        dataStore = partial(defaultdict, partial(defaultdict, partial(defaultdict, QVariant)))
+        self._roleData = dataStore(self._roleData)
+        self._header = dataStore(self._header)
     
     def setColumnLinks(self, column, links):
         font =QFont()
@@ -58,12 +60,17 @@ class TreeModel(QAbstractItemModel):
             return len(self._data)
         
     def columnCount(self, index):
-        return len(self._header)
+        return len(self._header[Qt.Horizontal])
 
     def headerData(self, section, orientation, role):
-        if role==Qt.DisplayRole:
-            return QVariant(self._header[section])
-        return QVariant()
+        try:
+            return QVariant(self._header[orientation][section][role])
+        except KeyError, er:
+#            print >> sys.stderr, er
+            return QVariant()
+        
+    def setHeaderData(self, section, orientation, value, role=Qt.EditRole):
+        self._header[orientation][section][role] = value
         
 class LinkStyledItemDelegate(QStyledItemDelegate):
     def __init__(self, *args):
@@ -152,7 +159,10 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.setSelectionMode(QAbstractItemView.SingleSelection)
         self.treeWidget.setRootIsDecorated(False)
         self.treeWidget.setSortingEnabled(True)
+        self.treeWidget.setAlternatingRowColors(True)
         self.treeWidget.setItemDelegate(LinkStyledItemDelegate(self.treeWidget))
+        self.treeWidget.setItemDelegateForColumn(0, OWGUI.IndicatorItemDelegate(self.treeWidget, role=Qt.DisplayRole))
+        
 #        self.mainArea.layout().addWidget(self.treeWidget)
         self.connect(self.treeWidget, SIGNAL("itemSelectionChanged ()"), self.updateSelection)
         self.treeWidget.viewport().setMouseTracking(True)
@@ -205,25 +215,26 @@ class OWGEODatasets(OWWidget):
         localGDS = []
         self.gds = []
         for i, (name, gds) in enumerate(info.items()):
-
-            cells.append([gds["dataset_id"], gds["title"], gds["platform_organism"], len(gds["samples"]), gds["feature_count"],
+            local = os.path.exists(orngServerFiles.localpath(obiGEO.DOMAIN, gds["dataset_id"] + ".soft.gz"))
+            cells.append([" " if local else "", gds["dataset_id"], gds["title"], gds["platform_organism"], len(gds["samples"]), gds["feature_count"],
                           gds["gene_count"], len(gds["subsets"]), gds.get("pubmed_id", "")])
 
             gdsLinks.append("http://www.ncbi.nlm.nih.gov/sites/GDSbrowser?acc=%s" % gds["dataset_id"])
             pmLinks.append("http://www.ncbi.nlm.nih.gov/pubmed/%s" % gds.get("pubmed_id") if gds.get("pubmed_id") else QVariant())
 
-            if os.path.exists(orngServerFiles.localpath(obiGEO.DOMAIN, gds["dataset_id"] + ".soft.gz")):
+            if local:
                 localGDS.append(i)
             self.gds.append(gds)
             
             if i in milestones:
                 self.progressBarSet(100.0*i/len(info))
 
-        model = TreeModel(cells, ["ID", "Title", "Organism", "Samples", "Features", "Genes", "Subsets", "PubMedID"], self.treeWidget)
-        model.setColumnLinks(0, gdsLinks)
-        model.setColumnLinks(7, pmLinks)
+        model = TreeModel(cells, ["", "ID", "Title", "Organism", "Samples", "Features", "Genes", "Subsets", "PubMedID"], self.treeWidget)
+        model.setColumnLinks(1, gdsLinks)
+        model.setColumnLinks(8, pmLinks)
         for i in localGDS:
-            model._roleData[Qt.ForegroundRole][i].update(zip(range(1, 7), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
+            model._roleData[Qt.ForegroundRole][i].update(zip(range(2, 8), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
+#            mode.._roleData[OWGUI.IndicatorItemDelegate.]
         proxyModel = QSortFilterProxyModel(self.treeWidget)
         proxyModel.setSourceModel(model)
         self.treeWidget.setModel(proxyModel)
