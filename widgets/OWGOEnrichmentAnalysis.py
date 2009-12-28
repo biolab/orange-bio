@@ -221,7 +221,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.annotations = None
         self.probFunctions = [obiProb.Binomial(), obiProb.Hypergeometric()]
         self.selectedTerms = []
-        self._progressBarStack = []
         
     def UpdateOrganismComboBox(self):
         try:
@@ -257,9 +256,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 
     def Update(self):
         if self.clusterDataset:
-            self.Load()
+            pb = OWGUI.ProgressBar(self, 100)
+            self.Load(pb=pb)
             self.FilterUnknownGenes()
-            graph = self.Enrichment()
+            graph = self.Enrichment(pb=pb)
             self.SetGraph(graph)
 
     def UpdateGOAndAnnotation(self, tags=[]):
@@ -415,9 +415,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
         else:
             self.send("Example With Unknown Genes", None)
 
-    def Load(self):
+    def Load(self, pb=None):
         go_files, tax_files = orngServerFiles.listfiles("GO"), orngServerFiles.listfiles("Taxonomy")
         calls = []
+        pb, finish = (OWGUI.ProgressBar(self, 0), True) if pb is None else (pb, False)
         count = 0
         if not tax_files:
             calls.append(("Taxonomy", "ncbi_taxnomy.tar.gz"))
@@ -434,19 +435,20 @@ class OWGOEnrichmentAnalysis(OWWidget):
             count += 1
         if not self.ontology:
             count += 1
-        self.progressBarInit()
+        pb.iter += count*100
+#        self.progressBarInit()
         for i, args in enumerate(calls):
-            with orngServerFiles.DownloadProgress.setredirect(lambda value: self.progressBarSet(100.0 * i / count + value/count)):
+#            with orngServerFiles.DownloadProgress.setredirect(lambda value: self.progressBarSet(100.0 * i / count + value/count)):
 #                print args
-                orngServerFiles.localpath_download(*args)
+            orngServerFiles.localpath_download(*args, **dict(callback=pb.advance))
             
         i = len(calls)
         if not self.ontology:
-            self.ontology = obiGO.Ontology(progressCallback=lambda value: self.progressBarSet(100.0 * i / count + value/count))
+            self.ontology = obiGO.Ontology(progressCallback=lambda value: pb.advance()) #self.progressBarSet(100.0 * i / count + value/count))
             i+=1
         if org != self.loadedAnnotationCode:
             code = self.annotationFiles[org].split(".")[-3]
-            self.annotations = obiGO.Annotations(code, progressCallback=lambda value: self.progressBarSet(100.0 * i / count + value/count), genematcher=obiGene.GMDirect())
+            self.annotations = obiGO.Annotations(code, genematcher=obiGene.GMDirect(), progressCallback=lambda value: pb.advance())#self.progressBarSet(100.0 * i / count + value/count))
             i+=1
             self.loadedAnnotationCode = org
             count = defaultdict(int)
@@ -458,8 +460,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
             for etype in obiGO.evidenceTypesOrdered:
                 self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
                 self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
-                
-        self.progressBarFinished()
+        if finish:
+            pb.finish()
+#        self.progressBarFinished()
             
     def SetGeneMatcher(self):
         if self.annotations:
@@ -474,12 +477,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
             matchers.reverse()
 #            print matchers
             self.annotations.genematcher = obiGene.matcher(matchers)
-            self.progressBarInit()
-            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                self.annotations.genematcher.set_targets(self.annotations.geneNames)
-            self.progressBarFinished()
+#            self.progressBarInit()
+#            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+            self.annotations.genematcher.set_targets(self.annotations.geneNames)
+#            self.progressBarFinished()
             
-    def Enrichment(self):
+    def Enrichment(self, pb=None):
+        pb = OWGUI.ProgressBar(self, 100) if pb is None else pb
         if not self.annotations.ontology:
             self.annotations.ontology = self.ontology
             
@@ -545,10 +549,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             if getattr(self, "useEvidence"+etype):
                 evidences.append(etype)
         aspect = ["P", "C", "F"][self.aspectIndex]
-        self.progressBarInit()
+#        self.progressBarInit()
         if clusterGenes:
             self.terms = terms = self.annotations.GetEnrichedTerms(clusterGenes, referenceGenes, evidences, aspect=aspect,
-                                                                   prob=self.probFunctions[self.probFunc], progressCallback=self.progressBarSet)
+                                                                   prob=self.probFunctions[self.probFunc], progressCallback=lambda value:pb.advance() )#self.progressBarSet)
             if self.useFDR:
                 terms = sorted(terms.items(), key=lambda (_1, (_2, p, _3)): p)
                 p_vals = obiProb.FDR([p for _, (_, p, _) in terms])
@@ -559,7 +563,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.warning(0, "No terms found")
         else:
             self.warning(0)
-        self.progressBarFinished()
+#        self.progressBarFinished()
+        pb.finish()
         self.treeStructDict = {}
         ids = self.terms.keys()
         for term in self.terms:
@@ -751,29 +756,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         label.setText("Annotations:\n"+self.annotations.header.replace("!", "") if self.annotations else "Annotations not loaded!")
         dialog.layout().addWidget(label)
         dialog.show()
-        
-#    def progressBarInit(self, expect=0):
-#        if not self._progressBarStack:
-#            OWWidget.progressBarInit(self)
-#        if expect:
-#            self._progressBarStack.extend([1] * expect)
-#
-#    def progressBarSet(self, value):
-#        if self._progressBarStack:    
-#            OWWidget.progressBarSet(self, 100.0 * - 100.0 * sum(self._progressBarStack) / len(self._progressBarStack) + value / len(self._progressBarStack))
-#        else:
-#            OWWidget.progressBarSet(self, value)
-#        
-#    def progressBarFinished(self, flush=False):
-#        if self._progressBarStack:
-#            if 1 in self._progressBarStack:
-#                self._progressBarStack[self._progressBarStack.index(1)] = 0
-#            else:
-#                self._progressBarStack = []
-#        if flush:
-#            self._progressBarStack = []
-#        if self._progressBarStack:
-#            OWWidget.progressBarFinished(self)
         
     def sendReport(self):
         self.reportSettings("Settings", [("Organism", self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes) - 1)]),
