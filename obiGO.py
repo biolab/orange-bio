@@ -290,7 +290,8 @@ class Ontology(object):
         c=re.compile("\[.+?\].*?\n\n", re.DOTALL)
         data=c.findall(data)
 
-        milestones = set(range(0, len(data), max(len(data)/90, 1)))
+        import orngMisc
+        milestones = orngMisc.progressBarMilestones(len(data), 90)
         for i, block in enumerate(builtinOBOObjects + data):
             if block.startswith("[Term]"):
                 term = Term(block, self)
@@ -306,7 +307,7 @@ class Ontology(object):
         
         self.aliasMapper = {}
         self.reverseAliasMapper = defaultdict(set)
-        milestones = set(range(0, len(self.terms), max(len(self.terms)/10, 1)))
+        milestones = orngMisc.progressBarMilestones(len(self.terms), 10)
         for i, (id, term) in enumerate(self.terms.iteritems()):
             for typeId, parent in term.related:
                 self.terms[parent].relatedTo.add((typeId, id))
@@ -561,7 +562,8 @@ class Annotations(object):
         else:
             f = file
         lines = [line for line in f.read().split("\n") if line.strip()]
-        milestones = set(i for i in range(0, len(lines), max(len(lines)/100, 1)))
+        import orngMisc
+        milestones = orngMisc.progressBarMilestones(len(lines), 100)
         for i,line in enumerate(lines):
             if line.startswith("!"):
                 self.header = self.header + line + "\n"
@@ -673,7 +675,8 @@ class Annotations(object):
             
         terms = self.ontology.ExtractSuperGraph(annotationsDict.keys())
         res = {}
-        milestones = set(range(0, len(terms), max(len(terms)/100, 1)))
+        import orngMisc
+        milestones = orngMisc.progressBarMilestones(len(terms), 100)
         for i, term in enumerate(terms):
             if slimsOnly and term not in self.ontology.slimsSubset:
                 continue

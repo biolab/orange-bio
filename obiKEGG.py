@@ -346,8 +346,6 @@ class KEGGDataBase(object):
             cPickle.dump((self.VERSION, file_timestamp, index), open(self.filename + ".index", "wb"), cPickle.HIGHEST_PROTOCOL)
         
         self.entry_dict = dict([(entry.entry_key(), entry) for entry in self.entrys])
-
-        
         
 proxy_dict_decorator(KEGGDataBase, "entry_dict")
         
@@ -645,7 +643,8 @@ class KEGGOrganism(object):
     def get_enriched_pathways(self, genes, reference=None, prob=obiProb.Binomial(), callback=None):
         """Return a dictionary with enriched pathways ids as keys and (list_of_genes, p_value, num_of_reference_genes) tuples as items."""
         allPathways = defaultdict(lambda :[[], 1.0, []])
-        milestones = set(range(0, len(genes), max(len(genes)/100, 1)))
+        import orngMisc
+        milestones = orngMisc.progressBarMilestones(len(genes), 100)
         for i, gene in enumerate(genes):
             pathways = self.pathways([gene])
             for pathway in pathways:
