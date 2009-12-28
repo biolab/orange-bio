@@ -390,16 +390,18 @@ class OWKEGGPathwayBrowser(OWWidget):
 ###        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
                 
                 
-    def PreDownload(self, org=None):
+    def PreDownload(self, org=None, pb=None):
+        pb, finish = (OWGUI.ProgressBar(self, 0), True) if pb is None else (pb, False)
         files = ["kegg_brite.tar.gz", "kegg_pathways_map.tar.gz", "kegg_genome.tar.gz"]
         if org:
             files += ["kegg_genes_%s.tar.gz" % org, "kegg_pathways_%s.tar.gz" % org]
         files = [file for file in files if file not in orngServerFiles.listfiles("KEGG")]
-        pb = OWGUI.ProgressBar(self, 100 * len(files))
+        pb.iter += len(files) * 100
         for i, filename in enumerate(files):
             print filename
             orngServerFiles.download("KEGG", filename, callback=pb.advance)
-        pb.finish()
+        if finish:
+            pb.finish()
             
     def UpdateListView(self):
         self.listView.clear()
@@ -488,6 +490,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             return
         self.error(0)
         self.information(0)
+        pb = OWGUI.ProgressBar(self, 100)
         if self.useAttrNames:
             genes = [str(v.name).strip() for v in self.data.domain.attributes]
         elif self.geneAttrCandidates:
@@ -501,7 +504,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             genes = []
         org_code = self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]
         if self.loadedOrganism != org_code:
-            self.PreDownload(org_code)
+            self.PreDownload(org_code, pb=pb)
             self.org = obiKEGG.KEGGOrganism(org_code)
             self.loadedOrganism = org_code
         uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes), self.caseSensitive)
@@ -527,11 +530,12 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.uniqueGenesDict = uniqueGenes
         self.genes = uniqueGenes.keys()
         self.revUniqueGenesDict = dict([(val, key) for key, val in self.uniqueGenesDict.items()])
-        self.progressBarInit()
-        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            self.pathways = self.org.get_enriched_pathways(self.genes, reference, callback=self.progressBarSet)
-        self.progressBarFinished()
+#        self.progressBarInit()
+#        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+        self.pathways = self.org.get_enriched_pathways(self.genes, reference, callback=lambda value: pb.advance()) #self.progressBarSet)
+#        self.progressBarFinished()
         self.UpdateListView()
+        pb.finish()
 ##        print self.bestPValueItem
         #self.bestPValueItem.setSelected(True)
         #self.UpdatePathwayView()
