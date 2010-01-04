@@ -182,7 +182,8 @@ class DBInterface(object):
         if rawf[:1] == "<": #an error occurred - starting some html input
             #TODO are there any other kinds of errors?
             if tryN > 0:
-                print "trying again"
+                if verbose:
+                    print "trying again"
                 return self.get(request, tryN=tryN-1)
             else:
                 raise Exception("Error with the database")
@@ -682,129 +683,45 @@ chips chips""")
         return odic
         #return dict(zip(ids, list(fn(*args, **kwargs))))
 
-    def groupAnnotations(self, annotations, prefix="", join=[], separate=None):
+    def sortAnnotations(self, annotations, prefix=""):
         """
-        Groups annotations by joining annotation options in 'join' to
-        the same group while keeping annotations with different values
-        of options in 'separate' apart. If join is None, set join to all 
-        annotation types. If separate is None, use all annotation types not 
-        in join as separate.
-
-        Returns list of tuples. Each tuple describes a group and contains:
-            1. [ (name, chipid) ] - a list of tuples containing group element 
+        Sorts columns by their annotations.
+        FIXME: this sorting is too complex
+       
+        Returns [ (name, chipid) ] - a list of tuples containing group element 
                 name and it's chip id.
-            2. dictionary of joined annotations of group elements.
-
         """
+        #sort according to join
 
         if verbose:
             print "Grouping annotations"
 
         # Separate and join are not a regular expressions (because of group sorting).
 
-        ignore=['.*']
-
-        if join == None:
-            join = self.saoids.keys()
-    
-        #If separate is None, use all annotation types not in join as separate.
-        if separate == None:
-            separate = sorted(set(self.saoids.keys())-set(join))
-
+        join = self.saoids.keys()
         annotationsIn = dict(annotations)
-
-        if len(annotationsIn) == 0:
-            return None
-
-        #join should be top most specification
-        topMost = [ self.aoidtr(a) for a in self.aoids.keys() ]
-
-        def forceTopMost(l):
-            for a in l:
-                if a not in topMost:
-                    raise Exception(a + " not top most annotation type." )
-        forceTopMost(join)
 
         #all possible annotations
         annots = allAnnotationVals(annotationsIn.values())
 
-        #separate are not ignored. others are ignored!
-        ignoreNot = separate + join
-
-        def isIgnored(a):
-            for exp in ignoreNot:
-                if re.match(exp, a):
-                    return False
-            for exp in ignore:
-                if re.match(exp, a):
-                    return True
-            return False
-    
         def ok(x):
             a,b = x
             if len(b) <= 1:
                 return False
-            if isIgnored(a):
-                return False
             return True
 
         diffannots = dict(filter(ok, annots.items()))
-        #print "DIFF ANNOTS", diffannots
 
         """
         Group those which have everything the same except of join while
         ignoring annotation which match meaningless + ignore.
         """
     
-        def validAnnot(x):
-            try: 
-                fkdllfkd = self.aoidt(x)
-                return True
-            except:
-                return False
-
-        allowDiffSet = set(filter(validAnnot, join))
+        allowDiffSet = set(join)
         danames = set(diffannots.keys())
         reallyDiff = danames & allowDiffSet
-        leaveKeys = danames - reallyDiff
 
-        #remove all non-neccessary keys form the annotation dictionary
-        #and form tem in groups afterwards
-
-        def dictWithOnly(dic, keys):
-            """
-            Returns a shallow copy of the dictionary with
-            key not in keys removed.
-            """
-            odic = {}
-            for a,b in dic.items():
-                if a in keys:
-                     odic[a] = b
-            return odic
-
-        candidates = dict([ (id, dictWithOnly(dict(d),leaveKeys) ) \
-            for id,d in annotationsIn.items() ])
-
-        def groupDicts(ldics):
-            """
-            Group same dictionaries together. Returns indices
-            of original dictionaries
-            """
-            ldics = dict([(id,frozenset(d.items())) for id,d in ldics.items() ])
-            
-            dd = {}
-            for i,d in ldics.items():
-                group = dd.get(d, [])
-                group.append(i)
-                dd[d] = group
-
-            return dd.values()
-
-
-        groups = groupDicts(candidates)
-
-        def joinedAnnotation(group):
-            return allAnnotationVals([ annotationsIn[v] for v in group ])
+        group = annotations.keys()
 
         def csorted(l):
             """
@@ -818,36 +735,9 @@ chips chips""")
             return [ str(a) for a in sorted(l) ]
 
 
-        #sort the groups by their annotations
-        def compareGroups(g1, g2):
-            """
-            Compare groups by consequtive comparison of annotatition values.
-            Consider those in "separate" first.
-            """
-
-            #separated need to be top most!
-            allannot = sorted(set(g1.keys()) - set(separate))
-            allannot = separate + allannot
-
-            for compnow in allannot:
-                #try sorting values in lists as integers
-                c = cmp(csorted(g1[compnow]), csorted(g2[compnow]))
-                if c != 0:
-                    return c
-
-            return 0
-
-        groups = sorted(groups, key=joinedAnnotation, cmp=compareGroups)
-
         """
-        At this point the groups going to the same example table
-        are already made. Now we need to control value order, example
-        order and table order for those groups.
-
         Important decisions:
-        - example order: by spot id
         - attribute order: ([1,2,3],[1,2]) -> [1,1],[1,2],[2,1],...
-        - table order - comparison of annotation valeues
         """
 
         #respect specified order, but put sample in the front
@@ -872,60 +762,54 @@ chips chips""")
 
             return [ aux(i,a) for i,a in enumerate(inds) ]
  
-        exampleTables = []
+        groupnames = []
+        groupids = []
 
-        for group in groups:
+        gannots = [ ll2dic(annotationsIn[g]) for g in group ]
+
+        #differentialNames, differentialVals - names and valus of differential
+        #descriptions. values are sorted
+
+        gad = defaultdict(list)
+        for i,ga in enumerate(gannots):
+            #keep only differentialNames
+            ga = [ (a,ga[a]) for a in differentialNames ]
+            #append to dictionary
+            gad[tuple(ga)].append(i)
+
+        #sort columns - by order of values
+        valorder = dict( (a, dict( (e,i) for i,e in enumerate(vals) )) \
+            for a,vals in zip(differentialNames, differentialVals) )
+
+        def orderinvals(l):
+            #variant lineary dependant of number of values of elements
+            #return [ b.index(a) for (n,a),b in zip(l, differentialVals) ]
+            #kept for reference
+            return [ valorder[n][a] for n, a in l ] #asymptotically faster
+
+        gadkeys = sorted(gad.keys(), key=orderinvals)
+
+        for needValues in gadkeys:
+            inds = gad[needValues]
+            groupids = groupids + [ group[a] for a in inds ]
+            groupnames = groupnames + nameInds(needValues, inds)
+
+        #Add every annotation. If there are multiple annotation values
+        #for the same annotation, add all annotation values.
         
-            groupnames = []
-            groupids = []
-
-            gannots = [ ll2dic(annotationsIn[g]) for g in group ]
-
-            #differentialNames, differentialVals - names and valus of differential
-            #descriptions. values are sorted
-
-            gad = defaultdict(list)
-            for i,ga in enumerate(gannots):
-                #keep only differentialNames
-                ga = [ (a,ga[a]) for a in differentialNames ]
-                #append to dictionary
-                gad[tuple(ga)].append(i)
-
-            #sort columns - by order of values
-            valorder = dict( (a, dict( (e,i) for i,e in enumerate(vals) )) \
-                for a,vals in zip(differentialNames, differentialVals) )
-
-            def orderinvals(l):
-                #variant lineary dependant of number of values of elements
-                #return [ b.index(a) for (n,a),b in zip(l, differentialVals) ]
-                return [ valorder[n][a] for n, a in l ] #asymptotically faster
-
-            gadkeys = sorted(gad.keys(), key=orderinvals)
-
-            for needValues in gadkeys:
-                inds = gad[needValues]
-                groupids = groupids + [ group[a] for a in inds ]
-                groupnames = groupnames + nameInds(needValues, inds)
-
-            #Add every annotation. If there are multiple annotation values
-            #for the same annotation, add all annotation values.
-            
-            ca = joinedAnnotation(group)
-            #ca = dict( [(a,csorted(b)) for a,b in ca.items()] )
-
-            exampleTables.append((zip(groupnames, groupids), ca))
+        exampleTables = zip(groupnames, groupids)
 
         return exampleTables
 
-    def exampleTables(self, chipsm, groups, spotmap={}, annotations=None, callback=None, chipidname=False, exclude_constant_labels=False, annots={}, newannotations=False, chipfn=None, chipfnargs=[], chipfnkwargs={}):
+    def exampleTables(self, chipsm, group, spotmap={}, annotations=None, callback=None, chipidname=False, exclude_constant_labels=False, annots={}, newannotations=False, chipfn=None):
         """
         Create example tables from chip readings, spot mappings and 
         group specifications.
 
-        groups are input from "groupAnnotations" function. 
+        group  is input from "sortAnnotations" function. 
         spotmap is a dictionary of { spotid: gene }
 
-        Callback: number of chipids + 2x number of groups
+        Callback: number of chipids + 2
         """
 
         if verbose:
@@ -936,7 +820,7 @@ chips chips""")
 
         exampleTables = []
 
-        ids = flatten([ nth(g[0], 1) for g in groups ])
+        ids = nth(group, 1)
 
         if callback: callback()
 
@@ -945,74 +829,60 @@ chips chips""")
 
         togen = []
 
+        if verbose:
+            print  "joining group", group
+
+        groupnames = []
+        groupvals = []
+        groupannots = []
+
         if chipsm == None:
-            chipdl = chipfn(ids, *chipfnargs, **chipfnkwargs)            
+            chipdl = chipfn(ids)
 
-        for group in groups:
+        for name,chipid in group:
 
-            if verbose:
-                print  "joining group", group
+            if chipsm != None:
+                chipdata = chipsm[chipid] # do efficiend loading
+            else:
+                chipdata = chipdl.next()
 
-            groupnames = []
-            groupvals = []
-            groupannots = []
-
-            pairs = group[0]
-
-            annotc = None
-
-            if len(group) > 1:
-                annotc = group[1]
-
-            for name,chipid in pairs:
-
-                if chipsm != None:
-                    chipdata = chipsm[chipid] # do efficiend loading
-                else:
-                    chipdata = chipdl.next()
-
-                if callback: callback()
-
-                #add to current position mapping
-                repeats = {}
-                for id,_ in chipdata:
-                    rep = repeats.get(id, 0)
-                    repeats[id] = rep+1
-                    key = (id, rep)
-                    if key not in amap:
-                        amap[key] = amapnext
-                        amapnext += 1
-
-                vals = [ None ] * len(amap)
-
-                repeats = {}
-                for id,v in chipdata:
-                    rep = repeats.get(id, 0)
-                    repeats[id] = rep+1
-                    key = (id, rep)
-                    putind = amap[key]
-                    vals[putind] = v
-
-                groupvals.append(vals)
-
-                #regarding chipid names
-                if chipidname:
-                    groupnames.append(chipid) 
-                else:
-                    groupnames.append(name)
-
-                if annots:
-                    #add chip id to annotations
-                    groupannots.append(annots[chipid]+ [['chipid', str(chipid)]])
-
-            if newannotations:
-                annotc = allAnnotationVals( [annots[v] for v in nth(pairs,1) ] )
-
-            annotc["chipids"] = nth(group[0], 1)
-
-            togen.append((groupnames, groupvals, groupannots, annotc))
-            
             if callback: callback()
+
+            #add to current position mapping
+            repeats = {}
+            for id,_ in chipdata:
+                rep = repeats.get(id, 0)
+                repeats[id] = rep+1
+                key = (id, rep)
+                if key not in amap:
+                    amap[key] = amapnext
+                    amapnext += 1
+
+            vals = [ None ] * len(amap)
+
+            repeats = {}
+            for id,v in chipdata:
+                rep = repeats.get(id, 0)
+                repeats[id] = rep+1
+                key = (id, rep)
+                putind = amap[key]
+                vals[putind] = v
+
+            groupvals.append(vals)
+
+            #regarding chipid names
+            if chipidname:
+                groupnames.append(chipid) 
+            else:
+                groupnames.append(name)
+
+            if annots:
+                #add chip id to annotations
+                groupannots.append(annots[chipid]+ [['chipid', str(chipid)]])
+
+        togen = (groupnames, groupvals, groupannots)
+        
+        if callback: callback()
 
         ddb = [ None ]*len(amap)
         for (a,rep),pos in amap.items():
@@ -1024,8 +894,6 @@ chips chips""")
         #permutation[i] holds target of current [i]
         permutation = [ posMap[revmap[i]] for i in range(len(amap)) ]
 
-        exampleTables = []
-
         def enlength(a, tlen):
             """ Adds Nones to the end of the list """
             if len(a) < tlen:
@@ -1036,41 +904,37 @@ chips chips""")
         def enlengthl(l, tlen):
             return [ enlength(a, tlen) for a in l ]
     
-        for groupnames, groupvals, groupannots, annotc in togen:
-            et = createExampleTable(groupnames, 
-                enlengthl(groupvals, len(ddb)),
-                groupannots, ddb, exclude_constant_labels=exclude_constant_labels, permutation=permutation)
-            et.setattr("annot", annotc)
-            exampleTables.append(et)
+        groupnames, groupvals, groupannots = togen
 
-            if callback: callback()
+        et = createExampleTable(groupnames, 
+            enlengthl(groupvals, len(ddb)),
+            groupannots, ddb, exclude_constant_labels=exclude_constant_labels, permutation=permutation)
 
-        return exampleTables
+        if callback: callback()
 
+        return et
 
-    def getData(self, type="norms", join=["time"], exclude_constant_labels=False, separate=None, average=median, ids=None, callback=None, chipidname=False, format="short", **kwargs):
+    def getData(self, *args, **kwargs):
+        deprecatedError("Use get_single_data instead")
+
+    def get_single_data(self, type="norms", exclude_constant_labels=False, average=median, 
+        ids=None, callback=None, chipidname=False, format="short", **kwargs):
         """
-        Returns a list of examples tables for a given search query and post-processing
+        Get data in a single example table with labels of individual attributes
+        set to annotations for query and post-processing
         instructions.
 
         Parameters: 
             average: function used for combining multiple reading of the same spot on
                 a chip. If None, no averaging is done. Fuction should take a list
                 of floats and return an "averaged" float.
-            join: a list of annotation types which can be different in a single example
-                table. Chips are grouped in groups, which can contain chips which have
-                same annotations.
-            separate: annotation types by which we consider groups as separate ones.
-                If blank, take all those not in join.
-            ids: a list of chip ids. If present, use this ids instead of making
-                a search.
+            ids: a list of chip ids. If absent, make a search
             exclude_constant_labels: if a label has the same value in whole 
                 example table, remove it
             format: if short, use short format for chip download
 
-        Defaults: Median averaging. Join by time.
+        Defaults: Median averaging.
         """
-
 
         def optcb():
             if callback: callback()
@@ -1103,21 +967,20 @@ chips chips""")
 
         cbc = CallBack(1, optcb, callbacks=10)
         #make annotation groups
-        etsa = self.groupAnnotations(read, join=join, separate=separate )
+        etsa = self.sortAnnotations(read)
         cbc.end()
 
-        #here could user intervent. till now downloads were small
+        #till now downloads were small
 
         import time
-        tstart =  time.time()
+        tstart = time.time()
 
         #here download actually happens
         chipfn = None
-        chipfnargs = []
 
         if type == "norms":
             if format == "short":
-                chipfn, chipfnargs = self.chipNsN, [ annotsinlist ]
+                chipfn = lambda x, al=annotsinlist: self.chipNsN(x, al)
             else:
                 chipfn = self.chipNs
         else:
@@ -1128,35 +991,20 @@ chips chips""")
             print "DOWNLOAD TIME", time.time() - tstart
 
         cbc = CallBack(len(etsa)*2+len(ids)+1, optcb, callbacks=999-40)
-        ets = self.exampleTables(None, etsa, spotmap=self.spotMap(), callback=cbc, chipidname=chipidname, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn, chipfnargs=chipfnargs)
+        et = self.exampleTables(None, etsa, spotmap=self.spotMap(), callback=cbc, chipidname=chipidname, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn)
         cbc.end()
 
-        cbc = CallBack(len(ets), optcb, callbacks=10)
+        cbc = CallBack(1, optcb, callbacks=10)
 
         #if average function is given, use it to join same spotids
         if average != None:
-            etsa = []
-            for et in ets:
-                eta = averageAttributes(et, fn=average)
-                eta.setattr("annot", et.annot)
-                etsa.append(eta)
-                cbc()
-            ets = etsa
+            et = averageAttributes(et, fn=average)
+            cbc()
 
         cbc.end()
 
-        return ets
+        return et
 
-    def get_single_data(self, type="norms", average=median, ids=None, 
-            callback=None, exclude_constant_labels=False, **kwargs):
-        """
-        Get data in a single example table with labels of individual attributes
-        set to annotations.
-        """
-        mtables = self.getData(type=type, join=None, separate=[], average=average, ids=ids, callback=callback, chipidname=False, exclude_constant_labels=exclude_constant_labels, **kwargs)
-        if len(mtables) != 1:
-            mtablesShouldHaveOnlyOneElementError()
-        return mtables[0]
 
 def allAnnotationVals(annots):
     """
@@ -1170,8 +1018,6 @@ def allAnnotationVals(annots):
             cvals.add(val)
             av[name] = cvals
     return av
-
-
 
 def createExampleTable(names, vals, annots, ddb, cname="DDB", \
         exclude_constant_labels=False, permutation=None):
@@ -1481,11 +1327,7 @@ if __name__=="__main__":
     et = dbc.get_single_data(sample=[ "tagA-", "pkaC-"], callback=cb, exclude_constant_labels=True)
     print et.domain
     print et.domain[0].attributes
-    
-    """
-    ets = dbc.getData(sample="tagA-", callback=cb)
-    for i,et in enumerate(ets):
-        et.save("%s/T%d.tab" % ("multid2", i))
-        print et.annot
-    """
+
+    et.save("ett.tab")
+    print open("ett.tab").read()
 
