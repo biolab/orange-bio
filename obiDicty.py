@@ -683,144 +683,20 @@ chips chips""")
         return odic
         #return dict(zip(ids, list(fn(*args, **kwargs))))
 
-    def sortAnnotations(self, annotations, prefix=""):
-        """
-        Sorts columns by their annotations.
-        FIXME: this sorting is too complex
-       
-        Returns [ (name, chipid) ] - a list of tuples containing group element 
-                name and it's chip id.
-        """
-        #sort according to join
-
-        if verbose:
-            print "Grouping annotations"
-
-        # Separate and join are not a regular expressions (because of group sorting).
-
-        join = self.saoids.keys()
-        annotationsIn = dict(annotations)
-
-        #all possible annotations
-        annots = allAnnotationVals(annotationsIn.values())
-
-        def ok(x):
-            a,b = x
-            if len(b) <= 1:
-                return False
-            return True
-
-        diffannots = dict(filter(ok, annots.items()))
-
-        """
-        Group those which have everything the same except of join while
-        ignoring annotation which match meaningless + ignore.
-        """
-    
-        allowDiffSet = set(join)
-        danames = set(diffannots.keys())
-        reallyDiff = danames & allowDiffSet
-
-        group = annotations.keys()
-
-        def csorted(l):
-            """
-            Return sorted list of string , but choose sorting type first:
-            if all are integer, sort in integers and then return string
-            """
-            try:
-                l = [ int(a) for a in l ]
-            except:
-                pass
-            return [ str(a) for a in sorted(l) ]
-
-
-        """
-        Important decisions:
-        - attribute order: ([1,2,3],[1,2]) -> [1,1],[1,2],[2,1],...
-        """
-
-        #respect specified order, but put sample in the front
-        differentialNames = [ a for a in join if a in reallyDiff ]
-        if 'sample' in differentialNames: #if sample is present, put it to front
-            differentialNames.remove('sample')
-            differentialNames = [ "sample" ] + differentialNames
-
-        differentialVals = [ csorted(diffannots[a]) for a in differentialNames ]
-
-        def nameInds(values, inds):
-            """
-            Create attribute name for given values. If there are multiple 
-            repetitions of the same value, enumerate them.
-            """
-            def aux(i,a):
-                #leave out sample annotation
-                name = ','.join([ n + '=' + v if n != 'sample' else v for n,v in values ])
-                if len(inds) > 1:
-                    name += ",id=" +  str(i)
-                return name
-
-            return [ aux(i,a) for i,a in enumerate(inds) ]
- 
-        groupnames = []
-        groupids = []
-
-        gannots = [ ll2dic(annotationsIn[g]) for g in group ]
-
-        #differentialNames, differentialVals - names and valus of differential
-        #descriptions. values are sorted
-
-        gad = defaultdict(list)
-        for i,ga in enumerate(gannots):
-            #keep only differentialNames
-            ga = [ (a,ga[a]) for a in differentialNames ]
-            #append to dictionary
-            gad[tuple(ga)].append(i)
-
-        #sort columns - by order of values
-        valorder = dict( (a, dict( (e,i) for i,e in enumerate(vals) )) \
-            for a,vals in zip(differentialNames, differentialVals) )
-
-        def orderinvals(l):
-            #variant lineary dependant of number of values of elements
-            #return [ b.index(a) for (n,a),b in zip(l, differentialVals) ]
-            #kept for reference
-            return [ valorder[n][a] for n, a in l ] #asymptotically faster
-
-        gadkeys = sorted(gad.keys(), key=orderinvals)
-
-        for needValues in gadkeys:
-            inds = gad[needValues]
-            groupids = groupids + [ group[a] for a in inds ]
-            groupnames = groupnames + nameInds(needValues, inds)
-
-        #Add every annotation. If there are multiple annotation values
-        #for the same annotation, add all annotation values.
-        
-        exampleTables = zip(groupnames, groupids)
-
-        return exampleTables
-
-    def exampleTables(self, chipsm, group, spotmap={}, annotations=None, callback=None, chipidname=False, exclude_constant_labels=False, annots={}, newannotations=False, chipfn=None):
+    def exampleTables(self, chipsm, ids, spotmap={}, callback=None, exclude_constant_labels=False, annots={}, chipfn=None):
         """
         Create example tables from chip readings, spot mappings and 
         group specifications.
 
-        group  is input from "sortAnnotations" function. 
+        group is the output from "sortAnnotations" function. 
         spotmap is a dictionary of { spotid: gene }
+        chipsm is a dictionary of chip readings
 
         Callback: number of chipids + 2
         """
 
         if verbose:
-            print "Creating example tables"
-
-        if annotations != None:
-            annotations = dict(annotations)
-
-        exampleTables = []
-
-        ids = nth(group, 1)
+            print "Creating example table"
 
         if callback: callback()
 
@@ -839,7 +715,7 @@ chips chips""")
         if chipsm == None:
             chipdl = chipfn(ids)
 
-        for name,chipid in group:
+        for chipid in ids:
 
             if chipsm != None:
                 chipdata = chipsm[chipid] # do efficiend loading
@@ -867,18 +743,14 @@ chips chips""")
                 key = (id, rep)
                 putind = amap[key]
                 vals[putind] = v
-
             groupvals.append(vals)
 
-            #regarding chipid names
-            if chipidname:
-                groupnames.append(chipid) 
-            else:
-                groupnames.append(name)
+            groupnames.append(chipid) 
 
+            newannots = [['chipid', str(chipid)]] #add chipid to annotations
             if annots:
-                #add chip id to annotations
-                groupannots.append(annots[chipid]+ [['chipid', str(chipid)]])
+                newannots += annots[chipid]
+            groupannots.append(newannots)
 
         togen = (groupnames, groupvals, groupannots)
         
@@ -918,7 +790,7 @@ chips chips""")
         deprecatedError("Use get_single_data instead")
 
     def get_single_data(self, type="norms", exclude_constant_labels=False, average=median, 
-        ids=None, callback=None, chipidname=False, format="short", **kwargs):
+        ids=None, callback=None, format="short", **kwargs):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations for query and post-processing
@@ -965,11 +837,6 @@ chips chips""")
 
         cbc.end()
 
-        cbc = CallBack(1, optcb, callbacks=10)
-        #make annotation groups
-        etsa = self.sortAnnotations(read)
-        cbc.end()
-
         #till now downloads were small
 
         import time
@@ -986,12 +853,11 @@ chips chips""")
         else:
             chipfn = self.chipRs
         
-        #create example tables grouped according to user's wishes
         if verbose:
             print "DOWNLOAD TIME", time.time() - tstart
 
-        cbc = CallBack(len(etsa)*2+len(ids)+1, optcb, callbacks=999-40)
-        et = self.exampleTables(None, etsa, spotmap=self.spotMap(), callback=cbc, chipidname=chipidname, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn)
+        cbc = CallBack(len(ids)*2+len(ids)+1, optcb, callbacks=999-30)
+        et = self.exampleTables(None, ids, spotmap=self.spotMap(), callback=cbc, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn)
         cbc.end()
 
         cbc = CallBack(1, optcb, callbacks=10)
