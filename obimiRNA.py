@@ -70,7 +70,7 @@ class pre_miRNA:
 def miRNA(self, IDs = IDs):
         "miRNA() function takes a miRNA identifier as input and returns a miRNA object."
         if self in IDs:
-            attr = [line.rstrip() for line in open('miRNA.txt').readlines()][0].split('\t')
+            attr = [line.rstrip() for line in open(mirnafile).readlines()][0].split('\t')
             
             to_return = mat_miRNA()
             setattr(to_return, attr[0], self)
@@ -87,7 +87,7 @@ def miRNA(self, IDs = IDs):
 def premiRNA(self, preIDs = preIDs):
         "premiRNA() function takes a premiRNA identifier as input and returns a premiRNA object."
         if self in preIDs:
-            attr = [line.rstrip() for line in open('premiRNA.txt').readlines()][0].split('\t')
+            attr = [line.rstrip() for line in open(premirnafile).readlines()][0].split('\t')
             
             to_return = pre_miRNA()
             setattr(to_return, attr[0], self)
