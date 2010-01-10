@@ -5,6 +5,8 @@ import orange
 import socket
 import os
 from collections import defaultdict
+import orngServerFiles
+import pickle
 
 #utility functions - from Marko's mMisc.py
 
@@ -137,18 +139,13 @@ def replaceChars(address):
 
 def httpGet(address, *args, **kwargs):
     if verbose: 
-        print address
+        print address, " ", 
     address = replaceChars(address)
     t1 = time.time()
     f = urllib2.urlopen(address, *args, **kwargs)
-    """
-    if verbose:
-        print "Info"
-        print f.info()
-    """
     read = f.read()
     if verbose:
-        print "bytes", len(read)
+        print "bytes", len(read),
     if verbose:
         print time.time() - t1
     return read
@@ -187,7 +184,6 @@ class DBInterface(object):
                 return self.get(request, tryN=tryN-1)
             else:
                 raise Exception("Error with the database")
-
 
         a = txt2ll(rawf, separ='\t')
         
@@ -259,9 +255,349 @@ def chainLookup(a, dics, force=[]):
     return a
 
 defaddress = "http://purple.bioch.bcm.tmc.edu/~anup/index.php?"
+defaddresspipa = "https://butler.fri.uni-lj.si/pipa/script/data_api.py/"
 
-class DatabaseConnection(object):
+class DBCommon(object):
 
+    def fromBuffer(self, addr):
+        return self.buffer.get(self.address + addr)
+
+    def toBuffer(self, addr, cont):
+        if self.buffer:
+            return self.buffer.add(self.address + addr, cont)
+
+    def bufferFun(self, bufkey, fn, *args, **kwargs):
+        """
+        If bufkey is already present in buffer, return its contents.
+        If not, run function with arguments and save its result
+        into the buffer.
+        """
+        if self.inBuffer(bufkey):
+            res = self.fromBuffer(bufkey)
+        else:
+            res = fn(*args, **kwargs)
+            self.toBuffer(bufkey, res)
+        return res
+
+    def sq(self, s1, buffer=True, bufadd=""):
+        if buffer:
+            res = self.bufferFun(bufadd + s1, self.db.get, s1)
+        else:
+            res = self.db.get(s1)
+        return res[1:],res[0]
+
+    def inBuffer(self, addr):
+        if self.buffer:
+            return self.buffer.contains(self.address + addr)
+        else:
+            return False
+
+    def dictionarize(self, ids, fn, *args, **kwargs):
+        """
+        Creates a dictionary from id: function result.
+        Callback for each part done.
+        """
+        callback = kwargs.pop("callback", None)
+        odic = {}
+        for a,b in izip(ids, fn(*args, **kwargs)):
+            odic[a] = b
+            if callback: callback()
+        return odic
+        #return dict(zip(ids, list(fn(*args, **kwargs))))
+
+    def downloadMulti(self, command, ids, chunk=100, transformfn=None, separatefn=None):
+        """
+        Downloads multiple results at once.
+        Results in the same order as in ids.
+        """
+
+        sids = split(ids,chunk)
+    
+        def bufcommand():
+            if transformfn:
+                return "TRANS " + command
+            else:
+                return command
+
+        for i,sidp in enumerate(sids):
+
+            buffered = []
+            unbuffered = []
+        
+            for a in sidp:
+                if self.inBuffer(bufcommand().replace("$MULTI$", a)):
+                    buffered.append(a)
+                else:
+                    unbuffered.append(a)
+
+            res = []
+            legend = []
+
+            if len(unbuffered) > 0:
+                res, legend = self.sq(command.replace("$MULTI$", ",".join(unbuffered)),\
+                    buffer=False)
+            else:
+                # get legend from buffer also
+                legend = self.fromBuffer(bufcommand().replace("$MULTI$", buffered[0]))[0]
+
+            #split on different values of the first column - first attribute
+
+            if not separatefn:
+                antss = splitTableOnColumn(res, 0)
+            else:
+                legend, antss = separatefn([legend]+res)
+
+            #if transform before saving is requested, do it
+            if transformfn:
+                nantss = {}
+                nlegend = None
+                for a,b in antss.items():
+                    nb, nlegend = transformfn(b, legend)
+                    nantss[a] = nb
+                legend = nlegend
+                antss = nantss
+ 
+            #here save buffer
+            for a,b in antss.items():
+                self.toBuffer(bufcommand().replace("$MULTI$", a), [ legend ] + b)
+
+            antssb = dict([ (b, self.fromBuffer(bufcommand().replace("$MULTI$", b))[1:]) for b in buffered ])
+            antss.update(antssb)
+
+            #put results in order
+            tl = []
+            for ci in sidp:
+                yield antss[ci], legend
+
+    def exampleTables(self, ids, chipsm=None, spotmap={}, callback=None, exclude_constant_labels=False, annots={}, chipfn=None):
+        """
+        Create example tables from chip readings, spot mappings and 
+        group specifications.
+
+        group is the output from "sortAnnotations" function. 
+        spotmap is a dictionary of { spotid: gene }
+        chipsm is a dictionary of chip readings
+
+        Callback: number of chipids + 2
+        """
+
+        if verbose:
+            print "Creating example table"
+
+        if callback: callback()
+
+        amap = {}
+        amapnext = 0
+
+        togen = []
+
+        groupnames = []
+        groupvals = []
+        groupannots = []
+
+        if chipsm == None:
+            chipdl = chipfn(ids)
+
+        for chipid in ids:
+
+            if chipsm != None:
+                chipdata = chipsm[chipid]
+            else:
+                chipdata = chipdl.next()
+
+            if callback: callback()
+
+            #add to current position mapping
+            repeats = {}
+            print chipdata[0]
+            for id,_ in chipdata:
+                rep = repeats.get(id, 0)
+                repeats[id] = rep+1
+                key = (id, rep)
+                if key not in amap:
+                    amap[key] = amapnext
+                    amapnext += 1
+
+            vals = [ None ] * len(amap)
+
+            repeats = {}
+            for id,v in chipdata:
+                rep = repeats.get(id, 0)
+                repeats[id] = rep+1
+                key = (id, rep)
+                putind = amap[key]
+                vals[putind] = v
+            groupvals.append(vals)
+
+            groupnames.append(chipid) 
+
+            newannots = [['id', str(chipid)]] #add chipid to annotations
+            if annots:
+                newannots += annots[chipid]
+            groupannots.append(newannots)
+
+        togen = (groupnames, groupvals, groupannots)
+        
+        if callback: callback()
+
+        ddb = [ None ]*len(amap)
+        for (a,rep),pos in amap.items():
+            if len(spotmap):
+                ddb[pos] = spotmap.get(a, "#"+a)
+            else:
+                ddb[pos] = a
+
+        #this is sorted position mapping: key -> sortedind
+        posMap = dict( (k,i) for i,k in enumerate(sorted(amap.keys())) )
+        revmap = dict( ( (i,k) for k,i in amap.items() ) )
+        #permutation[i] holds target of current [i]
+        permutation = [ posMap[revmap[i]] for i in range(len(amap)) ]
+
+        def enlength(a, tlen):
+            """ Adds Nones to the end of the list """
+            if len(a) < tlen:
+                return a + [ "None" ]*(tlen-len(a))
+            else:
+                return a
+
+        def enlengthl(l, tlen):
+            return [ enlength(a, tlen) for a in l ]
+    
+        groupnames, groupvals, groupannots = togen
+
+        et = createExampleTable(groupnames, 
+            enlengthl(groupvals, len(ddb)),
+            groupannots, ddb, exclude_constant_labels=exclude_constant_labels, permutation=permutation)
+
+        if callback: callback()
+
+        return et
+
+
+class PIPA(DBCommon):
+
+    def __init__(self, address=defaddresspipa, buffer=None, username=None, password=None):
+        self.address = address
+        self.db=DBInterface(address)
+        self.buffer = buffer
+        if username != None and password != None:
+            #FIXME SUPPORT SSL WHEN DONE
+            pass
+
+    def list(self):
+        """ Returns ids of all experiments in the database """
+        res, legend = self.sq("list")
+        return nth(res, 0)
+
+    def annotations(self, ids):
+        """
+        Returns a generator returning annotations for specified and ids.
+        Annotations are returned in the same order as on the input.
+        """
+        antss = self.downloadMulti("annot_get?ids=$MULTI$", ids)
+        for ants in izip(antss,ids):
+            (res, legend), id = ants
+            yield [ list(v) for v in zip(legend, res[0])[1:] ]
+
+    def chips(self, ids):
+        """
+        Download chips using new shorter format.
+        """
+        def separatefn(res):
+            #each one is own rown
+            #genes are in the first row
+            genes = res[0][1:]
+            cids = nth(res,0)[1:]
+
+            antss = {}
+            for i,cid in enumerate(cids):
+                row = i+1
+                vals = res[row][1:]
+                antss[cid] = [ list(a) for a in zip(genes, vals) ]
+            return ['gene_id', 'value'], antss
+
+        antss = self.downloadMulti("download_expression?ids=$MULTI$", ids, chunk=10, separatefn=separatefn)
+        for a,legend in antss:
+            yield a
+
+    def get_data(self, exclude_constant_labels=False, average=median, 
+        ids=None, callback=None, format="short", **kwargs):
+        """
+        Get data in a single example table with labels of individual attributes
+        set to annotations for query and post-processing
+        instructions.
+
+        Parameters: 
+            average: function used for combining multiple reading of the same spot on
+                a chip. If None, no averaging is done. Fuction should take a list
+                of floats and return an "averaged" float.
+            ids: a list of chip ids. If absent, make a search
+            exclude_constant_labels: if a label has the same value in whole 
+                example table, remove it
+            format: if short, use short format for chip download
+
+        Defaults: Median averaging.
+        """
+
+        def optcb():
+            if callback: callback()
+
+        cbc = CallBack(1, optcb, callbacks=10)
+
+        if not ids:
+            #returns ids of elements that match the search function
+            #FIXME do a search
+            searchNotDone
+
+        cbc.end()
+
+        #downloads annotations
+        cbc = CallBack(len(ids), optcb, callbacks=10)
+
+        readall = self.dictionarize(ids, self.annotations, ids, callback=cbc)
+
+        read = {}
+        for a,b in readall.items():
+            #read[a] = self.keepOnlyMeaningful(b) #FIXME meaningful
+            read[a] = b
+
+        annotsinlist = [] #annotations in the same order
+        for id in ids:
+            annotsinlist.append(readall[id])
+
+        cbc.end()
+
+        #till now downloads were small
+
+        import time
+        tstart = time.time()
+
+        #here download actually happens
+        chipfn = None
+
+        chipfn = self.chips
+       
+        if verbose:
+            print "DOWNLOAD TIME", time.time() - tstart
+
+        cbc = CallBack(len(ids)*2+len(ids)+1, optcb, callbacks=999-30)
+        et = self.exampleTables(ids, spotmap={}, callback=cbc, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn)
+        cbc.end()
+
+        cbc = CallBack(1, optcb, callbacks=10)
+
+        #if average function is given, use it to join same spotids
+        if average != None:
+            et = averageAttributes(et, fn=average)
+            cbc()
+
+        cbc.end()
+
+        return et
+    
+
+
+class DictyExpress(DBCommon):
     """
     Type is object id
     """
@@ -324,69 +660,6 @@ chips chips""")
         o =  "|||".join([ self.aoidt(a) + "***" + b for a,b in q.items()])
         return o
 
-    def downloadMulti(self, command, ids, chunk=100, transformfn=None, separatefn=None):
-        """
-        Results in the same order as in ids.
-        """
-
-        sids = split(ids,chunk)
-    
-        def bufcommand():
-            if transformfn:
-                return "TRANS " + command
-            else:
-                return command
-
-        for i,sidp in enumerate(sids):
-
-            buffered = []
-            unbuffered = []
-        
-            for a in sidp:
-                if self.inBuffer(bufcommand().replace("$MULTI$", a)):
-                    buffered.append(a)
-                else:
-                    unbuffered.append(a)
-
-            res = []
-            legend = []
-
-            if len(unbuffered) > 0:
-                res, legend = self.sq(command.replace("$MULTI$", ",".join(unbuffered)),\
-                    buffer=False)
-            else:
-                # get legend from buffer also
-                legend = self.fromBuffer(bufcommand().replace("$MULTI$", buffered[0]))[0]
-
-            #split on different values of the first column - first attribute
-
-            if not separatefn:
-                antss = splitTableOnColumn(res, 0)
-            else:
-                legend, antss = separatefn([legend]+res)
-
-            #if transform before saving is requested, do it
-            if transformfn:
-                nantss = {}
-                nlegend = None
-                for a,b in antss.items():
-                    nb, nlegend = transformfn(b, legend)
-                    nantss[a] = nb
-                legend = nlegend
-                antss = nantss
- 
-            #here save buffer
-            for a,b in antss.items():
-                self.toBuffer(bufcommand().replace("$MULTI$", a), [ legend ] + b)
-
-            antssb = dict([ (b, self.fromBuffer(bufcommand().replace("$MULTI$", b))[1:]) for b in buffered ])
-            antss.update(antssb)
-
-            #put results in order
-            tl = []
-            for ci in sidp:
-                yield antss[ci], legend
-
     def geneInfo(self):
         res,legend = self.sq("action=gene_info")
         return res, legend
@@ -416,40 +689,6 @@ chips chips""")
             joined = dict([ (a,b) for a,b in joined.items() if len(b)>1 ])
 
         return dict([ (a, sorted(b)) for a,b in joined.items() ])
-
-    
-    def inBuffer(self, addr):
-        if self.buffer:
-            return self.buffer.contains(self.address + addr)
-        else:
-            return False
-
-    def fromBuffer(self, addr):
-        return self.buffer.get(self.address + addr)
-
-    def toBuffer(self, addr, cont):
-        if self.buffer:
-            return self.buffer.add(self.address + addr, cont)
-
-    def bufferFun(self, bufkey, fn, *args, **kwargs):
-        """
-        If bufkey is already present in buffer, return its contents.
-        If not, run function with arguments and save its result
-        into the buffer.
-        """
-        if self.inBuffer(bufkey):
-            res = self.fromBuffer(bufkey)
-        else:
-            res = fn(*args, **kwargs)
-            self.toBuffer(bufkey, res)
-        return res
-
-    def sq(self, s1, buffer=True, bufadd=""):
-        if buffer:
-            res = self.bufferFun(bufadd + s1, self.db.get, s1)
-        else:
-            res = self.db.get(s1)
-        return res[1:],res[0]
 
     def annotation(self, type, id):
         return list(self.annotations(type, [ id ]))[0]
@@ -670,126 +909,10 @@ chips chips""")
 
         return spotmapd
 
-    def dictionarize(self, ids, fn, *args, **kwargs):
-        """
-        Creates a dictionary from id: function result.
-        Callback for each part done.
-        """
-        callback = kwargs.pop("callback", None)
-        odic = {}
-        for a,b in izip(ids, fn(*args, **kwargs)):
-            odic[a] = b
-            if callback: callback()
-        return odic
-        #return dict(zip(ids, list(fn(*args, **kwargs))))
-
-    def exampleTables(self, chipsm, ids, spotmap={}, callback=None, exclude_constant_labels=False, annots={}, chipfn=None):
-        """
-        Create example tables from chip readings, spot mappings and 
-        group specifications.
-
-        group is the output from "sortAnnotations" function. 
-        spotmap is a dictionary of { spotid: gene }
-        chipsm is a dictionary of chip readings
-
-        Callback: number of chipids + 2
-        """
-
-        if verbose:
-            print "Creating example table"
-
-        if callback: callback()
-
-        amap = {}
-        amapnext = 0
-
-        togen = []
-
-        if verbose:
-            print  "joining group", group
-
-        groupnames = []
-        groupvals = []
-        groupannots = []
-
-        if chipsm == None:
-            chipdl = chipfn(ids)
-
-        for chipid in ids:
-
-            if chipsm != None:
-                chipdata = chipsm[chipid] # do efficiend loading
-            else:
-                chipdata = chipdl.next()
-
-            if callback: callback()
-
-            #add to current position mapping
-            repeats = {}
-            for id,_ in chipdata:
-                rep = repeats.get(id, 0)
-                repeats[id] = rep+1
-                key = (id, rep)
-                if key not in amap:
-                    amap[key] = amapnext
-                    amapnext += 1
-
-            vals = [ None ] * len(amap)
-
-            repeats = {}
-            for id,v in chipdata:
-                rep = repeats.get(id, 0)
-                repeats[id] = rep+1
-                key = (id, rep)
-                putind = amap[key]
-                vals[putind] = v
-            groupvals.append(vals)
-
-            groupnames.append(chipid) 
-
-            newannots = [['chipid', str(chipid)]] #add chipid to annotations
-            if annots:
-                newannots += annots[chipid]
-            groupannots.append(newannots)
-
-        togen = (groupnames, groupvals, groupannots)
-        
-        if callback: callback()
-
-        ddb = [ None ]*len(amap)
-        for (a,rep),pos in amap.items():
-            ddb[pos] = spotmap.get(a, "#"+a)
-
-        #this is sorted position mapping: key -> sortedind
-        posMap = dict( (k,i) for i,k in enumerate(sorted(amap.keys())) )
-        revmap = dict( ( (i,k) for k,i in amap.items() ) )
-        #permutation[i] holds target of current [i]
-        permutation = [ posMap[revmap[i]] for i in range(len(amap)) ]
-
-        def enlength(a, tlen):
-            """ Adds Nones to the end of the list """
-            if len(a) < tlen:
-                return a + [ "None" ]*(tlen-len(a))
-            else:
-                return a
-
-        def enlengthl(l, tlen):
-            return [ enlength(a, tlen) for a in l ]
-    
-        groupnames, groupvals, groupannots = togen
-
-        et = createExampleTable(groupnames, 
-            enlengthl(groupvals, len(ddb)),
-            groupannots, ddb, exclude_constant_labels=exclude_constant_labels, permutation=permutation)
-
-        if callback: callback()
-
-        return et
-
     def getData(self, *args, **kwargs):
         deprecatedError("Use get_single_data instead")
 
-    def get_single_data(self, type="norms", exclude_constant_labels=False, average=median, 
+    def get_data(self, type="norms", exclude_constant_labels=False, average=median, 
         ids=None, callback=None, format="short", **kwargs):
         """
         Get data in a single example table with labels of individual attributes
@@ -857,7 +980,7 @@ chips chips""")
             print "DOWNLOAD TIME", time.time() - tstart
 
         cbc = CallBack(len(ids)*2+len(ids)+1, optcb, callbacks=999-30)
-        et = self.exampleTables(None, ids, spotmap=self.spotMap(), callback=cbc, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn)
+        et = self.exampleTables(ids, spotmap=self.spotMap(), callback=cbc, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn)
         cbc.end()
 
         cbc = CallBack(1, optcb, callbacks=10)
@@ -870,19 +993,22 @@ chips chips""")
         cbc.end()
 
         return et
+    
+    def get_single_data(self, *args, **kwargs):
+        return self.get_data(*args, **kwargs)
 
+class DatabaseConnection(DictyExpress):
+    pass
 
 def allAnnotationVals(annots):
     """
     All annotation valuess for given annotations
     in a dict of { name: set of possible values } pairs.
     """
-    av = {}
+    av = defaultdict(set)
     for a in annots:
         for name,val in a:
-            cvals = av.get(name, set([]))
-            cvals.add(val)
-            av[name] = cvals
+            av[name].add(val)
     return av
 
 def createExampleTable(names, vals, annots, ddb, cname="DDB", \
@@ -1022,7 +1148,6 @@ class CallBack():
             self.fn()
             self.cbs += 1
 
-
 class BufferSQLite(object):
 
     def __init__(self, filename, compress=True):
@@ -1094,10 +1219,6 @@ class BufferSQLite(object):
         return rc
 
 
-
-import urllib2
-import orngServerFiles
-import pickle
 
 def download_url(url, repeat=2):
     def do():
@@ -1174,13 +1295,17 @@ class DictyBase(object):
         self.info, self.mappings = pickle.load(open(fn, 'rb'))
 
 if __name__=="__main__":
-    verbose = 0
+    verbose = 1
 
+    def printet(et):
+        et.save("ett.tab")
+        print open("ett.tab").read()
+
+    """
     a = DictyBase()
     print len(a.info)
 
-    #dbc = DatabaseConnection("http://asterix.fri.uni-lj.si/microarray/api/index.php?", buffer=BufferSQLite("../tmpbuf1233"))
-    dbc = DatabaseConnection("http://purple.bioch.bcm.tmc.edu/~anup/index.php?", buffer=BufferSQLite("../tmpbufnew"))
+    dbc = DictyExpress("http://purple.bioch.bcm.tmc.edu/~anup/index.php?", buffer=BufferSQLite("../tmpbufnew"))
 
     print dbc.annotationOptions()
 
@@ -1193,7 +1318,17 @@ if __name__=="__main__":
     et = dbc.get_single_data(sample=[ "tagA-", "pkaC-"], callback=cb, exclude_constant_labels=True)
     print et.domain
     print et.domain[0].attributes
+    printet(et)
 
-    et.save("ett.tab")
-    print open("ett.tab").read()
+    """
+
+    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
+    #d = PIPA()
+    allids = d.list()
+    print ("list", d.list())
+    #print ("annots", list(d.annotations(ids=allids[:2])))
+    for a in d.chips(ids=allids[:2]):
+        pass
+        #print a
+    printet(d.get_data(ids=allids))
 
