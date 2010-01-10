@@ -409,7 +409,6 @@ class DBCommon(object):
 
             #add to current position mapping
             repeats = {}
-            print chipdata[0]
             for id,_ in chipdata:
                 rep = repeats.get(id, 0)
                 repeats[id] = rep+1
