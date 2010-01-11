@@ -384,9 +384,9 @@ class Ontology(object):
     def GetTermDepth(self, term, cache_={}):
         """ Return the minimum depth of a term (length of the shortest path to this term from the top level term).
         """
-        if term not in cache:
-            cache[term] = min([self.GetTermDepth(parent) + 1 for typeId, parent in self[term].related] or [1])
-        return cache[term]
+        if term not in cache_:
+            cache_[term] = min([self.GetTermDepth(parent) + 1 for typeId, parent in self[term].related] or [1])
+        return cache_[term]
 
     def __getitem__(self, id):
         """ Return object with id (same as ontology.terms[id]
