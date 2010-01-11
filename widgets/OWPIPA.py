@@ -46,8 +46,8 @@ class OWPIPA(OWWidget):
         OWGUI.checkBox(self.controlArea, self, "excludeconstant", "Exclude labels with constant values" )
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
-        box  = OWGUI.widgetBox(self.controlArea, "Authentification")
-        OWGUI.lineEdit(box, self, "username", "Username", callback=self.ConnectAndUpdate)
+        box  = OWGUI.widgetBox(self.controlArea, "Authentication")
+        OWGUI.lineEdit(box, self, "username", "User", callback=self.ConnectAndUpdate)
         OWGUI.lineEdit(box, self, "password", "Password", callback=self.ConnectAndUpdate)
         OWGUI.rubber(self.controlArea)
 
