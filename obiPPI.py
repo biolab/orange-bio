@@ -9,6 +9,8 @@ from obiKEGG import downloader
 
 from collections import defaultdict
 
+from obiTaxonomy import pickled_cache
+
         
 class Interaction(object):
     def __init__(self, protein1, protein2, ref1=None, ref2=None, conf1=None, conf2=None):
@@ -56,10 +58,15 @@ class MIPS(object):
         document = minidom.parse(orngServerFiles.localpath_download("PPI", "allppis.xml"))
         interactions = document.getElementsByTagName("interaction")
         self.interactions = [process(interaction) for interaction in interactions]
-        for iter in self.interactions:
-            self.protein_names[iter.protein1] = dict(iter.ref1[0][1]).get("id")
-            self.protein_names[iter.protein2] = dict(iter.ref2[0][1]).get("id")
-    
+        
+        self.protein_interactions = defaultdict(set)
+        
+        for inter in self.interactions:
+            self.protein_names[inter.protein1] = dict(inter.ref1[0][1]).get("id")
+            self.protein_names[inter.protein2] = dict(inter.ref2[0][1]).get("id")
+            self.protein_interactions[inter.protein1].add(inter)
+            self.protein_interactions[inter.protein2].add(inter) 
+       
     def __iter__(self):
         return iter(self.interactions)
     
@@ -69,16 +76,32 @@ class MIPS(object):
         src = urllib2.urlopen("http://mips.helmholtz-muenchen.de/proj/ppi/data/mppi.gz")
         dest = orngServerFiles.localpath("PPI", "mppi.gz")
         shutil.copyfileobj(src, open(dest, "wb"))
-        
-from obiTaxonomy import pickled_cache
-@pickled_cache(None, [("PPI", "allppis.xml")], version=1)
-def _mips():
-    return MIPS()
-        
+       
+    @classmethod 
+    @pickled_cache(None, [("PPI", "allppis.xml")], version=1)
+    def _get_instance(cls):
+        return MIPS()
+    
+    @classmethod
+    def get_instance(cls):
+        if not hasattr(cls, "_instance"):
+            cls._instance= cls._get_instance()
+        return cls._instance
+    
+def mips_interactions(protein = None):
+    mips = MIPS.get_instance()
+    if protein is None:
+        return list(mips)
+    else:
+        return mips.protein_interactions.get(protein)
 
-def mips_interactions():
-    return list(_mips())
+
+def mips_proteins():
+    return set(MIPS.get_instance().protein_names.keys())
+
 
 if __name__ == "__main__":
-    for inter in mips_interactions():
-        print inter.protein1, inter.protein2
+    for protein in mips_proteins():
+        print "Protein", protein, "interacts with", 
+        print ",".join(set(reduce(list.__add__, [[inter.protein1, inter.protein2] for inter in mips_interactions(protein)], [])) -set([protein]))
+            
