@@ -1,5 +1,6 @@
 import sys, pprint, time, re
 from itertools import *
+import urllib
 import urllib2
 import orange
 import socket
@@ -155,33 +156,33 @@ def txt2ll(s, separ=' ', lineSepar='\n'):
 
 class DBInterface(object):
  
-    def __init__(self, address, *args, **kwargs):
+    def __init__(self, address):
         self.address = address
-        self.args = args
-        self.kwargs = kwargs
 
-    def raw(self, request, tryN=3):
+    def raw(self, request, data=None, tryN=3):
         if verbose:
             print "tryN", tryN
 
         if tryN == 0:
             return None
-
         try:
-            return httpGet(self.address + request, *self.args, **self.kwargs)
+            if data == None:
+                return httpGet(self.address + request)
+            else:
+                return httpGet(self.address + request, data=urllib.urlencode(data))
         except IOError:
             return self.raw(request, tryN=tryN-1)
 
-    def get(self, request, tryN=3):
-        rawf = self.raw(request)
+    def get(self, request, data=None, tryN=3):
+        rawf = self.raw(request, data)
         if rawf == None:
             raise Exception("Connection error when contacting " + self.address + request)
-        if rawf[:1] == "<": #an error occurred - starting some html input
+        if rawf[:1] == "<" or rawf[:5] == "error" or rawf.startswith("MOD_PYTHON ERROR"): #an error occurred - starting some html input
             #TODO are there any other kinds of errors?
             if tryN > 0:
                 if verbose:
                     print "trying again"
-                return self.get(request, tryN=tryN-1)
+                return self.get(request, data=data, tryN=tryN-1)
             else:
                 raise Exception("Error with the database")
 
@@ -190,6 +191,7 @@ class DBInterface(object):
         if a[-1][0] == "": #remove empty line on end
             a = a[:-1]
         return a
+
 
 def _test():
     import doctest
@@ -279,11 +281,14 @@ class DBCommon(object):
             self.toBuffer(bufkey, res)
         return res
 
-    def sq(self, s1, buffer=True, bufadd=""):
+    def sq(self, s1, data=None, buffer=True, bufadd="", bufname=None):
         if buffer:
-            res = self.bufferFun(bufadd + s1, self.db.get, s1)
+            if bufname != None:
+                res = self.bufferFun(bufadd + bufname, self.db.get, s1, data=data)
+            else:
+                res = self.bufferFun(bufadd + s1, self.db.get, s1, data=data)
         else:
-            res = self.db.get(s1)
+            res = self.db.get(s1, data=data)
         return res[1:],res[0]
 
     def inBuffer(self, addr):
@@ -305,19 +310,30 @@ class DBCommon(object):
         return odic
         #return dict(zip(ids, list(fn(*args, **kwargs))))
 
-    def downloadMulti(self, command, ids, chunk=100, transformfn=None, separatefn=None):
+    def downloadMulti(self, command, ids, data=None, chunk=100, transformfn=None, bufferkey=None, separatefn=None):
         """
         Downloads multiple results at once.
         Results in the same order as in ids.
+
+        Bufferkey transforms command and data into buffer key.
         """
 
         sids = split(ids,chunk)
     
-        def bufcommand():
+        def bufferkey1(command, data):
             if transformfn:
                 return "TRANS " + command
             else:
                 return command
+
+        def replace_multi(command, data, repl):
+            return command.replace("$MULTI$", repl),\
+                dict((a,b.replace("$MULTI$", repl)) for a,b in data.items()) if data != None else None
+
+        if bufferkey == None:
+            bufferkey=bufferkey1
+
+        bufcommand = lambda x, c=command, d=data: bufferkey(*replace_multi(c, d, x))
 
         for i,sidp in enumerate(sids):
 
@@ -325,7 +341,7 @@ class DBCommon(object):
             unbuffered = []
         
             for a in sidp:
-                if self.inBuffer(bufcommand().replace("$MULTI$", a)):
+                if self.inBuffer(bufcommand(a)):
                     buffered.append(a)
                 else:
                     unbuffered.append(a)
@@ -334,11 +350,11 @@ class DBCommon(object):
             legend = []
 
             if len(unbuffered) > 0:
-                res, legend = self.sq(command.replace("$MULTI$", ",".join(unbuffered)),\
-                    buffer=False)
+                com1, d1 = replace_multi(command, data, ",".join(unbuffered))
+                res, legend = self.sq(com1, data=d1, buffer=False)
             else:
                 # get legend from buffer also
-                legend = self.fromBuffer(bufcommand().replace("$MULTI$", buffered[0]))[0]
+                legend = self.fromBuffer(bufcommand(buffered[0]))[0]
 
             #split on different values of the first column - first attribute
 
@@ -359,9 +375,9 @@ class DBCommon(object):
  
             #here save buffer
             for a,b in antss.items():
-                self.toBuffer(bufcommand().replace("$MULTI$", a), [ legend ] + b)
+                self.toBuffer(bufcommand(a), [ legend ] + b)
 
-            antssb = dict([ (b, self.fromBuffer(bufcommand().replace("$MULTI$", b))[1:]) for b in buffered ])
+            antssb = dict([ (b, self.fromBuffer(bufcommand(b))[1:]) for b in buffered ])
             antss.update(antssb)
 
             #put results in order
@@ -472,6 +488,13 @@ class DBCommon(object):
 
         return et
 
+def bufferkeypipa(command, data):
+    """ Do not save password to the buffer! """
+    data = data.copy()
+    if "pass1" in data:
+        data.pop("pass1")
+    key = command + " " +  urllib.urlencode(sorted(data.items()))
+    return key
 
 class PIPA(DBCommon):
 
@@ -479,13 +502,22 @@ class PIPA(DBCommon):
         self.address = address
         self.db=DBInterface(address)
         self.buffer = buffer
-        if username != None and password != None:
-            #FIXME SUPPORT SSL WHEN DONE
-            pass
+        self.username = None
+        if username != None:
+            self.username = username
+            self.password = password
+
+    def add_auth(self, data=None):
+        if self.username == None:
+            return data
+        authdic = { "user1": self.username, "pass1": self.password }
+        if data != None:
+            authdic.update(data)
+        return authdic
 
     def list(self):
         """ Returns ids of all experiments in the database """
-        res, legend = self.sq("list")
+        res, legend = self.sq("list", data=self.add_auth())
         return nth(res, 0)
 
     def annotations(self, ids):
@@ -493,7 +525,7 @@ class PIPA(DBCommon):
         Returns a generator returning annotations for specified and ids.
         Annotations are returned in the same order as on the input.
         """
-        antss = self.downloadMulti("annot_get?ids=$MULTI$", ids)
+        antss = self.downloadMulti("annot_get", ids, data=self.add_auth({"ids":"$MULTI$"}), bufferkey=bufferkeypipa)
         for ants in izip(antss,ids):
             (res, legend), id = ants
             yield [ list(v) for v in zip(legend, res[0])[1:] ]
@@ -515,7 +547,7 @@ class PIPA(DBCommon):
                 antss[cid] = [ list(a) for a in zip(genes, vals) ]
             return ['gene_id', 'value'], antss
 
-        antss = self.downloadMulti("download_expression?ids=$MULTI$", ids, chunk=10, separatefn=separatefn)
+        antss = self.downloadMulti("download_expression", ids, data=self.add_auth({"ids":"$MULTI$"}), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa)
         for a,legend in antss:
             yield a
 
@@ -1321,8 +1353,9 @@ if __name__=="__main__":
 
     """
 
-    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
-    #d = PIPA()
+    #d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
+    d = PIPA()
+
     allids = d.list()
     print ("list", d.list())
     #print ("annots", list(d.annotations(ids=allids[:2])))

@@ -25,12 +25,14 @@ except:
 bufferfile = os.path.join(bufferpath, "database.sq3")
 
 class OWPIPA(OWWidget):
-    settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant" ]
-    def __init__(self, parent=None, signalManager=None, name="Dicty database"):
+    settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password" ]
+    def __init__(self, parent=None, signalManager=None, name="PIPA database"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
 
         self.platform = None
+        self.username = ""
+        self.password = ""
 
         self.selectedExperiments = []
         self.buffer = obiDicty.BufferSQLite(bufferfile)
@@ -45,6 +47,8 @@ class OWPIPA(OWWidget):
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
         box  = OWGUI.widgetBox(self.controlArea, "Authentification")
+        OWGUI.lineEdit(box, self, "username", "Username", callback=self.ConnectAndUpdate)
+        OWGUI.lineEdit(box, self, "password", "Password", callback=self.ConnectAndUpdate)
         OWGUI.rubber(self.controlArea)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
@@ -67,13 +71,18 @@ class OWPIPA(OWWidget):
     def __updateSelectionList(self, oldList, oldSelection, newList):
         oldList = [oldList[i] for i in oldSelection]
         return [ i for i, new in enumerate(newList) if new in oldList]
-    
-    def Connect(self):
 
-        address = self.server
+    
+    def ConnectAndUpdate(self):
+        self.Connect()
+        self.UpdateExperiments()
+
+    def Connect(self):
         try:
             #obiDicty.verbose = 1
-            self.dbc = obiDicty.PIPA(buffer=self.buffer)
+            def en(x):
+                return x if len(x) else None
+            self.dbc = obiDicty.PIPA(buffer=self.buffer, username=en(self.username), password=self.password)
         except Exception, ex:
             from traceback import print_exception
             print_exception(*sys.exc_info())
@@ -104,7 +113,6 @@ class OWPIPA(OWWidget):
         for chip,annot in zip(chips, annots):
             pos += 1
             d = defaultdict(lambda: "?", annot)
-            print d.items()
             elements.append([d["species"], d["strain"], d["genotype"], d["replicate"], d["tp"], d["treatment"], d["growth"], chip])
             self.progressBarSet((100.0 * pos) / len(chips))
             self.items.append(MyTreeWidgetItem(self.experimentsWidget, elements[-1]))
@@ -148,7 +156,7 @@ if __name__ == "__main__":
     app  = QApplication(sys.argv)
 ##    from pywin.debugger import set_trace
 ##    set_trace()
-    w = OWDicty()
+    w = OWPIPA()
     w.show()
     app.exec_()
     w.saveSettings()
