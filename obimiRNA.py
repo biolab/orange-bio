@@ -17,7 +17,7 @@ premirnafile = osf.localpath_download('miRNA','premiRNA.txt')
 
 ###################################################################
 
-def build_lib(filename, labels=True, MATtoPRE=True, ACCtoID=True, clust=False):
+def __build_lib(filename, labels=True, MATtoPRE=True, ACCtoID=True, clust=False):
     """
         build_lib() function takes as input a filename
         and gives as output some variables there will be used in
@@ -48,8 +48,8 @@ def build_lib(filename, labels=True, MATtoPRE=True, ACCtoID=True, clust=False):
     return to_return
 
 ### library:    
-[IDs, LABELS, miRNA_lib, mat_toPre] = build_lib(mirnafile, 1,1,0,0)
-[preIDs, premiRNA_lib,clusters] = build_lib(premirnafile,0,0,0,1)
+[IDs, LABELS, miRNA_lib, mat_toPre] = __build_lib(mirnafile, 1,1,0,0)
+[preIDs, premiRNA_lib,clusters] = __build_lib(premirnafile,0,0,0,1)
 
 fromTaxo = {3702:'ath', 9913:'bta', 6239:'cel', 3055:'cre', 7955:'dre',\
              352472:'ddi', 7227:'dme', 9606:'hsa', 10090:'mmu', 4530:'osa',\
