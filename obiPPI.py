@@ -15,6 +15,7 @@ class Interaction(object):
         self.protein1, self.protein2 = protein1, protein2
         self.ref1, self.ref2 = ref1, ref2
         self.conf1, self.conf2 = conf1, conf2
+        self.org1, self.org2 = None, None
     
 class MIPS(object):
     VERSION = 1
@@ -39,23 +40,25 @@ class MIPS(object):
                 refs = []
                 for ref in interactor.getElementsByTagName("primaryRef"):
                     refs += [(ref.tagName, ref.attributes.items())]
+                org = dict(interactor.getElementsByTagName("organism")[0].attributes.items()).get("ncbiTaxId")
                 conf = protein.getElementsByTagName("confidence")[0].attributes.items()
-                proteins.append((names, refs, conf))
+                proteins.append((names, refs, conf, org))
             interaction = Interaction(proteins[0][0][1][1], proteins[1][0][1][1])
             interaction.ref1, interaction.ref2 = proteins[0][1], proteins[1][1]
             interaction.conf1, interaction.conf2 = proteins[0][2], proteins[1][2]
+            interaction.org1, interaction.org2 = proteins[0][3], proteins[1][3]
             
             self.protein_names[interaction.protein1].add(proteins[0][0][0][1])
             self.protein_names[interaction.protein2].add(proteins[1][0][0][1])
-            
-            self.protein_names[interaction.protein1].add(proteins[0][0][0][1])
-            self.protein_names[interaction.protein1].add(proteins[0][0][0][1])
             
             return interaction 
             
         document = minidom.parse(orngServerFiles.localpath_download("PPI", "allppis.xml"))
         interactions = document.getElementsByTagName("interaction")
-        self.interactions = [process(interaction) for interaction in interactions] 
+        self.interactions = [process(interaction) for interaction in interactions]
+        for iter in self.interactions:
+            self.protein_names[iter.protein1] = dict(iter.ref1[0][1]).get("id")
+            self.protein_names[iter.protein2] = dict(iter.ref2[0][1]).get("id")
     
     def __iter__(self):
         return iter(self.interactions)
@@ -75,3 +78,7 @@ def _mips():
 
 def mips_interactions():
     return list(_mips())
+
+if __name__ == "__main__":
+    for inter in mips_interactions():
+        print inter.protein1, inter.protein2
