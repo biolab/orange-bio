@@ -1,5 +1,4 @@
 
-
 import urllib
 import re
 import pylab
@@ -15,7 +14,8 @@ import orngServerFiles as osf
 mirnafile = osf.localpath_download('miRNA','miRNA.txt')
 premirnafile = osf.localpath_download('miRNA','premiRNA.txt')
 
-###################################################################
+################################################################################################################
+################################################################################################################
 
 def __build_lib(filename, labels=True, MATtoPRE=True, ACCtoID=True, clust=False):
     """
@@ -48,7 +48,7 @@ def __build_lib(filename, labels=True, MATtoPRE=True, ACCtoID=True, clust=False)
     return to_return
 
 ### library:    
-[IDs, LABELS, miRNA_lib, mat_toPre] = __build_lib(mirnafile, 1,1,0,0)
+[IDs, LABELS, miRNA_lib, mat_toPre, ACCtoID] = __build_lib(mirnafile, 1,1,1,0)
 [preIDs, premiRNA_lib,clusters] = __build_lib(premirnafile,0,0,0,1)
 
 fromTaxo = {3702:'ath', 9913:'bta', 6239:'cel', 3055:'cre', 7955:'dre',\
@@ -107,6 +107,7 @@ def get_info(objectID,type='mat'):
         and returns a miRNA object.
         """
         if type == 'mat':
+            objectID = re.sub('mir','miR',objectID)
             if objectID in IDs:
                 attr = [line.rstrip() for line in open(mirnafile).readlines()][0].split('\t')
             
@@ -157,6 +158,18 @@ def cluster(clusterID, type='name'):
         raise miRNAException("cluster() Error: Check the input value.")
 
 
+def fromACC_toID(accession):
+    """
+        fromACC_toID() takes a miRNA accession number
+        and returns a miRNA id.
+    """
+    if accession in ACCtoID:
+        return ACCtoID[accession]
+    else:
+        print "Accession not found."
+        return False
+    
+
 #######################
 
-                 
+      
