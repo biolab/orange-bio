@@ -426,11 +426,18 @@ class KEGGGenome(KEGGDataBase):
         if key not in self:
             keys = self.search(key)
             keys = [k for k in keys if key in self[k].name or key in self[k].taxonomy]
-            key = keys.pop() if keys else key
+            key = keys.pop(0) if keys else key
         return super(KEGGGenome, self).get(key, default)
     
-    def search(self, string):
-        return [entry.entry_key() for entry in self.entrys if string in entry.entrytext]
+    def search(self, string, relevance=False):
+        def match(entry, string):
+            rel = 0
+            if string in entry.entrytext:
+                weight_f = [(entry.definition, 2), (entry.name, 4), (entry.taxonomy, 8), (entry.entry_key(), 16)]
+                rel += 1 + sum([w for text, w in weight_f if string in text]) + (16 if entry.entry_key() in self.common_organisms() else 0)
+            return rel
+        matched = sorted(zip([match(entry, string) for entry in self.entrys], self.entrys), reverse=True)
+        return [(entry.entry_key(), rel) if relevance else entry.entry_key() for rel, entry in matched if rel]
             
     @classmethod
     @downloader
@@ -742,10 +749,13 @@ class KEGGOrganism(object):
     def organism_name_search(cls, name):
         genome = KEGGGenome()
         if name not in genome:
-            import obiTaxonomy
-            ids = obiTaxonomy.search(name)
-            ids = [id for id in ids if genome.search(id)]
-            name = ids.pop() if ids else name
+            ids = genome.search(name)
+            if not ids:
+                import obiTaxonomy
+                ids = obiTaxonomy.search(name)
+                ids = [id for id in ids if genome.search(id)]
+            name = ids.pop(0) if ids else name
+            
         return KEGGGenome().get(name).entry_key()
     
     @classmethod
