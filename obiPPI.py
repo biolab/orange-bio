@@ -95,9 +95,110 @@ def mips_interactions(protein = None):
     else:
         return mips.protein_interactions.get(protein)
 
-
 def mips_proteins():
     return set(MIPS.get_instance().protein_names.keys())
+
+class BioGRIDInteraction(object):
+    """ An object representing a BioGRID interaction. Each member of this object
+    represents a data from a single column of BIOGRID-ALL.tab file.
+    """
+    __slots__ = ["interactor_a", "interactor_b", "official_symbol_a","official_symbol_b", "aliases_for_a", "aliases_for_b", "experimental_system", "source", "pubmed_id", "organism_a_id", "organism_b_id"]
+    def __init__(self, line):
+        for attr, val in zip(self.__slots__, line.split("\t")):
+            setattr(self, attr, val)
+
+class BioGRID(object):
+    """ A BioGRID database interface
+    Example::
+        >>> ## finding all interactions for Homo sapiens sapiens
+        >>> grid = BioGRID(case_insensitive=True)
+        >>> proteins = proteins = biogrid.proteins() ## All proteins
+        >>> proteins = [p for p in proteins if any(["9606" in [int.organism_a_id, int.organism_b_id] for int in grid.get(p)])]
+    """
+    VERSION = 1
+    def __init__(self, case_insensitive=True):
+        self.case_insensitive = case_insensitive
+        self._case = (lambda name: name.lower()) if self.case_insensitive else (lambda name: name)
+        self.load()
+        
+    def load(self):
+        text = open(orngServerFiles.localpath_download("PPI", "BIOGRID-ALL.tab"), "rb").read()
+        text = text.split("SOURCE\tPUBMED_ID\tORGANISM_A_ID\tORGANISM_B_ID\n", 1)[-1]
+        self.interactions = [BioGRIDInteraction(line) for line in text.split("\n") if line.strip()]
+        
+        self.protein_interactions = defaultdict(set)
+        self.protein_names = {}
+        
+        case = self._case
+
+        def update(keys, value, collection):
+            for k in keys:
+                collection.setdefault(k, set()).add(value)
+                
+        for inter in self.interactions:
+            update(map(case, [inter.official_symbol_a] + inter.aliases_for_a.split("|")), case(inter.interactor_a), self.protein_names)
+            update(map(case, [inter.official_symbol_b] + inter.aliases_for_b.split("|")), case(inter.interactor_b), self.protein_names)
+            
+            self.protein_interactions[case(inter.interactor_a)].add(inter)
+            self.protein_interactions[case(inter.interactor_b)].add(inter)
+            
+        self.protein_interactions = dict(self.protein_interactions)
+
+        if case("N/A") in self.protein_names:
+            del self.protein_names[case("N/A")]
+        
+    def proteins(self):
+        """ Return all protein names in BioGRID (from INTERACTOR_A, and INTERACTOR_B columns) 
+        """
+        return self.protein_interactions.keys()
+            
+    def __iter__(self):
+        """ Iterate over all BioGRIDInteraction objects
+        """
+        return iter(self.interactions)
+    
+    def __getitem__(self, key):
+        """ Return a list of protein interactions that a protein is a part of 
+        """
+        key = self._case(key)
+#        keys = self.protein_alias_matcher.match(key)
+        if key not in self.protein_interactions:
+            keys = self.protein_names.get(key, [])
+        else:
+            keys = [key]
+        if keys:
+            return list(reduce(set.union, [self.protein_interactions.get(k, []) for k in keys], set()))
+        else:
+            raise KeyError(key)
+    
+    def get(self, key, default=None):
+        """ Return a list of protein interactions that a protein is a part of
+        """
+        key = self._case(key)
+#        keys = self.protein_alias_matcher.match(key)
+        if key not in self.protein_interactions:
+            keys = self.protein_names.get(keys, [])
+        else:
+            keys = [key] 
+        if keys:
+            return list(reduce(set.union, [self.protein_interactions.get(k, []) for k in keys], set()))
+        else:
+            return default
+        
+    @classmethod
+    def get_instance(cls):
+        if getattr(cls, "_instance", None) is None:
+            cls._instance = BioGRID()
+        return cls._instance
+    
+def biogrid_interactions(name=None):
+    if name:
+        return list(BioGRID.get_instance().get(name, set()))
+    else:
+        return BioGRID.get_instance().interactions
+    
+def biogrid_proteins():
+    return BioGRID.get_instance().proteins()
 
 
 if __name__ == "__main__":
