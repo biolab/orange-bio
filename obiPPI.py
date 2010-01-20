@@ -192,12 +192,16 @@ class BioGRID(object):
         return cls._instance
     
 def biogrid_interactions(name=None):
+    """Return a list of protein interactions that a protein is a part of
+    """ 
     if name:
         return list(BioGRID.get_instance().get(name, set()))
     else:
         return BioGRID.get_instance().interactions
     
 def biogrid_proteins():
+    """ Return all protein names in BioGRID (from INTERACTOR_A, and INTERACTOR_B columns)
+    """
     return BioGRID.get_instance().proteins()
 
 
