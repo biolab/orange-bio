@@ -1249,8 +1249,6 @@ class BufferSQLite(object):
             print time.time() - t
         return rc
 
-
-
 def download_url(url, repeat=2):
     def do():
         return urllib2.urlopen(url)
@@ -1268,6 +1266,92 @@ def empty_none(s):
         return s
     else:
         return None
+
+def join_ats(atts):
+    """ Joins attribute attributes together. If all values are the same,
+    set the parameter to the common value, else return a list of the
+    values in the same order as the attributes are imputed. """
+    keys = reduce(lambda x,y: x | y, (set(at.keys()) for at in atts))
+    od = {}
+
+    def man(x):
+        if issequencens(x):
+            return tuple(x)
+        else:
+            return x
+
+    for k in keys:
+        s = set(man(at[k]) for at in atts)
+        if len(s) == 1:
+            od[k] = list(s)[0]
+        else:
+            od[k] = [ at[k] for at in atts ]
+    return od
+
+
+
+def join_replicates(data, ignorenames=["id", "replicate", "name"], namefn=None, avg=median):
+    """ Join replicates by median. 
+    Default parameters work for PIPA data."""
+    d = defaultdict(list)
+
+    if namefn == None:
+        namefn = lambda att: ",".join(att["id"]) if issequencens(att["id"]) else    att["id"]
+
+    #key function
+    def key_g(att):
+        print att
+        dk = att.copy()
+        for iname in ignorenames:
+            dk.pop(iname, None)
+        
+        def man(x):
+            if issequencens(x):
+                return tuple(x)
+            else:
+                return x
+
+        return tuple(nth(sorted(((a, man(b)) for a,b in dk.items())), 1))
+
+    #prepare groups
+    for i,a in enumerate(data.domain.attributes):
+        att = a.attributes
+        k = key_g(att)
+        d[k].append(i)
+
+    d = dict(d) #want errors with wrong keys
+
+    natts = []
+
+    def nativeOrNone(val):
+        if val.isSpecial(): 
+            return None
+        else: 
+            return val.native()
+
+    def avgnone(l):
+        """ Removes None and run avg function"""
+        l = filter(lambda x: x != None, l)
+        if len(l):
+            return avg(l)
+        else:
+            return None
+
+    for group, elements in d.items():
+        a = orange.FloatVariable()
+        a.attributes = join_ats([data.domain.attributes[i].attributes for i in elements])
+        a.name = namefn(a.attributes)
+
+        def avgel(ex, el):
+            return orange.Value(avgnone([ nativeOrNone(ex[ind]) for ind in el ]))
+
+        a.getValueFrom = lambda ex,rw,el=elements: avgel(ex,el)
+        natts.append(a)
+
+    ndom = orange.Domain(natts, data.domain.classVar)
+    ndom.addmetas(data.domain.getmetas())
+    return orange.ExampleTable(ndom, data)
+
 
 class DictyBase(object):
 
@@ -1326,7 +1410,7 @@ class DictyBase(object):
         self.info, self.mappings = pickle.load(open(fn, 'rb'))
 
 if __name__=="__main__":
-    verbose = 1
+    verbose = 0
 
     def printet(et):
         et.save("ett.tab")
@@ -1353,8 +1437,8 @@ if __name__=="__main__":
 
     """
 
-    #d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
-    d = PIPA()
+    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
+    #d = PIPA()
 
     allids = d.list()
     print ("list", d.list())
@@ -1362,5 +1446,11 @@ if __name__=="__main__":
     for a in d.chips(ids=allids[:2]):
         pass
         #print a
-    printet(d.get_data(ids=allids))
 
+    data = d.get_data(ids=allids)
+    #data = orange.ExampleTable(data.domain, data[:1])
+    print data.domain
+    data.save("d1.tab")
+    data2 = join_replicates(data)
+    print data2.domain
+    data2.save("d2.tab")
