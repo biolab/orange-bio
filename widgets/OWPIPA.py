@@ -25,7 +25,7 @@ except:
 bufferfile = os.path.join(bufferpath, "database.sq3")
 
 class OWPIPA(OWWidget):
-    settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password" ]
+    settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password","joinreplicates" ]
     def __init__(self, parent=None, signalManager=None, name="PIPA database"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
@@ -39,6 +39,7 @@ class OWPIPA(OWWidget):
 
         self.searchString = ""
         self.excludeconstant = False
+        self.joinreplicates = False
         
         box = OWGUI.widgetBox(self.controlArea, "Cache")
         OWGUI.button(box, self, "Clear cache", callback=self.clear_buffer)
@@ -49,6 +50,9 @@ class OWPIPA(OWWidget):
         box  = OWGUI.widgetBox(self.controlArea, "Authentication")
         OWGUI.lineEdit(box, self, "username", "User", callback=self.ConnectAndUpdate)
         OWGUI.lineEdit(box, self, "password", "Password", callback=self.ConnectAndUpdate)
+
+        OWGUI.checkBox(self.controlArea, self, "joinreplicates", "Average replicates (use median)" )
+
         OWGUI.rubber(self.controlArea)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
@@ -120,7 +124,6 @@ class OWPIPA(OWWidget):
         for i in range(7):
             self.experimentsWidget.resizeColumnToContents(i)
 
-
         self.progressBarFinished()
 
     def SearchUpdate(self, string=""):
@@ -144,6 +147,9 @@ class OWPIPA(OWWidget):
             ids += str(item.text(7)).split(",")
 
         table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant)
+
+        if self.joinreplicates:
+            table = obiDicty.join_replicates(table, ignorenames=["id", "replicate", "name"], namefn=None, avg=obiDicty.median)
 
         end = int(time.time()-start)
         

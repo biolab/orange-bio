@@ -1300,7 +1300,6 @@ def join_replicates(data, ignorenames=["id", "replicate", "name"], namefn=None, 
 
     #key function
     def key_g(att):
-        print att
         dk = att.copy()
         for iname in ignorenames:
             dk.pop(iname, None)
@@ -1339,7 +1338,7 @@ def join_replicates(data, ignorenames=["id", "replicate", "name"], namefn=None, 
 
     for group, elements in d.items():
         a = orange.FloatVariable()
-        a.attributes = join_ats([data.domain.attributes[i].attributes for i in elements])
+        a.attributes.update(join_ats([data.domain.attributes[i].attributes for i in elements]))
         a.name = namefn(a.attributes)
 
         def avgel(ex, el):
