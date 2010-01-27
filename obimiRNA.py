@@ -8,6 +8,8 @@ import math
 import locale
 
 import obiTaxonomy
+import obiGO as go
+import obiProb as op
 import orngServerFiles as osf
 
 
@@ -70,6 +72,8 @@ for k,v in clusters.items():
              for e in group:
                  clusters_toNum[e]=n
              n += 1
+
+
 
 class miRNAException(Exception):
     pass
@@ -168,8 +172,69 @@ def fromACC_toID(accession):
     else:
         print "Accession not found."
         return False
-    
 
+ontology = go.Ontology()
+
+def get_GO(mirna_list=None ,Enrichment=False):
+    """
+        get_GO() function description...
+    """
+    AnnotationsLibrary = {}
+    mirAnnotations = {}
+    
+    if not(mirna_list):
+        mirna_list = ids()   
+     
+    mirna_list = list(set(mirna_list))
+                                
+    for n,m in enumerate(mirna_list):
+        org = m.split('-')[0]
+        if not(org in AnnotationsLibrary):
+            AnnotationsLibrary[org] = go.Annotations.Load(org,ontology=ontology)    
+        annotations = AnnotationsLibrary[org]    
+        genes = get_info(m).targets.split(',')
+        
+        if Enrichment==False:
+            mirna_ann=[]
+            for gene in genes:
+                gene_annotations = annotations.geneAnnotations[gene]
+                try:
+                    alias_gene = annotations.aliasMapper[gene]
+                    gene_annotations = gene_annotations + annotations.geneAnnotations[alias_gene]
+                except KeyError:
+                    pass
+                for g in gene_annotations:
+                    mirna_ann.append(g)
+            if mirna_ann == []:
+                #print '%d / %d miRNA %s has 0 annotations and will not be collected in the output.' % (n+1,len(mirna_list),m)
+                pass
+            else:
+                mirAnnotations[m] = [a.GO_ID for a in mirna_ann]
+                #print '%d / %d: miRNA %s with %d annotations' % (n+1,len(mirna_list),m, len(mirAnnotations[m]))                
+        elif Enrichment==True:
+            res = annotations.GetEnrichedTerms(genes)
+            if res == []:
+                #print '%d / %d: miRNA %s has 0 "enriched" annotations and will not be collected in the output.' % (n+1,len(mirna_list),m)
+                pass
+            else:
+                tups = [(pVal,go_id) for go_id, (ge,pVal,ref) in res.items()]
+                tups.sort()            
+                p_correct = op.FDR([p for p, go_id in tups])            
+                mirAnnotations[m] = [tups[i][1] for i, p in enumerate(p_correct) if p < 0.1]
+                #print '%d / %d: miRNA %s with %d "enriched" annotations' % (n+1,len(mirna_list),m, len(mirAnnotations[m]))            
+        
+    return mirAnnotations
+    
 #######################
+
+
+
+
+
+
+
+
+
+
 
       
