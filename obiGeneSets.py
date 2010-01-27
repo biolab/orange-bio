@@ -4,6 +4,13 @@ Getting genesets from KEGG and GO.
 Maintainer: Marko Toplak
 """
 
+"""
+TODO - add addtitional description to GENE SETS 
+name,
+desciption,
+link
+"""
+
 import obiKEGG, orange
 import os
 import obiGO
@@ -13,14 +20,72 @@ def nth(l,n):
 
 collectionsPath = None
 
+class GeneSet(object):
+
+    def __init__(self, pair=None, genes=None, name=None, id=None, \
+        description=None, link=None):
+        """
+        pair can be (id, listofgenes) - it is used before anything else.
+        """
+        if pair:
+            self.id, self.genes = pair[0], set(pair[1])
+            self.name = self.id
+
+        if genes == None:
+            genes = []
+
+        self.genes = set(genes)
+        self.name = name
+        self.id = id
+        self.description = description
+        self.link = link
+
+    def odict(self):
+        """
+        Returns a pair (id, listofgenes), like in old format.
+        """
+        return self.id, self.genes
+
+class GeneSetIDException(Exception):
+    pass
+
+class GeneSets(object):
+    
+    def init(self, odict=None, name=None, lgs=None):
+        """
+        odict are genesets in old dict format.
+        lgs are 
+        """
+        self.name = name
+        self.idict = {}
+        if odict != None:
+            self.idict = dict((i,GeneSet(pair=(i,g))) for i,g in odict.items())
+        elif lgs != None:
+            self.idict = dict((g.id,g) for g in lgs)
+
+    def keys(self):
+        return self.idict.keys()
+
+    def get(self, a):
+        return self.idict[a]
+
+    def odict(self):
+        """ Return gene sets in old dictionary format. """
+        return dict(gs.odict() for gs in self.idict.values())
+
+    def add(self, gs):
+        if gs.id in idict:
+            raise GeneSetIDException
+
+def geneSetUnion():
+    pass
+
 def goGeneSets(goorg):
     """
     Returns gene sets from GO. Look at the annotation
     of the organism provided.
     Returns a ditionary  of (GOid, genes)
     """
-
-    #gt = _geneToTerms(goorg)
 
     ontology = obiGO.Ontology.Load()
     annotations = obiGO.Annotations.Load(goorg, ontology=ontology)
@@ -47,11 +112,12 @@ def keggGeneSets(keggorg):
     """
     kegg = obiKEGG.KEGGOrganism(keggorg)
 
-    pways = kegg.list_pathways()
+    pways = kegg.pathways()
 
     dicp = {}
-    for id,desc in pways.items():
-        dicp[desc] = kegg.get_genes_by_pathway(id)
+    for id in pways:
+        pway = obiKEGG.KEGGPathway(id)
+        dicp[pway.title] = kegg.get_genes_by_pathway(id)
 
     return dicp
 
@@ -262,7 +328,7 @@ End genesets
 """
 
 if __name__ == "__main__":
-    #print keggGeneSets("sce").items()[:10]
-    col = collections([":go:sce"])
-    print col.items()[:10]
+    print keggGeneSets("sce").items()[:10]
+    #col = collections([":go:sce"])
+    #print col.items()[:10]
     
