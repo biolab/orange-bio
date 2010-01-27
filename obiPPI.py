@@ -101,6 +101,17 @@ def mips_proteins():
 class BioGRIDInteraction(object):
     """ An object representing a BioGRID interaction. Each member of this object
     represents a data from a single column of BIOGRID-ALL.tab file.
+    Attributes::
+        - *interactor_a*    - BioGRID identifier
+        - *interactor_b*    - BioGRID identifier
+        - *official_symbol_a*    - An official symbol for *interactor_a*
+        - *official_symbol_b*    - An official symbol for *interactor_b*
+        - *aliases_for_a*    - Aliases separated by '|'
+        - *aliases_for_b*    - Aliases separated by '|'
+        - *experimental_system*     - Experimental system (see BioGRID documentation on www.thebiogrid.org for a list of valid entrys)
+        - *source*    - 
+        - *organism_a_id*    - NCBI Taxonomy identifier for *interactor_a*'s organism
+        - *organism_b_id*    - NCBI Taxonomy identifier for *interactor_b*'s organism
     """
     __slots__ = ["interactor_a", "interactor_b", "official_symbol_a","official_symbol_b", "aliases_for_a", "aliases_for_b", "experimental_system", "source", "pubmed_id", "organism_a_id", "organism_b_id"]
     def __init__(self, line):
@@ -192,7 +203,7 @@ class BioGRID(object):
         return cls._instance
     
 def biogrid_interactions(name=None):
-    """Return a list of protein interactions that a protein is a part of
+    """Return a list of protein interactions (BioGRIDInteraction objects) that a protein is a part of
     """ 
     if name:
         return list(BioGRID.get_instance().get(name, set()))
