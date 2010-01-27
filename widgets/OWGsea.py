@@ -13,6 +13,8 @@ import obiGeneSets
 from exceptions import Exception
 import cPickle as pickle
 from collections import defaultdict
+import obiKEGG
+import orngServerFiles
 
 def nth(l, n):
     return [ a[n] for a in l ]
@@ -247,7 +249,30 @@ class OWGsea(OWWidget):
                     "csgm",
                     "gsgo",
                     "gskegg",
-                    "buildDistances"]
+                    "buildDistances",
+                    "organismIndex"]
+
+    def UpdateOrganismComboBox(self):
+        try:
+            self.progressBarInit()
+            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+                genome = obiKEGG.KEGGGenome()
+            self.progressBarFinished()
+            
+            self.allOrganismCodes = genome 
+    
+            essential = genome.essential_organisms()
+            
+            local = [name.split(".")[0].split("_")[-1] for name in orngServerFiles.listfiles("KEGG") if "kegg_genes" in name]
+            self.organismCodes = [(code, organism.definition) for code, organism in self.allOrganismCodes.items() if code in local or code in essential]
+            self.organismCodes.sort()
+            items = [desc for code, desc in self.organismCodes]
+            self.organismCodes = [code for code, desc in self.organismCodes]
+            
+            self.organismComboBox.addItems(items)
+        finally:
+            self.signalManager.setFreeze(0)
+
 
     def __init__(self, parent=None, signalManager = None, name='GSEA'):
         OWWidget.__init__(self, parent, signalManager, name)
@@ -271,25 +296,10 @@ class OWGsea(OWWidget):
         self.gskegg = False
         self.buildDistances = False
         self.selectedPhenVar = 0
+        self.organismIndex = 0
 
         self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
-
-
-
-        import obiKEGG
-        import orngServerFiles
-
-        self.keggLocalInterface = obiKEGG.KEGGInterfaceLocal(update=False)
-        self.allOrganismCodes = self.keggLocalInterface.list_organisms()
-
-        local = [name.split(".")[0].split("_")[-1] for name in orngServerFiles.listfiles("KEGG") if "kegg_organism" in name]
-        self.organismCodes = [(code, code + ": " + name) for code, name in self.allOrganismCodes.items() if code in local]
-        self.organismCodes.sort()
-        if not self.organismCodes:
-            self.error(0, "No downloaded organism data!! Update the KEGG for your organism.")
-
-        self.otype = 0
 
         self.correlationTypes = [ ("Signal2Noise", "s2n") ]
         self.ctype = 0
@@ -300,9 +310,16 @@ class OWGsea(OWWidget):
         self.tabs = OWGUI.tabWidget(self.controlArea)
 
         ca = OWGUI.createTabPage(self.tabs, "Basic")
+
         box = OWGUI.widgetBox(ca, 'Organism')
+        #FROM KEGG WIDGET - organism selection
+        self.allOrganismCodes = {}
+        self.organismCodes = []
+        self.organismComboBox = cb = OWGUI.comboBox(box, self, "organismIndex", items=[], debuggingEnabled=0) #changed
+        cb.setMaximumWidth(200)
+        self.signalManager.setFreeze(1)
+        QTimer.singleShot(100, self.UpdateOrganismComboBox)
  
-        cb = OWGUI.comboBox(box, self, "otype", items=nth(self.organismCodes, 1))
         OWGUI.checkBox(box, self, "csgm", "Case sensitive gene matching")
 
         box2 = OWGUI.widgetBox(ca, "Descriptors")
@@ -544,7 +561,7 @@ class OWGsea(OWWidget):
 
         collectionNames = [ self.geneSel[a] for a in self.gridSel ]
 
-        organism = self.organismCodes[self.otype][0]
+        organism = self.organismCodes[self.organismIndex]
 
         if self.gsgo:
             collectionNames.append(":go:" + organism)
