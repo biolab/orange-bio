@@ -77,7 +77,7 @@ def exportET(resl):
 
     vars = []
     vars.append(orange.StringVariable("Name"))
-    vars.append(orange.EnumVariable("Collection", values=allCollections ))
+    vars.append(orange.EnumVariable("Collection", values=map(str,allCollections )))
     vars.append(orange.FloatVariable("NES"))
     vars.append(orange.FloatVariable("ES"))
     vars.append(orange.FloatVariable("P-value"))
@@ -91,7 +91,7 @@ def exportET(resl):
     examples = []
     for name, dicr in resl:
         collection, name = splitn(name)
-        examples.append([name, collection, dicr['nes'], dicr['es'], dicr['p'], min(dicr['fdr'],1.0), str(dicr['size']), str(dicr['matched_size']),  ", ".join(dicr['genes'])])
+        examples.append([str(name), str(collection), dicr['nes'], dicr['es'], dicr['p'], min(dicr['fdr'],1.0), str(dicr['size']), str(dicr['matched_size']),  ", ".join(dicr['genes'])])
 
     return orange.ExampleTable(domain, examples)
 
@@ -777,9 +777,9 @@ if __name__=="__main__":
     ow.show()
 
     #d = orange.ExampleTable('/home/marko/testData.tab')
-    #d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
+    d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
     #d = orange.ExampleTable('tmp.tab')
-    d = orange.ExampleTable('../gene_three_lines_log.tab')
+    #d = orange.ExampleTable('../gene_three_lines_log.tab')
     ow.setData(d)
 
     a.exec_()
