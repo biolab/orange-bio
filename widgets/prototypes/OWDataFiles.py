@@ -1,7 +1,6 @@
 """
 <name>Data Files</name>
 <description>Reads data from designated directory.</description>
-<category>Genomics</category>
 <icon>icons/ChipDataFiles.png</icon>
 <priority>1050</priority>
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>

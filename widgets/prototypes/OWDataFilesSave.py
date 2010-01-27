@@ -1,7 +1,6 @@
 """
 <name>Save Data Files</name>
 <description>Saves data to selected directory.</description>
-<category>Genomics</category>
 <icon>icons/DataFilesSave.png</icon>
 <priority>1055</priority>
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
