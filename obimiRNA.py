@@ -21,9 +21,9 @@ premirnafile = osf.localpath_download('miRNA','premiRNA.txt')
 
 def __build_lib(filename, labels=True, MATtoPRE=True, ACCtoID=True, clust=False):
     """
-        build_lib() function takes as input a filename
-        and gives as output some variables there will be used in
-        the module.
+    build_lib() function takes as input a filename
+    and gives as output some variables there will be used in
+    the module.
     """
     content = [l.rstrip() for l in open(filename).readlines()][1:]
     to_return = []
@@ -164,66 +164,69 @@ def cluster(clusterID, type='name'):
 
 def fromACC_toID(accession):
     """
-        fromACC_toID() takes a miRNA accession number
-        and returns a miRNA id.
+    fromACC_toID() takes a miRNA accession number
+    and returns a miRNA id.
     """
     if accession in ACCtoID:
         return ACCtoID[accession]
     else:
         print "Accession not found."
         return False
-
-ontology = go.Ontology()
-
-def get_GO(mirna_list=None ,Enrichment=False):
+    
+    
+def __getGO_dict(mirna_dict):
     """
-        get_GO() function description...
+    switch miRNA --> GO_IDs dictionary to GO_ID --> miRNAs. 
     """
-    AnnotationsLibrary = {}
+    
+    GO_mirna_lib = {}
+    for m,GO_IDs in mirna_dict.items():
+        for go_id in GO_IDs:
+            if go_id != [] and not(go_id in GO_mirna_lib):
+                GO_mirna_lib[go_id]=[]
+            GO_mirna_lib[go_id].append(m)
+    
+    return GO_mirna_lib
+
+
+def get_GO(mirna_list, annotations, enrichment=False, pval=0.1, goSwitch=True):
+    """
+    get_GO() takes as input a list of miRNAs only for the organism for which the annotations are defined.
+    If goSwitch is False, get_GO() returns a dictionary that has miRNAs as keys and GO IDs as values;
+    in the other case it returns a dictionary with GO IDs as keys and miRNAs as values.
+    """
+    
+    import obiGene
+    genematcher = obiGene.matcher([obiGene.GMGO(annotations.taxid)] + \
+        ([obiGene.GMDicty()] if annotations.taxid == "352472"  else []))
+    genematcher.set_targets(annotations.geneNames)
+    
+    mirna_list = list(set(mirna_list))
     mirAnnotations = {}
     
-    if not(mirna_list):
-        mirna_list = ids()   
-     
-    mirna_list = list(set(mirna_list))
-                                
-    for n,m in enumerate(mirna_list):
-        org = m.split('-')[0]
-        if not(org in AnnotationsLibrary):
-            AnnotationsLibrary[org] = go.Annotations.Load(org,ontology=ontology)    
-        annotations = AnnotationsLibrary[org]    
+    for m in mirna_list:
         genes = get_info(m).targets.split(',')
+        genes = filter(None, map(genematcher.umatch, genes))
         
-        if Enrichment==False:
+        if enrichment==False:
             mirna_ann=[]
             for gene in genes:
                 gene_annotations = annotations.geneAnnotations[gene]
-                try:
-                    alias_gene = annotations.aliasMapper[gene]
-                    gene_annotations = gene_annotations + annotations.geneAnnotations[alias_gene]
-                except KeyError:
-                    pass
-                for g in gene_annotations:
-                    mirna_ann.append(g)
-            if mirna_ann == []:
-                #print '%d / %d miRNA %s has 0 annotations and will not be collected in the output.' % (n+1,len(mirna_list),m)
-                pass
-            else:
-                mirAnnotations[m] = [a.GO_ID for a in mirna_ann]
-                #print '%d / %d: miRNA %s with %d annotations' % (n+1,len(mirna_list),m, len(mirAnnotations[m]))                
-        elif Enrichment==True:
+                for ga in gene_annotations:
+                    mirna_ann.append(ga)
+            mirAnnotations[m] = [an.GO_ID for an in list(set(mirna_ann))]
+        elif enrichment==True:
             res = annotations.GetEnrichedTerms(genes)
-            if res == []:
-                #print '%d / %d: miRNA %s has 0 "enriched" annotations and will not be collected in the output.' % (n+1,len(mirna_list),m)
-                pass
-            else:
-                tups = [(pVal,go_id) for go_id, (ge,pVal,ref) in res.items()]
-                tups.sort()            
-                p_correct = op.FDR([p for p, go_id in tups])            
-                mirAnnotations[m] = [tups[i][1] for i, p in enumerate(p_correct) if p < 0.1]
-                #print '%d / %d: miRNA %s with %d "enriched" annotations' % (n+1,len(mirna_list),m, len(mirAnnotations[m]))            
-        
-    return mirAnnotations
+            tups = [(pVal,go_id) for go_id, (ge,pVal,ref) in res.items()]
+            tups.sort()            
+            p_correct = op.FDR([p for p, go_id in tups])            
+            mirAnnotations[m] = [tups[i][1] for i, p in enumerate(p_correct) if p < pval]
+
+    if goSwitch:
+        return __getGO_dict(mirAnnotations)
+    else:
+        return mirAnnotations
+ 
     
 #######################
 
