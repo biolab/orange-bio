@@ -1002,8 +1002,10 @@ def organisms():
     return KEGGOrganism.organisms()
 
 def to_taxid(name):
-    names = KEGGGenome().search(name)
-    return name[0].taxonomy.split(":")[-1]
+    genome = KEGGGenome()
+    names = genome.search(name)
+    
+    return re.findall(r"TAX:(\d+)", genome[names[0]].taxonomy)[0]
 
 def from_taxid(taxid):
     return KEGGGenome().search(taxid)
