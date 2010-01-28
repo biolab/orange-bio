@@ -24,6 +24,8 @@ except:
     pass
 bufferfile = os.path.join(bufferpath, "database.sq3")
 
+CACHED_COLOR = Qt.darkGreen
+
 class OWPIPA(OWWidget):
     settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password","joinreplicates" ]
     def __init__(self, parent=None, signalManager=None, name="PIPA database"):
@@ -40,20 +42,31 @@ class OWPIPA(OWWidget):
         self.searchString = ""
         self.excludeconstant = False
         self.joinreplicates = False
+
+        self.chips = []
+        self.annots = []
         
-        box = OWGUI.widgetBox(self.controlArea, "Cache")
-        OWGUI.button(box, self, "Clear cache", callback=self.clear_buffer)
+
+        OWGUI.button(self.controlArea, self, "Reload", callback=self.Reload)
+        OWGUI.button(self.controlArea, self, "Clear cache", callback=self.clear_cache)
+
+        OWGUI.rubber(self.controlArea)
 
         OWGUI.checkBox(self.controlArea, self, "excludeconstant", "Exclude labels with constant values" )
+        OWGUI.checkBox(self.controlArea, self, "joinreplicates", "Average replicates (use median)" )
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
+
+        OWGUI.rubber(self.controlArea)
+        OWGUI.rubber(self.controlArea)
+        OWGUI.rubber(self.controlArea)
+        OWGUI.rubber(self.controlArea)
+
         box  = OWGUI.widgetBox(self.controlArea, "Authentication")
         OWGUI.lineEdit(box, self, "username", "User", callback=self.ConnectAndUpdate)
         OWGUI.lineEdit(box, self, "password", "Password", callback=self.ConnectAndUpdate)
 
-        OWGUI.checkBox(self.controlArea, self, "joinreplicates", "Average replicates (use median)" )
 
-        OWGUI.rubber(self.controlArea)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
         self.experimentsWidget = QTreeWidget()
@@ -68,18 +81,17 @@ class OWPIPA(OWWidget):
         self.loadSettings()
         self.dbc = None        
 
-        QTimer.singleShot(0, self.UpdateExperiments)        
+        QTimer.singleShot(100, self.UpdateExperiments)        
 
         self.resize(800, 600)
 
     def __updateSelectionList(self, oldList, oldSelection, newList):
         oldList = [oldList[i] for i in oldSelection]
         return [ i for i, new in enumerate(newList) if new in oldList]
-
     
     def ConnectAndUpdate(self):
         self.Connect()
-        self.UpdateExperiments()
+        self.UpdateExperiments(reload=True)
 
     def Connect(self):
         try:
@@ -94,11 +106,15 @@ class OWPIPA(OWWidget):
             return
         self.error(0)
 
-    def clear_buffer(self):
-        self.buffer.clear()
-        self.UpdateExperiments()
+    def Reload(self):
+        #self.buffer.clear()
+        self.UpdateExperiments(reload=True)
 
-    def UpdateExperiments(self):
+    def clear_cache(self):
+        self.buffer.clear()
+        self.Reload()
+
+    def UpdateExperiments(self, reload=False):
         self.chipsl = []
         self.experimentsWidget.clear()
         self.items = []
@@ -108,13 +124,32 @@ class OWPIPA(OWWidget):
         if not self.dbc:
             self.Connect()
  
-        chips = self.dbc.list()
-        annots = self.dbc.annotations(chips)
-        elements = []
+        #obiDicty.verbose = 1
 
+        chips, annots = [], []
+        
+        sucind = False #success indicator for database index
+
+        try:
+            chips = self.dbc.list(reload=reload)
+            annots = self.dbc.annotations(chips, reload=reload)
+            sucind = True
+        except Exception, ex:
+            try:
+                chips = self.dbc.list()
+                annots = self.dbc.annotations(chips)
+                self.warning(0, "Can not access database - using cached data.")
+                sucind = True
+            except Exception,ex:
+                self.error(0, "Can not access database.")
+
+        elements = []
         pos = 0
 
-        for chip,annot in zip(chips, annots):
+        self.chips = list(chips)
+        self.annots = list(annots)
+
+        for chip,annot in zip(self.chips, self.annots):
             pos += 1
             d = defaultdict(lambda: "?", annot)
             elements.append([d["species"], d["strain"], d["genotype"], d["replicate"], d["tp"], d["treatment"], d["growth"], chip])
@@ -124,7 +159,25 @@ class OWPIPA(OWWidget):
         for i in range(7):
             self.experimentsWidget.resizeColumnToContents(i)
 
+        adic = dict(zip(self.chips, self.annots))
+        #which is the ok buffer version
+        self.wantbufver = lambda x,ad=adic: defaultdict(lambda: "?", ad[x])["map_stop1"]
+
+        self.UpdateCached()
+
         self.progressBarFinished()
+
+    def UpdateCached(self):
+        if self.wantbufver:
+            fn = self.dbc.chips_keynaming()
+            for item in self.items:
+                color = Qt.black
+                c = str(item.text(7))
+                if self.dbc.inBuffer(fn(c)) == self.wantbufver(c):
+                    color = CACHED_COLOR
+                brush = QBrush(color)
+                for i in range(item.columnCount()):
+                    item.setForeground(i, brush)
 
     def SearchUpdate(self, string=""):
         for item in self.items:
@@ -144,12 +197,12 @@ class OWPIPA(OWWidget):
 
         ids = []
         for item in self.experimentsWidget.selectedItems():
-            ids += str(item.text(7)).split(",")
+            ids += [ str(item.text(7)) ]
 
-        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant)
+        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver)
 
         if self.joinreplicates:
-            table = obiDicty.join_replicates(table, ignorenames=["id", "replicate", "name"], namefn=None, avg=obiDicty.median)
+            table = obiDicty.join_replicates(table, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=obiDicty.median)
 
         end = int(time.time()-start)
         
@@ -157,6 +210,8 @@ class OWPIPA(OWWidget):
 
         #self.send("Example table", None)
         self.send("Example table", table)
+
+        self.UpdateCached()
 
 if __name__ == "__main__":
     app  = QApplication(sys.argv)

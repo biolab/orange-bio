@@ -264,29 +264,27 @@ class DBCommon(object):
     def fromBuffer(self, addr):
         return self.buffer.get(self.address + addr)
 
-    def toBuffer(self, addr, cont):
+    def toBuffer(self, addr, cont, version):
         if self.buffer:
-            return self.buffer.add(self.address + addr, cont)
+            return self.buffer.add(self.address + addr, cont, version=version)
 
-    def bufferFun(self, bufkey, fn, *args, **kwargs):
+    def bufferFun(self, bufkey, bufver, reload, fn, *args, **kwargs):
         """
         If bufkey is already present in buffer, return its contents.
         If not, run function with arguments and save its result
         into the buffer.
         """
-        if self.inBuffer(bufkey):
+        if self.inBuffer(bufkey) == bufver and reload == False:
             res = self.fromBuffer(bufkey)
         else:
             res = fn(*args, **kwargs)
-            self.toBuffer(bufkey, res)
+            self.toBuffer(bufkey, res, bufver)
         return res
 
-    def sq(self, s1, data=None, buffer=True, bufadd="", bufname=None):
+    def sq(self, s1, data=None, buffer=True, bufadd="", bufname=None, bufver="0", reload=False):
         if buffer:
-            if bufname != None:
-                res = self.bufferFun(bufadd + bufname, self.db.get, s1, data=data)
-            else:
-                res = self.bufferFun(bufadd + s1, self.db.get, s1, data=data)
+            bufkey = bufadd + (bufname if bufname != None else s1)
+            res = self.bufferFun(bufkey, bufver, reload, self.db.get, s1, data=data)
         else:
             res = self.db.get(s1, data=data)
         return res[1:],res[0]
@@ -308,18 +306,13 @@ class DBCommon(object):
             odic[a] = b
             if callback: callback()
         return odic
-        #return dict(zip(ids, list(fn(*args, **kwargs))))
 
-    def downloadMulti(self, command, ids, data=None, chunk=100, transformfn=None, bufferkey=None, separatefn=None):
+    def downloadMulti_bufcommand_replace_multi(self, command, data=None, chunk=100, bufferkey=None, transformfn=None):
         """
-        Downloads multiple results at once.
-        Results in the same order as in ids.
-
-        Bufferkey transforms command and data into buffer key.
+        Get function which gives buffer address for an id and a function 
+        which replaces $MULTI$.
         """
 
-        sids = split(ids,chunk)
-    
         def bufferkey1(command, data):
             if transformfn:
                 return "TRANS " + command
@@ -334,6 +327,27 @@ class DBCommon(object):
             bufferkey=bufferkey1
 
         bufcommand = lambda x, c=command, d=data: bufferkey(*replace_multi(c, d, x))
+        return bufcommand, replace_multi
+
+    def downloadMulti(self, command, ids, data=None, chunk=100, transformfn=None, bufferkey=None, separatefn=None, bufreload=False, bufver="0"):
+        """
+        Downloads multiple results at once.
+        Results in the same order as in ids.
+
+        Bufferkey transforms command and data into buffer key.
+        bufver is a function returning buffer version for a given id. if
+            a string is given, use it for all ids
+        """
+
+        sids = split(ids,chunk)
+    
+        bufverfn = None
+        if isinstance(bufver, basestring):
+            bufverfn = lambda x: bufver
+        else:
+            bufverfn = bufver
+
+        bufcommand, replace_multi = self.downloadMulti_bufcommand_replace_multi(command, data=data, chunk=chunk, bufferkey=bufferkey, transformfn=transformfn)
 
         for i,sidp in enumerate(sids):
 
@@ -341,7 +355,7 @@ class DBCommon(object):
             unbuffered = []
         
             for a in sidp:
-                if self.inBuffer(bufcommand(a)):
+                if self.inBuffer(bufcommand(a)) == bufverfn(a) and bufreload == False:
                     buffered.append(a)
                 else:
                     unbuffered.append(a)
@@ -351,7 +365,7 @@ class DBCommon(object):
 
             if len(unbuffered) > 0:
                 com1, d1 = replace_multi(command, data, ",".join(unbuffered))
-                res, legend = self.sq(com1, data=d1, buffer=False)
+                res, legend = self.sq(com1, data=d1, buffer=False) #get unbuffered part
             else:
                 # get legend from buffer also
                 legend = self.fromBuffer(bufcommand(buffered[0]))[0]
@@ -375,8 +389,9 @@ class DBCommon(object):
  
             #here save buffer
             for a,b in antss.items():
-                self.toBuffer(bufcommand(a), [ legend ] + b)
+                self.toBuffer(bufcommand(a), [ legend ] + b, bufverfn(a))
 
+            #get buffered from the buffer
             antssb = dict([ (b, self.fromBuffer(bufcommand(b))[1:]) for b in buffered ])
             antss.update(antssb)
 
@@ -515,22 +530,22 @@ class PIPA(DBCommon):
             authdic.update(data)
         return authdic
 
-    def list(self):
+    def list(self, reload=False):
         """ Returns ids of all experiments in the database """
-        res, legend = self.sq("list", data=self.add_auth())
+        res, legend = self.sq("list", data=self.add_auth(), reload=reload)
         return nth(res, 0)
 
-    def annotations(self, ids):
+    def annotations(self, ids, reload=False, bufver="0"):
         """
         Returns a generator returning annotations for specified and ids.
         Annotations are returned in the same order as on the input.
         """
-        antss = self.downloadMulti("annot_get", ids, data=self.add_auth({"ids":"$MULTI$"}), bufferkey=bufferkeypipa)
+        antss = self.downloadMulti("annot_get", ids, data=self.add_auth({"ids":"$MULTI$"}), bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
         for ants in izip(antss,ids):
             (res, legend), id = ants
             yield [ list(v) for v in zip(legend, res[0])[1:] ]
 
-    def chips(self, ids):
+    def chips(self, ids, reload=False, bufver="0"):
         """
         Download chips using new shorter format.
         """
@@ -547,12 +562,16 @@ class PIPA(DBCommon):
                 antss[cid] = [ list(a) for a in zip(genes, vals) ]
             return ['gene_id', 'value'], antss
 
-        antss = self.downloadMulti("download_expression", ids, data=self.add_auth({"ids":"$MULTI$"}), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa)
+        antss = self.downloadMulti("download_expression", ids, data=self.add_auth({"ids":"$MULTI$"}), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
         for a,legend in antss:
             yield a
 
+    def chips_keynaming(self):
+        keynamingfn,_ = self.downloadMulti_bufcommand_replace_multi("download_expression", data=self.add_auth({"ids":"$MULTI$"}), chunk=100, bufferkey=bufferkeypipa, transformfn=None)
+        return keynamingfn
+
     def get_data(self, exclude_constant_labels=False, average=median, 
-        ids=None, callback=None, format="short", **kwargs):
+        ids=None, callback=None, bufver="0"):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations for query and post-processing
@@ -606,7 +625,7 @@ class PIPA(DBCommon):
         #here download actually happens
         chipfn = None
 
-        chipfn = self.chips
+        chipfn = lambda x: self.chips(x, bufver=bufver)
        
         if verbose:
             print "DOWNLOAD TIME", time.time() - tstart
@@ -1194,7 +1213,6 @@ class BufferSQLite(object):
         os.remove(self.filename)
         self.conn = self.connect()
 
-
     def connect(self):
         import sqlite3
         conn = sqlite3.connect(self.filename)
@@ -1206,16 +1224,22 @@ class BufferSQLite(object):
         return conn
 
     def contains(self, addr):
+        """ Returns version or False, if it does not exists """
         c = self.conn.cursor()
-        c.execute('select address from buf where address=?', (addr,))
-        lc = len(list(c))
+        c.execute('select time from buf where address=?', (addr,))
+        lc = list(c)
         c.close()
-        if lc == 0:
+        if len(lc) == 0:
             return False
         else:
-            return True
+            return lc[0][0]
 
-    def add(self, addr, con):
+    def list(self):
+        c = self.conn.cursor()
+        c.execute('select address from buf')
+        return nth(list(c), 0)
+
+    def add(self, addr, con, version="0"):
         import cPickle, zlib, sqlite3
         if verbose:
             print "Adding", addr
@@ -1224,7 +1248,7 @@ class BufferSQLite(object):
             bin = sqlite3.Binary(zlib.compress(cPickle.dumps(con)))
         else:
             bin = sqlite3.Binary(cPickle.dumps(con))
-        c.execute('insert into buf values (?,?,?)', (addr, "0", bin))
+        c.execute('insert or replace into buf values (?,?,?)', (addr, version, bin))
         c.close()
         self.conn.commit()
 
@@ -1288,15 +1312,13 @@ def join_ats(atts):
             od[k] = [ at[k] for at in atts ]
     return od
 
-
-
-def join_replicates(data, ignorenames=["id", "replicate", "name"], namefn=None, avg=median):
+def join_replicates(data, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=median):
     """ Join replicates by median. 
     Default parameters work for PIPA data."""
     d = defaultdict(list)
 
     if namefn == None:
-        namefn = lambda att: ",".join(att["id"]) if issequencens(att["id"]) else    att["id"]
+        namefn = lambda att: ",".join(att["id"]) if issequencens(att["id"]) else att["id"]
 
     #key function
     def key_g(att):
@@ -1409,13 +1431,12 @@ class DictyBase(object):
         self.info, self.mappings = pickle.load(open(fn, 'rb'))
 
 if __name__=="__main__":
-    verbose = 0
+    verbose = 1
 
     def printet(et):
         et.save("ett.tab")
         print open("ett.tab").read()
 
-    """
     a = DictyBase()
     print len(a.info)
 
@@ -1435,16 +1456,14 @@ if __name__=="__main__":
     printet(et)
 
     """
-
     d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
     #d = PIPA()
 
-    allids = d.list()
-    print ("list", d.list())
-    #print ("annots", list(d.annotations(ids=allids[:2])))
-    for a in d.chips(ids=allids[:2]):
-        pass
-        #print a
+    allids = d.list(reload=False)
+    print ("list", allids)
+    print ("annots", list(d.annotations(ids=allids[:2])))
+
+    fdsdfds()
 
     data = d.get_data(ids=allids)
     #data = orange.ExampleTable(data.domain, data[:1])
@@ -1453,3 +1472,4 @@ if __name__=="__main__":
     data2 = join_replicates(data)
     print data2.domain
     data2.save("d2.tab")
+    """
