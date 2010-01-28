@@ -208,6 +208,16 @@ class BioMartRegistry(object):
     def __iter__(self):
         return iter(self.marts())
     
+    def _find_mart(self, name):
+        try:
+            return [mart for mart in self.marts() if name in [getattr(mart, "name", None),
+                                    getattr(mart, "internal_name", None)]][0]
+        except IndexError, ex:
+            raise ValueError(name)
+        
+    def __getitem__(self, name):
+        return self._find_mart(name)
+    
 class BioMartVirtualSchema(object):
     """ A class representation of a virtual schema.
     """
@@ -328,7 +338,7 @@ class BioMartDatabase(object):
             raise ValueError(dataset)
         
     def __getitem__(self, name):
-        return self._find_dataset(dataset)
+        return self._find_dataset(name)
         
 class BioMartDataset(object):
     """ An object representing a BioMart dataset (returned by BioMartDatabase)
@@ -360,7 +370,7 @@ class BioMartDataset(object):
     def configuration(self):
         """ Return the configuration tree for this dataset (BioMartDatasetConfig instance)
         """
-        return self.conenction.configuration(dataset=self.internal_name)
+        return self.conenction.configuration(dataset=self.internal_name, virtualSchema=self.virtual_schema_name)
             
     def get_data(self, attributes=[], filters=[], unique=False):
         """ Constructs and runs a BioMartQuery returning its results 
@@ -377,17 +387,17 @@ class BioMartDataset(object):
 class BioMartQuery(object):
     """ A class for constructing a query to run on a BioMart server
     Example::
-    >>> BioMartQuery(connection, ["gene"], attributes=["gene_name_", "dictybaseid", "gene_chromosome"],
+    >>> BioMartQuery(connection, dataset="gene", attributes=["gene_name_", "dictybaseid", "gene_chromosome"],
     filters=[("chromosome", 1), ("strand", 1)]).run()
-    >>> BioMartQuery(connection, ["hsapiens_gene_ensembl"], attributes=["ensembl_transcript_id",
+    >>> BioMartQuery(connection, dataset="hsapiens_gene_ensembl", attributes=["ensembl_transcript_id",
     "chromosome_name"], filters=[("chromosome_name", ["22"])]).get_count()
     >>> #Equivalent to
     ...
     >>> query = BioMartQuery(connection)
-    >>> query.set_database("hsapiens_gene_ensembl")
+    >>> query.set_dataset("hsapiens_gene_ensembl")
     >>> query.add_filter("chromosome_name", ["22"]
     >>> query.add_attribute("ensembl_transcript_id")
-    >>> query.add_atribute("chromosome_name")
+    >>> query.add_attribute("chromosome_name")
     >>> query.get_count()
     """
     XML = """<?xml version="1.0" encoding="UTF-8"?> 
@@ -523,7 +533,6 @@ def _configuration(tagName, names = []):
         for name in names:
             setattr(cls, name + "s", lambda self, name=name: self._get_by_tag(_configuration_names[name]))
             setattr(cls, name, lambda self, search, name=name: self._get_by_name(_configuration_names[name], search))
-#            print getattr(cls, name)
         return cls
     return configurator
 
