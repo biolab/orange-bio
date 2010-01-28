@@ -1,3 +1,5 @@
+""" Module for accessing BioMart services
+"""
 
 import sys
 import urllib2
@@ -22,18 +24,32 @@ def _init__slots_from_line(self, line):
         setattr(self, attr, val)
         
 class Attribute(object):
+    """ A class representing an attribute in a BioMart dataset (returned by BioMartDataset.attributes())
+    Attributes::
+        - *internal_name*    - Internal attribute name
+        - *name*    - Human readable name of the attribute
+        - *description*    - Human readable description of the attribute
+    """
     __slots__ = ["internal_name", "name", "description", "page_internal_name", "_4", "_5", "interface"]
     __init__ = _init__slots_from_line
     
     def __repr__(self):
-        return "\t".join(getattr(self, name, "") for name in self.__slots__)
+        return "Attribute('%s')" % "\t".join(getattr(self, name, "") for name in self.__slots__)
+     
             
 class Filter(object):
+    """ A class representing a filter for a BioMart dataset (returned by BioMart.filters())
+    Attributes::
+        - *internal_name* - Internal filter name
+        - *name*    - Filter name
+        - *values*    - Lists possible filter values
+        - *description*    - Filter description
+    """
     __slots__ =  ["internal_name", "name", "values", "description", "filter_type", "filter_method", "_6", "_7"]
     __init__ = _init__slots_from_line
     
     def __repr__(self):
-        return "\t".join(getattr(self, name, "") for name in self.__slots__)
+        return "Filter('%s')" % "\t".join(getattr(self, name, "") for name in self.__slots__)
 
 class xml_node(object):
     def __init__(self, dom):
@@ -57,7 +73,6 @@ class xml_node(object):
         
 def de_dom(xml, element):
     import xml.dom.minidom as dom
-#    print xml
     dom = dom.parse(xml)
     dom.normalize()
     return xml_node(dom.getElementsByTagName(element)[0])
@@ -67,11 +82,11 @@ def de_tab(text, sep="\t"):
 
 def cached(func):
     from functools import wraps
-    @wraps
+    @wraps(func)
     def f(self):
-        if getattr(self, "_" + func.__name__, None) is None:
-            setattr(self, "_" + func.__name__, func(self))
-        return getattr(self, "_" + func.__name__)
+        if getattr(self, "_cache_" + func.__name__, None) is None:
+            setattr(self, "_cache_" + func.__name__, func(self))
+        return getattr(self, "_cache_" + func.__name__)
     return f
     
 def safe_iter(generator):
@@ -83,23 +98,35 @@ def safe_iter(generator):
                 raise StopIteration
             except Exception, ex:
                 print >> sys.stderr, "An error occured during iteration:\n"
-                traceback.print_last(file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
     return list(_iter(generator))
     
         
 class BioMartConnection(object):
-    """ A connection to a martservice server
+    """ A connection to a BioMart martservice server
+    
+    Example::
+    >>> connection = BioMartConnection("http://www.biomart.org/biomart/martservice")
+    >>> registry = connection.registry()
     """
+    
+    FOLLOW_REDIRECTS = False
     def __init__(self, url=None):
         self.url = url if url is not None else "http://www.biomart.org/biomart/martservice"
         
     def request(self, **kwargs):
+        """ Request using RESTful access. Use keywords to pass arguments
+        Example::
+        >>> connection.request(type="registry").read()  
+        """
         url = self.url + "?" + "&".join("%s=%s" % item for item in kwargs.items() if item[0] != "POST")
         print url
         url = url.replace(" ", "%20")
-        return urllib2.urlopen(url) #kwargs.get("POST", None))
+        return urllib2.urlopen(url)
     
     def registry(self, **kwargs):
+        """ Return a BioMartRegistry instance
+        """
         return BioMartRegistry(self)
     
     def datasets(self, **kwargs):
@@ -123,6 +150,13 @@ class BioMartConnection(object):
         return BioMartDatasetConfig(de_dom(self.request(type="configuration", **kwargs), "DatasetConfig"))
     
 class BioMartRegistry(object):
+    """ A class representing a BioMart registry 
+    
+    Example::
+    >>> for schema in registry.virtual_schemas():
+    ...    print schema.name
+    ...
+    """
     def __init__(self, file=None):
         self.connection = file if isinstance(file, BioMartConnection) else None
         if self.connection:
@@ -131,31 +165,39 @@ class BioMartRegistry(object):
             file = open(file, "rb") if isinstance(file, basestring) else file
         self.registry = de_dom(file, "MartRegistry")
     
-#    @cached
+    @cached
     def virtual_schemas(self):
+        """ Return a list of BioMartVirtualSchema instances representing each schema
+        """
         schemas = [schema.attributes.get(name, "default") for name in self.registry.elements("virtualSchema")]
         if not schemas:
             schemas = [BioMartVirtualSchema(self.registry, name="default", connection=self.connection)]
         else:
-            schemas = [BiomartVirtualSchema(schema, name=schema.attributes.get("name", "default"), connection=self.connection) for schema in self.registry.elements("virtualSchema")]
+            schemas = [BiomartVirtualSchema(schema, name=schema.attributes.get("name", "default"),
+                            connection=self.connection) for schema in self.registry.elements("virtualSchema")]
         return schemas
         
+    @cached
+    def marts(self):
+        """ Return a list off all 'mart' instances (BioMartDatabase instances) regardless of their virtual schemas  
+        """
+        return reduce(list.__add__, safe_iter(schema.marts() for schema in self.virtual_schemas()), [])
+    
     def databases(self):
         """ Same as marts()
         """
         return self.marts()
     
-#    @cached
-    def marts(self):
-        """ Return a list off all 'mart' instances
-        """
-        return reduce(list.__add__, safe_iter(schema.marts() for schema in self.virtual_schemas()), [])
-    
-#    @cached
-    def datasets(self): #, virtualSchema="default"):
-        """ Return all datasets.
+    def datasets(self):
+        """ Return a list of all datasets (BioMartDataset instances) from all marts regardless of their virtual schemas
         """
         return reduce(list.__add__, safe_iter(mart.datasets() for mart in self.marts()), [])
+    
+    def query(self, **kwargs):
+        """ Return an initialized BioMartQuery object with registry set to self.
+        Pass additional arguments to BioMartQuery.__init__ with keyword arguments
+        """
+        return BioMartQuery(self, *args, **kwargs)
     
     def links_between(self, exporting, importing, virtualSchema="default"):
         """ Return all links between exporting and importing datasets in the virtualSchema
@@ -167,27 +209,34 @@ class BioMartRegistry(object):
         return iter(self.marts())
     
 class BioMartVirtualSchema(object):
+    """ A class representation of a virtual schema.
+    """
     def __init__(self, locations=None, name="default", connection=None):
         self.locations = locations
         self.name = name
         self.connection = connection
         
+    @cached
     def marts(self):
-        """ Return all 'mart' instances belonging to this shema
+        """ Return a list off all 'mart' instances (BioMartDatabase instances) in this schema
         """
-        return safe_iter(BioMartDatabase(connection=self.connection, **dict((str(key), val) for key, val in loc.attributes.items())) for loc in self.locations.elements("MartURLLocation"))
+        return safe_iter(BioMartDatabase(connection=self.connection, **dict((str(key), val) \
+                for key, val in loc.attributes.items())) for loc in self.locations.elements("MartURLLocation"))
     
     def databases(self):
         """ Same as marts()
         """
         return self.marts()
     
+    @cached
     def datasets(self):
-        """ Return all datasets in this virtual schema
+        """ Return a list of all datasets (BioMartDataset instances) from all marts in this schema
         """
         return reduce(list.__add__, safe_iter(mart.datasets() for mart in self.marts()), [])
     
     def links_between(self, exporting, importing):
+        """ Return a list of link names from exporting dataset to importing dataset 
+        """
         exporting = self[exporting]
         importing = self[importing]
         exporting = exporting.configuration().exportables()
@@ -201,6 +250,12 @@ class BioMartVirtualSchema(object):
         """ Return a list of (linkName, linkVersion) tuples defined by datasets in the schema
         """
         pass
+    
+    def query(self, **kwargs):
+        """ Return an initialized BioMartQuery object with registry and virtualSchema set to self.
+        Pass additional arguments to BioMartQuery.__init__ with keyword arguments
+        """
+        return BioMartQuery(self, virtualSchema=self.name, **kwargs)
 
     def __iter__(self):
         return iter(self.marts())
@@ -213,35 +268,39 @@ class BioMartVirtualSchema(object):
         
     def _find_dataset(self, dataset):
         try:
-            return [data for data in self.datasets() if dataset in [data, data.internal_name, data.name]][0]
+            index = reduce(list.__add__, safe_iter(mart._datasets_index() for mart in self.marts()), [])
+            data = [data for data in index if dataset in [data.get("internal_name"), data.get("name")]][0]
+            return BioMartDataset(data, connection=self.connection)
         except IndexError:
             raise ValueError(dataset)
     
 class BioMartDatabase(object):
     """ An object representing a BioMart 'mart' instance.
     Arguments::
-        - *name*   name of the mart instance ('biomart' by default)
-        - *virtualSchema*    name of the virtualSchema this dataset belongs to ("default" by default) 
+        - *name*   - Name of the mart instance ('ensembl' by default)
+        - *virtualSchema*    - Name of the virtualSchema this dataset belongs to ("default" by default)
+        - *connection*    - An optional BioMartConnection instance
     """
-    def __init__(self, name="biomart", virtualSchema="default", connection=None, **kwargs):
+    host = "www.biomart.org"
+    path = "/biomart/martservice"
+    def __init__(self, name="ensembl", virtualSchema="default", connection=None, **kwargs):
 #        self.con = url if isinstance(url, BioMartConnection) else BioMartConnection(url)
         self.name = name
         self.virtualSchema = virtualSchema
         self.__dict__.update(kwargs.items())
-        self._datasets = None
         self.connection = BioMartConnection("http://" + self.host + ":" + getattr(self, "port", "80") + self.path) if connection is None \
-                            or kwargs.get("redirect", None) == "1" else connection
+                            or (kwargs.get("redirect", None) == "1" and BioMartConnection.FOLLOW_REDIRECTS) else connection
+
+    @cached    
+    def _datasets_index(self):
+        keys = ["dataset_type", "internal_name", "name", "dataset_visible", "_4", "_5", "_6", "virtual_schema_name", "date"]
+        return [dict(zip(keys, line)) for line in self.connection.datasets(mart=self.name, virtualSchema=self.virtualSchema)]
     
+    @cached
     def datasets(self):
-        """ Return a list of all datasets in a BioMart database
+        """ Return a list of all datasets (BioMartDataset instances) in this database
         """
-        if self._datasets is None:
-            keys = ["dataset_type", "internal_name", "name", "dataset_visible", "_4", "_5", "_6", "virtual_schema_name", "date"]
-#            datasets = safe_iter(self.connection.datasets(mart=self.name)
-            datasets = [dict(zip(keys, line)) for line in self.connection.datasets(mart=self.name, virtualSchema=self.virtualSchema)]
-            self._datasets = safe_iter(BioMartDataset(dataset, connection=self.connection) for dataset in datasets)
-        return self._datasets
-    
+        return safe_iter(BioMartDataset(dataset, connection=self.connection) for dataset in self._datasets_index())
     
     def dataset_attributes(self, dataset, **kwargs):
         """ Return a list of dataset attributes
@@ -263,7 +322,8 @@ class BioMartDatabase(object):
         
     def _find_dataset(self, dataset):
         try:
-            return [data for data in self.datasets() if dataset in [data, data.internal_name, data.name]][0]
+            data = [data for data in self._datasets_index() if dataset in [data.get("internal_name"), data.get("name")]][0]
+            return BioMartDataset(data, connection=self.connection)
         except IndexError:
             raise ValueError(dataset)
         
@@ -280,7 +340,7 @@ class BioMartDataset(object):
         self._filters = None
         
     def attributes(self):
-        """ Return a list of available attributes for this dataset
+        """ Return a list of available attributes for this dataset (Attribute instances)
         """
         if self._attributes is None:
             attrs = self.conenction.request(type="attributes", dataset=self.internal_name,
@@ -289,7 +349,7 @@ class BioMartDataset(object):
         return self._attributes
     
     def filters(self):
-        """ Return a list of available filters for this dataset
+        """ Return a list of available filters for this dataset (Filter instances)
         """
         if self._filters is None:
             filters = self.conenction.request(type="filters", dataset=self.internal_name,
@@ -298,73 +358,108 @@ class BioMartDataset(object):
         return self._filters
     
     def configuration(self):
-        """ Return the configuration tree for this dataset 
+        """ Return the configuration tree for this dataset (BioMartDatasetConfig instance)
         """
         return self.conenction.configuration(dataset=self.internal_name)
             
     def get_data(self, attributes=[], filters=[], unique=False):
-        """ Constructs and runs a query returning its results 
+        """ Constructs and runs a BioMartQuery returning its results 
         """ 
-        return BioMartQuery(self.conenction, [self], attributes, filters, unique=unique).run()
+        return BioMartQuery(self.conenction, dataset=self, attributes=attributes, filters=filters,
+                             uniqueRows=unique, virtualSchema=self.virtual_schema_name).run()
     
     def count(self, filters=[], unique=False):
-        """ Constructs and runs a query to count the number of returned lines
+        """ Constructs and runs a BioMartQuery to count the number of returned lines
         """
-        return BioMartQuery(self.conenction, [self], filters, unique=unique).get_count()
+        return BioMartQuery(self.conenction, dataset=self, filters=filters, uniqueRows=unique,
+                            virtualSchema=self.virtual_schema_name).get_count()
 
 class BioMartQuery(object):
     """ A class for constructing a query to run on a BioMart server
     Example::
-    >>> BioMartQuery(con, ["gene"], attributes=["gene_name_", "dictybaseid", "gene_chromosome"], filters=[("chromosome", 1), ("strand", 1)]).run()
-    >>> BioMartQuery(con, ["hsapiens_gene_ensembl"], attributes=["ensembl_transcript_id", "chromosome_name"], filters=[("chromosome_name", ["22"])]).get_count()
+    >>> BioMartQuery(connection, ["gene"], attributes=["gene_name_", "dictybaseid", "gene_chromosome"],
+    filters=[("chromosome", 1), ("strand", 1)]).run()
+    >>> BioMartQuery(connection, ["hsapiens_gene_ensembl"], attributes=["ensembl_transcript_id",
+    "chromosome_name"], filters=[("chromosome_name", ["22"])]).get_count()
+    >>> #Equivalent to
+    ...
+    >>> query = BioMartQuery(connection)
+    >>> query.set_database("hsapiens_gene_ensembl")
+    >>> query.add_filter("chromosome_name", ["22"]
+    >>> query.add_attribute("ensembl_transcript_id")
+    >>> query.add_atribute("chromosome_name")
+    >>> query.get_count()
     """
     XML = """<?xml version="1.0" encoding="UTF-8"?> 
 <!DOCTYPE Query> 
-<Query virtualSchemaName = "%(virtual_schema_name)s" formatter = "%(formatter)s" header = "0" uniqueRows = "%(unique_rows)s" count = "%(count)s" datasetConfigVersion = "0.4" > 
+<Query virtualSchemaName = "%(virtualSchemaName)s"
+       formatter = "%(formatter)s"
+       header = "0"
+       uniqueRows = "%(uniqueRows)s"
+       count = "%(count)s"
+       datasetConfigVersion = "0.4" > 
 %(datasets_xml)s 
 </Query>""" 
-    def __init__(self, connection, datasets=[], attributes=[], filters=[], count=False, unique=False, format="TSV", virtual_schema_name="default"):
-        self.connection = connection
-        self.datasets = datasets
-        self.attributes = attributes
-        self.filters = filters
+    def __init__(self, registry, virtualSchema="default", dataset=None, attributes=[], filters=[], count=False, uniqueRows=False,
+                 format="TSV"):
+        if isinstance(registry, BioMartConnection):
+            self.registry = registry.registry()
+            self.virtualSchema = virtualSchema
+        elif isinstance(registry, BioMartVirtualSchema):
+            self.registry = registry.connection.registry()
+            self.virtualSchema = registry.name
+        else:
+            self.registry = registry
+            self.virtualSchema = virtual_schema
+            
+        self._query = [] 
+        if dataset:
+            self.set_dataset(dataset)
+            for attr in attributes:
+                self.add_attribute(attr)
+            for filter, value in filters:
+                self.add_filter(filter, value) 
         self.count = count
-        self.unique = unique
+        self.uniqueRows = uniqueRows
         self.format = format
-        self.virtual_schema_name = virtual_schema_name
         
     def set_dataset(self, dataset):
-        self.datasets.append(dataset)
+#        dataset = dataset if isinstance(dataset, BioMartDataset) else self.registry.dataset(dataset)
+        self._query.append((dataset, [], []))
+#        self.datasets.append(dataset)
     
     def add_filter(self, filter, value):
-        self.filters.append((filter, value))
+#        filter = filter if isinstance(filter, Filter) else self._query[-1][0].filter(filter)
+        self._query[-1][2].append((filter, value))
+#        self.filters.append((filter, value))
     
     def add_attribute(self, attribute):
-        self.attributes.append(attribute)
+        self._query[-1][1].append(attribute)
+#        self.attributes.append(attribute)
     
     def get_count(self):
-        tmp, self.count = self.count, True
-        count = self.run()
+        count = self.run(count=True)
         count = int(count.strip())
-        self.count = tmp
         return count
     
-    def run(self):
-        stream = self.connection.request(query=self.xml_query().replace("\n", "").replace("\t", ""))
+    def run(self, count=None):
+        stream = self.registry.connection.request(query=self.xml_query(count=count).replace("\n", "").replace("\t", ""))
         stream = stream.read()
         if stream.startswith("Query ERROR:"):
             raise BioMartQueryError(stream)
         return stream
     
-    def set_unique_rows(self, unique=False):
-        self.unique = unique
+    def set_unique(self, unique=False):
+        self.uniqueRows = unique
     
-    def xml_query(self):
-        datasets_xml = self.xml_query_dataset(self.datasets[0], self.attributes, self.filters)
+    def xml_query(self, count=None):
+        datasets_xml = "\n".join(self.xml_query_dataset(*query) for query in self._query)
+        
+        count = self.count if count is None else count 
         args = dict(datasets_xml=datasets_xml,
-                    unique_rows="1" if self.unique else "0",
-                    count="1" if self.count else "",
-                    virtual_schema_name=self.virtual_schema_name,
+                    uniqueRows="1" if self.uniqueRows else "0",
+                    count="1" if count else "",
+                    virtualSchemaName=self.virtualSchema,
                     formatter=self.format)
         xml = self.XML % args
         return xml
@@ -405,7 +500,6 @@ class BioMartConfigurationTree(object):
         
     @classmethod
     def _factory(cls, tree):
-        print tree.tag
         return cls._configuration.get(tree.tag)(tree)
 
 _configuration_names = {
@@ -426,7 +520,6 @@ _configuration_names = {
 def _configuration(tagName, names = []):
     def configurator(cls):
         cls._configuration[_configuration_names[tagName]] = cls
-        print cls, names
         for name in names:
             setattr(cls, name + "s", lambda self, name=name: self._get_by_tag(_configuration_names[name]))
             setattr(cls, name, lambda self, search, name=name: self._get_by_name(_configuration_names[name], search))
@@ -495,6 +588,9 @@ if __name__ == "__main__":
     filters = dataset.filters()
     reg = con.registry()
 #    print reg.links_between("dictygo", "gene")
-    print BioMartQuery(con, [dataset], attr[:2], count=True).get_count().read()
-    print BioMartQuery(con, [dataset], ["ensembl_transcript_id"], filters=[("with_go_molecular_function", "")]).get_count().read()
+    print BioMartQuery(con, dataset, attr[:2]).get_count()
+    query = BioMartQuery(con, "gene", attributes=["seq_dictybaseid"], filters=[("chromosome", 1), ("strand", 1)])
+    query.set_dataset("dna")
+    query.add_attribute("upstream_intergenic_raw")
+    print query.run()
     
