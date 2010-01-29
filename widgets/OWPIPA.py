@@ -1,7 +1,7 @@
 """
 <name>PIPA database</name>
 <description>Interface to PIPA database.</description>
-<icon>icons/unknown.png</icon>
+<icon>icons/PIPA.png</icon>
 <priority>260</priority>
 """
 
