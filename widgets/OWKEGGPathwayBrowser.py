@@ -1,7 +1,7 @@
 """
 <name>KEGG Pathway Browser</name>
 <description>Browse KEGG pathways that include an input set of genes.</description>
-<priority>230</priority>
+<priority>2030</priority>
 <icon>icons/KEGG.png</icon>
 """
 from __future__ import with_statement 

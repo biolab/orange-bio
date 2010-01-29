@@ -3,7 +3,7 @@
 <description>Heatmap visualization.</description>
 <contact>Ales Erjavec, Blaz Zupan, Janez Demsar</contact>
 <icon>icons/HeatMap.png</icon>
-<priority>140</priority>
+<priority>1040</priority>
 """
 
 import orange, math

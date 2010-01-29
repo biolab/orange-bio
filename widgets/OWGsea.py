@@ -2,7 +2,7 @@
 <name>GSEA</name>
 <description>Gene set enrichment analysis.</description>
 <contact>Marko Toplak (marko.toplak(@at@)gmail.com)</contact>
-<priority>225</priority>
+<priority>2025</priority>
 <icon>icons/GSEA.png</icon>
 """
 

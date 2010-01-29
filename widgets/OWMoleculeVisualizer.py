@@ -2,7 +2,7 @@
 <description>Rendering of 2D structure of molecules based on their SMILES description.</description>
 <icon>icons/MoleculeVisualizer.png</icon>
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si)</contact> 
-<priority>250</priority>
+<priority>2050</priority>
 """
 
 from __future__ import with_statement

@@ -3,7 +3,7 @@
 <description>Browse MeSH ontology.</description>
 <icon>icons/MeSH.png</icon>
 <contact>Crt Gorup (crt.gorup@gmail.com)</contact> 
-<priority>240</priority>
+<priority>2040</priority>
 """
 
 from OWWidget import *

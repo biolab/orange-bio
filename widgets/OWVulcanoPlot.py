@@ -1,7 +1,7 @@
 """
 <name>Vulcano Plot</name>
 <description>Plots fold change vs. p-value.)</description>
-<priority>120</priority>
+<priority>1020</priority>
 <contact>Ales Erjavec (ales.erjavec@fri.uni-lj.si)</contact>
 <icon>icons/VulcanoPlot.png</icon>
 """

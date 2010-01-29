@@ -3,7 +3,7 @@
 <description>Visualization of data profiles (e.g., time series).</description>
 <contact>Tomaz Curk</contact>
 <icon>icons/ExpressionProfiles.png</icon>
-<priority>130</priority>
+<priority>1030</priority>
 """
 
 from OWTools import *
