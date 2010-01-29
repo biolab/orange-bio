@@ -1,6 +1,6 @@
 """<name>GEO DataSets</name>
 <description>Access to Gene Expression Omnibus data sets.</description>
-<priority>251</priority>
+<priority>20</priority>
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si)</contact>
 <icon>icons/GEODataSets.png</icon>
 """

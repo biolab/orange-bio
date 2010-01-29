@@ -1,9 +1,9 @@
 """
 <name>Data Profiles</name>
-<description>Visualization of data profiles.</description>
+<description>Visualization of data profiles (e.g., time series).</description>
 <contact>Tomaz Curk</contact>
 <icon>icons/ExpressionProfiles.png</icon>
-<priority>10</priority>
+<priority>130</priority>
 """
 
 from OWTools import *

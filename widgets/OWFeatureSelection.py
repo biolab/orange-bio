@@ -1,7 +1,7 @@
 """
 <name>Gene Selection</name>
-<description>Gene scoring and selection.</description>
-<priority>230</priority>
+<description>Gene differential expression scoring and selection.</description>
+<priority>110</priority>
 <icon>icons/FeatureSelection.png</icon>
 """
 

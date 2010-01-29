@@ -1,8 +1,8 @@
 """
 <name>Genomics Databases</name>
-<description>Update of systems biology data bases.</description>
+<description>Update of systems biology data and knowledge bases.</description>
 <contact>Ales Erjavec</contact>
-<priority>5</priority>
+<priority>10</priority>
 <icon>icons/UpdateDatabases.png</icon>
 """
 

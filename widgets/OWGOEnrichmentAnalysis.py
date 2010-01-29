@@ -3,7 +3,7 @@
 <description>Enrichment analysis for Gene Ontology terms.</description>
 <contact>Ales Erjavec</contact>
 <icon>icons/GOTermFinder.png</icon>
-<priority>103</priority>
+<priority>220</priority>
 """
 
 from __future__ import with_statement

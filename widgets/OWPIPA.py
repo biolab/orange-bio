@@ -1,8 +1,8 @@
 """
-<name>PIPA database</name>
-<description>Interface to PIPA database.</description>
+<name>PIPA Database</name>
+<description>Access data from PIPA RNA-Seq database.</description>
 <icon>icons/PIPA.png</icon>
-<priority>260</priority>
+<priority>30</priority>
 """
 
 from OWWidget import *

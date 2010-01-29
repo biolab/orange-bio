@@ -1,8 +1,8 @@
 """
-<name>Dicty database</name>
-<description>Interface to dictyExpress database.</description>
+<name>DictyExpress Database</name>
+<description>Access to data in dictyExpress database.</description>
 <icon>icons/dictyExpress.png</icon>
-<priority>250</priority>
+<priority>40</priority>
 """
 
 from OWWidget import *

@@ -1,7 +1,7 @@
 """
 <name>Gene Info</name>
-<description>Gene information data from NCBI.</description>
-<priority>232</priority>
+<description>Displays gene information from NCBI.</description>
+<priority>210</priority>
 <contact>Ales Erjavec (ales.erjevec(@at@)fri.uni-lj.si)</contact>
 <icon>icons/GeneInfo.png</icon>
 """

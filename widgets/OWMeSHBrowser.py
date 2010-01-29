@@ -1,9 +1,9 @@
 """
 <name>MeSH Term Browser</name>
-<description>Browser over MeSH ontology</description>
+<description>Browse MeSH ontology.</description>
 <icon>icons/MeSH.png</icon>
 <contact>Crt Gorup (crt.gorup@gmail.com)</contact> 
-<priority>215</priority>
+<priority>240</priority>
 """
 
 from OWWidget import *

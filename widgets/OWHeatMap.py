@@ -1,9 +1,9 @@
 """
 <name>Heat Map</name>
-<description>Heatmap-based data visualization.</description>
+<description>Heatmap visualization.</description>
 <contact>Ales Erjavec, Blaz Zupan, Janez Demsar</contact>
 <icon>icons/HeatMap.png</icon>
-<priority>50</priority>
+<priority>140</priority>
 """
 
 import orange, math
