@@ -5,6 +5,7 @@
 <priority>2025</priority>
 <icon>icons/GSEA.png</icon>
 """
+from __future__ import with_statement
 
 from OWWidget import *
 import OWGUI
