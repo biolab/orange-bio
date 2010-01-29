@@ -47,6 +47,9 @@ class OWPIPA(OWWidget):
         self.annots = []
         
 
+        self.controlArea.setMaximumWidth(250)
+        self.controlArea.setMinimumWidth(250)
+
         OWGUI.button(self.controlArea, self, "Reload", callback=self.Reload)
         OWGUI.button(self.controlArea, self, "Clear cache", callback=self.clear_cache)
 
@@ -63,8 +66,10 @@ class OWPIPA(OWWidget):
         OWGUI.rubber(self.controlArea)
 
         box  = OWGUI.widgetBox(self.controlArea, "Authentication")
-        OWGUI.lineEdit(box, self, "username", "User", callback=self.ConnectAndUpdate)
-        OWGUI.lineEdit(box, self, "password", "Password", callback=self.ConnectAndUpdate)
+
+
+        OWGUI.lineEdit(box, self, "username", "Username:", labelWidth=100, orientation='horizontal', callback=self.ConnectAndUpdate)
+        OWGUI.lineEdit(box, self, "password", "Password:", labelWidth=100, orientation='horizontal', callback=self.ConnectAndUpdate)
 
 
 
