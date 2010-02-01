@@ -111,7 +111,8 @@ class OWFeatureSelection(OWWidget):
         OWGUI.separator(self.controlArea)
         
         box = OWGUI.widgetBox(self.controlArea, "Selection", addSpace=True)
-        callback = lambda: self.histogram.setBoundary(self.histogram.lowerBoundary, self.histogram.upperBoundary) if self.data else None
+
+        callback = self.SetBoundary
         self.upperBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.upperBoundary", min=-1e6, max=1e6, step= 1e-6, label="Upper threshold:", callback=callback, callbackOnReturn=True)
         self.lowerBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.lowerBoundary", min=-1e6, max=1e6, step= 1e-6, label="Lower threshold:", callback=callback, callbackOnReturn=True)
         check = OWGUI.checkBox(box, self, "computeNullDistribution", "Compute null distribution", callback=self.Update)
@@ -219,36 +220,39 @@ class OWFeatureSelection(OWWidget):
             self.nullDistribution = self.ComputeNullDistribution(self.data, scoreFunc, self.genesInColumns, target, self.permutationsCount, advance=pb.advance)
         pb.advance()
         self.histogram.type = self.histType[self.scoreMethods[self.methodIndex][2]]
-        self.histogram.setValues(self.scores.values())
+        if self.scores:
+            self.histogram.setValues(self.scores.values())
 #        self.histogram.setBoundary(*self.cuts.get(None, (self.histogram.minx if self.histogram.type in ["lowTail", "twoTail"] else self.histogram.maxx,
 #                                                                     self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)))
-        self.histogram.setBoundary(self.histogram.minx if self.histogram.type in ["lowTail", "twoTail"] else self.histogram.maxx,
-                                   self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)
-        if self.computeNullDistribution:
-            nullY, nullX = numpy.histogram(self.nullDistribution, bins=self.histogram.xData)
-            self.histogram.nullCurve = self.histogram.addCurve("nullCurve", Qt.black, Qt.black, 6, symbol = QwtSymbol.NoSymbol, style = QwtPlotCurve.Steps, xData = nullX, yData = nullY/self.permutationsCount)
-            
-            minx = min(min(nullX), self.histogram.minx)
-            maxx = max(max(nullX), self.histogram.maxx)
-            miny = min(min(nullY/self.permutationsCount), self.histogram.miny)
-            maxy = max(max(nullY/self.permutationsCount), self.histogram.maxy)
+            self.histogram.setBoundary(self.histogram.minx if self.histogram.type in ["lowTail", "twoTail"] else self.histogram.maxx,
+                                       self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)
+            if self.computeNullDistribution:
+                nullY, nullX = numpy.histogram(self.nullDistribution, bins=self.histogram.xData)
+                self.histogram.nullCurve = self.histogram.addCurve("nullCurve", Qt.black, Qt.black, 6, symbol = QwtSymbol.NoSymbol, style = QwtPlotCurve.Steps, xData = nullX, yData = nullY/self.permutationsCount)
+                
+                minx = min(min(nullX), self.histogram.minx)
+                maxx = max(max(nullX), self.histogram.maxx)
+                miny = min(min(nullY/self.permutationsCount), self.histogram.miny)
+                maxy = max(max(nullY/self.permutationsCount), self.histogram.maxy)
 
-            self.histogram.setAxisScale(QwtPlot.xBottom, minx - (0.05 * (maxx - minx)), maxx + (0.05 * (maxx - minx)))
-            self.histogram.setAxisScale(QwtPlot.yLeft, miny - (0.05 * (maxy - miny)), maxy + (0.05 * (maxy - miny)))
-        state = dict(hiTail=(False, True), lowTail=(True, False), twoTail=(True, True))
-        for spin, visible in zip((self.upperBoundarySpin, self.lowerBoundarySpin), state[self.histogram.type]):
-            spin.setVisible(visible)
-        
+                self.histogram.setAxisScale(QwtPlot.xBottom, minx - (0.05 * (maxx - minx)), maxx + (0.05 * (maxx - minx)))
+                self.histogram.setAxisScale(QwtPlot.yLeft, miny - (0.05 * (maxy - miny)), maxy + (0.05 * (maxy - miny)))
+            state = dict(hiTail=(False, True), lowTail=(True, False), twoTail=(True, True))
+            for spin, visible in zip((self.upperBoundarySpin, self.lowerBoundarySpin), state[self.histogram.type]):
+                spin.setVisible(visible)
+            
 ##            if self.methodIndex in [2, 3, 5, 6]:
-        if self.methodIndex in [0, 2, 6]:
-            if self.methodIndex == 0: ## fold change is centered on 1.0
-                x1, y1 = (self.histogram.minx + 1) / 2 , self.histogram.maxy
-                x2, y2 = (self.histogram.maxx + 1) / 2 , self.histogram.maxy
-            else:
-                x1, y1 = (self.histogram.minx) / 2 , self.histogram.maxy
-                x2, y2 = (self.histogram.maxx) / 2 , self.histogram.maxy
-            self.histogram.addMarker(self.targets[0], x1, y1)
-            self.histogram.addMarker(self.targets[1], x2, y2)
+            if self.methodIndex in [0, 2, 6]:
+                if self.methodIndex == 0: ## fold change is centered on 1.0
+                    x1, y1 = (self.histogram.minx + 1) / 2 , self.histogram.maxy
+                    x2, y2 = (self.histogram.maxx + 1) / 2 , self.histogram.maxy
+                else:
+                    x1, y1 = (self.histogram.minx) / 2 , self.histogram.maxy
+                    x2, y2 = (self.histogram.maxx) / 2 , self.histogram.maxy
+                self.histogram.addMarker(self.targets[0], x1, y1)
+                self.histogram.addMarker(self.targets[1], x2, y2)
+        else:
+            self.warning(0, "No scores obtained.")
         self.histogram.replot()
         pb.advance()
         pb.finish()
@@ -300,6 +304,15 @@ class OWFeatureSelection(OWWidget):
             cutLo = scoresLo[countLo-1][1] if countLo else scoresLo[0][1] - 1e-7
             self.histogram.setBoundary(cutLo, cutHi)
 
+    def SetBoundary(self):
+        if self.data != None and self.scores.items():
+            if self.scoreMethods[self.methodIndex][2]==self.oneTailTestHi:
+                self.histogram.setBoundary(self.histogram.lowerBoundary, self.histogram.lowerBoundary)
+            elif self.scoreMethods[self.methodIndex][2]==self.oneTailTestLow:
+                self.histogram.setBoundary(self.histogram.upperBoundary, self.histogram.upperBoundary)
+            else:
+                self.histogram.setBoundary(self.histogram.lowerBoundary, self.histogram.upperBoundary)
+
     def SelectPBest(self):
         if not self.nullDistribution:
             return
@@ -327,6 +340,7 @@ class OWFeatureSelection(OWWidget):
         else:
             self.histogram.setBoundary(nullDist[0] - 1e-7, nullDist[-1] + 1e-7)
             
+
     def CommitIf(self):
         if self.autoCommit:
             self.Commit()
@@ -395,7 +409,8 @@ class OWFeatureSelection(OWWidget):
 if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
-    data = orange.ExampleTable("E:\\out1.tab")
+    #data = orange.ExampleTable("E:\\out1.tab")
+    data = orange.ExampleTable("/home/marko/t2.tab")
     w = OWFeatureSelection()
     w.show()
     w.SetData(data)
