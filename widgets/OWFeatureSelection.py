@@ -251,6 +251,7 @@ class OWFeatureSelection(OWWidget):
                     x2, y2 = (self.histogram.maxx) / 2 , self.histogram.maxy
                 self.histogram.addMarker(self.targets[0], x1, y1)
                 self.histogram.addMarker(self.targets[1], x2, y2)
+            self.warning(0)
         else:
             self.warning(0, "No scores obtained.")
         self.histogram.replot()

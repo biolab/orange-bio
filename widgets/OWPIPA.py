@@ -148,6 +148,9 @@ class OWPIPA(OWWidget):
             except Exception,ex:
                 self.error(0, "Can not access database.")
 
+        self.warning(0)
+        self.error(0)
+
         elements = []
         pos = 0
 
