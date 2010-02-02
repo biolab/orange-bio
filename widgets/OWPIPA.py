@@ -67,11 +67,9 @@ class OWPIPA(OWWidget):
 
         box  = OWGUI.widgetBox(self.controlArea, "Authentication")
 
-
-        OWGUI.lineEdit(box, self, "username", "Username:", labelWidth=100, orientation='horizontal', callback=self.ConnectAndUpdate)
-        OWGUI.lineEdit(box, self, "password", "Password:", labelWidth=100, orientation='horizontal', callback=self.ConnectAndUpdate)
-
-
+        OWGUI.lineEdit(box, self, "username", "Username:", labelWidth=100, orientation='horizontal', callback=self.AuthChanged)
+        self.passf = OWGUI.lineEdit(box, self, "password", "Password:", labelWidth=100, orientation='horizontal', callback=self.AuthChanged)
+        self.passf.setEchoMode(QLineEdit.Password)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
         self.experimentsWidget = QTreeWidget()
@@ -86,6 +84,8 @@ class OWPIPA(OWWidget):
         self.loadSettings()
         self.dbc = None        
 
+        self.AuthSet()
+
         QTimer.singleShot(100, self.UpdateExperiments)        
 
         self.resize(800, 600)
@@ -94,22 +94,45 @@ class OWPIPA(OWWidget):
         oldList = [oldList[i] for i in oldSelection]
         return [ i for i, new in enumerate(newList) if new in oldList]
     
+    def AuthSet(self):
+        if len(self.username):
+            self.passf.setDisabled(False)
+        else:
+            self.passf.setDisabled(True)
+
+    def AuthChanged(self):
+        self.AuthSet()
+        self.ConnectAndUpdate()
+
     def ConnectAndUpdate(self):
         self.Connect()
         self.UpdateExperiments(reload=True)
 
     def Connect(self):
-        try:
-            #obiDicty.verbose = 1
-            def en(x):
-                return x if len(x) else None
-            self.dbc = obiDicty.PIPA(buffer=self.buffer, username=en(self.username), password=self.password)
-        except Exception, ex:
-            from traceback import print_exception
-            print_exception(*sys.exc_info())
-            self.error(0, "Error connecting to server" + str(ex))
-            return
-        self.error(0)
+
+        self.error(1)
+        self.warning(1)
+
+        #obiDicty.verbose = 1
+        def en(x):
+            return x if len(x) else None
+
+        self.dbc = obiDicty.PIPA(buffer=self.buffer, username=en(self.username), password=self.password)
+
+        #check password
+        if en(self.username) != None:
+            try:
+                self.dbc.list(reload=True)
+            except obiDicty.AuthenticationError:
+                self.error(1, "Wrong username or password")
+                self.dbc = None
+            except Exception, ex:
+                try: #mable cached?
+                    chips = self.dbc.list()
+                    self.warning(1, "Can not access database - using cached data.")
+                except Exception,ex:
+                    self.dbc = None
+                    self.error(1, "Can not access database.")
 
     def Reload(self):
         #self.buffer.clear()
@@ -148,14 +171,15 @@ class OWPIPA(OWWidget):
             except Exception,ex:
                 self.error(0, "Can not access database.")
 
-        self.warning(0)
-        self.error(0)
-
-        elements = []
-        pos = 0
+        if sucind:
+            self.warning(0)
+            self.error(0)
 
         self.chips = list(chips)
         self.annots = list(annots)
+
+        elements = []
+        pos = 0
 
         for chip,annot in zip(self.chips, self.annots):
             pos += 1
@@ -176,7 +200,7 @@ class OWPIPA(OWWidget):
         self.progressBarFinished()
 
     def UpdateCached(self):
-        if self.wantbufver:
+        if self.wantbufver and self.dbc:
             fn = self.dbc.chips_keynaming()
             for item in self.items:
                 color = Qt.black

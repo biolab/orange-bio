@@ -154,6 +154,9 @@ def httpGet(address, *args, **kwargs):
 def txt2ll(s, separ=' ', lineSepar='\n'):
     return [ a.split(separ) for a in s.split(lineSepar) ]
 
+class AuthenticationError(Exception):
+    pass
+
 class DBInterface(object):
  
     def __init__(self, address):
@@ -177,7 +180,9 @@ class DBInterface(object):
         rawf = self.raw(request, data)
         if rawf == None:
             raise Exception("Connection error when contacting " + self.address + request)
-        if rawf[:1] == "<" or rawf[:5] == "error" or rawf.startswith("MOD_PYTHON ERROR"): #an error occurred - starting some html input
+        if rawf.startswith("error: authentication failed"):
+            raise AuthenticationError()
+        elif rawf[:1] == "<" or rawf[:5] == "error" or rawf.startswith("MOD_PYTHON ERROR"): #an error occurred - starting some html input
             #TODO are there any other kinds of errors?
             if tryN > 0:
                 if verbose:
