@@ -216,11 +216,18 @@ def get_GO(mirna_list, annotations, enrichment=False, pval=0.1, goSwitch=True):
                     mirna_ann.append(ga)
             mirAnnotations[m] = [an.GO_ID for an in list(set(mirna_ann))]
         elif enrichment==True:
-            res = annotations.GetEnrichedTerms(genes)
-            tups = [(pVal,go_id) for go_id, (ge,pVal,ref) in res.items()]
-            tups.sort()            
-            p_correct = op.FDR([p for p, go_id in tups])            
-            mirAnnotations[m] = [tups[i][1] for i, p in enumerate(p_correct) if p < pval]
+            if len(genes):
+                resP = annotations.GetEnrichedTerms(genes,aspect='P')
+                resC = annotations.GetEnrichedTerms(genes,aspect='C')
+                resF = annotations.GetEnrichedTerms(genes,aspect='F')
+                res = {}
+                res.update(resP)
+                res.update(resC)
+                res.update(resF)
+                tups = [(pVal,go_id) for go_id, (ge,pVal,ref) in res.items()]
+                tups.sort()            
+                p_correct = op.FDR([p for p, go_id in tups])            
+                mirAnnotations[m] = [tups[i][1] for i, p in enumerate(p_correct) if p < pval]
 
     if goSwitch:
         return __getGO_dict(mirAnnotations)
