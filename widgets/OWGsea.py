@@ -16,6 +16,7 @@ import cPickle as pickle
 from collections import defaultdict
 import obiKEGG
 import orngServerFiles
+import obiGene
 
 def nth(l, n):
     return [ a[n] for a in l ]
@@ -251,7 +252,8 @@ class OWGsea(OWWidget):
                     "gsgo",
                     "gskegg",
                     "buildDistances",
-                    "organismIndex"]
+                    "organismIndex",
+                    "atLeast"]
 
     def UpdateOrganismComboBox(self):
         try:
@@ -298,6 +300,7 @@ class OWGsea(OWWidget):
         self.buildDistances = False
         self.selectedPhenVar = 0
         self.organismIndex = 0
+        self.atLeast = 3
 
         self.permutationTypes =  [("Phenotype", "p"),("Gene", "g") ]
         self.ptype = 0
@@ -321,7 +324,7 @@ class OWGsea(OWWidget):
         self.signalManager.setFreeze(1)
         QTimer.singleShot(100, self.UpdateOrganismComboBox)
  
-        OWGUI.checkBox(box, self, "csgm", "Case sensitive gene matching")
+        #OWGUI.checkBox(box, self, "csgm", "Case sensitive gene matching")
 
         box2 = OWGUI.widgetBox(ca, "Descriptors")
         self.phenCombo = OWGUI.comboBox(box2, self, "selectedPhenVar", items=[], callback=self.phenComboChange, label="Phenotype:")
@@ -384,16 +387,21 @@ class OWGsea(OWWidget):
         box = OWGUI.widgetBox(ca, 'Properties')
 
         self.permTypeF = OWGUI.comboBoxWithCaption(box, self, "ptype", items=nth(self.permutationTypes, 0), \
-            tooltip="Permutation type.", label="Permutate")
+            tooltip="Permutation type.", label="Permute")
         _ = OWGUI.spin(box, self, "perms", 50, 1000, orientation="horizontal", label="Times")
         self.corTypeF = OWGUI.comboBoxWithCaption(box, self, "ctype", items=nth(self.correlationTypes, 0), \
             tooltip="Correlation type.", label="Correlation")
+
 
         box = OWGUI.widgetBox(ca, 'Subset Filtering')
 
         _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Size", 1, 10000, "minSubsetSizeC", "minSubsetSize", "") #TODO check sizes
         _,_ = OWGUI.checkWithSpin(box, self, "Max. Subset Size", 1, 10000, "maxSubsetSizeC", "maxSubsetSize", "")
         _,_ = OWGUI.checkWithSpin(box, self, "Min. Subset Part (%)", 1, 100, "minSubsetPartC", "minSubsetPart", "")
+
+        box = OWGUI.widgetBox(ca, 'Gene Filtering')
+
+        _ = OWGUI.spin(box, self, "atLeast", 2, 10, label="Min. Values in Group")
 
         ca.layout().addStretch(1)
 
@@ -611,6 +619,8 @@ class OWGsea(OWWidget):
 
                 dkwargs["classValues"] = selectedClasses
 
+                dkwargs["atLeast"] = self.atLeast
+
                 permtype = self.permutationTypes[self.ptype][1]
                 kwargs["permutation"] = "class" if permtype == "p" else "genes"
 
@@ -625,9 +635,13 @@ class OWGsea(OWWidget):
             kwargs["minPart"] = \
                 ifr(self.minSubsetPartC, self.minSubsetPart/100.0, 0.0)
 
-            dkwargs["caseSensitive"] = self.csgm
 
-            gso = obiGsea.GSEA(self.data, organism=organism, **dkwargs)
+            #create gene matcher
+            genematcher = obiGene.matcher([[obiGene.GMKEGG(organism)] + ([obiGene.GMDicty()] if organism == "ddi"  else [])])
+
+            #dkwargs["caseSensitive"] = self.csgm
+
+            gso = obiGsea.GSEA(self.data, matcher=genematcher, **dkwargs)
 
             for name,genes in self.geneSets.items():
                 gso.addGenesets({ name: genes })
@@ -778,7 +792,8 @@ if __name__=="__main__":
     ow.show()
 
     #d = orange.ExampleTable('/home/marko/testData.tab')
-    d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
+    #d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
+    d = orange.ExampleTable('/home/marko/ddd.tab')
     #d = orange.ExampleTable('tmp.tab')
     #d = orange.ExampleTable('../gene_three_lines_log.tab')
     ow.setData(d)
