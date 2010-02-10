@@ -490,7 +490,7 @@ class Annotations(object):
             self.taxid = to_taxid(organism_name_search(file)).pop()
         if not self.genematcher and self.taxid:
             import obiGene
-            self.genematcher = obiGene.matcher([obiGene.GMGO(self.taxid)] + ([obiGene.GMDicty()] if self.taxid == "352472"  else []))
+            self.genematcher = obiGene.matcher([[obiGene.GMGO(self.taxid)] + ([obiGene.GMDicty()] if self.taxid == "352472"  else [])])
         if self.genematcher:
             self.genematcher.set_targets(self.geneNames)
         

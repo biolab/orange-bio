@@ -471,7 +471,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             for matcher, use in zip([obiGene.GMGO, obiGene.GMKEGG, obiGene.GMNCBI, obiGene.GMAffy], self.geneMatcherSettings):
                 if use:
                     try:
-                        matchers.append(matcher(taxid))
+                        if taxid == "352472":
+                            matchers.append([matcher(taxid), obiGene.GMDicty()])
+                        else:
+                            matchers.append(matcher(taxid))
                     except Exception, ex:
                         print ex
             matchers.reverse()
