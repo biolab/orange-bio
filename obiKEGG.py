@@ -354,7 +354,7 @@ class KEGGGeneEntry(KEGGDBEntry):
               "MOTIF", "DBLINKS", "STRUCTURE", "CODON_USAGE", "AASEQ", "NTSEQ"]
     
     def aliases(self):
-        return [self.entry_key()] + (self.name.split(",") if self.name else []) + [link[1] for link in self.dblinks if self.dblinks]
+        return [self.entry_key()] + (self.name.split(",") if self.name else []) + [link[1][0] for link in self.dblinks.items() if self.dblinks]
     
     @property
     def alt_names(self):

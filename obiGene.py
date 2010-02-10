@@ -487,7 +487,7 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
 
     def create_aliases_version(self):
         import obiKEGG
-        return obiKEGG.KEGGOrganism.organism_version(self.organism)
+        return obiKEGG.KEGGOrganism.organism_version(self.organism) + ".1"
 
     def filename(self):
         return "kegg_" + self._organism_name(self.organism) 
