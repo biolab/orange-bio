@@ -40,7 +40,7 @@ def loads(domain, filename):
             try:
                 orngServerFiles.localpath_download(domain, filename if isinstance(filename, basestring) else filename(*args, **kwargs))
             except Exception, ex:
-                print ex, args, filename(*args, **kwargs)
+                print ex, filename, args, kwargs
                 pass
             return func(*args, **kwargs)
         return wrapper
@@ -533,7 +533,7 @@ class KEGGKO(KEGGDataBase):
     Entry = KEGGKOEntry
     FILENAME = "%(path)s/genes/ko"
     
-    @loads("KEGG", "kegg_ko.tar.gz")
+    @loads("KEGG", "kegg_orthology.tar.gz")
     def load(self, file=None):
         super(KEGGKO, self).load(file)
         
@@ -679,7 +679,7 @@ class KEGGOrganism(object):
     
     def get_pathways_by_genes(self, gene_ids):
         gene_ids = set(gene_ids)
-        pathways = [self.genes[id].pathway for id in gene_ids]
+        pathways = [self.genes[id].pathway for id in gene_ids if self.genes[id].pathway]
         pathways = reduce(set.union, pathways, set())
         return [id for id in pathways if gene_ids.issubset(KEGGPathway(id).genes())] 
     
