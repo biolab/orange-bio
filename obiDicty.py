@@ -557,6 +557,7 @@ class PIPA(DBCommon):
         def separatefn(res):
             #each one is own rown
             #genes are in the first row
+            #remove unknown
             genes = res[0][1:]
             cids = nth(res,0)[1:]
 
@@ -564,7 +565,7 @@ class PIPA(DBCommon):
             for i,cid in enumerate(cids):
                 row = i+1
                 vals = res[row][1:]
-                antss[cid] = [ list(a) for a in zip(genes, vals) ]
+                antss[cid] = [ list(a) for a in zip(genes, vals) if a[1] != "?" ]
             return ['gene_id', 'value'], antss
 
         antss = self.downloadMulti("download_expression", ids, data=self.add_auth({"ids":"$MULTI$"}), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
