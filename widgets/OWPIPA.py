@@ -77,6 +77,8 @@ class OWPIPA(OWWidget):
         self.experimentsWidget.setSelectionMode(QTreeWidget.ExtendedSelection)
         self.experimentsWidget.setRootIsDecorated(False)
         self.experimentsWidget.setSortingEnabled(True)
+        contextEventFilter = OWGUI.VisibleHeaderSectionContextEventFilter(self.experimentsWidget)
+        self.experimentsWidget.header().installEventFilter(contextEventFilter)
 ##        self.experimentsWidget.setAlternatingRowColors(True)
 
         self.mainArea.layout().addWidget(self.experimentsWidget)
