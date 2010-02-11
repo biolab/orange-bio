@@ -272,6 +272,12 @@ class ExpressionSignificance_Info(ExpressionSignificance_Test):
         classinfo = entropy(np.array([len(ind1), len(ind2)]))
         E = ma.sum(entropy(dist, dim=1) * ma.sum(dist, 1), 1) / ma.sum(ma.sum(dist, 1), 1)
         return zip(self.keys, classinfo - E)
+    
+class ExpressionSignificance_MannWhitneyu(ExpressionSignificance_Test):
+    def __call__(self, target):
+        ind1, ind2 = self.test_indices(target)
+        a, b = self.array[ind1, :], self.array[ind2, :]
+        return zip(self.keys, amannwhitneyu(a, b, axis=1))
 
 def attest_ind(a, b, dim=None):
     """ Return the t-test statistics on arrays a and b over the dim axis.
@@ -361,4 +367,19 @@ def entropy(array, dim=None):
     array = ma.log(array) * array
     sum = ma.sum(array, dim)
     return (ma.log(n) - sum / n) / ma.log(2.0)
+    
+def amannwhitneyu(a, b, axis=None):
+    if axis is None:
+        a, b, axis = a.ravel(), b.ravel(), 0
+    elif axis > 0:
+        a, b, axis = a.T, b.T, 0
+    
+#    ranked = rankdata(ma.concatenate([a, b], axis=axis))
+    print a ,b 
+    if a.ndim > 1:
+        return [stats.amannwhitneyu(a[i],b[i]) for i in range(a.shape[axis])]
+    else:
+        return stats.amannwhitneyu(a, b)
+    
+    
     

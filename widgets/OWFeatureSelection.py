@@ -42,6 +42,10 @@ class ExpressionSignificance_Log2FoldChange(ExpressionSignificance_FoldChange):
     def __call__(self, *args, **kwargs):
         return [(key, math.log(fold, 2.0) if fold > 1e-300 and fold < 1e300 else 0.0) for key, fold in ExpressionSignificance_FoldChange.__call__(self, *args, **kwargs)]
     
+class ExpressionSignigicance_MannWhitneyu_U(ExpressionSignificance_MannWhitneyu):
+    def __call__(self, *args, **kwargs):
+        return [(key, u) for key, (u, p_val) in ExpressionSignificance_MannWhitneyu.__call__(self, *args, **kwargs)]    
+    
 class ScoreHist(OWInteractiveHist):
     def __init__(self, master, parent=None, type="hiTail"):
         OWInteractiveHist.__init__(self, parent, type=type)
@@ -88,7 +92,8 @@ class OWFeatureSelection(OWWidget):
                              ("anova p-value", ExpressionSignificance_ANOVA_PValue, oneTailTestLow),
                              ("signal to noise ratio", ExpressionSignificance_SignalToNoise, twoTailTest),
                              ("info gain", ExpressionSignificance_Info, oneTailTestHi),
-                             ("chi-square", ExpressionSignificance_ChiSquare, oneTailTestHi)]
+                             ("chi-square", ExpressionSignificance_ChiSquare, oneTailTestHi),
+                             ("mann-whitneyu", ExpressionSignigicance_MannWhitneyu_U, oneTailTestLow)]
 
         boxHistogram = OWGUI.widgetBox(self.mainArea)
         self.histogram = ScoreHist(self, boxHistogram)
@@ -410,8 +415,9 @@ class OWFeatureSelection(OWWidget):
 if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
-    #data = orange.ExampleTable("E:\\out1.tab")
-    data = orange.ExampleTable("/home/marko/t2.tab")
+#    data = orange.ExampleTable("E:\\out1.tab")
+#    data = orange.ExampleTable("/home/marko/t2.tab")
+    data = orange.ExampleTable("../../../doc/datasets/brown-selected")
     w = OWFeatureSelection()
     w.show()
     w.SetData(data)
