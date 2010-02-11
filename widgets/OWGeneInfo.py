@@ -17,7 +17,7 @@ import OWGUI
 from collections import defaultdict
 from functools import partial
 
-LinkRole = Qt.UserRole + 1
+LinkRole = OWGUI.OrangeUserRole.next()
 
 class TreeModel(QAbstractItemModel):
     def __init__(self, data, header, parent):
