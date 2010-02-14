@@ -12,9 +12,28 @@ import orngEnviron
 import sys
 from collections import defaultdict
 
+def tfloat(s):
+    try:
+        return float(s)
+    except:
+        return None
+
 class MyTreeWidgetItem(QTreeWidgetItem):
+
+    def __init__(self, parent, *args):
+        QTreeWidgetItem.__init__(self, parent, *args)
+        self.par = parent
+
     def __contains__(self, text):
         return any(text.upper() in str(self.text(i)).upper() for i in range(self.columnCount()))    
+ 
+    def __lt__(self, o1):
+        col = self.par.sortColumn()
+        if col in [3,4,7]: #WARNING: hardcoded column numbers
+            return tfloat(self.text(col)) < tfloat(o1.text(col))
+        else:
+            return QTreeWidgetItem.__lt__(self, o1)
+
 
 #set buffer file
 bufferpath = os.path.join(orngEnviron.directoryNames["bufferDir"], "pipa")
@@ -188,7 +207,11 @@ class OWPIPA(OWWidget):
             d = defaultdict(lambda: "?", annot)
             elements.append([d["species"], d["strain"], d["genotype"], d["replicate"], d["tp"], d["treatment"], d["growth"], chip])
             self.progressBarSet((100.0 * pos) / len(chips))
-            self.items.append(MyTreeWidgetItem(self.experimentsWidget, elements[-1]))
+            
+            el = elements[-1]
+            ci = MyTreeWidgetItem(self.experimentsWidget, el)
+
+            self.items.append(ci)
 
         for i in range(7):
             self.experimentsWidget.resizeColumnToContents(i)
