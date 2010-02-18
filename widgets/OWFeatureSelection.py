@@ -93,7 +93,7 @@ class OWFeatureSelection(OWWidget):
                              ("signal to noise ratio", ExpressionSignificance_SignalToNoise, twoTailTest),
                              ("info gain", ExpressionSignificance_Info, oneTailTestHi),
                              ("chi-square", ExpressionSignificance_ChiSquare, oneTailTestHi),
-                             ("mann-whitneyu", ExpressionSignigicance_MannWhitneyu_U, oneTailTestLow)]
+                             ("mann-whitney", ExpressionSignigicance_MannWhitneyu_U, oneTailTestLow)]
 
         boxHistogram = OWGUI.widgetBox(self.mainArea)
         self.histogram = ScoreHist(self, boxHistogram)
