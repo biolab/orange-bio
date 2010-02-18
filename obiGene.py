@@ -41,9 +41,16 @@ class GeneInfo(object):
     def __str__(self):
         return repr(self)
 
+class GeneHistory(object):
+    NCBI_GENE_HISTORY_TAGS = ("tax_id", "gene_id", "discontinued_gene_id", "discontinued_symbol", "discontinue_date")
+    __slots__ = NCBI_GENE_HISTORY_TAGS
+    def __init__(self, line):
+        for attr, value in zip(self.__slots__, line.split("\t")):
+            setattr(self, attr, value)
+            
+            
 class NCBIGeneInfo(dict):
-    
-    _object_cache = {}    
+       
     def __init__(self, organism, genematcher=None):
         """ An dictionary like object for accessing NCBI gene info
         Arguments::
@@ -60,17 +67,6 @@ class NCBIGeneInfo(dict):
         file = open(fname, "rb")
         self.update(dict([(line.split("\t", 3)[1], line) for line in file.read().split("\n") if line.strip() and not line.startswith("#")]))
 
-        # following is a temporary fix before gene name matcher is complete (then, this code is to be replaced)
-        # translate is a dictionary from aliases to target name (target names are real ids)a
-
-        """
-        self.translate = dict([(self[k].symbol, k) for k in self.keys()])
-        for k in self.keys():
-            self.translate.update([(s, k) for s in self[k].synonyms if s not in self.translate] + \
-                                  ([(self[k].locus_tag, k)] if self[k].locus_tag else [] ))
-
-        """
-
         # NOTE orig init time for gene matcher: 2.5s, new 4s: investigate the slowdown
         # NOTE matches are not the same because aliases are build a bit
         # differently (main name versus old aliases conflict!)
@@ -84,7 +80,18 @@ class NCBIGeneInfo(dict):
 
         #if this is done with a gene matcher, pool target names
         self.matcher.set_targets(self.keys())
-
+        
+    def history(self):
+        if getattr(self, "_history", None) is None:
+            fname = orngServerFiles.localpath_download("NCBI_geneinfo", "gene_history.%s.db" % self.taxid)
+            try:
+                self._history = dict([(line.split("\t")[2], GeneHistory(line)) for line in open(fname, "rb").read().split("\n")])
+                
+            except Exception, ex:
+                print >> sys.srderr, "Loading NCBI gene history failed.", ex
+                self._history = {}
+        return self._history
+        
     @classmethod
     def organism_version(cls, name):
         oname = cls.organism_name_search(name)
@@ -161,10 +168,24 @@ class NCBIGeneInfo(dict):
     def get_geneinfo_from_ncbi(file, progressCallback=None):
         import urllib2, gzip, shutil, tempfile
         from cStringIO import StringIO
-        if type(file) in [str, unicode]:
+        if isinstance(file, basestring):
             file = open(file, "wb")
         
         stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/gene/DATA/gene_info.gz")
+        tmpfile = tempfile.TemporaryFile()
+        shutil.copyfileobj(stream, tmpfile)
+        tmpfile.seek(0)
+        stream = gzip.GzipFile(None, "rb", fileobj=tmpfile)
+        shutil.copyfileobj(stream, file)
+        
+    @staticmethod
+    def get_gene_history_from_ncbi(file, progressCallback=None):
+        import urllib2, gzip, shutil, tempfile
+        from cStringIO import StringIO
+        if isinstance(file, basestring):
+            file = open(file, "wb")
+        
+        stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/gene/DATA/gene_history.gz")
         tmpfile = tempfile.TemporaryFile()
         shutil.copyfileobj(stream, tmpfile)
         tmpfile.seek(0)
