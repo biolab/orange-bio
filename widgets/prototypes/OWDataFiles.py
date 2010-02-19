@@ -126,6 +126,7 @@ class OWDataFiles(OWWidget):
                         self.lastSentIds.append(id)
                         id += 1
                 data.append((dir.name, files))
+        #print "DATAS", data
         self.send("Structured Data", data)
 
     # Loads the data from a root directory, sends the data to the output channels
@@ -138,7 +139,7 @@ class OWDataFiles(OWWidget):
             self.progressBarInit()
             pbStep = 100./lenDirs
         for d in dirs:
-            dirname = root+'\\'+d
+            dirname = os.path.join(root, d)
             if os.path.isdir(dirname):
                 dirdata = []   
                 files  = os.listdir(dirname)
@@ -147,7 +148,7 @@ class OWDataFiles(OWWidget):
                     if ext in ['.tab', '.txt', '.data']:
                         try:
                             data = None
-                            data = orange.ExampleTable(dirname+'\\'+f)
+                            data = orange.ExampleTable(os.path.join(dirname,f))
                             data.name = name
                             data.strain = os.path.basename(dirname)
                             dirdata.append(data)
@@ -264,5 +265,6 @@ if __name__=="__main__":
     a=QApplication(sys.argv)
     ow=OWDataFiles()
     ow.show()
+    ow.loadData("/home/marko/anova/smallchipdata")
     a.exec_()
     ow.saveSettings()
