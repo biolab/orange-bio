@@ -11,7 +11,8 @@
 import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
 from OWWidget import *
 import OWGUI
-import qt, qwt
+#import qt, qwt
+
 from OWDataFiles import DataFiles, ExampleSelection
 import Anova, scipy.stats
 
@@ -50,79 +51,64 @@ class OWANOVA(OWWidget):
 
         # GUI
         self.mainArea.setFixedWidth(0)
-        ca=QFrame(self.controlArea)
-        gl=QGridLayout(ca,4,1,5)
-        
+        ca = self.controlArea
+       
         # info
-        box = QVGroupBox("Info", ca)
-        gl.addWidget(box,0,0)
-        self.infoa = QLabel('No data on input.', box)
-        self.infob = QLabel('', box)
-        self.infoc = QLabel('', box)
+        box = OWGUI.widgetBox(ca, "Info")
+        #gl.addWidget(box,0,0)
+        self.infoa = OWGUI.label(box, self, 'No data on input.')
+        self.infob = OWGUI.label(box, self, "")
+        self.infoc = OWGUI.label(box, self, "")
 
         # ANOVA type
-        self.boxAnovaType = QVButtonGroup("", ca)
-        gl.addWidget(self.boxAnovaType,1,0)
+        # group selection
+        anovaTypes = ["Single sample t-test", 
+            "Single-factor (A, variables)", 
+            "Single-factor (B, data sets)", 
+            "Two-factor", 
+            "Two-factor with interaction effect"]
+
+        self.boxAnovaType = OWGUI.widgetBox(ca, "Anova Type")
+        self.anovaTypeS = OWGUI.radioButtonsInBox(self.boxAnovaType, self, "anovaType", btnLabels=anovaTypes)
+        
         self.boxAnovaType.setDisabled(1)
 
-        self.boxAnovaType.setRadioButtonExclusive(1)
-        self.boxAnovaType.buttons = []
-        for i,lbl in enumerate(["Single sample t-test", "Single-factor (A, variables)", "Single-factor (B, data sets)", "Two-factor", "Two-factor with interaction effect"]):
-            w = QRadioButton(lbl, self.boxAnovaType)
-            w.setOn(self.anovaType == i)
-            self.boxAnovaType.buttons.append(w)
-            if i == 0:
-                self.boxCompareTo = QHBox(self.boxAnovaType)
-                QLabel("             compare to  ", self.boxCompareTo)
-                OWGUI.lineEdit(self.boxCompareTo, self, "compareToValue", callback=self.onCompareToChange)
-        OWGUI.connectControl(self.boxAnovaType, self, "anovaType", self.onAnovaType, "clicked(int)", OWGUI.CallFront_radioButtons(self.boxAnovaType))
-        
+        self.boxCompareTo = OWGUI.widgetBox(self.boxAnovaType)
+        OWGUI.lineEdit(self.boxCompareTo, self, "compareToValue", callback=self.onCompareToChange, label="compare to")
+
         # selection of examples
-        self.boxSelection = QVGroupBox("Example Selection", ca)
-        gl.addWidget(self.boxSelection,2,0)
+        self.boxSelection = OWGUI.widgetBox(ca, "Example Selection")
         self.lblNumGenes = []   # list of labels
+
         # selector A
-        self.boxSelectorA = QVBox(self.boxSelection)
+        self.boxSelectorA = OWGUI.widgetBox(self.boxSelection)
         self.cbSelectorA = OWGUI.checkBox(self.boxSelectorA, self, "selectorA", "Factor A (variables)", callback=self.onSelectionChange,
                                           tooltip='H0: The mean does not depend on factor A (represented by variables).')
-        frmA = QFrame(self.boxSelectorA)
-        glA = QGridLayout(frmA,1,3,5)
-        leA = OWGUI.lineEdit(frmA, self, "alphaA", orientation="horizontal", callback=lambda x=0: self.onAlphaChange(x))
-        glA.addWidget(leA,0,1) # Qt.AlignRight
-        glA.addWidget(QLabel("     p <= ", frmA), 0,0)
-        self.lblNumGenes.append(QLabel('', frmA))
-        glA.addWidget(self.lblNumGenes[-1],0,2) # Qt.AlignRight | 0x22
+
+        frmA = OWGUI.widgetBox(self.boxSelectorA)
+        leA = OWGUI.lineEdit(frmA, self, "alphaA", orientation="horizontal", callback=lambda x=0: self.onAlphaChange(x), label= "p <= ")
+        self.lblNumGenes.append(OWGUI.label(frmA, self, ""))
 
         # selector B
-        self.boxSelectorB = QVBox(self.boxSelection)
+        self.boxSelectorB = OWGUI.widgetBox(self.boxSelection)
         self.cbSelectorB = OWGUI.checkBox(self.boxSelectorB, self, "selectorB", "Factor B (data sets)", callback=self.onSelectionChange,
                                           tooltip='H0: The mean does not depend on factor B (represented by data sets).')
-        frmB = QFrame(self.boxSelectorB)
-        glB = QGridLayout(frmB,1,3,5)
-        leB = OWGUI.lineEdit(frmB, self, "alphaB", orientation="horizontal", callback=lambda x=1: self.onAlphaChange(x))
-        glB.addWidget(leB,0,1)
-        glB.addWidget(QLabel("     p <= ", frmB), 0,0)
-        self.lblNumGenes.append(QLabel('', frmB))
-        glB.addWidget(self.lblNumGenes[-1],0,2)
-        
+ 
+        frmB = OWGUI.widgetBox(self.boxSelectorB)
+        leB = OWGUI.lineEdit(frmB, self, "alphaB", orientation="horizontal", callback=lambda x=1: self.onAlphaChange(x), label= "p <= ")
+        self.lblNumGenes.append(OWGUI.label(frmB, self, ""))
+
         # selector I
-        self.boxSelectorI = QVBox(self.boxSelection)
+        self.boxSelectorI = OWGUI.widgetBox(self.boxSelection)
         self.cbSelectorI = OWGUI.checkBox(self.boxSelectorI, self, "selectorI", "Interaction (variables * data sets)", callback=self.onSelectionChange,
                                           tooltip='H0: There is no interaction between factor A and factor B.')
-        frmI = QFrame(self.boxSelectorI)
-        glI = QGridLayout(frmI,1,3,5)
-        leI = OWGUI.lineEdit(frmI, self, "alphaI", orientation="horizontal", callback=lambda x=2: self.onAlphaChange(x))
-        ## slider could be used to replace lineEdit (but not sensitive enough)
-        ##        self.alphaIf = 0.05
-        ##        leI = OWGUI.qwtHSlider(self.boxSelectorI, self, "alphaIf", box="", label="      p < ", labelWidth=None, minValue=0.0001, maxValue=1.0, step=0.1, precision=3, callback=lambda x=2: self.onAlphaChange(x), logarithmic=1, ticks=0, maxWidth=None)
-        glI.addWidget(leI,0,1)
-        glI.addWidget(QLabel("     p <= ", frmI), 0,0)
-        self.lblNumGenes.append(QLabel('', frmI))
-        glI.addWidget(self.lblNumGenes[-1],0,2)
-        
+ 
+        frmI = OWGUI.widgetBox(self.boxSelectorI)
+        leI = OWGUI.lineEdit(frmI, self, "alphaI", orientation="horizontal", callback=lambda x=2: self.onAlphaChange(x), label= "p <= ")
+        self.lblNumGenes.append(OWGUI.label(frmI, self, ""))
+
         # output
-        box = QVGroupBox("Output", ca)
-        gl.addWidget(box,3,0)
+        box = OWGUI.widgetBox(ca, "Output")
         self.leSelectorName = OWGUI.lineEdit(box, self, 'selectorName', label='Selector Name: ')
         self.leSelectorName.setReadOnly(self.autoUpdateSelName)
         OWGUI.checkBox(box, self, 'autoUpdateSelName', 'Automatically update selector name', callback=self.onAutoUpdateSelNameChange)
@@ -136,6 +122,7 @@ class OWANOVA(OWWidget):
         self.updateSelectorBox()
         self.updateSelectorInfos()
         self.updateSelectorName()
+
         self.resize(283, self.sizeHint().height())
 
 
@@ -210,6 +197,9 @@ class OWANOVA(OWWidget):
                     ma3d[:,:,etIdx] = et.toNumpyMA("ac")[0]
                     etIdx += 1
                 groupLens.append(len(etList))
+
+            #print "ma3d SHAPE", ma3d.shape
+            #print "ma3d from top", ma3d[0,:,:]
             # run ANOVA
             self.infoc.setText('ANOVA computation started...')
             self.progressBarInit()
@@ -545,7 +535,7 @@ class OWANOVA(OWWidget):
             - calls updateSelectorInfos()
         runs ANOVA and sends out new data;
         """
-        print "self.anovaType", self.anovaType
+        #print "self.anovaType", self.anovaType
         self._interaction = self.anovaType == 4
         self.ps = None
         self.updateSelectorBox()
@@ -622,7 +612,7 @@ class OWANOVA(OWWidget):
         """
         if commit:
             if self.dataStructure:
-                if not self.ps:
+                if self.ps == None:
                     self.runANOVA()
                 self.senddata()
             self.updateSelectorInfos()
@@ -630,23 +620,16 @@ class OWANOVA(OWWidget):
 
 if __name__=="__main__":
     import OWDataFiles, OWDataFilesSelector, OWDataTable, orngSignalManager
+
     signalManager = orngSignalManager.SignalManager(0)
     a=QApplication(sys.argv)
     an=OWANOVA(signalManager = signalManager)
-    a.setMainWidget(an)
-    an.show()
-    df = OWDataFiles.OWDataFiles(signalManager = signalManager)
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato.sub100")
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\potato.sub1000")
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA")
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_time0")
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS_10_yakApufA_time0_swappedAB")
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\DictyChipData_BR_ACS")
 
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_one-sample t-test")
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_factor A")
-##    ds.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_factor B")
-    df.loadData(r"C:\Documents and Settings\peterjuv\My Documents\Orange\ANOVA\_factors A and B")
+    an.show()
+    
+    df = OWDataFiles.OWDataFiles(signalManager = signalManager)
+    df.loadData("/home/marko/anova/smallchipdata")
+    df.show()
 
     signalManager.addWidget(an)
     signalManager.addWidget(df)
@@ -656,6 +639,7 @@ if __name__=="__main__":
     # data files selector, data table
     dfs = OWDataFilesSelector.OWDataFilesSelector(signalManager = signalManager)
     signalManager.addWidget(dfs)
+    dfs.show()
     signalManager.addLink(an, dfs, 'Selected Structured Data', 'Structured Data', 1)
     dt = OWDataTable.OWDataTable(signalManager = signalManager)
     signalManager.addWidget(dt)
@@ -663,5 +647,5 @@ if __name__=="__main__":
     signalManager.setFreeze(0)
     dt.show()
 
-    a.exec_loop()
+    a.exec_()
     an.saveSettings()

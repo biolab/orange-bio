@@ -1415,28 +1415,28 @@ if __name__=="__main__":
     def anova_2fact_testSpeed(rawAll, rgi):
         """factors: time, strain
         """
-        as = Numeric.zeros((rawAll.shape[0],2), Numeric.Float)
+        as1 = Numeric.zeros((rawAll.shape[0],2), Numeric.Float)
         print "2 fact start", time.ctime()
         for i in range(rawAll.shape[0]):
             a0 = Anova2wayLR(rawAll[i], rgi, 0)
-            as[i] = [a0.FAprob, a0.FBprob]
+            as1[i] = [a0.FAprob, a0.FBprob]
         print "2 fact end  ", time.ctime()
-        return as
+        return as1
         
     def anova_fulfact_testSpeed(rawAll, rgi):
         """factors: time, strain & their interaction
         """
         try:
-            as = Numeric.zeros((rawAll.shape[0],3), Numeric.Float)
+            as1 = Numeric.zeros((rawAll.shape[0],3), Numeric.Float)
             print "2 fact start", time.ctime()
             for i in range(rawAll.shape[0]):
                 a0 = Anova2wayLR(rawAll[i], rgi, 1)
-                as[i] = [a0.FAprob, a0.FBprob, a0.FABprob]
+                as1[i] = [a0.FAprob, a0.FBprob, a0.FABprob]
             print "2 fact end  ", time.ctime()
         except:
             print "gene", i, time.ctime()
             raise
-        return as
+        return as1
 
 ##    asff = anova_fulfact_testSpeed(rawN, DN.replicaGroupInd)  # takes appx. 3 hours!
 ##    as2f = anova_2fact_testSpeed(rawN, DN.replicaGroupInd)      # takes appx 2 minutes
