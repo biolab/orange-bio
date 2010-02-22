@@ -183,8 +183,8 @@ class AssessLearner(object):
     Takes data and creates attribute transformations.
     """
     
-    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, rankingf=None):
-        data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+    def __call__(self, data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, rankingf=None):
+        data, oknames, gsetsnum = selectGenesetsData(data, matcher, geneSets, \
             minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
         
         if rankingf == None:
@@ -195,39 +195,39 @@ class AssessLearner(object):
 
         return Assess(attrans=attrans, gsetsnum=gsetsnum)
 
-def selectGenesetsData(data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+def selectGenesetsData(data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
     """
     Returns gene sets and data which falling under upper criteria.
     """
-    gso = obiGsea.GSEA(data, organism=organism, classValues=classValues, atLeast=0)
+    gso = obiGsea.GSEA(data, matcher=matcher, classValues=classValues, atLeast=0)
     gso.addGenesets(geneSets)
     oknames = gso.selectGenesets(minSize=minSize, maxSize=maxSize, minPart=minPart).keys()
     gsetsnum = gso.to_gsetsnum(oknames)
     return gso.data, oknames, gsetsnum
 
-def ideker_activity_score(ex, corg):
+def corgs_activity_score(ex, corg):
     """ activity score for a sample for pathway given by corgs """
     #print [ ex[i].value for i in corg ] #FIXME what to do with unknown values?
     return sum(ex[i].value if ex[i].value != '?' else 0.0 for i in corg)/len(corg)**0.5
 
-class Ideker(object):
+class CORGs(object):
 
     def __init__(self, **kwargs):
         for a,b in kwargs.items():
             setattr(self, a, b)
 
     def __call__(self, example):
-        return dict( (name,ideker_activity_score(example, corg)) \
+        return dict( (name,corgs_activity_score(example, corg)) \
             for name, corg in self.corgs.items() )
 
-class IdekerLearner(object):
+class CORGsLearner(object):
     
-    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+    def __call__(self, data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
         """
         WARNING: input has to be z_ij table! each gene needs to be normalized
         (mean=0, stdev=1) for all samples.
         """
-        data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+        data, oknames, gsetsnum = selectGenesetsData(data, matcher, geneSets, \
             minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
     
         tscorecache = {}
@@ -256,7 +256,7 @@ class IdekerLearner(object):
                 """ Activity score separation - S(G) in 
                 the article """
                 asv = orange.FloatVariable(name='AS')
-                asv.getValueFrom = lambda ex,rw: orange.Value(asv, ideker_activity_score(ex, corg))
+                asv.getValueFrom = lambda ex,rw: orange.Value(asv, corgs_activity_score(ex, corg))
                 data2 = orange.ExampleTable(orange.Domain([asv], data.domain.classVar), data)
                 return abs(tscorec(data2, 0)) #FIXME absolute - nothing in the article about it
                     
@@ -282,7 +282,55 @@ class IdekerLearner(object):
             inds = sorted(set(inds)) # take each gene only once!
             corgs[name] = compute_corg(data, inds)
 
-        return Ideker(corgs=corgs)
+        return CORGs(corgs=corgs)
+
+class GSA(object):
+
+    def __init__(self, **kwargs):
+        for a,b in kwargs.items():
+            setattr(self, a, b)
+
+    def __call__(self, example):
+        return dict( (name, statc.mean([example[i].value for i in inds if example[i].value != "?"]) ) \
+            for name, inds in self.subsets.items() )
+
+class GSALearner(object):
+    
+    def __call__(self, data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+        """
+        WARNING: input has to be z_ij table! each gene needs to be normalized
+        (mean=0, stdev=1) for all samples.
+        """
+        import scipy.stats
+
+        data, oknames, gsetsnum = selectGenesetsData(data, matcher, geneSets, \
+            minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
+    
+        def tscorec(data, at, cache=None):
+            ma = obiExpression.MA_t_test()(at,data)
+            return ma
+
+        tscores = [ tscorec(data, at) for at in data.domain.attributes ]
+
+        def to_z_score(t):
+            return float(scipy.stats.norm.ppf(scipy.stats.t.cdf(t, len(data)-2)))
+
+        zscores = map(to_z_score, tscores)
+
+        subsets = {}
+
+        for name, inds in gsetsnum.items():
+            inds = sorted(set(inds)) # take each gene only once!
+
+            D = statc.mean([max(zscores[i],0) for i in inds]) \
+                + statc.mean([min(zscores[i],0) for i in inds])
+
+            if D >= 0:
+                subsets[name] = [ i for i in inds if zscores[i] > 0.0 ]
+            else:
+                subsets[name] = [ i for i in inds if zscores[i] < 0.0 ]
+
+        return GSA(subsets=subsets)
 
 def pls_transform(example, constt):
     """
@@ -388,13 +436,13 @@ class PLS(object):
 class PLSLearner(object):
     """ Transforms gene sets using Principal Leasts Squares. """
     
-    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, components=1):
+    def __call__(self, data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, components=1):
         """
         If more that 1 components are used, _LC_componetsNumber is appended to 
         the name of the gene set.
         """
 
-        data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+        data, oknames, gsetsnum = selectGenesetsData(data, matcher, geneSets, \
             minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
     
         constructt = {}
@@ -463,9 +511,9 @@ def pca(data, snapshot=0):
 class PCALearner(object):
     """ Transforms gene sets using Principal Leasts Squares. """
     
-    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+    def __call__(self, data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
 
-        data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+        data, oknames, gsetsnum = selectGenesetsData(data, matcher, geneSets, \
             minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
     
         constructt = {}
@@ -498,23 +546,23 @@ class SimpleFunLearner(object):
     Just applies a function taking attribute values of an example and
     produces to all gene sets.    
     """
-    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, fn=None):
-        data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+    def __call__(self, data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, fn=None):
+        data, oknames, gsetsnum = selectGenesetsData(data, matcher, geneSets, \
             minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
         return SimpleFun(gsets=gsetsnum, fn=fn)
 
 class MedianLearner(object):
     
-    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, fn=None):
+    def __call__(self, data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, fn=None):
        sfl =  SimpleFunLearner()
-       return sfl(data, organism, geneSets, \
+       return sfl(data, matcher, geneSets, \
             minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues, fn=statc.median)
 
 class MeanLearner(object):
     
-    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, fn=None):
+    def __call__(self, data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None, fn=None):
        sfl =  SimpleFunLearner()
-       return sfl(data, organism, geneSets, \
+       return sfl(data, matcher, geneSets, \
             minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues, fn=statc.mean)
 
 def impute_missing(data):
@@ -603,17 +651,16 @@ class SetSig(object):
 
 class SetSigLearner(object):
 
-    def __call__(self, data, organism, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
-        data, oknames, gsetsnum = selectGenesetsData(data, organism, geneSets, \
+    def __call__(self, data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+        data, oknames, gsetsnum = selectGenesetsData(data, matcher, geneSets, \
             minSize=minSize, maxSize=maxSize, minPart=minPart, classValues=classValues)
         return SetSig(learndata=data, genesets=gsetsnum)
 
 if __name__ == "__main__":
     
-    """
     data = orange.ExampleTable("DLBCL.tab")
-    """
 
+    """
     data = orange.ExampleTable("sterolTalkHepa.tab")
     data = impute_missing(data)
     choosen_cv = [ "LK935_48h", "Rif_12h"]
@@ -624,22 +671,24 @@ if __name__ == "__main__":
     
     """
     choosen_cv = list(data.domain.classVar.values)
-    """
 
     fp = int(9*len(data)/10)
 
     ldata = orange.ExampleTable(data.domain, data[:fp])
     tdata = orange.ExampleTable(data.domain, data[fp:])
 
-    gsets = obiGeneSets.collections(["steroltalk.gmt"], default=False)
-    #gsets = obiGeneSets.collections(["C2.CP.gmt", "C5.MF.gmt", "C5.BP.gmt"], default=False)
+    matcher = obiGene.GMKEGG("hsa")
 
-    #ass = AssessLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), rankingf=AT_loessLearner())
-    #ass = MeanLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False))
-    #ass = PLSLearner()(data, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv)
-    #ass = SetSigOLDLearner()(ldata, "hsa", obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv, minPart=0.0)
-    #ass = SetSigLearner()(ldata, "hsa", gsets, classValues=choosen_cv, minPart=0.0)
-    ass = PCALearner()(ldata, "hsa", gsets, classValues=choosen_cv, minPart=0.0)
+    #gsets = obiGeneSets.collections(["steroltalk.gmt"], default=False)
+    gsets = obiGeneSets.collections(["C2.CP.gmt", "C5.MF.gmt", "C5.BP.gmt"], default=False)
+
+    #ass = AssessLearner()(data, matcher, obiGeneSets.collections(["steroltalk.gmt"], default=False), rankingf=AT_loessLearner())
+    #ass = MeanLearner()(data, matcher, obiGeneSets.collections(["steroltalk.gmt"], default=False))
+    #ass = PLSLearner()(data, matcher, obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv)
+    #ass = SetSigOLDLearner()(ldata, matcher, obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv, minPart=0.0)
+    #ass = SetSigLearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
+    #ass = PCALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
+    ass = GSALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
 
     ar = defaultdict(list)
 

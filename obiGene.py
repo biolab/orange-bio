@@ -356,7 +356,7 @@ def auto_pickle(filename, version, func, *args, **kwargs):
 
         try:
             versionF = pickle.load(f)
-            if versionF == version:
+            if version == None or versionF == version:
                 outputOk = True
                 output = pickle.load(f)
         except:
@@ -477,9 +477,12 @@ class MatcherAliasesPickled(MatcherAliases):
 
     def load_aliases(self):
         fn = self.filename()
-        ver = self.create_aliases_version()
-        if fn != None and ver != None: 
-            filename = os.path.join(buffer_path(), fn)
+        ver = self.create_aliases_version() #if version == None ignore it
+        if fn != None:
+            if isinstance(fn, tuple): #if you pass tuple, look directly
+               filename = fn[0]
+            else:
+               filename = os.path.join(buffer_path(), fn)
             return auto_pickle(filename, ver, self.create_aliases)
         else:
             #if either file version of version is None, do not pickle
@@ -516,6 +519,22 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
     def __init__(self, organism, ignore_case=True):
         self.organism = organism
         MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
+
+class MatcherAliasesFile(MatcherAliasesPickled):
+
+    def create_aliases(self):
+        canNotCreateButCanOnlyOpen()
+
+    def create_aliases_version(self):
+        return None
+
+    def filename(self):
+        return (self.filename_,)
+
+    def __init__(self, filename, ignore_case=True):
+        self.filename_ = filename
+        MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
+
 
 class MatcherAliasesGO(MatcherAliasesPickled):
 
