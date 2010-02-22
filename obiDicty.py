@@ -1068,7 +1068,7 @@ def allAnnotationVals(annots):
     return av
 
 def createExampleTable(names, vals, annots, ddb, cname="DDB", \
-        exclude_constant_labels=False, permutation=None):
+        exclude_constant_labels=False, permutation=None, always_include=["id"]):
     """
     Create an ExampleTable for this group. Attributes are those in
     names. 
@@ -1080,7 +1080,7 @@ def createExampleTable(names, vals, annots, ddb, cname="DDB", \
     annotsvals = allAnnotationVals(annots)
     oknames = set(annotsvals.keys())
     if exclude_constant_labels:
-        oknames = set(nth(filter(lambda x: len(x[1]) > 1, 
+        oknames = set(nth(filter(lambda x: len(x[1]) > 1 or x[0] in always_include, 
             annotsvals.items()), 0))
 
     #print oknames
@@ -1443,6 +1443,7 @@ if __name__=="__main__":
         et.save("ett.tab")
         print open("ett.tab").read()
 
+    """
     a = DictyBase()
     print len(a.info)
 
@@ -1478,4 +1479,4 @@ if __name__=="__main__":
     data2 = join_replicates(data)
     print data2.domain
     data2.save("d2.tab")
-    """
+
