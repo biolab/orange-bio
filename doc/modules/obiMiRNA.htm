@@ -1,0 +1,149 @@
+<html>
+
+<head>
+<title>obiMiRNA</title>
+<link rel=stylesheet href="../style.css" type="text/css">
+<link rel=stylesheet href="style-print.css" type="text/css" media=print>
+</head>
+
+<body>
+<h1>obiMiRNA</h1>
+<!--   <index name="modules/gene ontology GO"> --> 
+<p>The module obiMiRNA allows the user to work with data about microRNAs <a href="http://en.wikipedia.org/wiki/MicroRNA">(miRNAs)</a>.
+It has an internal library that is loaded with the installation and updated on Orange server. The entries of the library are accessed by the identifier ID,
+thus the name of the mature form of the miRNA.
+The reference information for each miRNA in the library is retrieved form <a href="http://www.mirbase.org/">miRBase</a>, while the target genes are taken
+from <a href="http://www.targetscan.org/cgi-bin/targetscan/data_download.cgi?db=vert_50">Target Scan</a>.
+</p>
+<p>The module is also used through Orange Bioinformatics for unifying organisms' and genes' name across different modules.</p>
+
+<p class=section>Attributes</p>
+<dl class=attributes>
+	<dt>mirnaAddress</dt>
+	<dd>A dictionary with miRNA IDs as keys and the relative addresses on miRBase web-site as values. </dd>
+</dl>
+
+<p class=section>Functions</p>
+<dl class=attributes>
+	<dt>ids(org=None)</dt>
+	<dd>Return a list of the identifiers for all the mature miRNAs in the library or just for the introduced organism <code>org</code>, if present.</dd>
+	
+	<dt>get_info(objectID,type='mat')</dt>
+	<dd>Create an instance of a mature <code>(mat_miRNA)</code> or pre <code>(pre_miRNA)</code> miRNA.</dd>
+	
+	<dt>cluster(clusterID, type='name')</dt>
+	<dd>Take a cluster identifier (if type='num') or a pre-miRNA identifier and return the list of premiRNAs referred to that cluster
+	or clustered together with that pre-miRNA.</dd>
+	
+	<dt>fromACC_toID(accession)</dt>
+	<dd>Take a miRNA accession number and return a miRNA identifier.</dd>
+	
+	<dt>get_geneMirnaLib(org=None)</dt>
+	<dd>Build dictionary gene:[miRNAs] for all the organisms or just for the specified one.</dd>
+	
+	<dt>get_GO(mirna_list, annotations, enrichment=False, pval=0.1, goSwitch=True)</dt>
+	<dd>Take as input a list of miRNAs only for the organism for which the annotations are defined.
+    If <code>goSwitch</code> is False, get_GO() returns a dictionary that has miRNAs as keys and GO IDs as values;
+    in the other case it returns a dictionary with GO IDs as keys and miRNAs as values.</dd>
+    
+    <dt>filter_GO(mirna_goid, annotations, treshold=True, reverse=True)</dt>
+	<dd>Take as input a dictionary like {mirna:[list of GO_IDs]} and
+    remove the most common GO_IDs in each list using the TF-IDF criterion.</dd>
+    
+    <dt>get_pathways(mirna_list, organism='hsa', enrichment=False, pVal=0.1, pathSwitch=True)</dt>
+	<dd>Take as input a list of miRNAs and returns a dictionary that has miRNAs as keys
+    and pathways IDs as values; if the switch is set on True, 
+    it returns a dictionary with pathways IDs as keys and miRNAs as values.</dd>
+	
+
+		
+</dl>
+
+<h2>mat_miRNA</h2>
+<p>Mature miRNA.</p>
+<p class=section>Attributes</p>
+<dl class=attributes>
+	<dt>matACC</dt>
+	<dd>Accession code on miRBase.</dd>
+</dl>
+<dl class=attributes>
+	<dt>matID</dt>
+	<dd>Identifier on miRBase.</dd>
+</dl>
+<dl class=attributes>
+	<dt>matSQ</dt>
+	<dd>Sequence of ~20 nt long.</dd>
+</dl>
+<dl class=attributes>
+	<dt>pre_forms</dt>
+	<dd>Identifier(s) of the pre-miRNA(s) from which the mature miRNA can originate.</dd>
+</dl>
+<dl class=attributes>
+	<dt>targets</dt>
+	<dd>Target gene of the mature miRNA, retrieved from TargetScan.</dd>
+</dl>
+
+<h2>pre_miRNA</h2>
+<p>Pre-form of the miRNA.</p>
+<p class=section>Attributes</p>
+<dl class=attributes>
+	<dt>preACC</dt>
+	<dd>Accession code on miRBase.</dd>
+</dl>
+<dl class=attributes>
+	<dt>preID</dt>
+	<dd>Identifier on miRBase.</dd>
+</dl>
+<dl class=attributes>
+	<dt>preSQ</dt>
+	<dd>Sequence of ~70 nt long.</dd>
+</dl>
+<dl class=attributes>
+	<dt>matACCs</dt>
+	<dd>Identifier(s) of the mature miRNA(s) that can originate.</dd>
+</dl>
+<dl class=attributes>
+	<dt>pubIDs</dt>
+	<dd>Identifier code(s) on PubMed.</dd>
+</dl>
+<dl class=attributes>
+	<dt>clusters</dt>
+	<dd>Identifiers of the pre-miRNAs that belong to the same cluster.</dd>
+</dl>
+<dl class=attributes>
+	<dt>web_addr</dt>
+	<dd>Link to the web-page of the pre-miRNA on miRBase.</dd>
+</dl>
+
+<p class=section>Examples</p>
+
+<!-- <xmp class=code>import obiGene
+import obiKEGG
+
+targets = obiKEGG.KEGGOrganism("9606").get_genes() #human NCBI ID
+
+gmkegg = obiGene.GMKEGG("9606")
+gmgo = obiGene.GMGO("9606")
+gmkegggo = obiGene.matcher([[gmkegg, gmgo]], direct=False)
+
+gmkegg.set_targets(targets)
+gmgo.set_targets(targets)
+gmkegggo.set_targets(targets)
+
+genes = [ "cct7", "pls1", "gdi1", "nfkb2", "dlg7" ]
+
+print "%12s" % "gene", "%12s" % "KEGG", "%12s" % "GO", "%12s" % "KEGG+GO"
+for gene in genes:
+    print "%12s" % gene, "%12s" % gmkegg.umatch(gene), \
+          "%12s" % gmgo.umatch(gene), \
+          "%12s" % gmkegggo.umatch(gene)
+</xmp> -->
+
+<!-- <p class=section>Methods</p>
+<dl class=attributes>
+	<dt>method 1</dt>
+	<dd>...description...</dd> -->
+	
+</dl>
+
+<html>
