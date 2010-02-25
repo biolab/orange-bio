@@ -11,25 +11,20 @@
 <!--   <index name="modules/gene ontology GO"> --> 
 <p>The module obiMiRNA allows the user to work with data about microRNAs <a href="http://en.wikipedia.org/wiki/MicroRNA">(miRNAs)</a>.
 It has an internal library that is loaded with the installation and updated on Orange server. The entries of the library are accessed by the identifier ID,
-thus the name of the mature form of the miRNA.
+thus the name of the miRNA.
 The reference information for each miRNA in the library is retrieved form <a href="http://www.mirbase.org/">miRBase</a>, while the target genes are taken
 from <a href="http://www.targetscan.org/cgi-bin/targetscan/data_download.cgi?db=vert_50">Target Scan</a>.
 </p>
 <p>The module is also used through Orange Bioinformatics for unifying organisms' and genes' name across different modules.</p>
 
-<p class=section>Attributes</p>
-<dl class=attributes>
-	<dt>mirnaAddress</dt>
-	<dd>A dictionary with miRNA IDs as keys and the relative addresses on miRBase web-site as values. </dd>
-</dl>
 
 <p class=section>Functions</p>
 <dl class=attributes>
 	<dt>ids(org=None)</dt>
-	<dd>Return a list of the identifiers for all the mature miRNAs in the library or just for the introduced organism <code>org</code>, if present.</dd>
+	<dd>Return a list of the identifiers for all the miRNAs in the library or just for the introduced organism <code>org</code>, if present.</dd>
 	
 	<dt>get_info(objectID,type='mat')</dt>
-	<dd>Create an instance of a mature <code>(mat_miRNA)</code> or pre <code>(pre_miRNA)</code> miRNA.</dd>
+	<dd>Create an instance of a mature <code>(mat_miRNA)</code> or pre-<code>(pre_miRNA)</code> miRNA.</dd>
 	
 	<dt>cluster(clusterID, type='name')</dt>
 	<dd>Take a cluster identifier (if type='num') or a pre-miRNA identifier and return the list of premiRNAs referred to that cluster
@@ -42,21 +37,20 @@ from <a href="http://www.targetscan.org/cgi-bin/targetscan/data_download.cgi?db=
 	<dd>Build dictionary gene:[miRNAs] for all the organisms or just for the specified one.</dd>
 	
 	<dt>get_GO(mirna_list, annotations, enrichment=False, pval=0.1, goSwitch=True)</dt>
-	<dd>Take as input a list of miRNAs only for the organism for which the annotations are defined.
+	<dd>Take as input a list of miRNAs of the organism for which the annotations are defined.
     If <code>goSwitch</code> is False, get_GO() returns a dictionary that has miRNAs as keys and GO IDs as values;
     in the other case it returns a dictionary with GO IDs as keys and miRNAs as values.</dd>
     
-    <dt>filter_GO(mirna_goid, annotations, treshold=True, reverse=True)</dt>
+    <dt>filter_GO(mirna_goid, annotations, treshold=[80,85], reverse=True)</dt>
 	<dd>Take as input a dictionary like {mirna:[list of GO_IDs]} and
-    remove the most common GO_IDs in each list using the TF-IDF criterion.</dd>
+    remove the most common GO IDs in each list using the TF-IDF criterion.
+    Treshold is chosen by making the average of the percentiles introduced.</dd>
     
     <dt>get_pathways(mirna_list, organism='hsa', enrichment=False, pVal=0.1, pathSwitch=True)</dt>
-	<dd>Take as input a list of miRNAs and returns a dictionary that has miRNAs as keys
+	<dd>Take as input a list of miRNAs and return a dictionary that has miRNAs as keys
     and pathways IDs as values; if the switch is set on True, 
-    it returns a dictionary with pathways IDs as keys and miRNAs as values.</dd>
-	
-
-		
+    then return a dictionary with pathways IDs as keys and miRNAs as values.</dd>
+    		
 </dl>
 
 <h2>mat_miRNA</h2>
@@ -80,7 +74,7 @@ from <a href="http://www.targetscan.org/cgi-bin/targetscan/data_download.cgi?db=
 </dl>
 <dl class=attributes>
 	<dt>targets</dt>
-	<dd>Target gene of the mature miRNA, retrieved from TargetScan.</dd>
+	<dd>Target genes of the mature miRNA, retrieved from TargetScan.</dd>
 </dl>
 
 <h2>pre_miRNA</h2>
@@ -116,29 +110,156 @@ from <a href="http://www.targetscan.org/cgi-bin/targetscan/data_download.cgi?db=
 </dl>
 
 <p class=section>Examples</p>
+Example 1
+<xmp class=code>import random
+import obimiRNA
 
-<!-- <xmp class=code>import obiGene
-import obiKEGG
+miRNAs = obimiRNA.ids()
 
-targets = obiKEGG.KEGGOrganism("9606").get_genes() #human NCBI ID
+print 'miRNA name\tAccession_Number\t\tSequence\t\tPre-forms\n'
+for m in random.sample(miRNAs, 10):
+    accession = obimiRNA.get_info(m).matACC
+    sequence = obimiRNA.get_info(m).matSQ
+    preForms = obimiRNA.get_info(m).pre_forms
+    print '%s\t%s\t\t%s\t\t%s' % (m, accession, sequence, preForms)
+</xmp>
+Output:
+<xmp class=code>miRNA name	Accession_Number		Sequence		Pre-forms
 
-gmkegg = obiGene.GMKEGG("9606")
-gmgo = obiGene.GMGO("9606")
-gmkegggo = obiGene.matcher([[gmkegg, gmgo]], direct=False)
+mmu-miR-711	MIMAT0003501		gggacccggggagagauguaag		mmu-mir-711
+hsa-miR-885-5p	MIMAT0004947		uccauuacacuacccugccucu		hsa-mir-885
+bta-miR-10a	MIMAT0003786		uacccuguagauccgaauuugug		bta-mir-10a
+dre-miR-144	MIMAT0001841		uacaguauagaugauguacu		dre-mir-144
+rno-miR-292-5p	MIMAT0000896		acucaaacugggggcucuuuug		rno-mir-292
+bta-miR-338	MIMAT0009292		uccagcaucagugauuuuguuga		bta-mir-338
+hsa-miR-487b	MIMAT0003180		aaucguacagggucauccacuu		hsa-mir-487b
+hsa-miR-34b*	MIMAT0000685		uaggcagugucauuagcugauug		hsa-mir-34b
+mmu-miR-101a*	MIMAT0004526		ucaguuaucacagugcugaugc		mmu-mir-101a
+rno-miR-193*	MIMAT0004736		ugggucuuugcgggcaagauga		rno-mir-193
+</xmp>
+Example 2
+<xmp class=code>import random
+import obimiRNA
 
-gmkegg.set_targets(targets)
-gmgo.set_targets(targets)
-gmkegggo.set_targets(targets)
+mirnaHSA = obimiRNA.ids('hsa')
 
-genes = [ "cct7", "pls1", "gdi1", "nfkb2", "dlg7" ]
+for pm in reduce(lambda x,y: x+y, [obimiRNA.get_info(m).pre_forms.split(',') for m in random.sample(mirnaHSA,3)]):                                    
+    pre_miRNA = obimiRNA.get_info(pm,type='pre')
+    print
+    print 'Pre-miRNA name: %s' % pm
+    print 'Accession Number: %s' % pre_miRNA.preACC
+    print 'Accession Number of mature form(s): %s' % pre_miRNA.matACCs
+    print 'PubMed accession number(s): %s' % pre_miRNA.pubIDs
+    print 'Pre-miRNAs clustered together with %s: %s' % (pm, pre_miRNA.clusters)
+    print 'Link to miRBase: %s' % pre_miRNA.web_addr
+</xmp>
+Output:
+<xmp class=code>Pre-miRNA name: hsa-mir-33a
+Accession Number: MI0000091
+Accession Number of mature form(s): MIMAT0000091,MIMAT0004506
+PubMed accession number(s): 11679670,17604727
+Pre-miRNAs clustered together with hsa-mir-33a: None
+Link to miRBase: http://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=MI0000091
 
-print "%12s" % "gene", "%12s" % "KEGG", "%12s" % "GO", "%12s" % "KEGG+GO"
-for gene in genes:
-    print "%12s" % gene, "%12s" % gmkegg.umatch(gene), \
-          "%12s" % gmgo.umatch(gene), \
-          "%12s" % gmkegggo.umatch(gene)
-</xmp> -->
+Pre-miRNA name: hsa-mir-30c-1
+Accession Number: MI0000736
+Accession Number of mature form(s): MIMAT0000244,MIMAT0004674
+PubMed accession number(s): 12007417,15325244,15634332,15978578,17604727,17616659
+Pre-miRNAs clustered together with hsa-mir-30c-1: hsa-mir-30e
+Link to miRBase: http://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=MI0000736
 
+Pre-miRNA name: hsa-let-7c
+Accession Number: MI0000064
+Accession Number of mature form(s): MIMAT0000064,MIMAT0004483
+PubMed accession number(s): 11679670,14573789,17604727,17616659
+Pre-miRNAs clustered together with hsa-let-7c: hsa-mir-99a
+Link to miRBase: http://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=MI0000064
+</xmp>
+Example 3
+<xmp class=code>import random
+import obiGO
+import obimiRNA
+
+annotations = obiGO.Annotations('hsa',obiGO.Ontology())
+miRNAs = random.sample(obimiRNA.ids('hsa'),10)
+
+print 'miRNA\tNumber of annotations\tGO_IDs\n'
+for mi,goList in obimiRNA.get_GO(miRNAs, annotations, goSwitch=False).items():
+    if goList:
+        print '%s\t%d\t%s' % (mi, len(goList), ','.join(goList[0:4])+'...')
+</xmp>
+Output:
+<xmp class=code>miRNA	Number of annotations	GO_IDs
+
+hsa-miR-1	1795	GO:0034605,GO:0034356,GO:0016358,GO:0019992...
+hsa-miR-296-3p	273	GO:0050804,GO:0051041,GO:0008589,GO:0042133...
+hsa-miR-339-3p	89	GO:0005783,GO:0005789,GO:0008469,GO:0008277...
+hsa-miR-1827	1310	GO:0004252,GO:0006888,GO:0006909,GO:0007409...
+hsa-miR-517a	137	GO:0030426,GO:0030425,GO:0030424,GO:0008270...
+hsa-miR-513a-5p	1867	GO:0034605,GO:0016358,GO:0034199,GO:0019992...
+hsa-miR-506	2575	GO:0046340,GO:0034605,GO:0016358,GO:0034199...
+hsa-miR-1204	77	GO:0090004,GO:0018107,GO:0032148,GO:0005125...
+hsa-miR-151-5p	31	GO:0045920,GO:0005887,GO:0030154,GO:0045449...
+</xmp>
+Example 4
+<xmp class=code>import random
+import obiGO
+import obimiRNA
+
+annotations = obiGO.Annotations('hsa',obiGO.Ontology())
+
+miRNAs = random.sample(obimiRNA.ids('hsa'),10)
+
+dict_all = obimiRNA.get_GO(miRNAs, annotations, goSwitch=False)
+dict_enr = obimiRNA.get_GO(miRNAs, annotations, enrichment=True, goSwitch=False)
+
+dict_tfidf = obimiRNA.filter_GO(dict_all, annotations, reverse=False)
+
+print '#\tmiRNA name\t# All GO terms\t# Enriched GO terms\t# Filtred GO terms\n'
+for n,m in enumerate(miRNAs):
+    print '%d\t%s\t\t%d\t\t%d\t\t%d' % (n+1,m,len(dict_all[m]),len(dict_enr[m]),len(dict_tfidf[m]))
+</xmp>
+Output:
+<xmp class=code>#	miRNA name	# All GO terms	# Enriched GO terms	# Filtred GO terms
+
+1	hsa-miR-1255b		453		53		71
+2	hsa-miR-1244		741		407		136
+3	hsa-miR-135b*		0		0		0
+4	hsa-miR-612		842		49		158
+5	hsa-miR-936		1010		175		165
+6	hsa-miR-27b*		0		0		0
+7	hsa-miR-220c		806		29		131
+8	hsa-let-7c*		0		0		0
+9	hsa-miR-215		474		0		79
+10	hsa-miR-361-5p		676		72		115
+</xmp>
+Example 5
+<xmp class=code>import random
+import obimiRNA
+
+miRNAs = random.sample(obimiRNA.ids('hsa'),10)
+
+mirPath_all= obimiRNA.get_pathways(miRNAs,enrichment=False, pathSwitch=False)
+mirPath_enr = obimiRNA.get_pathways(miRNAs,enrichment=True, pathSwitch=False)
+
+print 'miRNA_name\t# of pathways\t# of enriched pathways\n'
+for m in miRNAs:
+    print '%s\t\t%d\t\t%d' % (m,len(mirPath_all[m]),len(mirPath_enr[m]))
+</xmp>
+Output:
+<xmp class=code>miRNA_name	# of pathways	# of enriched pathways
+
+hsa-miR-631		63		20
+hsa-miR-1324		99		26
+hsa-miR-1234		9		9
+hsa-miR-502-3p		62		35
+hsa-miR-196a		75		25
+hsa-miR-151-5p		2		2
+hsa-miR-589		54		10
+hsa-miR-200c		114		55
+hsa-miR-1469		0		0
+hsa-miR-644		41		10
+</xmp>
 <!-- <p class=section>Methods</p>
 <dl class=attributes>
 	<dt>method 1</dt>
