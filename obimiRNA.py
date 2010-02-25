@@ -1,4 +1,4 @@
-
+from __future__ import division
 import urllib
 import re
 import pylab
@@ -6,11 +6,15 @@ import random
 import os
 import math
 import locale
+import statc
+import numpy as np
 
 import obiTaxonomy
 import obiGO as go
 import obiProb as op
 import orngServerFiles as osf
+import obiGene as ge
+import obiKEGG as kg
 
 
 mirnafile = osf.localpath_download('miRNA','miRNA.txt')
@@ -51,7 +55,7 @@ def __build_lib(filename, labels=True, MATtoPRE=True, ACCtoID=True, clust=False)
 
 ### library:    
 [IDs, LABELS, miRNA_lib, mat_toPre, ACCtoID] = __build_lib(mirnafile, 1,1,1,0)
-[preIDs, premiRNA_lib,clusters] = __build_lib(premirnafile,0,0,0,1)
+[preIDs, premiRNA_lib, preACCtoID, clusters] = __build_lib(premirnafile,0,0,1,1)
 
 fromTaxo = {3702:'ath', 9913:'bta', 6239:'cel', 3055:'cre', 7955:'dre',\
              352472:'ddi', 7227:'dme', 9606:'hsa', 10090:'mmu', 4530:'osa',\
@@ -169,29 +173,41 @@ def fromACC_toID(accession):
     """
     if accession in ACCtoID:
         return ACCtoID[accession]
+    if accession in preACCtoID:
+        return preACCtoID[accession]
     else:
         print "Accession not found."
         return False
     
-    
-def __getGO_dict(mirna_dict):
+
+def __reverseDict(old_dict):
     """
-    switch miRNA --> GO_IDs dictionary to GO_ID --> miRNAs. 
+    switch dictionary: keys <--> values; 
     """
-    
-    GO_mirna_lib = {}
-    for m,GO_IDs in mirna_dict.items():
-        for go_id in GO_IDs:
-            if go_id != [] and not(go_id in GO_mirna_lib):
-                GO_mirna_lib[go_id]=[]
-            GO_mirna_lib[go_id].append(m)
-    
-    return GO_mirna_lib
+    new_dict = {}
+    for k,valuesList in old_dict.items():
+        for val in valuesList:
+            if val != [] and not(val in new_dict):
+                new_dict[val]=[]
+            if not(k in new_dict[val]):
+                new_dict[val].append(k)
+    return new_dict
+
+
+def get_geneMirnaLib(org=None):
+    """
+    build dictionary gene:[miRNAs]
+    """
+    mirnaGenes={}
+    for m in ids(org):
+        mirnaGenes[m] = get_info(m).targets.split(',')
+        
+    return __reverseDict(mirnaGenes)
 
 
 def get_GO(mirna_list, annotations, enrichment=False, pval=0.1, goSwitch=True):
     """
-    get_GO() takes as input a list of miRNAs only for the organism for which the annotations are defined.
+    get_GO() takes as input a list of miRNAs of the organism for which the annotations are defined.
     If goSwitch is False, get_GO() returns a dictionary that has miRNAs as keys and GO IDs as values;
     in the other case it returns a dictionary with GO IDs as keys and miRNAs as values.
     """
@@ -214,7 +230,7 @@ def get_GO(mirna_list, annotations, enrichment=False, pval=0.1, goSwitch=True):
                 gene_annotations = annotations.geneAnnotations[gene]
                 for ga in gene_annotations:
                     mirna_ann.append(ga)
-            mirAnnotations[m] = [an.GO_ID for an in list(set(mirna_ann))]
+            mirAnnotations[m] = list(set([an.GO_ID for an in mirna_ann]))
         elif enrichment==True:
             if len(genes):
                 resP = annotations.GetEnrichedTerms(genes,aspect='P')
@@ -226,14 +242,89 @@ def get_GO(mirna_list, annotations, enrichment=False, pval=0.1, goSwitch=True):
                 res.update(resF)
                 tups = [(pVal,go_id) for go_id, (ge,pVal,ref) in res.items()]
                 tups.sort()            
-                p_correct = op.FDR([p for p, go_id in tups])            
+                p_correct = op.FDR([p for p,go_id in tups])            
                 mirAnnotations[m] = [tups[i][1] for i, p in enumerate(p_correct) if p < pval]
+            else:
+                mirAnnotations[m]=[]
 
     if goSwitch:
-        return __getGO_dict(mirAnnotations)
+        return __reverseDict(mirAnnotations)
     else:
         return mirAnnotations
  
+
+
+def filter_GO(mirna_goid, annotations, treshold=[80,85], reverse=True):    
+    """
+    removeStopWords() takes as input a dictionary like {mirna:[list of GO_IDs]} and
+    remove the most common GO IDs in each list using the TF-IDF criterion.
+    Treshold is chosen by making the average of the percentiles introduced.
+    """
+        
+    #mirna_goid = dict(filter(lambda x: x[1], mirna_goid.items()))        
+    uniqGO = list(set(reduce(lambda x,y: x+y, mirna_goid.values())))        
+    
+    goIDF = {}    
+    for n,go in enumerate(uniqGO):        
+        goIDF[go] = np.log(len(mirna_goid)/len(filter(lambda x: go in x, mirna_goid.values())))        
+
+    
+    new_dict={}
+    for m,goList in mirna_goid.items():
+        TF_IDF ={}
+        genes = get_info(m).targets.split(',')
+        mirnaAnnotations = [annotations.GetAnnotatedTerms(g).keys() for g in genes]
+        for go in goList:
+            TF = len(filter(lambda x: go in x, mirnaAnnotations))/len(genes)
+            TF_IDF[go] = TF*goIDF[go]
+        
+        if treshold:
+            data = sorted(TF_IDF.values())    
+            tresholds = filter(lambda x: x[1]>treshold[0] and x[1]<treshold[1], [(d,statc.percentileofscore(data, d)) for d in list(set(data))])
+            t = np.mean([t[0] for t in tresholds])
+        else:
+            t=0 
+           
+        new_dict[m] = filter(lambda x: TF_IDF[x] > t, goList) 
+    
+    if reverse:
+        return __reverseDict(new_dict)
+    else:
+        return new_dict
+
+
+
+def get_pathways(mirna_list, organism='hsa', enrichment=False, pVal=0.1, pathSwitch=True):
+    """
+    get_pathways() takes as input a list of miRNAs and returns a dictionary that has miRNAs as keys
+    and pathways IDs as values; if the switch is set on True, 
+    it returns a dictionary with pathways IDs as keys and miRNAs as values.
+    """
+    gmkegg = ge.GMKEGG(organism)
+    org = kg.KEGGOrganism(organism)
+    gmkegg.set_targets(org.get_genes())     
+    
+    genes = list(set(reduce(lambda x,y: x+y,[get_info(m).targets.split(',') for m in mirna_list])))
+    keggNames = dict([(g,gmkegg.umatch(g)) for g in genes if gmkegg.umatch(g)])
+        
+    mirnaPathways = {}
+    for m in mirna_list:
+        kegg_genes = [keggNames[g] for g in get_info(m).targets.split(',') if g in keggNames]
+        if enrichment:
+            mirnaPathways[m] = [path_id for path_id,(geneList,p,geneNum) in org.get_enriched_pathways_by_genes(kegg_genes).items() if p < pVal]
+        else:
+            paths = filter(None,[list(org.get_pathways_by_genes([k])) for k in kegg_genes])                   
+            if paths:
+                mirnaPathways[m] = list(set(reduce(lambda x,y: x+y,paths)))
+            else:
+                mirnaPathways[m] = []
+    
+    if pathSwitch:
+        return __reverseDict(mirnaPathways)
+    else:
+        return mirnaPathways
+        
+
     
 #######################
 
