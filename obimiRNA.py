@@ -130,6 +130,7 @@ def get_info(objectID,type='mat'):
                 raise miRNAException("get_info() Error: Check the input value.")
             
         elif type == 'pre':
+            objectID = re.sub('miR','mir',objectID)
             if objectID in preIDs:
                 attr = [line.rstrip() for line in open(premirnafile).readlines()][0].split('\t')
             
