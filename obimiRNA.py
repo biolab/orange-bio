@@ -257,7 +257,7 @@ def get_GO(mirna_list, annotations, enrichment=False, pval=0.1, goSwitch=True):
 
 def filter_GO(mirna_goid, annotations, treshold=[80,85], reverse=True):    
     """
-    removeStopWords() takes as input a dictionary like {mirna:[list of GO_IDs]} and
+    filter_GO() takes as input a dictionary like {mirna:[list of GO_IDs]} and
     remove the most common GO IDs in each list using the TF-IDF criterion.
     Treshold is chosen by making the average of the percentiles introduced.
     """
