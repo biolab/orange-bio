@@ -20,10 +20,12 @@ def nth(l,n):
 
 collectionsPath = None
 
+
+
 class GeneSet(object):
 
     def __init__(self, pair=None, genes=None, name=None, id=None, \
-        description=None, link=None):
+        description=None, link=None, organism=None, hierarchy=None):
         """
         pair can be (id, listofgenes) - it is used before anything else.
         """
@@ -34,92 +36,106 @@ class GeneSet(object):
         if genes == None:
             genes = []
 
+        self.hierarchy = hierarchy
         self.genes = set(genes)
         self.name = name
         self.id = id
         self.description = description
         self.link = link
+        self.organism = organism
 
-    def odict(self):
+    def size(self):
+        return len(self.genes)
+
+    def to_odict(self, source=True, name=True):
         """
         Returns a pair (id, listofgenes), like in old format.
         """
-        return self.id, self.genes
+        oname = self.id
+        if source and self.hierarchy:
+            oname = "[ " + ", ".join(self.hierarchy) + " ] " + oname
+        if name and self.name:
+            oname = oname + " " + self.name
+
+        return oname, self.genes
+
+    def __repr__(self):
+        return "GeneSet(" + ", ".join( [ 
+            "id=" + str(self.id),
+            "genes=" + str(self.genes),
+            "name=" + str(self.name),
+            "link=" + str(self.link),
+            "hierarchy=" + str(self.hierarchy)
+        ]) + ")"
 
 class GeneSetIDException(Exception):
     pass
 
 class GeneSets(object):
     
-    def init(self, odict=None, name=None, lgs=None):
+    def __init__(self, odict=None, name=None, gs=None):
         """
         odict are genesets in old dict format.
-        lgs are 
+        gs are genesets in new format
         """
         self.name = name
         self.idict = {}
         if odict != None:
             self.idict = dict((i,GeneSet(pair=(i,g))) for i,g in odict.items())
-        elif lgs != None:
-            self.idict = dict((g.id,g) for g in lgs)
+        elif gs != None:
+            #FIXME check id if it already exists?
+            self.idict = dict((g.id,g) for g in gs)
 
-    def keys(self):
+    def ids(self):
         return self.idict.keys()
 
     def get(self, a):
         return self.idict[a]
 
-    def odict(self):
+    def to_odict(self):
         """ Return gene sets in old dictionary format. """
-        return dict(gs.odict() for gs in self.idict.values())
+        return dict(gs.to_odict() for gs in self.idict.values())
 
     def add(self, gs):
         if gs.id in idict:
             raise GeneSetIDException
 
+    def __repr__(self):
+        return "GeneSets(" + str(self.name) + ", " + str(self.idict) + ")"
+
 def geneSetUnion():
     pass
 
-def goGeneSets(goorg):
-    """
-    Returns gene sets from GO. Look at the annotation
-    of the organism provided.
-    Returns a ditionary  of (GOid, genes)
-    """
+def goGeneSets(org):
+    """Returns gene sets from GO."""
 
     ontology = obiGO.Ontology.Load()
-    annotations = obiGO.Annotations.Load(goorg, ontology=ontology)
+    annotations = obiGO.Annotations.Load(org, ontology=ontology)
 
-    terms = ontology.terms.keys()
+    genesets = []
 
-    map = {} #map from set id to to it's genes
+    for termn, term in ontology.terms.items():
+        genes = annotations.GetAllGenes(termn)
+        hier = ("GO", term.namespace)
+        gs = GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org) 
+        genesets.append(gs)
 
-    for term in terms:
-        genes = annotations.GetAllGenes(term)
-        if len(genes):
-            map[term] = genes
+    return GeneSets(gs=genesets)
 
-    nmap = {}
-    for a,b in map.items():
-        nmap[a] = sorted(b)
- 
-    return nmap
-
-def keggGeneSets(keggorg):
+def keggGeneSets(org):
     """
-    Returns pathways from KEGG for provided organism.
-    Returns a dictionary if (name, genes)
+    Returns gene sets from KEGG pathways.
     """
-    kegg = obiKEGG.KEGGOrganism(keggorg)
+    kegg = obiKEGG.KEGGOrganism(org)
 
-    pways = kegg.pathways()
-
-    dicp = {}
-    for id in pways:
+    genesets = []
+    for id in kegg.pathways():
         pway = obiKEGG.KEGGPathway(id)
-        dicp[pway.title] = kegg.get_genes_by_pathway(id)
+        hier = ("KEGG",)
+        gs = GeneSet(id=id, name=pway.title, genes=kegg.get_genes_by_pathway(id), hierarchy=hier, organism=org)
+        genesets.append(gs)
 
-    return dicp
+    return GeneSets(gs=genesets)
 
 def addSource(dic, addition):
     return dict( \
@@ -189,24 +205,6 @@ def collectionsPathname():
     else:
         return collectionsPath
 
-
-def prettyfygo(god):
-    ontology = obiGO.Ontology.Load()
- 
-    def translatens(a):
-        if (a == "molecular_function"): return "MF"
-        elif (a == "biological_process"): return "BP"
-        elif (a == "cellular_component"): return "CC"
-        else: 
-            print a
-            ffkkfds()
-
-    ndic = {}
-    for a,b in god.items():
-        ndic["[GO " + translatens(ontology.terms[a].namespace) + "] " + a + " " + ontology.terms[a].name] = b
-    return ndic
-
-
 def createCollection(lnf):
     """
     Input - list of tuples of geneset collection name and GMT
@@ -233,13 +231,12 @@ def createCollection(lnf):
             _,name,org = n.split(":")
 
             if name == "kegg":
-                gen2 = keggGeneSets(org)
-                gen1.update(addSource(gen2, "[%s] " % "KEGG"))
+                gen2 = keggGeneSets(org).to_odict()
+                gen1.update(gen2)
 
             elif name == "go":
-                gen2 = goGeneSets(org)
-                gen2 = prettyfygo(gen2)
-                gen1.update(addSource(gen2, ""))
+                gen2 = goGeneSets(org).to_odict()
+                gen1.update(gen2)
 
             else:
                 raise Exception("Wrong special name (%s)" % (name))            
@@ -327,8 +324,12 @@ def collections(l=[], default=False, path=collectionsPathname()):
 End genesets
 """
 
+
 if __name__ == "__main__":
-    print keggGeneSets("sce").items()[:10]
+    #print keggGeneSets("sce").items()[:10]
     #col = collections([":go:sce"])
+    #col = collections([":kegg:9606", ":go:9606"])
+    col = collections([":kegg:9606"])
     #print col.items()[:10]
-    
+    import random
+    print random.Random(0).sample(col.items(), 20)
