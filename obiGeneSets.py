@@ -20,8 +20,6 @@ def nth(l,n):
 
 collectionsPath = None
 
-
-
 class GeneSet(object):
 
     def __init__(self, pair=None, genes=None, name=None, id=None, \
@@ -137,11 +135,6 @@ def keggGeneSets(org):
 
     return GeneSets(gs=genesets)
 
-def addSource(dic, addition):
-    return dict( \
-        [ (addition + name,genes) for name,genes in dic.items() ]\
-        )
-
 """
 CUSTOM GENESETS
 """
@@ -202,10 +195,6 @@ def createCollection(lnf):
     file.
     """
 
-    def addSource(dic, addition):
-        return dict( \
-            [ (addition + name,genes) for name,genes in dic.items() ] )
-
     gen1 = {}
 
     for n,fn in lnf:
@@ -234,6 +223,7 @@ def createCollection(lnf):
     return gen1
 
 def getCollectionFiles(path=collectionsPathname()):
+    """ Get collections from a given path name. """
 
     def loadInfo(path):
         #TODO load info file
@@ -243,8 +233,6 @@ def getCollectionFiles(path=collectionsPathname()):
 
     def okFile(fn):
         if fn.lower()[-4:] == ".gmt":
-            return True
-        elif fn.lower()[-4:] == ".pck":
             return True
         return False
 
@@ -259,7 +247,7 @@ def getCollectionFiles(path=collectionsPathname()):
         name = info.get(file, file)
         if name == file:
             #remove suffix if no info
-            if name.lower()[-4:] == ".gmt" or name.lower()[-4:] == ".pck":
+            if name.lower()[-4:] == ".gmt":
                 name = name[:-4]
 
         out.append( (name, fn) )
@@ -310,7 +298,6 @@ def collections(l=[], default=False, path=collectionsPathname()):
 """
 End genesets
 """
-
 
 if __name__ == "__main__":
     #print keggGeneSets("sce").items()[:10]
