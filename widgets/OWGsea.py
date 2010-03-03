@@ -753,7 +753,7 @@ class OWGsea(OWWidget):
         Return choosen gene sets file name or None, if no file
         was choosen.
         """
-        filename = str(QFileDialog.getOpenFileName(self,  "Choose gene set collection", './', "Gene Collections (*.gmt *.pck)"))
+        filename = str(QFileDialog.getOpenFileName(self,  "Choose gene set collection", './', "Gene Collections (*.gmt)"))
         return filename
 
 def find_genes_dic(res, data, geneVar):

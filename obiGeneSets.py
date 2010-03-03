@@ -170,27 +170,18 @@ def handleNELines(s, fn):
     lines = filter(lambda x: x != "", lines)
     return [ fn(l) for l in lines ]
 
-def loadGMT(s):
+def loadGMT(contents, name):
     """
     Eech line consists of tab separated elements. First is
     the geneset name, next is it's description. 
     
     For now the description is skipped.
     """
-
-    s = possiblyReadFile(s)
-
     def hline(s):
         tabs = [ strip(tab) for tab in s.split("\t") ]
-        return tabs[0], tabs[2:]
+        return  GeneSet(id=tabs[0], description=tabs[1], hierarchy=(name,), genes=tabs[2:])
 
-    return dict(handleNELines(s, hline))
-
-def loadPickled(s):
-    import cPickle
-    s = possiblyReadFile(s)
-    gen2 = cPickle.loads(s)
-    return gen2
+    return GeneSets(gs=handleNELines(contents, hline))
 
 def collectionsPathname():
     if not collectionsPath:
@@ -220,12 +211,8 @@ def createCollection(lnf):
     for n,fn in lnf:
 
         if fn.lower()[-4:] == ".gmt": #format from webpage
-            gen2 = loadGMT(open(fn,"rt"))
-            gen1.update(addSource(gen2, "[%s] " % n))
-
-        elif fn.lower()[-4:] == ".pck": #pickled dictionary
-            gen2 = loadPickled(open(fn,"rb"))
-            gen1.update(addSource(gen2, "[%s] " % n))
+            gen2 = loadGMT(open(fn,"rt").read(), fn).to_odict()
+            gen1.update(gen2)
 
         elif n == fn and n[0] == ":":
             _,name,org = n.split(":")
@@ -329,7 +316,8 @@ if __name__ == "__main__":
     #print keggGeneSets("sce").items()[:10]
     #col = collections([":go:sce"])
     #col = collections([":kegg:9606", ":go:9606"])
-    col = collections([":kegg:9606"])
+    #col = collections([":kegg:9606"])
+    col = collections(["C2.CP.gmt"])
     #print col.items()[:10]
     import random
     print random.Random(0).sample(col.items(), 20)
