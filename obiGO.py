@@ -656,7 +656,7 @@ class Annotations(object):
         annotations = self.GetAllAnnotations(id)
         return list(set([ann.geneName for ann in annotations if ann.Evidence_code in evidenceCodes]))
 
-    def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", prob=obiProb.Binomial(), progressCallback=None):
+    def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", prob=obiProb.Binomial(), useFDR=True, progressCallback=None):
         """ Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count) for items and term ids as keys.
         """
         revGenesDict = self.GetGeneNamesTranslator(genes)
@@ -695,6 +695,9 @@ class Annotations(object):
             res[term] = ([revGenesDict[g] for g in mappedGenes], prob.p_value(len(mappedGenes), len(reference), len(mappedReferenceGenes), len(genes)), len(mappedReferenceGenes))
             if progressCallback and i in milestones:
                 progressCallback(100.0 * i / len(terms))
+        if useFDR:
+            res = sorted(res.items(), key = lambda (_1, (_2, p, _3)): p)
+            res = dict([(id, (genes, p, ref)) for (id, (genes, _, ref)), p in zip(res, obiProb.FDR([p for _, (_, p, _) in res]))])
         return res
 
     def GetAnnotatedTerms(self, genes, directAnnotationOnly=False, evidenceCodes=None, progressCallback=None):
