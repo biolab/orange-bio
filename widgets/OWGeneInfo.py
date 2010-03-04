@@ -153,6 +153,12 @@ class OWGeneInfo(OWWidget):
             self.geneAttrComboBox.addItems([attr.name for attr in self.attributes])
             self.openContext("", data)
             self.geneAttr = min(self.geneAttr, len(self.attributes) - 1)
+#            if hasattr(self.data, "taxid"):
+            id = getattr(self.data, "taxid", None)
+            if id in self.organisms:
+                self.organismIndex = self.organisms.index(id)
+            self.useAttr = getattr(self.data, "genesinrows",  self.useAttr)
+            
             self.setItems()
         else:
             self.clear()
@@ -228,18 +234,28 @@ class OWGeneInfo(OWWidget):
         
         mapToSource = self.treeWidget.model().mapToSource
         selectedIds = [self.cells[mapToSource(index).row()][0] for index in self.treeWidget.selectedIndexes()]
-        
+        def passAttributes(src, dst, names):
+            for name in names:
+                if hasattr(src, name):
+                    setattr(dst, name, getattr(src, name))
         selected = [gi for gene, gi in self.geneinfo if gi and gi.gene_id in selectedIds]
         if self.useAttr:
             attrs = [attr for attr, (name, gi) in zip(self.data.domain.attributes, self.geneinfo) if gi in selected]
             domain = orange.Domain(attrs, self.data.domain.classVar)
             domain.addmetas(self.data.domain.getmetas())
-            self.send("Selected Examples", orange.ExampleTable(domain, self.data))
+            newdata = orange.ExampleTable(domain, self.data)
+            passAttributes(self.data, newdata, ["taxids", "genesinrows"])
+            self.send("Selected Examples", newdata)
         else:
             attr = self.attributes[self.geneAttr]
             geneinfo = dict(self.geneinfo)
             examples = [ex for ex in self.data if geneinfo.get(str(ex[attr])) in selected]
-            self.send("Selected Examples", orange.ExampleTable(examples) if examples else None)
+            if examples:
+                newdata = orange.ExampleTable(examples)
+                passAttributes(self.data, newdata, ["taxids", "genesinrows"])
+            else:
+                newdata = None
+            self.send("Selected Examples", newdata)
             
     def rowFiltered(self, row):
         searchStrings = self.searchString.lower().split()

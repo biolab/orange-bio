@@ -346,6 +346,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.infoLabel.setText("\n")
         if data:
             self.SetGenesComboBox()
+            id = getattr(data, "taxid", None)
+            code = obiGO.from_taxid(id)
+            filename = "gene_association.%s.tar.gz" % code
+            if filename in self.annotationFiles.values():
+                self.annotationIndex = [i for i, name in enumerate(self.annotationCodes) \
+                                        if self.annotationFiles[name] ==  filename].pop()
+            self.useAttrNames = getattr(data, "genesinrows", self.useAttrNames)
             self.openContext("", data)
 #            if not self.ontology:
 #                self.LoadOntology()
@@ -555,11 +562,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
 #        self.progressBarInit()
         if clusterGenes:
             self.terms = terms = self.annotations.GetEnrichedTerms(clusterGenes, referenceGenes, evidences, aspect=aspect,
-                                                                   prob=self.probFunctions[self.probFunc], progressCallback=lambda value:pb.advance() )#self.progressBarSet)
-            if self.useFDR:
-                terms = sorted(terms.items(), key=lambda (_1, (_2, p, _3)): p)
-                p_vals = obiProb.FDR([p for _, (_, p, _) in terms])
-                self.terms = terms = dict([(id, (genes, p, ref)) for p, (id, (genes, _, ref)) in zip(p_vals, terms)])
+                                                                   prob=self.probFunctions[self.probFunc], useFDR=self.useFDR,
+                                                                   progressCallback=lambda value:pb.advance() )#self.progressBarSet)
+#            if self.useFDR:
+#                terms = sorted(terms.items(), key=lambda (_1, (_2, p, _3)): p)
+#                p_vals = obiProb.FDR([p for _, (_, p, _) in terms])
+#                self.terms = terms = dict([(id, (genes, p, ref)) for p, (id, (genes, _, ref)) in zip(p_vals, terms)])
         else:
             self.terms = terms = {}
         if not self.terms:
@@ -702,10 +710,15 @@ class OWGOEnrichmentAnalysis(OWWidget):
         selectedExamples = []
         unselectedExamples = []
         selectedGenes = []
-
+        
         #change by Marko. don't do anything if there is no3 dataset 
         if not self.clusterDataset:
             return
+        
+        def passAttributes(src, dst, names):
+            for name in names:
+                if hasattr(src, name):
+                    setattr(dst, name, getattr(src, name))
         
         selectedGenes = reduce(set.union, [v[0] for id, v in self.graph.items() if id in self.selectedTerms], set())
         evidences = []
@@ -729,7 +742,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if self.useAttrNames:
             vars = [self.clusterDataset.domain[gene] for gene in set(selectedGenes)]
             newDomain = orange.Domain(vars, self.clusterDataset.domain.classVar)
-            self.send("Selected Examples", orange.ExampleTable(newDomain, self.clusterDataset))
+            newdata = orange.ExampleTable(newDomain, self.clusterDataset)
+            passAttributes(self.clusterDataset, newdata, ["taxid", "genesinrows"])
+            self.send("Selected Examples", newdata)
             self.send("Unselected Examples", None)
         else:
             geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
@@ -744,8 +759,21 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     selectedExamples.append(ex)
                 else:
                     unselectedExamples.append(ex)
-            self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
-            self.send("Unselected Examples", unselectedExamples and orange.ExampleTable(unselectedExamples) or None)
+                    
+            if selectedExamples:
+                selectedExamples = orange.ExampleTable(selectedExamples)
+                passAttributes(self.clusterDataset, selectedExamples, ["taxid", "genesinrows"])
+            else:
+                selectedExamples = None
+                
+            if unselectedExamples:
+                unselectedExamples = orange.ExampleTable(unselectedExamples)
+                passAttributes(self.clusterDataset, unselectedExamples, ["taxid", "genesinrows"])
+            else:
+                unselectedExamples = None
+            
+            self.send("Selected Examples", selectedExamples)
+            self.send("Unselected Examples", unselectedExamples)
 
     def ShowInfo(self):
         dialog = QDialog(self)
@@ -872,7 +900,7 @@ if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
     w=OWGOEnrichmentAnalysis()
-    data = orange.ExampleTable("../../orange/doc/datasets/brown-selected.tab")
+    data = orange.ExampleTable("../../../doc/datasets/brown-selected.tab")
     w.show()
     w.SetClusterDataset(data)
     app.exec_()

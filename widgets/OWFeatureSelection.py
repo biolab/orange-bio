@@ -361,6 +361,11 @@ class OWFeatureSelection(OWWidget):
         cutOffUpper = self.histogram.upperBoundary
         cutOffLower = self.histogram.lowerBoundary
         
+        def passAttributes(src, dst, names):
+            for name in names:
+                if hasattr(src, name):
+                    setattr(dst, name, getattr(src, name))
+        
         scores = np.array(self.scores.items())
         scores[:, 1] = test(np.array(scores[:, 1], dtype=float), cutOffLower, cutOffUpper)
         selected = set([key for key, test in scores if test])
@@ -374,6 +379,7 @@ class OWFeatureSelection(OWWidget):
                 newdata.domain.addmeta(mid, scoreAttr)
                 for ex, key in zip(newdata, selected):
                     ex[mid] = self.scores[key]
+            passAttributes(self.data, newdata, ["taxid", "genesinrows"])
             self.send("Example table with selected genes", newdata)
             remaining = sorted(remaining)
             newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in remaining]) #ex in enumerate(self.data) if i in remaining])
@@ -381,6 +387,7 @@ class OWFeatureSelection(OWWidget):
                 newdata.domain.addmeta(mid, scoreAttr)
                 for ex, key in zip(newdata, remaining):
                     ex[mid] = self.scores[key]
+            passAttributes(self.data, newdata, ["taxid", "genesinrows"])
             self.send("Example table with remaining genes", newdata)
             
         elif self.data and not self.genesInColumns:
@@ -392,6 +399,7 @@ class OWFeatureSelection(OWWidget):
                     attr.attributes[self.scoreMethods[self.methodIndex][0]] = str(self.scores[attr])
             newdomain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(newdomain, self.data)
+            passAttributes(self.data, newdata, ["taxid", "genesinrows"])
             self.send("Example table with selected genes", newdata if selectedAttrs else None)
             
             remainingAttrs = [attr for attr in self.data.domain.attributes if attr in remaining]
@@ -401,6 +409,7 @@ class OWFeatureSelection(OWWidget):
                     attr.attributes[self.scoreMethods[self.methodIndex][0]] = str(self.scores[attr])
             newdomain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(newdomain, self.data)
+            passAttributes(self.data, newdata, ["taxid", "genesinrows"])
             self.send("Example table with remaining genes", newdata if remainingAttrs else None)
             
             domain = orange.Domain([orange.StringVariable("label"), orange.FloatVariable(self.scoreMethods[self.methodIndex][0])], False)

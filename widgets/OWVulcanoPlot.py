@@ -213,7 +213,9 @@ class OWVulcanoPlot(OWWidget):
         self.error(0)
         if data:
             self.genesInColumns = not bool(data.domain.classVar)
-            self.genesInColumnsCheck.setDisabled(self.genesInColumns)
+            self.genesInColumnsCheck.setDisabled(not bool(data.domain.classVar))
+            if self.genesInColumns:
+                self.genesInColumns = not getattr(data, "genesinrows", not self.genesInColumns) 
             self.setTargetCombo()
             self.error()
             if not self.targets:
@@ -250,7 +252,6 @@ class OWVulcanoPlot(OWWidget):
             if self.targetMeasurements[targetClassIndex] < 2 or sum(self.targetMeasurements) - self.targetMeasurements[targetClassIndex] < 2:
                 self.warning(0, "Insufficient data to compute statistics. More than one measurement per class should be provided")
             targetClass = self.targets[targetClassIndex]
-            print targetClass
             self.progressBarInit()
             tt = obiExpression.ExpressionSignificance_TTest(self.data, useAttributeLabels=self.genesInColumns)(targetClass)
             self.progressBarSet(25)
@@ -281,6 +282,11 @@ class OWVulcanoPlot(OWWidget):
                                        %(str(key) if self.genesInColumns else key.name, logratio, math.pow(10, -logpval)))
 
     def commit(self):
+        def passAttributes(src, dst, names):
+            for name in names:
+                if hasattr(src, name):
+                    setattr(dst, name, getattr(src, name))
+                    
         check = lambda x,y:abs(x) >= self.graph.cutoffX and y >= self.graph.cutoffY
         if self.data and self.genesInColumns:
             selected = [self.data[i] for i in range(len(self.data)) if i in self.values and check(*self.values[i])]
@@ -298,6 +304,8 @@ class OWVulcanoPlot(OWWidget):
             data = None
 #            if self.transposedData:
 #                data = transpose(data)
+        if data:
+            passAttributes(self.data, data, ["taxid", "genesinrows"])
         self.send("Examples with selected attributes", data)
         self.selectionChangedFlag = False
 
@@ -311,8 +319,8 @@ if __name__ == "__main__":
     ap = QApplication(sys.argv)
     w = OWVulcanoPlot()
 ##    d = orange.ExampleTable("E:\\affy(HD-CC)_GS_C2cpC5.tab")
-    d = orange.ExampleTable("E:\\steroltalk-smallchip.tab")
-##    d = orange.ExampleTable("../../orange/doc/datasets/brown-selected.tab")
+#    d = orange.ExampleTable("E:\\steroltalk-smallchip.tab")
+    d = orange.ExampleTable("../../../doc/datasets/brown-selected.tab")
     w.setData(d)
     w.show()
     ap.exec_()

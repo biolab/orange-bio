@@ -371,6 +371,9 @@ class OWGEODatasets(OWWidget):
                     attr.attributes = dict([(key, value) for key, value in attr.attributes.items() if value in samples])
                 data = orange.ExampleTable(domain, data)
             
+            data.taxid = self.currentGds.get("taxid", "")
+            data.genesinrows = self.outputRows
+            
             self.progressBarFinished()
             self.send("Expression Data", data)
 

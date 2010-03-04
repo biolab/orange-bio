@@ -320,8 +320,16 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.data = data
         if data:
             self.SetBestGeneAttrAndOrganism()
+            taxid = getattr(data, "taxid", None)
+            try:
+                code = obiKEGG.from_taxid(taxid)
+                self.organismIndex = self.organismCodes.index(code)
+            except Exception, ex:
+                pass
+            
+            self.useAttrNames = getattr(data, "genesinrows", False)
+            
             self.openContext("", data)
-            print self.organismIndex
             self.Update()
         else:
             self.infoLabel.setText("No data on input\n")
@@ -562,12 +570,18 @@ class OWKEGGPathwayBrowser(OWWidget):
             
 
     def Commit(self):
+        def passAttributes(src, dst, names):
+            for name in names:
+                if hasattr(src, name):
+                    setattr(dst, name, getattr(src, name))
         if self.data:
             if self.useAttrNames:
                 selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
                 selectedVars = [self.data.domain[self.uniqueGenesDict[gene]] for gene in selectedGenes]
                 newDomain = orange.Domain(selectedVars ,0)
-                self.send("Selected Examples", orange.ExampleTable(newDomain, self.data))
+                data = orange.ExampleTable(newDomain, self.data)
+                passAttributes(self.data, data, ["taxid", "genesinrows"])
+                self.send("Selected Examples", data)
             else:
                 geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
                 selectedExamples = []
@@ -579,8 +593,21 @@ class OWKEGGPathwayBrowser(OWWidget):
                         selectedExamples.append(ex)
                     else:
                         otherExamples.append(ex)
-                self.send("Selected Examples", selectedExamples and orange.ExampleTable(selectedExamples) or None)
-                self.send("Unselected Examples", otherExamples and orange.ExampleTable(otherExamples) or None)
+                        
+                if selectedExamples:
+                    selectedExamples = orange.ExampleTable(selectedExamples)
+                    passAttributes(self.data, selectedExamples, ["taxid", "genesinrows"])
+                else:
+                    selectedExamples = None
+                    
+                if otherExamples:
+                    otherExamples = orange.ExampleTable(otherExamples)
+                    passAttributes(self.data, otherExamples, ["taxid", "genesinrows"])
+                else:
+                    otherExamples = None
+                    
+                self.send("Selected Examples", selectedExamples)
+                self.send("Unselected Examples", otherExamples)
         else:
             self.send("Selected Examples", None)
             self.send("Unselected Examples", None)
