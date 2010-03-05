@@ -259,7 +259,6 @@ def filter_GO(mirna_goid, annotations, treshold=0.04, reverse=True):
     """
     filter_GO() takes as input a dictionary like {mirna:[list of GO_IDs]} and
     remove the most common GO IDs in each list using the TF-IDF criterion.
-    Treshold is chosen by making the average of the percentiles introduced.
     """       
     uniqGO = list(set(reduce(lambda x,y: x+y, mirna_goid.values())))        
     
@@ -334,6 +333,11 @@ def get_pathways(mirna_list, organism='hsa', enrichment=False, pVal=0.1, pathSwi
         
 
 def removeOldMirnas(mirna_list, getOnlyMature=False):
+    """
+    removeOldMirnas() takes a list of miRNAs as input and
+    divides them in two lists, accordin if they're still present
+    on miRBase or not.
+    """
     old = []
     for m in mirna_list:
         try:
