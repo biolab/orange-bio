@@ -41,15 +41,17 @@ from <a href="http://www.targetscan.org/cgi-bin/targetscan/data_download.cgi?db=
     If <code>goSwitch</code> is False, get_GO() returns a dictionary that has miRNAs as keys and GO IDs as values;
     in the other case it returns a dictionary with GO IDs as keys and miRNAs as values.</dd>
     
-    <dt>filter_GO(mirna_goid, annotations, treshold=[80,85], reverse=True)</dt>
+    <dt>filter_GO(mirna_goid, annotations, treshold=0.04, reverse=True)</dt>
 	<dd>Take as input a dictionary like {mirna:[list of GO_IDs]} and
-    remove the most common GO IDs in each list using the TF-IDF criterion.
-    Treshold is chosen by making the average of the percentiles introduced.</dd>
+    remove the most common GO IDs in each list using the TF-IDF criterion.</dd>
     
     <dt>get_pathways(mirna_list, organism='hsa', enrichment=False, pVal=0.1, pathSwitch=True)</dt>
 	<dd>Take as input a list of miRNAs and return a dictionary that has miRNAs as keys
     and pathways IDs as values; if the switch is set on True, 
     then return a dictionary with pathways IDs as keys and miRNAs as values.</dd>
+    
+    <dt>removeOldMirnas(mirna_list, getOnlyMature=False)</dt>
+	<dd>Take a list of miRNAs as input and divide them in two lists, according if they're still present on miRBase or not.</dd>
     		
 </dl>
 
