@@ -90,7 +90,7 @@ class GeneSets(dict):
             gs.hierarchy = hierarchy
 
     def __repr__(self):
-        return "GeneSets(" + str(self.name) + ", " + dict.__repr__(self) + ")"
+        return "GeneSets(" + dict.__repr__(self) + ")"
 
     def common_org(self):
         if len(self) == 0:
@@ -103,11 +103,16 @@ class GeneSets(dict):
         except:
             raise GenesetRegException("multiple organisms: " + str(organisms))
 
-    def common_hierarchy(self):
+    def hierarchies(self):
+        """ Returns all hierachies """
         if len(self) == 0:
             raise GenesetRegException("empty gene set")
 
-        hierarchies = set(a.hierarchy for a in self.values())
+        return set(a.hierarchy for a in self.values())
+
+
+    def common_hierarchy(self):
+        hierarchies = self.hierarchies()
 
         def common_hierarchy1(hierarchies):
             def hier(l): return set(map(lambda x: x[:currentl], hierarchies))
@@ -117,6 +122,13 @@ class GeneSets(dict):
             return only_option(hier(currentl))
 
         return common_hierarchy1(hierarchies)
+
+    def split_by_hierarchy(self):
+        """ Splits gene sets by hierarchies. """
+        hd = dict((h,GeneSets()) for h in  self.hierarchies())
+        for gs in self.values():
+            hd[gs.hierarchy][gs.id] = gs
+        return hd.values()
 
 def goGeneSets(org):
     """Returns gene sets from GO."""
@@ -428,6 +440,8 @@ if __name__ == "__main__":
     #print col.items()[:10]
     import sys
     gs = goGeneSets("9606")
+    print gs.split_by_hierarchy()
+    fdsdfd
     register_local(gs)
     rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
     register_serverfiles(gs, rsf)
