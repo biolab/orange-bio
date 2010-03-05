@@ -180,7 +180,7 @@ class ExpressionSignificance_Test(object):
     def test_indices(self, target, classes=None):
         classes = self.classes if classes is None else classes
         if self.useAttributeLabels:
-            if type(target) in [list, tuple]:
+            if type(target) in [list]:
                 ind = [[i for i, cl in enumerate(self.classes) if cl >= set([t])] for t in target]
             else:
                 ind1 = [i for i, cl in enumerate(self.classes) if cl >= set([target])]
