@@ -689,6 +689,13 @@ class OWGsea(OWWidget):
         self.data = data
 
         if data:
+            taxid = getattr(data, "taxid", None)
+            try:
+                code = obiKEGG.from_taxid(taxid).pop()
+                self.organismIndex = self.organismCodes.index(code)
+            except Exception, ex:
+                pass
+            
             if obiGsea.already_have_correlations(data):
 
                 #disable correlation type

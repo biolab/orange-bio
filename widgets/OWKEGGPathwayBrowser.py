@@ -322,12 +322,13 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.SetBestGeneAttrAndOrganism()
             taxid = getattr(data, "taxid", None)
             try:
-                code = obiKEGG.from_taxid(taxid)
+                code = obiKEGG.from_taxid(taxid).pop()
+#                print taxid, code, self.organismCodes
                 self.organismIndex = self.organismCodes.index(code)
             except Exception, ex:
                 pass
             
-            self.useAttrNames = getattr(data, "genesinrows", False)
+            self.useAttrNames = getattr(data, "genesinrows", self.useAttrNames)
             
             self.openContext("", data)
             self.Update()

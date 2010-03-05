@@ -165,6 +165,9 @@ class OWDicty(OWWidget):
         pb.finish()
 
         #self.send("Example table", None)
+        table.taxid = "352472"
+        table.genesinrows = False
+        
         self.send("Example table", table)
 
 if __name__ == "__main__":
