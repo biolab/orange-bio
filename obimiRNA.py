@@ -255,21 +255,19 @@ def get_GO(mirna_list, annotations, enrichment=False, pval=0.1, goSwitch=True):
  
 
 
-def filter_GO(mirna_goid, annotations, treshold=[80,85], reverse=True):    
+def filter_GO(mirna_goid, annotations, treshold=0.04, reverse=True):    
     """
     filter_GO() takes as input a dictionary like {mirna:[list of GO_IDs]} and
     remove the most common GO IDs in each list using the TF-IDF criterion.
     Treshold is chosen by making the average of the percentiles introduced.
-    """
-        
-    #mirna_goid = dict(filter(lambda x: x[1], mirna_goid.items()))        
+    """       
     uniqGO = list(set(reduce(lambda x,y: x+y, mirna_goid.values())))        
     
     goIDF = {}    
     for n,go in enumerate(uniqGO):        
         goIDF[go] = np.log(len(mirna_goid)/len(filter(lambda x: go in x, mirna_goid.values())))        
 
-    
+    data = []
     new_dict={}
     for m,goList in mirna_goid.items():
         TF_IDF ={}
@@ -278,15 +276,24 @@ def filter_GO(mirna_goid, annotations, treshold=[80,85], reverse=True):
         for go in goList:
             TF = len(filter(lambda x: go in x, mirnaAnnotations))/len(genes)
             TF_IDF[go] = TF*goIDF[go]
-        
         if treshold:
-            data = sorted(TF_IDF.values())    
-            tresholds = filter(lambda x: x[1]>treshold[0] and x[1]<treshold[1], [(d,statc.percentileofscore(data, d)) for d in list(set(data))])
-            t = np.mean([t[0] for t in tresholds])
+            t = treshold
         else:
-            t=0 
-           
-        new_dict[m] = filter(lambda x: TF_IDF[x] > t, goList) 
+            t=0
+        new_dict[m] = filter(lambda x: TF_IDF[x] > t, goList)   
+        #data.append(TF_IDF.values())
+       
+#    if treshold:
+#        data = sorted(reduce(lambda x,y: x+y, data))    
+#        tresholds = filter(lambda x: x[1]>treshold[0] and x[1]<treshold[1], [(d,statc.percentileofscore(data, d)) for d in list(set(data))])
+#        t = np.mean([t[0] for t in tresholds])
+#        print t
+#    else:
+#        t=0
+#    
+#    new_dict={}     
+#    for m,goList in mirna_goid.items():       
+#        new_dict[m] = filter(lambda x: TF_IDF[x] > t, goList) 
     
     if reverse:
         return __reverseDict(new_dict)
@@ -326,6 +333,20 @@ def get_pathways(mirna_list, organism='hsa', enrichment=False, pVal=0.1, pathSwi
         return mirnaPathways
         
 
+def removeOldMirnas(mirna_list, getOnlyMature=False):
+    old = []
+    for m in mirna_list:
+        try:
+            mat = get_info(m)
+        except Exception:
+            if getOnlyMature:
+                old.append(m)
+            else:                
+                try:
+                    pre = get_info(m,type='pre')
+                except Exception:
+                    old.append(m)
+    return [old, filter(lambda x: not(x in old), mirna_list)]
     
 #######################
 
