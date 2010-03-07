@@ -3,7 +3,7 @@ import numpy
 import random
 import time
 from obiExpression import *
-from obiGeneSets import *
+import obiGeneSets
 from collections import defaultdict
 
 """
@@ -876,20 +876,17 @@ class GSEA(object):
         """
         self.addGenesets({ genesetname: genes })
 
-    def addGenesets(self, gsdic):
+    def addGenesets(self, genesets):
         """
-        Adds genesets from input dictionary. Also. performs gene matching. Adds
+        Adds genesets from input dictionary. Performs gene matching. Adds
         to a self.genesets: key is genesetname, it's values are individual
         genes and match results.
         """
-        for genesetname, genes in gsdic.iteritems():
-
-            if genesetname in self.genesets:
-                raise Exception("Name " + \
-                    + genesetname + " is already used in genesets.")
-            else:
-                datamatch = filter(lambda x: x[1] != None, [ (gene, self.gm.umatch(gene)) for gene in genes])
-                self.genesets[genesetname] = ( genes, datamatch )
+        for g in obiGeneSets.GeneSets(genesets):
+            genes = g.genes
+            datamatch = filter(lambda x: x[1] != None, 
+                [ (gene, self.gm.umatch(gene)) for gene in genes])
+            self.genesets[g] = datamatch
 
     def selectGenesets(self, minSize=3, maxSize=1000, minPart=0.1):
         """ Returns a list of gene sets that have sizes in limits """
@@ -901,7 +898,7 @@ class GSEA(object):
                 return True
             return False
 
-        return  dict( (a,(b,c)) for a,(b,c) in self.genesets.iteritems() if okSizes(b,c) )
+        return  dict( (a,c) for a,c in self.genesets.iteritems() if okSizes(a.genes,c) )
 
     def genesIndices(self, genes):
         """
@@ -922,11 +919,11 @@ class GSEA(object):
         """
         pass
 
-    def to_gsetsnum(self, names):
+    def to_gsetsnum(self, gsets):
         """
-        Returns a dictionary of gene sets with given names in gsetnums format.
+        Returns a dictionary of given  gene sets in gsetnums format.
         """
-        return dict( (name,self.genesIndices(nth(self.genesets[name][1],1))) for name in names)
+        return dict( (gs,self.genesIndices(nth(self.genesets[gs],1))) for gs in gsets)
 
     def compute(self, minSize=3, maxSize=1000, minPart=0.1, n=100, **kwargs):
 
@@ -955,16 +952,16 @@ class GSEA(object):
 
         res = {}
 
-        for name,gseale in zip(nth(gsetsnumit,0),gseal):
+        for gs, gseale in zip(nth(gsetsnumit,0),gseal):
             rdict = {}
             rdict['es'] = gseale[0]
             rdict['nes'] = gseale[1]
             rdict['p'] = gseale[2]
             rdict['fdr'] = gseale[3]
-            rdict['size'] = len(self.genesets[name][0])
-            rdict['matched_size'] = len(self.genesets[name][1])
-            rdict['genes'] = nth(self.genesets[name][1],1)
-            res[name] = rdict
+            rdict['size'] = len(gs.genes)
+            rdict['matched_size'] = len(self.genesets[gs])
+            rdict['genes'] = nth(self.genesets[gs],1)
+            res[gs] = rdict
 
         return res
 
@@ -978,8 +975,6 @@ def runGSEA(data, organism=None, classValues=None, geneSets=None, n=100,
     gso = GSEA(data, organism=organism, matcher=matcher, 
         classValues=classValues, atLeast=atLeast, caseSensitive=caseSensitive,
         geneVar=geneVar, phenVar=phenVar)
-    if geneSets == None:
-        genesets = collections(default=True)
     gso.addGenesets(geneSets)
     res1 = gso.compute(n=n, permutation=permutation, minSize=minSize,
         maxSize=maxSize, minPart=minPart, **kwargs)
@@ -1054,24 +1049,20 @@ def hierarchyOutput(results, limitGenes=50):
 
 if  __name__=="__main__":
 
-    #data = orange.ExampleTable("sterolTalkHepa.tab")
+    """
+    Old example with another measure function
     data = orange.ExampleTable("gene_three_lines_log.tab")
-
+    data = orange.ExampleTable("sterolTalkHepa.tab")
     gen1 = collections(['steroltalk.gmt', ':kegg:hsa'], default=False)
-    #gen1 = dict([ ('[KEGG] Complement and coagulation cascades', gen1['[KEGG] Complement and coagulation cascades'])])
-
     rankingf = rankingFromOrangeMeas(MA_anova())
-
     matcher = obiGene.matcher([obiGene.GMKEGG('hsa')])
-
-    #out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf)
-
     geneVar = gene_cands(data, False)[1]
     phenVar = "group"
-    #geneVar = None
-    #phenVar = None
-
     out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf, phenVar=phenVar, geneVar=geneVar)
-
+    """
+    data = orange.ExampleTable("sterolTalkHepa.tab")
+    gen1 = obiGeneSets.collections('steroltalk.gmt', (("KEGG",), "9606"))
+    matcher = obiGene.matcher([obiGene.GMKEGG('hsa')])
+    out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher)
     print "\n".join(map(str,sorted(out.items())))
     

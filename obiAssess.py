@@ -201,9 +201,9 @@ def selectGenesetsData(data, matcher, geneSets, minSize=3, maxSize=1000, minPart
     """
     gso = obiGsea.GSEA(data, matcher=matcher, classValues=classValues, atLeast=0)
     gso.addGenesets(geneSets)
-    oknames = gso.selectGenesets(minSize=minSize, maxSize=maxSize, minPart=minPart).keys()
-    gsetsnum = gso.to_gsetsnum(oknames)
-    return gso.data, oknames, gsetsnum
+    okgenesets = gso.selectGenesets(minSize=minSize, maxSize=maxSize, minPart=minPart).keys()
+    gsetsnum = gso.to_gsetsnum(okgenesets)
+    return gso.data, okgenesets, gsetsnum
 
 def corgs_activity_score(ex, corg):
     """ activity score for a sample for pathway given by corgs """
@@ -658,9 +658,10 @@ class SetSigLearner(object):
 
 if __name__ == "__main__":
     
-    data = orange.ExampleTable("DLBCL.tab")
-
     """
+    data = orange.ExampleTable("DLBCL.tab")
+    """
+
     data = orange.ExampleTable("sterolTalkHepa.tab")
     data = impute_missing(data)
     choosen_cv = [ "LK935_48h", "Rif_12h"]
@@ -669,7 +670,6 @@ if __name__ == "__main__":
     ndom = orange.Domain(data.domain.attributes, ncl)
     data = orange.ExampleTable(ndom, [ ex for ex in data if ex[-1].value in choosen_cv ])
     
-    """
     choosen_cv = list(data.domain.classVar.values)
 
     fp = int(9*len(data)/10)
@@ -679,8 +679,8 @@ if __name__ == "__main__":
 
     matcher = obiGene.GMKEGG("hsa")
 
-    #gsets = obiGeneSets.collections(["steroltalk.gmt"], default=False)
-    gsets = obiGeneSets.collections(["C2.CP.gmt", "C5.MF.gmt", "C5.BP.gmt"], default=False)
+    gsets = obiGeneSets.collections("steroltalk.gmt")
+    #gsets = obiGeneSets.collections("C2.CP.gmt", "C5.MF.gmt", "C5.BP.gmt")
 
     #ass = AssessLearner()(data, matcher, obiGeneSets.collections(["steroltalk.gmt"], default=False), rankingf=AT_loessLearner())
     #ass = MeanLearner()(data, matcher, obiGeneSets.collections(["steroltalk.gmt"], default=False))

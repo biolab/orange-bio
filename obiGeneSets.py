@@ -9,9 +9,13 @@ import obiKEGG, orange
 import os
 import obiGO
 import cPickle as pickle
+#import pickle
 import orngServerFiles
 import obiTaxonomy
 import tempfile
+import obiGeneSets
+import sys
+from collections import defaultdict
 
 sfdomain = "gene_sets"
 
@@ -20,15 +24,11 @@ def nth(l,n):
 
 class GeneSet(object):
 
-    def __init__(self, pair=None, genes=None, name=None, id=None, \
-        description=None, link=None, organism=None, hierarchy=None):
+    def __init__(self, genes=None, name=None, id=None, \
+        description=None, link=None, organism=None, hierarchy=None, pair=None):
         """
         pair can be (id, listofgenes) - it is used before anything else.
         """
-        if pair:
-            self.id, self.genes = pair[0], set(pair[1])
-            self.name = self.id
-
         if genes == None:
             genes = []
 
@@ -40,20 +40,43 @@ class GeneSet(object):
         self.link = link
         self.organism = organism
 
+        if pair:
+            self.id, self.genes = pair[0], set(pair[1])
+
+    """
+    the following functions are needed for sets of gene sets to be able
+    to assess equality
+    """
+
+    def __hash__(self):
+        return self.id.__hash__() + self.name.__hash__()
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__dict__ == other.__dict__
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def size(self):
         return len(self.genes)
 
-    def to_odict(self, source=True, name=True):
-        """
-        Returns a pair (id, listofgenes), like in old format.
-        """
+    def cname(self, source=True, name=True):
+        """ Constructs a gene set name with the hierarchy. """
         oname = self.id
         if source and self.hierarchy:
             oname = "[ " + ", ".join(self.hierarchy) + " ] " + oname
         if name and self.name:
             oname = oname + " " + self.name
+        return oname
 
-        return oname, self.genes
+    def to_odict(self, source=True, name=True):
+        """
+        Returns a pair (id, listofgenes), like in old format.
+        """
+        return self.cname(source=source, name=name), self.genes
 
     def __repr__(self):
         return "GeneSet(" + ", ".join( [ 
@@ -67,36 +90,38 @@ class GeneSet(object):
 class GeneSetIDException(Exception):
     pass
 
-class GeneSets(dict):
+class GeneSets(set):
     
-    def __init__(self, odict=None, gs=None):
+    def __init__(self, input=None):
         """
         odict are genesets in old dict format.
         gs are genesets in new format
         """
-        if odict != None:
-            self.idict = dict((i,GeneSet(pair=(i,g))) for i,g in odict.items())
-        elif gs != None:
-            for g in gs:
-                self[g.id] = g
+        if input != None and len(input) > 0:
+            if hasattr(input, "items"):
+                for i,g in input.items():
+                    self.add(obiGeneSets.GeneSet(pair=(i,g)))
+            else:
+                self.update(input)
 
     def to_odict(self):
         """ Return gene sets in old dictionary format. """
-        return dict(gs.to_odict() for gs in self.values())
+        return dict(gs.to_odict() for gs in self)
 
     def set_hierarchy(self, hierarchy):
         """ Sets hierarchy for all gene sets """
-        for gs in self.values():
+        for gs in self:
             gs.hierarchy = hierarchy
 
     def __repr__(self):
-        return "GeneSets(" + dict.__repr__(self) + ")"
+        return "GeneSets(" + set.__repr__(self) + ")"
 
     def common_org(self):
+        """ Returns the common organism. """
         if len(self) == 0:
-            raise GenesetRegException("empty gene set")
+            raise GenesetRegException("Empty gene sets.")
 
-        organisms = set(a.organism for a in self.values())
+        organisms = set(a.organism for a in self)
 
         try:
             return only_option(organisms)
@@ -106,10 +131,8 @@ class GeneSets(dict):
     def hierarchies(self):
         """ Returns all hierachies """
         if len(self) == 0:
-            raise GenesetRegException("empty gene set")
-
-        return set(a.hierarchy for a in self.values())
-
+            raise GenesetRegException("Empty gene sets.")
+        return set(a.hierarchy for a in self)
 
     def common_hierarchy(self):
         hierarchies = self.hierarchies()
@@ -125,9 +148,9 @@ class GeneSets(dict):
 
     def split_by_hierarchy(self):
         """ Splits gene sets by hierarchies. """
-        hd = dict((h,GeneSets()) for h in  self.hierarchies())
-        for gs in self.values():
-            hd[gs.hierarchy][gs.id] = gs
+        hd = dict((h,obiGeneSets.GeneSets()) for h in  self.hierarchies())
+        for gs in self:
+            hd[gs.hierarchy].add(gs)
         return hd.values()
 
 def goGeneSets(org):
@@ -141,10 +164,11 @@ def goGeneSets(org):
     for termn, term in ontology.terms.items():
         genes = annotations.GetAllGenes(termn)
         hier = ("GO", term.namespace)
-        gs = GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org) 
-        genesets.append(gs)
+        if len(genes) > 0:
+            gs = obiGeneSets.GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org) 
+            genesets.append(gs)
 
-    return GeneSets(gs=genesets)
+    return obiGeneSets.GeneSets(genesets)
 
 def keggGeneSets(org):
     """
@@ -156,10 +180,10 @@ def keggGeneSets(org):
     for id in kegg.pathways():
         pway = obiKEGG.KEGGPathway(id)
         hier = ("KEGG",)
-        gs = GeneSet(id=id, name=pway.title, genes=kegg.get_genes_by_pathway(id), hierarchy=hier, organism=org)
+        gs = obiGeneSets.GeneSet(id=id, name=pway.title, genes=kegg.get_genes_by_pathway(id), hierarchy=hier, organism=org)
         genesets.append(gs)
 
-    return GeneSets(gs=genesets)
+    return obiGeneSets.GeneSets(genesets)
 
 def loadGMT(contents, name):
     """
@@ -170,7 +194,7 @@ def loadGMT(contents, name):
     """
     def hline(s):
         tabs = [ tab.strip() for tab in s.split("\t") ]
-        return  GeneSet(id=tabs[0], description=tabs[1], hierarchy=(name,), genes=tabs[2:])
+        return  obiGeneSets.GeneSet(id=tabs[0], description=tabs[1], hierarchy=(name,), genes=tabs[2:])
 
     def handleNELines(s, fn):
         """
@@ -182,69 +206,7 @@ def loadGMT(contents, name):
         lines = filter(lambda x: x != "", lines)
         return [ fn(l) for l in lines ]
 
-    return GeneSets(gs=handleNELines(contents, hline))
-
-def createCollection(lnf):
-    """
-    Input - list of tuples of geneset collection name and GMT
-    file.
-    """
-
-    gen1 = {}
-
-    for n,fn in lnf:
-
-        if fn.lower()[-4:] == ".gmt": #format from webpage
-            gen2 = loadGMT(open(fn,"rt").read(), fn).to_odict()
-            gen1.update(gen2)
-
-        elif n == fn and n[0] == ":":
-            _,name,org = n.split(":")
-
-            if name == "kegg":
-                gen2 = keggGeneSets(org).to_odict()
-                gen1.update(gen2)
-
-            elif name == "go":
-                gen2 = goGeneSets(org).to_odict()
-                gen1.update(gen2)
-
-            else:
-                raise Exception("Wrong special name (%s)" % (name))            
-            
-        else:
-            raise Exception("Can not recognize geneset (%s,%s)" % (n,fn))
-
-    return gen1
-
-def getCollectionFiles(path=None):
-    """ Get collections from a given path name. """
-
-    if path == None:
-        path = local_path()
-
-    def okFile(fn):
-        if fn.lower()[-4:] == ".gmt":
-            return True
-        return False
-
-    files = sorted(filter(okFile, os.listdir(path)))
-
-    #print files, os.listdir(path)
-
-    out = []
-
-    for file in files:
-        fn = os.path.join(path, file)
-        name = file
-        if name == file:
-            #remove suffix if no info
-            if name.lower()[-4:] == ".gmt":
-                name = name[:-4]
-
-        out.append( (name, fn) )
-
-    return out
+    return obiGeneSets.GeneSets(handleNELines(contents, hline))
 
 """
 We have multiple paths for gene set data:
@@ -264,7 +226,7 @@ def local_path():
     """ Returns local path for gene sets. Creates it if it does not exists
     yet. """
     import orngEnviron
-    pth = os.path.join(orngEnviron.directoryNames["bufferDir"], "gene_set_local")
+    pth = os.path.join(orngEnviron.directoryNames["bufferDir"], "gene_sets_local")
     omakedirs(pth)
     return pth
 
@@ -301,20 +263,43 @@ def list_local():
     a list of (hierarchy, organism, on_local) """
     pth = local_path()
     gs_files = filter(is_genesets_file, os.listdir(pth))
-    return [ filename_parse(fn) + (1,) for fn in gs_files ]
+    return [ filename_parse(fn) + (True,) for fn in gs_files ]
     
+def list_serverfiles_from_flist(flist):
+    gs_files = filter(is_genesets_file, flist)
+    localfiles = set(orngServerFiles.listfiles(sfdomain))
+    return [ filename_parse(fn) + \
+        ((True,) if fn in localfiles else (False,)) for fn in gs_files ]
+
 def list_serverfiles_conn(serverfiles=None):
     """ Returns available gene sets from the server files
     repository: a list of (hierarchy, organism, on_local) """
     if serverfiles == None:
         serverfiles = orngServerFiles.ServerFiles()
-    return filter(is_genesets_file,
-        serverfiles.listfiles(sfdomain))
+    flist = serverfiles.listfiles(sfdomain)
+    return list_serverfiles_from_flist(flist)
+
+def list_serverfiles():
+    fname = orngServerFiles.localpath_download(sfdomain, "index.pck")
+    flist = pickle.load(open(fname, 'r'))
+    return list_serverfiles_from_flist(flist)
+
+def list_all():
+    """
+    return a list of (hier, org, avalable_locally)
+    If something for a specific (hier, org) is not downloaded
+    yet, show it as not-local. """
+    flist = list_local() + list_serverfiles()
+    d = {}
+    for h,o,local in flist:
+        d[h,o] = min(local, d.get((h,o),True))
+    return [ (h,o,local) for (h,o),local in d.items() ]
 
 def update_server_list(serverfiles_upload, serverfiles_list=None):
     if serverfiles_list == None:
         serverfiles_list = orngServerFiles.ServerFiles()
-    flist = list_serverfiles_conn(serverfiles_list)
+
+    flist = map(lambda x: filename(*x[:2]), list_serverfiles_conn(serverfiles_list))
 
     tfname = pickle_temp(flist)
     
@@ -329,18 +314,14 @@ def update_server_list(serverfiles_upload, serverfiles_list=None):
     finally:
         os.remove(tfname)
 
-def list_serverfiles():
-    fname = orngServerFiles.localpath_download(sfdomain, "index.pck")
-    return pickle.load(open(fname, 'r'))
-
 def register_local(genesets):
     """ Registers using the common hierarchy and organism. """
     pth = local_path()
 
     org = genesets.common_org()
     hierarchy = genesets.common_hierarchy()
-
     fn = filename(hierarchy, org)
+
     with open(os.path.join(pth, fn), "w") as f:
         pickle.dump(genesets, f)
 
@@ -365,9 +346,11 @@ def register_serverfiles(genesets, serverFiles):
     tfname = pickle_temp(genesets)
     
     try:
+        taxname = obiTaxonomy.name(org)
         title = "Gene sets: " + ", ".join(hierarchy) + \
-            ((" (" + obiTaxonomy.name(org) + ")") if org != None else "")
-        tags = list(hierarchy) + [ "gene sets", obiTaxonomy.name(org) ]
+            ((" (" + taxname + ")") if org != None else "")
+        tags = list(hierarchy) + [ "gene sets", taxname ] + \
+            ([ "essential" ] if org in obiTaxonomy.essential_taxids() else [] )
         serverFiles.upload(sfdomain, fn, tfname, title, tags)
         serverFiles.unprotect(sfdomain, fn)
     except Exception as e:
@@ -386,64 +369,100 @@ def register(genesets, serverFiles=None):
     else:
         register_serverfiles(genesets, serverFiles)
 
-def collections(l=[], default=False, path=None):
+def build_hierarchy_dict(files):
+    hierd = defaultdict(list)
+    for ind,f in enumerate(files):
+        hier, org = f
+        for i in range(len(hier)+1):
+            hierd[(hier[:i], org)].append(ind)
+    return hierd
+
+def load_local(hierarchy, organism):
+    files = map(lambda x: x[:2], list_local())
+
+    hierd = build_hierarchy_dict(files)
+
+    out = GeneSets()
+    for (h, o) in [ files[i] for i in hierd[(hierarchy, organism)]]:
+        fname = os.path.join(local_path(), filename(h, o))
+        out.update(pickle.load(open(fname, 'r')))
+    return out
+
+def load_serverfiles(hierarchy, organism):
+    files = map(lambda x: x[:2], list_serverfiles())
+
+    hierd = build_hierarchy_dict(files)
+
+    out = GeneSets()
+    for (h, o) in [ files[i] for i in hierd[(hierarchy, organism)]]:
+        fname = orngServerFiles.localpath_download(sfdomain, 
+            filename(h, o))
+        out.update(pickle.load(open(fname, 'r')))
+    return out
+
+def load(hierarchy, organism):
+    """ First try to load from the local registred folder, then
+    from the server files. """
+    ret = load_local(hierarchy, organism)
+    ret.update(load_serverfiles(hierarchy, organism))
+    return ret
+
+def collections(*args):
     """
     Input is a list of collections.
-    Default - if default collections are included.
-    Input is a list of names. If names match to any names in path,
-    they are taken. If not, file with that name is regarded as
-    a filename of gene set colections
+    Collection can either be a tuple (hierarchy, orgranism), where
+    hierarchy is a tuple also.
     """
-    collections = getCollectionFiles(path)
+    result = obiGeneSets.GeneSets()
 
-    coln = nth(collections, 0)
-    colff = nth(collections, 1)
-    colf =  [ os.path.split(f)[1] for f in colff ]
+    for collection in args:
+        if isinstance(collection, obiGeneSets.GeneSets):
+            result.update(collection)
+        elif issequencens(collection): #have a hierarchy, organism specification
+            new = load(*collection)
+            result.update(new)
+        else:
+            if collection.lower()[-4:] == ".gmt": #format from webpage
+                result.update(loadGMT(open(collection,"rt").read(), collection))
+            else:
+                raise Exception("collection() accepts files in .gmt format only.")
+ 
+    return result
 
-    check = [ coln, colff, colf ]
+def issequencens(x):
+    "Is x a sequence and not string ? We say it is if it has a __getitem__ method and it is not an instance of basestring."
+    return hasattr(x, '__getitem__') and not isinstance(x, basestring)
 
-    choosen = set()
-    if default:
-        choosen = choosen | set(collections)
+def upload_genesets(rsf):
+    """
+    Builds the default gene sets and 
+    """
+    orngServerFiles.update_local_files()
 
-    for col in l:
-        added = False
-        if not added:
-            try: # if integer it can be the index
-                choosen = choosen | set( [ collections[int(col)] ])
-                added = True
-            except:
-                pass
-        if not added:
-            for cl in check:
-                if col in cl:
-                    choosen = choosen | set( [ collections[cl.index(col)] ])
-                    added = True
-                    break
-        if not added:
-            choosen = choosen | set( [ (col, col) ] )
-
-    #pair in choosen are (name, location)
-
-    return createCollection(list(choosen))
-
-"""
-End genesets
-"""
+    genesetsfn = [ keggGeneSets, goGeneSets ]
+    organisms = obiTaxonomy.common_taxids()
+    for fn in genesetsfn:
+        for org in organisms:
+            print "Uploading ORG", org, fn
+            try:
+                genesets = fn(org).split_by_hierarchy()
+                for gs in genesets:
+                    print "registering", gs.common_hierarchy()
+                    register_serverfiles(gs, rsf)
+                    print "successfull", gs.common_hierarchy()
+            except Exception:
+                print "Not successfull"
 
 if __name__ == "__main__":
-    #print keggGeneSets("sce").items()[:10]
-    #col = collections([":go:sce"])
-    #col = collections([":kegg:9606", ":go:9606"])
-    #col = collections([":kegg:9606"])
-    #col = collections(["C2.CP.gmt"])
-    #print col.items()[:10]
-    import sys
-    gs = goGeneSets("9606")
-    print gs.split_by_hierarchy()
-    fdsdfd
-    register_local(gs)
-    rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
-    register_serverfiles(gs, rsf)
-    print list_serverfiles_conn()
-    print "Server list from index", list_serverfiles()
+    gs = keggGeneSets("9606")
+    #print len(collections(keggGeneSets("9606"),(("KEGG",),"9606"), "C5.BP.gmt"))
+    #print len(collections((("KEGG",),"9606"), "C5.BP.gmt"))
+    print sorted(list_all())
+    print len(collections((("KEGG",),"9606"), (("GO",), "9606"), "C5.BP.gmt"))
+    #register_local(keggGeneSets("9606"))
+    #register_local(goGeneSets("9606"))
+    #register_serverfiles(gs, rsf)
+    #print list_serverfiles_conn()
+    #print "Server list from index", list_serverfiles()
+    #rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
+    #upload_genesets(rsf)

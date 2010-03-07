@@ -23,10 +23,9 @@ def nth(l, n):
 
 def clearListView(lw):
     lw.clear()
-    #it = lw.firstChild()
-    #while it:
-    #    lw.takeItem(it)
-    #    it = lw.firstChild()
+
+def ne(a):
+    return a if a != None else ""
 
 def selectGenes(data, positions, how):
     """ Select genes on given positions.
@@ -69,13 +68,10 @@ def exportET(resl):
     if len(resl) <= 0:
         return None
 
-    def splitn(name):
-        splitndx = name.find("]")
-        collection = name[1:splitndx]
-        name = name[splitndx + 1:]
-        return collection,name
+    def collectionn(gs):
+        return ",".join(gs.hierarchy) if gs.hierarchy else ""
 
-    allCollections = sorted(set([splitn(name)[0] for name,_ in resl]))
+    allCollections = sorted(set(collectionn(gs) for gs,_ in resl))
 
     vars = []
     vars.append(orange.StringVariable("Name"))
@@ -91,9 +87,9 @@ def exportET(resl):
     domain = orange.Domain(vars, False)
 
     examples = []
-    for name, dicr in resl:
-        collection, name = splitn(name)
-        examples.append([str(name), str(collection), dicr['nes'], dicr['es'], dicr['p'], min(dicr['fdr'],1.0), str(dicr['size']), str(dicr['matched_size']),  ", ".join(dicr['genes'])])
+    for gs, dicr in resl:
+        examples.append([str(ne(gs.id) + " " + ne(gs.name)), str(ne(collectionn(gs))), dicr['nes'], 
+        dicr['es'], dicr['p'], min(dicr['fdr'],1.0), str(dicr['size']), str(dicr['matched_size']),  ", ".join(dicr['genes'])])
 
     return orange.ExampleTable(domain, examples)
 
@@ -270,7 +266,7 @@ class OWGsea(OWWidget):
             self.organismCodes = [(code, organism.definition) for code, organism in self.allOrganismCodes.items() if code in local or code in essential]
             self.organismCodes.sort()
             items = [desc for code, desc in self.organismCodes]
-            self.organismCodes = [code for code, desc in self.organismCodes]
+            self.organismCodes = [obiKEGG.to_taxid(code) for code, desc in self.organismCodes]
             
             self.organismComboBox.addItems(items)
         finally:
@@ -373,7 +369,7 @@ class OWGsea(OWWidget):
         box = OWGUI.widgetBox(ca)
 
         self.gridSel = []
-        self.geneSel = [ a[0] for a in obiGsea.getCollectionFiles() ]
+        self.geneSel = []  #FIXME temporary disabled - use the same as in new "David" widget
         self.lbgs = OWGUI.listBox(box, self, "gridSel", "geneSel", selectionMode = QListWidget.MultiSelection)
         OWGUI.button(box, self, "From &File", callback = self.addCollection, disabled=0)
 
@@ -529,7 +525,6 @@ class OWGsea(OWWidget):
 
 
     def fillResults(self, res):
-
         clearListView(self.listView)
 
         self.lwiToGeneset = {}
@@ -537,13 +532,12 @@ class OWGsea(OWWidget):
         def writeGenes(g):
             return ", ".join(g)
 
-        for name, rdic in res.items():
-            splitndx = name.find("]")
-            collection = name[1:splitndx]
-            name1 = name[splitndx + 1:]
+        for gs, rdic in res.items():
+            collection = ",".join(gs.hierarchy) if gs.hierarchy else ""
+            name = ne(gs.id) + " " + ne(gs.name)
             item = QTreeWidgetItem(self.listView)
             item.setText(0, collection)
-            item.setText(1, name1)
+            item.setText(1, name)
             item.setText(2, "%0.3f" % rdic['nes'])
             item.setText(3, "%0.3f" % rdic['es'])
             item.setText(4, "%0.3f" % rdic['p'])
@@ -552,7 +546,7 @@ class OWGsea(OWWidget):
             item.setText(7, str(rdic['matched_size']))
             item.setText(8, writeGenes(rdic['genes']))
 
-            self.lwiToGeneset[item] = name
+            self.lwiToGeneset[item] = gs
 
     def addComment(self, comm):
         item = QTreeWidgetItem(self.listView)
@@ -573,11 +567,11 @@ class OWGsea(OWWidget):
         organism = self.organismCodes[self.organismIndex]
 
         if self.gsgo:
-            collectionNames.append(":go:" + organism)
+            collectionNames.append((("GO",),organism))
         if self.gskegg:
-            collectionNames.append(":kegg:" + organism)
+            collectionNames.append((("KEGG",),organism))
 
-        self.geneSets = obiGeneSets.collections(collectionNames, default=False)
+        self.geneSets = obiGeneSets.collections(*collectionNames)
 
         self.resultsOut(None)
 
@@ -643,8 +637,9 @@ class OWGsea(OWWidget):
 
             gso = obiGsea.GSEA(self.data, matcher=genematcher, **dkwargs)
 
-            for name,genes in self.geneSets.items():
-                gso.addGenesets({ name: genes })
+            
+            for gs in self.geneSets:
+                gso.addGenesets([gs])
                 qApp.processEvents()
 
             self.res = gso.compute(n=self.perms, callback=pb.advance, **kwargs)
@@ -799,8 +794,8 @@ if __name__=="__main__":
     ow.show()
 
     #d = orange.ExampleTable('/home/marko/testData.tab')
-    #d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
-    d = orange.ExampleTable('/home/marko/ddd.tab')
+    d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
+    #d = orange.ExampleTable('/home/marko/ddd.tab')
     #d = orange.ExampleTable('tmp.tab')
     #d = orange.ExampleTable('../gene_three_lines_log.tab')
     ow.setData(d)
