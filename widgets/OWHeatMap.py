@@ -700,9 +700,13 @@ class OWHeatMap(OWWidget):
                 ycoord.append(y)
                 if showClusters:
                     item = HierarchicalClusterItem(self.groupClusters[g], None, self.scene)
-                    item.setTransform(QTransform().scale(100.0/item.rect().height(), self.heights[g]/float(len(item.cluster))).\
-                                    rotate(90).translate(0, -item.rect().height()))
-                    item.setPos(-100, y+self.CellHeight/2.0)
+                    item.setSize(self.heights[g], 100.0)
+#                    item.setTransform(QTransform().scale(100.0/item.rect().height(), self.heights[g]/float(len(item.cluster))).\
+#                                    rotate(90).translate(0, -item.rect().height()))
+                    item.rotate(90)
+#                    item.setPos(-100, y+self.CellHeight/2.0)
+                    item.setPos(0, y+self.CellHeight/2.0)
+                    item.update()
                     
                 image = ImageItem(self.bmps[i][g], self.scene, self.imageWidth, \
                                   self.heights[g], palette, x=x, y=y, z=z_heatmap)
@@ -816,25 +820,18 @@ class OWHeatMap(OWWidget):
 ##################################################################################################
 # new canvas items
 
-class ImageItem(QGraphicsRectItem):
+class ImageItem(QGraphicsPixmapItem):
     def __init__(self, bitmap, scene, width, height, palette, depth=8, numColors=256, x=0, y=0, z=0):
-        QGraphicsRectItem.__init__(self, None, scene)
-        self.image = QImage(bitmap, width, height, QImage.Format_Indexed8)
-        self.image.bitmap = bitmap # this is tricky: bitmap should not be freed,
-                                   # else we get mess. hence, we store it in the object
-        self.image.setColorTable(signedPalette(palette))
-        #self.pixmap = QPixmap()
-        #self.pixmap.convertFromImage(image, QPixmap.Color)
-        self.setRect(0, 0, width, height)
-        self.setPos(x, y) #setX(x); self.setY(y); self.setZ(z)
+        image = QImage(bitmap, width, height, QImage.Format_Indexed8)
+        image.bitmap = bitmap # this is tricky: bitmap should not be freed, else we get mess. hence, we store it in the object
+        if qVersion() <= "4.5":
+            image.setColorTable(signedPalette(palette))
+        else:
+            image.setColorTable(palette)
+        pixmap = QPixmap.fromImage(image)
+        QGraphicsPixmapItem.__init__(self, pixmap, None, scene)
+        self.setPos(x, y)
         self.setZValue(z)
-        self.show()
-
-    def paint(self, painter, options, widget=None):
-        x, y, w, h = options.exposedRect.x(), options.exposedRect.y(), options.exposedRect.width(), options.exposedRect.height()
-        painter.drawImage(x, y, self.image, x, y, w, h)
-
-
         
 # ################################################################################################
 # mouse event handler
