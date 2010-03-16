@@ -10,9 +10,31 @@ class _homolog(object):
         for attr, val in zip(self.__slots__, homolog_line.split("\t")):
             setattr(self, attr, val)
     
-class HomoloGene(object):
+    
+class _Homologs(object):
+    """ A base class for homolog mappers
+    """
+    def all_genes(self):
+        """ Return all genes in this class instance
+        """
+        raise NotImplemented
+    
+    def homologs(self, gene, taxid):
+        """ Return all (homolotaxid, homolog) pairs of gene from organism with taxid
+        """
+        raise NotImplemented
+    
+    def homolog(self, gene, taxid, homolotaxid):
+        """ Return homolog of gene from organism with *taxid* in organism with "homolotaxid*
+        """
+        homologs = dict(self.homologs(gene, taxid))
+        return homologs.get(homolotaxid, None)
+    
+class HomoloGene(_Homologs):
     DEFAULT_DATABASE_PATH = orngServerFiles.localpath("HomoloGene")
     VERSION = 1
+    DOMAIN = "HomoloGene"
+    FILENAME = "homologene.data"
     def __init__(self, local_database_path=None):
         self.local_database_path = local_database_path if local_database_path else self.DEFAULT_DATABASE_PATH
         self.load()
@@ -34,15 +56,15 @@ class HomoloGene(object):
     @classmethod    
     def get_instance(cls):
         if not hasattr(cls, "_shared_dict"):
-            h = HomoloGene()
+            h = cls()
             cls._shared_dict = h.__dict__
         h = cls.__new__(cls)
         h.__dict__ = cls._shared_dict
         return h
     
     def load(self):
-        orngServerFiles.localpath_download("HomoloGene", "homologene.data")
-        lines = open(orngServerFiles.localpath("HomoloGene", "homologene.data"), "rb").read().split("\n")[:-1]
+        path = orngServerFiles.localpath_download(self.DOMAIN, self.FILENAME)
+        lines = open(path, "rb").read().split("\n")[:-1]
         self._homologs = {} 
         self._homologs = dict([((h.taxonomy_id, h.gene_symbol), h) for h in [_homolog(line) for line in lines]])
         self._homologs_by_group = reduce(lambda dict, h: dict[h.group_id].append(h) or dict, self._homologs.values(), defaultdict(list))
@@ -56,13 +78,65 @@ class HomoloGene(object):
     
     def homologs(self, gene, taxid):
         group = self._homologs.get((taxid, gene), _homolog("")).group_id
-#        homologs = [h for h in self._homologs.itervalues() if h.group_id == group] 
         homologs = self._homologs_by_group[group]
         return [(h.taxonomy_id, h.gene_symbol) for h in homologs]
         
     def homolog(self, gene, taxid, homolotaxid):
         homologs = dict(self.homologs(gene, taxid))
         return homologs.get(homolotaxid, None)
+        
+def _parseOrthoXML(file):
+    """ Return (cluster_id, taxid, gene_id) tuples from orthoXML file 
+    """
+    from xml.dom.minidom import parse
+    doc = parse(file)
+    species = doc.getElementsByTagName("species")
+    geneIds = {}
+    geneIdToTaxid = {}
+    for sp in species:
+        taxid = sp.attributes.get("NCBITaxId").value
+        genes = sp.getElementsByTagName("gene")
+        geneIds.update(dict([(gene.attributes.get("id").value, (gene.attributes.get("geneId").value,
+                  gene.attributes.get("protId").value)) for gene in genes]))
+        geneIdToTaxid.update(dict.fromkeys([gene.attributes.get("geneId").value for gene in genes], taxid))
+        
+    orthologs = []
+    clusters = doc.getElementsByTagName("cluster")
+    for cl in clusters:
+        clId = cl.attributes.get("id").value
+        geneRefs = cl.getElementsByTagName("geneRef")
+        ids = [ref.attributes.get("id").value for ref in geneRefs]
+        orthologs.extend([(clId, geneIdToTaxid[geneIds[id][0]], geneIds[id][0]) for id in ids])
+    return orthologs
+        
+class InParanoid(object):
+    VERSION = 1
+    def __init__(self):
+        import sqlite3
+        self.con = sqlite3.connect(orngServerFiles.localpath_download("HomoloGene", "InParanoid.sqlite"))
+        
+    def all_genes(self, taxid):
+        return self.con.execute("select distinct geneid from homologs where homologs.taxid=?", (taxid,)).fetchall()
+    
+    def all_taxids(self):
+        return [t[0] for t in self.con.execute("select distinct taxid from homologs").fetchall()]
+    
+    def _groups(self, gene, taxid):
+        return self.con.execute("select distinct groupid from homologs where homologs.taxid=? and homologs.geneid=?", (taxid, gene)).fetchall()
+    
+    def homologs(self, gene, taxid):
+        groups = self._groups(gene, taxid)
+        res = []
+        for group in groups:
+            res.extend(self.con.execute("select distinct taxid, geneid from homologs where homologs.groupid=?", group).fetchall())
+        return res
+    
+    def homolog(self, gene, taxid, homolotaxid):
+        groups = self._groups(gene, taxid)
+        res = []
+        for group in groups:
+            res.extend(self.con.execute("select distinct geneid from homologs where homologs.groupid=? and homologs.taxid=?", (group[0], homolotaxid)).fetchall())
+        return res
         
 def all_genes(taxid):
     """ Return a set of all genes for organism with taxid
@@ -78,3 +152,13 @@ def homolog(genename, taxid, homolotaxid):
     """ Return a homolog of genename, taxid in organism with holomotaxid or None if homolog does not exist.
     """
     return HomoloGene.get_instance().homolog(genename, taxid, homolotaxid)
+
+def homologs_inParanoid(genename, taxid):
+    """ Return a list of homologs (taxid, genename) for a homolog group that gene, taxid belong to 
+    """
+    return InParanoid().homologs(genename, taxid)
+
+def homolog_inParanoid(genename, taxid, homologtaxid):
+    """ Return a homolog of genename, taxid in organism with holomotaxid or None if homolog does not exist.
+    """
+    return InParanoid().homolog(genename, taxid, homologtaxid)
