@@ -309,7 +309,7 @@ def update_server_list(serverfiles_upload, serverfiles_list=None):
         tags = [ "gene sets", "index", "essential" ]
         serverfiles_upload.upload(sfdomain, fn, tfname, title, tags)
         serverfiles_upload.unprotect(sfdomain, fn)
-    except Exception as e:
+    except Exception,e:
         raise e
     finally:
         os.remove(tfname)
@@ -353,7 +353,7 @@ def register_serverfiles(genesets, serverFiles):
             ([ "essential" ] if org in obiTaxonomy.essential_taxids() else [] )
         serverFiles.upload(sfdomain, fn, tfname, title, tags)
         serverFiles.unprotect(sfdomain, fn)
-    except Exception as e:
+    except Exception, e:
         raise e
     finally:
         os.remove(tfname)

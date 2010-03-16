@@ -261,7 +261,7 @@ def chainLookup(a, dics, force=[]):
                 a = dic[a]
     return a
 
-defaddress = "http://purple.bioch.bcm.tmc.edu/~anup/index.php?"
+defaddress = "http://193.2.72.48/microarray/api/index.php?"
 defaddresspipa = "https://butler.fri.uni-lj.si/pipa/script/data_api.py/"
 
 class DBCommon(object):
@@ -1443,11 +1443,10 @@ if __name__=="__main__":
         et.save("ett.tab")
         print open("ett.tab").read()
 
-    """
     a = DictyBase()
     print len(a.info)
 
-    dbc = DictyExpress("http://purple.bioch.bcm.tmc.edu/~anup/index.php?", buffer=BufferSQLite("../tmpbufnew"))
+    dbc = DictyExpress(buffer=BufferSQLite("../tmpbufnew"))
 
     print dbc.annotationOptions()
 
@@ -1479,4 +1478,4 @@ if __name__=="__main__":
     data2 = join_replicates(data)
     print data2.domain
     data2.save("d2.tab")
-
+    """
