@@ -13,6 +13,8 @@ import OWGUI, OWGUIEx
 import obiGEO
 import orngServerFiles
 
+from orngDataCaching import data_hints
+
 from collections import defaultdict
 from functools import partial 
 
@@ -42,6 +44,10 @@ class TreeModel(QAbstractItemModel):
     
     def setRoleData(self, role, row, col, data):
         self._roleData[role][row][col] = data
+        
+    def setData(self, index, value, role=Qt.EditRole):
+        self._roleData[role][index.row()][index.column()] = value
+        self.emit(SIGNAL("dataChanged(QModelIndex, QModelIndex)"), index, index)
         
     def data(self, index, role):
         row, col = index.row(), index.column()
@@ -232,8 +238,8 @@ class OWGEODatasets(OWWidget):
         model = TreeModel(cells, ["", "ID", "Title", "Organism", "Samples", "Features", "Genes", "Subsets", "PubMedID"], self.treeWidget)
         model.setColumnLinks(1, gdsLinks)
         model.setColumnLinks(8, pmLinks)
-        for i in localGDS:
-            model._roleData[Qt.ForegroundRole][i].update(zip(range(2, 8), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
+#        for i in localGDS:
+#            model._roleData[Qt.ForegroundRole][i].update(zip(range(2, 8), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
 #            mode.._roleData[OWGUI.IndicatorItemDelegate.]
         proxyModel = QSortFilterProxyModel(self.treeWidget)
         proxyModel.setSourceModel(model)
@@ -371,16 +377,20 @@ class OWGEODatasets(OWWidget):
                     attr.attributes = dict([(key, value) for key, value in attr.attributes.items() if value in samples])
                 data = orange.ExampleTable(domain, data)
             
-            data.taxid = self.currentGds.get("taxid", "")
-            data.genesinrows = self.outputRows
+#            data.taxid = self.currentGds.get("taxid", "")
+#            data.genesinrows = self.outputRows
+
+            data_hints.set_hint(data, "taxid", self.currentGds.get("taxid", ""), 10.0)
+            data_hints.set_hint(data, "genesinrows", self.outputRows, 10.0)
             
             self.progressBarFinished()
             self.send("Expression Data", data)
 
             model = self.treeWidget.model().sourceModel()
             row = self.gds.index(self.currentGds)
-            model._roleData[Qt.ForegroundRole][row].update(zip(range(1, 7), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
-            model.emit(SIGNAL("dataChanged(const QModelIndex &, const QModelIndex &)"), model.index(row, 0), model.index(row, 6))
+#            model._roleData[Qt.ForegroundRole][row].update(zip(range(1, 7), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
+            model.setData(model.index(row, 0),  QVariant(" "), Qt.DisplayRole) 
+#            model.emit(SIGNAL("dataChanged(const QModelIndex &, const QModelIndex &)"), model.index(row, 0), model.index(row, 0))
             self.updateInfo()
         self.selectionChanged = False
         
