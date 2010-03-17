@@ -33,3 +33,13 @@ genes = [str(ex["gene"]) for ex in data]
 for gene in genes:
     mappedgene = obiHomoloGene.homolog(geneinfo(gene).symbol, '4932', '9606')
     print gene, mappedgene</xmp>
+<h1>InParanoid orthologs</h1>
+<p>You can also access InParanoid otrhologs database with the <code>orhologs</code> function</p>
+
+<dl class=attributes>
+	<dt>homologs(genename, taxid, ortholog_taxid=None)</dt>
+	<dd>Return all orthologs of <code>genename</code> from organism with <code>taxid</code>. If <code>ortholog_taxid</code> is given limit to orthologs from that organism only.</dd>
+	<dt>all_genes_inParanoid(taxid)</dt>
+	<dd>Return a set of all genes for organism with <code>taxid</code> in the InParanoid database</dd>
+</dl>
+ 

@@ -110,32 +110,42 @@ def _parseOrthoXML(file):
     return orthologs
         
 class InParanoid(object):
+    """ InParanoid: Eukaryotic Ortholog Groups
+    """
     VERSION = 1
     def __init__(self):
         import sqlite3
         self.con = sqlite3.connect(orngServerFiles.localpath_download("HomoloGene", "InParanoid.sqlite"))
         
     def all_genes(self, taxid):
-        return self.con.execute("select distinct geneid from homologs where homologs.taxid=?", (taxid,)).fetchall()
+        """ Return all genes in the database for the given taxid
+        """
+        return [t[0] for t in self.con.execute("select distinct geneid from homologs where homologs.taxid=?", (taxid,)).fetchall()]
     
     def all_taxids(self):
+        """ Return all taxids in the database
+        """
         return [t[0] for t in self.con.execute("select distinct taxid from homologs").fetchall()]
     
     def _groups(self, gene, taxid):
+        """ Return all group identifiers for gene, taxid pair
+        """
         return self.con.execute("select distinct groupid from homologs where homologs.taxid=? and homologs.geneid=?", (taxid, gene)).fetchall()
     
-    def homologs(self, gene, taxid):
+    def orthologs(self, gene, taxid, ortholog_taxid=None):
+        """ Return all orthologs of genename from organism with taxid. 
+        If ortholog_taxid is given limit to orthologs from that organism only
+        """
         groups = self._groups(gene, taxid)
         res = []
         for group in groups:
-            res.extend(self.con.execute("select distinct taxid, geneid from homologs where homologs.groupid=?", group).fetchall())
-        return res
-    
-    def homolog(self, gene, taxid, homolotaxid):
-        groups = self._groups(gene, taxid)
-        res = []
-        for group in groups:
-            res.extend(self.con.execute("select distinct geneid from homologs where homologs.groupid=? and homologs.taxid=?", (group[0], homolotaxid)).fetchall())
+            if ortholog_taxid:
+                res.extend(self.con.execute("select distinct taxid, geneid from homologs where homologs.groupid=? and homologs.taxid=?", (group[0], ortholog_taxid)).fetchall())
+            else:
+                res.extend(self.con.execute("select distinct taxid, geneid from homologs where homologs.groupid=?", group).fetchall())
+        res = sorted(set(res))
+        if ortholog_taxid:
+            res = [r[1] for r in res]
         return res
         
 def all_genes(taxid):
@@ -153,12 +163,13 @@ def homolog(genename, taxid, homolotaxid):
     """
     return HomoloGene.get_instance().homolog(genename, taxid, homolotaxid)
 
-def homologs_inParanoid(genename, taxid):
-    """ Return a list of homologs (taxid, genename) for a homolog group that gene, taxid belong to 
+def all_genes_inParanoid(taxid):
+    """ Return a set of all genes for organism with taxid in the InParanoid database
     """
-    return InParanoid().homologs(genename, taxid)
+    return InParanoid().all_genes(taxid)
 
-def homolog_inParanoid(genename, taxid, homologtaxid):
-    """ Return a homolog of genename, taxid in organism with holomotaxid or None if homolog does not exist.
+def orthologs(genename, taxid, ortholog_taxid=None):
+    """ Return all orthologs of genename from organism with taxid. 
+    If ortholog_taxid is given limit to orthologs from that organism only
     """
-    return InParanoid().homolog(genename, taxid, homologtaxid)
+    return InParanoid().orthologs(genename, taxid, ortholog_taxid)
