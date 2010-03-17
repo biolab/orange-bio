@@ -18,8 +18,8 @@ if __name__ == "__main__":
           description = "Bioinformatics Add-On for Orange",
           author="University of Ljubljana, AI lab",
           maintainer_email="tomaz.curk@fri.uni-lj.si",
-          packages = [ 'widgets', 'widgets.prototypes', 'doc' ],
-          package_data = {'widgets': ['icons/*.png'], 'doc': docFiles},
+          packages = [ 'widgets', 'widgets.prototypes', 'doc', '.' ],
+          package_data = {'widgets': ['icons/*.png'], 'doc': docFiles, '.':["addon.xml"] },
           extra_path=("orange-bioinformatics", destDir),
           py_modules = ['obiKEGG', 'obiGsea', 'obiData', 'obiGenomicsUpdate', 'stats', 'pstat', 'obiExpression', 'obiGO', 'obiProb', 'obiAssess', 'obiGeneSets', 'obiMeSH', 'obiDicty', 'obiTaxonomy', 'obiChem', 'obiGene', 'obiGEO' ],
           scripts=["post_install_script.py"]
