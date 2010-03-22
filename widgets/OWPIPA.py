@@ -80,6 +80,7 @@ class SelectionSetsWidget(QFrame):
         QFrame.__init__(self, parent)
         self.setContentsMargins(0, 0, 0, 0)
         layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(1)
 #        self._titleLabel = QLabel(self)
 #        self._titleLabel
@@ -274,8 +275,10 @@ class SortedListWidget(QWidget):
     def __init__(self, *args):
         QWidget.__init__(self, *args)
         self.setContentsMargins(0, 0, 0, 0)
-        layout = QVBoxLayout()
+#        layout = QVBoxLayout()
+#        layout.setContentsMargins(0, 0, 0, 0)
         gridLayout = QGridLayout()
+        gridLayout.setContentsMargins(0, 0, 0, 0)
         gridLayout.setSpacing(1)
         self._listView = QListView(self)
         self._listView.setModel(QStandardItemModel(self))
