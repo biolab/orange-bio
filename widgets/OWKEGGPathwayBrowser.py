@@ -328,7 +328,7 @@ class OWKEGGPathwayBrowser(OWWidget):
 #                print taxid, code, self.organismCodes
                 self.organismIndex = self.organismCodes.index(code)
             except Exception, ex:
-                print ex, code, taxid
+                print ex, taxid
             
             self.useAttrNames = data_hints.get_hint(data, "genesinrows", self.useAttrNames)
             
