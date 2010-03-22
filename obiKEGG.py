@@ -1008,7 +1008,7 @@ def to_taxid(name):
     return re.findall(r"TAX:(\d+)", genome[names[0]].taxonomy)[0]
 
 def from_taxid(taxid):
-    return KEGGGenome().search(taxid)
+    return KEGGGenome().search(taxid)[0]
     
 def test():
     p = KEGGPathway("sce00010.xml")
