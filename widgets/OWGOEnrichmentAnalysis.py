@@ -22,6 +22,8 @@ from OWWidget import *
 from collections import defaultdict
 from functools import partial
 
+from orngDataCaching import data_hints
+
 dataDir = orngServerFiles.localpath("GO")
 
 def listAvailable():
@@ -346,13 +348,18 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.infoLabel.setText("\n")
         if data:
             self.SetGenesComboBox()
-            id = getattr(data, "taxid", None)
-            code = obiGO.from_taxid(id)
-            filename = "gene_association.%s.tar.gz" % code
-            if filename in self.annotationFiles.values():
-                self.annotationIndex = [i for i, name in enumerate(self.annotationCodes) \
-                                        if self.annotationFiles[name] ==  filename].pop()
-            self.useAttrNames = getattr(data, "genesinrows", self.useAttrNames)
+#            id = getattr(data, "taxid", None)
+            try:
+                taxid = data_hints.get_hint(data, "taxid", "")
+                code = obiGO.from_taxid(taxid)
+                filename = "gene_association.%s.tar.gz" % code
+                if filename in self.annotationFiles.values():
+                    self.annotationIndex = [i for i, name in enumerate(self.annotationCodes) \
+                                            if self.annotationFiles[name] ==  filename].pop()
+            except Exception:
+                pass
+#            self.useAttrNames = getattr(data, "genesinrows", self.useAttrNames)
+            self.useAttrNames = data_hints.get_hint(data, "genesinrows", self.useAttrNames)
             self.openContext("", data)
 #            if not self.ontology:
 #                self.LoadOntology()
@@ -715,11 +722,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if not self.clusterDataset:
             return
         
-        def passAttributes(src, dst, names):
-            for name in names:
-                if hasattr(src, name):
-                    setattr(dst, name, getattr(src, name))
-        
         selectedGenes = reduce(set.union, [v[0] for id, v in self.graph.items() if id in self.selectedTerms], set())
         evidences = []
         for etype in obiGO.evidenceTypesOrdered:
@@ -743,7 +745,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
             vars = [self.clusterDataset.domain[gene] for gene in set(selectedGenes)]
             newDomain = orange.Domain(vars, self.clusterDataset.domain.classVar)
             newdata = orange.ExampleTable(newDomain, self.clusterDataset)
-            passAttributes(self.clusterDataset, newdata, ["taxid", "genesinrows"])
             self.send("Selected Examples", newdata)
             self.send("Unselected Examples", None)
         else:
@@ -762,13 +763,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     
             if selectedExamples:
                 selectedExamples = orange.ExampleTable(selectedExamples)
-                passAttributes(self.clusterDataset, selectedExamples, ["taxid", "genesinrows"])
             else:
                 selectedExamples = None
                 
             if unselectedExamples:
                 unselectedExamples = orange.ExampleTable(unselectedExamples)
-                passAttributes(self.clusterDataset, unselectedExamples, ["taxid", "genesinrows"])
             else:
                 unselectedExamples = None
             

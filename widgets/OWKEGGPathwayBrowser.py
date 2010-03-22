@@ -15,6 +15,8 @@ from OWWidget import *
 import OWGUI
 from collections import defaultdict
 
+from orngDataCaching import data_hints
+
 def split_and_strip(string, sep=None):
     return [s.strip() for s in string.split(sep)]
 
@@ -320,15 +322,15 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.data = data
         if data:
             self.SetBestGeneAttrAndOrganism()
-            taxid = getattr(data, "taxid", None)
+            taxid = data_hints.get_hint(data, "taxid", None)
             try:
-                code = obiKEGG.from_taxid(taxid).pop()
+                code = obiKEGG.from_taxid(taxid)
 #                print taxid, code, self.organismCodes
                 self.organismIndex = self.organismCodes.index(code)
             except Exception, ex:
-                pass
+                print ex, code, taxid
             
-            self.useAttrNames = getattr(data, "genesinrows", self.useAttrNames)
+            self.useAttrNames = data_hints.get_hint(data, "genesinrows", self.useAttrNames)
             
             self.openContext("", data)
             self.Update()
@@ -519,9 +521,9 @@ class OWKEGGPathwayBrowser(OWWidget):
         uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes), self.caseSensitive)
         self.infoLabel.setText("%i genes on input\n%i (%.1f%%) genes matched" % (len(genes), len(uniqueGenes), 100.0*len(uniqueGenes)/len(genes) if genes else 0.0))  
         if conflicting:
-            print "Conflicting genes:", conflicting
+            print >> sys.stderr, "Conflicting genes:", conflicting
         if unknown:
-            print "Unknown genes:", unknown
+            print >> sys.stderr, "Unknown genes:", unknown
         self.information(1)
         if self.useReference and self.refData:
             if self.useAttrNames:
@@ -571,17 +573,12 @@ class OWKEGGPathwayBrowser(OWWidget):
             
 
     def Commit(self):
-        def passAttributes(src, dst, names):
-            for name in names:
-                if hasattr(src, name):
-                    setattr(dst, name, getattr(src, name))
         if self.data:
             if self.useAttrNames:
                 selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
                 selectedVars = [self.data.domain[self.uniqueGenesDict[gene]] for gene in selectedGenes]
                 newDomain = orange.Domain(selectedVars ,0)
                 data = orange.ExampleTable(newDomain, self.data)
-                passAttributes(self.data, data, ["taxid", "genesinrows"])
                 self.send("Selected Examples", data)
             else:
                 geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
@@ -597,13 +594,11 @@ class OWKEGGPathwayBrowser(OWWidget):
                         
                 if selectedExamples:
                     selectedExamples = orange.ExampleTable(selectedExamples)
-                    passAttributes(self.data, selectedExamples, ["taxid", "genesinrows"])
                 else:
                     selectedExamples = None
                     
                 if otherExamples:
                     otherExamples = orange.ExampleTable(otherExamples)
-                    passAttributes(self.data, otherExamples, ["taxid", "genesinrows"])
                 else:
                     otherExamples = None
                     

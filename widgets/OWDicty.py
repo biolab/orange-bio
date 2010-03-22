@@ -165,8 +165,12 @@ class OWDicty(OWWidget):
         pb.finish()
 
         #self.send("Example table", None)
-        table.taxid = "352472"
-        table.genesinrows = False
+#        table.taxid = "352472"
+#        table.genesinrows = False
+        
+        from orngDataCaching import data_hints
+        data_hints.set_hint(table, "taxid", "352472", 10.0)
+        data_hints.set_hint(table, "genesinrows", False, 10.0)
         
         self.send("Example table", table)
 

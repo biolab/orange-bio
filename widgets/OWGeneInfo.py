@@ -14,6 +14,8 @@ import orngServerFiles
 from OWWidget import *
 import OWGUI
 
+from orngDataCaching import data_hints
+
 from collections import defaultdict
 from functools import partial
 
@@ -153,11 +155,12 @@ class OWGeneInfo(OWWidget):
             self.geneAttrComboBox.addItems([attr.name for attr in self.attributes])
             self.openContext("", data)
             self.geneAttr = min(self.geneAttr, len(self.attributes) - 1)
-#            if hasattr(self.data, "taxid"):
-            id = getattr(self.data, "taxid", None)
-            if id in self.organisms:
-                self.organismIndex = self.organisms.index(id)
-            self.useAttr = getattr(self.data, "genesinrows",  self.useAttr)
+            
+            taxid = data_hints.get_hint(self.data, "taxid", "")
+            if taxid in self.organisms:
+                self.organismIndex = self.organisms.index(taxid)
+                
+            self.useAttr = data_hints.get_hint(self.data, "genesinrows",  self.useAttr)
             
             self.setItems()
         else:
@@ -234,17 +237,13 @@ class OWGeneInfo(OWWidget):
         
         mapToSource = self.treeWidget.model().mapToSource
         selectedIds = [self.cells[mapToSource(index).row()][0] for index in self.treeWidget.selectedIndexes()]
-        def passAttributes(src, dst, names):
-            for name in names:
-                if hasattr(src, name):
-                    setattr(dst, name, getattr(src, name))
+        
         selected = [gi for gene, gi in self.geneinfo if gi and gi.gene_id in selectedIds]
         if self.useAttr:
             attrs = [attr for attr, (name, gi) in zip(self.data.domain.attributes, self.geneinfo) if gi in selected]
             domain = orange.Domain(attrs, self.data.domain.classVar)
             domain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(domain, self.data)
-            passAttributes(self.data, newdata, ["taxids", "genesinrows"])
             self.send("Selected Examples", newdata)
         else:
             attr = self.attributes[self.geneAttr]
@@ -252,7 +251,6 @@ class OWGeneInfo(OWWidget):
             examples = [ex for ex in self.data if geneinfo.get(str(ex[attr])) in selected]
             if examples:
                 newdata = orange.ExampleTable(examples)
-                passAttributes(self.data, newdata, ["taxids", "genesinrows"])
             else:
                 newdata = None
             self.send("Selected Examples", newdata)

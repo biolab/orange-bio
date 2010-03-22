@@ -15,6 +15,8 @@ from statc import mean, ttest_ind
 from obiGEO import transpose
 import obiExpression
 
+from orngDataCaching import data_hints
+
 from OWToolbars import ZoomSelectToolbar
 
 class VulcanoGraph(OWGraph):
@@ -215,7 +217,7 @@ class OWVulcanoPlot(OWWidget):
             self.genesInColumns = not bool(data.domain.classVar)
             self.genesInColumnsCheck.setDisabled(not bool(data.domain.classVar))
             if self.genesInColumns:
-                self.genesInColumns = not getattr(data, "genesinrows", not self.genesInColumns) 
+                self.genesInColumns = not data_hints.get_hint(data, "genesinrows", not self.genesInColumns) 
             self.setTargetCombo()
             self.error()
             if not self.targets:
@@ -282,10 +284,10 @@ class OWVulcanoPlot(OWWidget):
                                        %(str(key) if self.genesInColumns else key.name, logratio, math.pow(10, -logpval)))
 
     def commit(self):
-        def passAttributes(src, dst, names):
-            for name in names:
-                if hasattr(src, name):
-                    setattr(dst, name, getattr(src, name))
+#        def passAttributes(src, dst, names):
+#            for name in names:
+#                if hasattr(src, name):
+#                    setattr(dst, name, getattr(src, name))
                     
         check = lambda x,y:abs(x) >= self.graph.cutoffX and y >= self.graph.cutoffY
         if self.data and self.genesInColumns:
@@ -304,8 +306,8 @@ class OWVulcanoPlot(OWWidget):
             data = None
 #            if self.transposedData:
 #                data = transpose(data)
-        if data:
-            passAttributes(self.data, data, ["taxid", "genesinrows"])
+#        if data:
+#            passAttributes(self.data, data, ["taxid", "genesinrows"])
         self.send("Examples with selected attributes", data)
         self.selectionChangedFlag = False
 

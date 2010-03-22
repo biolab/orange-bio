@@ -18,6 +18,8 @@ import obiKEGG
 import orngServerFiles
 import obiGene
 
+from orngDataCaching import data_hints
+
 def nth(l, n):
     return [ a[n] for a in l ]
 
@@ -684,9 +686,9 @@ class OWGsea(OWWidget):
         self.data = data
 
         if data:
-            taxid = getattr(data, "taxid", None)
+            taxid = data_hints.get_hint(data, "taxid", None)
             try:
-                code = obiKEGG.from_taxid(taxid).pop()
+                code = obiKEGG.from_taxid(taxid)
                 self.organismIndex = self.organismCodes.index(code)
             except Exception, ex:
                 pass

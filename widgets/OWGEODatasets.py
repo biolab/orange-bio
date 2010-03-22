@@ -13,7 +13,7 @@ import OWGUI, OWGUIEx
 import obiGEO
 import orngServerFiles
 
-#from orngDataCaching import data_hints
+from orngDataCaching import data_hints
 
 from collections import defaultdict
 from functools import partial 
@@ -376,12 +376,9 @@ class OWGEODatasets(OWWidget):
                 for attr in domain.attributes:
                     attr.attributes = dict([(key, value) for key, value in attr.attributes.items() if value in samples])
                 data = orange.ExampleTable(domain, data)
-            
-            data.taxid = self.currentGds.get("taxid", "")
-            data.genesinrows = self.outputRows
 
-#            data_hints.set_hint(data, "taxid", self.currentGds.get("taxid", ""), 10.0)
-#            data_hints.set_hint(data, "genesinrows", self.outputRows, 10.0)
+            data_hints.set_hint(data, "taxid", self.currentGds.get("taxid", ""), 10.0)
+            data_hints.set_hint(data, "genesinrows", self.outputRows, 10.0)
             
             self.progressBarFinished()
             self.send("Expression Data", data)

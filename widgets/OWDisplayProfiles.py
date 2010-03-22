@@ -852,14 +852,9 @@ class OWDisplayProfiles(OWWidget):
             self.selectionChangedFlag = True
             
     def commit(self):
-        def passAttributes(src, dst, names):
-            for name in names:
-                if hasattr(src, name):
-                    setattr(dst, name, getattr(src, name))
         data = [c.example for c in self.graph.selectedCurves if hasattr(c, "example")]
         if data:
             data = orange.ExampleTable(data)
-            passAttributes(self.MAdata[0], data, ["taxid", "genesinrows"])
         else:
             data = None
             
