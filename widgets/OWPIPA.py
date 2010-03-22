@@ -41,7 +41,7 @@ class MyTreeWidgetItem(QTreeWidgetItem):
  
     def __lt__(self, o1):
         col = self.par.sortColumn()
-        if col in [4,5,8]: #WARNING: hardcoded column numbers
+        if col in [6,7,8]: #WARNING: hardcoded column numbers
             return tfloat(self.text(col)) < tfloat(o1.text(col))
         else:
             return QTreeWidgetItem.__lt__(self, o1)
@@ -56,15 +56,6 @@ except:
 bufferfile = os.path.join(bufferpath, "database.sq3")
 
 CACHED_COLOR = Qt.darkGreen
-
-class StoredItemSelection(QItemSelection):
-    """ Item selection
-    """
-    def __init__(self, ):
-        pass
-    
-class SelectionSetsManager(QObject):
-    pass
 
 class ListItemDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
@@ -161,7 +152,7 @@ class SelectionSetsWidget(QFrame):
             index= self._setListView.selectedIndexes()[0]
         except IndexError:
             return 
-        self.commitSelection(index.row())
+        self.commitSelection(self._proxyModel.mapToSource(index).row())
 
     def _onSetNameChange(self, item):
         self.selections[item.row()].name = str(item.text())
@@ -183,12 +174,12 @@ class SelectionSetsWidget(QFrame):
         self.setSelectionModified(False)
     
     def removeSelectedSelection(self):
-        i = self._setListView.currentIndex().row()
+        i = self._proxyModel.mapToSource(self._setListView.currentIndex()).row()
         self._listModel.takeRow(i)
         del self.selections[i]
     
     def updateCurentSelection(self):
-        i = self._setListView.selectedIndex().row()
+        i = self._proxyModel.mapToSource(self._setListView.selectedIndex()).row()
         self.selections[i].setSelection(self.selectionModel.selection())
         self.setSelectionModified(False)
         
@@ -200,7 +191,7 @@ class SelectionSetsWidget(QFrame):
         return item
         
     def updateSelectedSelection(self):
-        i = self._setListView.currentIndex().row()
+        i = self._proxyModel.mapToSource(self._setListView.currentIndex()).row()
         self.selections[i].setSelection(self.selectionModel.selection())
         self.setSelectionModified(False)
         
