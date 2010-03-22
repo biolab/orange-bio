@@ -9,8 +9,20 @@ from OWWidget import *
 import obiDicty
 import OWGUI
 import orngEnviron
-import sys
+import sys, os
 from collections import defaultdict
+
+
+
+#def pyqtConfigure(object, **kwargs):
+#    if hasattr(object, "pyqtConfigure"):
+#        object.pyqtConfigure(**kwargs)
+#    else:
+#        for name, value in kwargs.items():
+#            if object.metaObject().indexOfProperty(name) != -1:
+#                object.setProperty(name, value)
+#            elif object.metaObject().indexOfSignal(name) != -1:
+#                object.connect(object.
 
 def tfloat(s):
     try:
@@ -29,7 +41,7 @@ class MyTreeWidgetItem(QTreeWidgetItem):
  
     def __lt__(self, o1):
         col = self.par.sortColumn()
-        if col in [3,4,7]: #WARNING: hardcoded column numbers
+        if col in [4,5,8]: #WARNING: hardcoded column numbers
             return tfloat(self.text(col)) < tfloat(o1.text(col))
         else:
             return QTreeWidgetItem.__lt__(self, o1)
@@ -45,8 +57,344 @@ bufferfile = os.path.join(bufferpath, "database.sq3")
 
 CACHED_COLOR = Qt.darkGreen
 
+class StoredItemSelection(QItemSelection):
+    """ Item selection
+    """
+    def __init__(self, ):
+        pass
+    
+class SelectionSetsManager(QObject):
+    pass
+
+class ListItemDelegate(QStyledItemDelegate):
+    def sizeHint(self, option, index):
+        size = QStyledItemDelegate.sizeHint(self, option, index)
+        size = QSize(size.width(), size.height() + 4)
+        return size
+
+    def createEditor(self, parent, option, index):
+        return QLineEdit(parent)
+    
+    def setEditorData(self, editor, index):
+        editor.setText(index.data(Qt.DisplayRole).toString())
+        
+    def setModelData(self, editor, model, index):
+#        print index
+        model.setData(index, QVariant(editor.text()), Qt.EditRole)
+
+class SelectionSetsWidget(QFrame):
+    """ Widget for managing multiple stored item selections 
+    """
+    def __init__(self, parent):
+        QFrame.__init__(self, parent)
+        self.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout()
+        layout.setSpacing(1)
+#        self._titleLabel = QLabel(self)
+#        self._titleLabel
+#        layout.addWidget(self._titleLabel)
+        self._setNameLineEdit = QLineEdit(self)
+        layout.addWidget(self._setNameLineEdit)
+        
+        self._setListView = QListView(self)
+        self._listModel = QStandardItemModel(self)
+        self._proxyModel = QSortFilterProxyModel(self)
+        self._proxyModel.setSourceModel(self._listModel)
+        
+        self._setListView.setModel(self._proxyModel)
+        self._setListView.setItemDelegate(ListItemDelegate(self))
+        
+        self.connect(self._setNameLineEdit, SIGNAL("textChanged(QString)"), self._proxyModel.setFilterFixedString)
+        
+        self._completer = QCompleter(self._listModel, self)
+        
+        self._setNameLineEdit.setCompleter(self._completer)
+        
+        self.connect(self._listModel, SIGNAL("itemChanged(QStandardItem *)"), self._onSetNameChange)
+        layout.addWidget(self._setListView)
+        buttonLayout = QHBoxLayout()
+        
+        self._addAction = QAction("+", self)
+        self._updateAction = QAction("Update", self)
+        self._removeAction = QAction("-", self)
+        
+        self._addToolButton = QToolButton(self)
+        self._updateToolButton = QToolButton(self)
+        self._removeToolButton = QToolButton(self)
+        self._updateToolButton.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
+        
+        self._addToolButton.setDefaultAction(self._addAction)
+        self._updateToolButton.setDefaultAction(self._updateAction)
+        self._removeToolButton.setDefaultAction(self._removeAction)
+        
+#        self._addToolButton.setText("+")
+#        self._updateToolButton.setText("Update")
+#        self._removeToolButton.setText("-")
+         
+        buttonLayout.addWidget(self._addToolButton)
+        buttonLayout.addWidget(self._updateToolButton)
+        buttonLayout.addWidget(self._removeToolButton)
+        
+        layout.addLayout(buttonLayout)
+        self.setLayout(layout)
+        
+#        self.addAction = QAction(self)
+#        self.addAction.setText("+")
+        
+        self.connect(self._addAction, SIGNAL("triggered()"), self.addCurrentSelection)
+        self.connect(self._updateAction, SIGNAL("triggered()"), self.updateSelectedSelection)
+        self.connect(self._removeAction, SIGNAL("triggered()"), self.removeSelectedSelection)
+        
+        self.connect(self._setListView.selectionModel(), SIGNAL("selectionChanged(QItemSelection, QItemSelection)"), self._onListViewSelectionChanged)
+        self.selectionModel = None
+        self._selections = []
+        
+    def sizeHint(self):
+        size = QFrame.sizeHint(self)
+        return QSize(size.width(), 200)
+        
+    def _onSelectionChanged(self, selected, deselected):
+        self.setSelectionModified(True)
+        
+    def _onListViewSelectionChanged(self, selected, deselected):
+        try:
+            index= self._setListView.selectedIndexes()[0]
+        except IndexError:
+            return 
+        self.commitSelection(index.row())
+
+    def _onSetNameChange(self, item):
+        self.selections[item.row()].name = str(item.text())
+                
+    def _setButtonStates(self, val):
+        self._updateToolButton.setEnabled(val)
+        
+    def setSelectionModel(self, selectionModel):
+        if self.selectionModel:
+            self.disconnect(self.selectionModel, SIGNAL("selectionChanged(QItemSelection, QItemSelection)", self._onSelectionChanged))
+        self.selectionModel = selectionModel
+        self.connect(self.selectionModel, SIGNAL("selectionChanged(QItemSelection, QItemSelection)"), self._onSelectionChanged)
+        
+    def addCurrentSelection(self):
+        item = self.addSelection(SelectionByKey(self.selectionModel.selection(), name="New selection", key=(0,1,2,3, 8)))
+        index = self._proxyModel.mapFromSource(item.index())
+        self._setListView.setCurrentIndex(index)
+        self._setListView.edit(index)
+        self.setSelectionModified(False)
+    
+    def removeSelectedSelection(self):
+        i = self._setListView.currentIndex().row()
+        self._listModel.takeRow(i)
+        del self.selections[i]
+    
+    def updateCurentSelection(self):
+        i = self._setListView.selectedIndex().row()
+        self.selections[i].setSelection(self.selectionModel.selection())
+        self.setSelectionModified(False)
+        
+    def addSelection(self, selection, name=""):
+        self._selections.append(selection)
+        item = QStandardItem(selection.name)
+        self._listModel.appendRow(item)
+        self.setSelectionModified(False)
+        return item
+        
+    def updateSelectedSelection(self):
+        i = self._setListView.currentIndex().row()
+        self.selections[i].setSelection(self.selectionModel.selection())
+        self.setSelectionModified(False)
+        
+    def setSelectionModified(self, val):
+        self._selectionModified = val
+        self._setButtonStates(val)
+        self.emit(SIGNAL("selectionModified(bool)"), bool(val))
+        
+    def commitSelection(self, index):
+        selection = self.selections[index]
+        selection.select(self.selectionModel)
+        
+    def setSelections(self, selections):
+        self._listModel.clear()
+#        print selections
+        for selection in selections:
+            self.addSelection(selection)
+            
+    def selections(self):
+        return self._selections
+    
+    selections = property(selections, setSelections)
+    
+class SelectionByKey(object):
+    """ An object stores item selection by unique key values 
+    (works only for row selections in list and table models)
+    Example::
+        ## Save selection by unique tuple pairs (DisplayRole of column 1 and 2)
+        selection = SelectionsByKey(itemView.selectionModel().selection(), key = (1,2))
+        ...
+        ## restore selection (Possibly omitting rows not present in the model)  
+        selection.select(itemView.selectionModel())
+    """
+    
+    def __init__(self, itemSelection, name="", key=(0,)):
+        self._key = key
+        self.name = name
+        self._selected_keys = []
+        if itemSelection:
+            self.setSelection(itemSelection)
+        
+    def _row_key(self, model, row):
+        val = lambda row, col: str(model.data(model.index(row, col), Qt.DisplayRole).toString())
+        return tuple(val(row, col) for col in self._key)
+    
+    def setSelection(self, itemSelection):
+        self._selected_keys = [self._row_key(ind.model(), ind.row()) for ind in itemSelection.indexes() if ind.column() == 0]
+    
+    def select(self, selectionModel):
+        model = selectionModel.model()
+        selected = []
+        selectionModel.clear()
+        for i in range(model.rowCount()):
+            if self._row_key(model, i) in self._selected_keys:
+                selectionModel.select(model.index(i, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+                
+class SortedListWidget(QWidget):
+    class _MyItemDelegate(QStyledItemDelegate):
+        def __init__(self, sortingModel, parent):
+            QStyledItemDelegate.__init__(self, parent)
+            self.sortingModel = sortingModel
+            
+        def sizeHint(self, option, index):
+            size = QStyledItemDelegate.sizeHint(self, option, index)
+            return QSize(size.width(), size.height() + 4)
+            
+        def createEditor(self, parent, option, index):
+            cb = QComboBox(parent)
+            cb.setModel(self.sortingModel)
+            cb.showPopup()
+            return cb
+        
+        def setEditorData(self, editor, index):
+            pass # TODO: sensible default 
+        
+        def setModelData(self, editor, model, index):
+            text = editor.currentText()
+            model.setData(index, QVariant(text))
+    
+    def __init__(self, *args):
+        QWidget.__init__(self, *args)
+        self.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout()
+        gridLayout = QGridLayout()
+        gridLayout.setSpacing(1)
+        self._listView = QListView(self)
+        self._listView.setModel(QStandardItemModel(self))
+#        self._listView.setDragEnabled(True)
+        self._listView.setDropIndicatorShown(True)
+        self._listView.viewport().setAcceptDrops(True)
+        self._listView.setDragDropMode(QAbstractItemView.InternalMove)
+        self._listView.setMinimumHeight(100)
+        
+        gridLayout.addWidget(self._listView, 0, 0, 2, 2)
+        
+        vButtonLayout = QVBoxLayout()
+        
+        self._upAction = QAction(QIcon(os.path.join(orngEnviron.widgetDir, "icons/Dlg_up3.png")), "Up", self)
+        
+        self._upButton = QToolButton(self)
+        self._upButton.setDefaultAction(self._upAction)
+#        self._upButton.setIcon(self.style().standardIcon(QStyle.SP_ArrowUp))
+        self._upButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.MinimumExpanding)
+
+        self._downAction = QAction(QIcon(os.path.join(orngEnviron.widgetDir, "icons/Dlg_down3.png")), "Down", self)
+        self._downButton = QToolButton(self)
+        self._downButton.setDefaultAction(self._downAction)
+#        self._downButton.setIcon(self.style().standardIcon(QStyle.SP_ArrowDown))
+        self._downButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.MinimumExpanding)
+        
+        vButtonLayout.addWidget(self._upButton)
+        vButtonLayout.addWidget(self._downButton)
+        
+        gridLayout.addLayout(vButtonLayout, 0, 2, 2, 1)
+        
+        hButtonLayout = QHBoxLayout()
+        
+        self._addAction = QAction("+", self)
+        self._addButton = QToolButton(self)
+        self._addButton.setDefaultAction(self._addAction)
+#        self._addButton.setText("+")
+        self._removeAction = QAction("-", self)
+        self._removeButton = QToolButton(self)
+        self._removeButton.setDefaultAction(self._removeAction)
+        hButtonLayout.addWidget(self._addButton)
+        hButtonLayout.addWidget(self._removeButton)
+        hButtonLayout.addStretch(10)
+        gridLayout.addLayout(hButtonLayout, 2, 0, 1, 2)
+        
+        self.setLayout(gridLayout)
+        
+        self.connect(self._addAction, SIGNAL("triggered()"), self._onAddAction)
+        self.connect(self._removeAction, SIGNAL("triggered()"), self._onRemoveAction)
+        self.connect(self._upAction, SIGNAL("triggered()"), self._onUpAction)
+        self.connect(self._downAction, SIGNAL("triggered()"), self._onDownAction)
+        
+    def sizeHint(self):
+        size = QWidget.sizeHint(self)
+        return QSize(size.width(), 100)
+        
+    def _onAddAction(self):
+        item = QStandardItem("")
+        self._listView.model().appendRow(item)
+        self._listView.setCurrentIndex(item.index())
+        self._listView.edit(item.index()) 
+        
+    
+    def _onRemoveAction(self):
+        current = self._listView.currentIndex()
+        self._listView.model().takeRow(current.row())
+    
+    def _onUpAction(self):
+        row = self._listView.currentIndex().row()
+        model = self._listView.model()
+        items = model.takeRow(row)
+        model.insertRow(max(row - 1, 0), items)
+        self._listView.setCurrentIndex(model.index(row - 1, 0))
+    
+    def _onDownAction(self):
+        row = self._listView.currentIndex().row()
+        model = self._listView.model()
+        items = model.takeRow(row)
+        model.insertRow(min(row + 1, model.rowCount() - 1), items)
+        self._listView.setCurrentIndex(model.index(row + 1, 0))
+    
+    def setModel(self, model):
+        """ Set a model to select items from
+        """
+        self._model  = model
+        self._listView.setItemDelegate(self._MyItemDelegate(self._model, self))
+        
+    def addItem(self, *args):
+        """ Add a new entry in the list 
+        """
+        item = QStandardItem(*args)
+        self._listView.model().appendRow(item)
+        
+    def setItems(self, items):
+        self._listView.model().clear()
+        for item in items:
+            self.addItem(item)
+         
+    def items(self):
+        order = []
+        for row in range(self._listView.model().rowCount()):
+             order.append(str(self._listView.model().item(row ,0).text()))
+        return order
+    
+    sortingOrder = property(items, setItems)
+        
+    
 class OWPIPA(OWWidget):
-    settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password","joinreplicates" ]
+    settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password","joinreplicates",
+                     "selectionSetsWidget.selections", "columnsSortingWidget.sortingOrder", "currentSelection"]
     def __init__(self, parent=None, signalManager=None, name="PIPA database"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
@@ -61,6 +409,7 @@ class OWPIPA(OWWidget):
         self.searchString = ""
         self.excludeconstant = False
         self.joinreplicates = False
+        self.currentSelection = None
 
         self.chips = []
         self.annots = []
@@ -71,7 +420,20 @@ class OWPIPA(OWWidget):
 
         OWGUI.button(self.controlArea, self, "Reload", callback=self.Reload)
         OWGUI.button(self.controlArea, self, "Clear cache", callback=self.clear_cache)
-
+        
+        b = OWGUI.widgetBox(self.controlArea, "Experiment Sets")
+        self.selectionSetsWidget = SelectionSetsWidget(self)
+        self.selectionSetsWidget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+#        self.controlArea.layout().addWidget(self.selectionSetsWidget)
+        b.layout().addWidget(self.selectionSetsWidget)
+        
+        b = OWGUI.widgetBox(self.controlArea, "Sort output columns")
+        self.columnsSortingWidget = SortedListWidget(self)
+        self.columnsSortingWidget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+#        self.controlArea.layout().addWidget(self.columnsSortingWidget)
+        b.layout().addWidget(self.columnsSortingWidget)
+        self.columnsSortingWidget.setModel(QStringListModel(["Strain", "Genotype", "Timepoint", "Growth", "Species", "Id", "Name"]))
+        self.columnsSortingWidget.sortingOrder = ["Strain", "Genotype", "Timepoint"]
         OWGUI.rubber(self.controlArea)
 
         OWGUI.checkBox(self.controlArea, self, "excludeconstant", "Exclude labels with constant values" )
@@ -92,24 +454,32 @@ class OWPIPA(OWWidget):
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
         self.experimentsWidget = QTreeWidget()
-        self.experimentsWidget.setHeaderLabels(["Species", "Strain", "Genotype", "Replicate", "Timepoint", "Treatment", "Growth", "ID"])
+        self.experimentsWidget.setHeaderLabels(["", "Species", "Strain", "Genotype", "Treatment", "Growth", "Timepoint", "Replicate", "ID"])
         self.experimentsWidget.setSelectionMode(QTreeWidget.ExtendedSelection)
         self.experimentsWidget.setRootIsDecorated(False)
         self.experimentsWidget.setSortingEnabled(True)
         contextEventFilter = OWGUI.VisibleHeaderSectionContextEventFilter(self.experimentsWidget)
         self.experimentsWidget.header().installEventFilter(contextEventFilter)
-##        self.experimentsWidget.setAlternatingRowColors(True)
+        self.experimentsWidget.setItemDelegateForColumn(0, OWGUI.IndicatorItemDelegate(self, role=Qt.DisplayRole))
+        self.experimentsWidget.setAlternatingRowColors(True)
+        
+        self.connect(self.experimentsWidget.selectionModel(),
+                     SIGNAL("selectionChanged(QItemSelection, QItemSelection)"),
+                     self.onSelectionChanged)
+
+        self.selectionSetsWidget.setSelectionModel(self.experimentsWidget.selectionModel())
 
         self.mainArea.layout().addWidget(self.experimentsWidget)
 
         self.loadSettings()
-        self.dbc = None        
+        
+        self.dbc = None
 
         self.AuthSet()
 
-        QTimer.singleShot(100, self.UpdateExperiments)        
+        QTimer.singleShot(100, self.UpdateExperiments)
 
-        self.resize(800, 600)
+        self.resize(800, 600)        
 
     def __updateSelectionList(self, oldList, oldSelection, newList):
         oldList = [oldList[i] for i in oldSelection]
@@ -205,8 +575,8 @@ class OWPIPA(OWWidget):
         for chip,annot in zip(self.chips, self.annots):
             pos += 1
             d = defaultdict(lambda: "?", annot)
-            elements.append([d["species"], d["strain"], d["genotype"], d["replicate"], d["tp"], d["treatment"], d["growth"], chip])
-            self.progressBarSet((100.0 * pos) / len(chips))
+            elements.append(["", d["species"], d["strain"], d["genotype"], d["treatment"], d["growth"], d["tp"], d["replicate"], chip])
+#            self.progressBarSet((100.0 * pos) / len(chips))
             
             el = elements[-1]
             ci = MyTreeWidgetItem(self.experimentsWidget, el)
@@ -223,18 +593,22 @@ class OWPIPA(OWWidget):
         self.UpdateCached()
 
         self.progressBarFinished()
+        
+        if self.currentSelection:
+            self.currentSelection.select(self.experimentsWidget.selectionModel())
 
     def UpdateCached(self):
         if self.wantbufver and self.dbc:
             fn = self.dbc.chips_keynaming()
             for item in self.items:
-                color = Qt.black
-                c = str(item.text(7))
-                if self.dbc.inBuffer(fn(c)) == self.wantbufver(c):
-                    color = CACHED_COLOR
-                brush = QBrush(color)
-                for i in range(item.columnCount()):
-                    item.setForeground(i, brush)
+                c = str(item.text(8))
+                item.setData(0, Qt.DisplayRole, QVariant(" " if self.dbc.inBuffer(fn(c)) == self.wantbufver(c) else ""))
+#                color = Qt.black
+#                if self.dbc.inBuffer(fn(c)) == self.wantbufver(c):
+#                    color = CACHED_COLOR
+#                brush = QBrush(color)
+#                for i in range(item.columnCount()):
+#                    item.setForeground(i, brush)
 
     def SearchUpdate(self, string=""):
         for item in self.items:
@@ -254,7 +628,7 @@ class OWPIPA(OWWidget):
 
         ids = []
         for item in self.experimentsWidget.selectedItems():
-            ids += [ str(item.text(7)) ]
+            ids += [ str(item.text(8)) ]
 
         table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver)
 
@@ -265,11 +639,28 @@ class OWPIPA(OWWidget):
         
         pb.finish()
 
-        #self.send("Example table", None)
+        # Sort attributes
+        sortOrder = self.columnsSortingWidget.sortingOrder
+#        print sortOrder
+        keys = {"Strain": "strain", "Genotype": "genotype", "Timepoint": "map_stop1", "Growth": "growth",
+                "Species": "species", "Id":"id", "Name": "name"}
+        attributes = sorted(table.domain.attributes, key=lambda attr: chr(255).join([attr.attributes.get(keys[name], "") for name in sortOrder]))
+        domain = orange.Domain(attributes, table.domain.classVar)
+        domain.addmetas(table.domain.getmetas())
+        table = orange.ExampleTable(domain, table)
+        
+        from orngDataCaching import data_hints
+        data_hints.set_hint(table, "taxid", "352472") 
+        data_hints.set_hint(table, "genesinrows", False)
+        
         self.send("Example table", table)
 
         self.UpdateCached()
 
+    def onSelectionChanged(self, selected, deselected):
+        self.currentSelection = SelectionByKey(self.experimentsWidget.selectionModel().selection(),
+                                               key=(0,1,2,3, 8))
+        
 if __name__ == "__main__":
     app  = QApplication(sys.argv)
 ##    from pywin.debugger import set_trace
