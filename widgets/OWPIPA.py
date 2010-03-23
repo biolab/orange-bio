@@ -118,10 +118,6 @@ class SelectionSetsWidget(QFrame):
         self._addToolButton.setDefaultAction(self._addAction)
         self._updateToolButton.setDefaultAction(self._updateAction)
         self._removeToolButton.setDefaultAction(self._removeAction)
-        
-#        self._addToolButton.setText("+")
-#        self._updateToolButton.setText("Update")
-#        self._removeToolButton.setText("-")
          
         buttonLayout.addWidget(self._addToolButton)
         buttonLayout.addWidget(self._updateToolButton)
@@ -129,9 +125,6 @@ class SelectionSetsWidget(QFrame):
         
         layout.addLayout(buttonLayout)
         self.setLayout(layout)
-        
-#        self.addAction = QAction(self)
-#        self.addAction.setText("+")
         
         self.connect(self._addAction, SIGNAL("triggered()"), self.addCurrentSelection)
         self.connect(self._updateAction, SIGNAL("triggered()"), self.updateSelectedSelection)
@@ -275,8 +268,6 @@ class SortedListWidget(QWidget):
     def __init__(self, *args):
         QWidget.__init__(self, *args)
         self.setContentsMargins(0, 0, 0, 0)
-#        layout = QVBoxLayout()
-#        layout.setContentsMargins(0, 0, 0, 0)
         gridLayout = QGridLayout()
         gridLayout.setContentsMargins(0, 0, 0, 0)
         gridLayout.setSpacing(1)
@@ -296,13 +287,11 @@ class SortedListWidget(QWidget):
         
         self._upButton = QToolButton(self)
         self._upButton.setDefaultAction(self._upAction)
-#        self._upButton.setIcon(self.style().standardIcon(QStyle.SP_ArrowUp))
         self._upButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.MinimumExpanding)
 
         self._downAction = QAction(QIcon(os.path.join(orngEnviron.widgetDir, "icons/Dlg_down3.png")), "Down", self)
         self._downButton = QToolButton(self)
         self._downButton.setDefaultAction(self._downAction)
-#        self._downButton.setIcon(self.style().standardIcon(QStyle.SP_ArrowDown))
         self._downButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.MinimumExpanding)
         
         vButtonLayout.addWidget(self._upButton)
@@ -315,7 +304,7 @@ class SortedListWidget(QWidget):
         self._addAction = QAction("+", self)
         self._addButton = QToolButton(self)
         self._addButton.setDefaultAction(self._addAction)
-#        self._addButton.setText("+")
+        
         self._removeAction = QAction("-", self)
         self._removeButton = QToolButton(self)
         self._removeButton.setDefaultAction(self._removeAction)
@@ -349,16 +338,22 @@ class SortedListWidget(QWidget):
     def _onUpAction(self):
         row = self._listView.currentIndex().row()
         model = self._listView.model()
-        items = model.takeRow(row)
-        model.insertRow(max(row - 1, 0), items)
-        self._listView.setCurrentIndex(model.index(row - 1, 0))
+        if row > 0:
+            items = model.takeRow(row)
+            model.insertRow(row - 1, items)
+            self._listView.setCurrentIndex(model.index(row - 1, 0))
     
     def _onDownAction(self):
         row = self._listView.currentIndex().row()
         model = self._listView.model()
-        items = model.takeRow(row)
-        model.insertRow(min(row + 1, model.rowCount() - 1), items)
-        self._listView.setCurrentIndex(model.index(row + 1, 0))
+        print row, model.rowCount()
+        if row < model.rowCount() and row >= 0:
+            items = model.takeRow(row)
+            if row == model.rowCount():
+                model.appendRow(items)
+            else:
+                model.insertRow(row + 1, items)
+            self._listView.setCurrentIndex(model.index(row + 1, 0))
     
     def setModel(self, model):
         """ Set a model to select items from
