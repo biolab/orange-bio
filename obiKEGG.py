@@ -380,7 +380,7 @@ class KEGGGenes(KEGGDataBase):
             
     @classmethod
     def filename(cls, org):
-        return cls.FILENAME % {"org_code":org, "org_name":KEGGGenome()[org].name.split(",")[0]}
+        return cls.FILENAME % {"org_code":org, "org_name":KEGGGenome()[org].name.split(",")[1].strip()}
      
     @classmethod
     @downloader
@@ -394,6 +394,12 @@ class KEGGGenomeEntry(KEGGDBEntry):
     FIELDS = ["ENTRY", "NAME", "DEFINITION", "ANNOTATION", "TAXONOMY", "DATA_SOURCE",
               "ORIGINAL_DB", "CHROMOSOME", "STATISTICS", "REFERENCE"]
     MULTIPLE_FIELDS = ["REFERENCE"]
+    
+    def org_code(self):
+        return self.name.split(",")[0]
+    
+    def entry_key(self):
+        return self.org_code()
     
 entry_decorate(KEGGGenomeEntry)
         
