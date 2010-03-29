@@ -16,8 +16,8 @@ from orngDataCaching import data_hints
 from collections import defaultdict
 
 class OWFunctionalAnnotation(OWWidget):
-    settingsList = ["spiciesIndex", "genesinrows", "geneattr"]
-    contextHandlers = {"":DomainContextHandler("", ["spiciesIndex", "genesinrows", "geneattr"])}
+    settingsList = ["spiciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
+    contextHandlers = {"":DomainContextHandler("", ["spiciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
     
     def __init__(self, parent=None, signalManager=None, name="Gene Functional Annotation", **kwargs):
         OWWidget.__init__(self, parent, signalManager, name, **kwargs)
@@ -41,7 +41,7 @@ class OWFunctionalAnnotation(OWWidget):
         self.signalManager.setFreeze(1)
         QTimer.singleShot(50, self.updateHierarchy)
             
-        self.infoBox = OWGUI.widgetLabel(self.controlArea, "Info")
+        self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "Info")
         self.infoBox.setText("No data on input")
         
         self.spiciesComboBox = OWGUI.comboBox(self.controlArea, self, "spiciesIndex", "Spicies", callback=lambda :self.data and self.updateAnnotations())
@@ -77,9 +77,10 @@ class OWFunctionalAnnotation(OWWidget):
         import OWGUIEx
         reload(OWGUIEx)
         self.filterLineEdit = OWGUIEx.QLineEditWithActions(self)
+        self.filterLineEdit.setPlaceholderText("Filter ...")
         action = QAction(QIcon(os.path.join(orngEnviron.canvasDir, "icons", "delete.png")), "Clear", self)
 #        action = QAction("Clear filter text", self)
-        self.filterLineEdit.addAction(action)
+        self.filterLineEdit.addAction(action, 0, Qt.AlignHCenter)
         self.connect(action, SIGNAL("triggered()"), self.filterLineEdit.clear)
         
         self.filterCompleter = QCompleter(self.filterLineEdit)
@@ -133,6 +134,8 @@ class OWFunctionalAnnotation(OWWidget):
             self.geneAttrs = [attr for attr in data.domain.variables + data.domain.getmetas().values() \
                               if attr.varType != orange.VarTypes.Continuous]
             self.geneAttrComboBox.addItems([attr.name for attr in self.geneAttrs])
+            self.geneattr = min(self.geneattr, len(self.geneAttrs) - 1)
+             
             taxid = data_hints.get_hint(data, "taxid", "")
             try:
                 self.spiciesIndex = self.taxid_list.index(taxid)
@@ -165,35 +168,51 @@ class OWFunctionalAnnotation(OWWidget):
         return collection[taxid]
         
     def setHierarchy(self, hierarchy):
-        self.selectedCategories
-        def fill(col, parent):
+        print self.categoriesCheckState
+        def fill(col, parent, full=()):
             for key, value in sorted(col.items()):
+                full_cat = full + (key,)
                 item = QTreeWidgetItem(parent, [key])
                 item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                item.setData(0, Qt.CheckStateRole, QVariant(self.categoriesCheckState.get(key, Qt.Checked)))
+                item.setData(0, Qt.CheckStateRole, QVariant(self.categoriesCheckState.get(full_cat, Qt.Checked)))
                 item.setExpanded(True)
-                fill(value, item)
+                fill(value, item, full_cat)
                 
         fill(hierarchy, self.groupsWidget)
         
     def selectedCategories(self):
+#        def collect_selected(item):
+#            if item.checkState(0) == Qt.Checked:
+#                cat = str(item.data(0, Qt.DisplayRole).toString())
+#                subcats = reduce(set.union, [collect_selected(item.child(i)) for i in range(item.childCount())], set())
+#                return [(cat,) + subcat for subcat in sorted(subcats)] or [(cat,)]
+#            else:
+#                return []
+#            
+#        items = [self.groupsWidget.topLevelItem(i) for i in range(self.groupsWidget.topLevelItemCount())]
+#        cats = reduce(set.union, [collect_selected(item) for item in items], set())
+#        
+#        return [(cat, taxid) for cat in cats]
         taxid = self.taxid_list[self.spiciesIndex]
-        def collect_selected(item):
-            if item.checkState(0) == Qt.Checked:
-                cat = str(item.data(0, Qt.DisplayRole).toString())
-                subcats = reduce(set.union, [collect_selected(item.child(i)) for i in range(item.childCount())], set())
-                return [(cat,) + subcat for subcat in sorted(subcats)] or [(cat,)]
-            else:
-                return []
+        return [(key, taxid) for key, check in self.getHierarchyCheckState().items() if check == Qt.Checked]
+
+    def getHierarchyCheckState(self):
+        def collect(item, full=()):
+            checked = item.checkState(0)
+            name = str(item.data(0, Qt.DisplayRole).toString())
+            full_cat = full + (name,)
+            result = [(full_cat, checked)]
+            for i in range(item.childCount()):
+                result.extend(collect(item.child(i), full_cat))
+            return result
             
         items = [self.groupsWidget.topLevelItem(i) for i in range(self.groupsWidget.topLevelItemCount())]
-        cats = reduce(set.union, [collect_selected(item) for item in items], set())
-        print cats
-        
-        return [(cat, taxid) for cat in cats]
-
+        states = reduce(list.__add__, [collect(item) for item in items], [])
+        return dict(states)
+            
     def subsetSelectionChanged(self, item, column):
         self.filterAnnotationsChartView()
+        self.categoriesCheckState = self.getHierarchyCheckState()
         
     def updateGeneMatcherSettings(self):
         from OWGOEnrichmentAnalysis import GeneMatcherDialog
@@ -224,7 +243,6 @@ class OWFunctionalAnnotation(OWWidget):
         return self.genesFromExampleTable(self.data)
     
     def referenceGenes(self):
-        print self.referenceData, self.useReferenceData
         if self.referenceData and self.useReferenceData:
             return self.genesFromExampleTable(self.referenceData)
         else:
@@ -250,7 +268,7 @@ class OWFunctionalAnnotation(OWWidget):
         
         cmapped = genes.intersection(cluster)
         rmapped = genes.intersection(reference)
-        return cmapped, rmapped, pval.p_value(len(cmapped), len(reference), len(rmapped), len(cluster)) # TODO: compute all statistics here
+        return (cmapped, rmapped, pval.p_value(len(cmapped), len(reference), len(rmapped), len(cluster))) # TODO: compute all statistics here
     
     def updateAnnotations(self):
         self.annotationsChartView.clear()
@@ -268,7 +286,6 @@ class OWFunctionalAnnotation(OWWidget):
         self.progressBarSet(2)
         infoText += "%i (%.1f) gene names matched" % (len(clusterGenes), 100.0 * len(clusterGenes) / countAll)
         self.infoBox.setText(infoText)
-        print len(clusterGenes), len(referenceGenes)
         
         results = []
         from orngMisc import progressBarMilestones
@@ -307,7 +324,6 @@ class OWFunctionalAnnotation(OWWidget):
         categories = set(" ".join(cat) for cat, taxid in self.selectedCategories())
 #        print categories
         filterString = str(self.filterLineEdit.text())
-        print filterString
         for item in self.treeItems:
             item_cat = str(item.data(0, Qt.EditRole).toString())
             (count, _), (pval, _) = item.data(2, Qt.EditRole).toInt(), item.data(4, Qt.EditRole).toDouble()
@@ -332,13 +348,13 @@ class OWFunctionalAnnotation(OWWidget):
             selected = [1 if self.genematcher.umatch(str(ex[geneattr])) in mappedNames else 0 for ex in self.data]                
             data = self.data.select(selected)
             
-            if self.appendAnnotations:
-                meta = orange.StringVariable("Annotations")
-                data.domain.addmeta(orange.newmetaid(), meta)
-                for ex in data:
-                    geneattr = self.geneAttrs[self.geneattr]
-                    gene = str(ex[geneattr])
-                    annotations = getgene
+#            if self.appendAnnotations:
+#                meta = orange.StringVariable("Annotations")
+#                data.domain.addmeta(orange.newmetaid(), meta)
+#                for ex in data:
+#                    geneattr = self.geneAttrs[self.geneattr]
+#                    gene = str(ex[geneattr])
+#                    annotations = getgene
         
         self.send("Selected Examples", data)
     
