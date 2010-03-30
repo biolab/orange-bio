@@ -50,7 +50,8 @@ class OWFunctionalAnnotation(OWWidget):
         
         box = OWGUI.widgetBox(self.controlArea, "Gene names")
         self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneattr", "Gene attribute", sendSelectedValue=0, callback=self.updateAnnotations)
-        OWGUI.checkBox(box, self, "genesinrows", "Use attribute names", callback=lambda :self.data and self.updateAnnotations(), disables=[(-1, self.geneAttrComboBox)])
+        cb = OWGUI.checkBox(box, self, "genesinrows", "Use attribute names", callback=lambda :self.data and self.updateAnnotations(), disables=[(-1, self.geneAttrComboBox)])
+        cb.makeConsistent()
         OWGUI.button(box, self, "Gene matcher settings", callback=self.updateGeneMatcherSettings, tooltip="Open gene matching settings dialog", debuggingEnabled=0)
         
         self.referenceRadioBox = OWGUI.radioButtonsInBox(self.controlArea, self, "useReferenceData", ["Entire genome", "Reference set (input)"],
@@ -89,12 +90,16 @@ class OWFunctionalAnnotation(OWWidget):
         self.connect(self.filterLineEdit, SIGNAL("textChanged(QString)"), self.filterAnnotationsChartView)
         
         self.annotationsChartView = QTreeWidget(self)
-        self.annotationsChartView.setHeaderLabels(["Category", "Term", "Count", "Reference count", "P-Value"])
+        self.annotationsChartView.setHeaderLabels(["Category", "Term", "Count", "Reference count", "P-Value", "Enrichment"])
         self.annotationsChartView.setAlternatingRowColors(True)
         self.annotationsChartView.setSortingEnabled(True)
         self.annotationsChartView.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.annotationsChartView.setRootIsDecorated(False)
         self.mainArea.layout().addWidget(self.annotationsChartView)
+        
+        contextEventFilter = OWGUI.VisibleHeaderSectionContextEventFilter(self.annotationsChartView)
+        self.annotationsChartView.header().installEventFilter(contextEventFilter)
+        
         self.taxid_list = []
         
         self.connect(self.groupsWidget, SIGNAL("itemClicked(QTreeWidgetItem *, int)"), self.subsetSelectionChanged)
@@ -265,7 +270,7 @@ class OWFunctionalAnnotation(OWWidget):
         
         cmapped = genes.intersection(cluster)
         rmapped = genes.intersection(reference)
-        return (cmapped, rmapped, pval.p_value(len(cmapped), len(reference), len(rmapped), len(cluster))) # TODO: compute all statistics here
+        return (cmapped, rmapped, pval.p_value(len(cmapped), len(reference), len(rmapped), len(cluster)), float(len(cmapped)) / len(cluster) / (float(len(rmapped) or 1) / len(reference))) # TODO: compute all statistics here
     
     def updateAnnotations(self):
         self.annotationsChartView.clear()
@@ -295,8 +300,8 @@ class OWFunctionalAnnotation(OWWidget):
                 
         if self.useFDR:
             results = sorted(results, key=lambda a:a[1][2])
-            pvals = obiProb.FDR([pval for _, (_, _, pval) in results])
-            results = [(geneset, (cmapped, rmapped, pvals[i])) for i, (geneset, (cmapped, rmapped, _)) in enumerate(results)]
+            pvals = obiProb.FDR([pval for _, (_, _, pval, _) in results])
+            results = [(geneset, (cmapped, rmapped, pvals[i], es)) for i, (geneset, (cmapped, rmapped, _, es)) in enumerate(results)]
         
 #        results = [(geneset, self.enrichment(geneset, clusterGenes, referenceGenes, cache=cache)) for geneset in collections]
         fmt = lambda score, max_decimals=10: "%%.%if" % min(int(abs(math.log(max(score, 1e-10)))) + 2, max_decimals) if score > math.pow(10, -max_decimals) and score < 1 else "%.1f"
@@ -305,17 +310,21 @@ class OWFunctionalAnnotation(OWWidget):
         self.filterCompleter.setModel(None)
         
         self.treeItems = []
-        for i, (geneset, (cmapped, rmapped, p_val)) in enumerate(results):
+        for i, (geneset, (cmapped, rmapped, p_val, enrichment)) in enumerate(results):
             if len(cmapped) > 0:
                 item = QTreeWidgetItem(self.annotationsChartView, [" ".join(geneset.hierarchy), geneset.name, "", "", fmt(p_val) % p_val])
                 item.setData(2, Qt.DisplayRole, QVariant(len(cmapped)))
                 item.setData(3, Qt.DisplayRole, QVariant(len(rmapped)))
                 item.setData(4, Qt.DisplayRole, QVariant(p_val))
+                item.setData(5, Qt.DisplayRole, QVariant(enrichment))
                 item.geneset= geneset
                 self.treeItems.append(item)
+                
         replace = lambda s:s.replace(",", " ").replace("(", " ").replace(")", " ")
-        completerModel = QStringListModel(sorted(reduce(set.union, [[geneset.name] + replace(geneset.name).split() for geneset, (c, _, _) in results if c], set())))
+        completerModel = QStringListModel(sorted(reduce(set.union, [[geneset.name] + replace(geneset.name).split() for geneset, (c, _, _, _) in results if c], set())))
         self.filterCompleter.setModel(completerModel)
+        
+        self.annotationsChartView.setItemDelegateForColumn(5, BarItemDelegate(self, scale=(0.0, max(t[1][3] for t in results))))
 #        self.filterCompleter.setModel(self.annotationsChartView.model())
 #        self.filterCompleter.setCompletionColumn(1)
                 
@@ -360,6 +369,23 @@ class OWFunctionalAnnotation(OWWidget):
 #                    annotations = getgene
         
         self.send("Selected Examples", data)
+        
+class BarItemDelegate(QStyledItemDelegate):
+    def __init__(self, parent, brush=QBrush(QColor(255, 170, 127)), scale=(0.0, 1.0)):
+        QStyledItemDelegate.__init__(self, parent) 
+        self.brush = brush
+        self.scale = scale
+        
+    def paint(self, painter, option, index):
+        qApp.style().drawPrimitive(QStyle.PE_PanelItemViewRow, option, painter)
+        qApp.style().drawPrimitive(QStyle.PE_PanelItemViewItem, option, painter)
+        rect = option.rect
+        val, ok = index.data(Qt.DisplayRole).toDouble()
+        if ok:
+            min, max = self.scale
+            val = (val - min) / (max - min)
+            painter.setBrush(self.brush)
+            painter.drawRect(rect.adjusted(1, 1, - rect.width() * (1.0 - val) -1, -1))
     
 if __name__ == "__main__":
     import cProfile
