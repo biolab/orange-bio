@@ -81,7 +81,7 @@ class OWFunctionalAnnotation(OWWidget):
         self.connect(action, SIGNAL("triggered()"), self.filterLineEdit.clear)
         
         self.filterCompleter = QCompleter(self.filterLineEdit)
-        self.filterCompleter.setCaseSensitivity(False)
+        self.filterCompleter.setCaseSensitivity(Qt.CaseInsensitive)
         self.filterLineEdit.setCompleter(self.filterCompleter)
         
         hLayout.addWidget(self.filterLineEdit)
@@ -321,7 +321,7 @@ class OWFunctionalAnnotation(OWWidget):
                 self.treeItems.append(item)
                 
         replace = lambda s:s.replace(",", " ").replace("(", " ").replace(")", " ")
-        completerModel = QStringListModel(sorted(reduce(set.union, [[geneset.name] + replace(geneset.name).split() for geneset, (c, _, _, _) in results if c], set())))
+        self._completerModel = completerModel = QStringListModel(sorted(reduce(set.union, [[geneset.name] + replace(geneset.name).split() for geneset, (c, _, _, _) in results if c], set())))
         self.filterCompleter.setModel(completerModel)
         
         self.annotationsChartView.setItemDelegateForColumn(5, BarItemDelegate(self, scale=(0.0, max(t[1][3] for t in results))))
