@@ -33,15 +33,24 @@ KEGG_FTP_PATH = "ftp://ftp.genome.jp/pub/kegg/"
 
 _join = lambda *args: os.path.join(DEFAULT_DATABASE_PATH, *args)
 
-def loads(domain, filename):
+def special_tags(domain, filename):
+    return dict([tuple(tag.split(":", 1)) for tag in orngServerFiles.info(domain, filename)["tags"] \
+                 if tag.startswith("#") and ":" in tag])
+def loads(domain, filename, version=None):
+    """ A function decorator for a function that loads data from server files. 
+    Makes sure the file is downloaded and of the right version
+    """
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             try:
-                orngServerFiles.localpath_download(domain, filename if isinstance(filename, basestring) else filename(*args, **kwargs))
+                ## First try downloading the required server file  
+                file = filename if isinstance(filename, basestring) else filename(*args, **kwargs)
+                orngServerFiles.localpath_download(domain, file)
+                if version is not None and special_tags(domain, file).get("#version", str(version)) < str(version):
+                    orngServerFiles.update(domain, file) 
             except Exception, ex:
-                print ex, filename, args, kwargs
-                pass
+                print ex, args, kwargs
             return func(*args, **kwargs)
         return wrapper
     return decorator
@@ -368,7 +377,7 @@ class KEGGGenes(KEGGDataBase):
     
     @loads("KEGG", lambda self, org: "kegg_genes_%s.tar.gz" % org)
     def load(self, org):
-        super(KEGGGenes, self).load(os.path.join(DEFAULT_DATABASE_PATH, self.filename(org)))
+        super(KEGGGenes, self).load(_join(self.filename(org)))
         self.entry_dict = dict([(org + ":" + key, value) for key, value in self.entry_dict.items()])
         self.org_code = org
         
@@ -384,11 +393,11 @@ class KEGGGenes(KEGGDataBase):
      
     @classmethod
     @downloader
-    def download(cls, org, local_dir=None):
-        local_dir = orngServerFiles.localpath("KEGG") if local_dir is None else local_dir
+    def download(cls, org):
+#        local_dir = orngServerFiles.localpath("KEGG") if local_dir is None else local_dir
         filename = cls.filename(org)
         return (urllib2.urlopen(KEGG_FTP_PATH + filename), 
-                os.path.join(local_dir, filename))
+                _join(filename))
     
 class KEGGGenomeEntry(KEGGDBEntry):
     FIELDS = ["ENTRY", "NAME", "DEFINITION", "ANNOTATION", "TAXONOMY", "DATA_SOURCE",
@@ -405,13 +414,12 @@ entry_decorate(KEGGGenomeEntry)
         
 class KEGGGenome(KEGGDataBase):
     Entry = KEGGGenomeEntry
-
+    VERSION = "v1.1"
     def name(self):
         return super(KEGGGeneome, self).name()
     
-    @loads("KEGG", "kegg_genome.tar.gz")
+    @loads("KEGG", "kegg_genome.tar.gz", version=VERSION)
     def load(self, file=None):
-        filename = os.path.join(orngServerFiles.localpath("KEGG"), "kegg_taxonomy.tar.gz", "genes", "genome")
         filename = _join("genes", "genome")
         super(KEGGGenome, self).load(filename)
     
@@ -449,7 +457,7 @@ class KEGGGenome(KEGGDataBase):
     @downloader
     def download(cls, file=None):
         return (urllib2.urlopen(KEGG_FTP_PATH + "/genes/genome"), 
-                os.path.join(DEFAULT_DATABASE_PATH, "genes", "genome") if file is None else file)
+                _join("genes", "genome") if file is None else file)
         
 borg_class(KEGGGenome)
         
@@ -473,7 +481,7 @@ class KEGGCompounds(KEGGDataBase):
     @downloader
     def download(cls, file=None):
         return (urllib2.urlopen(KEGG_FTP_PATH + "/ligand/compound/compound"),
-                os.path.join(DEFAULT_DATABASE_PATH, "ligand", "compound", "compound") if file is None else file)
+                _join("ligand", "compound", "compound") if file is None else file)
     
 borg_class(KEGGCompounds)
     
@@ -499,7 +507,7 @@ class KEGGEnzymes(KEGGDataBase):
     @downloader
     def download(cls, file=None):
         return (urllib2.urlopen(KEGG_FTP_PATH + "ligand/enzyme/enzyme"),
-                os.path.join(DEFAULT_DATABASE_PATH, "ligand", "enzyme", "enzyme"))
+                _join("ligand", "enzyme", "enzyme"))
     
 borg_class(KEGGEnzymes)
 
@@ -523,7 +531,7 @@ class KEGGReactions(KEGGDataBase):
     @downloader
     def download(cls, file=None):
         return (urllib2.urlopen(KEGG_FTP_PATH + "ligand/reaction/reaction"),
-                os.path.join(DEFAULT_DATABASE_PATH, "ligand", "reaction", "reaction"))
+                _join("ligand", "reaction", "reaction"))
         
 borg_class(KEGGReactions)
 
@@ -547,7 +555,7 @@ class KEGGKO(KEGGDataBase):
     @downloader
     def download(cls, file=None):
         return (urllib2.urlopen(KEGG_FTP_PATH + "genes/ko"),
-                os.path.join(DEFAULT_DATABASE_PATH, "genes", "ko"))
+                _join("genes", "ko"))
         
 borg_class(KEGGKO)
 
