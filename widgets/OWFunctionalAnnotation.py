@@ -34,6 +34,8 @@ class OWFunctionalAnnotation(OWWidget):
         self.minClusterCount = 0
         self.maxPValue = 0.01
         
+        self.useFDR = True
+        
         self.categoriesCheckState = {}
         
         self.loadSettings()
@@ -60,30 +62,25 @@ class OWFunctionalAnnotation(OWWidget):
         self.groupsWidget.setHeaderLabels(["Category"])
         box.layout().addWidget(self.groupsWidget)
 
-        
         hLayout = QHBoxLayout()
-        hLayout.setSpacing(5)
+        hLayout.setSpacing(10)
         sb, sbcb = OWGUI.spin(QWidget(self.mainArea), self, "minClusterCount", 0, 100, label="Min. Count", tooltip="Minimum gene count", callback=self.filterAnnotationsChartView, callbackOnReturn=True, checked="useMinCountFilter", checkCallback=self.filterAnnotationsChartView)
-        dsp, dspcb = OWGUI.doubleSpin(QWidget(self.mainArea), self, "maxPValue", 0.0, 1.0, 0.0001, label="Max. P-Value", tooltip="Maximum P-Value", callback=self.filterAnnotationsChartView, callbackOnReturn=True, checked="useMaxPValFilter", checkCallback=self.filterAnnotationsChartView)
+        dsp, dspcb = OWGUI.doubleSpin(QWidget(self.mainArea), self, "maxPValue", 0.0, 1.0, 0.0001, label="Max. P-Value", tooltip="Maximum (FDR corrected) P-Value", callback=self.filterAnnotationsChartView, callbackOnReturn=True, checked="useMaxPValFilter", checkCallback=self.filterAnnotationsChartView)
         
         hLayout.addWidget(sb)
         hLayout.addWidget(sbcb)
         hLayout.addWidget(dsp)
         hLayout.addWidget(dspcb)
         
-#        self.controlArea.layout().addLayout(hLayout)
-        
-#        self.filterLineEdit = QLineEdit(self.mainArea)
         import OWGUIEx
-        reload(OWGUIEx)
         self.filterLineEdit = OWGUIEx.QLineEditWithActions(self)
         self.filterLineEdit.setPlaceholderText("Filter ...")
-        action = QAction(QIcon(os.path.join(orngEnviron.canvasDir, "icons", "delete.png")), "Clear", self)
-#        action = QAction("Clear filter text", self)
+        action = QAction(QIcon(os.path.join(orngEnviron.canvasDir, "icons", "delete_gray.png")), "Clear", self)
         self.filterLineEdit.addAction(action, 0, Qt.AlignHCenter)
         self.connect(action, SIGNAL("triggered()"), self.filterLineEdit.clear)
         
         self.filterCompleter = QCompleter(self.filterLineEdit)
+        self.filterCompleter.setCaseSensitivity(False)
         self.filterLineEdit.setCompleter(self.filterCompleter)
         
         hLayout.addWidget(self.filterLineEdit)
@@ -96,6 +93,7 @@ class OWFunctionalAnnotation(OWWidget):
         self.annotationsChartView.setAlternatingRowColors(True)
         self.annotationsChartView.setSortingEnabled(True)
         self.annotationsChartView.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.annotationsChartView.setRootIsDecorated(False)
         self.mainArea.layout().addWidget(self.annotationsChartView)
         self.taxid_list = []
         
@@ -119,7 +117,6 @@ class OWFunctionalAnnotation(OWWidget):
             self.spiciesComboBox.clear()
             self.spiciesComboBox.addItems([obiTaxonomy.name(id) for id in organisms])
             self.genesets = all
-            self.emit(SIGNAL("hierarchyUpdated()"))
         finally:
             self.signalManager.setFreeze(0)
         
@@ -130,6 +127,9 @@ class OWFunctionalAnnotation(OWWidget):
         self.groupsWidget.clear()
         self.annotationsChartView.clear()
         
+        if not getattr(self,"taxid_list", None):
+            QTimer.singleShot(100, lambda data=data: self.setData(data))
+            return 
         if data:
             self.geneAttrs = [attr for attr in data.domain.variables + data.domain.getmetas().values() \
                               if attr.varType != orange.VarTypes.Continuous]
@@ -168,31 +168,28 @@ class OWFunctionalAnnotation(OWWidget):
         return collection[taxid]
         
     def setHierarchy(self, hierarchy):
-        print self.categoriesCheckState
+        self.groupsWidgetItems = {}
         def fill(col, parent, full=()):
             for key, value in sorted(col.items()):
                 full_cat = full + (key,)
                 item = QTreeWidgetItem(parent, [key])
-                item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                if value:
+                    item.setFlags(item.flags() | Qt.ItemIsTristate)
+                    
                 item.setData(0, Qt.CheckStateRole, QVariant(self.categoriesCheckState.get(full_cat, Qt.Checked)))
                 item.setExpanded(True)
+                item.category = full_cat
+                self.groupsWidgetItems[full_cat] = item
                 fill(value, item, full_cat)
                 
         fill(hierarchy, self.groupsWidget)
         
+#    def updateCategoryCounts(self):
+#        for cat, item in self.groupWidgetItem:
+#            item.setData(1, QVariant(), Qt.DisplayRole)
+        
     def selectedCategories(self):
-#        def collect_selected(item):
-#            if item.checkState(0) == Qt.Checked:
-#                cat = str(item.data(0, Qt.DisplayRole).toString())
-#                subcats = reduce(set.union, [collect_selected(item.child(i)) for i in range(item.childCount())], set())
-#                return [(cat,) + subcat for subcat in sorted(subcats)] or [(cat,)]
-#            else:
-#                return []
-#            
-#        items = [self.groupsWidget.topLevelItem(i) for i in range(self.groupsWidget.topLevelItemCount())]
-#        cats = reduce(set.union, [collect_selected(item) for item in items], set())
-#        
-#        return [(cat, taxid) for cat in cats]
         taxid = self.taxid_list[self.spiciesIndex]
         return [(key, taxid) for key, check in self.getHierarchyCheckState().items() if check == Qt.Checked]
 
@@ -295,6 +292,12 @@ class OWFunctionalAnnotation(OWWidget):
             results.append((geneset, self.enrichment(geneset, clusterGenes, referenceGenes, cache=cache)))
             if i in milestones:
                 self.progressBarSet(100.0 * i / len(collections))
+                
+        if self.useFDR:
+            results = sorted(results, key=lambda a:a[1][2])
+            pvals = obiProb.FDR([pval for _, (_, _, pval) in results])
+            results = [(geneset, (cmapped, rmapped, pvals[i])) for i, (geneset, (cmapped, rmapped, _)) in enumerate(results)]
+        
 #        results = [(geneset, self.enrichment(geneset, clusterGenes, referenceGenes, cache=cache)) for geneset in collections]
         fmt = lambda score, max_decimals=10: "%%.%if" % min(int(abs(math.log(max(score, 1e-10)))) + 2, max_decimals) if score > math.pow(10, -max_decimals) and score < 1 else "%.1f"
         self.annotationsChartView.clear()
@@ -310,28 +313,28 @@ class OWFunctionalAnnotation(OWWidget):
                 item.setData(4, Qt.DisplayRole, QVariant(p_val))
                 item.geneset= geneset
                 self.treeItems.append(item)
-                
-        self.filterCompleter.setModel(self.annotationsChartView.model())
-        self.filterCompleter.setCompletionColumn(1)
+        replace = lambda s:s.replace(",", " ").replace("(", " ").replace(")", " ")
+        completerModel = QStringListModel(sorted(reduce(set.union, [[geneset.name] + replace(geneset.name).split() for geneset, (c, _, _) in results if c], set())))
+        self.filterCompleter.setModel(completerModel)
+#        self.filterCompleter.setModel(self.annotationsChartView.model())
+#        self.filterCompleter.setCompletionColumn(1)
                 
         for i in range(self.annotationsChartView.columnCount()):
             self.annotationsChartView.resizeColumnToContents(i)
             
         self.annotationsChartView.setColumnWidth(1, min(self.annotationsChartView.columnWidth(1), 300))
         self.progressBarFinished()
+        QTimer.singleShot(0, self.filterAnnotationsChartView)
     
     def filterAnnotationsChartView(self, filterString=""):
         categories = set(" ".join(cat) for cat, taxid in self.selectedCategories())
 #        print categories
-        filterString = str(self.filterLineEdit.text())
+        filterString = str(self.filterLineEdit.text()).lower()
         for item in self.treeItems:
             item_cat = str(item.data(0, Qt.EditRole).toString())
             (count, _), (pval, _) = item.data(2, Qt.EditRole).toInt(), item.data(4, Qt.EditRole).toDouble()
-            geneset = item.geneset.name
-#            print count, pval
+            geneset = item.geneset.name.lower()
             item.setHidden(item_cat not in categories or (self.useMinCountFilter and count < self.minClusterCount) or (self.useMaxPValFilter and pval > self.maxPValue) or filterString not in geneset)
-                
-#        filter_string = self.filterString.split()
         
     def commit(self):
         selected = self.annotationsChartView.selectedItems()
