@@ -633,7 +633,7 @@ class OWPIPA(OWWidget):
 #        print sortOrder
         keys = {"Strain": "strain", "Genotype": "genotype", "Timepoint": "map_stop1", "Growth": "growth",
                 "Species": "species", "Id":"id", "Name": "name"}
-        attributes = sorted(table.domain.attributes, key=lambda attr: chr(255).join([attr.attributes.get(keys[name], "") for name in sortOrder]))
+        attributes = sorted(table.domain.attributes, key=lambda attr: tuple([attr.attributes.get(keys[name], "") for name in sortOrder]))
         domain = orange.Domain(attributes, table.domain.classVar)
         domain.addmetas(table.domain.getmetas())
         table = orange.ExampleTable(domain, table)
