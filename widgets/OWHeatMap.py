@@ -360,7 +360,7 @@ class OWHeatMap(OWWidget):
         mapping = []
         
         valuesCount = len(data.domain.classVar.values) if data.domain.classVar else 0
-        attrRoot = orngClustering.hierarchicalClustering_attributes(data, progressCallback=lambda value: progressCallback((100.0/(valuesCount or 1 + 1) + value)/(valuesCount or 1 + 1)), order=self.SortGenes==3)
+        attrRoot = orngClustering.hierarchicalClustering_attributes(data, progressCallback=lambda value: progressCallback((value)/(valuesCount or 1 + 1)), order=self.SortGenes==3)
         orderedDomain = orange.Domain([data.domain.attributes[i] for i in attrRoot], data.domain.classVar)
         orderedDomain.addmetas(data.domain.getmetas())
         
@@ -371,7 +371,7 @@ class OWHeatMap(OWWidget):
             for i, val in enumerate(data.domain.classVar.values):
                 self.progressBarSet(100.0*(i + 1)/valuesCount)
                 tmpData = orange.ExampleTable([ex for ex in data if ex.getclass()==val])
-                root = orngClustering.hierarchicalClustering(tmpData, progressCallback=lambda value: progressCallback((50.0*(i + 1) + value)/valuesCount), order=self.SortGenes==3)
+                root = orngClustering.hierarchicalClustering(tmpData, progressCallback=lambda value: progressCallback((100.0*(i + 1) + value)/valuesCount), order=self.SortGenes==3)
                 orderedData.extend([tmpData[i] for i in root.mapping])
                 mapping.extend([i+len(mapping) for i in root.mapping])
                 clusterRoots.append(root)
