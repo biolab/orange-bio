@@ -312,7 +312,7 @@ class OWFunctionalAnnotation(OWWidget):
         self.treeItems = []
         for i, (geneset, (cmapped, rmapped, p_val, enrichment)) in enumerate(results):
             if len(cmapped) > 0:
-                item = QTreeWidgetItem(self.annotationsChartView, [" ".join(geneset.hierarchy), geneset.name, "", "", fmt(p_val) % p_val])
+                item = QTreeWidgetItem(self.annotationsChartView, [" ".join(geneset.hierarchy), geneset.name])
                 item.setData(2, Qt.DisplayRole, QVariant(len(cmapped)))
                 item.setData(3, Qt.DisplayRole, QVariant(len(rmapped)))
                 item.setData(4, Qt.DisplayRole, QVariant(p_val))
@@ -384,8 +384,10 @@ class BarItemDelegate(QStyledItemDelegate):
         if ok:
             min, max = self.scale
             val = (val - min) / (max - min)
+            painter.save()
             painter.setBrush(self.brush)
             painter.drawRect(rect.adjusted(1, 1, - rect.width() * (1.0 - val) -1, -1))
+            painter.restore()
     
 if __name__ == "__main__":
     import cProfile
