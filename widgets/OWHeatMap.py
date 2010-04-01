@@ -353,16 +353,25 @@ class OWHeatMap(OWWidget):
     def orderClustering(self, data):
         import orngClustering
         self.progressBarInit()
+        progressCallback = lambda value, caller=None: self.progressBarSet(value)
+        
         clusterRoots = []
         orderedData = []
         mapping = []
-        progressCallback = lambda value, caller=None: self.progressBarSet(value)
+        
+        valuesCount = len(data.domain.classVar.values) if data.domain.classVar else 0
+        attrRoot = orngClustering.hierarchicalClustering_attributes(data, progressCallback=lambda value: progressCallback((100.0/(valuesCount or 1 + 1) + value)/(valuesCount or 1 + 1)), order=self.SortGenes==3)
+        orderedDomain = orange.Domain([data.domain.attributes[i] for i in attrRoot], data.domain.classVar)
+        orderedDomain.addmetas(data.domain.getmetas())
+        
+        data = orange.ExampleTable(orderedDomain, data)
+         
         if data.domain.classVar and data.domain.classVar.values:
-            valuesCount = len(data.domain.classVar.values)
+            valuesCount = len(data.domain.classVar.values) + 1
             for i, val in enumerate(data.domain.classVar.values):
-                self.progressBarSet(100.0*i/valuesCount)
+                self.progressBarSet(100.0*(i + 1)/valuesCount)
                 tmpData = orange.ExampleTable([ex for ex in data if ex.getclass()==val])
-                root = orngClustering.hierarchicalClustering(tmpData, progressCallback=lambda value: progressCallback((100.0*i + value)/valuesCount), order=self.SortGenes==3)
+                root = orngClustering.hierarchicalClustering(tmpData, progressCallback=lambda value: progressCallback((50.0*(i + 1) + value)/valuesCount), order=self.SortGenes==3)
                 orderedData.extend([tmpData[i] for i in root.mapping])
                 mapping.extend([i+len(mapping) for i in root.mapping])
                 clusterRoots.append(root)
@@ -374,8 +383,7 @@ class OWHeatMap(OWWidget):
             clusterRoots.append(root)
 
         self.progressBarFinished()
-        return orange.ExampleTable(orderedData), clusterRoots, mapping
-            
+        return orange.ExampleTable(orderedData), clusterRoots, mapping, attrRoot
         
     def constructHeatmap(self, callback=None):
         if len(self.data):
@@ -384,11 +392,11 @@ class OWHeatMap(OWWidget):
             self.groupClusters = []
             self.attrCluster = None
             self.mapping = None
-            sortData = lambda data, mapping: orange.ExampleTable(data.domain, [data[i] for i in mapping])
+            sortData = lambda data, mapping, domain=None: orange.ExampleTable(domain or data.domain, [data[i] for i in mapping])
             if self.SortGenes:
                 if self.SortGenes > 1: ## cluster sort
-                    refData, self.groupClusters , self.mapping = self.orderClustering(self.unorderedData[self.refFile])
-                    sortedData = sortData(self.data[self.refFile], self.mapping)
+                    refData, self.groupClusters , self.mapping, self.attrCluster = self.orderClustering(self.unorderedData[self.refFile])
+                    sortedData = sortData(self.data[self.refFile], self.mapping, refData.domain)
                     self.heatmapconstructor[self.refFile] = \
                         orangene.HeatmapConstructor(sortedData, None)
                     self.heatmapconstructor[self.refFile].setattr("_sortedData", sortedData)
@@ -403,7 +411,7 @@ class OWHeatMap(OWWidget):
             for i in range(len(self.data)):
                 if i <> self.refFile:
                     if self.mapping:
-                        self.heatmapconstructor[i] = orangene.HeatmapConstructor(sortData(self.data[i],self.mapping),
+                        self.heatmapconstructor[i] = orangene.HeatmapConstructor(sortData(self.data[i],self.mapping, refData.domain),
                             self.heatmapconstructor[self.refFile])
                     else:                        
                         self.heatmapconstructor[i] = orangene.HeatmapConstructor(self.data[i],
@@ -582,20 +590,8 @@ class OWHeatMap(OWWidget):
         return y + t.boundingRect().height() + 1
 
     def drawGeneAnnotation(self, x, y, group):
-        # determine the appropriate font width for annotation
-        # this part is ugly, we need to do it computationally
         font = QFont()
-##        dummy = QGraphicsSimpleTextItem("dummy", None)
-##        last = 2; offset = 0
-##        for fsize in range(2,9):
-##            font.setPointSize(fsize)
-##            dummy.setFont(font)
-##            if dummy.boundingRect().height() > self.CellHeight:
-##                break
-##            offset = (self.CellHeight - dummy.boundingRect().height())/2
-##            last = fsize
-##        font.setPointSize(last)
-##        y += offset
+
         font.setPixelSize(max(self.CellHeight - 1, 1))
 
         # annotate
@@ -687,10 +683,16 @@ class OWHeatMap(OWWidget):
             showClusters = (i == 0 and self.groupClusters and self.ShowClustering)
             ycoord = []
             y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + c_spaceAverageX)
-
-            if self.ColumnLabelPosition == 0:
-                y = self.drawColumnLabels(x, y, self.heatmaps[i]) + 2
             
+            if self.attrCluster and self.ShowClustering:
+                item = HierarchicalClusterItem(self.attrCluster, None, self.scene)
+                item.setSize(self.widths[i], 100.0)
+                item.scale(1.0, -1.0)
+                item.setPos(x + self.CellWidth/2.0, y + 100.0)
+                y += 100.0 + c_spaceY
+            if self.ColumnLabelPosition == 0:
+                y = self.drawColumnLabels(x, y, self.heatmaps[i]) + 2 
+                
             self.heatmapPositionsX.append((x, x + self.widths[i]-1))
             for g in range(groups):
               if self.heights[g]:
@@ -860,20 +862,21 @@ class HeatMapGraphicsScene(QGraphicsScene):
         if self.clicked:
             self.master.selection(self.clicked, (event.scenePos().x(), event.scenePos().y()))
 
-        # balloon handling
-        try:
-            if self.master <> None and not self.master.BShowballoon: return
-        except:
-            return
         item = self.itemAt(event.scenePos())
         if self.currentHighlightedCluster and self.currentHighlightedCluster != item:
             try:
                 self.currentHighlightedCluster.setHighlight(False)
             except RuntimeError: ## Underlying object deleted. Why?
                 self.currentHighlightedCluster = None
+        
         if isinstance(item, HierarchicalClusterItem):
-            item.setHighlight(True)
-            self.currentHighlightedCluster = item
+            root = item
+            while root.parentItem():
+                root = root.parentItem()
+#            print item, root, self.master.attrCluster
+            if root.cluster != self.master.attrCluster:
+                item.setHighlight(True)
+                self.currentHighlightedCluster = item
         items = filter(lambda ci: ci.zValue()==z_heatmap, self.items(event.scenePos()))
         if len(items) == 0: # mouse over nothing special
             self.selector.hide()
@@ -891,6 +894,12 @@ class HeatMapGraphicsScene(QGraphicsScene):
             ex = hm.examples[hm.exampleIndices[row] : hm.exampleIndices[row+1]]
             self.selector.setPos(item.x()+col*self.dx-v_sel_width+1, item.y()+row*self.dy-v_sel_width+1)
             self.selector.show()
+            
+            # balloon handling
+            try:
+                if self.master <> None and not self.master.BShowballoon: return
+            except:
+                return
 
             # bubble, construct head
             if hm.getCellIntensity(row, col)!=None:
@@ -939,7 +948,6 @@ class HeatMapGraphicsScene(QGraphicsScene):
         item = self.itemAt(event.scenePos())
         if isinstance(item ,HierarchicalClusterItem):
             leaves = list(item)
-            print len(leaves)
             first, last = leaves[0], leaves[-1]
             first_x, first_y = first.mapToScene(first.rect().topLeft()).x(), first.mapToScene(first.rect().topLeft()).y()
             last_x, last_y = last.mapToScene(last.rect().topLeft()).x(), last.mapToScene(last.rect().topLeft()).y()
