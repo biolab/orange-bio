@@ -16,15 +16,15 @@ from orngDataCaching import data_hints
 from collections import defaultdict
 
 class OWFunctionalAnnotation(OWWidget):
-    settingsList = ["spiciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
-    contextHandlers = {"":DomainContextHandler("", ["spiciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
+    settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
+    contextHandlers = {"":DomainContextHandler("", ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
     
     def __init__(self, parent=None, signalManager=None, name="Gene Functional Annotation", **kwargs):
         OWWidget.__init__(self, parent, signalManager, name, **kwargs)
         self.inputs = [("Example Table", ExampleTable, self.setData, Default), ("Reference", ExampleTable, self.setReference)]
         self.outputs = [("Selected Examples", ExampleTable)]
         
-        self.spiciesIndex = 0
+        self.speciesIndex = 0
         self.genesinrows = False
         self.geneattr = 0
         self.geneMatcherSettings = [False, False, True, False]
@@ -42,11 +42,11 @@ class OWFunctionalAnnotation(OWWidget):
         
         self.signalManager.setFreeze(1)
         QTimer.singleShot(50, self.updateHierarchy)
-            
+        
         self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "Info")
         self.infoBox.setText("No data on input")
         
-        self.spiciesComboBox = OWGUI.comboBox(self.controlArea, self, "spiciesIndex", "Spicies", callback=lambda :self.data and self.updateAnnotations())
+        self.speciesComboBox = OWGUI.comboBox(self.controlArea, self, "speciesIndex", "Species", callback=lambda :self.data and self.updateAnnotations())
         
         box = OWGUI.widgetBox(self.controlArea, "Gene names")
         self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneattr", "Gene attribute", sendSelectedValue=0, callback=self.updateAnnotations)
@@ -119,8 +119,8 @@ class OWFunctionalAnnotation(OWWidget):
             all, local = obiGeneSets.list_all(), obiGeneSets.list_local()
             organisms = set(obiTaxonomy.essential_taxids() + [t[1] for t in all])
             self.taxid_list = list(organisms)
-            self.spiciesComboBox.clear()
-            self.spiciesComboBox.addItems([obiTaxonomy.name(id) for id in organisms])
+            self.speciesComboBox.clear()
+            self.speciesComboBox.addItems([obiTaxonomy.name(id) for id in self.taxid_list])
             self.genesets = all
         finally:
             self.signalManager.setFreeze(0)
@@ -143,14 +143,13 @@ class OWFunctionalAnnotation(OWWidget):
              
             taxid = data_hints.get_hint(data, "taxid", "")
             try:
-                self.spiciesIndex = self.taxid_list.index(taxid)
-            except Exception, ex:
+                self.speciesIndex = self.taxid_list.index(taxid)
+            except ValueError, ex:
                 pass
             self.genesinrows = data_hints.get_hint(data, "genesinrows", self.genesinrows)
             
             self.openContext("", data)
-            
-            self.setHierarchy(self.getHierarchy(taxid=self.taxid_list[self.spiciesIndex]))
+            self.setHierarchy(self.getHierarchy(taxid=self.taxid_list[self.speciesIndex]))
             
             self.loadedGenematcher = "None"
             self.updateAnnotations()
@@ -168,8 +167,8 @@ class OWFunctionalAnnotation(OWWidget):
             if hier:
                 collect(col[hier[0]], hier[1:])
                 
-        for hierarchy, taxid, _ in self.genesets:
-            collect(collection[taxid], hierarchy)
+        for hierarchy, t_id, _ in self.genesets:
+            collect(collection[t_id], hierarchy)
         return collection[taxid]
         
     def setHierarchy(self, hierarchy):
@@ -195,7 +194,7 @@ class OWFunctionalAnnotation(OWWidget):
 #            item.setData(1, QVariant(), Qt.DisplayRole)
         
     def selectedCategories(self):
-        taxid = self.taxid_list[self.spiciesIndex]
+        taxid = self.taxid_list[self.speciesIndex]
         return [(key, taxid) for key, check in self.getHierarchyCheckState().items() if check == Qt.Checked]
 
     def getHierarchyCheckState(self):
@@ -226,7 +225,7 @@ class OWFunctionalAnnotation(OWWidget):
                 self.updateAnnotations()
                 
     def updateGenematcher(self):
-        taxid = self.taxid_list[self.spiciesIndex]
+        taxid = self.taxid_list[self.speciesIndex]
         if taxid != self.loadedGenematcher:
             matchers = [obiGene.GMGO, obiGene.GMKEGG, obiGene.GMNCBI, obiGene.GMAffy]
             self.genematcher = obiGene.matcher([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
@@ -248,7 +247,7 @@ class OWFunctionalAnnotation(OWWidget):
         if self.referenceData and self.useReferenceData:
             return self.genesFromExampleTable(self.referenceData)
         else:
-            taxid = self.taxid_list[self.spiciesIndex]
+            taxid = self.taxid_list[self.speciesIndex]
             return obiGene.NCBIGeneInfo(taxid).keys()
     
     def _cached_name_lookup(self, func, cache):
