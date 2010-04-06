@@ -160,6 +160,7 @@ class OWFeatureSelection(OWWidget):
         
     def SetData(self, data):
         self.error(0)
+        self.error(1)
         self.warning(0)
         self.scoreCache = {}
         self.nullDistCache = {}
@@ -182,6 +183,9 @@ class OWFeatureSelection(OWWidget):
         self.dataLabelComboBox.setDisabled(len(self.dataLabels) <= 1)
         self.dataLabelIndex = max(min(self.dataLabelIndex, len(self.dataLabels) - 1), 0)
         
+        if not self.dataLabels:
+            self.error(1, "Cannot compute gene scores! Gene Selection widget requires a data-set with a class variable or attribute labels!")
+            self.data = None
         self.Update()
         if not self.data:
             self.UpdateDataInfoLabel()
@@ -354,7 +358,7 @@ class OWFeatureSelection(OWWidget):
             self.dataChangedFlag = True
         
     def Commit(self):
-        if not self.data:
+        if not self.data or not self.scores:
             return
         test = self.scoreMethods[self.methodIndex][2]
         
@@ -367,10 +371,12 @@ class OWFeatureSelection(OWWidget):
         remaining = set([key for key, test in scores if not test])
         if self.data and self.genesInColumns:
             selected = sorted(selected)
-            newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in selected])
+            newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in selected]) if selected else None
             if self.addScoresToOutput:
                 scoreAttr = orange.FloatVariable(self.scoreMethods[self.methodIndex][0])
                 mid = orange.newmetaid()
+                
+            if self.addScoresToOutput and newdata is not None:
                 newdata.domain.addmeta(mid, scoreAttr)
                 for ex, key in zip(newdata, selected):
                     ex[mid] = self.scores[key]
@@ -378,8 +384,9 @@ class OWFeatureSelection(OWWidget):
             self.send("Example table with selected genes", newdata)
             
             remaining = sorted(remaining)
-            newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in remaining]) #ex in enumerate(self.data) if i in remaining])
-            if self.addScoresToOutput:
+            newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in remaining]) if remaining else None
+            
+            if self.addScoresToOutput and newdata is not None:
                 newdata.domain.addmeta(mid, scoreAttr)
                 for ex, key in zip(newdata, remaining):
                     ex[mid] = self.scores[key]
