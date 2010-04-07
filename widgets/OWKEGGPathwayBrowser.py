@@ -11,6 +11,8 @@ import orange
 import obiKEGG, orngServerFiles
 import obiTaxonomy
 
+import webbrowser
+
 from OWWidget import *
 import OWGUI
 from collections import defaultdict
@@ -20,202 +22,141 @@ from orngDataCaching import data_hints
 def split_and_strip(string, sep=None):
     return [s.strip() for s in string.split(sep)]
 
-class PathwayToolTip(object):
-    def __init__(self, parent):
-        self.parent = parent
-
-    def maybeTip(self, p):
-        objs = [(id, bb) for id, bb in self.parent.GetObjects(p.x() ,p.y()) if id in self.parent.objects]
-        if objs:
-            genes = map(self.parent.master.uniqueGenesDict.get, dict(objs).keys())
-            name = objs[0][1].get("name", "")
-            text = "<br>".join(genes)
-            if name:
-                text = "<p>" + name + "</p>" + text
-##            self.tip(QRect(p.x()-2, p.y()-2, 4, 4), text)
-            QToolTip.showText(self.parent.mapToGlobal(p), text, self.parent, QRect(p.x()-2, p.y()-2, 4, 4))
+class EntryGraphicsItem(QGraphicsPathItem):
+    def __init__(self, graphics, *args):
+        QGraphicsPathItem.__init__(self, *args)
+        path = QPainterPath()
+        x, y, w, h = [int(graphics.get(c, 0)) for c in ["x", "y", "width", "height"]]
+        type = graphics.get("type", "rectangle")
+        if type == "rectangle":
+            path.addRect(QRectF(x - w/2, y - h/2, w, h))
+        elif type == "roundrectangle":
+            path.addRoundedRect(QRectF(x - w/2, y - h/2, w, h), 10, 10)
+        elif type == "circle":
+            path.addEllipse(QRectF(x - w/2, y - h/2, w, h))
+            
+        self.setPath(path)
+        self.setAcceptHoverEvents(True)
+        self._actions = []
+        self.link = None
+        
+    def hoverEnterEvent(self, event):
+        self.setBrush(QBrush(QColor(0, 100, 0, 100)))
+        
+    def hoverLeaveEvent(self, event):
+        self.setBrush(QBrush(Qt.NoBrush))
+        
+    def contextMenuEvent(self, event):
+        if self._actions:
+            self._menu = menu = QMenu()
+            for action in self._actions:
+                menu.addAction(action)
+            menu.popup(event.screenPos())
+            
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.ItemSelectedHasChanged:
+            self.setPen(QPen(Qt.red if self.isSelected() else Qt.blue, 2))
+            
+        return QGraphicsPathItem.itemChange(self, change, value)
+            
+class GraphicsPathwayItem(QGraphicsPixmapItem):
+    def __init__(self, pathway, objects, *args, **kwargs):
+        QGraphicsPixmapItem.__init__(self, *args)
+        self.setTransformationMode(Qt.SmoothTransformation)
+        self.setPathway(pathway)
+        self.setMarkedObjects(objects, name_mapper=kwargs.get("name_mapper", {}))
+        
+    def setPathway(self, pathway):
+        self.pathway = pathway
+        if pathway:
+            image_filename = pathway.get_image()
+            self._pixmap = QPixmap(image_filename)
+        else:
+            self._pixmap = QPixmap()
+        self.setPixmap(self._pixmap)
+        
+    def setMarkedObjects(self, objects, name_mapper={}):
+        for entry in self.pathway.entrys() if self.pathway else []:
+            if entry.type == "group":
+                continue
+            graphics = entry.graphics
+            contained_objects = [obj for obj in objects if obj in entry.name]
+            item = EntryGraphicsItem(graphics, self, self.scene())
+            item.setToolTip(self.tooltip(entry, contained_objects, name_mapper))
+            item._actions = self.actions(entry, contained_objects)
+            item.marked_objects = contained_objects
+            if contained_objects:
+                item.setPen(QPen(Qt.blue, 2))
+                item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+    
+    def actions(self, entry, marked_objects=[]):
+        actions = []
+        type = entry.type
+        if marked_objects:
+            action = QAction("View genes on kegg website", None)
+            org = set([s.split(":")[0] for s in marked_objects]).pop()
+            genes = [s.split(":")[-1] for s in marked_objects]
+            address = "http://www.genome.jp/dbget-bin/www_bget?" + "+".join([org] + genes)
+            QObject.connect(action, SIGNAL("triggered()"), lambda toggled=False, address=address: webbrowser.open(address))
+            actions.append(action)
+        elif hasattr(entry, "link"):
+            action = QAction("View %s on KEGG website" % str(type), None)
+            QObject.connect(action, SIGNAL("triggered()"), lambda toggled=False, address=entry.link: webbrowser.open(address))
+            actions.append(action)
+        return actions
+    
+    def tooltip(self, entry, objects, name_mapper={}):
+        names = [obj for obj in objects if obj in entry.name]
+        names = [name_mapper.get(name, name) for name in names]
+        text = "<p>%s</p>" % (entry.name[:16] + " ..." if len(entry.name) > 20 else entry.name)
+        if names:
+            text += "<br>".join(names)
+        return text
+    
+    def contextMenuEvent(self, event):
+        self._menu = menu = QMenu()
+        action = menu.addAction("View this pathway on KEGG website")
+        address ="http://www.kegg.jp/kegg-bin/show_pathway?%s%s" % (self.pathway.org, self.pathway.number)
+        QObject.connect(action, SIGNAL("triggered()"), lambda : webbrowser.open(address))
+        menu.popup(event.screenPos())
 
 class PathwayView(QGraphicsView):
     def __init__(self, master, *args):
         QGraphicsView.__init__(self, *args)
         self.master = master
-        self.toolTip = PathwayToolTip(self)
-
+        
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         
-        self.scene = QGraphicsScene(self)
-        self.setScene(self.scene)
+        self.setRenderHints(QPainter.Antialiasing)
+        scene = QGraphicsScene(self)
+        self.pixmapGraphicsItem = QGraphicsPixmapItem(None, scene) 
+        self.setScene(scene)
         
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
-        self.graphics_items = []
-        self.pixmap = None
-        self.image = None       
-        
-        self.popup = QMenu(self)
-        self.popup.addAction("View genes on KEGG website", self.PopupAction)
-        self.popup.addAction("View pathway on KEGG website", self.PopupAction)
-        self.popup.addAction("View linked pathway", self.PopupAction)
         
     def SetPathway(self, pathway=None, objects=[]):
-##        print 'set pathway',pathway
-         
+        self.scene().clear()
         self.pathway = pathway
         self.objects = objects
-        if pathway:
-#            self.master.progressBarInit()
-            self.image = image = self.pathway.get_image()
-#            self.bbDict = self.pathway.get_bounding_box_dict()
-            self.graphics_items = [(item, self.pathway.graphics(item)) for item in objects] 
-            self.ShowImage()
-        else:
-            self.bbDict = {}
-            self.graphics_items = []
-            self.pixmap = None
-            self.scene.setSceneRect(QRectF(0, 0, 0, 0))
-
-    def ShowImage(self):
-        if self.master.autoResize:
-            import Image
-            image = Image.open(self.image)
-            w, h = image.size
-            self.resizeFactor = factor = min(self.width() / float(w), self.height() / float(h))
-            resized = image.resize((int(w*factor), int(h*factor)), Image.ANTIALIAS)
-            image = os.path.join(obiKEGG.DEFAULT_DATABASE_PATH, "TmpPathwayImage.png")
-            resized.save(image)
-        else:
-            image = self.pathway.get_image()
-            self.resizeFactor = 1
-        
-        self.pixmap = QPixmap(image)
-        w, h = self.pixmap.size().width(), self.pixmap.size().height()
-        self.scene.setSceneRect(QRectF(0, 0, w, h))
-        #self.updateSceneRect(QRectF(self.contentsRect().x(),self.contentsRect().y(),self.contentsRect().width(), self.contentsRect().height()))
-        self.updateSceneRect(QRectF(0, 0, w, h))
-        
-    def getGraphics(self, graphics):
-        type, x, y, w, h = graphics.get("type", "rectangle"), graphics.get("x", 0), graphics.get("y", 0), graphics.get("width", 0), graphics.get("height", 0)
-        x, y, w, h = [float(c) * self.resizeFactor for c in [x, y, w, h]]
-        return type, x, y, w, h
-
-    def drawBackground(self, painter, r):
-        QGraphicsView.drawBackground(self, painter, r)
-        cx = r.x()
-        cy = r.y()
-        
-        if self.pixmap:
-            painter.drawPixmap(0, 0, self.pixmap)
-            painter.save()
-
-            painter.setPen(QPen(Qt.blue, 2, Qt.SolidLine))
-            painter.setBrush(QBrush(Qt.NoBrush))
-            marked_elements = [entry for entry in self.pathway.entrys() if any([object in entry.name for object in self.objects])]
-#            for rect in reduce(lambda a,b:a.union(b), [bbList for id, bbList in self.bbDict.items() if id in self.objects], set()):
-            
-            for element in marked_elements:
-                graphics = element.graphics
-                type, x, y, w, h = self.getGraphics(graphics)
-                if type == "rectangle":
-                    painter.drawRect(x - w/2, y - h/2, w, h)
-                elif type == "roundrectangle":
-                    painter.drawRoundedRect(x - w/2, y - h/2, w, h, 10, 10, Qt.RelativeSize)
-                elif type == "circle":
-                    painter.drawEllipse(x, y, w, h)
-                
-            painter.setPen(QPen(Qt.red, 2, Qt.SolidLine))
-            for graphics in self.master.selectedObjects.keys(): 
-                type, x, y, w, h = self.getGraphics(dict(graphics))
-                if type == "rectangle":
-                    painter.drawRect(x - w/2, y - h/2, w, h)
-                elif type == "roundrectangle":
-                    painter.drawRoundedRect(x - w/2, y - h/2, w, h, 10, 10, Qt.RelativeSize)
-                elif type == "circle":
-                    painter.drawEllipse(x, y, w, h)
-                
-            painter.restore()
-        else:
-            painter.drawText(r.center(), "No image available")
-
-    def GetObjects(self, x, y):
-        def _in(x, y, graphics):
-            type, x1, y1, w, h = self.getGraphics(graphics)
-            if type == "rectangle":
-                return abs(x1 - x) <= w/2 and abs(y1 - y) <= h/2
-            else:
-                return abs(x1 - x) <= w and abs(y1 - y) <= h
-        point = self.mapToScene(x, y)
-        x = point.x()
-        y = point.y()
-
-        objs = []
-        for id, graphics_list in self.graphics_items:
-            for graphics in graphics_list:
-                if _in(x, y, graphics):
-                    objs.append((id, graphics))
-        return objs
+        self.pathwayItem = GraphicsPathwayItem(pathway, objects, None, self.scene(), name_mapper=getattr(self.master, "uniqueGenesDict", {}))
+        self.scene().setSceneRect(self.pathwayItem.boundingRect())
+        self.updateTransform()
     
-    def mouseMoveEvent(self, event):
-        self.toolTip.maybeTip(event.pos())
-
-    def mousePressEvent(self, event):
-        x, y = event.x(), event.y()
-        old = set(self.master.selectedObjects.keys())
-        objs = self.GetObjects(x, y)
-        if event.button() == Qt.LeftButton:
-            self.master.SelectObjects([(id, bb) for (id, bb) in objs if id in self.objects])
-            for graphics in set(self.master.selectedObjects.keys()).union(old):
-#                x1, y1, x2, y2 = map(lambda x:int(self.resizeFactor * x), rect)
-                type, x, y, w, h, = self.getGraphics(dict(graphics))
-                self.updateScene([QRectF(x - w, y - h, 2 * w, 2 * h)])
-        else:
-            QGraphicsView.mousePressEvent(self, event)
-
     def resizeEvent(self, event):
-        QGraphicsView.resizeEvent(self, event)
+        self.updateTransform()
+        return QGraphicsView.resizeEvent(self, event)
+            
+    def updateTransform(self):
+        if self.master.autoResize:
+            self.fitInView(self.scene().sceneRect().adjusted(-1, -1, 1, 1), Qt.KeepAspectRatio)
+        else:
+            self.setTransform(QTransform())
         
-        if self.master.autoResize and self.image and self.pathway:
-            self.ShowImage()
-
-    def contextMenuEvent(self, event):
-        objs = self.GetObjects(event.x(), event.y())
-        menu = QMenu(self)
-        action = menu.addAction("View pathway on KEGG website")
-        self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(1, objs))
-        if any(id for id, bb in objs if id in self.objects):
-            action = menu.addAction("View genes on KEGG website")
-            self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(0, objs))
-        if len(objs)==1 and objs[-1][0].startswith("path:"):
-            action = menu.addAction("View linked pathway")
-            self.connect(action, SIGNAL("triggered()"), lambda :self.PopupAction(2, objs))
-        menu.popup(event.globalPos())
-
-    def PopupAction(self, id, objs):
-        import webbrowser
-        if id==0:
-            genes = [s.split(":")[-1].strip() for s, t in objs if s in self.objects]
-            address = "http://www.genome.jp/dbget-bin/www_bget?"+self.pathway.org+"+"+"+".join(genes)
-        elif id==1:
-##            genes = [s for s, t in self.popup.objs]
-##            s = reduce(lambda s,g:s.union(self.master.org.get_enzymes_by_gene(g)), genes, set())
-##            address = "http://www.genome.jp/dbget-bin/www_bget?enzyme+"+"+".join([e.split(":")[-1] for e in s])
-            genes = [s.split(":")[-1].strip() for s, t in objs if s in self.objects]
-            address = "http://www.genome.jp/dbget-bin/show_pathway?"+self.pathway.name.split(":")[-1]+(genes and "+"+"+".join(genes) or "")
-        elif id==2:
-            self.master.selectedObjects = defaultdict(list)
-            self.master.Commit()
-            pathway = obiKEGG.KEGGPathway(objs[-1][0])
-            pathway.api = self.pathway.api
-            self.SetPathway(obiKEGG.KEGGPathway(objs[-1][0]))
-            return
-        try:
-            webbrowser.open(address)
-        except Exception, ex:
-            print "Failed to open", address, "due to", ex
-            pass
     
 class OWKEGGPathwayBrowser(OWWidget):
-    settingsList = ["organismIndex", "geneAttrIndex", "autoCommit", "autoResize", "useReference", "useAttrNames", "caseSensitive"]
+    settingsList = ["organismIndex", "geneAttrIndex", "autoCommit", "autoResize", "useReference", "useAttrNames", "caseSensitive", "showOrthology"]
     contextHandlers = {"":DomainContextHandler("",[ContextField("organismIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
                                                    ContextField("geneAttrIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
                                                    ContextField("useAttrNames", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes)])}
@@ -260,7 +201,7 @@ class OWKEGGPathwayBrowser(OWWidget):
 
         OWGUI.checkBox(self.controlArea, self, "showOrthology", "Show pathways in full orthology", box="Orthology", callback=self.UpdateListView)
         
-        OWGUI.checkBox(self.controlArea, self, "autoResize", "Resize to fit", box="Image", callback=lambda :self.pathwayView.image and self.pathwayView.ShowImage())
+        OWGUI.checkBox(self.controlArea, self, "autoResize", "Resize to fit", box="Image", callback=lambda :self.pathwayView.updateTransform())
         OWGUI.separator(self.controlArea)
 
         box = OWGUI.widgetBox(self.controlArea, "Selection")
@@ -321,14 +262,14 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.closeContext()
         self.data = data
         if data:
-            self.SetBestGeneAttrAndOrganism()
+            self.SetGeneAttrCombo()
             taxid = data_hints.get_hint(data, "taxid", None)
-            try:
-                code = obiKEGG.from_taxid(taxid)
-#                print taxid, code, self.organismCodes
-                self.organismIndex = self.organismCodes.index(code)
-            except Exception, ex:
-                print ex, taxid
+            if taxid:
+                try:
+                    code = obiKEGG.from_taxid(taxid)
+                    self.organismIndex = self.organismCodes.index(code)
+                except Exception, ex:
+                    print ex, taxid
             
             self.useAttrNames = data_hints.get_hint(data, "genesinrows", self.useAttrNames)
             
@@ -351,55 +292,13 @@ class OWKEGGPathwayBrowser(OWWidget):
 ##        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
         self.Update()
 
-    def SetBestGeneAttrAndOrganism(self):
+    def SetGeneAttrCombo(self):
         self.geneAttrCandidates = self.data.domain.attributes + self.data.domain.getmetas().values()
         self.geneAttrCandidates = filter(lambda v:v.varType in [orange.VarTypes.Discrete ,orange.VarTypes.String], self.geneAttrCandidates)
         self.geneAttrCombo.clear()
         #print 'geneAttrCandidates', self.geneAttrCandidates
         self.geneAttrCombo.addItems([var.name for var in self.geneAttrCandidates])
-        data = self.data
-        if len(data)>20:
-            data = data.select(orange.MakeRandomIndices2(data, 20))
-        from cPickle import load
-        score = {}
         return
-#        self.progressBarInit()
-#        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-#            attrNames = [str(v.name).strip() for v in self.data.domain.attributes]
-#            testOrgs = self.autoFindBestOrg and self.organismCodes or [self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]]
-#            for i, org in enumerate(testOrgs):
-#                try:
-#    ##                print obiKEGG.default_database_path + org + "_genenames.pickle"
-#    ##                geneNames = load(open(os.path.join(obiKEGG.default_database_path, org+"_genenames.pickle")))
-#                    geneNames = load(self.keggLocalInterface._retrieve(org+"_genenames.pickle", from_="kegg_organism_%s.tar.gz"%org))
-#                except Exception, ex:
-#    ##                print 'error 2', ex
-#                    continue
-#                for attr in self.geneAttrCandidates:
-#                    vals = [str(e[attr]).strip() for e in data if not e[attr].isSpecial()]
-#                    vals = reduce(list.__add__, (split_and_strip(val, ",") for val in vals), [])
-#                    match = filter(lambda v:v in geneNames, vals)
-#                    score[(attr, org)] = len(match)
-#                match = [v for v in attrNames if v in geneNames]
-#                score[("_var_names_", org)] = len(match)
-#                self.progressBarSet(i*100.0/len(self.organismCodes))
-#        self.progressBarFinished()
-#        score = [(s, attr, org) for (attr, org), s in score.items()]
-#        score.sort()
-#        if not score:
-#            self.useAttrNames = 1
-#            self.geneAttrIndex = min(len(self.geneAttrCandidates)-1, self.geneAttrIndex)
-###            self.organismIndex = 0
-#        elif score[-1][1]=="_var_names_":
-#            self.useAttrNames = 1
-#            self.geneAttrIndex = 0 #self.geneAttrCandidates.index(score[-2][1])
-#            self.organismIndex = self.organismCodes.index(score[-1][2])
-#        else:
-#            self.useAttrNames = 0
-#            self.geneAttrIndex = self.geneAttrCandidates.index(score[-1][1])
-#            self.organismIndex = self.organismCodes.index(score[-1][2])
-###        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
-                
                 
     def PreDownload(self, org=None, pb=None):
         pb, finish = (OWGUI.ProgressBar(self, 0), True) if pb is None else (pb, False)
@@ -496,6 +395,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.pathway = obiKEGG.KEGGPathway(item.pathway_id)
             self.pathwayView.SetPathway(self.pathway, self.pathways.get(item.pathway_id, [[]])[0])
             
+            
     def Update(self):
         if not self.data:
             return
@@ -574,17 +474,20 @@ class OWKEGGPathwayBrowser(OWWidget):
 
     def Commit(self):
         if self.data:
+            selectedItems = self.pathwayView.scene().selectedItems()
+            selectedGenes = reduce(set.union, [item.marked_objects for item in selectedItems], set())
+            
             if self.useAttrNames:
-                selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
+#                selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
                 selectedVars = [self.data.domain[self.uniqueGenesDict[gene]] for gene in selectedGenes]
                 newDomain = orange.Domain(selectedVars ,0)
                 data = orange.ExampleTable(newDomain, self.data)
                 self.send("Selected Examples", data)
-            else:
+            elif self.geneAttrCandidates:
                 geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
                 selectedExamples = []
                 otherExamples = []
-                selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
+#                selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
                 for ex in self.data:
                     names = [self.revUniqueGenesDict.get(name, None) for name in split_and_strip(str(ex[geneAttr]), ",")]
                     if any(name and name in selectedGenes for name in names):
@@ -624,6 +527,7 @@ if __name__=="__main__":
     app = QApplication(sys.argv)
     data = orange.ExampleTable("../../../../orange/doc/datasets/brown-selected.tab")
     w = OWKEGGPathwayBrowser()
+    w.UpdateOrganismComboBox()
 ##    app.setMainWidget(w)
     w.show()
     w.SetData(data)
