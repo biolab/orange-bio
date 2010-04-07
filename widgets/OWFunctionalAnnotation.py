@@ -15,6 +15,9 @@ from orngDataCaching import data_hints
 
 from collections import defaultdict
 
+from OWGUI import LinkStyledItemDelegate, LinkRole
+        
+
 class OWFunctionalAnnotation(OWWidget):
     settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
     contextHandlers = {"":DomainContextHandler("", ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
@@ -95,6 +98,8 @@ class OWFunctionalAnnotation(OWWidget):
         self.annotationsChartView.setSortingEnabled(True)
         self.annotationsChartView.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.annotationsChartView.setRootIsDecorated(False)
+        self.annotationsChartView.viewport().setMouseTracking(True)
+#        self.annotationsChartView.viewport().setAttribute(Qt.WA_Hover)
         self.mainArea.layout().addWidget(self.annotationsChartView)
         
         contextEventFilter = OWGUI.VisibleHeaderSectionContextEventFilter(self.annotationsChartView)
@@ -307,7 +312,8 @@ class OWFunctionalAnnotation(OWWidget):
         self.annotationsChartView.clear()
         
         self.filterCompleter.setModel(None)
-        
+        linkFont = QFont(self.annotationsChartView.viewOptions().font)
+        linkFont.setUnderline(True)
         self.treeItems = []
         for i, (geneset, (cmapped, rmapped, p_val, enrichment)) in enumerate(results):
             if len(cmapped) > 0:
@@ -318,12 +324,22 @@ class OWFunctionalAnnotation(OWWidget):
                 item.setData(5, Qt.DisplayRole, QVariant(enrichment))
                 item.geneset= geneset
                 self.treeItems.append(item)
+                if geneset.link:
+                    item.setData(1, LinkRole, QVariant(geneset.link))
+                    item.setToolTip(1, geneset.link)
+                    item.setFont(1, linkFont)
+                    item.setForeground(1, QColor(Qt.blue))
+                    
+#                    link='<a href="%s"> %s</a>' % (geneset.link, geneset.name)
+#                    self.annotationsChartView.setItemWidget(item, 1, QLabel(link, self))
+#                    item.setData(1, Qt.DisplayRole, QVariant(""))
                 
         replace = lambda s:s.replace(",", " ").replace("(", " ").replace(")", " ")
         self._completerModel = completerModel = QStringListModel(sorted(reduce(set.union, [[geneset.name] + replace(geneset.name).split() for geneset, (c, _, _, _) in results if c], set())))
         self.filterCompleter.setModel(completerModel)
         
         self.annotationsChartView.setItemDelegateForColumn(5, BarItemDelegate(self, scale=(0.0, max(t[1][3] for t in results))))
+        self.annotationsChartView.setItemDelegateForColumn(1, LinkStyledItemDelegate(self.annotationsChartView))
 #        self.filterCompleter.setModel(self.annotationsChartView.model())
 #        self.filterCompleter.setCompletionColumn(1)
                 

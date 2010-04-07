@@ -19,8 +19,6 @@ from orngDataCaching import data_hints
 from collections import defaultdict
 from functools import partial
 
-LinkRole = OWGUI.OrangeUserRole.next()
-
 class TreeModel(QAbstractItemModel):
     def __init__(self, data, header, parent):
         QAbstractItemModel.__init__(self, parent)
@@ -65,30 +63,8 @@ class TreeModel(QAbstractItemModel):
         if role==Qt.DisplayRole:
             return QVariant(self._header[section])
         return QVariant()
-        
-class LinkStyledItemDelegate(QStyledItemDelegate):
-        
-    def sizeHint(self, option, index):
-        size = QStyledItemDelegate.sizeHint(self, option, index)
-        return QSize(size.width(), max(size.height(), 20))
-      
-    def editorEvent(self, event, model, option, index):
-        if event.type()==QEvent.MouseButtonPress:
-            self.mousePressState = QPersistentModelIndex(index), QPoint(event.pos())
-            
-        elif event.type()== QEvent.MouseButtonRelease:
-            link = index.data(LinkRole)
-            pressedIndex, pressPos = self.mousePressState
-            if pressedIndex == index and (pressPos - event.pos()).manhattanLength() < 5 and link.isValid():
-                 import webbrowser
-                 webbrowser.open(link.toString())
-            self.mousePressState = QModelIndex(), event.pos()
-            
-        elif event.type()==QEvent.MouseMove:
-            link = index.data(LinkRole)
-            self.parent().viewport().setCursor(Qt.PointingHandCursor if link.isValid() else Qt.ArrowCursor)
-            
-        return QStyledItemDelegate.editorEvent(self, event, model, option, index)
+
+from OWGUI import LinkStyledItemDelegate, LinkRole
         
 class OWGeneInfo(OWWidget):
     settingsList = ["organismIndex", "geneAttr", "useAttr", "autoCommit"]
