@@ -156,16 +156,16 @@ class GeneSets(set):
 def goGeneSets(org):
     """Returns gene sets from GO."""
 
-    ontology = obiGO.Ontology.Load()
-    annotations = obiGO.Annotations.Load(org, ontology=ontology)
+    ontology = obiGO.Ontology()
+    annotations = obiGO.Annotations(org, ontology=ontology)
 
     genesets = []
-
+    link_fmt = "http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term=%s"
     for termn, term in ontology.terms.items():
         genes = annotations.GetAllGenes(termn)
         hier = ("GO", term.namespace)
         if len(genes) > 0:
-            gs = obiGeneSets.GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org) 
+            gs = obiGeneSets.GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org, link=link_fmt % termn) 
             genesets.append(gs)
 
     return obiGeneSets.GeneSets(genesets)
@@ -180,10 +180,20 @@ def keggGeneSets(org):
     for id in kegg.pathways():
         pway = obiKEGG.KEGGPathway(id)
         hier = ("KEGG",)
-        gs = obiGeneSets.GeneSet(id=id, name=pway.title, genes=kegg.get_genes_by_pathway(id), hierarchy=hier, organism=org)
+        gs = obiGeneSets.GeneSet(id=id, name=pway.title, genes=kegg.get_genes_by_pathway(id), hierarchy=hier, organism=org, link=pway.link)
         genesets.append(gs)
 
     return obiGeneSets.GeneSets(genesets)
+
+def omimGeneSets():
+    """
+    Return gene sets from OMIM (Online Mendelian Inheritance in Man) diseses
+    """
+    import obiOMIM
+    genesets = [GeneSet(id=disease.id, name=disease.name, genes=obiOMIM.disease_genes(disease), hierarchy=("OMIM",), organism="9606",
+                    link=("http://www.ncbi.nlm.nih.gov/entrez/dispomim.cgi?id=" % disease.id if disease.id else None)) \
+                    for disease in obiOMIM.diseases()]
+    return GeneSets(genesets)
 
 def loadGMT(contents, name):
     """
