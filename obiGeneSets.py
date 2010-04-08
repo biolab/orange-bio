@@ -195,6 +195,18 @@ def omimGeneSets():
                     for disease in obiOMIM.diseases()]
     return GeneSets(genesets)
 
+def miRNAGeneSets(org):
+    """
+    Return gene sets from miRNA targets
+    """
+    import obimiRNA, obiKEGG
+    org_code = obiKEGG.from_taxid(org)
+    link_fmt = "http://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=%s"
+    mirnas = [(id, obimiRNA.get_info(id)) for id in obimiRNA.ids(org_code)]
+    genesets = [GeneSet(id=mirna.matACC, name=mirna.matID, genes=mirna.targets.split(","), hierarchy=("miRNA",),
+                        organism=org, link=link_fmt % mirna.matID) for id, mirna in mirnas]
+    return GeneSets(genesets)
+
 def loadGMT(contents, name):
     """
     Eech line consists of tab separated elements. First is
@@ -449,7 +461,7 @@ def upload_genesets(rsf):
     """
     orngServerFiles.update_local_files()
 
-    genesetsfn = [ keggGeneSets, goGeneSets ]
+    genesetsfn = [ keggGeneSets, goGeneSets, miRNAGeneSets]
     organisms = obiTaxonomy.common_taxids()
     for fn in genesetsfn:
         for org in organisms:
