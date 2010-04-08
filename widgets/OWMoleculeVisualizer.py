@@ -32,6 +32,8 @@ try:
 	import pybel
 except ImportError:
 	pybel = dummy_module("pybel")
+except Exception, ex:
+	pybel = dummy_module("pybel") 
 
 svg_error_string = """<?xml version="1.0" ?>
 <svg height="185" version="1.0" width="250" xmlns="http://www.w3.org/2000/svg">
