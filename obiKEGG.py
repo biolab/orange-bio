@@ -429,7 +429,7 @@ class KEGGGenome(KEGGDataBase):
 #        id_map = {"562":"511145", "2104":"272634", "5833":"36329", "4896":"284812", "11103":None, "4754":None, "4577":None}
 #        return [genome.get(id_map.get(taxid, taxid)).entry_key() for taxid in obiTaxonomy.common_taxids() if id_map.get(taxid, taxid) is not None]
         return ['ath', 'bta', 'cel', 'cre', 'dre', 'ddi', 'dme', 'eco', 'hsa', 'mmu', 'mpn', 'osa',
-                'pfa', 'rno', 'sce', 'spo', 'xla']
+                'pfa', 'rno', 'sce', 'spo', 'zma', 'xla']
         
     @classmethod
     def essential_organisms(cls):
