@@ -101,7 +101,7 @@ for m in range(2, 100000):
 def FDR(p_values, dependent=False, m=None):
     if not m:
         m = len(p_values)
-    if m == 0:
+    if m <= 0 or not p_values:
         return []
 
     if dependent: # correct q for dependent tests
