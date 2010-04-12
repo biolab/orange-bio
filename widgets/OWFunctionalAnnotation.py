@@ -1,5 +1,6 @@
 """<name>Gene Functional Annotation</name>
 """
+from __future__ import with_statement
 
 from OWWidget import *
 
@@ -10,6 +11,7 @@ import obiProb
 import OWGUI
 
 import math
+import orngServerFiles
 
 from orngDataCaching import data_hints
 
@@ -121,8 +123,11 @@ class OWFunctionalAnnotation(OWWidget):
         
     def updateHierarchy(self):
         try:
-            all, local = obiGeneSets.list_all(), obiGeneSets.list_local()
-            organisms = set(obiTaxonomy.essential_taxids() + [t[1] for t in all])
+            self.progressBarInit()
+            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+                all, local = obiGeneSets.list_all(), obiGeneSets.list_local()
+                organisms = set(obiTaxonomy.essential_taxids() + [t[1] for t in all])
+            self.progressBarFinished()
             self.taxid_list = list(organisms)
             self.speciesComboBox.clear()
             self.speciesComboBox.addItems([obiTaxonomy.name(id) for id in self.taxid_list])
@@ -232,10 +237,13 @@ class OWFunctionalAnnotation(OWWidget):
     def updateGenematcher(self):
         taxid = self.taxid_list[self.speciesIndex]
         if taxid != self.loadedGenematcher:
-            matchers = [obiGene.GMGO, obiGene.GMKEGG, obiGene.GMNCBI, obiGene.GMAffy]
-            self.genematcher = obiGene.matcher([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
-            self.genematcher.set_targets(self.referenceGenes())
-            self.loadedGenematcher = taxid
+            self.progressBarInit()
+            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+                matchers = [obiGene.GMGO, obiGene.GMKEGG, obiGene.GMNCBI, obiGene.GMAffy]
+                self.genematcher = obiGene.matcher([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
+                self.genematcher.set_targets(self.referenceGenes())
+                self.loadedGenematcher = taxid
+            self.progressBarFinished()
             
     def genesFromExampleTable(self, table):
         if self.genesinrows:
@@ -274,14 +282,15 @@ class OWFunctionalAnnotation(OWWidget):
         
         cmapped = genes.intersection(cluster)
         rmapped = genes.intersection(reference)
-        return (cmapped, rmapped, pval.p_value(len(cmapped), len(reference), len(rmapped), len(cluster)), float(len(cmapped)) / len(cluster) / (float(len(rmapped) or 1) / len(reference))) # TODO: compute all statistics here
+        return (cmapped, rmapped, pval.p_value(len(cmapped), len(reference), len(rmapped), len(cluster)), float(len(cmapped)) / (len(cluster) or 1) / (float(len(rmapped) or 1) / (len(reference) or 1))) # TODO: compute all statistics here
     
     def updateAnnotations(self):
         self.annotationsChartView.clear()
         self.progressBarInit()
         self.updateGenematcher()
         categories = self.selectedCategories()
-        collections = list(obiGeneSets.collections(*categories))
+        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+            collections = list(obiGeneSets.collections(*categories))
         clusterGenes, referenceGenes = self.clusterGenes(), self.referenceGenes()
         cache = {}
         countAll = len(clusterGenes)
