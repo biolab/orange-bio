@@ -11,7 +11,7 @@ import OWGUI
 import orngEnviron
 import sys, os
 from collections import defaultdict
-
+import math
 
 
 #def pyqtConfigure(object, **kwargs):
@@ -383,7 +383,7 @@ class SortedListWidget(QWidget):
     
 class OWPIPA(OWWidget):
     settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password","joinreplicates",
-                     "selectionSetsWidget.selections", "columnsSortingWidget.sortingOrder", "currentSelection"]
+                     "selectionSetsWidget.selections", "columnsSortingWidget.sortingOrder", "currentSelection", "log2"]
     def __init__(self, parent=None, signalManager=None, name="PIPA database"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
@@ -391,6 +391,7 @@ class OWPIPA(OWWidget):
         self.platform = None
         self.username = ""
         self.password = ""
+        self.log2 = False
 
         self.selectedExperiments = []
         self.buffer = obiDicty.BufferSQLite(bufferfile)
@@ -427,6 +428,7 @@ class OWPIPA(OWWidget):
 
         OWGUI.checkBox(self.controlArea, self, "excludeconstant", "Exclude labels with constant values" )
         OWGUI.checkBox(self.controlArea, self, "joinreplicates", "Average replicates (use median)" )
+        OWGUI.checkBox(self.controlArea, self, "log2", "Logarithmic (base 2) transformation" )
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
 
@@ -619,7 +621,11 @@ class OWPIPA(OWWidget):
         for item in self.experimentsWidget.selectedItems():
             ids += [ str(item.text(8)) ]
 
-        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver)
+        transfn = None
+        if self.log2:
+            transfn = lambda x: math.log(x+1.0, 2)
+
+        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn)
 
         if self.joinreplicates:
             table = obiDicty.join_replicates(table, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=obiDicty.median)

@@ -9,6 +9,9 @@ from collections import defaultdict
 import orngServerFiles
 import pickle
 
+defaddress = "http://bcm.fri.uni-lj.si/microarray/api/index.php?"
+defaddresspipa = "https://butler.fri.uni-lj.si/pipa/script/data_api.py/"
+
 #utility functions - from Marko's mMisc.py
 
 def splitN(origsize, maxchunk):
@@ -261,9 +264,6 @@ def chainLookup(a, dics, force=[]):
                 a = dic[a]
     return a
 
-defaddress = "http://193.2.72.48/microarray/api/index.php?"
-defaddresspipa = "https://butler.fri.uni-lj.si/pipa/script/data_api.py/"
-
 class DBCommon(object):
 
     def fromBuffer(self, addr):
@@ -286,9 +286,11 @@ class DBCommon(object):
             self.toBuffer(bufkey, res, bufver)
         return res
 
-    def sq(self, s1, data=None, buffer=True, bufadd="", bufname=None, bufver="0", reload=False):
+    def sq(self, s1, data=None, buffer=True, bufadd="", bufname=None, bufver="0", reload=False, bufferkey=None):
         if buffer:
             bufkey = bufadd + (bufname if bufname != None else s1)
+            if bufkey != None:
+                bufkey = bufferkey(bufkey, data)
             res = self.bufferFun(bufkey, bufver, reload, self.db.get, s1, data=data)
         else:
             res = self.db.get(s1, data=data)
@@ -510,11 +512,13 @@ class DBCommon(object):
 
 def bufferkeypipa(command, data):
     """ Do not save password to the buffer! """
-    data = data.copy()
-    if "pass1" in data:
-        data.pop("pass1")
-    key = command + " " +  urllib.urlencode(sorted(data.items()))
-    return key
+    if data != None:
+        data = data.copy()
+        if "pass1" in data:
+            data.pop("pass1")
+        return command + " " +  urllib.urlencode(sorted(data.items()))
+    else:
+        return command
 
 class PIPA(DBCommon):
 
@@ -537,7 +541,7 @@ class PIPA(DBCommon):
 
     def list(self, reload=False):
         """ Returns ids of all experiments in the database """
-        res, legend = self.sq("list", data=self.add_auth(), reload=reload)
+        res, legend = self.sq("list", data=self.add_auth(), reload=reload, bufferkey=bufferkeypipa)
         return nth(res, 0)
 
     def annotations(self, ids, reload=False, bufver="0"):
@@ -577,7 +581,7 @@ class PIPA(DBCommon):
         return keynamingfn
 
     def get_data(self, exclude_constant_labels=False, average=median, 
-        ids=None, callback=None, bufver="0"):
+        ids=None, callback=None, bufver="0", transform=None):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations for query and post-processing
@@ -642,6 +646,11 @@ class PIPA(DBCommon):
 
         cbc = CallBack(1, optcb, callbacks=10)
 
+        #transformation is performed prior to averaging
+        if transform != None:
+            transformValues(et, fn=transform) #in place transform
+            cbc()
+
         #if average function is given, use it to join same spotids
         if average != None:
             et = averageAttributes(et, fn=average)
@@ -650,8 +659,6 @@ class PIPA(DBCommon):
         cbc.end()
 
         return et
-    
-
 
 class DictyExpress(DBCommon):
     """
@@ -969,7 +976,7 @@ chips chips""")
         deprecatedError("Use get_single_data instead")
 
     def get_data(self, type="norms", exclude_constant_labels=False, average=median, 
-        ids=None, callback=None, format="short", **kwargs):
+        ids=None, callback=None, format="short", transform=None, **kwargs):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations for query and post-processing
@@ -1041,6 +1048,11 @@ chips chips""")
 
         cbc = CallBack(1, optcb, callbacks=10)
 
+        #transformation is performed prior to averaging
+        if transform != None:
+            transformValues(et, fn=transform) #in place transform
+            cbc()
+
         #if average function is given, use it to join same spotids
         if average != None:
             et = averageAttributes(et, fn=average)
@@ -1105,6 +1117,14 @@ def createExampleTable(names, vals, annots, ddb, cname="DDB", \
 
     return orange.ExampleTable(domain,examples)
 
+def transformValues(data, fn):
+    """
+    In place transformation.
+    """
+    for ex in data:
+        for at in data.domain.attributes:
+            if not ex[at].isSpecial():
+                ex[at] = fn(ex[at])
 
 def averageAttributes(data, joinc="DDB", fn=median):
     """
@@ -1443,6 +1463,7 @@ if __name__=="__main__":
         et.save("ett.tab")
         print open("ett.tab").read()
 
+    """
     a = DictyBase()
     print len(a.info)
 
@@ -1465,17 +1486,14 @@ if __name__=="__main__":
     d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
     #d = PIPA()
 
-    allids = d.list(reload=False)
+    allids = d.list()
     print ("list", allids)
     print ("annots", list(d.annotations(ids=allids[:2])))
 
-    fdsdfds()
+    import math
 
-    data = d.get_data(ids=allids)
+    #data = d.get_data(ids=allids)
+    data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2))
     #data = orange.ExampleTable(data.domain, data[:1])
-    print data.domain
-    data.save("d1.tab")
-    data2 = join_replicates(data)
-    print data2.domain
-    data2.save("d2.tab")
-    """
+    printet(data)
+
