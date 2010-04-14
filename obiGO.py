@@ -673,6 +673,11 @@ class Annotations(object):
         for ann in annotations:
             annotationsDict[ann.GO_ID].add(ann)
             
+        if slimsOnly and not self.ontology.slimsSubset:
+            import warnings
+            warnings.warn("Unspecified slims subset in the ontology! Using 'goslim_generic' subset", UserWarning)
+            self.ontology.SetSlimsSubset("goslim_generic")
+            
         terms = self.ontology.ExtractSuperGraph(annotationsDict.keys())
         res = {}
         import orngMisc
