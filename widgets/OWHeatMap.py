@@ -735,7 +735,7 @@ class OWHeatMap(OWWidget):
                 self.drawGeneAnnotation(x, ycoord[g], g)
 
         self.selection.redraw()
-        self.scene.setSceneRect(self.scene.itemsBoundingRect())
+        self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-c_offsetX, -c_offsetY, c_offsetX, c_offsetY))
         self.scene.currentHighlightedCluster = None
         self.scene.update()
         
