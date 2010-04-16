@@ -180,6 +180,7 @@ class SelectionSetsWidget(QFrame):
     def addSelection(self, selection, name=""):
         self._selections.append(selection)
         item = QStandardItem(selection.name)
+        item.setFlags(item.flags() ^ Qt.ItemIsDropEnabled)
         self._listModel.appendRow(item)
         self.setSelectionModified(False)
         return item
@@ -326,10 +327,10 @@ class SortedListWidget(QWidget):
         
     def _onAddAction(self):
         item = QStandardItem("")
+        item.setFlags(item.flags() ^ Qt.ItemIsDropEnabled)
         self._listView.model().appendRow(item)
         self._listView.setCurrentIndex(item.index())
         self._listView.edit(item.index()) 
-        
     
     def _onRemoveAction(self):
         current = self._listView.currentIndex()
@@ -365,6 +366,7 @@ class SortedListWidget(QWidget):
         """ Add a new entry in the list 
         """
         item = QStandardItem(*args)
+        item.setFlags(item.flags() ^ Qt.ItemIsDropEnabled)
         self._listView.model().appendRow(item)
         
     def setItems(self, items):
