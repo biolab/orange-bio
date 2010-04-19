@@ -657,7 +657,7 @@ class Annotations(object):
         return list(set([ann.geneName for ann in annotations if ann.Evidence_code in evidenceCodes]))
 
     def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", prob=obiProb.Binomial(), useFDR=True, progressCallback=None):
-        """ Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count) for items and term ids as keys.
+        """ Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count) for items and term ids as keys. P-Values are FDR adjusted if useFDR is True (default).
         """
         revGenesDict = self.GetGeneNamesTranslator(genes)
         genes = set(revGenesDict.keys())
