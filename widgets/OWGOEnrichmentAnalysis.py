@@ -391,7 +391,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         elif self.clusterDataset:
             self.UpdateReferenceSetButton()
             
-        
     def UpdateReferenceSetButton(self):
         allgenes, refgenes = None, None
         if self.referenceDataset:
@@ -419,7 +418,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         return matchedgenes, [gene for gene in genes if gene not in matchedgenes]
         
     def FilterUnknownGenes(self):
-        if not self.useAttrNames:
+        if not self.useAttrNames and self.candidateGeneAttrs:
             geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
             examples = []
             for ex in self.clusterDataset:
@@ -507,18 +506,22 @@ class OWGOEnrichmentAnalysis(OWWidget):
             
         if isinstance(self.annotations.genematcher, obiGene.GMDirect):
             self.SetGeneMatcher()
-            
-        if self.useAttrNames:
-            clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
-            self.information(0)
-        else:
-            geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
-            clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset if not ex[geneAttr].isSpecial()]
-            if any("," in gene for gene in clusterGenes):
-                self.information(0, "Separators detected in cluster gene names. Assuming multiple genes per example.")
-                clusterGenes = reduce(list.__add__, (genes.split(",") for genes in clusterGenes))
-            else:
+        self.error(1)
+        try:    
+            if self.useAttrNames:
+                clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
                 self.information(0)
+            else:
+                geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
+                clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset if not ex[geneAttr].isSpecial()]
+                if any("," in gene for gene in clusterGenes):
+                    self.information(0, "Separators detected in cluster gene names. Assuming multiple genes per example.")
+                    clusterGenes = reduce(list.__add__, (genes.split(",") for genes in clusterGenes))
+                else:
+                    self.information(0)
+        except Exception, ex:
+            self.error(1, "Failed to extract gene names from input dataset! %s" % str(ex))
+            return {}
 
         genesCount = len(clusterGenes)
         
