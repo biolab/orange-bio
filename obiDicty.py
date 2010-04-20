@@ -407,7 +407,7 @@ class DBCommon(object):
             for ci in sidp:
                 yield antss[ci], legend
 
-    def exampleTables(self, ids, chipsm=None, spotmap={}, callback=None, exclude_constant_labels=False, annots={}, chipfn=None):
+    def exampleTables(self, ids, chipsm=None, spotmap={}, callback=None, exclude_constant_labels=False, annots={}, chipfn=None, allowed_labels=None):
         """
         Create example tables from chip readings, spot mappings and 
         group specifications.
@@ -504,7 +504,7 @@ class DBCommon(object):
 
         et = createExampleTable(groupnames, 
             enlengthl(groupvals, len(ddb)),
-            groupannots, ddb, exclude_constant_labels=exclude_constant_labels, permutation=permutation)
+            groupannots, ddb, exclude_constant_labels=exclude_constant_labels, permutation=permutation, allowed_labels=allowed_labels)
 
         if callback: callback()
 
@@ -581,7 +581,7 @@ class PIPA(DBCommon):
         return keynamingfn
 
     def get_data(self, exclude_constant_labels=False, average=median, 
-        ids=None, callback=None, bufver="0", transform=None):
+        ids=None, callback=None, bufver="0", transform=None, allowed_labels=None):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations for query and post-processing
@@ -641,7 +641,7 @@ class PIPA(DBCommon):
             print "DOWNLOAD TIME", time.time() - tstart
 
         cbc = CallBack(len(ids)*2+len(ids)+1, optcb, callbacks=999-30)
-        et = self.exampleTables(ids, spotmap={}, callback=cbc, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn)
+        et = self.exampleTables(ids, spotmap={}, callback=cbc, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn, allowed_labels=allowed_labels)
         cbc.end()
 
         cbc = CallBack(1, optcb, callbacks=10)
@@ -976,7 +976,7 @@ chips chips""")
         deprecatedError("Use get_single_data instead")
 
     def get_data(self, type="norms", exclude_constant_labels=False, average=median, 
-        ids=None, callback=None, format="short", transform=None, **kwargs):
+        ids=None, callback=None, format="short", transform=None, allowed_labels=None, **kwargs):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations for query and post-processing
@@ -1043,7 +1043,7 @@ chips chips""")
             print "DOWNLOAD TIME", time.time() - tstart
 
         cbc = CallBack(len(ids)*2+len(ids)+1, optcb, callbacks=999-30)
-        et = self.exampleTables(ids, spotmap=self.spotMap(), callback=cbc, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn)
+        et = self.exampleTables(ids, spotmap=self.spotMap(), callback=cbc, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn, allowed_labels=allowed_labels)
         cbc.end()
 
         cbc = CallBack(1, optcb, callbacks=10)
@@ -1080,7 +1080,7 @@ def allAnnotationVals(annots):
     return av
 
 def createExampleTable(names, vals, annots, ddb, cname="DDB", \
-        exclude_constant_labels=False, permutation=None, always_include=["id"]):
+        exclude_constant_labels=False, permutation=None, always_include=["id"], allowed_labels=None):
     """
     Create an ExampleTable for this group. Attributes are those in
     names. 
@@ -1094,6 +1094,9 @@ def createExampleTable(names, vals, annots, ddb, cname="DDB", \
     if exclude_constant_labels:
         oknames = set(nth(filter(lambda x: len(x[1]) > 1 or x[0] in always_include, 
             annotsvals.items()), 0))
+
+    if allowed_labels != None:
+        oknames = set(filter(lambda x: x in allowed_labels, oknames))
 
     #print oknames
 
@@ -1483,17 +1486,17 @@ if __name__=="__main__":
     printet(et)
 
     """
-    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
-    #d = PIPA()
+    #d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
+    d = PIPA(username="marko", password="marko")
 
-    allids = d.list()
+    allids = d.list()[:2]
     print ("list", allids)
     print ("annots", list(d.annotations(ids=allids[:2])))
 
     import math
 
     #data = d.get_data(ids=allids)
-    data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2))
+    data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2), allowed_labels=["strain"])
     #data = orange.ExampleTable(data.domain, data[:1])
     printet(data)
 
