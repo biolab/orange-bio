@@ -347,7 +347,6 @@ class SortedListWidget(QWidget):
     def _onDownAction(self):
         row = self._listView.currentIndex().row()
         model = self._listView.model()
-        print row, model.rowCount()
         if row < model.rowCount() and row >= 0:
             items = model.takeRow(row)
             if row == model.rowCount():
@@ -580,7 +579,6 @@ class OWPIPA(OWWidget):
             elements.append(["", d["species"], d["strain"], d["genotype"], d["treatment"], d["growth"], d["tp"], d["replicate"], chip] + \
                              [d[label.lower().replace(" ", "_")] for label in ["Date RNA", "Adapter", "Who", "Date Rep", "Band", "Amount", "Experimenter", "Polya", "Primer", "Shearing", "Unit"]])
             
-            print d.keys()
 #            self.progressBarSet((100.0 * pos) / len(chips))
             
             el = elements[-1]
@@ -647,7 +645,7 @@ class OWPIPA(OWWidget):
         hview = self.experimentsWidget.header()
         shownHeaders = [label for i, label in list(enumerate(self.headerLabels))[1:] if not hview.isSectionHidden(i)]
         allowed_labels = [keys.get(label, label) for label in shownHeaders]
-        print allowed_labels
+        
         table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn, allowed_labels=allowed_labels)
 
         if self.joinreplicates:
