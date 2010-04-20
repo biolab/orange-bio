@@ -385,7 +385,7 @@ class SortedListWidget(QWidget):
     
 class OWPIPA(OWWidget):
     settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password","joinreplicates",
-                     "selectionSetsWidget.selections", "columnsSortingWidget.sortingOrder", "currentSelection", "log2"]
+                     "selectionSetsWidget.selections", "columnsSortingWidget.sortingOrder", "currentSelection", "log2", "experimentsHeaderState"]
     def __init__(self, parent=None, signalManager=None, name="PIPA database"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
@@ -402,6 +402,9 @@ class OWPIPA(OWWidget):
         self.excludeconstant = False
         self.joinreplicates = False
         self.currentSelection = None
+        
+        self.experimentsHeaderState = {"": False, "Species": False, "Strain": False, "Genotype": False, "Treatment": False,
+                                       "Growth": False, "Timepoint": False, "Replicate": False, "ID": False}
 
         self.chips = []
         self.annots = []
@@ -446,12 +449,14 @@ class OWPIPA(OWWidget):
         self.passf.setEchoMode(QLineEdit.Password)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
+        self.headerLabels = ["", "Species", "Strain", "Genotype", "Treatment", "Growth", "Timepoint", "Replicate", "ID",
+                             "Date RNA", "Adapter", "Who", "Date Rep", "Band", "Amount", "Experimenter","Polya", "Primer", "Shearing", "Unit"]
         self.experimentsWidget = QTreeWidget()
-        self.experimentsWidget.setHeaderLabels(["", "Species", "Strain", "Genotype", "Treatment", "Growth", "Timepoint", "Replicate", "ID"])
+        self.experimentsWidget.setHeaderLabels(self.headerLabels)
         self.experimentsWidget.setSelectionMode(QTreeWidget.ExtendedSelection)
         self.experimentsWidget.setRootIsDecorated(False)
         self.experimentsWidget.setSortingEnabled(True)
-        contextEventFilter = OWGUI.VisibleHeaderSectionContextEventFilter(self.experimentsWidget)
+        contextEventFilter = OWGUI.VisibleHeaderSectionContextEventFilter(self.experimentsWidget, self.experimentsWidget)
         self.experimentsWidget.header().installEventFilter(contextEventFilter)
         self.experimentsWidget.setItemDelegateForColumn(0, OWGUI.IndicatorItemDelegate(self, role=Qt.DisplayRole))
         self.experimentsWidget.setAlternatingRowColors(True)
@@ -465,6 +470,10 @@ class OWPIPA(OWWidget):
         self.mainArea.layout().addWidget(self.experimentsWidget)
 
         self.loadSettings()
+        
+        self.restoreHeaderState()
+        
+        self.connect(self.experimentsWidget.header(), SIGNAL("geometriesChanged()"), self.saveHeaderState)
         
         self.dbc = None
 
@@ -568,7 +577,10 @@ class OWPIPA(OWWidget):
         for chip,annot in zip(self.chips, self.annots):
             pos += 1
             d = defaultdict(lambda: "?", annot)
-            elements.append(["", d["species"], d["strain"], d["genotype"], d["treatment"], d["growth"], d["tp"], d["replicate"], chip])
+            elements.append(["", d["species"], d["strain"], d["genotype"], d["treatment"], d["growth"], d["tp"], d["replicate"], chip] + \
+                             [d[label.lower().replace(" ", "_")] for label in ["Date RNA", "Adapter", "Who", "Date Rep", "Band", "Amount", "Experimenter", "Polya", "Primer", "Shearing", "Unit"]])
+            
+            print d.keys()
 #            self.progressBarSet((100.0 * pos) / len(chips))
             
             el = elements[-1]
@@ -576,7 +588,7 @@ class OWPIPA(OWWidget):
 
             self.items.append(ci)
 
-        for i in range(7):
+        for i in range(len(self.headerLabels)):
             self.experimentsWidget.resizeColumnToContents(i)
 
         adic = dict(zip(self.chips, self.annots))
@@ -626,8 +638,17 @@ class OWPIPA(OWWidget):
         transfn = None
         if self.log2:
             transfn = lambda x: math.log(x+1.0, 2)
-
-        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn)
+        
+        keys = {"Strain": "strain", "Genotype": "genotype", "Treatment": "treatment", "Timepoint": "map_stop1", "Growth": "growth",
+                "Species": "species", "Id":"id", "Name": "name", "Date RNA": "date_rna", "Adapter":"adapter",
+                "Who": "who", "Date Rep": "date_rep", "Band": "band", "Amount": "amount", "Experimenter":"experimenter",
+                "Polya": "polya", "Primer": "primer", "Shearing": "shearing", "Unit": "unit"}
+        
+        hview = self.experimentsWidget.header()
+        shownHeaders = [label for i, label in list(enumerate(self.headerLabels))[1:] if not hview.isSectionHidden(i)]
+        allowed_labels = [keys.get(label, label) for label in shownHeaders]
+        print allowed_labels
+        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn, allowed_labels=allowed_labels)
 
         if self.joinreplicates:
             table = obiDicty.join_replicates(table, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=obiDicty.median)
@@ -639,8 +660,7 @@ class OWPIPA(OWWidget):
         # Sort attributes
         sortOrder = self.columnsSortingWidget.sortingOrder
 #        print sortOrder
-        keys = {"Strain": "strain", "Genotype": "genotype", "Timepoint": "map_stop1", "Growth": "growth",
-                "Species": "species", "Id":"id", "Name": "name"}
+        
         attributes = sorted(table.domain.attributes, key=lambda attr: tuple([attr.attributes.get(keys[name], "") for name in sortOrder]))
         domain = orange.Domain(attributes, table.domain.classVar)
         domain.addmetas(table.domain.getmetas())
@@ -658,6 +678,17 @@ class OWPIPA(OWWidget):
         self.currentSelection = SelectionByKey(self.experimentsWidget.selectionModel().selection(),
                                                key=(0,1,2,3, 8))
         
+    def saveHeaderState(self):
+        hview = self.experimentsWidget.header()
+        for i, label in enumerate(self.headerLabels):
+            self.experimentsHeaderState[label] = hview.isSectionHidden(i)
+            
+    def restoreHeaderState(self):
+        hview = self.experimentsWidget.header()
+        for i, label in enumerate(self.headerLabels): 
+            hview.setSectionHidden(i, self.experimentsHeaderState.get(label, True))
+            self.experimentsWidget.resizeColumnToContents(i)
+            
 if __name__ == "__main__":
     app  = QApplication(sys.argv)
 ##    from pywin.debugger import set_trace
