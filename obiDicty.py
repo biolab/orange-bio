@@ -289,7 +289,7 @@ class DBCommon(object):
     def sq(self, s1, data=None, buffer=True, bufadd="", bufname=None, bufver="0", reload=False, bufferkey=None):
         if buffer:
             bufkey = bufadd + (bufname if bufname != None else s1)
-            if bufkey != None:
+            if bufferkey != None:
                 bufkey = bufferkey(bufkey, data)
             res = self.bufferFun(bufkey, bufver, reload, self.db.get, s1, data=data)
         else:
@@ -1480,14 +1480,13 @@ if __name__=="__main__":
         count += 1
         #print "CBBB", count
 
-    et = dbc.get_single_data(sample=[ "tagA-", "pkaC-"], callback=cb, exclude_constant_labels=True)
+    et = dbc.get_single_data(sample=[ "tagA-", "pkaC-"], callback=cb, exclude_constant_labels=True, allowed_labels=["sample"])
     print et.domain
     print et.domain[0].attributes
     printet(et)
-
     """
-    #d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
-    d = PIPA(username="marko", password="marko")
+
+    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"), username=None, password=None)
 
     allids = d.list()[:2]
     print ("list", allids)
@@ -1499,4 +1498,3 @@ if __name__=="__main__":
     data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2), allowed_labels=["strain"])
     #data = orange.ExampleTable(data.domain, data[:1])
     printet(data)
-
