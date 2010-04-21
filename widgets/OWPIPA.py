@@ -637,8 +637,8 @@ class OWPIPA(OWWidget):
         if self.log2:
             transfn = lambda x: math.log(x+1.0, 2)
         
-        keys = {"Strain": "strain", "Genotype": "genotype", "Treatment": "treatment", "Timepoint": "map_stop1", "Growth": "growth",
-                "Species": "species", "Id":"id", "Name": "name", "Date RNA": "date_rna", "Adapter":"adapter",
+        keys = {"Strain": "strain", "Genotype": "genotype", "Treatment": "treatment", "Timepoint": "tp", "Growth": "growth", "Replicate": "replicate", 
+                "Species": "species", "Name": "name", "Date RNA": "date_rna", "Adapter":"adapter",
                 "Who": "who", "Date Rep": "date_rep", "Band": "band", "Amount": "amount", "Experimenter":"experimenter",
                 "Polya": "polya", "Primer": "primer", "Shearing": "shearing", "Unit": "unit"}
         
