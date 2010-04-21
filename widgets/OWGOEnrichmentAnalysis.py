@@ -755,7 +755,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             newdata = orange.ExampleTable(newDomain, self.clusterDataset)
             self.send("Selected Examples", newdata)
             self.send("Unselected Examples", None)
-        else:
+        elif self.candidateGeneAttrs:
             geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
             newClass = orange.EnumVariable("GO Term", values=list(self.selectedTerms))
             newDomain = orange.Domain(self.clusterDataset.domain.variables, newClass)
