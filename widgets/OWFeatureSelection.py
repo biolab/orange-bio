@@ -176,7 +176,7 @@ class OWFeatureSelection(OWWidget):
         else:
             self.dataLabels = []
         self.dataLabelComboBox.clear()
-        if self.data and data.domain.classVar:
+        if self.data and data.domain.classVar and data.domain.classVar.varType == orange.VarTypes.Discrete:
             self.dataLabels = ["(None)"] + self.dataLabels
         self.dataLabelComboBox.addItems(self.dataLabels)
         
@@ -184,7 +184,7 @@ class OWFeatureSelection(OWWidget):
         self.dataLabelIndex = max(min(self.dataLabelIndex, len(self.dataLabels) - 1), 0)
         
         if not self.dataLabels:
-            self.error(1, "Cannot compute gene scores! Gene Selection widget requires a data-set with a class variable or attribute labels!")
+            self.error(1, "Cannot compute gene scores! Gene Selection widget requires a data-set with a discrete class variable or attribute labels!")
             self.data = None
         self.Update()
         if not self.data:
