@@ -18,6 +18,7 @@ from orngDataCaching import data_hints
 from collections import defaultdict
 
 from OWGUI import LinkStyledItemDelegate, LinkRole
+from OWGUI import BarItemDelegate
         
 
 class OWFunctionalAnnotation(OWWidget):
@@ -137,7 +138,7 @@ class OWFunctionalAnnotation(OWWidget):
         
     def setData(self, data=None):
         self.data = data
-        self.closeContext()
+        self.closeContext("")
         self.geneAttrComboBox.clear()
         self.groupsWidget.clear()
         self.annotationsChartView.clear()
@@ -159,6 +160,9 @@ class OWFunctionalAnnotation(OWWidget):
             self.genesinrows = data_hints.get_hint(data, "genesinrows", self.genesinrows)
             
             self.openContext("", data)
+            
+            print self.speciesIndex
+            
             self.setHierarchy(self.getHierarchy(taxid=self.taxid_list[self.speciesIndex]))
             
             self.loadedGenematcher = "None"
@@ -222,8 +226,13 @@ class OWFunctionalAnnotation(OWWidget):
         return dict(states)
             
     def subsetSelectionChanged(self, item, column):
-        self.filterAnnotationsChartView()
         self.categoriesCheckState = self.getHierarchyCheckState()
+        
+        categories = self.selectedCategories()
+        if not set(categories) <= set(self.currentAnnotatedCategories):
+            self.updateAnnotations()
+        else:
+            self.filterAnnotationsChartView()
         
     def updateGeneMatcherSettings(self):
         from OWGOEnrichmentAnalysis import GeneMatcherDialog
@@ -240,8 +249,11 @@ class OWFunctionalAnnotation(OWWidget):
             self.progressBarInit()
             with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
                 matchers = [obiGene.GMGO, obiGene.GMKEGG, obiGene.GMNCBI, obiGene.GMAffy]
-                self.genematcher = obiGene.matcher([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
-                self.genematcher.set_targets(self.referenceGenes())
+                if any(self.geneMatcherSettings):
+                    self.genematcher = obiGene.matcher([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
+                else:
+                    self.genematcher = obiGene.GMDirect()
+#                self.genematcher.set_targets(self.referenceGenes())
                 self.loadedGenematcher = taxid
             self.progressBarFinished()
             
@@ -270,34 +282,42 @@ class OWFunctionalAnnotation(OWWidget):
             return cache[name]
         return f
     
-    def mapGeneNames(self, names, cache=None):
+    def mapGeneNames(self, names, cache=None, passUnknown=False):
         if cache is not None:
             umatch = self._cached_name_lookup(self.genematcher.umatch, cache)
         else:
             umatch = self.genematcher.umatch
+        if passUnknown:
+            return [umatch(name) or name for name in names]
+#            return [(mapped_name or name, mapped_name is not None) for mapped_name, name in zip(mapped, names)]
         return [n for n in [umatch(name) for name in names] if n is not None]
     
     def enrichment(self, geneset, cluster, reference, pval=obiProb.Hypergeometric(), cache=None):
-        genes = set(self.mapGeneNames(geneset.genes, cache))
+        genes = set(self.mapGeneNames(geneset.genes, cache, passUnknown=False))
         
         cmapped = genes.intersection(cluster)
         rmapped = genes.intersection(reference)
         return (cmapped, rmapped, pval.p_value(len(cmapped), len(reference), len(rmapped), len(cluster)), float(len(cmapped)) / (len(cluster) or 1) / (float(len(rmapped) or 1) / (len(reference) or 1))) # TODO: compute all statistics here
     
     def updateAnnotations(self):
+        self.updatingAnnotationsFlag = True
         self.annotationsChartView.clear()
         self.progressBarInit()
         self.updateGenematcher()
-        categories = self.selectedCategories()
+        self.currentAnnotatedCategories = categories = self.selectedCategories()
         with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
             collections = list(obiGeneSets.collections(*categories))
         clusterGenes, referenceGenes = self.clusterGenes(), self.referenceGenes()
         cache = {}
+
+        self.genematcher.set_targets(referenceGenes)
+        
         countAll = len(clusterGenes)
         infoText = "%i genes on input\n" % countAll
-        referenceGenes = set(self.mapGeneNames(referenceGenes, cache))
+        referenceGenes = set(self.mapGeneNames(referenceGenes, cache, passUnknown=False))
         self.progressBarSet(1)
-        clusterGenes = set(self.mapGeneNames(clusterGenes, cache))
+        clusterGenes = set(self.mapGeneNames(clusterGenes, cache, passUnknown=False))
+#        knownClusterGenes = set(self.mapGeneNames(clusterGenes, cache, passUnknown=False))
         self.progressBarSet(2)
         infoText += "%i (%.1f) gene names matched" % (len(clusterGenes), 100.0 * len(clusterGenes) / countAll)
         self.infoBox.setText(infoText)
@@ -357,9 +377,12 @@ class OWFunctionalAnnotation(OWWidget):
             
         self.annotationsChartView.setColumnWidth(1, min(self.annotationsChartView.columnWidth(1), 300))
         self.progressBarFinished()
-        QTimer.singleShot(0, self.filterAnnotationsChartView)
+        QTimer.singleShot(10, self.filterAnnotationsChartView)
+        self.updatingAnnotationsFlag = False
     
     def filterAnnotationsChartView(self, filterString=""):
+        if self.updatingAnnotationsFlag:
+            return
         categories = set(" ".join(cat) for cat, taxid in self.selectedCategories())
 #        print categories
         filterString = str(self.filterLineEdit.text()).lower()
@@ -394,24 +417,24 @@ class OWFunctionalAnnotation(OWWidget):
         
         self.send("Selected Examples", data)
         
-class BarItemDelegate(QStyledItemDelegate):
-    def __init__(self, parent, brush=QBrush(QColor(255, 170, 127)), scale=(0.0, 1.0)):
-        QStyledItemDelegate.__init__(self, parent) 
-        self.brush = brush
-        self.scale = scale
-        
-    def paint(self, painter, option, index):
-        qApp.style().drawPrimitive(QStyle.PE_PanelItemViewRow, option, painter)
-        qApp.style().drawPrimitive(QStyle.PE_PanelItemViewItem, option, painter)
-        rect = option.rect
-        val, ok = index.data(Qt.DisplayRole).toDouble()
-        if ok:
-            min, max = self.scale
-            val = (val - min) / (max - min)
-            painter.save()
-            painter.setBrush(self.brush)
-            painter.drawRect(rect.adjusted(1, 1, - rect.width() * (1.0 - val) -1, -1))
-            painter.restore()
+#class BarItemDelegate(QStyledItemDelegate):
+#    def __init__(self, parent, brush=QBrush(QColor(255, 170, 127)), scale=(0.0, 1.0)):
+#        QStyledItemDelegate.__init__(self, parent) 
+#        self.brush = brush
+#        self.scale = scale
+#        
+#    def paint(self, painter, option, index):
+#        qApp.style().drawPrimitive(QStyle.PE_PanelItemViewRow, option, painter)
+#        qApp.style().drawPrimitive(QStyle.PE_PanelItemViewItem, option, painter)
+#        rect = option.rect
+#        val, ok = index.data(Qt.DisplayRole).toDouble()
+#        if ok:
+#            min, max = self.scale
+#            val = (val - min) / (max - min)
+#            painter.save()
+#            painter.setBrush(self.brush)
+#            painter.drawRect(rect.adjusted(1, 1, - rect.width() * (1.0 - val) -1, -1))
+#            painter.restore()
     
 if __name__ == "__main__":
     import cProfile
