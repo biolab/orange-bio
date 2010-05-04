@@ -308,7 +308,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         files = [file for file in files if file not in orngServerFiles.listfiles("KEGG")]
         pb.iter += len(files) * 100
         for i, filename in enumerate(files):
-            print filename
+#            print filename
             orngServerFiles.download("KEGG", filename, callback=pb.advance)
         if finish:
             pb.finish()
@@ -420,10 +420,10 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.loadedOrganism = org_code
         uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes), self.caseSensitive)
         self.infoLabel.setText("%i genes on input\n%i (%.1f%%) genes matched" % (len(genes), len(uniqueGenes), 100.0*len(uniqueGenes)/len(genes) if genes else 0.0))  
-        if conflicting:
-            print >> sys.stderr, "Conflicting genes:", conflicting
-        if unknown:
-            print >> sys.stderr, "Unknown genes:", unknown
+#        if conflicting:
+#            print >> sys.stderr, "Conflicting genes:", conflicting
+#        if unknown:
+#            print >> sys.stderr, "Unknown genes:", unknown
         self.information(1)
         if self.useReference and self.refData:
             if self.useAttrNames:
