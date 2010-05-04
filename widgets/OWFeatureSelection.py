@@ -330,7 +330,7 @@ class OWFeatureSelection(OWWidget):
             return
         nullDist = sorted(self.nullDistribution)
         test = self.scoreMethods[self.methodIndex][2]
-        count = int(len(nullDist)*self.selectPValue)
+        count = min(int(len(nullDist)*self.selectPValue), len(nullDist))
         if test == self.oneTailTestHi:
             cut = nullDist[-count] if count else nullDist[-1] # + 1e-7
             self.histogram.setBoundary(cut, cut)
