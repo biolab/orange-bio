@@ -17,6 +17,7 @@ from OWHist import OWInteractiveHist
 from OWToolbars import ZoomSelectToolbar
 from obiGEO import transpose
 from collections import defaultdict
+from functools import wraps
 import numpy as np
 import numpy.ma as ma
 
@@ -205,7 +206,19 @@ class OWFeatureSelection(OWWidget):
         dist = scoreFunc.null_distribution(permCount, target, advance=advance)
         return [score for run in dist for k, score in run if score is not ma.masked]
         
-    def Update(self):
+    def disable_controls(method):
+        @wraps(method)
+        def f(self, *args, **kwargs):
+            self.controlArea.setDisabled(True)
+            qApp.processEvents()
+            try:
+                return method(self, *args, **kwargs)
+            finally:
+                self.controlArea.setDisabled(False)
+        return f
+                
+    @disable_controls
+    def Update(self):        
         if not self.data:
             self.histogram.removeDrawingCurves()
             self.histogram.clear()
