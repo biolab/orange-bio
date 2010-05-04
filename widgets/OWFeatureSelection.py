@@ -203,7 +203,7 @@ class OWFeatureSelection(OWWidget):
     def ComputeNullDistribution(self, data, scoreFunc, useAttributes, target=None, permCount=10, advance=lambda: None):
         scoreFunc = scoreFunc(data, useAttributes)
         dist = scoreFunc.null_distribution(permCount, target, advance=advance)
-        return [score for run in dist for k, score in run]
+        return [score for run in dist for k, score in run if score is not ma.masked]
         
     def Update(self):
         if not self.data:
@@ -227,6 +227,8 @@ class OWFeatureSelection(OWWidget):
         pb.advance()
         if self.computeNullDistribution:
             self.nullDistribution = self.ComputeNullDistribution(self.data, scoreFunc, self.genesInColumns, target, self.permutationsCount, advance=pb.advance)
+        else:
+            self.nullDistribution = []
         pb.advance()
         self.histogram.type = self.histType[self.scoreMethods[self.methodIndex][2]]
         if self.scores:
@@ -235,7 +237,7 @@ class OWFeatureSelection(OWWidget):
 #                                                                     self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)))
             self.histogram.setBoundary(self.histogram.minx if self.histogram.type in ["lowTail", "twoTail"] else self.histogram.maxx,
                                        self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)
-            if self.computeNullDistribution:
+            if self.computeNullDistribution and self.nullDistribution:
                 nullY, nullX = numpy.histogram(self.nullDistribution, bins=self.histogram.xData)
                 self.histogram.nullCurve = self.histogram.addCurve("nullCurve", Qt.black, Qt.black, 6, symbol = QwtSymbol.NoSymbol, style = QwtPlotCurve.Steps, xData = nullX, yData = nullY/self.permutationsCount)
                 
