@@ -451,7 +451,8 @@ class OWPIPA(OWWidget):
         self.headerLabels = ["", "Species", "Strain", "Genotype", "Treatment", "Growth", "Timepoint", "Replicate", "ID",
                              "Date RNA", "Adapter", "Who", "Date Rep", "Band", "Amount", "Experimenter","Polya", "Primer", "Shearing", "Unit"]
         self.experimentsWidget = QTreeWidget()
-        self.experimentsWidget.setHeaderLabels(self.headerLabels)
+#        self.experimentsWidget.setHeaderLabels(self.headerLabels)
+        self.experimentsWidget.setHeaderItem(QTreeWidgetItem(None, []))
         self.experimentsWidget.setSelectionMode(QTreeWidget.ExtendedSelection)
         self.experimentsWidget.setRootIsDecorated(False)
         self.experimentsWidget.setSortingEnabled(True)
@@ -470,7 +471,7 @@ class OWPIPA(OWWidget):
 
         self.loadSettings()
         
-        self.restoreHeaderState()
+#        self.restoreHeaderState()
         
         self.connect(self.experimentsWidget.header(), SIGNAL("geometriesChanged()"), self.saveHeaderState)
         
@@ -573,6 +574,13 @@ class OWPIPA(OWWidget):
         elements = []
         pos = 0
 
+        if self.chips and self.annots:
+            header = self._p_header = QTreeWidgetItem(None, self.headerLabels)
+            self.experimentsWidget.setHeaderItem(header)
+            self.restoreHeaderState()
+        else:
+            self._p_header = None
+            
         for chip,annot in zip(self.chips, self.annots):
             pos += 1
             d = defaultdict(lambda: "?", annot)
@@ -678,8 +686,9 @@ class OWPIPA(OWWidget):
         
     def saveHeaderState(self):
         hview = self.experimentsWidget.header()
-        for i, label in enumerate(self.headerLabels):
-            self.experimentsHeaderState[label] = hview.isSectionHidden(i)
+        if getattr(self, "_p_header", None):
+            for i, label in enumerate(self.headerLabels):
+                self.experimentsHeaderState[label] = hview.isSectionHidden(i)
             
     def restoreHeaderState(self):
         hview = self.experimentsWidget.header()
