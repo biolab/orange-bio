@@ -41,7 +41,7 @@ class MyTreeWidgetItem(QTreeWidgetItem):
  
     def __lt__(self, o1):
         col = self.par.sortColumn()
-        if col in [6,7,8]: #WARNING: hardcoded column numbers
+        if col in [7,8,9]: #WARNING: hardcoded column numbers
             return tfloat(self.text(col)) < tfloat(o1.text(col))
         else:
             return QTreeWidgetItem.__lt__(self, o1)
@@ -161,7 +161,7 @@ class SelectionSetsWidget(QFrame):
         self.connect(self.selectionModel, SIGNAL("selectionChanged(QItemSelection, QItemSelection)"), self._onSelectionChanged)
         
     def addCurrentSelection(self):
-        item = self.addSelection(SelectionByKey(self.selectionModel.selection(), name="New selection", key=(0,1,2,3, 8)))
+        item = self.addSelection(SelectionByKey(self.selectionModel.selection(), name="New selection", key=(0,1,2,3, 9)))
         index = self._proxyModel.mapFromSource(item.index())
         self._setListView.setCurrentIndex(index)
         self._setListView.edit(index)
@@ -402,7 +402,7 @@ class OWPIPA(OWWidget):
         self.joinreplicates = False
         self.currentSelection = None
         
-        self.experimentsHeaderState = {"": False, "Species": False, "Strain": False, "Genotype": False, "Treatment": False,
+        self.experimentsHeaderState = {"": False, "Name":False, "Species": False, "Strain": False, "Genotype": False, "Treatment": False,
                                        "Growth": False, "Timepoint": False, "Replicate": False, "ID": False}
 
         self.chips = []
@@ -448,7 +448,7 @@ class OWPIPA(OWWidget):
         self.passf.setEchoMode(QLineEdit.Password)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
-        self.headerLabels = ["", "Species", "Strain", "Genotype", "Treatment", "Growth", "Timepoint", "Replicate", "ID",
+        self.headerLabels = ["", "Name", "Species", "Strain", "Genotype", "Treatment", "Growth", "Timepoint", "Replicate", "ID",
                              "Date RNA", "Adapter", "Who", "Date Rep", "Band", "Amount", "Experimenter","Polya", "Primer", "Shearing", "Unit"]
         self.experimentsWidget = QTreeWidget()
         self.experimentsWidget.setHeaderLabels(self.headerLabels)
@@ -576,7 +576,7 @@ class OWPIPA(OWWidget):
         for chip,annot in zip(self.chips, self.annots):
             pos += 1
             d = defaultdict(lambda: "?", annot)
-            elements.append(["", d["species"], d["strain"], d["genotype"], d["treatment"], d["growth"], d["tp"], d["replicate"], chip] + \
+            elements.append(["", d["name"], d["species"], d["strain"], d["genotype"], d["treatment"], d["growth"], d["tp"], d["replicate"], chip] + \
                              [d[label.lower().replace(" ", "_")] for label in ["Date RNA", "Adapter", "Who", "Date Rep", "Band", "Amount", "Experimenter", "Polya", "Primer", "Shearing", "Unit"]])
             
 #            self.progressBarSet((100.0 * pos) / len(chips))
@@ -604,7 +604,7 @@ class OWPIPA(OWWidget):
         if self.wantbufver and self.dbc:
             fn = self.dbc.chips_keynaming()
             for item in self.items:
-                c = str(item.text(8))
+                c = str(item.text(9))
                 item.setData(0, Qt.DisplayRole, QVariant(" " if self.dbc.inBuffer(fn(c)) == self.wantbufver(c) else ""))
 #                color = Qt.black
 #                if self.dbc.inBuffer(fn(c)) == self.wantbufver(c):
@@ -631,7 +631,7 @@ class OWPIPA(OWWidget):
 
         ids = []
         for item in self.experimentsWidget.selectedItems():
-            ids += [ str(item.text(8)) ]
+            ids += [ str(item.text(9)) ]
 
         transfn = None
         if self.log2:
@@ -674,7 +674,7 @@ class OWPIPA(OWWidget):
 
     def onSelectionChanged(self, selected, deselected):
         self.currentSelection = SelectionByKey(self.experimentsWidget.selectionModel().selection(),
-                                               key=(0,1,2,3, 8))
+                                               key=(0,1,2,3, 9))
         
     def saveHeaderState(self):
         hview = self.experimentsWidget.header()
