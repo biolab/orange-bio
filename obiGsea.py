@@ -1060,9 +1060,16 @@ if  __name__=="__main__":
     phenVar = "group"
     out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, rankingf=rankingf, phenVar=phenVar, geneVar=geneVar)
     """
+    """
     data = orange.ExampleTable("sterolTalkHepa.tab")
     gen1 = obiGeneSets.collections('steroltalk.gmt', (("KEGG",), "9606"))
     matcher = obiGene.matcher([obiGene.GMKEGG('hsa')])
     out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher)
+    """
+    matcher = obiGene.matcher([[obiGene.GMKEGG('ddi'), obiGene.GMDicty()]])
+    data = orange.ExampleTable("/home/marko/t_gsea1.tab")
+    gen1 = obiGeneSets.collections((("KEGG",), "352472"))
+    out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, phenVar="growth")
+    print out
     print "\n".join(map(str,sorted(out.items())))
     

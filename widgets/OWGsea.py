@@ -633,7 +633,7 @@ class OWGsea(OWWidget):
 
 
             #create gene matcher
-            genematcher = obiGene.matcher([[obiGene.GMKEGG(organism)] + ([obiGene.GMDicty()] if organism == "ddi"  else [])])
+            genematcher = obiGene.matcher([[obiGene.GMKEGG(organism)] + ([obiGene.GMDicty()] if organism == "352472"  else [])])
 
             #dkwargs["caseSensitive"] = self.csgm
 
