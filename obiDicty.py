@@ -123,7 +123,7 @@ def issequencens(x):
 
 #end utility functions
 
-socket.setdefaulttimeout(30)
+socket.setdefaulttimeout(60)
 
 verbose = 0
 
@@ -143,7 +143,7 @@ def replaceChars(address):
 
 def httpGet(address, *args, **kwargs):
     if verbose: 
-        print address, " ", 
+        print address, args, kwargs,  " "
     address = replaceChars(address)
     t1 = time.time()
     f = urllib2.urlopen(address, *args, **kwargs)
@@ -512,7 +512,7 @@ class DBCommon(object):
 
 def bufferkeypipa(command, data):
     """ Do not save password to the buffer! """
-    command = command + " v2" #add version
+    command = command + " v3" #add version
     if data != None:
         data = data.copy()
         if "pass1" in data:
@@ -544,6 +544,20 @@ class PIPA(DBCommon):
         """ Returns ids of all experiments in the database """
         res, legend = self.sq("list", data=self.add_auth(), reload=reload, bufferkey=bufferkeypipa)
         return nth(res, 0)
+
+    def lengths(self, genome_id, reload=False):
+        """ Returns lengths for genes of the given genome. """
+        data = { "genome": genome_id }
+        res, legend = self.sq("geneinfo_get", data=self.add_auth(data), reload=reload, bufferkey=bufferkeypipa)
+        newlegend = ["gene", "len"]
+        return onlyColumns(res, legend, newlegend), newlegend
+
+    def map35s(self, genome_id, reload=False):
+        """ Returns lengths for genes of the given genome. """
+        data = { "genome": genome_id }
+        res, legend = self.sq("geneinfo_get", data=self.add_auth(data), reload=reload, bufferkey=bufferkeypipa)
+        newlegend = ["gene", "map35"]
+        return onlyColumns(res, legend, newlegend), newlegend
 
     def annotations(self, ids, reload=False, bufver="0"):
         """
@@ -582,7 +596,7 @@ class PIPA(DBCommon):
         return keynamingfn
 
     def get_data(self, exclude_constant_labels=False, average=median, 
-        ids=None, callback=None, bufver="0", transform=None, allowed_labels=None):
+        ids=None, callback=None, bufver="0", transform=None, allowed_labels=None, map_map35=False, map_lengths=False):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations for query and post-processing
@@ -656,6 +670,37 @@ class PIPA(DBCommon):
         if average != None:
             et = averageAttributes(et, fn=average)
             cbc()
+
+
+        #add mapability information
+
+        genomeids = set(map(lambda x: dict(x)["genome_id"], read.values()))
+
+        def mapping_prop_dict(fn):
+            """ Return a proper mapping prop dict """
+            d = {}
+            for genome_id in genomeids:
+                d1 = dict(fn(genome_id)[0])
+                if len(set(d) & set(d1)) > 0:
+                    KeyIsRepeating()
+                d.update(d1)
+            return d
+
+        def add_meta_for_gene(et, d, atr):
+            ndom = orange.Domain(et.domain.attributes, et.domain.classVar)
+            ndom.addmetas(et.domain.getmetas())
+            id1 = orange.newmetaid()
+            atr.getValueFrom = lambda ex,rw: orange.Value(atr, float(d[ex['DDB'].value]) if ex['DDB'].value in d else '?')
+            ndom.addmeta(id1, atr)
+            return orange.ExampleTable(ndom, et)
+
+        if map_lengths:
+            d = mapping_prop_dict(self.lengths)
+            et = add_meta_for_gene(et, d, orange.FloatVariable(name="map_length"))
+
+        if map_map35:
+            d = mapping_prop_dict(self.map35s)
+            et = add_meta_for_gene(et, d, orange.FloatVariable(name="map_map35"))
 
         cbc.end()
 
@@ -1487,11 +1532,15 @@ if __name__=="__main__":
     printet(et)
     """
 
-    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"), username=None, password=None)
+    #d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"), username=None, password=None)
+    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"), username="marko", password="ptsap5o6")
 
     allids = d.list()[:2]
+    allids = d.list()
     print ("list", allids)
     print ("annots", list(d.annotations(ids=allids[:2])))
+
+    allids = map(str, [ 513, 514, 516, 517, 518, 519, 520, 521, 522, 523 ])
 
     import math
 
