@@ -707,7 +707,7 @@ class OWHeatMap(OWWidget):
 #                                    rotate(90).translate(0, -item.rect().height()))
                     item.rotate(90)
 #                    item.setPos(-100, y+self.CellHeight/2.0)
-                    item.setPos(0, y+self.CellHeight/2.0)
+                    item.setPos(0, y+self.CellHeight/2.0/self.Merge)
                     item.update()
                     
                 image = ImageItem(self.bmps[i][g], self.scene, self.imageWidth, \
