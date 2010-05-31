@@ -376,7 +376,7 @@ class profilesGraph(OWGraph):
 
     def closestCurve(self, point):
         pointDistances = [(curve,) + curve.closestPoint(point) for curve in self.itemList() if isinstance(curve, QwtPlotCurve) and curve.isVisible()]
-        return min(pointDistances, key=lambda t:t[-1]) if pointDistances else None
+        return min(pointDistances, key=lambda t:t[-1]) if pointDistances else (None, -1, sys.maxint)
 
     def curveUnderMouse(self, pos):
         pos = self.canvas().mapFrom(self, pos)
