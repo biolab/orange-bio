@@ -52,7 +52,7 @@ class OWFunctionalAnnotation(OWWidget):
         self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "Info")
         self.infoBox.setText("No data on input")
         
-        self.speciesComboBox = OWGUI.comboBox(self.controlArea, self, "speciesIndex", "Species", callback=lambda :self.data and self.updateAnnotations())
+        self.speciesComboBox = OWGUI.comboBox(self.controlArea, self, "speciesIndex", "Species", callback=lambda :self.data and self.updateAnnotations(), debuggingEnabled=0)
         
         box = OWGUI.widgetBox(self.controlArea, "Gene names")
         self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneattr", "Gene attribute", sendSelectedValue=0, callback=self.updateAnnotations)
@@ -417,24 +417,34 @@ class OWFunctionalAnnotation(OWWidget):
         
         self.send("Selected Examples", data)
         
-#class BarItemDelegate(QStyledItemDelegate):
-#    def __init__(self, parent, brush=QBrush(QColor(255, 170, 127)), scale=(0.0, 1.0)):
-#        QStyledItemDelegate.__init__(self, parent) 
-#        self.brush = brush
-#        self.scale = scale
-#        
-#    def paint(self, painter, option, index):
-#        qApp.style().drawPrimitive(QStyle.PE_PanelItemViewRow, option, painter)
-#        qApp.style().drawPrimitive(QStyle.PE_PanelItemViewItem, option, painter)
-#        rect = option.rect
-#        val, ok = index.data(Qt.DisplayRole).toDouble()
-#        if ok:
-#            min, max = self.scale
-#            val = (val - min) / (max - min)
-#            painter.save()
-#            painter.setBrush(self.brush)
-#            painter.drawRect(rect.adjusted(1, 1, - rect.width() * (1.0 - val) -1, -1))
-#            painter.restore()
+    def sendReport(self):
+        self.reportSettings("Settings", [("Organism", obiTaxonomy.name(self.taxid_list[self.speciesIndex]))])
+        self.reportSettings("Filter", [("Min cluster size", self.minClusterCount if self.useMinCountFilter else 0),
+                                       ("Max p-value", self.maxPValue if self.useMaxPValFilter else 1.0)])
+    
+        self.reportSubsection("Annotations")
+        self.reportRaw(reportItemView(self.annotationsChartView))
+        
+def reportItemView(view):
+    model = view.model()
+    return reportItemModel(view, model)
+    
+def reportItemModel(view, model, index=QModelIndex()):
+    if not index.isValid() or model.hasChildren(index):
+        columnCount, rowCount = model.columnCount(index), model.rowCount(index)
+        if not index.isValid():
+            text = '<table>\n<tr>' + ''.join('<th>%s</th>' % model.headerData(i, Qt.Horizontal, Qt.DisplayRole).toString() for i in range(columnCount)) +'</tr>\n'
+        else:
+#            variant = model.data(index, Qt.DisplayRole)
+#            text = '<table' + (' caption="%s"' % variant.toString() if variant.isValid() else '') + '>\n'
+            pass
+        text += ''.join('<tr>' + ''.join('<td>' + reportItemModel(view, model, model.index(row, column, index)) + '</td>' for column in range(columnCount)) + '</tr>\n' for row in range(rowCount) if not view.isRowHidden(row, index))
+        text += '</table>'
+        return text
+    else:
+        variant = model.data(index, Qt.DisplayRole)
+        return str(variant.toString()) if variant.isValid() else ""
+
     
 if __name__ == "__main__":
     import cProfile
