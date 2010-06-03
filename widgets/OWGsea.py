@@ -361,8 +361,8 @@ class OWGsea(OWWidget):
         self.btnApply = OWGUI.button(ca, self, "&Compute", callback = self.compute, disabled=0)
         
         fileBox = OWGUI.widgetBox(ca, orientation='horizontal')
-        OWGUI.button(fileBox, self, "Load", callback = self.loadData, disabled=0)
-        OWGUI.button(fileBox, self, "Save", callback = self.saveData, disabled=0)
+        OWGUI.button(fileBox, self, "Load", callback = self.loadData, disabled=0, debuggingEnabled=0)
+        OWGUI.button(fileBox, self, "Save", callback = self.saveData, disabled=0, debuggingEnabled=0)
  
         #ca.layout().addStretch(1)
 
@@ -373,7 +373,7 @@ class OWGsea(OWWidget):
         self.gridSel = []
         self.geneSel = []  #FIXME temporary disabled - use the same as in new "David" widget
         self.lbgs = OWGUI.listBox(box, self, "gridSel", "geneSel", selectionMode = QListWidget.MultiSelection)
-        OWGUI.button(box, self, "From &File", callback = self.addCollection, disabled=0)
+        OWGUI.button(box, self, "From &File", callback = self.addCollection, disabled=0, debuggingEnabled=0)
 
         box = OWGUI.widgetBox(box, "Additional sources:")
         OWGUI.checkBox(box, self, "gskegg", "KEGG pathways")

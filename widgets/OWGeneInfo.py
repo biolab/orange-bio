@@ -86,7 +86,7 @@ class OWGeneInfo(OWWidget):
         self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "No data on input\n")
         self.organisms = sorted(set([name.split(".")[-2] for name in orngServerFiles.listfiles("NCBI_geneinfo")] + obiTaxonomy.essential_taxids()))
     
-        self.orgaismsComboBox = OWGUI.comboBox(self.controlArea, self, "organismIndex", "Organism", items=[obiTaxonomy.name(id) for id in self.organisms], callback=self.setItems)
+        self.orgaismsComboBox = OWGUI.comboBox(self.controlArea, self, "organismIndex", "Organism", items=[obiTaxonomy.name(id) for id in self.organisms], callback=self.setItems, debuggingEnabled=0)
         box = OWGUI.widgetBox(self.controlArea, "Gene names")
         self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneAttr", "Gene atttibute", callback=self.setItems)
         c = OWGUI.checkBox(box, self, "useAttr", "Use attribute names", callback=self.setItems, disables=[(-1, self.geneAttrComboBox)])
