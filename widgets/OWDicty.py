@@ -32,8 +32,7 @@ class OWDicty(OWWidget):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
         self.serverToken = ""
-        self.server = "http://www.ailab.si/dictyexpress/api/index.php"
-        #self.server = "http://asterix.fri.uni-lj.si/microarray/api/index.php"
+        self.server = obiDicty.defaddress
 
         self.platform = None
 
@@ -50,7 +49,6 @@ class OWDicty(OWWidget):
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
         box  = OWGUI.widgetBox(self.controlArea, "Server")
-        OWGUI.lineEdit(box, self, "server", "Address", callback=self.Connect)
         OWGUI.lineEdit(box, self, "serverToken","Token", callback=self.Connect)
         OWGUI.rubber(self.controlArea)
 
@@ -98,11 +96,13 @@ class OWDicty(OWWidget):
         self.chipsl = []
         self.experimentsWidget.clear()
         self.items = []
-        self.progressBarInit()
 
         if not self.dbc:
             self.Connect()
- 
+
+        """
+        self.progressBarInit()
+
         strains = self.dbc.annotationOptions("sample")["sample"]
 
         for i, strain in enumerate(strains):
@@ -116,8 +116,7 @@ class OWDicty(OWWidget):
                 elements.append(((d.get("treatment", ""), d.get("growthCond", ""), d.get("platform", "")),chip))
 
             def different_chips(li):
-                """ Returns a map, where keys are different elements in li and values
-                their chip ids"""
+                # Returns a map, where keys are different elements in li and values their chip ids
                 dc = defaultdict(list)
                 for a,chip in li:
                     dc[a].append(chip)
@@ -125,14 +124,38 @@ class OWDicty(OWWidget):
 
             typeswchips = different_chips(elements) #types with counts
 
-            for (treatment, cond, platform),cchips in typeswchips.items():
+            for (treatment, cond, platforma),cchips in typeswchips.items():
                 self.chipsl.append(cchips)
                 num = len(cchips)
                 experiment = [strain, treatment, cond, platform, str(num), ','.join(cchips)] 
                 self.items.append(MyTreeWidgetItem(self.experimentsWidget, experiment))
 
             self.progressBarSet((100.0 * i) / len(strains))
-            
+        """
+
+        annotations = self.dbc.annotations("norms", None)
+
+        elements = []
+
+        for chip,annot in annotations:
+            d = dict(annot)
+            elements.append(((d.get("treatment", ""), d.get("growthCond", ""), d.get("platform", ""), d.get("sample", "")),chip))
+
+        def different_chips(li):
+            # Returns a map, where keys are different elements in li and values their chip ids
+            dc = defaultdict(list)
+            for a,chip in li:
+                dc[a].append(chip)
+            return dc
+
+        typeswchips = different_chips(elements) #types with counts
+
+        for (treatment, cond, platform, strain),cchips in typeswchips.items():
+            self.chipsl.append(cchips)
+            num = len(cchips)
+            experiment = [strain, treatment, cond, platform, str(num), ','.join(cchips)] 
+            self.items.append(MyTreeWidgetItem(self.experimentsWidget, experiment))
+
         for i in range(5):
             self.experimentsWidget.resizeColumnToContents(i)
 
