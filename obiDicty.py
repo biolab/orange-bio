@@ -269,9 +269,13 @@ class DBCommon(object):
     def fromBuffer(self, addr):
         return self.buffer.get(self.address + addr)
 
-    def toBuffer(self, addr, cont, version):
+    def toBuffer(self, addr, cont, version, autocommit=True):
         if self.buffer:
-            return self.buffer.add(self.address + addr, cont, version=version)
+            return self.buffer.add(self.address + addr, cont, version=version, autocommit=autocommit)
+
+    def bufferCommit(self):
+        if self.buffer:
+            self.buffer.commit()
 
     def bufferFun(self, bufkey, bufver, reload, fn, *args, **kwargs):
         """
@@ -396,7 +400,9 @@ class DBCommon(object):
  
             #here save buffer
             for a,b in antss.items():
-                self.toBuffer(bufcommand(a), [ legend ] + b, bufverfn(a))
+                self.toBuffer(bufcommand(a), [ legend ] + b, bufverfn(a), autocommit=False)
+            self.bufferCommit()
+            
 
             #get buffered from the buffer
             antssb = dict([ (b, self.fromBuffer(bufcommand(b))[1:]) for b in buffered ])
@@ -1314,7 +1320,7 @@ class BufferSQLite(object):
         c.execute('select address from buf')
         return nth(list(c), 0)
 
-    def add(self, addr, con, version="0"):
+    def add(self, addr, con, version="0", autocommit=True):
         import cPickle, zlib, sqlite3
         if verbose:
             print "Adding", addr
@@ -1325,6 +1331,10 @@ class BufferSQLite(object):
             bin = sqlite3.Binary(cPickle.dumps(con))
         c.execute('insert or replace into buf values (?,?,?)', (addr, version, bin))
         c.close()
+        if autocommit:
+            self.commit()
+
+    def commit(self):
         self.conn.commit()
 
     def get(self, addr):
