@@ -141,7 +141,7 @@ class BioMartConnection(object):
         
     def request_url(self, **kwargs):
         url = self.url + "?" + "&".join("%s=%s" % item for item in kwargs.items() if item[0] != "POST")
-        print url
+#        print >> sys.stderr, url
         return url.replace(" ", "%20")
     
     def request(self, **kwargs):
@@ -190,6 +190,7 @@ class BioMartConnection(object):
             print >> sys.stderr, ex
             if "virtualSchema" not in kwargs:
                 return BioMartDatasetConfig(de_dom(self.request(type="configuration", virtualSchema="default", **kwargs), "DatasetConfig"))
+            raise
     
 class BioMartRegistry(object):
     """ A class representing a BioMart registry 
@@ -406,7 +407,6 @@ class BioMartDatabase(object):
         strings = string.lower().split()
         results = []
         for dataset, conf in safe_iter((dataset, dataset.configuration()) for dataset in self.datasets()):
-#            conf = dataset.configuration()
             trees = conf.attribute_pages() + conf.attribute_groups() + \
                     conf.attribute_collections() + conf.attributes()
                     
@@ -492,12 +492,7 @@ class BioMartQuery(object):
     class XMLQuery(object):
         XML = """<?xml version="1.0" encoding="UTF-8"?> 
 <!DOCTYPE Query> 
-<Query virtualSchemaName = "%(virtualSchemaName)s"
-       formatter = "%(formatter)s"
-       header = "%(header)s"
-       uniqueRows = "%(uniqueRows)s"
-       count = "%(count)s"
-       datasetConfigVersion = "%(version)s" > 
+<Query virtualSchemaName = "%(virtualSchemaName)s" formatter = "%(formatter)s" header = "%(header)s" uniqueRows = "%(uniqueRows)s" count = "%(count)s" datasetConfigVersion = "%(version)s" >  
 %(datasets_xml)s 
 </Query>"""
         version = "0.7"
@@ -608,7 +603,6 @@ class BioMartQuery(object):
         self.format = format
         
     def set_dataset(self, dataset):
-#        dataset = self.registry.dataset(dataset, virtualSchema=self.virtualSchema)
         self._query.append((dataset, [], []))
     
     def add_filter(self, filter, value):
@@ -636,29 +630,20 @@ class BioMartQuery(object):
         self.uniqueRows = unique
     
     def xml_query(self, count=None, header=False):  
-        version = "0.4"
-#        version = min([self.registry.configuration(dataset, virtualSchema=self.virtualSchema) for dataset, attrs, filters in self._query])
+        self.version = version = "0.4"
          
+        schema = self.virtualSchema
+        
+        dataset = self._query[0][0]
+        dataset = dataset.internalName if isinstance(dataset, BioMartDataset) else dataset
+        
+        conf = self.registry.connection.configuration(dataset=dataset, virtualSchema=self.virtualSchema)
+        self.version = version = getattr(conf, "softwareVersion", "0.4")
+        
         if version > "0.4":
             xml = self.XMLQuery(self).get_xml(count, header)
         else:
             xml = self.XMLQueryOld(self).get_xml(count, header)
-        return xml
-    
-        datasets_xml = "\n".join(self.xml_query_dataset(*query) for query in self._query)
-        
-        links_xml = self.xml_query_links(self._query)
-        datasets_xml += "\n" + links_xml
-        
-        count = self.count if count is None else count 
-        args = dict(datasets_xml=datasets_xml,
-                    uniqueRows="1" if self.uniqueRows else "0",
-                    count="1" if count else "",
-                    header= "1" if header else "0",
-                    virtualSchemaName=self.virtualSchema,
-                    formatter=self.format,
-                    version="0.4")
-        xml = self.XML % args
         return xml
     
     def xml_query_attributes(self, attributes):
@@ -710,14 +695,12 @@ class BioMartQuery(object):
     def get_example_table(self):
         import orange
         data = self.run(count=False, header=True)
-#        print data
+        
         if self.format.lower() == "tsv":
-#            attributes = reduce(list.__add__, [q[1] for q in self._query],[])
             header, data = data.split("\n", 1)
-#            name = lambda attr: str(getattr(attr, "displayName", getattr(attr, "name", attr)))
-#            domain = orange.Domain([orange.StringVariable(name(attr)) for attr in attributes], False)
             domain = orange.Domain([orange.StringVariable(name) for name in header.split("\t")], False)
-            return orange.ExampleTable(domain, [line.split("\t") for line in data.split("\n") if line.strip()])
+            data = [line.split("\t") for line in data.split("\n") if line.strip()]
+            return orange.ExampleTable(domain, data) if data else None
         elif self.format.lower() == "fasta":
             domain = orange.Domain([orange.StringVariable("id"), orange.StringVariable("sequence")], False) #TODO: meaningful id
             examples = []
@@ -726,8 +709,10 @@ class BioMartQuery(object):
             for seq in SeqIO.parse(StringIO(data)):
                 examples.append((seq.id, str(seq.seq)))
             return orange.ExampleTable(domain, examples)
-        
-    
+        else:
+            raise BioMartError("Unsupported format: %" % self.format)
+
+
 class BioMartConfigurationTree(object):
     _configuration = {}
     def __init__(self, tree):
