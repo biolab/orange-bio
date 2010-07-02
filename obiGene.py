@@ -50,6 +50,12 @@ class GeneHistory(object):
             
             
 class NCBIGeneInfo(dict):
+    TAX_MAP = {
+            "2104": "272634",  # Mycoplasma pneumoniae
+            "4530": "39947",  # Oryza sativa
+            "5833": "36329",  # Plasmodium falciparum
+            "4932": "559292",  # Saccharomyces cerevisiae
+            }
        
     def __init__(self, organism, genematcher=None):
         """ An dictionary like object for accessing NCBI gene info
@@ -101,14 +107,16 @@ class NCBIGeneInfo(dict):
 
     @classmethod
     def organism_name_search(cls, org):
-        taxids = obiTaxonomy.to_taxid(org, mapTo=obiTaxonomy.common_taxids())
+        taxids = obiTaxonomy.to_taxid(org, mapTo=cls.common_taxids())
         if not taxids:
-            taxids = set(obiTaxonomy.common_taxids()).intersection(obiTaxonomy.search(org, onlySpecies=False)) #onlySpecies=False needed to find correct dicty
+            taxids = obiTaxonomy.search(org, onlySpecies=False)
+            taxids = set(cls.common_taxids()).intersection(taxids) #onlySpecies=False needed to find correct dicty
         if len(taxids) == 0:
             raise obiTaxonomy.UnknownSpeciesIdentifier, org
         elif len(taxids) > 1:
             raise obiTaxonomy.MultipleSpeciesException, ", ".join(["%s: %s" % (id, obiTaxonomy.name(id)) for id in taxids])
-        return taxids.pop()
+        taxid = taxids.pop()
+        return cls.TAX_MAP.get(taxid, taxid)
 
     @classmethod    
     def load(cls, file):
@@ -191,6 +199,16 @@ class NCBIGeneInfo(dict):
         tmpfile.seek(0)
         stream = gzip.GzipFile(None, "rb", fileobj=tmpfile)
         shutil.copyfileobj(stream, file)
+        
+    @classmethod
+    def common_taxids(cls):
+        taxids = obiTaxonomy.common_taxids()
+        return [cls.TAX_MAP.get(id, id) for id in taxids if cls.TAX_MAP.get(id, id)]
+    
+    @classmethod
+    def essential_taxids(cls):
+        taxids = obiTaxonomy.essential_taxids()
+        return [cls.TAX_MAP.get(id, id) for id in taxids if cls.TAX_MAP.get(id, id)]
 
 """
 Gene matcher.
