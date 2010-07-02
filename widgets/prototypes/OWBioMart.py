@@ -1,4 +1,4 @@
-"""<name>OWBioMart</name>
+"""<name>Bio Mart</name>
 """
 
 from OWWidget import *
@@ -12,32 +12,6 @@ import traceback
 
 from collections import defaultdict
 
-#class QBioMartConnection(obiBioMart.BioMartConnection):
-#    def __init__(self, url=None, manager=None):
-#        obiBioMart.BioMartConnection.__init__(self, url)
-#        self.manager = manager if manager else QNetworkAccessManager()
-#        QObject.connect(self.manager, SIGNAL("finished(QNetworkReply)"), self.finished)
-#        reply = self.manager.get(QNetworkRequest(QUrl("http://www.trolltech.com")))
-#        self._f = False
-#        
-#    def finished(self, reply):
-#        self._f = True
-#        
-#    def request(self, **kwargs):
-#        print self.request_url(**kwargs)
-#        reply = self.manager.get(QNetworkRequest(QUrl(self.request_url(**kwargs))))
-#        QObject.connect(reply, SIGNAL("error(QNetworkReply::NetworkError)"), lambda error: sys.stdout.write(error))
-#        QObject.connect(reply, SIGNAL("downloadProgress(qint64, qint64)"), lambda r, l: sys.stdout.write(str(r)))
-#        data = ""
-#        print reply.atEnd(), reply.error()
-#        while not self._f:
-#            qApp.processEvents()
-#            reply.waitForReadyRead(100)
-#            data += str(reply.readAll())
-#        print data
-#        import StringIO
-#        return StringIO.StringIO(data)
-
 def cached_function_instance(func):
     from functools import wraps
     cache = {}
@@ -48,108 +22,42 @@ def cached_function_instance(func):
             cache[sig] = func(*args, **kwargs)
         return cache[sig]
     return f
-
-class BackgroundTask(QThread):
-    def __init__(self, parent=None):
-        QThread.__init__(self, parent)
-        self.connect(self, SIGNAL("runTask()"), self.executeTask, Qt.QueuedConnection)
-        self.start()
         
+        
+class WorkerThread(QThread):
     def run(self):
         self.exec_()
         
-    def runTask(self, callable):
-        self.emit(SIGNAL("runTask()"), callable)
-    
-    @pyqtSignature("executeTask(PyQt_PyObject)")
-    def executeTask(self, callable):
-        self.usleep(10)
-        try:
-            results = callable()
-        except Exception, ex:
-            print >> sys.stderr, "Exeption occured in BackgroundTask.executeTask, running", callable
-            traceback.print_exc(file=sys.stderr)
-            self.emit(SIGNAL("executionFailed(PyQt_PyObject)"), ex)
-            return
-        self.emit(SIGNAL("executionFinished(PyQt_PyObject)"), results)
-        
-class RunnableWrapper(QRunnable):
-    def __init__(self, callable):
-        QRunnable.__init__(self)
-        self.setAutoDelete(False)
-        self.callable = callable
-        
-    def run(self):
-        try:
-            self.results = self.callable()
-        except Exception, ex:
-            print >> sys.stderr, ex
-            
-class BackgroundTask(QObject):
-    def __init__(self, callable, parent=None):
+class AsyncFunc(QObject):
+    def __init__(self, callable, thread=None, parent=None):
         QObject.__init__(self, parent)
         self.callable = callable
-        self.connect(self, SIGNAL("_ow_start()"), self.execute, Qt.QueuedConnection)
+        if thread:
+            self.moveToThread(thread)
+            
+        self.connect(self, SIGNAL("start()"), self.execute, Qt.QueuedConnection)
         
+    def __call__(self):
+#        print >> sys.stderr, self
+        self.emit(SIGNAL("start()"))
+    
     @pyqtSignature("execute()")
     def execute(self):
+#        print >> sys.stderr, self
         try:
-            self.results = self.callable()
-        except Exception, ex:
-            import traceback
-            traceback.print_exc()
-            print >> sys.stderr, "Exception occured in BackgroundTask.execute, running", self.callable
-            self.emit(SIGNAL("finished(QString)"), str(ex))
-            return
-        
-        self.emit(SIGNAL("finished(QString)"), self.results)
-        
-    def __call__(self):
-        print >> sys.stderr, QThread.currentThread()
-        self.emit(SIGNAL("_ow_start()"))
-        
-    def run(self):
-        self._runnable = RunnableWrapper(self)
-        QThreadPool.globalInstance().reserveThread()
-        QThreadPool.globalInstance().start(self._runnable)
-        print QThreadPool.globalInstance().activeThreadCount()
-        
-class RunnableTask(QRunnable):
-    def __init__(self, call):
-        QRunnable.__init__(self)
-        self.setAutoDelete(False)
-        self._call = call
-        
-    def run(self):
-        self._return = self._call()
-        
-class MartserviceTask(QObject):
-    def __init__(self, callable, parent=None):
-        QObject.__init__(self, parent)
-        self.callable = callable
-        
-    def __call__(self):
-        try:
-            print >> sys.stderr, "Calling:", self.callable
             self.result = self.callable()
         except Exception, ex:
+            print >> sys.stderr, "Exception in thread ", QThread.currentThread(), " while calling ", self.callable 
             self.emit(SIGNAL("finished(QString)"), QString(str(ex)))
-            del self.callable
-            print >> sys.stderr, ex
+            self.emit(SIGNAL("unhandledException"), ex)
+            self._status = 1
             return
         self.emit(SIGNAL("finished(QString)"), QString("Ok"))
-        del self.callable
+        self.emit(SIGNAL("resultReady"), self.result)
+        self._status = 0
         
-        print >> sys.stderr, self.result
-        return self.result
-    
-    def run(self):
-        QThreadPool.globalInstance().setExpiryTimeout(-1) #
-        self._runnable = RunnableWrapper(self)
-        QThreadPool.globalInstance().reserveThread()
-        print >> sys.stderr, "Scheduling", self.callable
-        QThreadPool.globalInstance().start(self._runnable)
-        print "Active pool size:", QThreadPool.globalInstance().activeThreadCount()
+    def poll(self):
+        return getattr(self, "_status", None)
                 
 def is_hidden(tree):
     return getattr(tree, "hidden", "false") != "false" or getattr(tree, "hideDisplay", "false") != "false"
@@ -390,7 +298,7 @@ class OWBioMartFilterContainerBooleanList(OWBioMartConfigurationControl):
         self.valueIndex = 0
         self.bg = OWGUI.radioButtonsInBox(w, self, "valueIndex", [], box=w)
         self.cb.addItems([opt[0] for opt in self.options])
-        self.setLayout(layout) 
+        self.setLayout(layout)
         self.setOption()
         
     def setOption(self):
@@ -628,30 +536,21 @@ class OWBioMart(OWWidget):
         self.filtersConfigurationBox = OWGUI.createTabPage(self.mainTab, "Filters", canScroll=True)
         #OWGUI.widgetBox(self.mainArea, "Filters")
 #        OWGUI.rubber(self.mainArea)
+
+
+        self.myThread = WorkerThread()
+        self.myThread.start()
         
-        self.initTask = MartserviceTask(self._get_registry)
-#        self.initTask.start()
+        self.connect(self.myThread, SIGNAL("started()"), lambda :sys.stderr.write("threadStarted"))
+        self.connect(self.myThread, SIGNAL("finished()"), lambda :sys.stderr.write("threadFinished"))
         
-#        self.connect(self.initTask, SIGNAL("executionFailed(PyQt_PyObject)"), self._error, Qt.QueuedConnection)
-#        self.connect(self.initTask, SIGNAL("executionFinished(PyQt_PyObject)"), self.setBioMartRegistry, Qt.QueuedConnection)
-        self.connect(self.initTask, SIGNAL("finished(QString)"), self.setBioMartRegistry, Qt.QueuedConnection)
-        
-#        self.datasetListTask = BackgroundTask()
-#        self.datasetListTask.start()
-        
-#        self.connect(self.datasetListTask, SIGNAL("executionFailed"), self._error, Qt.QueuedConnection)
-#        self.connect(self.datasetListTask, SIGNAL("executionFinished"), self.setBioMartDatasets, Qt.QueuedConnection)
-        
-#        self.configurationTask = BackgroundTask()
-#        self.configurationTask.start()
-        
-#        self.connect(self.configurationTask, SIGNAL("executionFailed"), self._error, Qt.QueuedConnection)
-#        self.connect(self.configurationTask, SIGNAL("executionFinished"), self.setBioMartConfiguration, Qt.QueuedConnection)
-        
-#        self.initTask.runTask(self._get_registry)
-        self.initTask.run()
+        self.get_registry_async = AsyncFunc(self._get_registry, thread=self.myThread)
+        self.connect(self.get_registry_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
+        self.connect(self.get_registry_async, SIGNAL("resultReady"), self.setBioMartRegistry, Qt.QueuedConnection)
         
         self.resize(600, 400)
+        
+        self.get_registry_async()
         
     @staticmethod
     def _get_registry(url=None, precache=True):
@@ -660,71 +559,61 @@ class OWBioMart(OWWidget):
         if precache:
             marts = reg.marts()
         return reg
-    
-    def _error(self, ex):
-        import traceback
-        print ex
-    
-    def setBioMartRegistry(self, state):
-        if state == "Ok":
-            self.registry = self.initTask.result
-            self.marts = [mart for mart in self.registry.marts() if getattr(mart, "visible", "0") != "0"] 
-            for mart in self.marts:
-                self.martsCombo.addItem(mart.displayName)
-        else:
-            print state
+        
+    def onFinished(self, status):
+        if str(status).startswith("Unhandled exception"):
+            print status
+
+    def setBioMartRegistry(self, registry):
+        self.registry = registry
+        self.marts = [mart for mart in self.registry.marts() if getattr(mart, "visible", "0") != "0"] 
+        for mart in self.marts:
+            self.martsCombo.addItem(mart.displayName)
             
     def setSelectedMart(self):
         self.mart = self.marts[self.selectedDatabase]
         
-        self.datasetListTask = MartserviceTask(self.mart.datasets)
-#        self.connect(self.datasetListTask, SIGNAL("executionFailed(PyQt_PyObject)"), self._error, Qt.QueuedConnection)
-#        self.connect(self.datasetListTask, SIGNAL("executionFinished(PyQt_PyObject)"), self.setBioMartDatasets, Qt.QueuedConnection)
-        self.connect(self.datasetListTask, SIGNAL("finished(QString)"), self.setBioMartDatasets, Qt.QueuedConnection)
-        
-        self.datasetListTask.run()
-#        qApp.processEvents()
-        
-    def setBioMartDatasets(self, state):
-        if state == "Ok":
-            datasets = self.datasetListTask.result
-            self.datasets = [data for data in datasets if getattr(data,"visible", "0") != "0"]
-            self.datasetsCombo.clear()
-            self.datasetsCombo.addItems([data.displayName for data in self.datasets])
+        self.get_datasets_async = AsyncFunc(self.mart.datasets, thread=self.myThread)
+        self.connect(self.get_datasets_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
+        self.connect(self.get_datasets_async, SIGNAL("resultReady"), self.setBioMartDatasets, Qt.QueuedConnection)
+
+        self.get_datasets_async()
+
+    def setBioMartDatasets(self, datasets):
+        self.datasets = [data for data in datasets if getattr(data,"visible", "0") != "0"]
+        self.datasetsCombo.clear()
+        self.datasetsCombo.addItems([data.displayName for data in self.datasets])
             
     def setSelectedDataset(self):
         self.dataset = self.datasets[self.selectedDataset]
         
-        self.configurationTask = MartserviceTask(self.dataset.configuration)
-#        self.connect(self.configurationTask, SIGNAL("executionFailed(PyQt_PyObject)"), self._error, Qt.QueuedConnection)
-#        self.connect(self.configurationTask, SIGNAL("executionFinished(PyQt_PyObject)"), self.setBioMartConfiguration, Qt.QueuedConnection)
-        self.connect(self.configurationTask, SIGNAL("finished(QString)"), self.setBioMartConfiguration, Qt.QueuedConnection)
+        self.get_configuration_async = AsyncFunc(self.dataset.configuration, thread=self.myThread)
+        self.connect(self.get_configuration_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
+        self.connect(self.get_configuration_async, SIGNAL("resultReady"), self.setBioMartConfiguration, Qt.QueuedConnection)
         
-        self.configurationTask.run()
-#        self.configurationTask.runTask(self.dataset.configuration)
-        
-    def setBioMartConfiguration(self, state):
+        self.get_configuration_async()
+
+    def setBioMartConfiguration(self, configuration):
         print QThread.currentThread()
-        if state == "Ok":
-            self.clearConfiguration()
+        self.clearConfiguration()
+    
+        self.configuration = configuration
         
-            self.configuration = configuration = self.configurationTask.result
-            
-            def hidden(tree):
-                return getattr(tree, "hidden", "false") != "false" or getattr(tree, "hideDisplay", "false") != "false"
-            
-            self.attributePagesTabWidget = tabs =  OWGUI.tabWidget(self.attributesConfigurationBox)
-            self.registry.connection.configuration = cached_function_instance(self.registry.connection.configuration)
-            for page in configuration.attribute_pages():
-                if not hidden(page):
-                    page_widget = OWBioMartConfigurationPage(page, self.registry, self)
-                    OWGUI.createTabPage(tabs, getattr(page, "displayName", ""), widgetToAdd=page_widget )
-                    
-            self.filterPagesTabWidget = tabs = OWGUI.tabWidget(self.filtersConfigurationBox)
-            for page in configuration.filter_pages():
-                if not hidden(page):
-                    page_widget = OWBioMartConfigurationPage(page, self.registry, self)
-                    OWGUI.createTabPage(tabs, getattr(page, "displayName", ""), widgetToAdd=page_widget )
+        def hidden(tree):
+            return getattr(tree, "hidden", "false") != "false" or getattr(tree, "hideDisplay", "false") != "false"
+        
+        self.attributePagesTabWidget = tabs =  OWGUI.tabWidget(self.attributesConfigurationBox)
+        self.registry.connection.configuration = cached_function_instance(self.registry.connection.configuration)
+        for page in configuration.attribute_pages():
+            if not hidden(page):
+                page_widget = OWBioMartConfigurationPage(page, self.registry, self)
+                OWGUI.createTabPage(tabs, getattr(page, "displayName", ""), widgetToAdd=page_widget )
+                
+        self.filterPagesTabWidget = tabs = OWGUI.tabWidget(self.filtersConfigurationBox)
+        for page in configuration.filter_pages():
+            if not hidden(page):
+                page_widget = OWBioMartConfigurationPage(page, self.registry, self)
+                OWGUI.createTabPage(tabs, getattr(page, "displayName", ""), widgetToAdd=page_widget )
     
     def clearConfiguration(self):
         while True:
@@ -755,7 +644,7 @@ class OWBioMart(OWWidget):
         format = pageconf.out_format
         configuration = pageconf.get_configuration()
         bydatasets = defaultdict(lambda : ([], []))
-#        print configuration
+
         version = getattr(self.configuration, "softwareVersion", "0.4")
         for conftype, dataset, name, val in configuration:
             if version > "0.4":
@@ -767,8 +656,7 @@ class OWBioMart(OWWidget):
                 
         pageconf = self.filterPagesTabWidget.currentWidget()
         configuration =  pageconf.get_configuration()
-        print configuration
-#        bydatasets = defaultdict(lambda : ([], []))
+
         for conftype, dataset, tree, val in configuration:
             if version > "0.4":
                 dataset = self.dataset
@@ -786,24 +674,16 @@ class OWBioMart(OWWidget):
             for filter, value in filters:
                 query.add_filter(filter, value)
         
-        print query.xml_query()
-#        data = query.run()
-        self.dataTask = MartserviceTask(query.get_example_table)
-        self.connect(self.dataTask, SIGNAL("finished(QString)"), self.dataReady, Qt.QueuedConnection)
-        self.dataTask.run()
-        
-#        data = query.get_example_table()
-#        print data
-        
-#        self.send("Example Table", data)
+#        print query.xml_query()
 
-    def dataReady(self, state):
-        if state == "Ok":
-            data = self.dataTask.result
-            print "Data", data.domain
-            self.send("Example Table", data)
-        else:
-            print state
+        self.run_query_async = AsyncFunc(query.get_example_table, thread=self.myThread)
+        self.connect(self.run_query_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
+        self.connect(self.run_query_async, SIGNAL("resultReady"), self.dataReady, Qt.QueuedConnection)
+        self.run_query_async()
+        
+
+    def dataReady(self, data):
+        self.send("Example Table", data)
         
         
 if __name__ == "__main__":
@@ -811,10 +691,3 @@ if __name__ == "__main__":
     ow = OWBioMart()
     ow.show()
     app.exec_()
-    import gc
-    print gc.garbage
-
-        
-        
-        
-        
