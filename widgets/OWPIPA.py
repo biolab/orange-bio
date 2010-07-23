@@ -161,7 +161,7 @@ class SelectionSetsWidget(QFrame):
         self.connect(self.selectionModel, SIGNAL("selectionChanged(QItemSelection, QItemSelection)"), self._onSelectionChanged)
         
     def addCurrentSelection(self):
-        item = self.addSelection(SelectionByKey(self.selectionModel.selection(), name="New selection", key=(0,1,2,3, 9)))
+        item = self.addSelection(SelectionByKey(self.selectionModel.selection(), name="New selection", key=(1, 2, 3, 9)))
         index = self._proxyModel.mapFromSource(item.index())
         self._setListView.setCurrentIndex(index)
         self._setListView.edit(index)
@@ -648,6 +648,10 @@ class OWPIPA(OWWidget):
         shownHeaders = [label for i, label in list(enumerate(self.headerLabels))[1:] if not hview.isSectionHidden(i)]
         allowed_labels = [keys.get(label, label) for label in shownHeaders]
         
+        if self.joinreplicates and "id" not in allowed_labels:
+            # need 'id' labels in join_replicates for attribute names
+            allowed_labels.append("id")
+        
         table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn, allowed_labels=allowed_labels, map_map35=self.lenandmap35, map_lengths=self.lenandmap35)
 
         if self.joinreplicates:
@@ -676,7 +680,7 @@ class OWPIPA(OWWidget):
 
     def onSelectionChanged(self, selected, deselected):
         self.currentSelection = SelectionByKey(self.experimentsWidget.selectionModel().selection(),
-                                               key=(0,1,2,3, 9))
+                                               key=(1, 2, 3, 9))
         
     def saveHeaderState(self):
         hview = self.experimentsWidget.header()
