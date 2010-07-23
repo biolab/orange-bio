@@ -878,10 +878,10 @@ class HeatMapGraphicsScene(QGraphicsScene):
                 item.setHighlight(True)
                 self.currentHighlightedCluster = item
         items = filter(lambda ci: ci.zValue()==z_heatmap, self.items(event.scenePos()))
-        if len(items) == 0: # mouse over nothing special
+        if len(items) == 0 and hasattr(self, "selector"): # mouse over nothing special
             self.selector.hide()
             self.update()
-        else:
+        elif items:
             item = items[0]
             hm = item.hm
             x, y = event.scenePos().x() - item.x(), event.scenePos().y() - item.y()
