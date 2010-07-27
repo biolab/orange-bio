@@ -83,19 +83,27 @@ class OWGeneInfo(OWWidget):
         self.selectionChangedFlag = False
         self.loadSettings()
         
-        self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "No data on input\n")
+        self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info", addSpace=True), "No data on input\n")
         self.organisms = sorted(set([name.split(".")[-2] for name in orngServerFiles.listfiles("NCBI_geneinfo")] + obiGene.NCBIGeneInfo.essential_taxids()))
     
         self.orgaismsComboBox = OWGUI.comboBox(self.controlArea, self, "organismIndex", "Organism", items=[obiTaxonomy.name(id) for id in self.organisms], callback=self.setItems, debuggingEnabled=0)
-        box = OWGUI.widgetBox(self.controlArea, "Gene names")
+        OWGUI.separator(self.controlArea)
+        box = OWGUI.widgetBox(self.controlArea, "Gene names", addSpace=True)
         self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneAttr", "Gene atttibute", callback=self.setItems)
         c = OWGUI.checkBox(box, self, "useAttr", "Use attribute names", callback=self.setItems, disables=[(-1, self.geneAttrComboBox)])
         self.geneAttrComboBox.setDisabled(bool(self.useAttr))
 
-        box = OWGUI.widgetBox(self.controlArea, "Commit")
+        box = OWGUI.widgetBox(self.controlArea, "Commit", addSpace=True)
         b = OWGUI.button(box, self, "Commit", callback=self.commit)
         c = OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
         OWGUI.setStopper(self, b, c, "selectionChangedFlag", callback=self.commit)
+        
+        ##A label for dictyExpress link
+        self.dictyExpressBox = OWGUI.widgetBox(self.controlArea, "Dicty Express")
+        self.linkLabel = OWGUI.widgetLabel(self.dictyExpressBox, "")
+        self.linkLabel.setOpenExternalLinks(True)
+        self.dictyExpressBox.hide()
+        
         OWGUI.rubber(self.controlArea)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Filter", callbackOnType=True, callback=self.searchUpdate)
@@ -164,6 +172,8 @@ class OWGeneInfo(OWWidget):
                 info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
             self.progressBarFinished()
             self.currentLoaded = info, org
+            
+        self.updateDictyExpressLink(genes, show=org == "352472")
             
         self.geneinfo = geneinfo = [(gene, info.get_info(gene, None)) for gene in genes]
 
@@ -266,6 +276,24 @@ class OWGeneInfo(OWWidget):
         self.reportRaw("<p>Input: %i genes of which %i (%.1f%%) matched NCBI synonyms<br>Organism: %s<br>Filter: %s</p>" % (genes, matched, 100.0 * matched / genes, obiTaxonomy.name(org), self.searchString))
         self.reportSubsection("Gene list")
         self.reportRaw(reportItemView(self.treeWidget))
+        
+    def updateDictyExpressLink(self, genes, show=False):
+        def fix(ddb):
+            if ddb.startswith("DDB"): 
+                if not ddb.startswith("DDB_G"):
+                    ddb = ddb.replace("DDB", "DDB_G")
+                return ddb
+            return None 
+        if show:
+            genes = [fix(gene) for gene in genes if fix(gene)]
+            self.linkLabel.setText('<a href="http://www.ailab.si/dictyexpress/run/index.php?gene=%s">Display in dictyExpress</a>' % (" ".join(genes)))
+            
+            show = any(genes)
+                
+        if show:
+            self.dictyExpressBox.show()
+        else:
+            self.dictyExpressBox.hide()
         
 def reportItemView(view):
     model = view.model()
