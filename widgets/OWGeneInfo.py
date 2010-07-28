@@ -286,7 +286,9 @@ class OWGeneInfo(OWWidget):
             return None 
         if show:
             genes = [fix(gene) for gene in genes if fix(gene)]
-            self.linkLabel.setText('<a href="http://www.ailab.si/dictyexpress/run/index.php?gene=%s">Display in dictyExpress</a>' % (" ".join(genes)))
+            link1 = '<a href="http://www.ailab.si/dictyexpress/run/index.php?gene=%s">Microarray profile</a>' % (" ".join(genes))
+            link2 = '<a href="http://www.ailab.si/dictyexpress/run/index.php?gene=%s&db=rnaseq">RNA-Seq profile</a>' % (" ".join(genes))
+            self.linkLabel.setText(link1 + "<br/>" + link2)
             
             show = any(genes)
                 
