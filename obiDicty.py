@@ -1542,8 +1542,7 @@ if __name__=="__main__":
     printet(et)
     """
 
-    #d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"), username=None, password=None)
-    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"), username="marko", password="ptsap5o6")
+    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"), username=None, password=None)
 
     allids = d.list()[:2]
     allids = d.list()
