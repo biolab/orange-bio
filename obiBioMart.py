@@ -358,7 +358,7 @@ class BioMartDatabase(object):
 
     @cached    
     def _datasets_index(self):
-        keys = ["dataset_type", "internalName", "displayName", "visible", "_4", "_5", "_6", "virtualSchema", "date"]
+        keys = ["dataset_type", "internalName", "displayName", "visible", "assembly", "_5", "_6", "virtualSchema", "date"]
         try:
             datasets = self.connection.datasets(mart=self.name, virtualSchema=self.virtualSchema)
         except BioMartError, ex:
@@ -419,13 +419,12 @@ class BioMartDatabase(object):
 class BioMartDataset(object):
     """ An object representing a BioMart dataset (returned by BioMartDatabase)
     """
-    def __init__(self, mart="ensembl", name="hsapiens_gene_ensembl", virtualSchema="default", connection=None, **kwargs):
+    def __init__(self, mart="ensembl", internalName="hsapiens_gene_ensembl", virtualSchema="default", connection=None, **kwargs):
         self.conenction = connection if connection is not None else BioMartConnection()
         self.mart = mart
-        self.name = name
+        self.internalName = internalName
         self.virtualSchema = virtualSchema
         self.__dict__.update(kwargs)
-        self.internalName = kwargs.get("internalName", name)
         self._attributes = None
         self._filters = None
         
