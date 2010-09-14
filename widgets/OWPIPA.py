@@ -5,6 +5,8 @@
 <priority>30</priority>
 """
 
+#FIXME Availability is not valid for raw expressions.
+
 from OWWidget import *
 import obiDicty
 import OWGUI
@@ -384,7 +386,7 @@ class SortedListWidget(QWidget):
     
 class OWPIPA(OWWidget):
     settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password","joinreplicates",
-                     "selectionSetsWidget.selections", "columnsSortingWidget.sortingOrder", "currentSelection", "log2", "experimentsHeaderState", "lenandmap35"]
+                     "selectionSetsWidget.selections", "columnsSortingWidget.sortingOrder", "currentSelection", "log2", "raw", "experimentsHeaderState", "lenandmap35"]
     def __init__(self, parent=None, signalManager=None, name="PIPA database"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
@@ -393,6 +395,7 @@ class OWPIPA(OWWidget):
         self.username = ""
         self.password = ""
         self.log2 = False
+        self.raw = False
 
         self.selectedExperiments = []
         self.buffer = obiDicty.BufferSQLite(bufferfile)
@@ -434,6 +437,7 @@ class OWPIPA(OWWidget):
         OWGUI.checkBox(self.controlArea, self, "excludeconstant", "Exclude labels with constant values" )
         OWGUI.checkBox(self.controlArea, self, "joinreplicates", "Average replicates (use median)" )
         OWGUI.checkBox(self.controlArea, self, "log2", "Logarithmic (base 2) transformation" )
+        OWGUI.checkBox(self.controlArea, self, "raw", "Download Raw Expressions" )
         OWGUI.checkBox(self.controlArea, self, "lenandmap35", "Add length and mapability info" )
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
@@ -652,7 +656,8 @@ class OWPIPA(OWWidget):
             # need 'id' labels in join_replicates for attribute names
             allowed_labels.append("id")
         
-        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn, allowed_labels=allowed_labels, map_map35=self.lenandmap35, map_lengths=self.lenandmap35)
+        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn, allowed_labels=allowed_labels, map_map35=self.lenandmap35, map_lengths=self.lenandmap35, raw=self.raw)
+
 
         if self.joinreplicates:
             table = obiDicty.join_replicates(table, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=obiDicty.median)

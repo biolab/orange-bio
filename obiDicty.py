@@ -575,7 +575,7 @@ class PIPA(DBCommon):
             (res, legend), id = ants
             yield [ list(v) for v in zip(legend, res[0])[1:] ]
 
-    def chips(self, ids, reload=False, bufver="0"):
+    def chips(self, ids, raw=False, reload=False, bufver="0"):
         """
         Download chips using new shorter format.
         """
@@ -593,7 +593,8 @@ class PIPA(DBCommon):
                 antss[cid] = [ list(a) for a in zip(genes, vals) if a[1] != "?" ]
             return ['gene_id', 'value'], antss
 
-        antss = self.downloadMulti("download_expression", ids, data=self.add_auth({"ids":"$MULTI$"}), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
+        download_command = "download_expression" if not raw else "download_raw_expression"
+        antss = self.downloadMulti(download_command, ids, data=self.add_auth({"ids":"$MULTI$"}), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
         for a,legend in antss:
             yield a
 
@@ -602,7 +603,7 @@ class PIPA(DBCommon):
         return keynamingfn
 
     def get_data(self, exclude_constant_labels=False, average=median, 
-        ids=None, callback=None, bufver="0", transform=None, allowed_labels=None, map_map35=False, map_lengths=False):
+        ids=None, callback=None, bufver="0", transform=None, raw=False, allowed_labels=None, map_map35=False, map_lengths=False):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations for query and post-processing
@@ -616,6 +617,7 @@ class PIPA(DBCommon):
             exclude_constant_labels: if a label has the same value in whole 
                 example table, remove it
             format: if short, use short format for chip download
+            raw: raw expressions
 
         Defaults: Median averaging.
         """
@@ -656,7 +658,7 @@ class PIPA(DBCommon):
         #here download actually happens
         chipfn = None
 
-        chipfn = lambda x: self.chips(x, bufver=bufver)
+        chipfn = lambda x: self.chips(x, bufver=bufver, raw=raw)
        
         if verbose:
             print "DOWNLOAD TIME", time.time() - tstart
