@@ -518,7 +518,7 @@ class DBCommon(object):
 
 def bufferkeypipa(command, data):
     """ Do not save password to the buffer! """
-    command = command + " v4" #add version
+    command = command + " v5" #add version
     if data != None:
         data = data.copy()
         if "pass1" in data:
