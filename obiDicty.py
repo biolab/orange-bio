@@ -177,7 +177,7 @@ class DBInterface(object):
             else:
                 return httpGet(self.address + request, data=urllib.urlencode(data))
         except IOError:
-            return self.raw(request, tryN=tryN-1)
+            return self.raw(request, data=data, tryN=tryN-1)
 
     def get(self, request, data=None, tryN=3):
         rawf = self.raw(request, data)
@@ -518,7 +518,7 @@ class DBCommon(object):
 
 def bufferkeypipa(command, data):
     """ Do not save password to the buffer! """
-    command = command + " v3" #add version
+    command = command + " v4" #add version
     if data != None:
         data = data.copy()
         if "pass1" in data:
@@ -555,14 +555,14 @@ class PIPA(DBCommon):
         """ Returns lengths for genes of the given genome. """
         data = { "genome": genome_id }
         res, legend = self.sq("geneinfo_get", data=self.add_auth(data), reload=reload, bufferkey=bufferkeypipa)
-        newlegend = ["gene", "len"]
+        newlegend = ["gene", "length"]
         return onlyColumns(res, legend, newlegend), newlegend
 
     def map35s(self, genome_id, reload=False):
         """ Returns lengths for genes of the given genome. """
         data = { "genome": genome_id }
         res, legend = self.sq("geneinfo_get", data=self.add_auth(data), reload=reload, bufferkey=bufferkeypipa)
-        newlegend = ["gene", "map35"]
+        newlegend = ["gene", "mapability_factor"]
         return onlyColumns(res, legend, newlegend), newlegend
 
     def annotations(self, ids, reload=False, bufver="0"):
@@ -600,6 +600,10 @@ class PIPA(DBCommon):
 
     def chips_keynaming(self):
         keynamingfn,_ = self.downloadMulti_bufcommand_replace_multi("download_expression", data=self.add_auth({"ids":"$MULTI$"}), chunk=100, bufferkey=bufferkeypipa, transformfn=None)
+        return keynamingfn
+
+    def chips_keynaming_raw(self):
+        keynamingfn,_ = self.downloadMulti_bufcommand_replace_multi("download_raw_expression", data=self.add_auth({"ids":"$MULTI$"}), chunk=100, bufferkey=bufferkeypipa, transformfn=None)
         return keynamingfn
 
     def get_data(self, exclude_constant_labels=False, average=median, 
@@ -1556,6 +1560,6 @@ if __name__=="__main__":
     import math
 
     #data = d.get_data(ids=allids)
-    data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2), allowed_labels=["strain"])
+    data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2), allowed_labels=["strain"], map_lengths=True, raw=True, map_map35=True)
     #data = orange.ExampleTable(data.domain, data[:1])
     printet(data)

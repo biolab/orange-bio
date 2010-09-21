@@ -5,8 +5,6 @@
 <priority>30</priority>
 """
 
-#FIXME Availability is not valid for raw expressions.
-
 from OWWidget import *
 import obiDicty
 import OWGUI
@@ -56,8 +54,6 @@ try:
 except:
     pass
 bufferfile = os.path.join(bufferpath, "database.sq3")
-
-CACHED_COLOR = Qt.darkGreen
 
 class ListItemDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
@@ -437,7 +433,7 @@ class OWPIPA(OWWidget):
         OWGUI.checkBox(self.controlArea, self, "excludeconstant", "Exclude labels with constant values" )
         OWGUI.checkBox(self.controlArea, self, "joinreplicates", "Average replicates (use median)" )
         OWGUI.checkBox(self.controlArea, self, "log2", "Logarithmic (base 2) transformation" )
-        OWGUI.checkBox(self.controlArea, self, "raw", "Download Raw Expressions" )
+        OWGUI.checkBox(self.controlArea, self, "raw", "Download Raw Expressions", callback=self.UpdateCached)
         OWGUI.checkBox(self.controlArea, self, "lenandmap35", "Add length and mapability info" )
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
@@ -608,16 +604,10 @@ class OWPIPA(OWWidget):
 
     def UpdateCached(self):
         if self.wantbufver and self.dbc:
-            fn = self.dbc.chips_keynaming()
+            fn = self.dbc.chips_keynaming() if not self.raw else self.dbc.chips_keynaming_raw()
             for item in self.items:
                 c = str(item.text(9))
                 item.setData(0, Qt.DisplayRole, QVariant(" " if self.dbc.inBuffer(fn(c)) == self.wantbufver(c) else ""))
-#                color = Qt.black
-#                if self.dbc.inBuffer(fn(c)) == self.wantbufver(c):
-#                    color = CACHED_COLOR
-#                brush = QBrush(color)
-#                for i in range(item.columnCount()):
-#                    item.setForeground(i, brush)
 
     def SearchUpdate(self, string=""):
         for item in self.items:
@@ -702,6 +692,7 @@ if __name__ == "__main__":
     app  = QApplication(sys.argv)
 ##    from pywin.debugger import set_trace
 ##    set_trace()
+    #obiDicty.verbose = True
     w = OWPIPA()
     w.show()
     app.exec_()
