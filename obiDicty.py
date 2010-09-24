@@ -192,6 +192,8 @@ class DBInterface(object):
                     print "trying again"
                 return self.get(request, data=data, tryN=tryN-1)
             else:
+                if verbose:
+                    print rafw[:1000]
                 raise Exception("Error with the database")
 
         a = txt2ll(rawf, separ='\t')

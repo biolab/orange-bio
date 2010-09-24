@@ -375,8 +375,6 @@ def register_serverfiles(genesets, serverFiles):
             ([ "essential" ] if org in obiTaxonomy.essential_taxids() else [] )
         serverFiles.upload(sfdomain, fn, tfname, title, tags)
         serverFiles.unprotect(sfdomain, fn)
-    except Exception, e:
-        raise e
     finally:
         os.remove(tfname)
 
@@ -412,7 +410,6 @@ def load_local(hierarchy, organism):
 
 def load_serverfiles(hierarchy, organism):
     files = map(lambda x: x[:2], list_serverfiles())
-
     hierd = build_hierarchy_dict(files)
 
     out = GeneSets()
@@ -455,6 +452,8 @@ def issequencens(x):
     "Is x a sequence and not string ? We say it is if it has a __getitem__ method and it is not an instance of basestring."
     return hasattr(x, '__getitem__') and not isinstance(x, basestring)
 
+class TException(Exception): pass
+
 def upload_genesets(rsf):
     """
     Builds the default gene sets and 
@@ -465,26 +464,27 @@ def upload_genesets(rsf):
     organisms = obiTaxonomy.common_taxids()
     for fn in genesetsfn:
         for org in organisms:
+        #for org in [ "9606" ]:
             print "Uploading ORG", org, fn
             try:
                 genesets = fn(org).split_by_hierarchy()
                 for gs in genesets:
                     print "registering", gs.common_hierarchy()
                     register_serverfiles(gs, rsf)
-                    print "successfull", gs.common_hierarchy()
-            except Exception:
-                print "Not successfull"
+                    print "successful", gs.common_hierarchy()
+            except TException, e:
+                print "Not successful"
 
 if __name__ == "__main__":
     gs = keggGeneSets("9606")
     #print len(collections(keggGeneSets("9606"),(("KEGG",),"9606"), "C5.BP.gmt"))
     #print len(collections((("KEGG",),"9606"), "C5.BP.gmt"))
-    print sorted(list_all())
-    print len(collections((("KEGG",),"9606"), (("GO",), "9606"), "C5.BP.gmt"))
+    #print sorted(list_all())
+    #print len(collections((("KEGG",),"9606"), (("GO",), "9606"), "C5.BP.gmt"))
     #register_local(keggGeneSets("9606"))
     #register_local(goGeneSets("9606"))
     #register_serverfiles(gs, rsf)
     #print list_serverfiles_conn()
     #print "Server list from index", list_serverfiles()
-    #rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
-    #upload_genesets(rsf)
+    rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
+    upload_genesets(rsf)
