@@ -405,8 +405,11 @@ class KEGGGenomeEntry(KEGGDBEntry):
     MULTIPLE_FIELDS = ["REFERENCE"]
     
     def org_code(self):
-        return self.name.split(",")[0]
-    
+        if self.name is not None:
+            return self.name.split(",")[0]
+        else:
+            return self.entry.split()[0]
+        
     def entry_key(self):
         return self.org_code()
     
@@ -415,6 +418,7 @@ entry_decorate(KEGGGenomeEntry)
 class KEGGGenome(KEGGDataBase):
     Entry = KEGGGenomeEntry
     VERSION = "v1.1"
+    TAXID_MAP = {"4932" : "559292"}
     def name(self):
         return super(KEGGGeneome, self).name()
     
@@ -434,16 +438,22 @@ class KEGGGenome(KEGGDataBase):
     @classmethod
     def essential_organisms(cls):
         genome = KEGGGenome()
-        return [genome.get(taxid).entry_key() for taxid in obiTaxonomy.essential_taxids()]
+        
+        return [genome.get(cls.TAXID_MAP.get(taxid, taxid)).entry_key() for taxid in obiTaxonomy.essential_taxids()]
             
-    def get(self, key, default=None):
+    def get(self, key, *args):
+        if key in self.TAXID_MAP:
+            key = self.TAXID_MAP[key]
         if key not in self:
             keys = self.search(key)
             keys = [k for k in keys if key in self[k].name or key in self[k].taxonomy]
             key = keys.pop(0) if keys else key
-        return super(KEGGGenome, self).get(key, default)
+        return super(KEGGGenome, self).get(key, *args)
     
     def search(self, string, relevance=False):
+        if string in self.TAXID_MAP:
+            string = self.TAXID_MAP[string]
+            
         def match(entry, string):
             rel = 0
             if string in entry.entrytext:
@@ -770,8 +780,11 @@ class KEGGOrganism(object):
                 ids = [id for id in ids if genome.search(id)]
             name = ids.pop(0) if ids else name
             
-        return KEGGGenome().get(name).entry_key()
-    
+        try:
+            return KEGGGenome()[name].entry_key()
+        except KeyError:
+            raise ValueError("Organims with name='%s' not found in KEGG." % name)
+        
     @classmethod
     def organism_version(cls, name):
         name = cls.organism_name_search(name)
