@@ -472,7 +472,7 @@ def upload_genesets(rsf):
                     print "registering", gs.common_hierarchy()
                     register_serverfiles(gs, rsf)
                     print "successful", gs.common_hierarchy()
-            except TException, e:
+            except Exception, e:
                 print "Not successful"
 
 if __name__ == "__main__":
