@@ -280,7 +280,7 @@ class OWHeatMap(OWWidget):
             self.BAnnotationVar, enabled=self.BShowAnnotation, default='xannotation')
 
     def saveFig(self):
-        sizeDlg = OWChooseImageSizeDlg(self.scene)
+        sizeDlg = OWChooseImageSizeDlg(self.scene, parent=self)
         sizeDlg.exec_()
 
     ##########################################################################
