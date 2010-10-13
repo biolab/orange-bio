@@ -101,7 +101,7 @@ class OWFeatureSelection(OWWidget):
         boxHistogram.layout().addWidget(self.histogram)
         self.histogram.show()
         
-        box = OWGUI.widgetBox(self.controlArea, "Info", addSpace=True)
+        box = OWGUI.widgetBox(self.controlArea, "Info") #, addSpace=True)
         self.dataInfoLabel = OWGUI.widgetLabel(box, "\n\n")
         self.selectedInfoLabel = OWGUI.widgetLabel(box, "")
 
@@ -114,10 +114,10 @@ class OWFeatureSelection(OWWidget):
 ##        self.useClassCheck = OWGUI.checkBox(box1, self, "useClass", "Use class information", callback=self.Update, tooltip="Use class information for score computation", disables=[self.da)
     
         ZoomSelectToolbar(self, self.controlArea, self.histogram, buttons=[ZoomSelectToolbar.IconSelect, ZoomSelectToolbar.IconZoom, ZoomSelectToolbar.IconPan])
-        OWGUI.separator(self.controlArea)
+#        OWGUI.separator(self.controlArea)
         
-        box = OWGUI.widgetBox(self.controlArea, "Selection", addSpace=True)
-
+        box = OWGUI.widgetBox(self.controlArea, "Selection") #, addSpace=True)
+        box.layout().setSpacing(0)
         callback = self.SetBoundary
         self.upperBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.upperBoundary", min=-1e6, max=1e6, step= 1e-6, label="Upper threshold:", callback=callback, callbackOnReturn=True)
         self.lowerBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.lowerBoundary", min=-1e6, max=1e6, step= 1e-6, label="Lower threshold:", callback=callback, callbackOnReturn=True)
