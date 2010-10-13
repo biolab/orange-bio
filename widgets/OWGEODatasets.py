@@ -106,7 +106,7 @@ class OWGEODatasets(OWWidget):
         self.loadSettings()
 
         ## GUI
-        self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "\n\n")
+        self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info", addSpace=True), "\n\n")
 #        box = OWGUI.widgetBox(self.controlArea, "Sample Subset")
 #        OWGUI.listBox(box, self, "selectedSubsets", "sampleSubsets", selectionMode=QListWidget.ExtendedSelection)
 #        box = OWGUI.widgetBox(self.controlArea, "Sample Annotations (Types)")
@@ -116,11 +116,11 @@ class OWGEODatasets(OWWidget):
 ##        c = OWGUI.checkBox(box, self, "includeIf", "Include if at least", callback=self.commitIf)
 ##        OWGUI.spin(OWGUI.indentedBox(box), self, "minSamples", 2, 100, posttext="samples", callback=self.commitIf)
 
-        box = OWGUI.widgetBox(self.controlArea, "Output")
+        box = OWGUI.widgetBox(self.controlArea, "Output", addSpace=True)
         OWGUI.radioButtonsInBox(box, self, "outputRows", ["Genes or spots", "Samples"], "Rows", callback=self.commitIf)
         OWGUI.checkBox(box, self, "mergeSpots", "Merge spots of same gene", callback=self.commitIf)
 
-        box = OWGUI.widgetBox(self.controlArea, "Output")
+        box = OWGUI.widgetBox(self.controlArea, "Output", addSpace=True)
         self.commitButton = OWGUI.button(box, self, "Commit", callback=self.commit)
 #        self.commitButton.setDisabled(True)
         cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on any change")
