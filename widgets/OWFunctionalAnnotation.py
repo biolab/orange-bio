@@ -138,6 +138,7 @@ class OWFunctionalAnnotation(OWWidget):
         
     def setData(self, data=None):
         self.data = data
+        self.error(0)
         self.closeContext("")
         self.geneAttrComboBox.clear()
         self.groupsWidget.clear()
@@ -149,6 +150,7 @@ class OWFunctionalAnnotation(OWWidget):
         if data:
             self.geneAttrs = [attr for attr in data.domain.variables + data.domain.getmetas().values() \
                               if attr.varType != orange.VarTypes.Continuous]
+            
             self.geneAttrComboBox.addItems([attr.name for attr in self.geneAttrs])
             self.geneattr = min(self.geneattr, len(self.geneAttrs) - 1)
              
@@ -161,7 +163,7 @@ class OWFunctionalAnnotation(OWWidget):
             
             self.openContext("", data)
             
-            print self.speciesIndex
+#            print self.speciesIndex
             
             self.setHierarchy(self.getHierarchy(taxid=self.taxid_list[self.speciesIndex]))
             
@@ -302,11 +304,15 @@ class OWFunctionalAnnotation(OWWidget):
     def updateAnnotations(self):
         self.updatingAnnotationsFlag = True
         self.annotationsChartView.clear()
+        self.error(0)
+        if not self.genesinrows and len(self.geneAttrs) == 0:
+            self.error(0, "Input data contains no attributes with gene names")
+            return
         self.progressBarInit()
         self.updateGenematcher()
         self.currentAnnotatedCategories = categories = self.selectedCategories()
         with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            collections = list(obiGeneSets.collections(*categories))
+            collections = list(obiGeneSets.collections(*categories)) 
         clusterGenes, referenceGenes = self.clusterGenes(), self.referenceGenes()
         cache = {}
 
