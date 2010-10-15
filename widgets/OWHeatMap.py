@@ -971,8 +971,7 @@ class MyGraphicsView(QGraphicsView):
         QGraphicsView.__init__(self, *args)
         self.clicked = False
         self.viewport().setMouseTracking(True)
-        self.setFocusPolicy(Qt.ClickFocus)
-        self.setFocus()
+        self.setFocusPolicy(Qt.WheelFocus)
         self.shiftPressed = False
 
     def keyPressEvent(self, e):
