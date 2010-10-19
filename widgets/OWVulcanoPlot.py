@@ -284,7 +284,8 @@ class OWVulcanoPlot(OWWidget):
         OWGUI.checkBox(box, self, "showYTitle", "Y axis title", callback=self.setAxesTitles)
         
         toolbar = ZoomSelectToolbar(self, self.controlArea, self.graph, buttons=[ZoomSelectToolbar.IconSelect, ZoomSelectToolbar.IconZoom, ZoomSelectToolbar.IconPan])
-#        OWGUI.checkBox(toolbar, self, "graph.symetricSelections", "Symetric selection", callback=self.graph.reselect)
+        
+        OWGUI.checkBox(toolbar, self, "graph.symetricSelections", "Symetric selection", callback=self.graph.reselect)
 
         box = OWGUI.widgetBox(self.controlArea, "Commit")
         b = OWGUI.button(box, self, "Commit", callback=self.commit)
