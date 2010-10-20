@@ -241,8 +241,13 @@ class VulcanoGraph(OWGraph):
             self.replot_()
 
     def updateSymbolSize(self):
-        self.selectedCurve.symbol().setSize(self.symbolSize)
-        self.unselectedCurve.symbol().setSize(self.symbolSize)
+        def setSize(curve, size):
+            symbol = curve.symbol()
+            symbol.setSize(size)
+            if QWT_VERSION_STR >= "5.2":
+                curve.setSymbol(symbol)
+        setSize(self.selectedCurve, self.symbolSize)
+        setSize(self.unselectedCurve, self.symbolSize)
         self.replot()
 
 class OWVulcanoPlot(OWWidget):
@@ -284,6 +289,17 @@ class OWVulcanoPlot(OWWidget):
         OWGUI.checkBox(box, self, "showYTitle", "Y axis title", callback=self.setAxesTitles)
         
         toolbar = ZoomSelectToolbar(self, self.controlArea, self.graph, buttons=[ZoomSelectToolbar.IconSelect, ZoomSelectToolbar.IconZoom, ZoomSelectToolbar.IconPan])
+        
+        top_layout = toolbar.layout()
+        top_layout.setDirection(QBoxLayout.TopToBottom)
+        button_layotu = QHBoxLayout()
+        top_layout.insertLayout(0, button_layotu)
+        
+        for i in range(1, top_layout.count()):
+            item = top_layout.itemAt(1)
+            top_layout.removeItem(item)
+            button_layotu.addItem(item)
+        
         
         OWGUI.checkBox(toolbar, self, "graph.symetricSelections", "Symetric selection", callback=self.graph.reselect)
 
