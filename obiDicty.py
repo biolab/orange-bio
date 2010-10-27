@@ -10,7 +10,7 @@ import orngServerFiles
 import pickle
 
 defaddress = "http://bcm.fri.uni-lj.si/microarray/api/index.php?"
-defaddresspipa = "https://butler.fri.uni-lj.si/pipa/script/data_api.py/"
+defaddresspipa = "https://pipa.fri.uni-lj.si/pipa/script/api/orange.py/"
 
 #utility functions - from Marko's mMisc.py
 
@@ -334,7 +334,7 @@ class DBCommon(object):
 
         def replace_multi(command, data, repl):
             return command.replace("$MULTI$", repl),\
-                dict((a,b.replace("$MULTI$", repl)) for a,b in data.items()) if data != None else None
+                dict((a,b.replace("$MULTI$", repl)) for a,b in sorted(data.items())) if data != None else None
 
         if bufferkey == None:
             bufferkey=bufferkey1
@@ -548,39 +548,14 @@ class PIPA(DBCommon):
             authdic.update(data)
         return authdic
 
-    def list(self, reload=False):
-        """ Returns ids of all experiments in the database """
-        res, legend = self.sq("list", data=self.add_auth(), reload=reload, bufferkey=bufferkeypipa)
-        return nth(res, 0)
-
-    def lengths(self, genome_id, reload=False):
-        """ Returns lengths for genes of the given genome. """
-        data = { "genome": genome_id }
-        res, legend = self.sq("geneinfo_get", data=self.add_auth(data), reload=reload, bufferkey=bufferkeypipa)
-        newlegend = ["gene", "length"]
-        return onlyColumns(res, legend, newlegend), newlegend
-
-    def map35s(self, genome_id, reload=False):
-        """ Returns lengths for genes of the given genome. """
-        data = { "genome": genome_id }
-        res, legend = self.sq("geneinfo_get", data=self.add_auth(data), reload=reload, bufferkey=bufferkeypipa)
-        newlegend = ["gene", "mapability_factor"]
-        return onlyColumns(res, legend, newlegend), newlegend
-
-    def annotations(self, ids, reload=False, bufver="0"):
+    def annotations(self, reload=False, bufver="0"):
         """
-        Returns a generator returning annotations for specified and ids.
-        Annotations are returned in the same order as on the input.
+        Returns a dictionary of (id: dictionary of annotations).
         """
-        antss = self.downloadMulti("annot_get", ids, data=self.add_auth({"ids":"$MULTI$"}), bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
-        for ants in izip(antss,ids):
-            (res, legend), id = ants
-            yield [ list(v) for v in zip(legend, res[0])[1:] ]
+        res, legend = self.sq("mapping_list", data=self.add_auth(), reload=reload, bufferkey=bufferkeypipa, bufver=bufver)
+        return dict( (sa[0], dict(zip(legend[1:], sa[1:]))) for sa in res )
 
-    def chips(self, ids, raw=False, reload=False, bufver="0"):
-        """
-        Download chips using new shorter format.
-        """
+    def chips(self, ids, ctype, reload=False, bufver="0"):
         def separatefn(res):
             #each one is own rown
             #genes are in the first row
@@ -595,21 +570,22 @@ class PIPA(DBCommon):
                 antss[cid] = [ list(a) for a in zip(genes, vals) if a[1] != "?" ]
             return ['gene_id', 'value'], antss
 
-        download_command = "download_expression" if not raw else "download_raw_expression"
-        antss = self.downloadMulti(download_command, ids, data=self.add_auth({"ids":"$MULTI$"}), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
+        download_command = "gene_expression"
+        antss = self.downloadMulti(download_command, ids, data=self.add_auth({"ids":"$MULTI$", 'transpose':'1', 'type':ctype}), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
         for a,legend in antss:
             yield a
 
-    def chips_keynaming(self):
-        keynamingfn,_ = self.downloadMulti_bufcommand_replace_multi("download_expression", data=self.add_auth({"ids":"$MULTI$"}), chunk=100, bufferkey=bufferkeypipa, transformfn=None)
-        return keynamingfn
+    def gene_expression_types(self, reload=False, bufver="0"):
+        res, legend = self.sq("gene_expression_type", data=self.add_auth(), reload=reload, bufferkey=bufferkeypipa, bufver=bufver)
+        return sorted(tuple(a) for a in res)
 
-    def chips_keynaming_raw(self):
-        keynamingfn,_ = self.downloadMulti_bufcommand_replace_multi("download_raw_expression", data=self.add_auth({"ids":"$MULTI$"}), chunk=100, bufferkey=bufferkeypipa, transformfn=None)
+    def chips_keynaming(self, ctype):
+        """ ADD ctype parameter """
+        keynamingfn,_ = self.downloadMulti_bufcommand_replace_multi("gene_expression", data=self.add_auth({"ids":"$MULTI$", 'transpose':'1', 'type':ctype}), chunk=100, bufferkey=bufferkeypipa, transformfn=None)
         return keynamingfn
 
     def get_data(self, exclude_constant_labels=False, average=median, 
-        ids=None, callback=None, bufver="0", transform=None, raw=False, allowed_labels=None, map_map35=False, map_lengths=False):
+        ids=None, callback=None, bufver="0", transform=None, ctype="1", allowed_labels=None):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations for query and post-processing
@@ -623,7 +599,7 @@ class PIPA(DBCommon):
             exclude_constant_labels: if a label has the same value in whole 
                 example table, remove it
             format: if short, use short format for chip download
-            raw: raw expressions
+            ctype: expression type, from gene_expression_types
 
         Defaults: Median averaging.
         """
@@ -643,16 +619,11 @@ class PIPA(DBCommon):
         #downloads annotations
         cbc = CallBack(len(ids), optcb, callbacks=10)
 
-        readall = self.dictionarize(ids, self.annotations, ids, callback=cbc)
+        readall = self.annotations()
 
         read = {}
         for a,b in readall.items():
-            #read[a] = self.keepOnlyMeaningful(b) #FIXME meaningful
-            read[a] = b
-
-        annotsinlist = [] #annotations in the same order
-        for id in ids:
-            annotsinlist.append(readall[id])
+            read[a] = b.items()
 
         cbc.end()
 
@@ -664,7 +635,7 @@ class PIPA(DBCommon):
         #here download actually happens
         chipfn = None
 
-        chipfn = lambda x: self.chips(x, bufver=bufver, raw=raw)
+        chipfn = lambda x: self.chips(x, ctype, bufver=bufver)
        
         if verbose:
             print "DOWNLOAD TIME", time.time() - tstart
@@ -684,37 +655,6 @@ class PIPA(DBCommon):
         if average != None:
             et = averageAttributes(et, fn=average)
             cbc()
-
-
-        #add mapability information
-
-        genomeids = set(map(lambda x: dict(x)["genome_id"], read.values()))
-
-        def mapping_prop_dict(fn):
-            """ Return a proper mapping prop dict """
-            d = {}
-            for genome_id in genomeids:
-                d1 = dict(fn(genome_id)[0])
-                if len(set(d) & set(d1)) > 0:
-                    KeyIsRepeating()
-                d.update(d1)
-            return d
-
-        def add_meta_for_gene(et, d, atr):
-            ndom = orange.Domain(et.domain.attributes, et.domain.classVar)
-            ndom.addmetas(et.domain.getmetas())
-            id1 = orange.newmetaid()
-            atr.getValueFrom = lambda ex,rw: orange.Value(atr, float(d[ex['DDB'].value]) if ex['DDB'].value in d else '?')
-            ndom.addmeta(id1, atr)
-            return orange.ExampleTable(ndom, et)
-
-        if map_lengths:
-            d = mapping_prop_dict(self.lengths)
-            et = add_meta_for_gene(et, d, orange.FloatVariable(name="map_length"))
-
-        if map_map35:
-            d = mapping_prop_dict(self.map35s)
-            et = add_meta_for_gene(et, d, orange.FloatVariable(name="map_map35"))
 
         cbc.end()
 
@@ -1552,16 +1492,20 @@ if __name__=="__main__":
 
     d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"), username=None, password=None)
 
-    allids = d.list()[:2]
-    allids = d.list()
-    print ("list", allids)
-    print ("annots", list(d.annotations(ids=allids[:2])))
+    print d.gene_expression_types()
 
-    allids = map(str, [ 513, 514, 516, 517, 518, 519, 520, 521, 522, 523 ])
+    allids = d.annotations().keys()
+    print d.annotations().items()[0]
+    print ("list", allids)
+    print ("annots", d.annotations().items()[:2])
+
+    allids = map(str, [ 151, 150 ])
 
     import math
 
     #data = d.get_data(ids=allids)
-    data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2), allowed_labels=["strain"], map_lengths=True, raw=True, map_map35=True)
+    data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2), allowed_labels=["strain"], ctype="1")
+    #FIXME map_map35, raw, map_lengths
+
     #data = orange.ExampleTable(data.domain, data[:1])
     printet(data)

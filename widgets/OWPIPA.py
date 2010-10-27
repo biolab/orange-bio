@@ -382,7 +382,7 @@ class SortedListWidget(QWidget):
     
 class OWPIPA(OWWidget):
     settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password","joinreplicates",
-                     "selectionSetsWidget.selections", "columnsSortingWidget.sortingOrder", "currentSelection", "log2", "raw", "experimentsHeaderState", "lenandmap35"]
+                     "selectionSetsWidget.selections", "columnsSortingWidget.sortingOrder", "currentSelection", "log2", "raw", "experimentsHeaderState", "ctypei"]
     def __init__(self, parent=None, signalManager=None, name="PIPA database"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
@@ -392,6 +392,7 @@ class OWPIPA(OWWidget):
         self.password = ""
         self.log2 = False
         self.raw = False
+        self.ctypei = 0
 
         self.selectedExperiments = []
         self.buffer = obiDicty.BufferSQLite(bufferfile)
@@ -400,14 +401,12 @@ class OWPIPA(OWWidget):
         self.excludeconstant = False
         self.joinreplicates = False
         self.currentSelection = None
-        self.lenandmap35 = False
         
         self.experimentsHeaderState = {"": False, "Name":False, "Species": False, "Strain": False, "Genotype": False, "Treatment": False,
                                        "Growth": False, "Timepoint": False, "Replicate": False, "ID": False}
 
-        self.chips = []
-        self.annots = []
-        
+        self.exTypes  = []
+        self.annots = {}
 
         self.controlArea.setMaximumWidth(250)
         self.controlArea.setMinimumWidth(250)
@@ -433,8 +432,9 @@ class OWPIPA(OWWidget):
         OWGUI.checkBox(self.controlArea, self, "excludeconstant", "Exclude labels with constant values" )
         OWGUI.checkBox(self.controlArea, self, "joinreplicates", "Average replicates (use median)" )
         OWGUI.checkBox(self.controlArea, self, "log2", "Logarithmic (base 2) transformation" )
-        OWGUI.checkBox(self.controlArea, self, "raw", "Download Raw Expressions", callback=self.UpdateCached)
-        OWGUI.checkBox(self.controlArea, self, "lenandmap35", "Add length and mapability info" )
+
+        box = OWGUI.widgetBox(self.controlArea, 'Expression Type')
+        self.expressionTypesCB = cb = OWGUI.comboBox(box, self, "ctypei", items=[], debuggingEnabled=0, callback=self.UpdateCached)
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
 
@@ -507,7 +507,6 @@ class OWPIPA(OWWidget):
         self.error(1)
         self.warning(1)
 
-        #obiDicty.verbose = 1
         def en(x):
             return x if len(x) else None
 
@@ -516,13 +515,13 @@ class OWPIPA(OWWidget):
         #check password
         if en(self.username) != None:
             try:
-                self.dbc.list(reload=True)
+                self.dbc.annotations(reload=True)
             except obiDicty.AuthenticationError:
                 self.error(1, "Wrong username or password")
                 self.dbc = None
             except Exception, ex:
                 try: #mable cached?
-                    chips = self.dbc.list()
+                    self.dbc.annotations()
                     self.warning(1, "Can not access database - using cached data.")
                 except Exception,ex:
                     self.dbc = None
@@ -536,7 +535,24 @@ class OWPIPA(OWWidget):
         self.buffer.clear()
         self.Reload()
 
+    def ctype(self):
+        """ Returns selected experiment type """
+        return self.exTypes[self.ctypei][0]
+
+    def UpdateExperimentTypes(self):
+        self.signalManager.setFreeze(1)
+        try:
+            self.expressionTypesCB.clear()
+            items = [desc for _,desc,_ in self.exTypes]
+            self.expressionTypesCB.addItems(items)
+        except IOError:
+            pass
+        finally:
+            self.signalManager.setFreeze(0)
+        self.ctypei = max(0, min(self.ctypei, len(self.exTypes)-1))
+
     def UpdateExperiments(self, reload=False):
+
         self.chipsl = []
         self.experimentsWidget.clear()
         self.items = []
@@ -546,20 +562,19 @@ class OWPIPA(OWWidget):
         if not self.dbc:
             self.Connect()
  
-        #obiDicty.verbose = 1
-
-        chips, annots = [], []
+        annots = {}
+        exTypes = []
         
         sucind = False #success indicator for database index
 
         try:
-            chips = self.dbc.list(reload=reload)
             annots = self.dbc.annotations(chips, reload=reload)
+            exTypes = self.dbc.gene_expression_types(reload=reload)
             sucind = True
         except Exception, ex:
             try:
-                chips = self.dbc.list()
-                annots = self.dbc.annotations(chips)
+                annots = self.dbc.annotations()
+                exTypes = self.dbc.gene_expression_types()
                 self.warning(0, "Can not access database - using cached data.")
                 sucind = True
             except Exception,ex:
@@ -569,13 +584,15 @@ class OWPIPA(OWWidget):
             self.warning(0)
             self.error(0)
 
-        self.chips = list(chips)
-        self.annots = list(annots)
+        self.annots = annots
+        self.exTypes = exTypes
+
+        self.UpdateExperimentTypes() 
 
         elements = []
         pos = 0
 
-        for chip,annot in zip(self.chips, self.annots):
+        for chip,annot in self.annots.items():
             pos += 1
             d = defaultdict(lambda: "?", annot)
             elements.append(["", d["name"], d["species"], d["strain"], d["genotype"], d["treatment"], d["growth"], d["tp"], d["replicate"], chip] + \
@@ -591,9 +608,8 @@ class OWPIPA(OWWidget):
         for i in range(len(self.headerLabels)):
             self.experimentsWidget.resizeColumnToContents(i)
 
-        adic = dict(zip(self.chips, self.annots))
         #which is the ok buffer version
-        self.wantbufver = lambda x,ad=adic: defaultdict(lambda: "?", ad[x])["map_stop1"]
+        self.wantbufver = lambda x,ad=self.annots: defaultdict(lambda: "?", ad[x])["map_stop1"] #FIXME what attribute to use for version?
 
         self.UpdateCached()
 
@@ -604,7 +620,8 @@ class OWPIPA(OWWidget):
 
     def UpdateCached(self):
         if self.wantbufver and self.dbc:
-            fn = self.dbc.chips_keynaming() if not self.raw else self.dbc.chips_keynaming_raw()
+            fn = self.dbc.chips_keynaming(self.ctype())
+
             for item in self.items:
                 c = str(item.text(9))
                 item.setData(0, Qt.DisplayRole, QVariant(" " if self.dbc.inBuffer(fn(c)) == self.wantbufver(c) else ""))
@@ -646,8 +663,7 @@ class OWPIPA(OWWidget):
             # need 'id' labels in join_replicates for attribute names
             allowed_labels.append("id")
         
-        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn, allowed_labels=allowed_labels, map_map35=self.lenandmap35, map_lengths=self.lenandmap35, raw=self.raw)
-
+        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn, allowed_labels=allowed_labels, ctype=self.ctype())
 
         if self.joinreplicates:
             table = obiDicty.join_replicates(table, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=obiDicty.median)
@@ -692,7 +708,7 @@ if __name__ == "__main__":
     app  = QApplication(sys.argv)
 ##    from pywin.debugger import set_trace
 ##    set_trace()
-    #obiDicty.verbose = True
+    obiDicty.verbose = True
     w = OWPIPA()
     w.show()
     app.exec_()
