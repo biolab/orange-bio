@@ -391,7 +391,6 @@ class OWPIPA(OWWidget):
         self.username = ""
         self.password = ""
         self.log2 = False
-        self.raw = False
         self.ctypei = 0
 
         self.selectedExperiments = []
@@ -429,12 +428,13 @@ class OWPIPA(OWWidget):
         self.columnsSortingWidget.sortingOrder = ["Strain", "Genotype", "Timepoint"]
         OWGUI.rubber(self.controlArea)
 
+        box = OWGUI.widgetBox(self.controlArea, 'Expression Type')
+        self.expressionTypesCB = cb = OWGUI.comboBox(box, self, "ctypei", items=[], debuggingEnabled=0, callback=self.UpdateCached)
+
+
         OWGUI.checkBox(self.controlArea, self, "excludeconstant", "Exclude labels with constant values" )
         OWGUI.checkBox(self.controlArea, self, "joinreplicates", "Average replicates (use median)" )
         OWGUI.checkBox(self.controlArea, self, "log2", "Logarithmic (base 2) transformation" )
-
-        box = OWGUI.widgetBox(self.controlArea, 'Expression Type')
-        self.expressionTypesCB = cb = OWGUI.comboBox(box, self, "ctypei", items=[], debuggingEnabled=0, callback=self.UpdateCached)
 
         OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
 
@@ -537,7 +537,10 @@ class OWPIPA(OWWidget):
 
     def ctype(self):
         """ Returns selected experiment type """
-        return self.exTypes[self.ctypei][0]
+        if self.exTypes:
+            return self.exTypes[self.ctypei][0]
+        else:
+            return "-1"
 
     def UpdateExperimentTypes(self):
         self.signalManager.setFreeze(1)
