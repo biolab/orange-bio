@@ -612,7 +612,7 @@ class OWPIPA(OWWidget):
             self.experimentsWidget.resizeColumnToContents(i)
 
         #which is the ok buffer version
-        self.wantbufver = lambda x,ad=self.annots: defaultdict(lambda: "?", ad[x])["map_stop1"] #FIXME what attribute to use for version?
+        self.wantbufver = lambda x,ad=self.annots: defaultdict(lambda: "?", ad[x])["date"] #FIXME what attribute to use for version?
 
         self.UpdateCached()
 
