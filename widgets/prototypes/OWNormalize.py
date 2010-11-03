@@ -185,28 +185,36 @@ class OWNormalize(OWWidget):
         self.controlArea.setFixedWidth(265)
         self.controlArea.setFixedWidth(275)
         # main area: two tabs: non-normalized and normalized MA plots
-        boxMainArea = OWGUI.widgetBox(self.mainArea)
-        layoutMainArea = QVBoxLayout(self.mainArea)
-        layoutMainArea.addWidget(boxMainArea)
-
+#        boxMainArea = OWGUI.widgetBox(self.mainArea)
+#        layoutMainArea = QVBoxLayout(self.mainArea)
+#        layoutMainArea.addWidget(boxMainArea)
+        
         # main area: tabs
-        self.tabsMain = QTabWidget(boxMainArea)
+#        self.tabsMain = QTabWidget(boxMainArea)
+        self.tabsMain = OWGUI.tabWidget(self.mainArea) #QTabWidget()
+#        self.mainArea.layout().addWidget(self.tabsMain)
         self.connect(self.tabsMain, SIGNAL("currentChanged(QWidget*)"), self.onTabMainCurrentChange)
-        self.boxMAnonNorm = QGroupBox(self)
-        self.tabsMain.addTab(self.boxMAnonNorm, "MA non-normalized")
-        self.boxMAnorm = QGroupBox(self)
-        self.tabsMain.addTab(self.boxMAnorm, "MA normalized")
+#        self.boxMAnonNorm = QGroupBox(self)
+        self.boxMAnonNorm = OWGUI.createTabPage(self.tabsMain, "MA non-normalized")
+#        self.tabsMain.addTab(self.boxMAnonNorm, "MA non-normalized")
+#        self.boxMAnorm = QGroupBox(self)
+        self.boxMAnorm = OWGUI.createTabPage(self.tabsMain, "MA normalized")
+#        self.tabsMain.addTab(self.boxMAnorm, "MA normalized")
 
         # reference to currently active MA graph (automatically set by onTabMainCurrentChange)
         self.graphMAcurrent = None
         # main area: graph MA non-normalized
         self.graphMAnonNorm = OWGraphMA(self.boxMAnonNorm)
         self.graphMAnonNorm.setAutoReplot(False)
+        self.boxMAnonNorm.layout().addWidget(self.graphMAnonNorm)
+        
 ##        self.connect(self.graphMAnonNorm, SIGNAL("legendClicked(long)"), self.onLegendClickedMAnonNorm)
 ##        self.graphMAnonNorm.enableGraphLegend(self.showLegend)
         # main area: graph MA normalized
         self.graphMAnorm = OWGraphMA(self.boxMAnorm)
         self.graphMAnorm.setAutoReplot(False)
+        self.boxMAnorm.layout().addWidget(self.graphMAnorm)
+        
         self.setGraphAxes(axes=[0,2])
 ##        self.connect(self.graphMAnorm, SIGNAL("legendClicked(long)"), self.onLegendClickedMAnorm)
 ##        self.graphMAnorm.enableGraphLegend(self.showLegend)
@@ -215,25 +223,37 @@ class OWNormalize(OWWidget):
         self.settingsProbeTrackingChange() # connect events mouseOnClick & mouseOnMove to self.graphMAnonNorm & self.graphMAnorm
         
         # control area: tabs
-        self.tabsCtrl = QTabWidget(self.controlArea)
+        self.tabsCtrl = OWGUI.tabWidget(self.controlArea) #QTabWidget(self.controlArea)
+#        self.controlArea.layout().addWidget(self.tabsCtrl)
         # tab 1: vars
-        boxVars = QGroupBox(self)
-        self.tabsCtrl.addTab(boxVars, "Var")
-        boxGroupBy = QGroupBox('Group probes by', boxVars)
+#        boxVars = QGroupBox(self)
+        boxVars = OWGUI.createTabPage(self.tabsCtrl, "Var")
+#        self.tabsCtrl.addTab(boxVars, "Var")
+#        boxGroupBy = QGroupBox('Group probes by', boxVars)
+
+        boxGroupBy = OWGUI.widgetBox(boxVars, "Group probes by")
         self.cmbVarA = OWGUI.comboBox(boxGroupBy, self, "varNameA", label="ID", labelWidth=33, orientation="horizontal", callback=self.varABChange, sendSelectedValue=1, valueType=str)
         ### Var B, Type, Other, Additional, Optional, Opt.var, Extra, Alternative var, Alt.var 
         self.cmbVarB = OWGUI.comboBox(boxGroupBy, self, "varNameB", label="Alt.var", labelWidth=33, orientation="horizontal", callback=self.varABChange, sendSelectedValue=1, valueType=str)
-        boxFGI = QGroupBox('Average foreground intensity', boxVars)
+        
+#        boxFGI = QGroupBox('Average foreground intensity', boxVars)
+        boxFGI = OWGUI.widgetBox(boxVars, "Average foreground intensity")
         self.cmbVarSignalSmpl = OWGUI.comboBox(boxFGI, self, "varNameSignalSmpl", label="Smpl", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         self.cmbVarSignalRef = OWGUI.comboBox(boxFGI, self, "varNameSignalRef", label="Ref", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
-        boxBGI = QGroupBox('Average background intensity', boxVars)
+        
+#        boxBGI = QGroupBox('Average background intensity', boxVars)
+        boxBGI = OWGUI.widgetBox(boxVars, "Average background intensity")
         self.cmbVarBGSmpl = OWGUI.comboBox(boxBGI, self, "varNameBGSmpl", label="Smpl", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         self.cmbVarBGRef = OWGUI.comboBox(boxBGI, self, "varNameBGRef", label="Ref", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
-        boxBGSD = QGroupBox('Background std. deviation', boxVars)
+        
+#        boxBGSD = QGroupBox('Background std. deviation', boxVars)
+        boxBGSD = OWGUI.widgetBox(boxVars, "Background std. deviation")
         self.cmbVarBGSmplSD = OWGUI.comboBox(boxBGSD, self, "varNameBGSmplSD", label="Smpl", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         self.cmbVarBGRefSD = OWGUI.comboBox(boxBGSD, self, "varNameBGRefSD", label="Ref", labelWidth=33, orientation="horizontal", callback=self.varFBChange, sendSelectedValue=1, valueType=str)
         # tab 1: default var names
-        boxDefaultNames = QGroupBox('Default variable names', boxVars)
+        
+#        boxDefaultNames = QGroupBox('Default variable names', boxVars)
+        boxDefaultNames = OWGUI.widgetBox(boxVars, "Default variable names")
         OWGUI.lineEdit(boxDefaultNames, self, "defNameA", label="ID", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameB", label="Alt.var", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
         OWGUI.lineEdit(boxDefaultNames, self, "defNameSmpl1", label="Smpl 1", labelWidth=70, orientation='horizontal', box=None, tooltip=None)
@@ -247,8 +267,9 @@ class OWNormalize(OWWidget):
         OWGUI.button(boxDefaultNames, self, "Search for Default Variables", callback=self.defaultVarAssignmentClick)
 
         # tab 2: normalization
-        boxNorm = QGroupBox(self)
-        self.tabsCtrl.addTab(boxNorm, "Norm")
+#        boxNorm = QGroupBox(self)
+#        self.tabsCtrl.addTab(boxNorm, "Norm")
+        boxNorm = OWGUI.createTabPage(self.tabsCtrl, "Norm")
         # tab 2: normalization: range, type
         self.boxNormRange = OWGUI.radioButtonsInBox(boxNorm, self, value="normRange", box='Normalization range', btnLabels=["Global, entire microarray", "Per type of probe", "Combined (w.r.t. num. of control probes)"], callback=self.settingsNormalizationChange)
         self.boxMinNumControlProbes = OWGUI.widgetBox(self.boxNormRange, orientation="horizontal")
@@ -271,41 +292,54 @@ class OWNormalize(OWWidget):
         OWGUI.checkBox(boxApproxFunction, self, "includeNonControl", "Include non-control probes", callback=self.settingsNormalizationChange)
 
         self.boxSldLoessWeight = OWGUI.widgetBox(boxApproxFunction, orientation="horizontal")
-        self.boxSldLoessWeight.setEnabled(self.includeNonControl and self.approxFunction<>OWNormalize.AppxFuncMed)
+        self.boxSldLoessWeight.setEnabled(self.includeNonControl and self.approxFunction!=OWNormalize.AppxFuncMed)
         sldLoessWeight = OWGUI.qwtHSlider(self.boxSldLoessWeight, self, "loessWeight", box="Weight of non-control probes [0,1]", minValue=0, maxValue=1, step=0.01, precision=2, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldLoessWeight, SIGNAL("sliderReleased()"), self.settingsNormalizationChange)
         # tab 2: default button
         OWGUI.button(boxNorm, self, "Set &Default Values", callback=self.normalizationAllChange)
 
         # tab 3: filters
-        boxFilters = QGroupBox(self)
-        self.tabsCtrl.addTab(boxFilters, "Filter")
+#        boxFilters = QGroupBox(self)
+#        self.tabsCtrl.addTab(boxFilters, "Filter")
+        boxFilters = OWGUI.createTabPage(self.tabsCtrl, "Filter")
         # tab 3: filters: subtract BG
         self.cbSubtrBG = OWGUI.checkBox(boxFilters, self, "subtrBG", "Subtract background", callback=self.settingsSubstrBGChange)
+        
         # tab 3: filters: CV
-        self.boxMaxCV = QGroupBox('Max. coeff. of variation (CV)', boxFilters)
+#        self.boxMaxCV = QGroupBox('Max. coeff. of variation (CV)', boxFilters)
+        self.boxMaxCV = OWGUI.widgetBox(boxFilters, "Max. coeff. of variation (CV)")
         OWGUI.checkBox(self.boxMaxCV, self, "useCV", "Enabled", callback=self.settingsFilterMaxCVChange)
         sldMaxCV = OWGUI.qwtHSlider(self.boxMaxCV, self, "maxCV", minValue=0, maxValue=2, step=0.01, precision=2, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMaxCV, SIGNAL("sliderReleased()"), self.settingsFilterMaxCVChange)
-        self.lblInfoFilterMaxCV = QLabel("\n", self.boxMaxCV)
+#        self.lblInfoFilterMaxCV = QLabel("\n", self.boxMaxCV)
+        self.lblInfoFilterMaxCV = OWGUI.widgetLabel(self.boxMaxCV, "\n")
+        
         # tab 3: filters: minIntensityRatio
-        boxMinIntRatio = QGroupBox('Min. signal to background ratio', boxFilters)
+#        boxMinIntRatio = QGroupBox('Min. signal to background ratio', boxFilters)
+        boxMinIntRatio = OWGUI.widgetBox(boxFilters, "Min. signal to background ratio")
         OWGUI.checkBox(boxMinIntRatio, self, "useMinIntensity", "Enabled", callback=self.settingsFilterMinIntRatioChange)
         sldMinInt = OWGUI.qwtHSlider(boxMinIntRatio, self, "minIntensityRatio", minValue=0, maxValue=5, step=0.01, precision=2, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMinInt, SIGNAL("sliderReleased()"), self.settingsFilterMinIntRatioChange)
-        self.lblInfoFilterMinIntRatio = QLabel("\n", boxMinIntRatio)
+#        self.lblInfoFilterMinIntRatio = QLabel("\n", boxMinIntRatio)
+        self.lblInfoFilterMinIntRatio = OWGUI.widgetLabel(boxMinIntRatio, "\n")
+        
         # tab 3: filters: maxFGIntensity
-        boxMaxFGIntensity = QGroupBox('Max. foreground intensity', boxFilters)
+#        boxMaxFGIntensity = QGroupBox('Max. foreground intensity', boxFilters)
+        boxMaxFGIntensity = OWGUI.widgetBox(boxFilters, "Max. foreground intensity")
         OWGUI.checkBox(boxMaxFGIntensity, self, "useMaxFGIntensity", "Enabled", callback=self.settingsFilterMaxFGIntChange)
         sldMaxFGInt = OWGUI.qwtHSlider(boxMaxFGIntensity, self, "maxFGIntensity", minValue=0, maxValue=65536, step=100, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMaxFGInt, SIGNAL("sliderReleased()"), self.settingsFilterMaxFGIntChange)
-        self.lblInfoFilterMaxFGInt = QLabel("\n", boxMaxFGIntensity)
+#        self.lblInfoFilterMaxFGInt = QLabel("\n", boxMaxFGIntensity)
+        self.lblInfoFilterMaxFGInt = OWGUI.widgetLabel(boxMaxFGIntensity,"\n")
+        
         # tab 3: filters: maxBGIntensity
-        boxMaxBGIntensity = QGroupBox('Max. background intensity', boxFilters)
+#        boxMaxBGIntensity = QGroupBox('Max. background intensity', boxFilters)
+        boxMaxBGIntensity = OWGUI.widgetBox(boxFilters, "Max. background intensity")
         OWGUI.checkBox(boxMaxBGIntensity, self, "useMaxBGIntensity", "Enabled", callback=self.settingsFilterMaxBGIntChange)
         sldMaxBGInt = OWGUI.qwtHSlider(boxMaxBGIntensity, self, "maxBGIntensity", minValue=0, maxValue=4096, step=1, precision=0, callback=None, logarithmic=0, ticks=0, maxWidth=110)
         self.connect(sldMaxBGInt, SIGNAL("sliderReleased()"), self.settingsFilterMaxBGIntChange)
-        self.lblInfoFilterMaxBGInt = QLabel("\n", boxMaxBGIntensity)
+#        self.lblInfoFilterMaxBGInt = QLabel("\n", boxMaxBGIntensity)
+        self.lblInfoFilterMaxBGInt = OWGUI.widgetLabel(boxMaxBGIntensity,"\n")
         # tab 3: default button
         OWGUI.button(boxFilters, self, "Set &Default Values", callback=self.filtersAllChange)
 
@@ -374,14 +408,18 @@ class OWNormalize(OWWidget):
         """
 
         # tab 5: output
-        boxOutput = QGroupBox(self)
-        self.tabsCtrl.addTab(boxOutput, "Out")
+#        boxOutput = QGroupBox(self)
+#        self.tabsCtrl.addTab(boxOutput, "Out")
+        boxOutput = OWGUI.createTabPage(self.tabsCtrl, "Out")
+        
         # tab 5: output: merge replicas
-        boxMerge = QGroupBox('Merge replicas', boxOutput)
+#        boxMerge = QGroupBox('Merge replicas', boxOutput)
+        boxMerge = OWGUI.widgetBox(boxOutput, "Merge replicas")
         OWGUI.radioButtonsInBox(boxMerge, self, value="mergeLevel", btnLabels=["None", "ID &  Alt.var", "ID"], box="Group probes by matching variable(s)", callback=self.settingsOutputReplicasChange)
         self.rbgMergeIntensitiesType = OWGUI.radioButtonsInBox(boxMerge, self, value="mergeIntensitiesType", btnLabels=["Mean", "Median"], box="Average calculation", callback=self.settingsOutputReplicasChange)
         # tab 5: output: additional info
-        boxAdditional = QGroupBox('Additional info', boxOutput)
+#        boxAdditional = QGroupBox('Additional info', boxOutput)
+        boxAdditional = OWGUI.widgetBox(boxOutput, "Additional info")
         self.cbOutVarAAliases = OWGUI.checkBox(boxAdditional, self, "outVarAAliases", "ID alias", callback=self.settingsOutputChange)
         self.cbOutNumProbes = OWGUI.checkBox(boxAdditional, self, "outNumProbes", "Number of probes", callback=self.settingsOutputChange)
         OWGUI.checkBox(boxAdditional, self, "outNetSignal", "Net intensities", callback=self.settingsOutputChange)
@@ -389,25 +427,33 @@ class OWNormalize(OWWidget):
         OWGUI.checkBox(boxAdditional, self, "outMRaw", "M raw", callback=self.settingsOutputChange)
         OWGUI.checkBox(boxAdditional, self, "outMCentered", "M centered", callback=self.settingsOutputChange)
         # tab 5: output: other variables
-        boxOtherVars = QGroupBox('Other variables', boxOutput)
+#        boxOtherVars = QGroupBox('Other variables', boxOutput)
+        boxOtherVars = OWGUI.widgetBox(boxOutput, "Other variables")
         self.lbVarOthers = OWGUI.listBox(boxOtherVars, self)
         self.lbVarOthers.setSelectionMode(QListWidget.MultiSelection)
         self.connect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
-        self.boxMergeOtherType = QGroupBox("Merge", boxOutput)
+#        self.boxMergeOtherType = QGroupBox("Merge", boxOutput)
+        self.boxMergeOtherType = OWGUI.widgetBox(boxOutput, "Merge")
         self.boxMergeOtherType.setEnabled(self.mergeLevel and len(self.varsOtherSelected) > 0)
         rbgMergeOtherType = OWGUI.radioButtonsInBox(self.boxMergeOtherType, self, value="mergeOtherType", btnLabels=["Mean", "Median", "Concatenate values"], box="Continuous variables", callback=self.settingsOutputOtherChange)
-        boxMergeOtherTypeD = QGroupBox('Non-continuous variables', self.boxMergeOtherType)
-        QLabel("Values are concatenated by default.", boxMergeOtherTypeD)
+#        boxMergeOtherTypeD = QGroupBox('Non-continuous variables', self.boxMergeOtherType)
+        boxMergeOtherTypeD = OWGUI.widgetBox(self.boxMergeOtherType, "Non-continuous variables")
+#        QLabel("Values are concatenated by default.", boxMergeOtherTypeD)
+        OWGUI.widgetLabel(boxMergeOtherTypeD, "Values are concatenated by default.")
         self.cbMergeOtherRemoveDupl = OWGUI.checkBox(boxMergeOtherTypeD, self, "mergeOtherRemoveDupl", "Remove duplicate values", callback=self.settingsOutputOtherChange)
 
         # tab 6: settings
-        boxSettings = QGroupBox(self)
-        self.tabsCtrl.addTab(boxSettings, "Settings")
+#        boxSettings = QGroupBox(self)
+#        self.tabsCtrl.addTab(boxSettings, "Settings")
+        boxSettings = OWGUI.createTabPage(self.tabsCtrl, "Settings")
+        
         # tab 6: settings: graph
-        boxGraph = QGroupBox('Graph', boxSettings)
+#        boxGraph = QGroupBox('Graph', boxSettings)
+        boxGraph = OWGUI.widgetBox(boxSettings, "Graph")
 ##        OWGUI.checkBox(boxGraph, self, "recomputeNormCurveOnChange", "Update normalization curve(s) on change", callback=self.settingsRecomputeNormCurveChange)
         boxMSize = OWGUI.widgetBox(boxGraph, orientation="horizontal")
-        QLabel("Marker size", boxMSize)
+#        QLabel("Marker size", boxMSize)
+        OWGUI.widgetLabel(boxMSize, "Marker size")
         cmbMarkerSize = OWGUI.comboBox(boxMSize, self, "markerSize", callback=self.settingsGraphChange, sendSelectedValue=1, valueType=int)
         for itemIdx, size in enumerate(range(3,16)):
             cmbMarkerSize.addItem(str(size))
@@ -423,18 +469,22 @@ class OWNormalize(OWWidget):
         # ZoomSelectToolbar currently not used; should be connected to both MA graphs
         #self.zoomSelectToolbar = OWToolbars.ZoomSelectToolbar(self, boxGraph, self.graphMAnonNorm, self.autoSendSelection)
         # tab 6: settings: Probes
-        boxProbes = QGroupBox("Probes", boxSettings)
+#        boxProbes = QGroupBox("Probes", boxSettings)
+        boxProbes = OWGUI.widgetBox(boxSettings, "Probes")
         OWGUI.checkBox(boxProbes, self, 'displayVarAAliases', 'Display ID aliases', callback=self.adjustProbeTableColumns)
         # tab 6: settings: commit
-        boxCommit = QGroupBox("Output", boxSettings)
+#        boxCommit = QGroupBox("Output", boxSettings)
+        boxCommit = OWGUI.widgetBox(boxSettings, "Output")
         OWGUI.checkBox(boxCommit, self, 'commitOnChange', 'Commit data on change', callback=self.commitChange)
         
         # control area: commit
         self.btnCommit = OWGUI.button(self.controlArea, self, "&Commit", callback=self.commitClicked, disabled=self.commitOnChange)
 ##        self.btnRecomputeNormCurve = OWGUI.button(self.controlArea, self, "&Update Normalization Curve(s)", callback=self.recomputeNormCurveClick)        
         # control area: info
-        boxProbeInfo = QGroupBox("Info", self.controlArea)
-        self.lblProbeInfo = QLabel("\n\n", boxProbeInfo)
+#        boxProbeInfo = QGroupBox("Info", self.controlArea)
+        boxProbeInfo = OWGUI.widgetBox(self.controlArea, "Info")
+#        self.lblProbeInfo = QLabel("\n\n", boxProbeInfo)
+        self.lblProbeInfo = OWGUI.widgetLabel(boxProbeInfo, "\n\n")
 
         self.resize(1000, 752)
 
@@ -471,7 +521,8 @@ class OWNormalize(OWWidget):
         ct += ctMid
         if probeDataName:
             ct += "P: " + probeDataName
-        self.setCaptionTitle(ct + ctEnd)
+#        self.setCaptionTitle(ct + ctEnd)
+        self.setWindowTitle(ct + ctEnd)
         
 
 
@@ -495,7 +546,7 @@ class OWNormalize(OWWidget):
         self.varsFloat = {}
         self.varsEnumStr = {}
         self.data = None
-        if data <> None:
+        if data is not None:
             # remove string variables and variables with duplicate names
             newVarList = []
             for var in data.domain.variables + data.domain.getmetas().values():
@@ -562,20 +613,20 @@ class OWNormalize(OWWidget):
             # fill VarA & VarB combos
             for cmbName in cmbNamesAllVars:
                 self.__dict__[cmbName].clear()
-                self.__dict__[cmbName].insertStrList(map(lambda x: x[1], varNamesAllVars))
+                self.__dict__[cmbName].addItems(map(lambda x: x[1], varNamesAllVars))
             # fill intensity combos
             for cmbName in cmbNamesFloatVars:
                 self.__dict__[cmbName].clear()
-                self.__dict__[cmbName].insertStrList(map(lambda x: x[1], varNamesFloatVars))
+                self.__dict__[cmbName].addItems(map(lambda x: x[1], varNamesFloatVars))
         else:
             for cmbName in cmbNamesAllVars + cmbNamesFloatVars:
                 self.__dict__[cmbName].clear()            
         # add "<none>"
         if self.varsAll.has_key("<none>"):
             print "Warning: doman consists of discrete variable named '<none>'; this name is reserved and should not be used"
-        self.cmbVarB.insertItem("<none>", 0)
-        self.cmbVarBGSmplSD.insertItem("<none>", 0)
-        self.cmbVarBGRefSD.insertItem("<none>", 0)
+        self.cmbVarB.insertItem(0, "<none>")
+        self.cmbVarBGSmplSD.insertItem(0, "<none>")
+        self.cmbVarBGRefSD.insertItem(0, "<none>")
 
 
     def updateVarAssignment(self):
@@ -686,12 +737,12 @@ class OWNormalize(OWWidget):
                     if len(candVarsLenName) > 0:
                         candVarsLenName.sort()
                         self.varNameB = candVarsLenName[0][1]
-            if self.varNameB <> "<none>":
+            if self.varNameB != "<none>":
                 # select self.varNameB among the other variables (tab Output)
                 self.disconnect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
                 for idx in range(self.lbVarOthers.count()):
                     if self.varNameB == self.lbVarOthers.item(idx).text():
-                        self.lbVarOthers.setSelected(idx, True)
+                        self.lbVarOthers.item(idx).setSelected(True)
                 self.fillVarsOtherSelected()
                 self.connect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
             # enable/disable self.boxMergeOtherType
@@ -787,11 +838,11 @@ class OWNormalize(OWWidget):
         if self.data:
             varNamesAllVars = zip(map(lambda x: x.lower(), self.varsAll.keys()), self.varsAll.keys())
             varNamesAllVars.sort()
-            self.lbVarOthers.insertStrList(map(lambda x: x[1], varNamesAllVars))
+            self.lbVarOthers.addItems(map(lambda x: x[1], varNamesAllVars))
             # select items (self.lbVarOthers <- self.varsOtherSelected)
             self.disconnect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
             for idx in range(self.lbVarOthers.count()):
-                self.lbVarOthers.setSelected(idx, self.lbVarOthers.item(idx).text() in self.varsOtherSelected.keys())
+                self.lbVarOthers.item(idx).setSelected(self.lbVarOthers.item(idx).text() in self.varsOtherSelected.keys())
             self.connect(self.lbVarOthers , SIGNAL('selectionChanged()'), self.varOthersChange)
 
 
@@ -891,7 +942,7 @@ class OWNormalize(OWWidget):
             if self.outVarAAliases:
                 varListNames.append(orange.StringVariable("ID alias"))
                 valListList_byAttr.append(self.probes.getValsAAlias(self.mergeLevel))
-            if self.varNameB <> "<none>" and self.mergeLevel <> OWNormalize.MergeLevelPerVarA:
+            if self.varNameB != "<none>" and self.mergeLevel != OWNormalize.MergeLevelPerVarA:
                 # cannot get unique varB values if self.mergeLevel == OWNormalize.MergeLevelPerVarA
                 varListNames.append(self.data.domain[self.varNameB])
                 valListList_byAttr.append(self.probes.getValsB(self.mergeLevel))
@@ -903,7 +954,7 @@ class OWNormalize(OWWidget):
                 lstLstOtherVars = list(orange.ExampleTable(domainOtherVars, self.data))
                 for varIdx, var in enumerate(domainOtherVars):
                     vals = map(lambda x: x[varIdx].native(), lstLstOtherVars)
-                    if var.varType == orange.VarTypes.Continuous and self.mergeOtherType <> OWNormalize.MergeOtherTypeConc:
+                    if var.varType == orange.VarTypes.Continuous and self.mergeOtherType != OWNormalize.MergeOtherTypeConc:
                         valListList_byAttr.append(self.probes._mergeFunc[self.mergeLevel](MA.asarray(vals, Numeric.Float), Probes.mergeTypes[self.mergeOtherType], lambda x: None))
                         varListOtherCSV.append(var)
                         var.numberOfDecimals = 3    # by default it is set to zero because usually all values are integers; after merging we need higher precision (3 is the default value)
@@ -968,7 +1019,7 @@ class OWNormalize(OWWidget):
             varNames = map(lambda var: var.name, self.dataProbes.domain.variables)
             if "Var A" in varNames and "ColorRGB" in varNames and "Ratio" in varNames and "Symbol" in varNames:
                 # list of probe keys
-                if self.varNameB <> "<none>" and "Var B" in varNames:
+                if self.varNameB != "<none>" and "Var B" in varNames:
                     pKeysIDsNames = map(lambda e: (str(e["Var A"].native()) + str(e["Var B"].native()), str(e["Var A"].native()), str(e["Var B"].native())), self.dataProbes)
                 else:
                     pKeysIDsNames = map(lambda e: (str(e["Var A"].native()), str(e["Var A"].native()), ""), self.dataProbes)
@@ -986,7 +1037,7 @@ class OWNormalize(OWWidget):
                     try:
                         symbol = int(e["Symbol"].native())
                     except TypeError:
-                        symbol = QwtSymbol.None
+                        symbol = QwtSymbol.NoSymbol
                     ratio = str(e["Ratio"])
                     # read optional name for varA and varB values
                     try:
@@ -1028,7 +1079,7 @@ class OWNormalize(OWWidget):
                 probe = self.probes[pKey]
                 vals.append([probe.valA, probe.valAAlias, probe.valB, probe.ratioExpr, probe.getColorRgbStr(), probe.symbol])
             # create domain, clone and rename variables to "Var A" and "Var B"
-            if self.varNameB <> "<none>":
+            if self.varNameB != "<none>":
                 varB = self.varsAll[self.varNameB].clone()
                 varB.name = "Var B"
             else:
@@ -1141,7 +1192,7 @@ class OWNormalize(OWWidget):
             valAAliasIdx = zip(map(lambda pr: (pr.valAAlias, pr.valA, pr.valB), allProbes), range(numProbes))
             valAAliasIdx.sort()
             valAAliasRank = dict(zip([x[1] for x in valAAliasIdx], range(numProbes)))
-            if self.varNameB <> "<none>":
+            if self.varNameB != "<none>":
                 # generate sorting keys: varB)
                 valBIdx = zip(map(lambda pr: (pr.valB, pr.valA, pr.valAAlias), allProbes), range(numProbes))
                 valBIdx.sort()
@@ -1195,7 +1246,7 @@ class OWNormalize(OWWidget):
             self.tblControls.hideColumn(OWNormalize.tcVarAAlias)
             self.tblControls.setColumnWidth(OWNormalize.tcVarAAlias, 0)
 
-        if self.varNameB <> "<none>":
+        if self.varNameB != "<none>":
             self.tblControls.showColumn(OWNormalize.tcVarB)
             self.tblControls.adjustColumn(OWNormalize.tcVarB)
             lastColumn = OWNormalize.tcVarB
@@ -1272,7 +1323,7 @@ class OWNormalize(OWWidget):
         if col == OWNormalize.tcRatio:
             pKey = str(self.tblControls.item(row, OWNormalize.tcPKey).text())
             ratio = str(self.tblControls.item(row, OWNormalize.tcRatio).text())
-            if ratio <> self.probes[pKey].ratioExpr:
+            if ratio != self.probes[pKey].ratioExpr:
                 # set ratio
                 probe = self.probes[pKey]
                 newRatio = self.probes.setRatioWeight(probe, ratio, recalc=True)
@@ -1291,7 +1342,7 @@ class OWNormalize(OWWidget):
         if col == OWNormalize.tcVarAAlias:
             pKey = str(self.tblControls.item(row, OWNormalize.tcPKey).text())
             alias = str(self.tblControls.item(row, OWNormalize.tcVarAAlias).text())
-            if alias <> self.probes[pKey].valAAlias:
+            if alias != self.probes[pKey].valAAlias:
                 self.probes[pKey].valAAlias = alias
                 self.sendProbes()
                 if self.commitOnChange and self.outVarAAliases:
@@ -1328,7 +1379,7 @@ class OWNormalize(OWWidget):
             # update GUI: ratio lineEdit, probeSymbol, probeColor
             self.probeSymbolIdx = probe.symbol
             self.ratioStr = probe.ratioExpr
-            if probe.color <> ProbeSet.NoColor:
+            if probe.color != ProbeSet.NoColor:
                 self.probeColor = probe.color
                 # update color of button
                 self.btnProbeColor.pixmap().fill(self.probeColor)
@@ -1353,7 +1404,7 @@ class OWNormalize(OWWidget):
                 sel.init(idx,OWNormalize.tcVarA)
                 sel.expandTo(idx,OWNormalize.tcVarA)
                 self.tblControls.addSelection(sel)
-        if self.tblControls.numSelections() <> numSelectionsOld:
+        if self.tblControls.numSelections() != numSelectionsOld:
             self.activateSelectedProbes()
         #qApp.restoreOverrideCursor()  #TODO PORTING
 
@@ -1442,7 +1493,7 @@ class OWNormalize(OWWidget):
         # qApp.restoreOverrideCursor()  #TODO PORTING
         #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         self.progressBarInit()
-        self.updateSelectedProbes("", ProbeSet.NoColor, QwtSymbol.None, True, True, True)
+        self.updateSelectedProbes("", ProbeSet.NoColor, QwtSymbol.NoSymbol, True, True, True)
         self.sendProbes()
         self.setInfoProbes()
         self.setInfoFilterMaxCV()
@@ -1524,12 +1575,12 @@ class OWNormalize(OWWidget):
         if D1: print "onTabMainCurrentChange"
         if currWidget == self.boxMAnonNorm:
             self.graphMAcurrent = self.graphMAnonNorm
-            if self.getConnectionMethod(self.graphButton, SIGNAL("clicked()")) <> None:
+            if self.getConnectionMethod(self.graphButton, SIGNAL("clicked()")) is not None:
                 self.disconnect(self.graphButton, SIGNAL("clicked()"))
             self.connect(self.graphButton, SIGNAL("clicked()"), self.graphMAnonNorm.saveToFile)
         elif currWidget == self.boxMAnorm:
             self.graphMAcurrent = self.graphMAnorm
-            if self.getConnectionMethod(self.graphButton, SIGNAL("clicked()")) <> None:
+            if self.getConnectionMethod(self.graphButton, SIGNAL("clicked()")) is not None:
                 self.disconnect(self.graphButton, SIGNAL("clicked()"))
             self.connect(self.graphButton, SIGNAL("clicked()"), self.graphMAnorm.saveToFile)
         
@@ -1819,7 +1870,7 @@ class OWNormalize(OWWidget):
         self.boxMinNumControlProbes.setEnabled(self.normRange==2)
         self.boxLoessWindow.setEnabled(self.approxFunction==OWNormalize.AppxFuncLoess)
         self.boxLoessNumIter.setEnabled(self.approxFunction==OWNormalize.AppxFuncLoess)
-        self.boxSldLoessWeight.setEnabled(self.includeNonControl and self.approxFunction<>OWNormalize.AppxFuncMed)
+        self.boxSldLoessWeight.setEnabled(self.includeNonControl and self.approxFunction!=OWNormalize.AppxFuncMed)
         self.probes.setNormalizationParameters(self.normRange, self.minNumControlProbes, self.approxFunction, self.loessWindow, self.loessNumIter, self.includeNonControl, self.loessWeight)
         if self.commitOnChange:
             self.progressBarInit()
@@ -1834,36 +1885,36 @@ class OWNormalize(OWWidget):
         # qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         chngF = False
         # subtract background
-        if self.subtrBG <> self._def_subtrBG:
+        if self.subtrBG != self._def_subtrBG:
             self.subtrBG = self._def_subtrBG
             self.probes.setSubtrBG(self.subtrBG)
             chngF = True
         # CV            
-        if self.useCV <> self._def_useCV:
+        if self.useCV != self._def_useCV:
             self.useCV = self._def_useCV
             chngF = True
-        if self.maxCV <> self._def_maxCV:
+        if self.maxCV != self._def_maxCV:
             self.maxCV = self._def_maxCV
             chngF = True
         # min. intensity ratio
-        if self.useMinIntensity <> self._def_useMinIntensity:
+        if self.useMinIntensity != self._def_useMinIntensity:
             self.useMinIntensity = self._def_useMinIntensity
             chngF = True
-        if self.minIntensityRatio <> self._def_minIntensityRatio:
+        if self.minIntensityRatio != self._def_minIntensityRatio:
             self.minIntensityRatio = self._def_minIntensityRatio
             chngF = True
         # max FG intensity
-        if self.useMaxFGIntensity <> self._def_useMaxFGIntensity:
+        if self.useMaxFGIntensity != self._def_useMaxFGIntensity:
             self.useMaxFGIntensity = self._def_useMaxFGIntensity
             chngF = True
-        if self.maxFGIntensity <> self._def_maxFGIntensity:
+        if self.maxFGIntensity != self._def_maxFGIntensity:
             self.maxFGIntensity = self._def_maxFGIntensity
             chngF = True
         # max BG intensity
-        if self.useMaxBGIntensity <> self._def_useMaxBGIntensity:
+        if self.useMaxBGIntensity != self._def_useMaxBGIntensity:
             self.useMaxBGIntensity = self._def_useMaxBGIntensity
             chngF = True
-        if self.maxBGIntensity <> self._def_maxBGIntensity:
+        if self.maxBGIntensity != self._def_maxBGIntensity:
             self.maxBGIntensity = self._def_maxBGIntensity
             chngF = True
         # refresh
@@ -1886,25 +1937,25 @@ class OWNormalize(OWWidget):
         #qApp.restoreOverrideCursor()  #TODO PORTING
         #qApp.setOverrideCursor(QWidget.waitCursor)  #TODO PORTING
         chngN = False
-        if self.normRange <> self._def_normRange:
+        if self.normRange != self._def_normRange:
             self.normRange = self._def_normRange
             chngN = True
-        if self.minNumControlProbes <> self._def_minNumControlProbes:
+        if self.minNumControlProbes != self._def_minNumControlProbes:
             self.minNumControlProbes = self._def_minNumControlProbes
             chngN = True
-        if self.approxFunction <> self._def_approxFunction:
+        if self.approxFunction != self._def_approxFunction:
             self.approxFunction = self._def_approxFunction
             chngN = True
-        if self.loessWindow <> self._def_loessWindow:
+        if self.loessWindow != self._def_loessWindow:
             self.loessWindow = self._def_loessWindow
             chngN = True
-        if self.loessNumIter <> self._def_loessNumIter:
+        if self.loessNumIter != self._def_loessNumIter:
             self.loessNumIter = self._def_loessNumIter
             chngN = True
-        if self.includeNonControl <> self._def_includeNonControl:
+        if self.includeNonControl != self._def_includeNonControl:
             self.includeNonControl = self._def_includeNonControl
             chngN = True
-        if self.loessWeight <> self._def_loessWeight:
+        if self.loessWeight != self._def_loessWeight:
             self.loessWeight = self._def_loessWeight
             chngN = True
         # refresh
@@ -2074,6 +2125,7 @@ class OWGraphMA(OWGraph):
     def insertCurve(self, title, key, xAxis=QwtPlot.xBottom, yAxis=QwtPlot.yLeft):
         curve = QwtPlotKeyCurve(self, title, key)
         curve.setAxis(xAxis, yAxis)
+        print "Curve", title
         return OWGraph.insertCurve(self, curve)
 
     
@@ -2164,9 +2216,9 @@ class NormCurveDataDict(dict):
 
 
     def __setitem__(self, key, ncd):
-        if ncd.__class__.__name__ <> "NormCurveData":
+        if ncd.__class__.__name__ != "NormCurveData":
             raise ValueError, "instance of class NormCurveData expected, got %s" % ncd.__class__.__name__
-        if ncd.getKey() <> key:
+        if ncd.getKey() != key:
             raise ValueError, "key (%s) and ncd.key (%s) do not match" % (str(key), str(ncd.getKey()))
         dict.__setitem__(self, key, ncd)
 
@@ -2201,7 +2253,7 @@ class ProbeSet:
         self.ratioExpr = ""         # string from which ratio is evaluated
         # marker
         self.color = ProbeSet.NoColor       # QColor
-        self.symbol = QwtSymbol.None        # int (QwtSymbol.Style)
+        self.symbol = QwtSymbol.NoSymbol        # int (QwtSymbol.Style)
         # table, gaph
         self.tblRowIdx = None       # row index in OWNormalize.tblControls
         self.curveMAnonNorm = None           # curve in OWNormalize.graphMAnonNorm
@@ -2239,7 +2291,7 @@ class ProbeSet:
         # init pixmap for table item
         symbolPixmap = QPixmap(rect.width(),rect.height())
         symbolPixmap.fill(QColor(255,255,255))
-        if self.symbol <> QwtSymbol.None:
+        if self.symbol != QwtSymbol.NoSymbol:
             painter = QPainter(symbolPixmap)
             symbol = QwtSymbol(self.symbol, QBrush(self.color, QBrush.SolidPattern), QPen(QColor(0,0,0),1), QSize(8,8))
             symbol.draw(painter, QPoint(rect.width()/2,rect.height()/2))
@@ -2402,7 +2454,7 @@ class Probes(dict):
 
     def setFilterParameters(self, maxCV, minIntensityRatio, maxFGIntensity, maxBGIntensity):
         if D1 or D2 or D6: print "Probes.setFilterParameters"
-        if maxCV <> self.maxCV or minIntensityRatio <> self.minIntensityRatio or maxFGIntensity <> self.maxFGIntensity or maxBGIntensity <> self.maxBGIntensity:
+        if maxCV != self.maxCV or minIntensityRatio != self.minIntensityRatio or maxFGIntensity != self.maxFGIntensity or maxBGIntensity != self.maxBGIntensity:
             self.maxCV = maxCV                        
             self.minIntensityRatio = minIntensityRatio
             self.maxFGIntensity = maxFGIntensity
@@ -2423,11 +2475,11 @@ class Probes(dict):
         """
         if D1 or D2 or D6: print "Probes.setNormalizationParameters"
         change = False
-        if self._minNumControlProbes <> minNumControlProbes or normRange <> self._normRange:
+        if self._minNumControlProbes != minNumControlProbes or normRange != self._normRange:
             self._normRange = normRange
             self._minNumControlProbes = minNumControlProbes
             change = True
-        if self._approxFunctionDict[approxFunction] <> self._approxFunction or loessWindow <> self.loessWindow or loessNumIter <> self.loessNumIter or includeNonControl <> self.includeNonControl or loessWeight <> self.loessWeight:
+        if self._approxFunctionDict[approxFunction] != self._approxFunction or loessWindow != self.loessWindow or loessNumIter != self.loessNumIter or includeNonControl != self.includeNonControl or loessWeight != self.loessWeight:
             self._normRange = normRange
             self._approxFunction = self._approxFunctionDict[approxFunction]
             self.loessWindow = loessWindow
@@ -2453,7 +2505,7 @@ class Probes(dict):
 
     def setSubtrBG(self, subtrBG):
         if D1 or D2 or D6: print "Probes.setSubtrBG"
-        if self.subtrBG <> subtrBG:
+        if self.subtrBG != subtrBG:
             self.subtrBG = subtrBG
             self.isNormCurveUpToDate = False
             self._clearNormCurves(False)
@@ -2464,7 +2516,7 @@ class Probes(dict):
 
     def setPlotParameters(self, logAxisY, markerSize, normCurveStyle, refresh=True):
         if D1 or D2 or D6: print "Probes.setPlotParameters"
-        if self.logAxisY <> logAxisY or self.markerSize <> markerSize or self.normCurveStyle <> normCurveStyle:
+        if self.logAxisY != logAxisY or self.markerSize != markerSize or self.normCurveStyle != normCurveStyle:
             self.logAxisY = logAxisY
             self.markerSize = markerSize
             self.normCurveStyle = normCurveStyle
@@ -2490,7 +2542,7 @@ class Probes(dict):
         # add var 'pKey(varNameAvarNameB)' with string values from varNameA (+ varNameB)
         varPKey = orange.StringVariable("pKey(" + self.varNameA + self.varNameB + ")")
         domainNew.addmeta(orange.newmetaid(), varPKey)
-        if self.varNameB <> "<none>":
+        if self.varNameB != "<none>":
             varPKey.getValueFrom = lambda example, returnWhat: orange.Value(varPKey, str(example[self.varNameA].native()) + str(example[self.varNameB].native()))
         else:
             varPKey.getValueFrom = lambda example, returnWhat: orange.Value(varPKey, str(example[self.varNameA].native()))
@@ -2535,9 +2587,9 @@ class Probes(dict):
         if data:
             # keep only the variables that you need
             domVarList = [data.domain[varNameSignalSmpl], data.domain[varNameSignalRef], data.domain[varNameBGSmpl], data.domain[varNameBGRef]]
-            if varNameBGSmplSD <> "<none>":
+            if varNameBGSmplSD != "<none>":
                 domVarList.append(data.domain[varNameBGSmplSD])
-            if varNameBGRefSD <> "<none>":
+            if varNameBGRefSD != "<none>":
                 domVarList.append(data.domain[varNameBGRefSD])
             dom = orange.Domain(domVarList, None)
             data = orange.ExampleTable(dom, data)
@@ -2547,11 +2599,11 @@ class Probes(dict):
             self.__sigRef = dataMA[:,data.domain.index(varNameSignalRef)]
             self.__bgSmpl = dataMA[:,data.domain.index(varNameBGSmpl)]
             self.__bgRef = dataMA[:,data.domain.index(varNameBGRef)]
-            if varNameBGSmplSD <> "<none>":
+            if varNameBGSmplSD != "<none>":
                 self.__bgSmplSD = dataMA[:,data.domain.index(varNameBGSmplSD)]
             else:
                 self.__bgSmplSD = None
-            if varNameBGRefSD <> "<none>":
+            if varNameBGRefSD != "<none>":
                 self.__bgRefSD = dataMA[:,data.domain.index(varNameBGRefSD)]
             else:
                 self.__bgRefSD = None
@@ -2785,7 +2837,7 @@ class Probes(dict):
                 newRatioExpr = ""
             ratio = MA.masked
         # if self.__ratio different from ratio
-        if probe.ratioExpr <> newRatioExpr:
+        if probe.ratioExpr != newRatioExpr:
             probe.ratioExpr = newRatioExpr
             self.__ratio[probe.getDataIndices()] = ratio
             # 2008-06-02: update weights
@@ -2886,7 +2938,7 @@ class Probes(dict):
         if probe.curveMAnonNorm:
             self._removeProbeCurve(probe, False)
             change = True
-        if probe.symbol <> QwtSymbol.None:
+        if probe.symbol != QwtSymbol.NoSymbol:
             probe.curveMAnonNorm = self.graphMAnonNorm.insertCurve(probe.valA, probe.pKey)
             Numeric.put(self.__plotted, probe.getDataIndices(), 1)
             M,A = self.getMA(probe.pKey, True)
@@ -2905,7 +2957,7 @@ class Probes(dict):
         if probe.curveMAnorm:
             self._removeProbeCurveNorm(probe, False)
             change = True
-        if probe.symbol <> QwtSymbol.None:
+        if probe.symbol != QwtSymbol.NoSymbol:
             probe.curveMAnorm = self.graphMAnorm.insertCurve(probe.valA, probe.pKey)
             M,A = self.getMA(probe.pKey, True)
             # 2007-10-06 Numeric->numpy: PyQwt supports only Numeric, not numpy, therefore list() is used
@@ -2981,7 +3033,7 @@ class Probes(dict):
         self._clearNormCurves(False)
         if self.recomputeNormCurveOnChange or forceRecompute:
             self._Mnorm = MA.zeros(self.__sigSmpl.shape, Numeric.Float) * MA.masked
-            if self.__sigSmpl:
+            if self.__sigSmpl.any():
                 condColors = [QColor(0,0,0), QColor(0,0,255), QColor(0,255,0)]
                 # fill self._ncdd (NormCurveDataDict)
                 if self._normRange == Probes.NormRangeGlobal:
@@ -3038,6 +3090,7 @@ class Probes(dict):
                             Mplot = Numeric.asarray(MA.compress(cond_condTicks, Mn_masked))
                             ## 2007-10-06 Numeric->numpy: PyQwt supports only Numeric, not numpy, therefore list() is used
                             self.graphMAnonNorm.setCurveData(normCurveTicks, list(Numeric.take(Aplot, Aargsort, 0)), list(Numeric.take(Mplot, Aargsort, 0)))    # added 2008-01-22
+                            print "Curve data", list(Numeric.take(Aplot, Aargsort, 0)), list(Numeric.take(Mplot, Aargsort, 0))
                             pen = QPen(condColors[condIdx],ProbeSet.PenWidthInactiveCurve)
                             self.graphMAnonNorm.setCurvePen(normCurveTicks, pen)
                             self.graphMAnonNorm.setCurveStyle(normCurveTicks, QwtPlotCurve.NoCurve)
@@ -3135,7 +3188,7 @@ class Probes(dict):
 
     def _setProbeCurveActive(self, probe, active, refresh=True):
         if D1 or D3: print "Probes._setProbeCurveActive"
-        if probe.curveMAnonNorm <> None and active <> self._active.has_key(probe.pKey):
+        if probe.curveMAnonNorm is not None and active != self._active.has_key(probe.pKey):
             if active:
                 self._active[probe.pKey] = probe.pKey
             else:
@@ -3146,7 +3199,7 @@ class Probes(dict):
 
     def _setNormCurveActive(self, curveKey, active, refresh=True):
         if D1: print "Probes._setNormCurveActive"
-        if self._ncdd.has_key(curveKey) and self._ncdd[curveKey].curveList and active <> self._active.has_key(curveKey):
+        if self._ncdd.has_key(curveKey) and self._ncdd[curveKey].curveList and active != self._active.has_key(curveKey):
             for curve in self._ncdd[curveKey].curveList:
                 pen = self.graphMAnonNorm.curve(curve).pen() # curve is actually a long curve key
                 pen.setWidth(ProbeSet.PenWidths[active])
@@ -3182,9 +3235,9 @@ class Probes(dict):
 
     def _setFilterMaxCV(self):
         if D1 or D2 or D4: print "Probes._setFilterMaxCV"
-        if self.__sigSmpl:
+        if self.__sigSmpl.any():
             # maxCV: bgSD / sig <= self.maxCV
-            if self.__bgSmplSD <> None and self.__bgRefSD <> None:
+            if self.__bgSmplSD is not None and self.__bgRefSD is not None:
                 self.__filterMaxCV = MA.asarray(self.__bgSmplSD / self.__sigSmpl).filled(Probes.midVal) > self.maxCV
                 self.__filterMaxCV += MA.asarray(self.__bgRefSD / self.__sigRef).filled(Probes.midVal) > self.maxCV
                 # convert to 0/1
@@ -3194,7 +3247,7 @@ class Probes(dict):
 
     def _setFilterMinRatio(self):
         if D1 or D2 or D4: print "Probes._setFilterMinRatio"
-        if self.__sigSmpl:
+        if self.__sigSmpl.any():
             # minIntRatio: sig / bg >= self.max
             self.__filterMinRatio = MA.asarray(self.__sigSmpl < self.minIntensityRatio * self.__bgSmpl).filled(1)
             self.__filterMinRatio += MA.asarray(self.__sigRef < self.minIntensityRatio * self.__bgRef).filled(1)
@@ -3203,7 +3256,7 @@ class Probes(dict):
 
     def _setFilterMaxFGInt(self):
         if D1 or D2 or D4: print "Probes._setFilterMaxFGInt"
-        if self.__sigSmpl:
+        if self.__sigSmpl.any():
             # maxFGIntensity: sig <= maxFGIntensity
             self.__filterMaxFGInt = MA.asarray(self.__sigSmpl > self.maxFGIntensity).filled(1)
             self.__filterMaxFGInt += MA.asarray(self.__sigRef > self.maxFGIntensity).filled(1)
@@ -3212,7 +3265,7 @@ class Probes(dict):
 
     def _setFilterMaxBGInt(self):
         if D1 or D2 or D4: print "Probes._setFilterMaxBGInt"
-        if self.__bgSmpl:
+        if self.__bgSmpl.any():
             # maxBGIntensity: bg <= maxBGIntensity
             self.__filterMaxBGInt = MA.asarray(self.__bgSmpl > self.maxBGIntensity).filled(1)
             self.__filterMaxBGInt += MA.asarray(self.__bgRef > self.maxBGIntensity).filled(1)
@@ -3376,7 +3429,7 @@ class Probes(dict):
         if self.has_key(curveKey):
             probe = self.get(curveKey)
             out = "%s (%s)" % (str(probe.valA), str(probe.valAAlias))
-            if self.varNameB <> "<none>":
+            if self.varNameB != "<none>":
                 out += ", " + str(probe.valB)
             out += "\nSmpl (signal - bg = net) / Ref (signal - bg = net)\n"
             for ss,sr,bs,br in zip(self.sigSmpl(curveKey), self.sigRef(curveKey), self.bgSmpl(curveKey), self.bgRef(curveKey)):
@@ -3429,7 +3482,7 @@ class Probes(dict):
         # proceed if we have at least one control probe (we account for _minNumControlProbes in _getNormCurveName2Ind())
         if L2Rc.shape[0] >= 1:
             L2RnormCurve = self._approxFunction(A.compressed(), L2Rc, Ac, Wc, callback)
-            if L2RnormCurve <> None:
+            if L2RnormCurve is not None:
                 if self.logAxisY:
                     MnormCurve = L2RnormCurve
                 else:
