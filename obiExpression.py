@@ -370,4 +370,327 @@ def entropy(array, dim=None):
     array = ma.log(array) * array
     sum = ma.sum(array, dim)
     return (ma.log(n) - sum / n) / ma.log(2.0)
+
+"""\
+MA - Plot
+-------
+
+Functions for normalization of expression arrays and ploting
+MA - Plots
+"""
+
+from numpy import median
+def lowess(x, y, f=2./3., iter=3):
+    """ Lowess taken from Bio.Statistics.lowess
+     
+    lowess(x, y, f=2./3., iter=3) -> yest
+
+    Lowess smoother: Robust locally weighted regression.
+    The lowess function fits a nonparametric regression curve to a scatterplot.
+    The arrays x and y contain an equal number of elements; each pair
+    (x[i], y[i]) defines a data point in the scatterplot. The function returns
+    the estimated (smooth) values of y.
+
+    The smoothing span is given by f. A larger value for f will result in a
+    smoother curve. The number of robustifying iterations is given by iter. The
+    function will run faster with a smaller number of iterations.
+
+    x and y should be numpy float arrays of equal length.  The return value is
+    also a numpy float array of that length.
+
+    e.g.
+    >>> import numpy
+    >>> x = numpy.array([4,  4,  7,  7,  8,  9, 10, 10, 10, 11, 11, 12, 12, 12,
+    ...                 12, 13, 13, 13, 13, 14, 14, 14, 14, 15, 15, 15, 16, 16,
+    ...                 17, 17, 17, 18, 18, 18, 18, 19, 19, 19, 20, 20, 20, 20,
+    ...                 20, 22, 23, 24, 24, 24, 24, 25], numpy.float)
+    >>> y = numpy.array([2, 10,  4, 22, 16, 10, 18, 26, 34, 17, 28, 14, 20, 24,
+    ...                 28, 26, 34, 34, 46, 26, 36, 60, 80, 20, 26, 54, 32, 40,
+    ...                 28, 26, 34, 34, 46, 26, 36, 60, 80, 20, 26, 54, 32, 40,
+    ...                 32, 40, 50, 42, 56, 76, 84, 36, 46, 68, 32, 48, 52, 56,
+    ...                 64, 66, 54, 70, 92, 93, 120, 85], numpy.float)
+    >>> result = lowess(x, y)
+    >>> len(result)
+    50
+    >>> print "[%0.2f, ..., %0.2f]" % (result[0], result[-1])
+    [4.85, ..., 84.98]
+    """
+    n = len(x)
+    r = int(numpy.ceil(f*n))
+    
+    h = [numpy.sort(numpy.abs(x-x[i]))[r] for i in range(n)]
+#    h, xtmp = numpy.zeros_like(x), numpy.zeros_like(x)
+#    for i in range(n):
+#        xtmp = numpy.abs(x - x[i], xtmp)
+#        h[i] = numpy.sort(xtmp)[r]
+#    w = numpy.clip(numpy.abs(([x]-numpy.transpose([x]))/h),0.0,1.0)
+    dist = [x] - numpy.transpose([x])
+    dist = numpy.abs(dist, dist)
+    dist.sort(axis=1)
+    h = dist[:, r]
+    del dist
+
+    w = [x]-numpy.transpose([x])
+    w /= h
+    w = numpy.abs(w, w)
+    w = numpy.clip(w, 0.0, 1.0, w)
+#    w = 1-w*w*w
+    w **= 3
+    w *= -1
+    w += 1
+#    w = w*w*w
+    w **= 3
+    yest = numpy.zeros(n)
+    delta = numpy.ones(n)
+    for iteration in range(iter):
+        for i in xrange(n):
+            weights = delta * w[:,i]
+            weights_mul_x = weights * x
+            b1 = numpy.dot(weights,y)
+            b2 = numpy.dot(weights_mul_x,y)
+            A11 = sum(weights)
+            A12 = sum(weights_mul_x)
+            A21 = A12
+            A22 = numpy.dot(weights_mul_x,x)
+            determinant = A11*A22 - A12*A21
+            beta1 = (A22*b1-A12*b2) / determinant
+            beta2 = (A11*b2-A21*b1) / determinant
+            yest[i] = beta1 + beta2*x[i]
+        residuals = y-yest
+        s = median(abs(residuals))
+        delta[:] = numpy.clip(residuals/(6*s),-1,1)
+        delta[:] = 1-delta*delta
+        delta[:] = delta*delta
+    return yest
+
+
+
+def lowess2(x, y, xest, f=2./3., iter=3):
+    """Returns estimated values of y in data points xest (or None if estimation fails).
+    Lowess smoother: Robust locally weighted regression.
+    The lowess function fits a nonparametric regression curve to a scatterplot.
+    The arrays x and y contain an equal number of elements; each pair
+    (x[i], y[i]) defines a data point in the scatterplot. The function returns
+    the estimated (smooth) values of y.
+
+    The smoothing span is given by f. A larger value for f will result in a
+    smoother curve. The number of robustifying iterations is given by iter. The
+    function will run faster with a smaller number of iterations.
+    
+    Taken from Peter Juvan's numpyExtn.py, modified for numpy"""
+    x = numpy.asarray(x, 'f')
+    y = numpy.asarray(y, 'f')
+    xest = numpy.asarray(xest, 'f')
+    n = len(x)
+    nest = len(xest)
+    r = min(int(numpy.ceil(f*n)),n-1) # radius: num. of points to take into LR
+#    h = [numpy.sort(numpy.abs(x-x[i]))[r] for i in range(n)]    # distance of the r-th point from x[i]
+    dist = [x] - numpy.transpose([x])
+    dist = numpy.abs(dist, dist)
+    dist.sort(axis=1)
+    h = dist[:, r]
+    del dist # to free memory
+    w = [x] - numpy.transpose([x])
+    w = numpy.abs(w, w)
+    w = numpy.clip(w, 0.0, 1.0, w)
+#    w = numpy.clip(numpy.abs(([x]-numpy.transpose([x]))/h),0.0,1.0)
+    w **= 3
+    w *= -1
+    w += 1
+#    w = 1 - w**3 #1-w*w*w
+    w **= 3
+#    w = w**3 #w*w*w
+#    hest = [numpy.sort(numpy.abs(x-xest[i]))[r] for i in range(nest)]    # r-th min. distance from xest[i] to x
+    dist = [x] - numpy.transpose([xest])
+    dist = numpy.abs(dist, dist)
+    dist.sort(axis=1)
+    hest = dist[:, r]
+    del dist # to free memory
+#    west = numpy.clip(numpy.abs(([xest]-numpy.transpose([x]))/hest),0.0,1.0)  # shape: (len(x), len(xest)
+    west = [xest]-numpy.transpose([x])
+    west = numpy.abs(west, west)
+    west = numpy.clip(west, 0.0, 1.0, west)
+#    west = 1 - west**3 #1-west*west*west
+    west **= 3
+    west *= -1
+    west += 1
+#    west = west**3 #west*west*west
+    west **= 3
+    yest = numpy.zeros(n,'f')
+    yest2 = numpy.zeros(nest,'f')
+    delta = numpy.ones(n,'f')
+    for iteration in range(iter):
+        # fit xest
+        for i in range(nest):
+            weights = delta * west[:,i]
+            b = numpy.array([numpy.sum(weights*y), numpy.sum(weights*y*x)])
+            A = numpy.array([[numpy.sum(weights), numpy.sum(weights*x)], [numpy.sum(weights*x), numpy.sum(weights*x*x)]])
+            beta = numpy.linalg.solve(A, b)
+            yest2[i] = beta[0] + beta[1]*xest[i]
+        # fit x (to calculate residuals and delta)
+        if iter > 1:
+            for i in range(n):
+                weights = delta * w[:,i]
+                b = numpy.array([numpy.sum(weights*y), numpy.sum(weights*y*x)])
+                A = numpy.array([[numpy.sum(weights), numpy.sum(weights*x)], [numpy.sum(weights*x), numpy.sum(weights*x*x)]])
+                beta = numpy.linalg.solve(A,b)
+                yest[i] = beta[0] + beta[1]*x[i]
+            residuals = y-yest
+            s = numpy.median(numpy.abs(residuals))
+            delta = numpy.clip(residuals/(6*s), -1, 1)
+            delta = 1-delta*delta
+            delta = delta*delta
+    return yest2
+
+
+def attr_group_indices(data, label_groups):
+    """ Return a two or more lists of indices into data.domain based on label_groups
+    
+    Example::
+        cancer_indices, no_cancer_indices = attr_group_indices(data, [("disease state", "cancer"), ("disease state", "normal")])
+    """
+    ret = []
+    for key, val in label_groups:
+        ind = [i for i, attr in enumerate(data.domain.attributes) if attr.attributes.get(key, None) == val]
+        ret.append(ind)
+    return ret
+    
+def data_group_split(data, label_groups):
+    """ Split an `data` example table into two or more based on contents of iterable 
+    `label_groups` containing (key, value) pairs matching the labels of data attributes
+    
+    Example::
+        cancer, no_cancer = data_group_split(data, [("disease state", "cancer"), ("disease state", "normal")])
+    """
+    ret = []
+    group_indices = attr_group_indices(data, label_groups)
+    for indices in group_indices:
+        attrs = [data.domain[i] for i in indices]
+        domain = orange.Domain(attrs, data.domain.classVar)
+        domain.addmetas(data.domain.getmetas())
+        ret.append(orange.ExampleTable(domain, data))
+    return ret
+    
+
+def merge_replicates(replicates, axis=0, merge_function=numpy.ma.average):
+    """ Merge `replicates` (numpy.array) along `axis` using `merge_function`
+    """
+    return numpy.apply_along_axis(merge_function, axis, replicates)
+
+def ratio_intensity(G, R):
+    """ return the log2(R/G), log10(R*G) as a tuple
+    """
+    log2Ratio = numpy.ma.log(R/G) / numpy.log(2)
+    log10Intensity = numpy.ma.log10(R*G)
+    return log2Ratio, log10Intensity
+
+def MA_center_average(G, R):
+    """ return the G, R by centering the average log2 ratio
+    """
+    center_est = numpy.ma.average(numpy.ma.log(R/G) / numpy.log(2))
+    G = G * numpy.exp2(center_est)
+    return G, R.copy()
+
+def MA_center_lowess(G, R, f=0.1, iter=1):
+    """ return the G, R by centering the average log2 ratio locally
+    depending on the intensity using lowess (locally weighted linear regression)
+    """
+#    from Bio.Statistics.lowess import lowess
+    ratio, intensity = ratio_intensity(G, R)
+    center_est = lowess(intensity, ratio, f=f, iter=iter)
+    G = G * numpy.exp2(center_est)
+    return G, R.copy()
+
+def MA_center_lowess_fast(G, R, f=0.1, iter=1, resolution=100):
+    """return the G, R by centering the average log2 ratio locally
+    depending on the intensity using lowess (locally weighted linear regression),
+    appriximated only in a limited resolution.
+    """
+    
+    ratio, intensity = ratio_intensity(G, R)
+    resoluiton = min(resolution, len(intensity))
+    hist, edges = numpy.histogram(intensity, len(intensity)/resolution)
+    centered = lowess2(intensity, ratio, edges, f, iter)
+
+    centered = lowess2(edges, centered, intensity, f, iter)
+    Gc = G * numpy.exp2(centered)
+    return Gc, R.copy()
+
+def MA_plot(G, R, format="b."):
+    """ Plot G, R on a MA-plot using matplotlib
+    """
+    import matplotlib.pyplot as plt
+    ratio, intensity = ratio_intensity(G, R)
+    plt.plot(intensity, ratio, format)
+    plt.ylabel('M = log2(R/G')
+    plt.xlabel('A = log10(R*G)')
+
+def normalize_expression_data(data, label_groups, merge_function=numpy.ma.average, center_function=MA_center_lowess_fast):
+    """ A helper function that normalizes expression array example table, by centering the MA plot.
+    
+    """
+    if isinstance(data, orange.ExampleTable):
+        label_groups = attr_group_indices(data, label_groups)
+        array, _, _ = data.toNumpyMA()
+    
+    merged = []
+    for indices in label_groups:
+        replicates = numpy.take(array, indices, axis=1)
+        merged.append(merge_replicates(replicates, axis=1, merge_function=merge_function))
+        
+    ind1, ind2 = label_groups
+    G, R = merged
+    Gc, Rc = center_function(G, R)
+    
+    domain = orange.Domain(data.domain.attributes, data.domain.classVar)
+    domain.addmetas(data.domain.getmetas())
+    data = orange.ExampleTable(domain, data)
+    
+    GFactors = Gc/G
+    
+    for ex, gf in zip(data, GFactors):
+        for i in ind1:
+            if not ex[i].isSpecial():
+                ex[i] = float(ex[i]) * gf
+    return data
+    
+    
+def MA_zscore(G, R, window=1./5., padded=False):
+    """ Return the Z-score of log2 fold ratio estimated from local
+    distribution of log2 fold ratio values on the MA-plot
+    """
+    ratio, intensity = ratio_intensity(G, R)
+    
+    z_scores = numpy.ma.zeros(G.shape)
+    sorted = list(numpy.ma.argsort(intensity))
+    import math, random
+    r = int(math.ceil(len(sorted)*window)) # number of window elements
+    def local_indices(i, sorted):
+        """ local indices in sorted (mirror padded if out of bounds)
+        """
+        start, end = i - r/2, i + r/2 + r%2
+        pad_start , pad_end = [], []
+        if start < 0:
+            pad_start = sorted[:abs(start)]
+            random.shuffle(pad_start)
+            start = 0
+        if end > len(sorted):
+            pad_end = sorted[end - len(sorted):]
+            random.shuffle(pad_end)
+            end = len(sorted)
+        
+        if padded:
+            return pad_start + sorted[start: end] + pad_end
+        else:
+            return sorted[start:end]
+    
+    for i in range(len(sorted)):
+        indices = local_indices(i, sorted)
+        localRatio = numpy.take(ratio, indices)
+        local_std = numpy.ma.std(localRatio)
+        ind = sorted[i]
+        z_scores[ind] = ratio[ind] / local_std
+        
+    z_scores._mask = - numpy.isfinite(z_scores)
+    return z_scores
     
