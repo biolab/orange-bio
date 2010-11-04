@@ -23,41 +23,56 @@ class QtAsyncCall(QObject):
             self.moveToThread(thread)
                 
         self.connect(self, SIGNAL("_async_start()"), self.execute, Qt.QueuedConnection)
-        
+    
+      
     @pyqtSignature("execute()")
     def execute(self):
         """ Never call directly
         """
+        self.emit(SIGNAL("starting()"))
         try:
             self.result  = self.func(*self._args, **self._kwargs)
         except Exception, ex:
-            print >> sys.stderr, "Exception in thread ", QThread.currentThread(), " while calling ", self.callable 
+            print >> sys.stderr, "Exception in thread ", QThread.currentThread(), " while calling ", self.func
+#            import traceback, StringIO
+#            io = StringIO.StringIO()
+#            ex_type, ex_value, tb = sys.exc_info()
+#            traceback.print_exception(ex_type, ex_value, tb, file=sys.stdout)
+            
+#            print >> sys.stderr, io.getvalue() 
             self.emit(SIGNAL("finished(QString)"), QString(repr(ex)))
-            self.emit(SIGNAL("unhandledException(PyQt_PyObject)"), ex)
+            self.emit(SIGNAL("unhandledException(PyQt_PyObject)"), sys.exc_info())
+            
             self._status = 1
             return
             
         self.emit(SIGNAL("finished(QString)"), QString("Ok"))
         self.emit(SIGNAL("resultReady(PyQt_PyObject)"), self.result)
         self._status = 0
+    
         
     def __call__(self, *args, **kwargs):
         self.apply_async(self.func, args, kwargs)
     
+    
     def apply_async(self, func, args, kwargs):
         self._args, self._kwargs = args, kwargs
         self.emit(SIGNAL("_async_start()"))
+    
         
     def poll(self):
         return getattr(self, "_status", None)
+    
     
 class WorkerThread(QThread):
     def run(self):
         self.exec_()
         
+        
 class OWMAPlot(OWWidget):
     settingsList = []
-    contextHandlers = {"": DomainContextHandler("", [])}
+    contextHandlers = {"": DomainContextHandler("", ["selectedGroup", "selectedCenterMethod",
+                                                     "selectedMergeMethod", "zCutoff"])}
     
     CENTER_METHODS = [("Average", obiExpression.MA_center_average),
                       ("Lowess (fast - interpolated)", obiExpression.MA_center_lowess_fast),
@@ -141,37 +156,53 @@ class OWMAPlot(OWWidget):
         self.myThread = WorkerThread()
         self.myThread.start()
         self.__thread = self.thread()
+    
         
     def createTask(self, call, args=(), kwargs={}, onResult=None):
         async = QtAsyncCall(call, self.myThread)
-        self.connect(async, SIGNAL("resultReady(PyQt_PyObject)"), onResult)
-        self.connect(async, SIGNAL("finished(QString)"), self.onFinished)
-        self.connect(async, SIGNAL("unhandledException(PyQt_PyObject)"), self.onUnhandledException)
+        self.connect(async, SIGNAL("resultReady(PyQt_PyObject)"), onResult, Qt.QueuedConnection)
+        self.connect(async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
+        self.connect(async, SIGNAL("unhandledException(PyQt_PyObject)"), self.onUnhandledException, Qt.QueuedConnection)
         async(*args, **kwargs)
+        self.setEnabled(False)
         return async
+    
         
     def onFinished(self, status):
-        pass
+        self.setEnabled(True)
     
-    def onUnhandledException(self, ex):
-        import traceback
-        traceback.print_exception(type(ex), ex.message)
+    
+    def onUnhandledException(self, ex_info):
+        print >> sys.stderr, "Unhandled exception in non GUI thread"
+#        print >> sys.stderr, repr(ex)
+#        traceback.print_exception(*ex_info, file=sys.stdout)
+        ex_type, ex_val, tb = ex_info
+        if ex_type == numpy.linalg.LinAlgError:
+            self.error(0, "Linear algebra error: %s" % repr(ex_val))
+        else:
+            sys.excepthook(*ex_info)
+    
     
     def onGroupSelection(self):
         self.splitData()
         self.runNormalization()
         
+        
     def onCenterMethodChange(self):
         self.runNormalization()
+        
         
     def onMergeMethodChange(self):
         self.splitData()
         self.runNormalization()
         
+        
     def setData(self, data):
         self.closeContext("")
         self.data = data
+        self.error(0)
         if data is not None:
+            self.infoBox.setText("%i genes on input" % len(data))
             groups = [attr.attributes.keys() for attr in data.domain.attributes]
             self.groups = sorted(reduce(set.union, groups, set()))
             all_labels = [attr.attributes.items() for attr in data.domain.attributes]
@@ -185,10 +216,12 @@ class OWMAPlot(OWWidget):
         else:
             self.clear()
         
+        
     def clear(self):
         self.groups = []
         self.split_data = None, None
         self.merged_splits = None, None
+        
         
     def getLabelGroups(self):
         group = self.groups[self.selectedGroup]
@@ -199,10 +232,12 @@ class OWMAPlot(OWWidget):
         label1, label2 = labels
         return [(group, label1), (group, label2)]
         
+        
     def splitData(self):
         label_groups = self.getLabelGroups()
         self.split_ind = obiExpression.attr_group_indices(self.data, label_groups)
         self.split_data = obiExpression.data_group_split(self.data, label_groups)
+        
         
     def getMerged(self):
         split1, split2 = self.split_data
@@ -241,6 +276,7 @@ class OWMAPlot(OWWidget):
         
     def runNormalizationAsync(self):
         self.setEnabled(False)
+        self.error(0)
         self.progressBarInit()
         self.progressBarSet(0.0)
         G, R = self.getMerged()
@@ -276,6 +312,7 @@ class OWMAPlot(OWWidget):
     ## comment out this line if threading creates any problems 
     runNormalization = runNormalizationAsync
     
+    
     def plotMA(self, G, R, z_scores, z_cuttof):
         ratio, intensity = obiExpression.ratio_intensity(G, R)
         
@@ -306,15 +343,18 @@ class OWMAPlot(OWWidget):
         
         self.graph.replot()
         
+        
     def replotMA(self):
         Gc, Rc = self.centered
         self.plotMA(Gc, Rc, self.z_scores, self.zCutoff)
+        
         
     def commitIf(self):
         if self.autoCommit and self.changedFlag:
             self.commit()
         else:
             self.changedFlag = True
+            
             
     def commit(self):
         G, R = self.merged_splits
@@ -348,10 +388,12 @@ class OWMAPlot(OWWidget):
         self.send("Normalized expression array", data)
         self.send("Filtered expression array", filtered_data)
         
+        
     def saveGraph(self):
         from OWDlgs import OWChooseImageSizeDlg
         dlg = OWChooseImageSizeDlg(self.graph, parent=self)
         dlg.exec_()
+        
         
 if __name__ == "__main__":
     app = QApplication(sys.argv)
