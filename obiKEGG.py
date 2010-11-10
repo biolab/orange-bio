@@ -457,7 +457,7 @@ class KEGGGenome(KEGGDataBase):
         def match(entry, string):
             rel = 0
             if string in entry.entrytext:
-                weight_f = [(entry.definition, 2), (entry.name, 4), (entry.taxonomy, 8), (entry.entry_key(), 16)]
+                weight_f = [(entry.definition or "", 2), (entry.name or "", 4), (entry.taxonomy or "", 8), (entry.entry_key(), 16)]
                 rel += 1 + sum([w for text, w in weight_f if string in text]) + (16 if entry.entry_key() in self.common_organisms() else 0)
             return rel
         matched = sorted(zip([match(entry, string) for entry in self.entrys], self.entrys), reverse=True)
@@ -1031,8 +1031,10 @@ def organisms():
 def to_taxid(name):
     genome = KEGGGenome()
     names = genome.search(name)
-    
-    return re.findall(r"TAX:(\d+)", genome[names[0]].taxonomy)[0]
+    if genome[names[0]].taxonomy:
+        return re.findall(r"TAX:\s*(\d+)", genome[names[0]].taxonomy)[0]
+    else:
+        return None #Should this raise an error?
 
 def from_taxid(taxid):
     return KEGGGenome().search(taxid)[0]
