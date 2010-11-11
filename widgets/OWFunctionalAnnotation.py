@@ -19,8 +19,20 @@ from collections import defaultdict
 
 from OWGUI import LinkStyledItemDelegate, LinkRole
 from OWGUI import BarItemDelegate
-        
 
+
+class MyTreeWidget(QTreeWidget):
+    def paintEvent(self, event):
+        QTreeWidget.paintEvent(self, event)
+        if getattr(self, "_userMessage", None):
+            painter = QPainter(self.viewport())
+            font = QFont(self.font())
+            font.setPointSize(15)
+            painter.setFont(font)
+            painter.drawText(self.viewport().geometry(), Qt.AlignCenter, self._userMessage)
+            painter.end()
+            
+            
 class OWFunctionalAnnotation(OWWidget):
     settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
     contextHandlers = {"":DomainContextHandler("", ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
@@ -49,7 +61,8 @@ class OWFunctionalAnnotation(OWWidget):
         self.signalManager.setFreeze(1)
         QTimer.singleShot(50, self.updateHierarchy)
         
-        self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "Info")
+        box = OWGUI.widgetBox(self.controlArea, "Info")
+        self.infoBox = OWGUI.widgetLabel(box, "Info")
         self.infoBox.setText("No data on input")
         
         self.speciesComboBox = OWGUI.comboBox(self.controlArea, self, "speciesIndex", "Species", callback=lambda :self.data and self.updateAnnotations(), debuggingEnabled=0)
@@ -95,7 +108,7 @@ class OWFunctionalAnnotation(OWWidget):
         
         self.connect(self.filterLineEdit, SIGNAL("textChanged(QString)"), self.filterAnnotationsChartView)
         
-        self.annotationsChartView = QTreeWidget(self)
+        self.annotationsChartView = MyTreeWidget(self)
         self.annotationsChartView.setHeaderLabels(["Category", "Term", "Count", "Reference count", "P-Value", "Enrichment"])
         self.annotationsChartView.setAlternatingRowColors(True)
         self.annotationsChartView.setSortingEnabled(True)
@@ -121,6 +134,8 @@ class OWFunctionalAnnotation(OWWidget):
         self.treeItems = []
         
         self.resize(1024, 600)
+        
+        self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.onStateChange)
         
     def updateHierarchy(self):
         try:
@@ -345,7 +360,7 @@ class OWFunctionalAnnotation(OWWidget):
 #        results = [(geneset, self.enrichment(geneset, clusterGenes, referenceGenes, cache=cache)) for geneset in collections]
         fmt = lambda score, max_decimals=10: "%%.%if" % min(int(abs(math.log(max(score, 1e-10)))) + 2, max_decimals) if score > math.pow(10, -max_decimals) and score < 1 else "%.1f"
         self.annotationsChartView.clear()
-        
+            
         self.filterCompleter.setModel(None)
         linkFont = QFont(self.annotationsChartView.viewOptions().font)
         linkFont.setUnderline(True)
@@ -368,6 +383,10 @@ class OWFunctionalAnnotation(OWWidget):
 #                    link='<a href="%s"> %s</a>' % (geneset.link, geneset.name)
 #                    self.annotationsChartView.setItemWidget(item, 1, QLabel(link, self))
 #                    item.setData(1, Qt.DisplayRole, QVariant(""))
+        if not self.treeItems:
+            self.warning(0, "No enriched sets found.")
+        else:
+            self.warning(0)
                 
         replace = lambda s:s.replace(",", " ").replace("(", " ").replace(")", " ")
         self._completerModel = completerModel = QStringListModel(sorted(reduce(set.union, [[geneset.name] + replace(geneset.name).split() for geneset, (c, _, _, _) in results if c], set())))
@@ -392,11 +411,21 @@ class OWFunctionalAnnotation(OWWidget):
         categories = set(" ".join(cat) for cat, taxid in self.selectedCategories())
 #        print categories
         filterString = str(self.filterLineEdit.text()).lower()
+        itemsHidden = []
         for item in self.treeItems:
             item_cat = str(item.data(0, Qt.EditRole).toString())
             (count, _), (pval, _) = item.data(2, Qt.EditRole).toInt(), item.data(4, Qt.EditRole).toDouble()
             geneset = item.geneset.name.lower()
-            item.setHidden(item_cat not in categories or (self.useMinCountFilter and count < self.minClusterCount) or (self.useMaxPValFilter and pval > self.maxPValue) or filterString not in geneset)
+            hidden = item_cat not in categories or (self.useMinCountFilter and count < self.minClusterCount) or \
+                     (self.useMaxPValFilter and pval > self.maxPValue) or filterString not in geneset
+            item.setHidden(hidden)
+            itemsHidden.append(hidden)
+            
+        if self.treeItems and all(itemsHidden):
+            self.information(0, "All sets were filtered out.")
+        else:
+            self.information(0)
+            
         
     def commit(self):
         selected = self.annotationsChartView.selectedItems()
@@ -430,6 +459,13 @@ class OWFunctionalAnnotation(OWWidget):
     
         self.reportSubsection("Annotations")
         self.reportRaw(reportItemView(self.annotationsChartView))
+        
+    def onStateChange(self, stateType, id, text):
+        if stateType == "Warning" or stateType == "Info":
+            self.annotationsChartView._userMessage = text
+            self.annotationsChartView.viewport().update()
+        
+        
         
 def reportItemView(view):
     model = view.model()

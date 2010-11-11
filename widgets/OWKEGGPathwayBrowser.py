@@ -136,6 +136,8 @@ class PathwayView(QGraphicsView):
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
         
+        self.setFocusPolicy(Qt.WheelFocus)
+        
     def SetPathway(self, pathway=None, objects=[]):
         self.scene().clear()
         self.pathway = pathway
@@ -153,6 +155,16 @@ class PathwayView(QGraphicsView):
             self.fitInView(self.scene().sceneRect().adjusted(-1, -1, 1, 1), Qt.KeepAspectRatio)
         else:
             self.setTransform(QTransform())
+            
+    def paintEvent(self, event):
+        QGraphicsView.paintEvent(self, event)
+        if getattr(self, "_userMessage", None):
+            painter = QPainter(self.viewport())
+            font = QFont(self.font())
+            font.setPointSize(15)
+            painter.setFont(font)
+            painter.drawText(self.viewport().geometry(), Qt.AlignCenter, self._userMessage)
+            painter.end()
         
     
 class OWKEGGPathwayBrowser(OWWidget):
@@ -176,7 +188,8 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
-        self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info"), "No data on input\n")
+        box = OWGUI.widgetBox(self.controlArea, "Info")
+        self.infoLabel = OWGUI.widgetLabel(box, "No data on input\n")
         
         self.allOrganismCodes = {} 
 
@@ -236,6 +249,8 @@ class OWKEGGPathwayBrowser(OWWidget):
         
         self.resize(800, 600)
         
+        self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.onStateChange)
+        
     def UpdateOrganismComboBox(self):
         try:
             self.progressBarInit()
@@ -259,8 +274,13 @@ class OWKEGGPathwayBrowser(OWWidget):
 
         
     def SetData(self, data=None):
+        if not self.organismCodes: ## delay this call until we retrieve organism codes from the server files 
+            QTimer.singleShot(200, lambda: self.SetData(data))
+            return
+
         self.closeContext()
         self.data = data
+        self.warning(0)
         if data:
             self.SetGeneAttrCombo()
             taxid = data_hints.get_hint(data, "taxid", None)
@@ -285,7 +305,7 @@ class OWKEGGPathwayBrowser(OWWidget):
 
     def SetRefData(self, data=None):
         self.refData = data
-        if self.useReference and self.data:
+        if self.useReference and self.data and self.organismCodes:
             self.Update()
 
     def UseAttrNamesCallback(self):
@@ -314,6 +334,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             pb.finish()
             
     def UpdateListView(self):
+        self.bestPValueItem = None
         self.listView.clear()
         if not self.data:
             return
@@ -379,21 +400,26 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.listView.expandAll()
         for i in range(4):
             self.listView.resizeColumnToContents(i)
+            
+        if self.bestPValueItem:
+            self.listView.selectionModel().select(self.listView.indexFromItem(self.bestPValueItem), QItemSelectionModel.ClearAndSelect)
 
     def UpdatePathwayView(self):
         items = self.listView.selectedItems()
         
         if len(items) > 0:
             item = items[0]
+        else:
+            item = None
             
-            self.selectedObjects = defaultdict(list)
-            self.Commit()
-            item = item or self.bestPValueItem
-            if not item or not item.pathway_id:
-                self.pathwayView.SetPathway(None)
-                return
-            self.pathway = obiKEGG.KEGGPathway(item.pathway_id)
-            self.pathwayView.SetPathway(self.pathway, self.pathways.get(item.pathway_id, [[]])[0])
+        self.selectedObjects = defaultdict(list)
+        self.Commit()
+        item = item or self.bestPValueItem
+        if not item or not item.pathway_id:
+            self.pathwayView.SetPathway(None)
+            return
+        self.pathway = obiKEGG.KEGGPathway(item.pathway_id)
+        self.pathwayView.SetPathway(self.pathway, self.pathways.get(item.pathway_id, [[]])[0])
             
             
     def Update(self):
@@ -444,6 +470,11 @@ class OWKEGGPathwayBrowser(OWWidget):
 #        self.progressBarInit()
 #        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
         self.pathways = self.org.get_enriched_pathways(self.genes, reference, callback=lambda value: pb.advance()) #self.progressBarSet)
+        if not self.pathways:
+            self.warning(0, "No enriched pathways found.")
+        else:
+            self.warning(0)
+            
 #        self.progressBarFinished()
         self.UpdateListView()
         pb.finish()
@@ -522,6 +553,12 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.ctrlPressed=False
         else:
             OWWidget.keyReleaseEvent(self, key)
+            
+    def onStateChange(self, stateType, id, text):
+        if stateType == "Warning":
+            self.pathwayView._userMessage = text
+            self.pathwayView.viewport().update()
+            
 
 if __name__=="__main__":
     app = QApplication(sys.argv)

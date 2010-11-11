@@ -70,6 +70,16 @@ class GOTreeWidget(QTreeWidget):
     def BrowserAction(self, term):
         import webbrowser
         webbrowser.open("http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term="+term)
+        
+    def paintEvent(self, event):
+        QTreeWidget.paintEvent(self, event)
+        if getattr(self, "_userMessage", None):
+            painter = QPainter(self.viewport())
+            font = QFont(self.font())
+            font.setPointSize(15)
+            painter.setFont(font)
+            painter.drawText(self.viewport().geometry(), Qt.AlignCenter, self._userMessage)
+            painter.end()
 
 class OWGOEnrichmentAnalysis(OWWidget):
     settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex", "geneMatcherSettings",
@@ -126,6 +136,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.inputTab = OWGUI.createTabPage(self.tabs, "Input")
         box = OWGUI.widgetBox(self.inputTab, "Info")
         self.infoLabel = OWGUI.widgetLabel(box, "No data on input\n")
+        
         OWGUI.button(box, self, "Ontology/Annotation Info", callback=self.ShowInfo, tooltip="Show information on loaded ontology and annotations", debuggingEnabled=0)
         box = OWGUI.widgetBox(self.inputTab, "Organism", addSpace=True)
         self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.Update, tooltip="Select organism", debuggingEnabled=0)
@@ -224,6 +235,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.treeStructRootKey = None
         self.probFunctions = [obiProb.Binomial(), obiProb.Hypergeometric()]
         self.selectedTerms = []
+        
+        self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.onStateChanged)
         
     def UpdateOrganismComboBox(self):
         try:
@@ -374,6 +387,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.Update()
         else:
             self.infoLabel.setText("No data on input\n")
+            self.warning(0)
+            self.warning(1)
             self.openContext("", None)
             self.ClearGraph()
             self.send("Selected Examples", None)
@@ -507,6 +522,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if isinstance(self.annotations.genematcher, obiGene.GMDirect):
             self.SetGeneMatcher()
         self.error(1)
+        self.warning([0, 1])
         try:    
             if self.useAttrNames:
                 clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
@@ -582,7 +598,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         else:
             self.terms = terms = {}
         if not self.terms:
-            self.warning(0, "No terms found")
+            self.warning(0, "No enriched terms found.")
         else:
             self.warning(0)
 #        self.progressBarFinished()
@@ -608,6 +624,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def FilterAndDisplayGraph(self):
         if self.clusterDataset:
             self.graph = self.FilterGraph(self.originalGraph)
+            if self.originalGraph and not self.graph:
+                self.warning(1, "All found terms were filtered out.")
+            else:
+                self.warning(1)
             self.ClearGraph()
             self.DisplayGraph()
 
@@ -834,6 +854,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
         self.reportSection("Enriched Terms in the Ontology Tree")
         self.reportRaw(treeText)
+        
+    def onStateChanged(self, stateType, id, text):
+        if stateType == "Warning":
+            self.listView._userMessage = text
+            self.listView.viewport().update()
 
 class GOTreeWidgetItem(QTreeWidgetItem):
     def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes, maxFoldEnrichment, parent):
