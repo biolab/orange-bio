@@ -60,6 +60,8 @@ class AsyncFunc(QObject):
         
     def poll(self):
         return getattr(self, "_status", None)
+    
+import OWConcurrent
                 
 def is_hidden(tree):
     return getattr(tree, "hidden", "false") != "false" or getattr(tree, "hideDisplay", "false") != "false"
@@ -520,7 +522,7 @@ class OWBioMartConfigurationPage(OWBioMartConfigurationControl):
 class OWBioMart(OWWidget):
     SHOW_FILTERS = False
     
-    settingsList = ["selectedDatasets"]
+    settingsList = ["selectedDataset"]
     def __init__(self, parent=None, signalManager=None, title="Bio Mart"):
         OWWidget.__init__(self, parent, signalManager, title)
         
@@ -547,7 +549,7 @@ class OWBioMart(OWWidget):
         self.attributesConfigurationBox = OWGUI.createTabPage(self.mainTab, "Attributes", canScroll=True)
         self.filtersConfigurationBox = OWGUI.createTabPage(self.mainTab, "Filters", canScroll=True)
 
-        self.myThread = WorkerThread()
+        self.myThread = OWConcurrent.WorkerThread()
         self.myThread.start()
         
         self.__thread = self.thread() # For assert(QThread.currentThread() is self.thread()) to work
@@ -555,13 +557,18 @@ class OWBioMart(OWWidget):
         self.connect(self.myThread, SIGNAL("started()"), lambda :sys.stderr.write("Thread started\n"))
         self.connect(self.myThread, SIGNAL("finished()"), lambda :sys.stderr.write("Thread finished\n"))
         
-        self.get_registry_async = AsyncFunc(self._get_registry, thread=self.myThread)
-        self.connect(self.get_registry_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
-        self.connect(self.get_registry_async, SIGNAL("resultReady(PyQt_PyObject)"), self.setBioMartRegistry, Qt.QueuedConnection)
+        self.setEnabled(False)
+#        self.get_registry_async = AsyncFunc(self._get_registry, thread=self.myThread)
+        self.get_registry_async = OWConcurrent.createTask(self._get_registry,
+                                      onResult=self.setBioMartRegistry,
+                                      onFinished=self.onFinished,
+                                      thread=self.myThread)
+#        self.connect(self.get_registry_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
+#        self.connect(self.get_registry_async, SIGNAL("resultReady(PyQt_PyObject)"), self.setBioMartRegistry, Qt.QueuedConnection)
         
         self.resize(600, 400)
         
-        self.get_registry_async()
+#        self.get_registry_async()
         
     @staticmethod
     def _get_registry(url=None, precache=True):
@@ -575,12 +582,12 @@ class OWBioMart(OWWidget):
     def onFinished(self, status):
         assert(QThread.currentThread() is self.thread())
         if str(status).lower() != "ok":
-            print "AsyncFunc failed with message:", status
+            print "AsyncCall failed with message:", status
+        self.setEnabled(True)
             
     @pyqtSignature("setBioMartRegistry(PyQt_PyObject)")
     def setBioMartRegistry(self, registry):
         assert(QThread.currentThread() is self.thread())
-#        print "setBioMartRegistry", QThread.currentThread(), qApp.thread(), self.thread()
         self.registry = registry
         self.marts = [mart for mart in self.registry.marts() if getattr(mart, "visible", "0") != "0"]
         last, _ = self.lastSelectedDatasets 
@@ -589,42 +596,49 @@ class OWBioMart(OWWidget):
             
     def setSelectedMart(self):
         self.mart = self.marts[self.selectedDatabase]
-        
-        self.get_datasets_async = AsyncFunc(self.mart.datasets, thread=self.myThread)
-        self.connect(self.get_datasets_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
-        self.connect(self.get_datasets_async, SIGNAL("resultReady(PyQt_PyObject)"), self.setBioMartDatasets, Qt.QueuedConnection)
-
-        self.get_datasets_async()
+        self.setEnabled(False)
+#        self.get_datasets_async = AsyncFunc(self.mart.datasets, thread=self.myThread)
+        self.get_datasets_async = OWConcurrent.createTask(self.mart.datasets,
+                                    onResult=self.setBioMartDatasets,
+                                    onFinished=self.onFinished,
+                                    thread=self.myThread)
+#        self.connect(self.get_datasets_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
+#        self.connect(self.get_datasets_async, SIGNAL("resultReady(PyQt_PyObject)"), self.setBioMartDatasets, Qt.QueuedConnection)
+#
+#        self.get_datasets_async()
 
     @pyqtSignature("setBioMartDatasets(PyQt_PyObject)")
     def setBioMartDatasets(self, datasets):
         assert(QThread.currentThread() is self.thread())
-#        print "setBioMartDatasets", QThread.currentThread(), qApp.thread(), self.thread()
         self.datasets = [data for data in datasets if getattr(data,"visible", "0") != "0"]
         self.datasetsCombo.clear()
         self.datasetsCombo.addItems([data.displayName for data in self.datasets])
             
     def setSelectedDataset(self):
         self.dataset = self.datasets[self.selectedDataset]
-        
-        self.get_configuration_async = AsyncFunc(self.dataset.configuration, thread=self.myThread)
-        self.connect(self.get_configuration_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
-        self.connect(self.get_configuration_async, SIGNAL("resultReady(PyQt_PyObject)"), self.setBioMartConfiguration, Qt.QueuedConnection)
-        
-        self.get_configuration_async()
+        self.setEnabled(False)
+#        self.get_configuration_async = AsyncFunc(self.dataset.configuration, thread=self.myThread)
+        self.get_configuration_async = OWConcurrent.createTask(self.dataset.configuration,
+                                            onResult=self.setBioMartConfiguration,
+                                            onFinished=self.onFinished,
+                                            thread=self.myThread)
+#        self.connect(self.get_configuration_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
+#        self.connect(self.get_configuration_async, SIGNAL("resultReady(PyQt_PyObject)"), self.setBioMartConfiguration, Qt.QueuedConnection)
+#        
+#        self.get_configuration_async()
 
-    def newConfiguration(self):
-        widget = QTabWidget()
-        self.configurationWidget.layout().addWidget(widget)
-        self.configurationWidget.layout().setCurrentWidget(widget)
-        attr
+#    def newConfiguration(self):
+#        widget = QTabWidget()
+#        self.configurationWidget.layout().addWidget(widget)
+#        self.configurationWidget.layout().setCurrentWidget(widget)
+#        attr
         
     @pyqtSignature("setBioMartConfiguration(PyQt_PyObject)")
     def setBioMartConfiguration(self, configuration):
         assert(QThread.currentThread() is self.thread())
-#        print "setBiomartConfiguration", QThread.currentThread(), qApp.thread(), self.thread()
+        
         self.clearConfiguration()
-    
+        
         self.configuration = configuration
         
         def hidden(tree):
@@ -718,14 +732,19 @@ class OWBioMart(OWWidget):
                 query.add_filter(filter, value)
         
 #        print query.xml_query()
-
-        self.run_query_async = AsyncFunc(query.get_example_table, thread=self.myThread)
-        self.connect(self.run_query_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
-        self.connect(self.run_query_async, SIGNAL("resultReady(PyQt_PyObject)"), self.dataReady, Qt.QueuedConnection)
-        self.run_query_async()
+        self.setEnabled(False)
+#        self.run_query_async = AsyncFunc(query.get_example_table, thread=self.myThread)
+        self.run_query_async = OWConcurrent.createTask(query.get_example_table,
+                                            onResult=self.dataReady,
+                                            onFinished=self.onFinished,
+                                            thread=self.myThread)
+#        self.connect(self.run_query_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
+#        self.connect(self.run_query_async, SIGNAL("resultReady(PyQt_PyObject)"), self.dataReady, Qt.QueuedConnection)
+#        self.run_query_async()
         
 
     def dataReady(self, data):
+        self.setEnabled(True)
         self.send("Example Table", data)
         
         

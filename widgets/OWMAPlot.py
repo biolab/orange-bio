@@ -9,65 +9,8 @@ import OWGUI
 import numpy
 
 import obiExpression
-
-class QtAsyncCall(QObject):
-    """ A wrapper class for async function calls using
-    Qt's signals for communication with GUI thread
-    """
-    def __init__(self, func, thread=None, parent=None):
-        QObject.__init__(self, parent)
-        self.func = func
-        self._args = ()
-        self._kwargs = {}
-        if thread is not None:
-            self.moveToThread(thread)
-                
-        self.connect(self, SIGNAL("_async_start()"), self.execute, Qt.QueuedConnection)
-    
-      
-    @pyqtSignature("execute()")
-    def execute(self):
-        """ Never call directly
-        """
-        self.emit(SIGNAL("starting()"))
-        try:
-            self.result  = self.func(*self._args, **self._kwargs)
-        except Exception, ex:
-            print >> sys.stderr, "Exception in thread ", QThread.currentThread(), " while calling ", self.func
-#            import traceback, StringIO
-#            io = StringIO.StringIO()
-#            ex_type, ex_value, tb = sys.exc_info()
-#            traceback.print_exception(ex_type, ex_value, tb, file=sys.stdout)
-            
-#            print >> sys.stderr, io.getvalue() 
-            self.emit(SIGNAL("finished(QString)"), QString(repr(ex)))
-            self.emit(SIGNAL("unhandledException(PyQt_PyObject)"), sys.exc_info())
-            
-            self._status = 1
-            return
-            
-        self.emit(SIGNAL("finished(QString)"), QString("Ok"))
-        self.emit(SIGNAL("resultReady(PyQt_PyObject)"), self.result)
-        self._status = 0
-    
         
-    def __call__(self, *args, **kwargs):
-        self.apply_async(self.func, args, kwargs)
-    
-    
-    def apply_async(self, func, args, kwargs):
-        self._args, self._kwargs = args, kwargs
-        self.emit(SIGNAL("_async_start()"))
-    
-        
-    def poll(self):
-        return getattr(self, "_status", None)
-    
-    
-class WorkerThread(QThread):
-    def run(self):
-        self.exec_()
-        
+import OWConcurrent
         
 class OWMAPlot(OWWidget):
     settingsList = []
@@ -153,19 +96,19 @@ class OWMAPlot(OWWidget):
         
         self.resize(800, 600)
         
-        self.myThread = WorkerThread()
-        self.myThread.start()
-        self.__thread = self.thread()
+#        self.myThread = WorkerThread()
+#        self.myThread.start()
+#        self.__thread = self.thread()
     
         
-    def createTask(self, call, args=(), kwargs={}, onResult=None):
-        async = QtAsyncCall(call, self.myThread)
-        self.connect(async, SIGNAL("resultReady(PyQt_PyObject)"), onResult, Qt.QueuedConnection)
-        self.connect(async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
-        self.connect(async, SIGNAL("unhandledException(PyQt_PyObject)"), self.onUnhandledException, Qt.QueuedConnection)
-        async(*args, **kwargs)
-        self.setEnabled(False)
-        return async
+#    def createTask(self, call, args=(), kwargs={}, onResult=None):
+#        async = QtAsyncCall(call, self.myThread)
+#        self.connect(async, SIGNAL("resultReady(PyQt_PyObject)"), onResult, Qt.QueuedConnection)
+#        self.connect(async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
+#        self.connect(async, SIGNAL("unhandledException(PyQt_PyObject)"), self.onUnhandledException, Qt.QueuedConnection)
+#        async(*args, **kwargs)
+#        self.setEnabled(False)
+#        return async
     
         
     def onFinished(self, status):
@@ -174,8 +117,7 @@ class OWMAPlot(OWWidget):
     
     def onUnhandledException(self, ex_info):
         print >> sys.stderr, "Unhandled exception in non GUI thread"
-#        print >> sys.stderr, repr(ex)
-#        traceback.print_exception(*ex_info, file=sys.stdout)
+        
         ex_type, ex_val, tb = ex_info
         if ex_type == numpy.linalg.LinAlgError:
             self.error(0, "Linear algebra error: %s" % repr(ex_val))
@@ -275,6 +217,8 @@ class OWMAPlot(OWWidget):
         
         
     def runNormalizationAsync(self):
+        """ Run MA centering and z_score estimation in a separate thread 
+        """
         self.setEnabled(False)
         self.error(0)
         self.progressBarInit()
@@ -288,25 +232,32 @@ class OWMAPlot(OWWidget):
             pass # set the lowess window
         
         def onCenterResult((Gc, Rc)):
+            """ Handle results of MA_center* method
+            """
             self.centered = Gc, Rc
             self.progressBarSet(70.0)
             def onZScores(z_scores):
+                """ Handle results of MA_z_scores method
+                """
                 self.z_scores = z_scores
-                QTimer.singleShot(50, lambda: self.plotMA(Gc, Rc, self.z_scores, self.zCutoff))
                 self.progressBarFinished()
                 self.setEnabled(True)
+                QTimer.singleShot(50, lambda: self.plotMA(Gc, Rc, self.z_scores, self.zCutoff))
                 
-            self.z_scores_async = self.createTask(obiExpression.MA_zscore, (Gc, Rc, 1./3.),
-                                                  onResult=onZScores)
-            
+            self.z_scores_async = OWConcurrent.createTask(obiExpression.MA_zscore, (Gc, Rc, 1./3.),
+                                                          onResult=onZScores,
+                                                          onError=self.onUnhandledException)
             
         if self.selectedCenterMethod in [1, 2]: #Lowess
-            async_center = self.createTask(center_method, (G, R), {"f": 1./min(500., len(G)/100),
-                                                                   "iter": 1},
-                                           onResult=onCenterResult)
+            async_center = OWConcurrent.createTask(center_method, (G, R), {"f": 1./min(500., len(G)/100),
+                                                                           "iter": 1},
+                                                   onResult=onCenterResult,
+                                                   onError=self.onUnhandledException)
         else:
-            async_center = self.createTask(center_method, (G, R),
-                                           onResult=onCenterResult)
+            async_center = OWConcurrent.createTask(center_method, (G, R),
+                                                   onResult=onCenterResult,
+                                                   onError=self.onUnhandledException)
+
         self.async_center = async_center
             
     ## comment out this line if threading creates any problems 
@@ -373,7 +324,6 @@ class OWMAPlot(OWWidget):
             domain.addmeta(mid, attr)
             
         data = orange.ExampleTable(domain, self.data)
-#        print data.domain
             
         for ex, gf, z in zip(data, gfactor, self.z_scores):
             for i in ind1:
