@@ -356,7 +356,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.geneAttrIndex = candidateGeneAttrs.index(bestAttr)
     
     def SetClusterDataset(self, data=None):
-
+        if not self.annotationCodes:
+            #this is a hack setFreeze(1) should prevent signal processing before we initialize annotationCodes
+            QTimer.singleShot(200, lambda: self.SetClusterDataset(data))
+            return
         self.closeContext()
         self.clusterDataset = data
         self.infoLabel.setText("\n")
