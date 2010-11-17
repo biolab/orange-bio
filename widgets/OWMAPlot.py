@@ -3,6 +3,13 @@
 <icon>icons/Normalize.png</icons>
 """
 
+__widgetdoc__ = """\
+.. name: MA Plot
+.. description: Normalize expression array data on a MA - plot
+.. icon: icons/Normalize.png
+
+
+"""
 from OWWidget import *
 from OWGraph import *
 import OWGUI
@@ -98,17 +105,6 @@ class OWMAPlot(OWWidget):
         
 #        self.myThread = WorkerThread()
 #        self.myThread.start()
-#        self.__thread = self.thread()
-    
-        
-#    def createTask(self, call, args=(), kwargs={}, onResult=None):
-#        async = QtAsyncCall(call, self.myThread)
-#        self.connect(async, SIGNAL("resultReady(PyQt_PyObject)"), onResult, Qt.QueuedConnection)
-#        self.connect(async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
-#        self.connect(async, SIGNAL("unhandledException(PyQt_PyObject)"), self.onUnhandledException, Qt.QueuedConnection)
-#        async(*args, **kwargs)
-#        self.setEnabled(False)
-#        return async
     
         
     def onFinished(self, status):
@@ -123,9 +119,11 @@ class OWMAPlot(OWWidget):
             self.error(0, "Linear algebra error: %s" % repr(ex_val))
         else:
             sys.excepthook(*ex_info)
+        self.setEnabled(True)
     
     
     def onGroupSelection(self):
+        self.updateInfoBox()
         self.splitData()
         self.runNormalization()
         
@@ -139,20 +137,33 @@ class OWMAPlot(OWWidget):
         self.runNormalization()
         
         
+    def proposeGroups(self, data):
+        col_labels = [attr.attributes.items() for attr in data.domain.attributes]
+        col_labels = sorted(reduce(set.union, col_labels, set()))
+        col_labels = [(key, value, 1) for key, value in col_labels]
+        
+        attrs = [attr for attr in data.domain.variables + data.domain.getmetas().values() \
+                 if attr.varType == orange.VarTypes.Discrete]
+        
+        row_labels = [(attr.name, value, 0) for attr in attrs for value in attr.values]
+        
+        return col_labels + row_labels
+    
+    
     def setData(self, data):
         self.closeContext("")
         self.data = data
         self.error(0)
         if data is not None:
             self.infoBox.setText("%i genes on input" % len(data))
-            groups = [attr.attributes.keys() for attr in data.domain.attributes]
-            self.groups = sorted(reduce(set.union, groups, set()))
-            all_labels = [attr.attributes.items() for attr in data.domain.attributes]
-            self.all_labels = reduce(set.union, all_labels, set())
+            self.groups = self.proposeGroups(data)
             self.groupCombo.clear()
-            self.groupCombo.addItems(["%s" % group for group in self.groups])
-            self.selectedGroup = min(self.selectedGroup, len(self.groups) - 1)
+            self.groupCombo.addItems(["%s: %s" % (key, value) for key, value, axis in self.groups])
+            
             self.openContext("", data)
+            self.selectedGroup = min(self.selectedGroup, len(self.groups) - 1)
+            
+            self.updateInfoBox()
             self.splitData()
             self.runNormalization()
         else:
@@ -163,30 +174,51 @@ class OWMAPlot(OWWidget):
         self.groups = []
         self.split_data = None, None
         self.merged_splits = None, None
+        self.infoBox.setText("No data on input")
         
         
-    def getLabelGroups(self):
-        group = self.groups[self.selectedGroup]
-        labels = [label for key, label in self.all_labels if key==group]
-        if len(labels) != 2:
-            raise ValueError("Group %s has more or less labels then 2" % group)
-        
-        label1, label2 = labels
-        return [(group, label1), (group, label2)]
+    def updateInfoBox(self):
+        genes = self.getGeneNames()
+        self.infoBox.setText("%i genes on input" % len(self.data))
         
         
-    def splitData(self):
-        label_groups = self.getLabelGroups()
-        self.split_ind = obiExpression.attr_group_indices(self.data, label_groups)
-        self.split_data = obiExpression.data_group_split(self.data, label_groups)
+    def getSelectedGroup(self):
+        return self.groups[self.selectedGroup]
+    
+    
+    def getSelectedGroupSplit(self):
+        key, value, axis = self.getSelectedGroup()
+        other_values = [v for k, v, a in self.groups if k == key and a == axis and v != value]
+        return [(key, value), (key, other_values)], axis
+    
+    
+    def getGeneNames(self):
+        key, value, axis = self.getSelectedGroup()
+        if axis == 0:
+            genes = [str(ex[key]) for ex in self.data]
+        else:
+            genes = [attr.name for attr in self.data.domain.attributes]
+            
+        return genes
+    
+    
+    def splitData(self): 
+        groups, axis = self.getSelectedGroupSplit()
+#        self.split_ind = obiExpression.attr_group_indices(self.data, label_groups)
+#        self.split_data = obiExpression.data_group_split(self.data, label_groups)
+        self.split_ind = [obiExpression.select_indices(self.data, key, value, axis) for key, value in groups]
+        self.split_data = obiExpression.split_data(self.data, groups, axis)
         
         
     def getMerged(self):
         split1, split2 = self.split_data
         (array1, _, _), (array2, _, _) = split1.toNumpyMA(), split2.toNumpyMA()
+        
+        _, _, axis = self.getSelectedGroup()
         merge_function = self.MERGE_METHODS[self.selectedMergeMethod][1]
-        merged1 = obiExpression.merge_replicates(array1, 1, merge_function=merge_function)
-        merged2 = obiExpression.merge_replicates(array2, 1, merge_function=merge_function)
+        
+        merged1 = obiExpression.merge_replicates(array1, axis, merge_function=merge_function)
+        merged2 = obiExpression.merge_replicates(array2, axis, merge_function=merge_function)
         
         self.merged_splits = merged1, merged2
         
@@ -249,7 +281,7 @@ class OWMAPlot(OWWidget):
                                                           onError=self.onUnhandledException)
             
         if self.selectedCenterMethod in [1, 2]: #Lowess
-            async_center = OWConcurrent.createTask(center_method, (G, R), {"f": 1./min(500., len(G)/100),
+            async_center = OWConcurrent.createTask(center_method, (G, R), {"f": 1./min(500., len(G)/100.),
                                                                            "iter": 1},
                                                    onResult=onCenterResult,
                                                    onError=self.onUnhandledException)
@@ -291,7 +323,7 @@ class OWMAPlot(OWWidget):
         self.graph.addCurve("Z < %.2f" % z_cuttof, Qt.blue, Qt.blue, enableLegend=True, xData=list(blue_xdata), yData=list(blue_ydata), autoScale=True)
         
         self.graph.setAxisScale(QwtPlot.xTop, 0.0, 1.0)
-        
+         
         self.graph.replot()
         
         
@@ -316,7 +348,9 @@ class OWMAPlot(OWWidget):
         
         domain = orange.Domain(self.data.domain.attributes, self.data.domain.classVar)
         domain.addmetas(self.data.domain.getmetas())
-        if self.appendZScore:
+        
+        _, _, axis = self.getSelectedGroup()
+        if self.appendZScore and axis == 1:
             attr = orange.FloatVariable("Z-Score")
             if not hasattr(self, "z_score_mid"):
                 self.z_score_mid = orange.newmetaid()
@@ -325,16 +359,28 @@ class OWMAPlot(OWWidget):
             
         data = orange.ExampleTable(domain, self.data)
             
-        for ex, gf, z in zip(data, gfactor, self.z_scores):
-            for i in ind1:
-                if not ex[i].isSpecial():
-                    ex[i] = float(ex[i]) * gf
-            if self.appendZScore:
-                ex[attr] = z
-            
-        self.z_scores
+        if axis == 0:
+            for i, gf in zip(ind1, gfactor):
+                for attr in domain.attributes:
+                    if not data[i][attr].isSpecial():
+                        data[i][attr] + data[i][attr] * gf
+        else:
+            for ex, gf, z in zip(data, gfactor, self.z_scores):
+                for i in ind1:
+                    if not ex[i].isSpecial():
+                        ex[i] = float(ex[i]) * gf
+                if self.appendZScore:
+                    ex[attr] = z
+        
         filtered_ind = list(numpy.ma.abs(self.z_scores) >= self.zCutoff)
-        filtered_data = data.select([int(b) for b in filtered_ind])
+        if axis == 0:
+            attrs = [attr for attr, filtered in zip(domain.attributes, filtered_ind) if filtered]
+            filtered_domain = orange.Domain(attrs, domain.classVar)
+            filtered_domain.addmetas(domain.getmetas())
+            filtered_data = orange.ExampleTable(filtered_domain, data)
+        else:
+            filtered_data = data.select([int(b) for b in filtered_ind])
+            
         self.send("Normalized expression array", data)
         self.send("Filtered expression array", filtered_data)
         
@@ -348,7 +394,8 @@ class OWMAPlot(OWWidget):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     w= OWMAPlot()
-    data = orange.ExampleTable(os.path.expanduser("~/GDS1210.tab"))
+#    data = orange.ExampleTable(os.path.expanduser("~/GDS1210.tab"))
+    data = orange.ExampleTable(os.path.expanduser("../../../doc/datasets/brown-selected.tab"))
     w.setData(data)
     w.show()
     app.exec_()

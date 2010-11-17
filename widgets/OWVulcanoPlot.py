@@ -381,13 +381,13 @@ class OWVulcanoPlot(OWWidget):
         self.updateTooltips()
 
     def setAxesTitles(self):
-        self.graph.setAxisTitle(QwtPlot.xBottom, "log2 (ratio)" if self.showXTitle else "")
-        self.graph.setAxisTitle(QwtPlot.yLeft, "-log10 (p_value)" if self.showYTitle else "")
+        self.graph.setAxisTitle(QwtPlot.xBottom, "log<sub>2</sub> (ratio)" if self.showXTitle else "")
+        self.graph.setAxisTitle(QwtPlot.yLeft, "-log<sub>10</sub> (p_value)" if self.showYTitle else "")
 
     def updateTooltips(self):
         self.graph.tips.removeAll()
         for key, (logratio, logpval) in self.values.items():
-            self.graph.tips.addToolTip(logratio, logpval, "<b>%s</b><hr>log2(ratio): %.5f<br>p-value: %.5f" \
+            self.graph.tips.addToolTip(logratio, logpval, "<b>%s</b><hr>log<sub>2</sub>(ratio): %.5f<br>p-value: %.5f" \
                                        %(str(key) if self.genesInColumns else key.name, logratio, math.pow(10, -logpval)))
 
     def commit(self):

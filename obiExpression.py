@@ -373,15 +373,30 @@ def entropy(array, dim=None):
 
 """\
 MA - Plot
--------
+=========
 
 Functions for normalization of expression arrays and ploting
 MA - Plots
+
+Example::
+    ## Load data from GEO
+    >>> data = orange.ExampleTable("GDS1210.tab")
+    ## Split data by columns into normal and cancer subsets
+    >>> cancer, normal = data_split(data, [("disease state", "cancer"), ("disease state", "normal")])
+    ## Convert to numpy MaskedArrays
+    >>> cancer, normal = cancer.toNumpyMA("A")[0], normal.toNumpyMA("A")[0]
+    ## Merge by averaging
+    >>> cancer = merge_replicates(cancer)
+    >>> normal = merge_replicates(normal)
+    ## Plot MA-plot
+    >>> MA_plot(cancer, normal)
+    
 """
 
 from numpy import median
 def lowess(x, y, f=2./3., iter=3):
-    """ Lowess taken from Bio.Statistics.lowess
+    """ Lowess taken from Bio.Statistics.lowess, modified to compute pairwise 
+    distances inplace.
      
     lowess(x, y, f=2./3., iter=3) -> yest
 
@@ -477,7 +492,9 @@ def lowess2(x, y, xest, f=2./3., iter=3):
     smoother curve. The number of robustifying iterations is given by iter. The
     function will run faster with a smaller number of iterations.
     
-    Taken from Peter Juvan's numpyExtn.py, modified for numpy"""
+    Taken from Peter Juvan's numpyExtn.py, modified for numpy, computes pairwise
+    distances inplace
+    """
     x = numpy.asarray(x, 'f')
     y = numpy.asarray(y, 'f')
     xest = numpy.asarray(xest, 'f')
@@ -544,7 +561,7 @@ def lowess2(x, y, xest, f=2./3., iter=3):
 
 
 def attr_group_indices(data, label_groups):
-    """ Return a two or more lists of indices into data.domain based on label_groups
+    """ Return a two or more lists of indices into `data.domain` based on `label_groups`
     
     Example::
         cancer_indices, no_cancer_indices = attr_group_indices(data, [("disease state", "cancer"), ("disease state", "normal")])
@@ -554,10 +571,28 @@ def attr_group_indices(data, label_groups):
         ind = [i for i, attr in enumerate(data.domain.attributes) if attr.attributes.get(key, None) == val]
         ret.append(ind)
     return ret
+
+
+def example_group_indices(data, attr, values):
+    """ Return lists of indices into `data` for each `values` item that matches
+    the example value at `attr` attribute
+    
+    Example::
+        cls_ind1, cls_ind2 = example_group_indices(data, data.domain.classVar, ["Class 1", "Class 2"])
+    """
+    ret = [[] for _ in values]
+    values_id = dict([(str(value), i) for i, value in enumerate(values)])
+    for i, ex in enumerate(data):
+        id = values_id.get(str(ex[attr]), None)
+        if id is not None:
+            ret[id].append(i)
+    return ret
+    
     
 def data_group_split(data, label_groups):
-    """ Split an `data` example table into two or more based on contents of iterable 
-    `label_groups` containing (key, value) pairs matching the labels of data attributes
+    """ Split an `data` example table into two or more based on
+    contents of iterable `label_groups` containing (key, value)
+    pairs matching the labels of data attributes.
     
     Example::
         cancer, no_cancer = data_group_split(data, [("disease state", "cancer"), ("disease state", "normal")])
@@ -571,11 +606,68 @@ def data_group_split(data, label_groups):
         ret.append(orange.ExampleTable(domain, data))
     return ret
     
+    
+def select_indices(data, key, value, axis=1):
+    """ Return indices into `data` (ExampleTable) along specified `axis`
+    where:
+        - if axis == 0 match data[i][key] == value
+        - if axis == 1 match data.domain[i].attributes[key] == value 
+    
+    Example::
+        cancer_ind = select_indices(data, key="disease state", value="cancer"), axis=1)
+        normal_ind = select_indices(data, key="disease state", value=["normal"], axis=1) # value can be a list to specify more then one value
+        
+    """
+    values = value if isinstance(value, list) else [value]
+    if axis == 0:
+        groups = example_group_indices(data, key, values)
+    else:
+        groups = attr_group_indices(data, [(key, val) for val in values])
+        
+    return sorted(reduce(set.union, groups, set()))
+
+
+def select_data(data, key, value, axis=1):
+    """ Return `data` (ExampleTable) subset along specified `axis` where
+    where:
+        - if axis == 0 match data[i][key] == value
+        - if axis == 1 match data.domain[i].attributes[key] == value 
+        .. note:: This preserves all meta attributes of the domain
+    Example::
+        cancer = select_data(data, "disease state", "cancer", axis=1)
+        normal = select_data(data, "disease state", ["normal"], axis=1) # value can be a list to specify more then one value
+        
+    """
+    indices = select_indices(data, key, value, axis)
+    if axis == 0:
+        examples = [data[i] for i in indices]
+        return orange.ExampleTable(data.domain, examples)
+    else:
+        attrs = [data.domain[i] for i in indices]
+        domain = orange.Domain(attrs, False)
+        domain.addmetas(data.domain.getmetas())
+        return orange.ExampleTable(domain, data)
+    
+    
+def split_data(data, groups, axis=1):
+    """ Split data (ExampleTable) along specified axis, where elements of 
+    `groups` match `key` and `value` arguments of the `select_data`
+    function 
+    
+    Example::
+        cancer, normal = split_data(data, [("disease state", "cancer"), ("disease state", ["normal"])], axis=1)
+    """
+    res = []
+    for key, value in groups:
+        res.append(select_data(data, key, value, axis))
+    return res
+    
 
 def merge_replicates(replicates, axis=0, merge_function=numpy.ma.average):
     """ Merge `replicates` (numpy.array) along `axis` using `merge_function`
     """
     return numpy.apply_along_axis(merge_function, axis, replicates)
+
 
 def ratio_intensity(G, R):
     """ return the log2(R/G), log10(R*G) as a tuple
@@ -584,12 +676,14 @@ def ratio_intensity(G, R):
     log10Intensity = numpy.ma.log10(R*G)
     return log2Ratio, log10Intensity
 
+
 def MA_center_average(G, R):
     """ return the G, R by centering the average log2 ratio
     """
     center_est = numpy.ma.average(numpy.ma.log(R/G) / numpy.log(2))
     G = G * numpy.exp2(center_est)
     return G, R.copy()
+
 
 def MA_center_lowess(G, R, f=0.1, iter=1):
     """ return the G, R by centering the average log2 ratio locally
@@ -601,10 +695,11 @@ def MA_center_lowess(G, R, f=0.1, iter=1):
     G = G * numpy.exp2(center_est)
     return G, R.copy()
 
+
 def MA_center_lowess_fast(G, R, f=0.1, iter=1, resolution=100):
     """return the G, R by centering the average log2 ratio locally
     depending on the intensity using lowess (locally weighted linear regression),
-    appriximated only in a limited resolution.
+    approximated only in a limited resolution.
     """
     
     ratio, intensity = ratio_intensity(G, R)
@@ -616,6 +711,7 @@ def MA_center_lowess_fast(G, R, f=0.1, iter=1, resolution=100):
     Gc = G * numpy.exp2(centered)
     return Gc, R.copy()
 
+
 def MA_plot(G, R, format="b."):
     """ Plot G, R on a MA-plot using matplotlib
     """
@@ -625,12 +721,13 @@ def MA_plot(G, R, format="b."):
     plt.ylabel('M = log2(R/G')
     plt.xlabel('A = log10(R*G)')
 
-def normalize_expression_data(data, label_groups, merge_function=numpy.ma.average, center_function=MA_center_lowess_fast):
+
+def normalize_expression_data(data, groups, axis=1, merge_function=numpy.ma.average, center_function=MA_center_lowess_fast):
     """ A helper function that normalizes expression array example table, by centering the MA plot.
     
     """
     if isinstance(data, orange.ExampleTable):
-        label_groups = attr_group_indices(data, label_groups)
+        label_groups = [select_indices(data, key, value, axis) for key, value in groups]
         array, _, _ = data.toNumpyMA()
     
     merged = []
@@ -648,10 +745,16 @@ def normalize_expression_data(data, label_groups, merge_function=numpy.ma.averag
     
     GFactors = Gc/G
     
-    for ex, gf in zip(data, GFactors):
-        for i in ind1:
-            if not ex[i].isSpecial():
-                ex[i] = float(ex[i]) * gf
+    if axis == 0:
+        for i, gf in zip(ind1, GFactors):
+            for attr in range(len(data[i])):
+                if not data[i][attr].isSpecial():
+                    data[i][attr] = float(data[i][attr]) * gf
+    else:   
+        for ex, gf in zip(data, GFactors):
+            for i in ind1:
+                if not ex[i].isSpecial():
+                    ex[i] = float(ex[i]) * gf
     return data
     
     
