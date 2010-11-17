@@ -82,8 +82,8 @@ multiplicitySet=set(["alt_id","is_a","subset","synonym","related_synonym","exact
 
 multipleTagSet = multiplicitySet
 
-annotationFields=["DB","DB_Object_ID","DB_Object_Symbol","Qualifier","GOID", "DB_Reference","Evidence","With_From","Aspect",
-                  "DB_Object_Name","DB_Object_Synonym","DB_Object_Type","taxon","Date","Assigned_by"]
+annotationFields=["DB","DB_Object_ID","DB_Object_Symbol","Qualifier","GO_ID", "DB_Reference","Evidence_Code","With_From","Aspect",
+                  "DB_Object_Name","DB_Object_Synonym","DB_Object_Type","Taxon","Date","Assigned_by"]
 
 annotationFieldsDict={"DB":0,
                       "DB_Object_ID":1,
@@ -91,10 +91,12 @@ annotationFieldsDict={"DB":0,
                       "Qualifier":3,
                       "GO_ID":4,
                       "GO ID":4,
+                      "GOID":4,
                       "DB_Reference":5,
                       "DB:Reference":5,
-                      "Evidence_code":6,
-                      "Evidence code":6,
+                      "Evidence_Code":6,
+                      "Evidence Code":6,
+                      "Evidence_code":6, #compatibility with  older revisions
                       "With_or_From":7,
                       "With (or) From":7,
                       "Aspect":8,
@@ -184,7 +186,7 @@ class OBOObject(object):
         self.related = set(self.GetRelatedObjects())
         self.__dict__.update(self.values)
         if "def" in self.__dict__:
-            self.__dict__["def_"] = self.def_
+            self.__dict__["def_"] = self.__dict__["def"]
         
 
     def GetRelatedObjects(self):
@@ -213,16 +215,16 @@ class OBOObject(object):
         """
         return "%s: %s" % (self.id, self.name)
 
-    def __getattr__(self, tag):
-        """ Return value for the tag
-        """
-        try:
-            if hasattr(self, "values"):
-                return self.values["def" if tag == "def_" else tag]
-            else:
-                raise KeyError
-        except KeyError:
-            raise AttributeError(tag)
+#    def __getattr__(self, tag):
+#        """ Return value for the tag
+#        """
+#        try:
+#            if hasattr(self, "values"):
+#                return self.values["def" if tag == "def_" else tag]
+#            else:
+#                raise KeyError
+#        except KeyError:
+#            raise AttributeError(tag)
 
     def __iter__(self):
         """ Iterates over sub terms
@@ -431,14 +433,16 @@ class AnnotationRecord(object):
     The object also provides the folowing data members for quicker access: geneName, GOId, evidence,
     aspect and alias(a list of aliases)
     """
-    __slots__ = ["original", "geneName", "GOId", "evidence", "aspect", "alias", "additionalAliases"]
+    __slots__ = annotationFields + ["geneName", "GOId", "evidence", "aspect", "alias", "additionalAliases"]
     def __init__(self, fullText):
-        self.original = tuple([t.strip() for t in fullText.split("\t")])
-        self.geneName = self.original[2]
-        self.GOId = self.original[4]
-        self.evidence = self.original[6]
-        self.aspect = self.original[8]
-        self.alias = self.original[10].split("|")
+        for slot, val in zip(annotationFields, fullText.split("\t")):
+            setattr(self, slot, val)
+#        self.original = tuple([t.strip() for t in fullText.split("\t")])
+        self.geneName = self.DB_Object_Symbol #self.original[2]
+        self.GOId = self.GO_ID #self.original[4]
+        self.evidence = self.Evidence_Code #self.original[6]
+        self.aspect = self.Aspect #self.original[8]
+        self.alias = self.DB_Object_Synonym.split("|") #self.self.original[10].split("|")
 ##        for key, val in zip(annotationFields, self.original):
 ##            self.__dict__[key] = val
 
@@ -448,7 +452,8 @@ class AnnotationRecord(object):
 
     def __getattr__(self, name):
         if name in annotationFieldsDict:
-            return self.original[annotationFieldsDict[name]]
+            return getattr(self, self.__slots__[annotationFieldsDict[name]])
+#            return self.original[annotationFieldsDict[name]]
         else:
             raise AttributeError(name)
 
@@ -654,7 +659,7 @@ class Annotations(object):
         """
         evidenceCodes = set(evidenceCodes or evidenceDict.keys())
         annotations = self.GetAllAnnotations(id)
-        return list(set([ann.geneName for ann in annotations if ann.Evidence_code in evidenceCodes]))
+        return list(set([ann.geneName for ann in annotations if ann.Evidence_Code in evidenceCodes]))
 
     def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, slimsOnly=False, aspect="P", prob=obiProb.Binomial(), useFDR=True, progressCallback=None):
         """ Return a dictionary of enriched terms, with tuples of (list_of_genes, p_value, reference_count) for items and term ids as keys. P-Values are FDR adjusted if useFDR is True (default).
@@ -666,9 +671,10 @@ class Annotations(object):
             reference = set(refGenesDict.keys())
         else:
             reference = self.geneNames
+        aspects_set = set([aspect]) if type(aspect) == str else aspect
         evidenceCodes = set(evidenceCodes or evidenceDict.keys())
-        annotations = [ann for gene in genes for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes and ann.Aspect == aspect]
-        refAnnotations = set([ann for gene in reference for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes and ann.Aspect == aspect])
+        annotations = [ann for gene in genes for ann in self.geneAnnotations[gene] if ann.Evidence_Code in evidenceCodes and ann.Aspect in aspects_set]
+        refAnnotations = set([ann for gene in reference for ann in self.geneAnnotations[gene] if ann.Evidence_Code in evidenceCodes and ann.Aspect in aspects_set])
         annotationsDict = defaultdict(set)
         for ann in annotations:
             annotationsDict[ann.GO_ID].add(ann)
@@ -712,7 +718,7 @@ class Annotations(object):
         revGenesDict = self.GetGeneNamesTranslator(genes)
         genes = set(revGenesDict.keys())
         evidenceCodes = set(evidenceCodes or evidenceDict.keys())
-        annotations = [ann for gene in genes for ann in self.geneAnnotations[gene] if ann.Evidence_code in evidenceCodes]
+        annotations = [ann for gene in genes for ann in self.geneAnnotations[gene] if ann.Evidence_Code in evidenceCodes]
         dd = defaultdict(set)
         for ann in annotations:
             dd[ann.GO_ID].add(revGenesDict.get(ann.geneName, ann.geneName))
@@ -1136,7 +1142,7 @@ class Taxonomy(object):
         self.__dict__ = self.__shared_state
         if not self.tax:
             import orngServerFiles
-            path = orngServerFiles.localpath("GO", "taxonomy.pickle")
+            path = orngServerFiles.localpath_download("GO", "taxonomy.pickle")
             if os.path.isfile(path):
                 self.tax = cPickle.load(open(path, "rb"))
             else:
@@ -1270,10 +1276,14 @@ def _test1():
 
 def _test2():
     o = Ontology()
-    a = Annotations("sgd", ontology=o)
-    clusterGenes = sorted(a.geneNames)[:2]
-    terms = a.GetEnrichedTerms(sorted(a.geneNames)[:2])
-    a.DrawEnrichmentGraph(filterByPValue(terms), len(clusterGenes), len(a.geneNames))
+    a = Annotations("human", ontology=o)
+    clusterGenes = sorted(a.geneNames)[:100]
+    for i in range(10):
+        terms = a.GetEnrichedTerms(sorted(a.geneNames)[:200], aspect=["P"])
+        a.GetEnrichedTerms(sorted(a.geneNames)[:200], aspect=["C"])
+        a.GetEnrichedTerms(sorted(a.geneNames)[:200], aspect=["F"])
+        print i
+#    a.DrawEnrichmentGraph(filterByPValue(terms), len(clusterGenes), len(a.geneNames))
               
 ##    drawEnrichmentGraph([("bal", 1.0, 5, 6, 0.1, 0.4, ["vv"]),
 ##                        ("GO:0019079", 0.5, 5, 6, 0.1, 0.4, ["cc", "bb"]),
