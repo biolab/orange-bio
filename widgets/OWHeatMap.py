@@ -887,14 +887,14 @@ class HeatMapGraphicsScene(QGraphicsScene):
             x, y = event.scenePos().x() - item.x(), event.scenePos().y() - item.y()
             if x<0 or y<0 or x>item.width-1 or y>item.height-1: 
                 self.selector.hide()
-                self.scene.update()
                 return
             col, row = int(x / self.dx), int(y / self.dy)
             # hm.getCellIntensity(row, col), hm.getRowIntensity(row)
             ex = hm.examples[hm.exampleIndices[row] : hm.exampleIndices[row+1]]
+            bb = self.selector.sceneBoundingRect()
             self.selector.setPos(item.x()+col*self.dx-v_sel_width+1, item.y()+row*self.dy-v_sel_width+1)
             self.selector.show()
-            
+            self.update(bb)
             # balloon handling
             try:
                 if self.master <> None and not self.master.BShowballoon: return
