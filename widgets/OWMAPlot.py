@@ -20,7 +20,7 @@ import obiExpression
 import OWConcurrent
         
 class OWMAPlot(OWWidget):
-    settingsList = []
+    settingsList = ["appendZScore", "appendRIValues"]
     contextHandlers = {"": DomainContextHandler("", ["selectedGroup", "selectedCenterMethod",
                                                      "selectedMergeMethod", "zCutoff"])}
     
@@ -42,6 +42,7 @@ class OWMAPlot(OWWidget):
         self.selectedMergeMethod = 0
         self.zCutoff = 1.96
         self.appendZScore = False
+        self.appendRIValues = False
         self.autoCommit = False
         
         self.loadSettings()
@@ -78,7 +79,12 @@ class OWMAPlot(OWWidget):
         box = OWGUI.widgetBox(self.controlArea, "Ouput")
         OWGUI.checkBox(box, self, "appendZScore", "Append Z-Scores",
                        tooltip="Append calculated Z-Scores to output",
-                       callback=self.commit
+                       callback=self.commitIf
+                       )
+        
+        OWGUI.checkBox(box, self, "appendRIValues", "Append Log Ratio and Intensity values",
+                       tooltip="Append calculated Log Ratio and Intensity values to output data",
+                       callback=self.commitIf
                        )
         
         cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on change",
@@ -95,11 +101,14 @@ class OWMAPlot(OWWidget):
         self.graph = OWGraph(self.mainArea)
         self.graph.setAxisTitle(QwtPlot.xBottom, "Intensity: log<sub>10</sub>(R*G)")
         self.graph.setAxisTitle(QwtPlot.yLeft, "Log ratio: log<sub>2</sub>(R/G)")
+        self.graph.showFilledSymbols = True
         self.mainArea.layout().addWidget(self.graph)
         self.groups = []
         self.split_data = None, None
         self.merged_splits = None, None
+        self.centered = None, None
         self.changedFlag = False
+        self.data = None
         
         self.resize(800, 600)
         
@@ -115,7 +124,7 @@ class OWMAPlot(OWWidget):
         print >> sys.stderr, "Unhandled exception in non GUI thread"
         
         ex_type, ex_val, tb = ex_info
-        if ex_type == numpy.linalg.LinAlgError:
+        if ex_type == numpy.linalg.LinAlgError and False:
             self.error(0, "Linear algebra error: %s" % repr(ex_val))
         else:
             sys.excepthook(*ex_info)
@@ -123,18 +132,21 @@ class OWMAPlot(OWWidget):
     
     
     def onGroupSelection(self):
-        self.updateInfoBox()
-        self.splitData()
-        self.runNormalization()
+        if self.data:
+            self.updateInfoBox()
+            self.splitData()
+            self.runNormalization()
         
         
     def onCenterMethodChange(self):
-        self.runNormalization()
+        if self.data:
+            self.runNormalization()
         
         
     def onMergeMethodChange(self):
-        self.splitData()
-        self.runNormalization()
+        if self.data:
+            self.splitData()
+            self.runNormalization()
         
         
     def proposeGroups(self, data):
@@ -172,9 +184,13 @@ class OWMAPlot(OWWidget):
         
     def clear(self):
         self.groups = []
+        self.data = None
+        self.centered = None, None
         self.split_data = None, None
         self.merged_splits = None, None
         self.infoBox.setText("No data on input")
+        self.send("Normalized expression array", None)
+        self.send("Filtered expression array", None)
         
         
     def updateInfoBox(self):
@@ -204,8 +220,6 @@ class OWMAPlot(OWWidget):
     
     def splitData(self): 
         groups, axis = self.getSelectedGroupSplit()
-#        self.split_ind = obiExpression.attr_group_indices(self.data, label_groups)
-#        self.split_data = obiExpression.data_group_split(self.data, label_groups)
         self.split_ind = [obiExpression.select_indices(self.data, key, value, axis) for key, value in groups]
         self.split_data = obiExpression.split_data(self.data, groups, axis)
         
@@ -219,7 +233,6 @@ class OWMAPlot(OWWidget):
         
         merged1 = obiExpression.merge_replicates(array1, axis, merge_function=merge_function)
         merged2 = obiExpression.merge_replicates(array2, axis, merge_function=merge_function)
-        
         self.merged_splits = merged1, merged2
         
         return self.merged_splits
@@ -232,9 +245,7 @@ class OWMAPlot(OWWidget):
         self.progressBarSet(5.0)
         
         center_method = self.CENTER_METHODS[self.selectedCenterMethod][1]
-        if center_method == obiExpression.MA_center_lowess:
-            pass # set the lowess window
-
+        
         # TODO: progess bar , lowess can take a long time
         if self.selectedCenterMethod in [1, 2]: #Lowess
             Gc, Rc = center_method(G, R, f = 1./min(500., len(G)/100), iter=1)
@@ -258,10 +269,7 @@ class OWMAPlot(OWWidget):
         G, R = self.getMerged()
         self.progressBarSet(5.0)
         
-        center_method = self.CENTER_METHODS[self.selectedCenterMethod][1]
-        
-        if center_method == obiExpression.MA_center_lowess:
-            pass # set the lowess window
+        center_method = self.CENTER_METHODS[self.selectedCenterMethod][1] 
         
         def onCenterResult((Gc, Rc)):
             """ Handle results of MA_center* method
@@ -281,7 +289,7 @@ class OWMAPlot(OWWidget):
                                                           onError=self.onUnhandledException)
             
         if self.selectedCenterMethod in [1, 2]: #Lowess
-            async_center = OWConcurrent.createTask(center_method, (G, R), {"f": 1./min(500., len(G)/100.),
+            async_center = OWConcurrent.createTask(center_method, (G, R), {"f": 2./3.,
                                                                            "iter": 1},
                                                    onResult=onCenterResult,
                                                    onError=self.onUnhandledException)
@@ -302,7 +310,7 @@ class OWMAPlot(OWWidget):
         filter = numpy.isfinite(ratio) & numpy.isfinite(intensity) & numpy.isfinite(z_scores)
         for array in [ratio, intensity, z_scores]:
             if numpy.ma.is_masked(array):
-                filter &= array != numpy.ma.masked
+                filter &= -array.mask
         
         filtered_ind = numpy.where(filter)
         ratio = numpy.take(ratio, filtered_ind)
@@ -315,12 +323,12 @@ class OWMAPlot(OWWidget):
         red_xdata, red_ydata = intensity[red_ind], ratio[red_ind]
         blue_xdata, blue_ydata = intensity[blue_ind], ratio[blue_ind]
         self.graph.removeDrawingCurves()
-#        print ratio, intensity
+        
         c = self.graph.addCurve("", Qt.black, Qt.black, xData=[0.0, 1.0], yData=[0.0, 0.0], style=QwtPlotCurve.Lines, symbol=QwtSymbol.NoSymbol)
         c.setAxis(QwtPlot.xTop, QwtPlot.yLeft)
         
-        self.graph.addCurve("Z >= %.2f" % z_cuttof, Qt.red, Qt.red, enableLegend=True, xData=list(red_xdata), yData=list(red_ydata), autoScale=True)
-        self.graph.addCurve("Z < %.2f" % z_cuttof, Qt.blue, Qt.blue, enableLegend=True, xData=list(blue_xdata), yData=list(blue_ydata), autoScale=True)
+        self.graph.addCurve("Z >= %.2f" % z_cuttof, QColor(Qt.red), Qt.red, brushAlpha=100, size=6, enableLegend=True, xData=list(red_xdata), yData=list(red_ydata), autoScale=True)
+        self.graph.addCurve("Z < %.2f" % z_cuttof, QColor(Qt.blue), Qt.blue, brushAlpha=100, size=6, enableLegend=True, xData=list(blue_xdata), yData=list(blue_ydata), autoScale=True)
         
         self.graph.setAxisScale(QwtPlot.xTop, 0.0, 1.0)
          
@@ -328,8 +336,9 @@ class OWMAPlot(OWWidget):
         
         
     def replotMA(self):
-        Gc, Rc = self.centered
-        self.plotMA(Gc, Rc, self.z_scores, self.zCutoff)
+        if self.data and self.centered:
+            Gc, Rc = self.centered
+            self.plotMA(Gc, Rc, self.z_scores, self.zCutoff)
         
         
     def commitIf(self):
@@ -340,6 +349,9 @@ class OWMAPlot(OWWidget):
             
             
     def commit(self):
+        if not self.data:
+            return
+        
         G, R = self.merged_splits
         Gc, Rc = self.centered
         ind1, ind2 = self.split_ind
@@ -357,22 +369,40 @@ class OWMAPlot(OWWidget):
             mid = self.z_score_mid
             domain.addmeta(mid, attr)
             
-        data = orange.ExampleTable(domain, self.data)
+        if self.appendRIValues and axis == 1:
+            r_attr = orange.FloatVariable("Log Ratio")
+            i_attr = orange.FloatVariable("Intensity")
+            if not hasattr(self, "_r_mid"):
+                self._r_mid = orange.newmetaid()
+                self._i_mid = orange.newmetaid()
+            r_mid, i_mid = self._r_mid, self._i_mid
+            domain.addmeta(r_mid, r_attr)
+            domain.addmeta(i_mid, i_attr)
             
+        data = orange.ExampleTable(domain, self.data)
+        
+        def finite_nonmasked(g):
+            return numpy.isfinite(g) and g is not numpy.ma.masked
+        
         if axis == 0:
             for i, gf in zip(ind1, gfactor):
                 for attr in domain.attributes:
-                    if not data[i][attr].isSpecial():
-                        data[i][attr] + data[i][attr] * gf
+                    if not data[i][attr].isSpecial() and finite_nonmasked(gf):
+                        data[i][attr] = data[i][attr] * gf
         else:
-            for ex, gf, z in zip(data, gfactor, self.z_scores):
+            ratio, intensity = obiExpression.ratio_intensity(*self.centered) #*self.merged_splits)
+            for ex, gf, r, inten, z in zip(data, gfactor, ratio, intensity, self.z_scores):
                 for i in ind1:
-                    if not ex[i].isSpecial():
+                    if not ex[i].isSpecial() and finite_nonmasked(gf):
                         ex[i] = float(ex[i]) * gf
                 if self.appendZScore:
-                    ex[attr] = z
+                    ex[attr] = z if finite_nonmasked(z) else "?"
+                    
+                if self.appendRIValues:
+                    ex[r_attr] = r if finite_nonmasked(r) else "?"
+                    ex[i_attr] = inten if finite_nonmasked(inten) else "?"
         
-        filtered_ind = list(numpy.ma.abs(self.z_scores) >= self.zCutoff)
+        filtered_ind = list(numpy.ma.abs(self.z_scores.filled(0)) >= self.zCutoff)
         if axis == 0:
             attrs = [attr for attr, filtered in zip(domain.attributes, filtered_ind) if filtered]
             filtered_domain = orange.Domain(attrs, domain.classVar)

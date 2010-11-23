@@ -431,9 +431,9 @@ def lowess(x, y, f=2./3., iter=3):
     [4.85, ..., 84.98]
     """
     n = len(x)
-    r = int(numpy.ceil(f*n))
+    r = min(int(numpy.ceil(f*n)), n - 1)
     
-    h = [numpy.sort(numpy.abs(x-x[i]))[r] for i in range(n)]
+#    h = [numpy.sort(numpy.abs(x-x[i]))[r] for i in range(n)]
 #    h, xtmp = numpy.zeros_like(x), numpy.zeros_like(x)
 #    for i in range(n):
 #        xtmp = numpy.abs(x - x[i], xtmp)
@@ -508,6 +508,7 @@ def lowess2(x, y, xest, f=2./3., iter=3):
     h = dist[:, r]
     del dist # to free memory
     w = [x] - numpy.transpose([x])
+    w /= h
     w = numpy.abs(w, w)
     w = numpy.clip(w, 0.0, 1.0, w)
 #    w = numpy.clip(numpy.abs(([x]-numpy.transpose([x]))/h),0.0,1.0)
@@ -525,6 +526,7 @@ def lowess2(x, y, xest, f=2./3., iter=3):
     del dist # to free memory
 #    west = numpy.clip(numpy.abs(([xest]-numpy.transpose([x]))/hest),0.0,1.0)  # shape: (len(x), len(xest)
     west = [xest]-numpy.transpose([x])
+    west /= hest
     west = numpy.abs(west, west)
     west = numpy.clip(west, 0.0, 1.0, west)
 #    west = 1 - west**3 #1-west*west*west
@@ -666,7 +668,7 @@ def split_data(data, groups, axis=1):
 def merge_replicates(replicates, axis=0, merge_function=numpy.ma.average):
     """ Merge `replicates` (numpy.array) along `axis` using `merge_function`
     """
-    return numpy.apply_along_axis(merge_function, axis, replicates)
+    return numpy.ma.apply_along_axis(merge_function, axis, replicates)
 
 
 def ratio_intensity(G, R):
@@ -685,31 +687,39 @@ def MA_center_average(G, R):
     return G, R.copy()
 
 
-def MA_center_lowess(G, R, f=0.1, iter=1):
+def MA_center_lowess(G, R, f=2./3., iter=1):
     """ return the G, R by centering the average log2 ratio locally
     depending on the intensity using lowess (locally weighted linear regression)
     """
 #    from Bio.Statistics.lowess import lowess
     ratio, intensity = ratio_intensity(G, R)
-    center_est = lowess(intensity, ratio, f=f, iter=iter)
-    G = G * numpy.exp2(center_est)
-    return G, R.copy()
+    valid = - (ratio.mask & intensity.mask)
+    valid_ind = numpy.ma.where(valid)
+    center_est = lowess(intensity[valid], ratio[valid], f=f, iter=iter)
+    Gc, R = G.copy(), R.copy()
+    Gc[valid] *= numpy.exp2(center_est)
+    Gc.mask, R.mask = -valid, -valid
+    return Gc, R
 
 
-def MA_center_lowess_fast(G, R, f=0.1, iter=1, resolution=100):
+def MA_center_lowess_fast(G, R, f=2./3., iter=1, resolution=100):
     """return the G, R by centering the average log2 ratio locally
     depending on the intensity using lowess (locally weighted linear regression),
     approximated only in a limited resolution.
     """
     
     ratio, intensity = ratio_intensity(G, R)
-    resoluiton = min(resolution, len(intensity))
-    hist, edges = numpy.histogram(intensity, len(intensity)/resolution)
-    centered = lowess2(intensity, ratio, edges, f, iter)
+    valid = - (ratio.mask & intensity.mask)
+    resoluiton = min(resolution, len(intensity[valid]))
+    hist, edges = numpy.histogram(intensity[valid], len(intensity[valid])/resolution)
+    
+    centered = lowess2(intensity[valid], ratio[valid], edges, f, iter)
 
-    centered = lowess2(edges, centered, intensity, f, iter)
-    Gc = G * numpy.exp2(centered)
-    return Gc, R.copy()
+    centered = lowess2(edges, centered, intensity[valid], f, iter)
+    Gc, R = G.copy(), R.copy()
+    Gc[valid] *= numpy.exp2(centered)
+    Gc.mask, R.mask = -valid, -valid
+    return Gc, R
 
 
 def MA_plot(G, R, format="b."):
