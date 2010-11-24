@@ -35,7 +35,7 @@ class OWMAPlot(OWWidget):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True)
         
         self.inputs = [("Expression array", ExampleTable, self.setData)]
-        self.outputs = [("Normalized expression array", ExampleTable), ("Filtered expression array", ExampleTable)]
+        self.outputs = [("Normalized expression array", ExampleTable, Default), ("Filtered expression array", ExampleTable)]
         
         self.selectedGroup = 0
         self.selectedCenterMethod = 0

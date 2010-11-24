@@ -229,8 +229,8 @@ class OWGEODatasets(OWWidget):
         self.progressBarFinished()
 
         if self.currentGds:
-            gdss = [(i, model.data(model.index(i,0), Qt.DisplayRole)) for i in range(model.rowCount())]
-            current = [i for i, variant in gdss if  variant.isValid() and variant.toString() == self.currentGds["dataset_id"]]
+            gdss = [(i, model.data(model.index(i,1), Qt.DisplayRole)) for i in range(model.rowCount())]
+            current = [i for i, variant in gdss if variant.isValid() and str(variant.toString()) == self.currentGds["dataset_id"]]
             if current:
                 mapFromSource = self.treeWidget.model().mapFromSource
                 self.treeWidget.selectionModel().select(mapFromSource(model.index(current[0], 0)), QItemSelectionModel.Select | QItemSelectionModel.Rows)
@@ -300,12 +300,9 @@ class OWGEODatasets(OWWidget):
         filterStrings = self.filterString.lower().split()
         mapFromSource = self.treeWidget.model().mapFromSource
         index = self.treeWidget.model().sourceModel().index
-#        mapFromSource = lambda i: self.treeWidget.model().mapFromSource(self.treeWidget.model().sourceModel().index(i, 0)).row()
+        
         for i, row in enumerate(self.cells):
-#            string = chr(255).join([unicode(self.gds[i].get(key, "").lower(), errors="ignore") for key in searchKeys])
-#            self.treeWidget.setRowHidden(mapFromSource(i), QModelIndex(), not all([s in string for s in filterStrings]))
             self.treeWidget.setRowHidden(mapFromSource(index(i, 0)).row(), QModelIndex(), self.rowFiltered(i))
-#            item.setHidden(not all([any([s in unicode(item.gds.get(key, "").lower(), errors="ignore") for key in searchKeys]) for s in filterStrings]))
         self.updateInfo()
 
     def commitIf(self):
@@ -322,45 +319,60 @@ class OWGEODatasets(OWWidget):
             sample_type = None
             self.progressBarInit()
             self.progressBarSet(10)
-            gds = obiGEO.GDS(self.currentGds["dataset_id"])
-            data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, sample_type=sample_type if sample_type!="Include all" else None)
-            self.progressBarSet(50)
-#            samples = set([self.annotationsTree.topLevelItem(i).child(j).key[2] for i in range(self.annotationsTree.topLevelItemCount()) for j in self.annotationsTree.topLevelItem(i).])
-            class itemiter(QTreeWidgetItemIterator):
-                def next(self):
-                    self.__iadd__(1)
-                    if self.value():
-                        return self.value()
-                    else:
-                        raise StopIteration
-                def __iter__(self):
-                    return self
-                
-            samples = set([str(item.text(0)) for item in itemiter(self.annotationsTree) if self.gdsSelectionStates.get(item.key, True)])
-            print samples
-            if self.outputRows:
-                select = [1 if samples.intersection(str(ex.getclass()).split("|")) else 0 for ex in data]
-                data = data.select(select)
-                data.domain.classVar.values = ["|".join([cl for cl in val.split("|") if cl in samples]) for val in data.domain.classVar.values]
-            else:
-                domain = orange.Domain([attr for attr in data.domain.attributes if samples.intersection(attr.attributes.values())], data.domain.classVar)
-                domain.addmetas(data.domain.getmetas())
-                for attr in domain.attributes:
-                    attr.attributes = dict([(key, value) for key, value in attr.attributes.items() if value in samples])
-                data = orange.ExampleTable(domain, data)
-
-            data_hints.set_hint(data, "taxid", self.currentGds.get("taxid", ""), 10.0)
-            data_hints.set_hint(data, "genesinrows", self.outputRows, 10.0)
             
-            self.progressBarFinished()
-            self.send("Expression Data", data)
+            def getdata(gds_id, **kwargs):
+                gds = obiGEO.GDS(gds_id)
+                data = gds.getdata(**kwargs)
+                return data
+            from OWConcurrent import createTask
+            self.setEnabled(False)
+            qApp.processEvents()
+            self.get_data_async = createTask(getdata, (self.currentGds["dataset_id"],), dict(report_genes=self.mergeSpots,
+                                                                   transpose=self.outputRows,
+                                                                   sample_type=sample_type if sample_type!="Include all" else None),
+                                             onResult=self.onData, onFinished=lambda: self.setEnabled(True),
+                                             threadPool=QThreadPool.globalInstance()
+                                             )
+            
+#            data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, sample_type=sample_type if sample_type!="Include all" else None)
+    def onData(self, data):
+        self.progressBarSet(50)
+#            samples = set([self.annotationsTree.topLevelItem(i).child(j).key[2] for i in range(self.annotationsTree.topLevelItemCount()) for j in self.annotationsTree.topLevelItem(i).])
+        class itemiter(QTreeWidgetItemIterator):
+            def next(self):
+                self.__iadd__(1)
+                if self.value():
+                    return self.value()
+                else:
+                    raise StopIteration
+            def __iter__(self):
+                return self
+            
+        samples = set([str(item.text(0)) for item in itemiter(self.annotationsTree) if self.gdsSelectionStates.get(item.key, True)])
+        
+        if self.outputRows:
+            select = [1 if samples.intersection(str(ex.getclass()).split("|")) else 0 for ex in data]
+            data = data.select(select)
+            data.domain.classVar.values = ["|".join([cl for cl in val.split("|") if cl in samples]) for val in data.domain.classVar.values]
+        else:
+            domain = orange.Domain([attr for attr in data.domain.attributes if samples.intersection(attr.attributes.values())], data.domain.classVar)
+            domain.addmetas(data.domain.getmetas())
+            for attr in domain.attributes:
+                attr.attributes = dict([(key, value) for key, value in attr.attributes.items() if value in samples])
+            data = orange.ExampleTable(domain, data)
 
-            model = self.treeWidget.model().sourceModel()
-            row = self.gds.index(self.currentGds)
+        data_hints.set_hint(data, "taxid", self.currentGds.get("taxid", ""), 10.0)
+        data_hints.set_hint(data, "genesinrows", self.outputRows, 10.0)
+        
+        self.progressBarFinished()
+        self.send("Expression Data", data)
+
+        model = self.treeWidget.model().sourceModel()
+        row = self.gds.index(self.currentGds)
 #            model._roleData[Qt.ForegroundRole][row].update(zip(range(1, 7), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
-            model.setData(model.index(row, 0),  QVariant(" "), Qt.DisplayRole) 
+        model.setData(model.index(row, 0),  QVariant(" "), Qt.DisplayRole) 
 #            model.emit(SIGNAL("dataChanged(const QModelIndex &, const QModelIndex &)"), model.index(row, 0), model.index(row, 0))
-            self.updateInfo()
+        self.updateInfo()
         self.selectionChanged = False
         
     def splitterMoved(self, *args):
