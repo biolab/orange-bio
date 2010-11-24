@@ -29,7 +29,8 @@ class OWMAPlot(OWWidget):
                       ("Lowess", obiExpression.MA_center_lowess)]
     
     MERGE_METHODS = [("Average", numpy.ma.average),
-                     ("Median", numpy.ma.median)]
+                     ("Median", numpy.ma.median),
+                     ("Geometric mean", obiExpression.geometric_mean)]
     
     def __init__(self, parent=None, signalManager=None, name="Normalize Expression Array"):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True)

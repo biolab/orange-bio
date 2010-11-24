@@ -663,7 +663,14 @@ def split_data(data, groups, axis=1):
     for key, value in groups:
         res.append(select_data(data, key, value, axis))
     return res
+
     
+def geometric_mean(array):
+    """ Return a geometric mean computed on a 1d masked array
+    """
+    array = numpy.ma.asanyarray(array)
+    return numpy.power(reduce(lambda a,b: a*b, array.filled(1.), 1.0), 1./len(array))
+
 
 def merge_replicates(replicates, axis=0, merge_function=numpy.ma.average):
     """ Merge `replicates` (numpy.array) along `axis` using `merge_function`
