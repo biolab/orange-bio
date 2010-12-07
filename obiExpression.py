@@ -461,12 +461,12 @@ def lowess(x, y, f=2./3., iter=3):
         for i in xrange(n):
             weights = delta * w[:,i]
             weights_mul_x = weights * x
-            b1 = numpy.dot(weights,y)
-            b2 = numpy.dot(weights_mul_x,y)
+            b1 = numpy.ma.dot(weights,y)
+            b2 = numpy.ma.dot(weights_mul_x,y)
             A11 = sum(weights)
             A12 = sum(weights_mul_x)
             A21 = A12
-            A22 = numpy.dot(weights_mul_x,x)
+            A22 = numpy.ma.dot(weights_mul_x,x)
             determinant = A11*A22 - A12*A21
             beta1 = (A22*b1-A12*b2) / determinant
             beta2 = (A11*b2-A21*b1) / determinant
