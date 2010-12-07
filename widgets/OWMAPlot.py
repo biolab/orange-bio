@@ -3,13 +3,6 @@
 <icon>icons/Normalize.png</icons>
 """
 
-__widgetdoc__ = """\
-.. name: MA Plot
-.. description: Normalize expression array data on a MA - plot
-.. icon: icons/Normalize.png
-
-
-"""
 from OWWidget import *
 from OWGraph import *
 import OWGUI
@@ -313,13 +306,13 @@ class OWMAPlot(OWWidget):
             if numpy.ma.is_masked(array):
                 filter &= -array.mask
         
-        filtered_ind = numpy.where(filter)
+        filtered_ind = numpy.ma.where(filter)
         ratio = numpy.take(ratio, filtered_ind)
         intensity = numpy.take(intensity, filtered_ind)
         z_scores = numpy.take(z_scores, filtered_ind)
         
-        red_ind = numpy.where(numpy.ma.abs(z_scores) >= z_cuttof)
-        blue_ind = numpy.where(numpy.ma.abs(z_scores) < z_cuttof)
+        red_ind = numpy.ma.where(numpy.ma.abs(z_scores) >= z_cuttof)
+        blue_ind = numpy.ma.where(numpy.ma.abs(z_scores) < z_cuttof)
         
         red_xdata, red_ydata = intensity[red_ind], ratio[red_ind]
         blue_xdata, blue_ydata = intensity[blue_ind], ratio[blue_ind]
