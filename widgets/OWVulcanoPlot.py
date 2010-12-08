@@ -48,6 +48,8 @@ class GraphSelections(QObject):
         self.update(event)
         
     def testSelection(self, data):
+        if len(data) == 0:
+            return []
         data = numpy.asarray(data)
         region = QPainterPath()
         for p1, p2 in self.selection:
@@ -114,6 +116,8 @@ class SymetricSelections(GraphSelections):
         self.updateAxes = None
         
     def testSelection(self, data):
+        if len(data) == 0:
+            return []
         data = numpy.asarray(data)
         cutoffX = self.selection[1][1].x()
         cutoffY = self.selection[1][1].y()
