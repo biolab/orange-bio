@@ -272,7 +272,7 @@ class OWGsea(OWWidget):
             
             self.organismComboBox.addItems(items)
         finally:
-            self.signalManager.setFreeze(0)
+            self.signalManager.freeze(self).pop() #setFreeze(0)
 
 
     def __init__(self, parent=None, signalManager = None, name='GSEA'):
@@ -319,7 +319,7 @@ class OWGsea(OWWidget):
         self.organismCodes = []
         self.organismComboBox = cb = OWGUI.comboBox(box, self, "organismIndex", items=[], debuggingEnabled=0) #changed
         cb.setMaximumWidth(200)
-        self.signalManager.setFreeze(1)
+        self.signalManager.freeze(self).push() #setFreeze(1)
         QTimer.singleShot(100, self.UpdateOrganismComboBox)
  
         #OWGUI.checkBox(box, self, "csgm", "Case sensitive gene matching")

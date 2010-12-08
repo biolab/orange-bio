@@ -166,10 +166,19 @@ class OWGeneInfo(OWWidget):
         self.warning(1)
         org = self.organisms[min(self.organismIndex, len(self.organisms) - 1)]
         info , currorg = self.currentLoaded
+        self.error(0)
         if currorg != org:
             self.progressBarInit()
-            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
+            
+            ## Load the gene info in a worker thread
+            call = self.asyncCall(obiGene.NCBIGeneInfo, (org,), name="Loading NCBI Gene info", blocking=False)
+            call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet, Qt.QueuedConnection)
+            with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+                call.__call__()
+                info = call.get_result()
+
+#            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+#                info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
             self.progressBarFinished()
             self.currentLoaded = info, org
             

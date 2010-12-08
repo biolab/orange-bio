@@ -105,9 +105,6 @@ class OWMAPlot(OWWidget):
         self.data = None
         
         self.resize(800, 600)
-        
-#        self.myThread = WorkerThread()
-#        self.myThread.start()
     
         
     def onFinished(self, status):
@@ -182,6 +179,7 @@ class OWMAPlot(OWWidget):
         self.centered = None, None
         self.split_data = None, None
         self.merged_splits = None, None
+        self.graph.removeDrawingCurves()
         self.infoBox.setText("No data on input")
         self.send("Normalized expression array", None)
         self.send("Filtered expression array", None)
@@ -263,40 +261,41 @@ class OWMAPlot(OWWidget):
         G, R = self.getMerged()
         self.progressBarSet(5.0)
         
-        center_method = self.CENTER_METHODS[self.selectedCenterMethod][1] 
+        center_method = self.CENTER_METHODS[self.selectedCenterMethod][1]
+        use_lowess = self.selectedCenterMethod in [1, 2]
         
-        def onCenterResult((Gc, Rc)):
-            """ Handle results of MA_center* method
-            """
-            self.centered = Gc, Rc
-            self.progressBarSet(70.0)
-            def onZScores(z_scores):
-                """ Handle results of MA_z_scores method
-                """
-                self.z_scores = z_scores
-                self.progressBarFinished()
-                self.setEnabled(True)
-                QTimer.singleShot(50, lambda: self.plotMA(Gc, Rc, self.z_scores, self.zCutoff))
-                
-            self.z_scores_async = OWConcurrent.createTask(obiExpression.MA_zscore, (Gc, Rc, 1./3.),
-                                                          onResult=onZScores,
-                                                          onError=self.onUnhandledException)
+        def run(progressCallback = lambda value: None): # the function to run in a thread
+            progressCallback(5.0)
+            if use_lowess:
+                Gc, Rc = center_method(G, R, f=2./3., iter=1)
+            else:
+                Gc, Rc = center_method(G, R)
+            progressCallback(50)
+            z_scores = obiExpression.MA_zscore(Gc, Rc, 1./3.)
             
-        if self.selectedCenterMethod in [1, 2]: #Lowess
-            async_center = OWConcurrent.createTask(center_method, (G, R), {"f": 2./3.,
-                                                                           "iter": 1},
-                                                   onResult=onCenterResult,
-                                                   onError=self.onUnhandledException)
-        else:
-            async_center = OWConcurrent.createTask(center_method, (G, R),
-                                                   onResult=onCenterResult,
-                                                   onError=self.onUnhandledException)
-
-        self.async_center = async_center
+            return Gc, Rc, z_scores
+        
+            
+        async = self.asyncCall(run, name="Normalization",
+                               onResult=self.onResults,
+                               onError=self.onUnhandledException)
+        self.connect(async, SIGNAL("progressChanged(float)"), self.progressBarSet, Qt.QueuedConnection)
+        async.__call__(progressCallback=async.emitProgressChanged)
             
     ## comment out this line if threading creates any problems 
     runNormalization = runNormalizationAsync
     
+    def onResults(self, (Gc, Rc, z_scores)):
+        """ Handle the results of centering and z-scoring
+        """
+        assert(QThread.currentThread() is self.thread())
+        self.setEnabled(True)
+        self.progressBarFinished()
+        self.centered = Gc, Rc
+        self.z_scores = z_scores
+        self.plotMA(Gc, Rc, z_scores, self.zCutoff)
+        self.commit()
+        
     
     def plotMA(self, G, R, z_scores, z_cuttof):
         ratio, intensity = obiExpression.ratio_intensity(G, R)
@@ -418,8 +417,8 @@ class OWMAPlot(OWWidget):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     w= OWMAPlot()
-#    data = orange.ExampleTable(os.path.expanduser("~/GDS1210.tab"))
-    data = orange.ExampleTable(os.path.expanduser("../../../doc/datasets/brown-selected.tab"))
+    data = orange.ExampleTable(os.path.expanduser("~/GDS1210.tab"))
+#    data = orange.ExampleTable(os.path.expanduser("../../../doc/datasets/brown-selected.tab"))
     w.setData(data)
     w.show()
     app.exec_()

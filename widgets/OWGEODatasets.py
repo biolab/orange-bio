@@ -333,7 +333,27 @@ class OWGEODatasets(OWWidget):
                                              onResult=self.onData, onFinished=lambda: self.setEnabled(True),
                                              threadPool=QThreadPool.globalInstance()
                                              )
+           
+    def commit(self):
+        if self.currentGds: 
+            sample_type = None
+            self.progressBarInit()
+            self.progressBarSet(10)
             
+            def getdata(gds_id, **kwargs):
+                gds = obiGEO.GDS(gds_id)
+                data = gds.getdata(**kwargs)
+                return data
+            
+            self.setEnabled(False)
+#            qApp.processEvents()
+            call = self.asyncCall(getdata, (self.currentGds["dataset_id"],), dict(report_genes=self.mergeSpots,
+                                           transpose=self.outputRows,
+                                           sample_type=sample_type if sample_type!="Include all" else None),
+                                  onResult=self.onData, onFinished=lambda: self.setEnabled(True),
+                                  threadPool=QThreadPool.globalInstance()
+                                 )
+            call.__call__() #invoke
 #            data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, sample_type=sample_type if sample_type!="Include all" else None)
     def onData(self, data):
         self.progressBarSet(50)

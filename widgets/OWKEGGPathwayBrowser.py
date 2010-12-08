@@ -198,7 +198,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.organismComboBox = cb = OWGUI.comboBox(self.controlArea, self, "organismIndex", box="Organism", items=[], callback=self.Update, addSpace=True, debuggingEnabled=0)
         cb.setMaximumWidth(200)
         
-        self.signalManager.setFreeze(1)
+        self.signalManager.freeze(self).push() #setFreeze(1)
         QTimer.singleShot(100, self.UpdateOrganismComboBox)
         
         box = OWGUI.widgetBox(self.controlArea, "Gene attribute")
@@ -270,7 +270,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             
             self.organismComboBox.addItems(items)
         finally:
-            self.signalManager.setFreeze(0)
+            self.signalManager.freeze(self).pop() #setFreeze(0)
 
         
     def SetData(self, data=None):

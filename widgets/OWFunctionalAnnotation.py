@@ -58,7 +58,7 @@ class OWFunctionalAnnotation(OWWidget):
         
         self.loadSettings()
         
-        self.signalManager.setFreeze(1)
+        self.signalManager.freeze(self).push() #setFreeze(self.signalManager.freezing + 1)
         QTimer.singleShot(50, self.updateHierarchy)
         
         box = OWGUI.widgetBox(self.controlArea, "Info")
@@ -149,7 +149,7 @@ class OWFunctionalAnnotation(OWWidget):
             self.speciesComboBox.addItems([obiTaxonomy.name(id) for id in self.taxid_list])
             self.genesets = all
         finally:
-            self.signalManager.setFreeze(0)
+            self.signalManager.freeze(self).pop() #setFreeze(self.signalManager.freezing - 1)
         
     def setData(self, data=None):
         self.data = data
@@ -264,10 +264,15 @@ class OWFunctionalAnnotation(OWWidget):
         taxid = self.taxid_list[self.speciesIndex]
         if taxid != self.loadedGenematcher:
             self.progressBarInit()
-            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+            call = self.asyncCall(obiGene.matcher, name="Gene Matcher", blocking=False)
+            call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
+            with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+#            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
                 matchers = [obiGene.GMGO, obiGene.GMKEGG, obiGene.GMNCBI, obiGene.GMAffy]
                 if any(self.geneMatcherSettings):
-                    self.genematcher = obiGene.matcher([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
+                    call.__call__([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
+                    self.genematcher = call.get_result()
+#                    self.genematcher = obiGene.matcher([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
                 else:
                     self.genematcher = obiGene.GMDirect()
 #                self.genematcher.set_targets(self.referenceGenes())
@@ -290,7 +295,9 @@ class OWFunctionalAnnotation(OWWidget):
             return self.genesFromExampleTable(self.referenceData)
         else:
             taxid = self.taxid_list[self.speciesIndex]
-            return obiGene.NCBIGeneInfo(taxid).keys()
+            call = self.asyncCall(obiGene.NCBIGeneInfo, (taxid,), name="", blocking=False)
+            call.__call__()
+            return call.get_result()
     
     def _cached_name_lookup(self, func, cache):
         def f(name, cache=cache):
@@ -319,15 +326,24 @@ class OWFunctionalAnnotation(OWWidget):
     def updateAnnotations(self):
         self.updatingAnnotationsFlag = True
         self.annotationsChartView.clear()
-        self.error(0)
+        self.error([0, 1])
         if not self.genesinrows and len(self.geneAttrs) == 0:
             self.error(0, "Input data contains no attributes with gene names")
             return
+        
         self.progressBarInit()
         self.updateGenematcher()
         self.currentAnnotatedCategories = categories = self.selectedCategories()
-        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            collections = list(obiGeneSets.collections(*categories)) 
+        
+        ## Load collections in a worker thread
+        call = self.asyncCall(obiGeneSets.collections, categories, name="Loading collections", blocking=False)
+        call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
+        with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+            call.__call__()
+            collections = list(call.get_result())
+            
+#        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+#            collections = list(obiGeneSets.collections(*categories)) 
         clusterGenes, referenceGenes = self.clusterGenes(), self.referenceGenes()
         cache = {}
 
