@@ -30,14 +30,12 @@ class Connection(object):
         :type address: str
         """
         self.address = address
-        
+                  
         
     def retrieveXML(self, org="9606", genes=[], m="automatic", r=10):
-        """ Same as `retrieve` but return the network as an xml.dom.minidom
-        Document instance.
+        """ Same as `retrieve` but return the network as an xml string
         """
         query = self._queryPage(org, genes, m, r)
-        
         stream = urllib2.urlopen(query)
         page = stream.read()
         match = self._RE_TOKEN.findall(page)
@@ -45,13 +43,12 @@ class Connection(object):
         if match:
             token = match[0]
         else:
-            raise ValueError()
+            raise ValueError("Invalid query. %s" % query)
         
         query = self._queryGraph(token)
         stream = urllib2.urlopen(query)
         graph = stream.read()
-        doc = minidom.parseString(graph)
-        return doc
+        return graph
     
         
     def _queryPage(self, org, genes, m, r):
@@ -91,7 +88,8 @@ class Connection(object):
                   range 1..100
         :type r: int
         """
-        dom = self.retrieveXML(org, genes, m, r)
+        xml = self.retrieveXML(org, genes, m, r)
+        dom = minidom.parseString(xml)
         graph = parse(dom)
         return graph
     
@@ -103,8 +101,10 @@ def parse(DOM):
     """
     nodes = DOM.getElementsByTagName("node")
     edges = DOM.getElementsByTagName("edge")
+    from collections import defaultdict
     graphNodes = {}
-    graphEdges = {}
+    graphEdges = defaultdict(list)
+    
     def parseAttributes(element):
         return dict([(key, value) for key, value in element.attributes.items()])
     
@@ -134,39 +134,53 @@ def parse(DOM):
         attrs = parseAttributes(edge)
         source, target = attrs["source"], attrs["target"]
         data = parseData(edge)
-        graphEdges[source, target] = data
+        graphEdges[source, target].append(data)
         
-    edgeTypes = set([int(data["networkGroupId"]) for key, data in graphEdges.items()])
+    allData = reduce(list.__add__, graphEdges.values(), [])
+    edgeTypes = set([int(data["networkGroupId"]) for data in allData])
     groupId2int = dict(zip(edgeTypes, range(len(edgeTypes))))
+    groupId2groupCode = dict([(int(data["networkGroupId"]), str(data["networkGroupCode"])) for data in allData])
     
     graph = orngNetwork.Network(len(graphNodes), False, len(edgeTypes))
     graph.objects = graphNodes.keys()
     
-    for (source, target), data in graphEdges.items():
-        edgeType = int(data["networkGroupId"])
-        graph[source, target, groupId2int[edgeType]] = float(data["weight"])
+    edgeWeights = []
+    for (source, target), edge_data in graphEdges.items():
+        edgesDefined = [None] * len(edgeTypes)
+        for data in edge_data:
+            edgeType = int(data["networkGroupId"])
+            edgeInd = groupId2int[edgeType]
+            edgesDefined[edgeInd] = float(data["weight"])
+            
+        edgesDefined = [0 if w is None else w for w in edgesDefined]
+        graph[source, target] = edgesDefined
+        edgeWeights.append(edgesDefined)
+        
         
     nodedomain = orange.Domain([orange.StringVariable("label"),
                                 orange.StringVariable("id"),
                                 orange.FloatVariable("score"),
                                 orange.StringVariable("symbol"),
-                                orange.StringVariable("go")], None)
+                                orange.StringVariable("go"),
+                                orange.EnumVariable("source", values=["true", "false"])], None)
     
     edgedomain = orange.Domain([orange.FloatVariable("u"),
-                                orange.FloatVariable("v"),
-                                orange.FloatVariable("weight"),
-                                orange.EnumVariable("networkGroupId", values=[str(id) for id in edgeTypes]),
-                                orange.StringVariable("networkGroupCode")], None) #TODO add network and networkWeights
+                                orange.FloatVariable("v")] +\
+                               [orange.FloatVariable("weight_%s" % groupId2groupCode[id]) for id in edgeTypes],
+                               None)
     
     label_id = lambda id: graph.objects.index(id) + 1
     nodeitems = orange.ExampleTable(nodedomain,
-                  [[str(node["symbol"]), str(id), float(node["score"]), str(node["symbol"]), str(node["go"])] for id, node in graphNodes.items()])
+                  [[str(node["symbol"]), str(id), float(node["score"]),
+                    str(node["symbol"]), str(node["go"]), str(node["source"])]\
+                     for id, node in graphNodes.items()])
     edgeitems = orange.ExampleTable(edgedomain,
-                  [[str(label_id(source)), str(label_id(target)), float(edge["weight"]), str(edge["networkGroupId"]), str(edge["networkGroupCode"])] \
-                      for (source, target), edge in graphEdges.items()])
+                  [[str(label_id(source)), str(label_id(target))] + weights \
+                      for ((source, target), _), weights in zip(graphEdges.items(), edgeWeights)])
     
     graph.items = nodeitems
     graph.links = edgeitems
+    graph.optimization = None
     return graph
 
 def retrieve(org=None, genes=[], m="automatic", r=10):
