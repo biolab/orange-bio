@@ -187,4 +187,6 @@ def retrieve(org=None, genes=[], m="automatic", r=10):
     """ A helper function, same as Connection().retrive(*args, **kwargs)
     """
     return Connection().retrieve(org, genes, m, r)
-    
+
+if __name__ == "__main__":
+    retrieve("9606", [ 'MRE11A', 'RAD51', 'MLH1', 'MSH2', 'DMC1', 'RAD51AP1', 'RAD50', 'MSH6', 'XRCC3', 'PCNA', 'XRCC2' ])
