@@ -150,6 +150,17 @@ class OWMAPlot(OWWidget):
         
         row_labels = [(attr.name, value, 0) for attr in attrs for value in attr.values]
         
+        def filterSingleValues(labels):
+            ret = []
+            for name, value, axis in labels:
+                match = [(n, v, a) for n, v, a in labels if n == name]
+                if len(match) > 1:
+                    ret.append((name, value, axis))
+            return ret
+            
+        col_labels = filterSingleValues(col_labels)
+        row_labels = filterSingleValues(row_labels)
+        
         return col_labels + row_labels
     
     
@@ -254,7 +265,6 @@ class OWMAPlot(OWWidget):
     def runNormalizationAsync(self):
         """ Run MA centering and z_score estimation in a separate thread 
         """
-        self.setEnabled(False)
         self.error(0)
         self.progressBarInit()
         self.progressBarSet(0.0)
@@ -280,6 +290,7 @@ class OWMAPlot(OWWidget):
                                onResult=self.onResults,
                                onError=self.onUnhandledException)
         self.connect(async, SIGNAL("progressChanged(float)"), self.progressBarSet, Qt.QueuedConnection)
+        self.setEnabled(False)
         async.__call__(progressCallback=async.emitProgressChanged)
             
     ## comment out this line if threading creates any problems 
