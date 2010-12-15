@@ -264,7 +264,7 @@ class OWFunctionalAnnotation(OWWidget):
         taxid = self.taxid_list[self.speciesIndex]
         if taxid != self.loadedGenematcher:
             self.progressBarInit()
-            call = self.asyncCall(obiGene.matcher, name="Gene Matcher", blocking=False)
+            call = self.asyncCall(obiGene.matcher, name="Gene Matcher", blocking=True, thread=self.thread())
             call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
             with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
 #            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
@@ -295,9 +295,11 @@ class OWFunctionalAnnotation(OWWidget):
             return self.genesFromExampleTable(self.referenceData)
         else:
             taxid = self.taxid_list[self.speciesIndex]
-            call = self.asyncCall(obiGene.NCBIGeneInfo, (taxid,), name="", blocking=False)
-            call.__call__()
-            return call.get_result()
+            call = self.asyncCall(obiGene.NCBIGeneInfo, (taxid,), name="Load reference genes", blocking=True, thread=self.thread())
+            call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
+            with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+                call.__call__()
+                return call.get_result()
     
     def _cached_name_lookup(self, func, cache):
         def f(name, cache=cache):
@@ -336,7 +338,7 @@ class OWFunctionalAnnotation(OWWidget):
         self.currentAnnotatedCategories = categories = self.selectedCategories()
         
         ## Load collections in a worker thread
-        call = self.asyncCall(obiGeneSets.collections, categories, name="Loading collections", blocking=False)
+        call = self.asyncCall(obiGeneSets.collections, categories, name="Loading collections", blocking=True, thread=self.thread())
         call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
         with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
             call.__call__()
