@@ -393,8 +393,9 @@ Example::
     
 """
 
+import orngMisc
 from numpy import median
-def lowess(x, y, f=2./3., iter=3):
+def lowess(x, y, f=2./3., iter=3, progressCallback=None):
     """ Lowess taken from Bio.Statistics.lowess, modified to compute pairwise 
     distances inplace.
      
@@ -457,6 +458,7 @@ def lowess(x, y, f=2./3., iter=3):
     w **= 3
     yest = numpy.zeros(n)
     delta = numpy.ones(n)
+    milestones = orngMisc.progressBarMilestones(iter*n)
     for iteration in range(iter):
         for i in xrange(n):
             weights = delta * w[:,i]
@@ -471,6 +473,8 @@ def lowess(x, y, f=2./3., iter=3):
             beta1 = (A22*b1-A12*b2) / determinant
             beta2 = (A11*b2-A21*b1) / determinant
             yest[i] = beta1 + beta2*x[i]
+            if progressCallback and (iteration*n + i) in milestones:
+                progressCallback((100. * iteration*n + i) /  (iter * n))
         residuals = y-yest
         s = median(abs(residuals))
         delta[:] = numpy.clip(residuals/(6*s),-1,1)
@@ -480,7 +484,7 @@ def lowess(x, y, f=2./3., iter=3):
 
 
 
-def lowess2(x, y, xest, f=2./3., iter=3):
+def lowess2(x, y, xest, f=2./3., iter=3, progressCallback=None):
     """Returns estimated values of y in data points xest (or None if estimation fails).
     Lowess smoother: Robust locally weighted regression.
     The lowess function fits a nonparametric regression curve to a scatterplot.
@@ -538,6 +542,9 @@ def lowess2(x, y, xest, f=2./3., iter=3):
     yest = numpy.zeros(n,'f')
     yest2 = numpy.zeros(nest,'f')
     delta = numpy.ones(n,'f')
+    iter_count = iter*(nest + n) if iter > 1 else nest
+    milestones = orngMisc.progressBarMilestones(iter_count)
+    curr_iter = 0
     for iteration in range(iter):
         # fit xest
         for i in range(nest):
@@ -546,6 +553,10 @@ def lowess2(x, y, xest, f=2./3., iter=3):
             A = numpy.array([[numpy.sum(weights), numpy.sum(weights*x)], [numpy.sum(weights*x), numpy.sum(weights*x*x)]])
             beta = numpy.linalg.solve(A, b)
             yest2[i] = beta[0] + beta[1]*xest[i]
+            if progressCallback and curr_iter in milestones:
+                progressCallback(100. * curr_iter / iter_count)
+            curr_iter += 1
+                
         # fit x (to calculate residuals and delta)
         if iter > 1:
             for i in range(n):
@@ -554,6 +565,9 @@ def lowess2(x, y, xest, f=2./3., iter=3):
                 A = numpy.array([[numpy.sum(weights), numpy.sum(weights*x)], [numpy.sum(weights*x), numpy.sum(weights*x*x)]])
                 beta = numpy.linalg.solve(A,b)
                 yest[i] = beta[0] + beta[1]*x[i]
+                if progressCallback and curr_iter in milestones:
+                    progressCallback(100. * curr_iter / iter_count)
+                curr_iter += 1
             residuals = y-yest
             s = numpy.median(numpy.abs(residuals))
             delta = numpy.clip(residuals/(6*s), -1, 1)
@@ -672,6 +686,13 @@ def geometric_mean(array):
     return numpy.power(reduce(lambda a,b: a*b, array.filled(1.), 1.0), 1./len(array))
 
 
+def harmonic_mean(array):
+    """ Return a harmonic mean computed ona a 1d masked array
+    """
+    array = numpy.ma.asanyarray(array)
+    return len(array) / numpy.ma.sum(1. / array)
+
+
 def merge_replicates(replicates, axis=0, merge_function=numpy.ma.average):
     """ Merge `replicates` (numpy.array) along `axis` using `merge_function`
     """
@@ -694,7 +715,7 @@ def MA_center_average(G, R):
     return G, R.copy()
 
 
-def MA_center_lowess(G, R, f=2./3., iter=1):
+def MA_center_lowess(G, R, f=2./3., iter=1, progressCallback=None):
     """ return the G, R by centering the average log2 ratio locally
     depending on the intensity using lowess (locally weighted linear regression)
     """
@@ -702,14 +723,14 @@ def MA_center_lowess(G, R, f=2./3., iter=1):
     ratio, intensity = ratio_intensity(G, R)
     valid = - (ratio.mask & intensity.mask)
     valid_ind = numpy.ma.where(valid)
-    center_est = lowess(intensity[valid], ratio[valid], f=f, iter=iter)
+    center_est = lowess(intensity[valid], ratio[valid], f=f, iter=iter, progressCallback=progressCallback)
     Gc, R = G.copy(), R.copy()
     Gc[valid] *= numpy.exp2(center_est)
     Gc.mask, R.mask = -valid, -valid
     return Gc, R
 
 
-def MA_center_lowess_fast(G, R, f=2./3., iter=1, resolution=100):
+def MA_center_lowess_fast(G, R, f=2./3., iter=1, resolution=100, progressCallback=None):
     """return the G, R by centering the average log2 ratio locally
     depending on the intensity using lowess (locally weighted linear regression),
     approximated only in a limited resolution.
@@ -720,9 +741,12 @@ def MA_center_lowess_fast(G, R, f=2./3., iter=1, resolution=100):
     resoluiton = min(resolution, len(intensity[valid]))
     hist, edges = numpy.histogram(intensity[valid], len(intensity[valid])/resolution)
     
-    centered = lowess2(intensity[valid], ratio[valid], edges, f, iter)
+    progressCallback2 = (lambda val: progressCallback(val/2)) if progressCallback else None 
+    centered = lowess2(intensity[valid], ratio[valid], edges, f, iter, progressCallback=progressCallback2)
 
-    centered = lowess2(edges, centered, intensity[valid], f, iter)
+    progressCallback2 = (lambda val: progressCallback(50 + val/2)) if progressCallback else None
+    centered = lowess2(edges, centered, intensity[valid], f, iter, progressCallback=progressCallback2)
+    
     Gc, R = G.copy(), R.copy()
     Gc[valid] *= numpy.exp2(centered)
     Gc.mask, R.mask = -valid, -valid
@@ -775,7 +799,7 @@ def normalize_expression_data(data, groups, axis=1, merge_function=numpy.ma.aver
     return data
     
     
-def MA_zscore(G, R, window=1./5., padded=False):
+def MA_zscore(G, R, window=1./5., padded=False, progressCallback=None):
     """ Return the Z-score of log2 fold ratio estimated from local
     distribution of log2 fold ratio values on the MA-plot
     """
@@ -804,12 +828,15 @@ def MA_zscore(G, R, window=1./5., padded=False):
         else:
             return sorted[start:end]
     
+    milestones = orngMisc.progressBarMilestones(len(sorted))
     for i in range(len(sorted)):
         indices = local_indices(i, sorted)
         localRatio = numpy.take(ratio, indices)
         local_std = numpy.ma.std(localRatio)
         ind = sorted[i]
         z_scores[ind] = ratio[ind] / local_std
+        if progressCallback and i in milestones:
+            progressCallback(100. * i / len(sorted))
         
     z_scores._mask = - numpy.isfinite(z_scores)
     return z_scores

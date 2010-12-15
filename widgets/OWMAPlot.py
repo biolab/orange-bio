@@ -14,8 +14,7 @@ import OWConcurrent
         
 class OWMAPlot(OWWidget):
     settingsList = ["appendZScore", "appendRIValues"]
-    contextHandlers = {"": DomainContextHandler("", ["selectedGroup", "selectedCenterMethod",
-                                                     "selectedMergeMethod", "zCutoff"])}
+    contextHandlers = {"": DomainContextHandler("", ["selectedGroup", "zCutoff"])}
     
     CENTER_METHODS = [("Average", obiExpression.MA_center_average),
                       ("Lowess (fast - interpolated)", obiExpression.MA_center_lowess_fast),
@@ -112,6 +111,7 @@ class OWMAPlot(OWWidget):
     
     
     def onUnhandledException(self, ex_info):
+        self.setEnabled(True)
         print >> sys.stderr, "Unhandled exception in non GUI thread"
         
         ex_type, ex_val, tb = ex_info
@@ -119,7 +119,6 @@ class OWMAPlot(OWWidget):
             self.error(0, "Linear algebra error: %s" % repr(ex_val))
         else:
             sys.excepthook(*ex_info)
-        self.setEnabled(True)
     
     
     def onGroupSelection(self):
@@ -269,19 +268,19 @@ class OWMAPlot(OWWidget):
         self.progressBarInit()
         self.progressBarSet(0.0)
         G, R = self.getMerged()
-        self.progressBarSet(5.0)
+#        self.progressBarSet(5.0)
         
         center_method = self.CENTER_METHODS[self.selectedCenterMethod][1]
         use_lowess = self.selectedCenterMethod in [1, 2]
         
         def run(progressCallback = lambda value: None): # the function to run in a thread
-            progressCallback(5.0)
+#            progressCallback(5.0)
             if use_lowess:
-                Gc, Rc = center_method(G, R, f=2./3., iter=1)
+                Gc, Rc = center_method(G, R, f=2./3., iter=1, progressCallback=lambda val: progressCallback(val/2))
             else:
                 Gc, Rc = center_method(G, R)
             progressCallback(50)
-            z_scores = obiExpression.MA_zscore(Gc, Rc, 1./3.)
+            z_scores = obiExpression.MA_zscore(Gc, Rc, 1./3., progressCallback= lambda val: progressCallback(50 + val/2))
             
             return Gc, Rc, z_scores
         
