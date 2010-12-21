@@ -11,6 +11,29 @@ import numpy
 import obiExpression
         
 import OWConcurrent
+
+from functools import partial
+
+class ProgressBarDiscard(QObject):
+    def __init__(self, parent, redirect):
+        QObject.__init__(self, parent)
+        self.redirect = redirect
+        self._delay = False
+        
+    @pyqtSignature("progressBarSet(float)")
+    def progressBarSet(self, value):
+        # Discard OWBaseWidget.progressBarSet call, because it calls qApp.processEvents
+        #which can result in 'event queue climbing' and max. recursion error if GUI thread
+        #gets another advance signal before it finishes with this one
+        if not self._delay:
+            try:
+                self._delay = True
+                self.redirect.progressBarSet(value)
+            finally:
+                self._delay = False
+#        else:
+#            QTimer.singleShot(10, partial(self.redirect.progressBarSet, value))
+        
         
 class OWMAPlot(OWWidget):
     settingsList = ["appendZScore", "appendRIValues"]
@@ -284,11 +307,12 @@ class OWMAPlot(OWWidget):
             
             return Gc, Rc, z_scores
         
-            
+        self.progressDiscard = ProgressBarDiscard(self, self)
+         
         async = self.asyncCall(run, name="Normalization",
                                onResult=self.onResults,
                                onError=self.onUnhandledException)
-        self.connect(async, SIGNAL("progressChanged(float)"), self.progressBarSet, Qt.QueuedConnection)
+        self.connect(async, SIGNAL("progressChanged(float)"), self.progressDiscard.progressBarSet, Qt.QueuedConnection)
         self.setEnabled(False)
         async.__call__(progressCallback=async.emitProgressChanged)
             
@@ -300,6 +324,7 @@ class OWMAPlot(OWWidget):
         """
         assert(QThread.currentThread() is self.thread())
         self.setEnabled(True)
+        qApp.processEvents()
         self.progressBarFinished()
         self.centered = Gc, Rc
         self.z_scores = z_scores
