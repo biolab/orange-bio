@@ -9,13 +9,64 @@ import obiGeneMania
 import os, sys
 import multiprocessing
 import random
+
+class BarItemDelegate(QStyledItemDelegate):
+    BarRole = OWGUI.OrangeUserRole.next() 
+    BarForegroundRole = OWGUI.OrangeUserRole.next()
+    
+    def __init__(self, parent, brush=QBrush(QColor(255, 170, 127)), scale=(0.0, 1.0)):
+        QStyledItemDelegate.__init__(self, parent) 
+        self.brush = brush
+        self.scale = scale
         
+        
+    def paint(self, painter, option, index):
+        painter.save()
+        qApp.style().drawPrimitive(QStyle.PE_PanelItemViewRow, option, painter)
+        qApp.style().drawPrimitive(QStyle.PE_PanelItemViewItem, option, painter)
+        rect = option.rect
+        try:
+            val, ok = index.data(self.BarRole).toDouble()
+            if ok:
+                color = index.data(self.BarForegroundRole)
+                if color.isValid() and color.type() == QVariant.Color:
+                    brush = QBrush(color)
+                else:
+                    brush = self.brush
+                    
+                minval, maxval = self.scale
+                val = (val - minval) / (maxval - minval)
+                painter.save()
+                if option.state & QStyle.State_Selected:
+                    painter.setOpacity(0.75)
+                painter.setBrush(brush)
+                painter.drawRect(rect.adjusted(1, 1, max(-rect.width() * (1.0 - val) - 2, - rect.width() + 2), -2))
+                painter.restore()
+        except Exception, ex:
+            print >> sys.stderr, ex
+            
+        text = index.data(Qt.DisplayRole).toString()
+        if text:
+            align, ok = index.data(Qt.TextAlignmentRole).toInt()
+            if not ok:
+                align = Qt.AlignVCenter | Qt.AlignLeft
+                
+            painter.drawText(option.rect, align, text)
+        painter.restore()
+        
+        
+    def sizeHint(self, option, index):
+        size = QStyledItemDelegate.sizeHint(self, option, index)
+        metrics = QFontMetrics(option.font)
+        height = metrics.lineSpacing() + 2
+        return QSize(size.width(), height)
+    
 
 class OWGeneMania(OWWidget):
     contextHandlers = {"": DomainContextHandler("", ["selectedOrganismIndex", "selectedGeneAttrIndex", "genesInColumns"])}
-    settingsList = ["selectedOrganismIndex", "selectedGeneAttrIndex", "genesInColumns", "selectedMethodIndex", "resultCount"]
+    settingsList = ["serverAddress", "selectedOrganismIndex", "selectedGeneAttrIndex", "genesInColumns", "selectedMethodIndex", "resultCount"]
     def __init__(self, parent=None, signalManager=None, name="Gene Mania"):
-        OWWidget.__init__(self, parent, signalManager, name, wantMainArea=False)
+        OWWidget.__init__(self, parent, signalManager, name, wantMainArea=True)
         
         self.inputs = [("Input Genes", ExampleTable, self.setData)]
         self.outputs = [("Network", orngNetwork.Network, Default), ("Items", ExampleTable)]
@@ -42,11 +93,18 @@ class OWGeneMania(OWWidget):
                           ("M. musculus", "10090"),
                           ("S. cerevisiae", "4932")]
         
-        self.info = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info", addSpace=True), "No genes on input.\n")
+        box = OWGUI.widgetBox(self.controlArea, "Info", addSpace=True)
+        self.info = OWGUI.widgetLabel(box, "No genes on input.")
+        self.infoState = OWGUI.widgetLabel(box, "")
+        self.infoState.setWordWrap(True)
+        
+        box = OWGUI.widgetBox(self.controlArea, "GeneMANIA server address", addSpace=True)
+        OWGUI.lineEdit(box, self, "serverAddress")
+        
         self.organismCombo = OWGUI.comboBox(self.controlArea, self, "selectedOrganismIndex", "Organims",
                                             items=[t[0] for t in self.organisms],
-                                            tooltip="Select the organism",)
-#                                            callback=self.onOrganismSelecion)
+                                            tooltip="Select the organism",
+                                            callback=self.updateInfo)
         
         box = OWGUI.widgetBox(self.controlArea, "Genes", addSpace=True)
         self.geneAttrCombo = OWGUI.comboBox(box, self, "selectedGeneAttrIndex",
@@ -77,20 +135,32 @@ class OWGeneMania(OWWidget):
         OWGUI.comboBox(self.controlArea, self, "selectedMethodIndex", 
                        box="Net combining method",
                        items=[t[0] for t in self.methodItems],
-#                       toolTips=toolTips,
+                       callback=self.updateInfo
                        )
         
         OWGUI.spin(self.controlArea, self, "resultCount", 1, 100, 
-                   box="Number of gene results")
+                   box="Number of gene results",
+                   callback=self.updateInfo
+                   )
         
-        
+        self.geneManiaLinkLabel = OWGUI.widgetLabel(self.controlArea, "")
+        self.geneManiaLinkLabel.setOpenExternalLinks(True)
         OWGUI.button(self.controlArea, self, "Retrieve", callback=self.retrieve)
         OWGUI.rubber(self.controlArea)
         
+        self.networksReport = QTreeView()
+        self.networksReport.setEditTriggers(QTreeView.NoEditTriggers)
+        box = OWGUI.widgetBox(self.mainArea, "Networks")
+        box.layout().addWidget(self.networksReport)
+        
         self.resize(100, 200)
+        
+        self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.updateInfo)
 
 
     def setData(self, data=None):
+        self.error([0,1,2])
+        self.warning([0])
         self.data = data
         self.closeContext("")
         self.geneAttrCombo.clear()
@@ -112,12 +182,24 @@ class OWGeneMania(OWWidget):
         genes = self.getSelectedGenes()
         self.info.setText("")
         
-    def updateInfo(self):
+    def updateInfo(self, *args):
         if self.data is not None:
             genes = self.getSelectedGenes()
-            self.info.setText("%i genes on input.\n" % len(genes))
+            htmlState = self.widgetStateToHtml()
+            self.info.setText("%i genes on input." % len(genes))
+            self.infoState.setText(htmlState)
         else:
-            self.info.setText("No data on input.\n")
+            self.info.setText("No data on input.")
+            self.infoState.setText("")
+        
+        if self.data:
+            org = self.organisms[self.selectedOrganismIndex][1]
+            genes = self.getSelectedGenes()
+            method = self.methodItems[self.selectedMethodIndex][1]
+            conn = obiGeneMania.Connection(self.serverAddress)
+            self.geneManiaLinkLabel.setText('<a href="%s">View network in external browser</a>' % conn._queryPage(org, genes, method, self.resultCount))
+        else:
+            self.geneManiaLinkLabel.setText('')
         
     def getSelectedGenes(self):
         if self.data is not None:
@@ -135,12 +217,23 @@ class OWGeneMania(OWWidget):
         org = self.organisms[self.selectedOrganismIndex][1]
         genes = self.getSelectedGenes()
         method = self.methodItems[self.selectedMethodIndex][1]
-        conn = obiGeneMania.Connection(self.serverAddress)
+        self.error([0, 1, 2])
+        self.warning([0])
         
+        conn = obiGeneMania.Connection(self.serverAddress)
+        errorCode, invalid, genes = conn.validate(org, genes)
+        if not genes:
+            self.error(2, "No valid gene names!")
+            self.net, self.netTab = None, None
+            self.updateNetworksReport()
+            return
+        elif invalid:
+            self.warning(0, "There are invalid gene names on input:\n%s" % (",".join(invalid[:5])) + (" ..." if len(invalid) > 5 else ""))
+            
+#        print conn._queryPage(org, genes, method, self.resultCount)
         call = self.asyncCall(conn.retrieveXML, (org, genes), {"m": method, "r": self.resultCount})
         call()
-
-        self.error(0)
+        
         self.progressBarInit()
         self.setEnabled(False)
         try:
@@ -152,23 +245,65 @@ class OWGeneMania(OWWidget):
             net = obiGeneMania.parse(dom)
             items = net.items
         except Exception, ex:
-            self.error(0, "Failed to retrieve network from server!\n  " + str(ex))
+            self.error(0, "Failed to retrieve network from server!\n" + str(ex))
             sys.excepthook(*sys.exc_info())
             net = None
             items = None
+        
+        if net:
+            try:
+                self.netTab = obiGeneMania.parsePage(conn._page)
+            except Exception:
+                self.error(1, "Failed to parse network tabs!\n" + str(ex))
+                self.netTab = None
+        else:
+            self.netTab = None
         self.setEnabled(True)
         self.progressBarFinished()
+        
+        self.net = net
         
         self.send("Network", net)
         self.send("Items", items)
         
+        self.updateNetworksReport()
+        
+    def updateNetworksReport(self):
+        model = QStandardItemModel(self)
+        model.setHorizontalHeaderLabels(["Networks", "Weight"])
+        root = model.invisibleRootItem()
+        def toFloat(s):
+            if s.strip().endswith("%"):
+                return float(s.strip()[:-1])
+            else:
+                return float(s)
+            
+        if self.netTab and self.net and self.net.links:
+            for group in self.netTab:
+                groupItem = QStandardItem(group.name)
+                groupWeightItem = QStandardItem("%.2f %%" % toFloat(group.weight))
+                groupWeightItem.setData(QVariant(toFloat(group.weight) / 100.0), BarItemDelegate.BarRole)
+                root.appendRow([groupItem, groupWeightItem])
+                for net in group.networks:
+                    netItem = QStandardItem(net.name)
+                    netItem.setData(QVariant(net.description), Qt.ToolTipRole)
+                    
+                    netWeightItem = QStandardItem("%.2f %%" % toFloat(net.weight))
+                    netWeightItem.setData(QVariant(toFloat(net.weight) / 100.0), BarItemDelegate.BarRole)
+                    netWeightItem.setData(QVariant(net.description), Qt.ToolTipRole)
+                    groupItem.appendRow([netItem, netWeightItem])
+                
+        self.networksReport.setModel(model)
+        self.networksReport.setItemDelegateForColumn(1, BarItemDelegate(self))
+        self.networksReport.resizeColumnToContents(0)
+            
         
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     w = OWGeneMania()
     w.show()
     data = orange.ExampleTable("../../../doc/datasets/brown-selected.tab")
-    w.setData(data)
+    w.setData(orange.ExampleTable(data[:3]))
     app.exec_()
     w.saveSettings()
         

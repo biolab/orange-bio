@@ -12,6 +12,7 @@ Example::
 """
 
 import urllib2
+import urllib
 import re
 import posixpath
 from xml.dom import minidom
@@ -21,8 +22,19 @@ import orngNetwork
 
 DEFAULT_SERVER = "http://193.2.72.57:8080/genemania"
 
+_TAX_ID_2_INDEX = {"3702": 1,
+                   "6239": 2,
+                   "7227": 3,
+                   "9606": 4,
+                   "10090": 5,
+                   "4932": 6
+                   }
 class Connection(object):
     _RE_TOKEN = re.compile(r'<li\s+id\s*=\s*"menu_save"\s*token\s*=\s*"([0-9]+)"><label>Save</label>')
+    _RE_NETWORK_TAB = re.compile(r'^<div\s*id\s*=\s*"networks_tab"\s*class\s*=\s*"tab">*?^</div>', re.MULTILINE)
+    _RE_NETWORK_GROUP_NAMES = re.compile(r'<div\s*class\s*=\s*"network_name"\s*id\s*=\s*"networkGroupName([0-9]+)"\s*>\s*([a-zA-Z0-9_\- ]+)\s*</div>')
+    _RE_NETWORK_NAMES = re.compile(r'<div\s*class\s*=\s*"network_name"\s*id\s*=\s*"networkName([0-9]+)"\s*>\s*([a-zA-Z0-9_\- ]+)\s*</div>')
+
     def __init__(self, address=DEFAULT_SERVER):
         """ Construct a Connection instance for GeneMANIA server at `address`
         
@@ -32,24 +44,51 @@ class Connection(object):
         self.address = address
                   
         
-    def retrieveXML(self, org="9606", genes=[], m="automatic", r=10):
+    def retrieveXML(self, org="9606", genes=[], m="automatic", r=10, token=None):
         """ Same as `retrieve` but return the network as an xml string
         """
-        query = self._queryPage(org, genes, m, r)
-        stream = urllib2.urlopen(query)
-        page = stream.read()
-        match = self._RE_TOKEN.findall(page)
+        if token is None:
+            page = self.retrieveHtmlPage(org, genes, m, r)
+#            query = self._queryPage(org, genes, m, r)
+#            stream = urllib2.urlopen(query)
+#            page = stream.read()
+            match = self._RE_TOKEN.findall(page)
         
-        if match:
-            token = match[0]
-        else:
-            raise ValueError("Invalid query. %s" % query)
+            if match:
+                token = match[0]
+            else:
+                raise ValueError("Invalid query. %s" % self._queryPage(org, genes, m, r))
         
         query = self._queryGraph(token)
         stream = urllib2.urlopen(query)
         graph = stream.read()
+        self._graph = graph
         return graph
     
+    def retrieveHtmlPage(self, org="9606", genes=[], m="automatic", r=10):
+        """ Retrieve the HTML page (contains token to retrieve the graph, network descriptions ...)"
+        """
+        query = self._queryPage(org, genes, m, r)
+        stream = urllib2.urlopen(query)
+        page = stream.read()
+        self._page = page
+        return page
+    
+    def validate(self, org, genes):
+        """ Validate gene names for organism. Return a two 
+        tuple, one with known and one with unknown genes
+        """
+        
+        organism = _TAX_ID_2_INDEX.get(org, 1)
+        genes = "; ".join(genes)
+        data = urllib.urlencode([("organism", str(organism)), ("genes", genes)])
+        validatorUrl = posixpath.join(self.address, "validator")
+        stream = urllib2.urlopen(validatorUrl, data)
+        response = stream.read()
+        dom = minidom.parseString(response)
+        return parseValidationResponse(dom)
+        
+        
         
     def _queryPage(self, org, genes, m, r):
         return posixpath.join(self.address, "link?o=%s&g=%s&m=%s&r=%i" % (org, "|".join(genes), m, r)) 
@@ -182,6 +221,167 @@ def parse(DOM):
     graph.links = edgeitems
     graph.optimization = None
     return graph
+
+def parseValidationResponse(dom):
+    def getData(node):
+        data = []
+        for c in node.childNodes:
+            if c.nodeType == node.TEXT_NODE:
+                data.append(c.data)
+                
+        return " ".join([d.strip() for d in data])
+        
+    def getStrings(node):
+        strings = []
+        for string in node.getElementsByTagName("string"):
+            strings.append(getData(string))
+        return strings
+    errorCode = dom.getElementsByTagName("errorCode")[0]
+    errorCode = getData(errorCode)
+    invalidSymbols = getStrings(dom.getElementsByTagName("invalidSymbols")[0])
+    geneIds = getStrings(dom.getElementsByTagName("geneIds")[0])
+    
+    return errorCode, invalidSymbols, geneIds
+    
+
+from HTMLParser import HTMLParser
+
+class NetworkGroup(object):
+    """ Network group descriptor
+    """
+    def __init__(self):
+        self.weight = ""
+        self.networks = []
+        self.name = ""
+        self.id = ""
+
+
+class Network(object):
+    """ Source network descriptor
+    """
+    
+    def __init__(self):
+        self.weight = ""
+        self.name = ""
+        self.id = ""
+        self.description = ""
+        
+        
+class _NetworkTabParser(HTMLParser):
+    """ Parses the "Network" tab from the GeneMANIA HTML pages 
+    """
+    _RE_GROUP_ID = re.compile(r"networkGroup(\d+)")
+    _RE_GROUP_WEIGHT_ID = re.compile(r"networkGroupWeight(\d+)")
+    _RE_GROUP_NAME_ID = re.compile(r"networkGroupName(\d+)")
+    
+    _RE_NETWORK_ID = re.compile(r"network(\d+)")
+    _RE_NETWORK_WEIGHT_ID = re.compile(r"networkWeight(\d+)")
+    _RE_NETWORK_NAME_ID = re.compile(r"networkName(\d+)")
+    _RE_NETWORK_DESCRIPTION_ID = re.compile("networkDescription(\d+)")
+    
+    
+    def __init__(self, *args, **kwargs):
+        HTMLParser.__init__(self)
+        self.networkGroups = []
+        self.networks = {}
+        
+        self.currentGroup = None
+        self.currentNetwork = None
+        
+        self.data_handler = None
+        
+    def handle_start_group(self, tag, attrs):
+        """ Handle '<li class=... id="networkGroup%i">'
+        """
+        self.currentGroup = NetworkGroup()
+        self.currentGroup.id = attrs.get("id")
+        
+        self.networkGroups.append(self.currentGroup)
+        
+        
+    def handle_start_group_weight(self, tag, attrs):
+        """ Handle '<span tooltip="..." id="networkGroupWeight%i">'
+        """
+        self.data_handler = self.handle_group_weight_data
+        
+    def handle_group_weight_data(self, data):
+        self.currentGroup.weight += data
+        
+    def handle_end_group_weight(self, tag):
+        self.data_handler = None
+        
+    def handle_start_group_name(self, tag, attrs):
+        """ Handle '<div class="network_name" id="networkGroupName%i">'
+        """
+        self.data_handler = self.handle_group_name_data
+        
+    def handle_group_name_data(self, data):
+        self.currentGroup.name += data
+        
+    def handle_start_network(self, tag, attrs):
+        """ Handle '<li class="checktree_network" id="network%i">'
+        """
+        self.currentNetwork = Network()
+        self.currentNetwork.id = attrs.get("id")
+        
+        self.currentGroup.networks.append(self.currentNetwork)
+        
+    def handle_start_network_weight(self, tag, attrs):
+        """ Handle '<span tooltip="..." id="networkWeight%i">'
+        """
+        self.data_handler = self.handle_network_weight_data
+        
+    def handle_network_weight_data(self, data):
+        self.currentNetwork.weight += data
+        
+    def handle_start_network_name(self, tag, attrs):
+        """ Handle '<div class="network_name" id="networkName%i">'
+        """
+        self.data_handler = self.handle_network_name_data
+        
+    def handle_network_name_data(self, data):
+        self.currentNetwork.name += data
+        
+    def handle_start_network_description(self, tag, attrs):
+        """ Handle '<div class="text" id="networkDescription%i">'
+        """
+        self.data_handler = self.handle_network_description_data
+        
+    def handle_network_description_data(self, data):
+        self.currentNetwork.description += data
+        
+    def handle_data(self, data):
+        if self.data_handler:
+            self.data_handler(data)
+    
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "li" and self._RE_GROUP_ID.search(attrs.get("id", "")):
+            self.handle_start_group(tag, attrs)
+        elif tag == "span" and self._RE_GROUP_WEIGHT_ID.search(attrs.get("id", "")):
+            self.handle_start_group_weight(tag, attrs)
+        elif tag == "div" and self._RE_GROUP_NAME_ID.search(attrs.get("id", "")):
+            self.handle_start_group_name(tag, attrs)
+        elif tag == "li" and self._RE_NETWORK_ID.search(attrs.get("id", "")):
+            self.handle_start_network(tag, attrs)
+        elif tag == "span" and self._RE_NETWORK_WEIGHT_ID.search(attrs.get("id", "")):
+            self.handle_start_network_weight(tag, attrs)
+        elif tag == "div" and self._RE_NETWORK_NAME_ID.search(attrs.get("id", "")):
+            self.handle_start_network_name(tag, attrs)
+        elif tag == "div" and self._RE_NETWORK_DESCRIPTION_ID.search(attrs.get("id", "")):
+            self.handle_start_network_description(tag, attrs)
+        else:
+            HTMLParser.handle_starttag(self, tag, attrs)
+            
+    def handle_endtag(self, tag):
+        self.data_handler = None
+            
+
+def parsePage(html):
+    parser = _NetworkTabParser()
+    parser.feed(html)
+    return parser.networkGroups
+    
 
 def retrieve(org=None, genes=[], m="automatic", r=10):
     """ A helper function, same as Connection().retrive(*args, **kwargs)
