@@ -39,7 +39,21 @@ z_heatmap = 5                   # layer with heatmaps
 ##############################################################################
 # main class
 
-class OWHeatMap(OWWidget):	
+class ExampleTableContextHandler(ContextHandler):
+    def match(self, context, imperfect, examples):
+        return context.checksum == examples.checksum() and 2
+    
+    def findOrCreateContext(self, widget, examples):
+        context, isNew = ContextHandler.findOrCreateContext(self, widget, examples)
+        if not context:
+            return None, False
+        context.checksum = examples.checksum()
+        return context, isNew
+
+class OWHeatMap(OWWidget):
+    contextHandlers = {"": DomainContextHandler("", ["CellWidth", "CellHeight"]),
+                       "Selection": ExampleTableContextHandler("Selection")}
+    
     settingsList = ["CellWidth", "CellHeight", "SpaceX", "Merge",
                     "Gamma", "CutLow", "CutHigh", "CutEnabled", 
                     "ShowAnnotation", "LegendOnTop", "LegendOnBottom",
@@ -287,6 +301,7 @@ class OWHeatMap(OWWidget):
     # handling of input/output signals
 
     def dataset(self, data, id, blockUpdate=0):
+        self.closeContext("Selection")
         ids = [d.id for d in self.data]
         if not data:
             if id in ids:
@@ -323,11 +338,6 @@ class OWHeatMap(OWWidget):
 
         self.unorderedData = None
         self.groupClusters = None
-        if not blockUpdate:
-            self.send('Examples', None)
-            self.send('Structured Data', None)
-            self.constructHeatmap()
-            self.scene.update()
 
     def chipdata(self, data):
         self.data = [] # XXX should only remove the data from the same source, use id in this rutine
@@ -349,6 +359,16 @@ class OWHeatMap(OWWidget):
         self.constructHeatmap(callback=pb.advance)
         self.scene.update()
         pb.finish()
+        
+    def handleNewSignals(self):
+        self.send('Examples', None)
+        self.send('Structured Data', None)
+        self.constructHeatmap()
+#        self.scene.update()
+        if self.data:
+            self.openContext("Selection", self.data[0])
+        
+        
 
     def orderClustering(self, data):
         import orngClustering
@@ -818,6 +838,20 @@ class OWHeatMap(OWWidget):
         if self.selection:
             self.selection.remove()
             self.scene.update()
+            
+    ## handle selections
+    def settingsFromWidgetCallbackSelection(self, handler, context):
+        context.selection = self.selection.indxs, self.selection.startIndx, self.selection.rows
+        context.selectedRows = list(self.selection.rows)
+
+    def settingsToWidgetCallbackSelection(self, handler, context):
+        selection = getattr(context, "selection", None)
+        if selection:
+            try:
+                self.selection.setSelection(*selection)
+            except Exception, ex:
+                sys.excepthook(*sys.exc_info())
+        
 
 ##################################################################################################
 # new canvas items
@@ -1164,6 +1198,12 @@ class SelectData(object):
             self.scene.removeItem(r)
         if self.rows:
             self.squares = self.draw(self.rows)
+            
+    def setSelection(self, indxs, startIndx, rows):
+        self.indxs = indxs
+        self.startIndx = startIndx
+        self.rows = rows
+        self.redraw()
 
 
 ##################################################################################################
