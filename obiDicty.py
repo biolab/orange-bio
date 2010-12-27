@@ -10,7 +10,11 @@ import orngServerFiles
 import pickle
 
 defaddress = "http://bcm.fri.uni-lj.si/microarray/api/index.php?"
-defaddresspipa = "https://pipa.fri.uni-lj.si/pipa/script/api/orange.py/"
+#defaddresspipa = "https://pipa.fri.uni-lj.si/pipa/script/api/orange.py?action="
+defaddresspipa = "https://pipa.fri.uni-lj.si/PIPA/PIPAapi/PIPAorange.py"
+
+pipaparuser = "pipa_username"
+pipaparpass = "pipa_password"
 
 #utility functions - from Marko's mMisc.py
 
@@ -523,8 +527,8 @@ def bufferkeypipa(command, data):
     command = command + " v5" #add version
     if data != None:
         data = data.copy()
-        if "pass1" in data:
-            data.pop("pass1")
+        if pipaparpass in data:
+            data.pop(pipaparpass)
         return command + " " +  urllib.urlencode(sorted(data.items()))
     else:
         return command
@@ -543,7 +547,7 @@ class PIPA(DBCommon):
     def add_auth(self, data=None):
         if self.username == None:
             return data
-        authdic = { "user1": self.username, "pass1": self.password }
+        authdic = { pipaparuser: self.username, pipaparpass: self.password }
         if data != None:
             authdic.update(data)
         return authdic
@@ -552,7 +556,8 @@ class PIPA(DBCommon):
         """
         Returns a dictionary of (id: dictionary of annotations).
         """
-        res, legend = self.sq("mapping_list", data=self.add_auth(), reload=reload, bufferkey=bufferkeypipa, bufver=bufver)
+        #res, legend = self.sq("mapping_list", data=self.add_auth(), reload=reload, bufferkey=bufferkeypipa, bufver=bufver)
+        res, legend = self.sq("", data=self.add_auth({"action": "expression_list"}), reload=reload, bufferkey=bufferkeypipa, bufver=bufver)
         return dict( (sa[0], dict(zip(legend[1:], sa[1:]))) for sa in res )
 
     def chips(self, ids, ctype, reload=False, bufver="0"):
@@ -571,21 +576,24 @@ class PIPA(DBCommon):
             return ['gene_id', 'value'], antss
 
         download_command = "gene_expression"
-        antss = self.downloadMulti(download_command, ids, data=self.add_auth({"ids":"$MULTI$", 'transpose':'1', 'type':ctype}), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
+        datadict = {"action": download_command, "ids":"$MULTI$", 'transpose':'1'}
+        if ctype != None:
+            datadict["type"] = ctype
+        antss = self.downloadMulti("", ids, data=self.add_auth(datadict), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
         for a,legend in antss:
             yield a
 
     def gene_expression_types(self, reload=False, bufver="0"):
-        res, legend = self.sq("gene_expression_type", data=self.add_auth(), reload=reload, bufferkey=bufferkeypipa, bufver=bufver)
+        #res, legend = self.sq("gene_expression_type", data={self.add_auth(), reload=reload, bufferkey=bufferkeypipa, bufver=bufver)
+        res, legend = self.sq("", data=self.add_auth({"action":"gene_expression_type"}), reload=reload, bufferkey=bufferkeypipa, bufver=bufver)
         return sorted(tuple(a) for a in res)
 
     def chips_keynaming(self, ctype):
-        """ ADD ctype parameter """
-        keynamingfn,_ = self.downloadMulti_bufcommand_replace_multi("gene_expression", data=self.add_auth({"ids":"$MULTI$", 'transpose':'1', 'type':ctype}), chunk=100, bufferkey=bufferkeypipa, transformfn=None)
+        keynamingfn,_ = self.downloadMulti_bufcommand_replace_multi("", data=self.add_auth({"action": "gene_expression", "ids":"$MULTI$", 'transpose':'1', 'type':ctype}), chunk=100, bufferkey=bufferkeypipa, transformfn=None)
         return keynamingfn
 
     def get_data(self, exclude_constant_labels=False, average=median, 
-        ids=None, callback=None, bufver="0", transform=None, ctype="1", allowed_labels=None):
+        ids=None, callback=None, bufver="0", transform=None, ctype=None, allowed_labels=None):
         """
         Get data in a single example table with labels of individual attributes
         set to annotations for query and post-processing
@@ -1490,13 +1498,13 @@ if __name__=="__main__":
     printet(et)
     """
 
-    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"), username=None, password=None)
+    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
 
     print d.gene_expression_types()
 
     allids = d.annotations().keys()
-    print d.annotations().items()[0]
     print ("list", allids)
+    print d.annotations().items()[0]
     print ("annots", d.annotations().items()[:2])
 
     allids = map(str, [ 151, 150 ])
@@ -1504,8 +1512,6 @@ if __name__=="__main__":
     import math
 
     #data = d.get_data(ids=allids)
-    data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2), allowed_labels=["strain"], ctype="1")
-    #FIXME map_map35, raw, map_lengths
+    data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2), allowed_labels=["strain"], ctype="3")
 
-    #data = orange.ExampleTable(data.domain, data[:1])
     printet(data)
