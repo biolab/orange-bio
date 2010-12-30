@@ -29,7 +29,7 @@ The logarithmic transformation is computed as the binary logarithm of the (value
 Examples
 --------
 
-In the schema below we connected PIPA to Data Table and GO Enrichment Analysis widgets.
+In the schema below we connected PIPA to Data Table, GO Enrichment Analysis, and Distance Map (through Attribute Distance) widgets.
 
 .. image:: PIPA_schema.*
    :alt: Example schema with PIPA widget
@@ -38,4 +38,9 @@ The Data Table widget below contains the output from the PIPA widget. Each colum
   
 .. image:: PIPA_datatable.*
    :alt: Output of PIPA in a data table.
+
+The Distance Map widget shows distances between experiments. The distances are measured with Attribute Distance widget, which was set to compute Pearson distances (as (1-PearsonCorrelation)/2).
+
+.. image:: PIPA_distance.*
+   :alt: Distances between experiments.
  
