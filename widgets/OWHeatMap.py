@@ -729,7 +729,7 @@ class OWHeatMap(OWWidget):
 #                    item.setPos(-100, y+self.CellHeight/2.0)
                     item.setPos(0, y+self.CellHeight/2.0/self.Merge)
                     item.update()
-                    
+
                 image = ImageItem(self.bmps[i][g], self.scene, self.imageWidth, \
                                   self.heights[g], palette, x=x, y=y, z=z_heatmap)
                 image.hm = self.heatmaps[i][g] # needed for event handling
@@ -1210,13 +1210,26 @@ class SelectData(object):
 # test script
 
 if __name__=="__main__":
-    import OWDataFiles, orngSignalManager
-    signalManager = orngSignalManager.SignalManager(0)
     a=QApplication(sys.argv)
-    ow=OWHeatMap(signalManager = signalManager)
-    signalManager.addWidget(ow)
-    a.setMainWidget(ow)
+    ow = OWHeatMap()
+
+    fn = "/home/marko/pipa3.tab"
+
+    ow.dataset(orange.ExampleTable(fn), 0)
+    ow.handleNewSignals()
     ow.show()
+
+    a.exec_()
+
+    ow.saveSettings()
+    """
+    import orngSignalManager
+    signalManager = orngSignalManager.SignalManager(0)
+    ow=OWHeatMap(signalManager = signalManager)
+    #signalManager.addWidget(ow)
+    #a.setMainWidget(ow)
+    ow.show()
+    import OWDataFiles
     ds = OWDataFiles.OWDataFiles(signalManager = signalManager, loaddata=0)
     signalManager.addWidget(ds)
     ds.loadData("potato.sub100")
@@ -1226,8 +1239,6 @@ if __name__=="__main__":
     signalManager.setFreeze(1)
     signalManager.addLink(ds, ow, 'Structured Data', 'Structured Data', 1)
     signalManager.setFreeze(0)
-    a.exec_loop()
-    ow.saveSettings()
     
 ##    d = orange.ExampleTable('wt'); d.name = 'wt'
 ##    d = orange.ExampleTable('wt-nometa'); d.name = 'wt'
@@ -1242,6 +1253,6 @@ if __name__=="__main__":
 ##        d = orange.ExampleTable(s); d.name = s
 ##        ow.dataset(d, i)
 ##    ow.dataset(None, 2)
+"""
 
-#    a.exec_loop()
-#    ow.saveSettings()
+
