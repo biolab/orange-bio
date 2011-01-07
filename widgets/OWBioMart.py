@@ -1,10 +1,11 @@
 """<name>Bio Mart</name>
 <description>Query BioMart service</description>
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si</contact>
+<priority>2010</priority>
+<icon>icons/BioMart.png</icon>
 """
 
 from OWWidget import *
-#from PyQt4.QtNetwork import *
 import obiBioMart
 
 from obiBioMart import *
@@ -12,533 +13,752 @@ from obiBioMart import *
 import sys, os
 import traceback
 
-from collections import defaultdict
+import socket
+socket.setdefaulttimeout(60)
 
-def cached_function_instance(func):
-    from functools import wraps
-    cache = {}
-    @wraps(func)
-    def f(*args, **kwargs):
-        sig = args + tuple(sorted(kwargs.items()))
-        if sig not in cache:
-            cache[sig] = func(*args, **kwargs)
-        return cache[sig]
-    return f
-        
-        
-class WorkerThread(QThread):
-    def run(self):
-        self.exec_()
-        
-class AsyncFunc(QObject):
-    def __init__(self, callable, thread=None, parent=None):
-        QObject.__init__(self, parent)
-        self.callable = callable
-        if thread:
-            self.moveToThread(thread)
-            
-        self.connect(self, SIGNAL("start()"), self.execute, Qt.QueuedConnection)
-        
-    def __call__(self):
-#        print >> sys.stderr, self
-        self.emit(SIGNAL("start()"))
-    
-    @pyqtSignature("execute()")
-    def execute(self):
-#        print >> sys.stderr, "AsyncFunc", self.callable, "in", QThread.currentThread(), self.thread()
-        try:
-            self.result = self.callable()
-        except Exception, ex:
-            print >> sys.stderr, "Exception in thread ", QThread.currentThread(), " while calling ", self.callable 
-            self.emit(SIGNAL("finished(QString)"), QString(repr(ex)))
-            self.emit(SIGNAL("unhandledException(PyQt_PyObject)"), ex)
-            self._status = 1
-            return
-        self.emit(SIGNAL("finished(QString)"), QString("Ok"))
-        self.emit(SIGNAL("resultReady(PyQt_PyObject)"), self.result)
-        self._status = 0
-        
-    def poll(self):
-        return getattr(self, "_status", None)
+from collections import defaultdict
+import itertools
     
 import OWConcurrent
+
                 
 def is_hidden(tree):
     return getattr(tree, "hidden", "false") != "false" or getattr(tree, "hideDisplay", "false") != "false"
 
-class TextInputBox(QWidget):
-    def __init__(self, parent=None, flags=0, **kwargs):
+
+class Control(object):
+    """ Base mixin class for query GUI widgets 
+    """
+    def __init__(self, tree, dataset, master):
+        """ 
+            :param tree: configuration element
+            :type tree: obiBioMart.ConfigurationNode
+            :param dataset: dataset
+            :type dataset: obiBioMart.BioMartDataset
+            :param master: main widget
+            :type master: OWBioMart
+            
+        """
+        self.tree = tree
+        self.dataset = dataset
+        self.master = master
+        self.subControls = []
+        
+        if isinstance(self, QObject):
+            self.setObjectName(tree.internalName)
+            if hasattr(tree, "description"):
+                self.setToolTip(tree.description)
+        
+    def addSubControl(self, tree, control):
+        self.subControls.append((tree, control))
+        
+    def registerDelayedCall(self, call):
+        self.master.registerDelayedCall(call)
+        
+    def pushAction(self, action):
+        self.master.pushAction(action)
+        
+    def query(self):
+        return itertools.chain(*[ctrl.query() for _, ctrl in self.subControls])
+    
+    def setControlValue(self, name, value):
+        if "." in name:
+            name, rest = name.split(".", 1)
+            controls = dict([(tree.internalName, control) for tree, control in self.subControls])
+            ctrl = controls.get("name", None)
+            if ctrl:
+                ctrl.setControlValue(rest, value)
+            
+        
+class TextFieldFilter(QLineEdit, Control):
+    """ A single edit line filter
+    """
+    def __init__(self, tree, dataset, master, parent=None):
+        QLineEdit.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
+        
+        if hasattr(tree, "regexp"):
+            self.setValidator(QRegExpValidator(QRegExp(tree.regexp), self))
+            
+        if hasattr(tree, "defaultValue"):
+            self.setText(tree.defaultValue)
+        
+        
+    def get_filter(self):
+        return self.tree.internalName, str(self.text())
+    
+    def query(self):
+        return [("Filter", self.tree, str(self.text()))]
+    
+    def setControlValue(self, name, value):
+        self.setText(value)
+        
+        
+class IdListFilter(QWidget, Control):
+    """ Multiple ids filter
+    """
+    def __init__(self, tree, dataset, master, parent=None):
         QWidget.__init__(self, parent)
-        layout = QVBoxLayout()
-        self.textEdit = QTextEdit(self)
-        layout.addWidget(self.textEdit)
-        self.setLayout(layout)
-        self.button = QPushButton("Browse", self)
-        layout.addWidget(self.button)
-        self.setLayout(layout)
-        
-        self.connect(self.button, SIGNAL("clicked()"), self._openFile)
-        
-    def _openFile(self):
-        file = QFileDialog.getOpenFileName(self, "Open File")
-        data = open(file, "rb").read()
-        self.textEdit.setText(data)
-        
-    def text(self):
-        return str(self.textEdit.toPlainText())
-    
-class IdListInputBox(TextInputBox):
-    def __init__(self, *args):
-        TextInputBox.__init__(self, *args)
-        self.validator = QRegExpValidator(QRegExp(""), self)
-         
-    def list(self):
-        return self.text().split()
-#        return [id for id in self.text().split() if self.validator.validate(QString(id)) == QValidator.Acceptable]
-    
-class DropDownMenu(QComboBox):
-    def __init__(self, tree, *args, **kwargs):
-        QComboBox.__init__(self, *args, **kwargs)
+        Control.__init__(self, tree, dataset, master)
         self.tree = tree
-        self.model = model = [] #ListModel()
-        self.setOptions(tree.options())
-#        print "Menu options", tree.options(), tree._tree
-#        for options in tree.options():
-#            if not is_hidden(option):
-#                model.append((option.displayName, option.field, option.value, option.push_actions()))
-        self.connect(self, SIGNAL("activated(int)"), self.setSelected)
+        self.dataset = dataset
+        self.master = master
+        self.setObjectName(tree.internalName)
         
-    def setOptions(self, options):
-        self.clear()
-        self.model = model = []
-        for option in options:
-            if not is_hidden(option):
-                model.append((option.displayName, self.tree.field, option.value, option.push_actions()))
-                self.addItem(option.displayName)
-        # TODO: schedule call setSelected  
-                
-    def setSelected(self, index):
-        self.index = index
-        actions = self.model[self.index][-1]
-#        print actions
-        for action in actions:
-            ref = action.ref
-            control = self.configutation.get_by_name(ref)
-            control.setModel(action.options())
+        self.setLayout(QGridLayout())
+        self.textWidget = QPlainTextEdit() #TODO: Subclass to recieve drop events from item model views
+        self.layout().addWidget(self.textWidget, 0, 0, 1, 1)
         
-    def get_configuration(self):
-        return [("filter", "", self.tree, self.model[self.index][2])]
+    def value(self):
+        """ Return filter value for use in a query
+        """
+        return str(self.textWidget.toPlainText()).split()
     
-class BooleanFilter(QGroupBox):
-    def __init__(self, tree, *args, **kwargs):
-        self.tree = tree
-        self.bg = bg = QButtonGroup(self)
-        self.setOptions(tree.options())
-#        self.model = model = []
-#        for option in tree.options():
-#            model.append((option.displayName, option.field, option.value, option.push_actions()))
-#            rb = QRadioButton(option.displayName, self)
-#            self.layout().addWidget(rb)
-#            self.bg.addButton(rb)
-        
-        self.connect(self.bg, SIGNAL("buttonClicked(int)"), self.setSelected)
-        
-    def setOptions(self, options):
-        
-        self.model = model = []
-        for option in options:
-            model.append((option.displayName, option.field, option.value, option.push_actions()))
-            rb = QRadioButton(option.displayName, self)
-            self.layout().addWidget(rb)
-            self.bg.addButton(rb)
+    def get_filter(self):
+        return self.tree.internalName, self.value()
+    
+    def query(self):
+        return [("Filter", self.tree, self.value())]
+    
+    def setControlValue(self, name, value):
+        if type(value) == list:
+            value = "\n".join(value)
+        self.textWidget.setPlainText(value)
             
-    def setSelected(self, id):
-        self.index = id
-        
-    def get_configuration(self):
-        return [("filter", "", self.tree, self.model[self.index][2])]
-            
-class BooleanListFilter(QWidget):
-    def __init__(self, tree, *args, **kwargs):
-        QWidget.__init__(self, *args, **kwargs)
-        self.tree = tree
-        
-        layout = QHBoxLayout()
-        self.setLayout(layout)
-        combo = QComboBox(self)
-        box = QVGroupBox(self)
-        box.setFlat(True)
-        bg = QButtonGroup(self)
-        layout.addWidget(combo)
-        layout.addWidget(box)
-        self.setLayout(layout)
-        self.model = model = []
-        self.bool_widgets = []
-        for option in tree.options():
-            model.append((option.displayName, option.field, option.value, option.push_actions()))
-            combo.addItem(option.displayName)
-            self.bool_widgets.append(BooleanFilter(option))
-        
-        self.connect(combo, SIGNAL("activated(int)"), self.setSelected)
-        
-    def setOptions(self, options):
-        self.model = model = []
-        for option in options:
-            pass
-    def setSelected(self, id):
-        self.index = id
-        
-    def get_configuration(self):
-        w = self.bool_widgets[self.index]
-        _, _, value, _ = w.get_configuration()[0]
-        return [("filter", "", self.tree, value)]
-        
-class ConfigurationControl(object):
-    def __init__(self, tree, registry):
-        self.registry = registry
-        self.__i = 0
-        self.__tree = {}
-        self.__sub_controls = []
-        
-    def new_name(self, tree):
-        name = "_%i" % self.__i
-        self.__i += 1
-        self.__tree[name] = tree
-        setattr(self, name, True if getattr(tree, "default", "false") == "true" else False)
-        return name
     
-    def new_sub_control(self, tree, control):
-#        name = self.new_name(tree)
-#        setattr(self, name, control)
-        self.__sub_controls.append(control)
-#        return getattr(self, name)
-    
-    def is_hidden(self, tree):
-        return getattr(tree, "hidden", "false") != "false" or getattr(tree, "hideDisplay", "false") != "false"
-    
-    def is_pointer(self, tree):
-        return hasattr(tree, "pointerDataset")
-    
-    def display_name(self, tree):
-        return getattr(tree, "displayName", "")
-    
-    def get_configuration(self):
-        conf = []
-        for key, tree in sorted(self.__tree.items()):
-            conftype = "attribute" if isinstance(tree, BioMartAttribute) else "filter"
-            dataset = getattr(self, "dataset", getattr(tree, "dataset", ""))
-            name = tree
-            val = getattr(self, key)
-#            print conftype, dataset, tree ,val
-            if val:
-                conf.append((conftype, dataset, tree, val))
-            
-#        print conf
-            
-        return reduce(list.__add__, [sub.get_configuration() for sub in self.__sub_controls], []) + conf
+class RadioBooleanFilter(QWidget, Control):
+    """ Boolean filter (Only/Exclude)
+    """
+    def __init__(self, tree, dataset, master, parent=None):
+        QWidget.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
         
-    def get_pointed(self, tree):
-        if hasattr(tree, "pointerFilter"):
-            dataset, name, getter = tree.pointerDataset, tree.pointerFilter, "filter"
-        elif hasattr(tree, "pointerAttribute"):
-            dataset, name, getter = tree.pointerDataset, tree.pointerAttribute, "attribute"
-            
-        conf = self.registry.connection.configuration(dataset=dataset)
-        return dataset, getattr(conf, getter)(name)
-
-class OWBioMartConfigurationControl(OWBaseWidget, ConfigurationControl):
-    def __init__(self, configurationTree, registry, parent):
-        OWBaseWidget.__init__(self, parent)
-        ConfigurationControl.__init__(self, configurationTree, registry)
-        self.setWindowFlags(Qt.Widget)
-        
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            event.ignore()
-        
-class OWBioMartFilterContainerText(OWBioMartConfigurationControl):
-    def __init__(self, filter, register, parent):
-        OWBioMartConfigurationControl.__init__(self, filter, register, parent)
-        self.tree = filter
-        layout = QVBoxLayout()
-        self.optionIndex = 0
-        self.cb = OWGUI.comboBox(self, self, "optionIndex",  orientation=layout, items=[], sendSelectedValue=False)
-        self.text_filter = text_filter = IdListInputBox(self)
-        text_filter.layout().setContentsMargins(0,0,0,0)
-        layout.addWidget(text_filter)
-        self.setLayout(layout)
-        self.options = []
-#        print filter, filter.__dict__
-        for option in filter.options():
-#            print option
-            dname = getattr(option, "displayName", "")
-            regexp = getattr(option, "regexp", "")
-            field = getattr(option, "field", "")
-            self.options.append((dname, regexp, field, option))
-            
-        self.cb.addItems([opt[0] for opt in self.options])
-#        self.connect(self.cb, SIGNAL("selectionChanged()"), lambda :setattr(text_filter, "validator", None))
-
-    def get_configuration(self):
-        option = self.options[self.optionIndex]
-        return [("filter", getattr(self, "dataset", getattr(option, "dataset", "")), option[2], self.text_filter.list())]
-    
-class OWBioMartFilterContainerBooleanList(OWBioMartConfigurationControl):
-    def __init__(self, filter, register, parent):
-        OWBioMartConfigurationControl.__init__(self, filter, register, parent)
-        layout = QGridLayout()
-        self.optionIndex = 0
-        self.cb = OWGUI.comboBox(self, self, "optionIndex", addToLayout=False)
-        layout.addWidget(self.cb, 0, 0, 2, 1)
-        w = OWGUI.widgetBox(self, "", addToLayout=False)
-        layout.addWidget(w, 0, 1, 2, 1)
-#        print filter
-        self.options = []
-        for option in getattr(filter._tree, "Option", []):
-            name = option.attributes.get("displayName","")
-            field = option.attributes.get("field","")
-            values = []
-            for op in getattr(option, "Option", []):
-                n = op.attributes.get("displayName","")
-                v = op.attributes.get("value","")
-                values.append((n, v))
-            self.options.append((name, field, values))
-        self.valueIndex = 0
-        self.bg = OWGUI.radioButtonsInBox(w, self, "valueIndex", [], box=w)
-        self.cb.addItems([opt[0] for opt in self.options])
-        self.setLayout(layout)
-        self.setOption()
-        
-    def setOption(self):
-        name, field, values = self.options[self.optionIndex]
-        for n, value in values:
-            OWGUI.appendRadioButton(self.bg, self, "valueIndex", n)# tooltip, insertInto, callback, addToLayout)
-        
-class OWBioMartFilterControl(OWBioMartConfigurationControl):
-    def __init__(self, filter, register, parent):
-        OWBioMartConfigurationControl.__init__(self, filter, register, parent)
         self.setLayout(QVBoxLayout())
-        filter_type = self.filter_type(filter)
-        
-        if filter_type == ("text", "", ""):
-            w = OWGUI.lineEdit(self, self, self.new_name(filter), "")
-                 
-        elif filter_type == ("text", "", "1"):
-            w = IdListInputBox(self)
-            self.layout().addWidget(w)
+        self.buttonGroup = QButtonGroup(self)
+        self.values = []
+        for i, option in enumerate(tree.subelements_top("Option")):
+            rb = QRadioButton(option.displayName, self)
+            self.buttonGroup.addButton(rb)
+            self.buttonGroup.setId(rb, i)
+            self.layout().addWidget(rb)
+            self.values.append(option.value)
+        self.buttonGroup.button(0).setChecked(True)
             
-        elif filter_type == ("list", "radio", ""):
-            options = [getattr(opt, "displayName", "") for opt in self.filter_options(filter)]
-            w = OWGUI.radioButtonsInBox(self, self, self.new_name(filter), options)
-            
-
-        elif filter_type == ("list", "menu", ""):
-            w = DropDownMenu(filter, self)
-            self.layout().addWidget(w)
-#            options = [getattr(opt, "displayName", "") for opt in self.filter_options(filter)]
-#            w = OWGUI.comboBox(self, self, self.new_name(filter), items=options, sendSelectedValue=True, valueType=str)
-            
-        elif filter_type == ("list", "menu", "1"):
-            name = self.new_name(filter)
-            self.options = [getattr(opt, "displayName", "") for opt in self.filter_options(filter)]
-            setattr(self, name, [])
-            w = OWGUI.listBox(self, self, name, "options", selectionMode=QListWidget.MultiSelection)
-        elif filter_type == ("container", "", ""):
-#            print getattr(filter, "displayName", ""), filter._tree
-#            print filter, filter._tree
-            options = self.filter_options(filter)
-            filter_type = self.filter_type(options[0]) if options else None
-            type = getattr(filter, "type", "")
-            
-            if filter_type == ("text", "", "1") and type == "id_list":
-                w = OWBioMartFilterContainerText(filter, register, self)
-                self.new_sub_control(filter, w)
-                self.layout().addWidget(w)
-            elif filter_type == ("text", "", "1") and type == "list":
-                options = [getattr(opt, "displayName", "") for opt in self.filter_options(filter)]
-                w = OWGUI.comboBox(self, self, self.new_name(filter), items=options, sendSelectedValue=True, valueType=str)
-            elif filter_type == ("text", "", ""):
-                w = OWBioMartFilterContainerText(filter, register, self)
-                self.new_sub_control(filter, w)
-                self.layout().addWidget(w)
-            elif filter_type == ("list", "radio", ""):
-                w = OWBioMartFilterContainerBooleanList(filter, register, self)
-                self.layout().addWidget(w)
-                self.new_sub_control(filter, w)
-            else:
-                print "Unknown filter type", filter, getattr(filter, "internalName", "")
-        else:
-            print "Unknown filter type", filter, getattr(filter, "internalName", "")
-            
-    def filter_type(self, tree):
-        return getattr(tree, "displayType", "text"), getattr(tree, "style", ""), getattr(tree, "multipleValues", "")
+    def value(self):
+        return {"excluded": "%i" % self.buttonGroup.checkedId()}
     
-    def filter_options(self, tree):
-        return [option for option in tree.options()]
+    def get_filter(self):
+        return self.tree.internalName, self.value()
     
-    def new_name(self, filter, value=""):
-        name = ConfigurationControl.new_name(self, filter)
-        
-        setattr(self, name, getattr(filter, "defaultValue", value)) #getattr(self, name)))
-        return name
+    def query(self):
+        return [("Filter", self.tree, self.value())]
     
-    def get_configuration(self):
-        conf = OWBioMartConfigurationControl.get_configuration(self)
-        return conf
-
-class OWBioMartFilterTextField(OWBioMartFilterControl):
-    def __init__(self, filter, registry, parent):
-        OWBioMartFilterControl.__init__(self, filter, registry, parent)
-        
-class OWBioMartFilterCollection(OWBioMartConfigurationControl):
-    def __init__(self, collection, registry, parent):
-        OWBioMartConfigurationControl.__init__(self, collection, registry, parent)
-        self.checked = False
-        self.buildCollection(collection)
-        
-    def buildCollection(self, collection):
-        collection_widget = self #OWGUI.widgetBox(widget, getattr(collection, "displayName", ""), flat=True, orientation=QGridLayout())
-        
-        self.checked = True if getattr(collection, "default", "false") == "true" else False
-        cb = OWGUI.checkBox(collection_widget, self, "checked", self.display_name(collection))
-        
-        if isinstance(collection, BioMartFilterCollection):
-            descriptions = [filter for filter in collection.filters() if not self.is_hidden(filter)]
-        else:
-            descriptions = [collection]
-            
-        grid = QGridLayout()
-        if len(descriptions) > 1:
-            self.setLayout(QVBoxLayout())
-            self.layout().addWidget(cb)
-            
-            option = QStyleOptionButton()
-            option.initFrom(cb)
-        
-            indent = qApp.style().subElementRect(QStyle.SE_CheckBoxIndicator, option, cb).width() + 3
-            
-            OWGUI.indentedBox(self, indent, grid, addSpace=False)
-            for filter in descriptions:
-                if self.is_pointer(filter):
-                    (dataset, filter), pointer = self.get_pointed(filter), filter
-                    if not filter:
-                        continue
-                w = OWBioMartFilterControl(filter, self.registry, self)
-                self.layout().addWidget(w)
-                self.new_sub_control(filter, w)
-            
-        else:
-            self.setLayout(grid)
-            grid.addWidget(cb, 0, 0)
-            filter = descriptions[0]
-            if self.is_pointer(filter):
-                (dataset, filter), pointer = self.get_pointed(filter), filter
-                if not filter:
-                    return
-            w = OWBioMartFilterControl(filter, self.registry, self)
-            grid.addWidget(w, 0, 1)
-            self.new_sub_control(filter, w)
-            
-        
-    def get_configuration(self):
-#        print "collection", self.checked
-        if self.checked:
-            conf = OWBioMartConfigurationControl.get_configuration(self)
-#            if getattr(self, "dataset", None):
-            return [(conftype, dataset if dataset else getattr(self, "dataset", dataset), tree, val) \
-                    for  conftype, dataset, tree, val in conf]
-        return []
-    
-class OWBioMartConfigurationPage(OWBioMartConfigurationControl):
-    def __init__(self, pageTree, registry, parent=None,):
-        OWBioMartConfigurationControl.__init__(self, pageTree, registry, parent)
-        
-        self.setLayout(QVBoxLayout(self))
-        self.out_format = getattr(pageTree, "outFormats", "tsv")
-         
-        self.buildPage(pageTree)
-    
-    def buildPage(self, page):
-            
-        def buildAttributeControl(widget, attr):
-            cb = OWGUI.checkBox(widget, self, self.new_name(attr), getattr(attr, "displayName", ""), addToLayout=False)
-            return cb
-        
-        def buildFilterControl(widget, filter):
-            w = OWBioMartFilterCollection(filter, self.registry, widget)
-            self.new_sub_control(filter, w)
-            return w
-        
-        def buildFilterCollection(widget, collection):
-            w = OWBioMartFilterCollection(collection, self.registry, widget)
-            self.new_sub_control(collection, w)
-            widget.layout().addWidget(w, 0, 0)
-
-        def buildAttributeCollection(widget, collection):
-            descriptions = [attr for attr in collection.attributes() if not self.is_hidden(attr)]
-            for i, desc in enumerate(descriptions):
-                dataset, pointer = "", None
-                if self.is_pointer(desc):
-                    (dataset, desc), pointer = self.get_pointed(desc), desc
-                    if not desc:
-                        continue
-                    desc.dataset = dataset
-                if isinstance(desc, BioMartAttribute):
-                    control = buildAttributeControl(widget, desc)
-                    widget.layout().addWidget(control, i % (max(len(descriptions) / 2 + 1, 1)), i / (len(descriptions) / 2 + 1))
-                else:
-                    control = buildFilterControl(widget, desc)
-                    widget.layout().addWidget(control, i, 0, 1, 2)
-                    control.dataset = dataset
+    def setControlValue(self, name, value):
+        for i, v in enumerate(self.values):
+            if v == value:
+                button = self.buttonGroup.button(i)
+                button.setChecked(True)
+                break
                 
-                        
-        def buildCollection(widget, collection):
-            collection_widget = OWGUI.widgetBox(widget, getattr(collection, "displayName", ""), flat=True, orientation=QGridLayout())
-            if isinstance(collection, BioMartAttributeCollection):
-                buildAttributeCollection(collection_widget, collection)
-            else:
-                buildFilterCollection(collection_widget, collection)
                 
-        def buildGroup(widget, group):
-            group_widget = OWGUI.collapsableWidgetBox(widget, getattr(group, "displayName", ""))
-            for coll in group.attribute_collections() if isinstance(group, BioMartAttributeGroup) else \
-                            group.filter_collections():
-                if not self.is_hidden(coll):
-                    buildCollection(group_widget, coll)
+class DropDownFilter(QComboBox, Control):
+    """ List menu filter
+    """
+    def __init__(self, tree, dataset, master, parent=None):
+        QComboBox.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
+        
+        self.options = []            
+        self.selectedIndex = 0
+        
+        if getattr(tree, "graph", "0") == "1":
+            self.setOptions(tree.subelements("Option"))
+        else:
+            self.setOptions(tree.subelements_top("Option"))
+                
+        self.connect(self, SIGNAL("currentIndexChanged(int)"), self.onIndexChange)
+        
+    def setOptions(self, options):
+        self.options = []
+        self.blockSignals(True)
+        self.clear()
+        for option in options:
+            self.addItem(option.displayName)
+            self.options.append(option)
+        self.selectedIndex = 0
+        self.blockSignals(False)
+        self.registerDelayedCall(lambda: self.onIndexChange(0))
+        
+    def onIndexChange(self, index):
+        if self.options:
+            option = self.options[index]
+            self.selectedIndex = index
+            pushActions = option.subelements_top("PushAction")
+            for action in pushActions:
+                self.master.pushAction(action)
             
-        for group in page.attribute_groups() if isinstance(page, BioMartAttributePage) else page.filter_groups():
-            if not self.is_hidden(group):
-                buildGroup(self, group)
-                
-        OWGUI.rubber(self) 
+    def value(self):
+        option = self.options[self.selectedIndex]
+        return option.value
     
-#    def get_attribute_configuration(self):
-#        return [(getattr(self, name), desc) for name, desc in self.__tree.items() if isinstance(desc, BioMartAttribute)]
+    def query(self):
+        return [("Filter", self.tree, self.value())]
+    
+    def setControlValue(self, name, value):
+        for i, option in enumerate(self.options):
+            if option.value == value:
+                self.setCurrentIndex(i)
+                
+    
+#class GraphDropDownFilter(QComboBox, Control):
+#    """ Tree menu filter
+#    """
+#    def __init__(self, tree, dataset, master, parent=None):
+#        QComboBox.__init__(self, parent)
+#        Control.__init__(self, tree, dataset, master)
+#        
+#        self.options = []
+#        self.selectedIndex = 0
+#
+#        self.installEventFilter(self)
+#        
+#        self.setOptions(tree.subelements_top("Option"))
+#                
+##        self.connect(self, SIGNAL("currentIndexChanged(int)"), self.onIndexChange)
+#        
+#    def setOptions(self, options):
+#        self.options = list(options)
+#        self.clear()
+#        self.addItem(self.options[0].displayName)
+#        self.value = self.options[0].value
+#        
+#    def eventFilter(self, obj, event):
+#        if event.type() == QEvent.MouseButtonPress:
+#            self.showMenu()
+#            return True
+#        elif event.type() == QEvent.MouseButtonRelease:
+#            return True
+#        return False
 #    
-#    def get_filter_configuration(self):
-#        return [(getattr(self, name), desc) for name, desc in self.__tree.items() if isinstance(desc, BioMartFilter)]
+#    def showPopup(self):
+#        return
+#    
+#    def closePopup(self):
+#        return
+#    
+#    def buildMenu(self):
+#        menu = QMenu(self)
+#        
+#        def addOption(menu, option):
+#            suboptions = list(option.subelements_top("Option"))
+#            if suboptions:
+#                submenu = menu.addMenu(option.displayName)
+#                self.connect(submenu, SIGNAL("hovered(QAction)"), self.updateLastHovered)
+#                for op in suboptions:
+#                    addOption(submenu, op)
+#            else:
+#                action = menu.addAction(option.displayName)
+#                action._value = option.value
+#                
+#        for option in self.options:
+#            addOption(menu, option)
+#        
+#        self.connect(menu, SIGNAL("hovered(QAction)"), self.updateLastHovered)
+#        self.connect(menu, SIGNAL("triggered(QAction)"), lambda action: menu.close())
+#        return menu 
+#    
+#    def updateLastHovered(self, action):
+#        self.lastHovered = str(action.text())
+#        print self.lastHovered
+#    def showMenu(self):
+#        menu = self.buildMenu()
+#        action = menu.exec_(self.mapToGlobal(QPoint(0, 0)))
+#        name = str(action.text())
+#        self._value = value = action._value
+#        self.setItemText(0, name)
+#                    
+#    def query(self):
+#        return [("Filter", self.tree, self._value)]
+    
+    
+def rows(index_list):
+    return map(QModelIndex.row, index_list)
 
-       
+
+class MultiSelectListFilter(QListView, Control):
+    """ Menu list filter with multiple selection
+    """
+    def __init__(self, tree, dataset, master, parent=None):
+        QComboBox.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
+        
+        self.setSelectionMode(QListView.ExtendedSelection)
+        model = QStringListModel(self)
+        self.setModel(model)
+        self.setOptions(tree.subelements_top("Option"))
+        
+        
+    def setOptions(self, options):
+        self.options = []
+        for option in options:
+            self.options.append(option)
+        self.model().setStringList([option.displayName for option in self.options])
+                
+    def value(self):
+        value = []
+        for index in rows(self.selectedIndexes()):
+            value.append(self.options[index].value)
+        return ",".join(value)
+    
+    def query(self):
+        return [("Filter", self.tree, self.value())]
+    
+    def setControlValue(self, name, value):
+        if type(value) == str:
+            value = value.split(",")
+        selection = self.selectionModel()
+        for i, option in enumerate(self.options):
+            if option.value in values:
+                selection.select(self.model().index(i), QItemSelectionModel.Select)
+            
+    
+class DropDownRadioBooleanFilter(QWidget, Control):
+    """ Container for multiple boolean filters
+    """
+    def __init__(self, tree, dataset, master, parent=None):
+        QWidget.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
+        
+        self.setLayout(QHBoxLayout())
+        self.cb = QComboBox(self)
+        
+        self.layout().addWidget(self.cb)
+        
+        rblayout = QVBoxLayout()
+        self.radioButtons = [QRadioButton("Only", self),
+                             QRadioButton("Excluded", self)
+                             ]
+        
+        for b in self.radioButtons:
+            rblayout.addWidget(b)
+            
+        self.radioButtons[0].setChecked(True)
+            
+        self.layout().addLayout(rblayout)
+        
+        self.options = []
+        
+        self.setOptions(tree.subelements_top("Option"))
+    
+    def setOptions(self, options):
+        self.cb.clear()
+        self.options = []
+        for option in options:
+            self.cb.addItem(option.displayName)
+            self.options.append(option)
+            
+        for op, rb in zip(self.options[0].subelements_top("Option"),
+                          self.radioButtons):
+            rb.setText(op.displayName)
+            rb.setChecked(getattr(op, "default", "false") == "true")
+            
+
+    def value(self):
+        return {"excluded": "0" if self.radioButtons[0].isChecked() else "1"}
+    
+    def query(self):
+        filter = self.options[self.cb.currentIndex()]
+        filter = FilterDescription(self.tree.registry, "FilterDescription", filter.attributes, filter.children)
+        return [("Filter", filter, self.value())] #"only" if self.radioButtons[0].isChecked() else "excluded")]
+    
+    def setControlValue(self, name, value):
+        for i, option in enumerate(self.options):
+            if option.internalName == name:
+                self.cb.setCurrentIndex(i)
+                if value == "Only":
+                    self.radioButtons[0].setChecked(True)
+
+
+class DropDownIdListFilter(QWidget, Control):
+    """ Container for multiple id list filters
+    """
+    def __init__(self, tree, dataset, master, parent=None):
+        QWidget.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
+        
+        self.setLayout(QVBoxLayout())
+        self.setContentsMargins(0, 0, 0, 0)
+        self.cb = QComboBox()
+        self.idsEdit = QPlainTextEdit()
+        self.browseButton = QPushButton("Browse ...")
+        
+        self.layout().addWidget(self.cb)
+        self.layout().addWidget(self.idsEdit)
+        self.layout().addWidget(self.browseButton)
+        self.layout().setAlignment(self.browseButton, Qt.AlignRight)
+        
+        self.options = []
+        self.setOptions(tree.subelements_top("Option"))
+        
+    def setOptions(self, options):
+        self.cb.clear()
+        self.options = []
+        for option in options:
+            self.cb.addItem(option.displayName)
+            self.options.append(option)
+            
+        
+    def value(self):
+        return str(self.idsEdit.toPlainText()).split()
+    
+    def query(self):
+        filter = self.options[self.cb.currentIndex()]
+        filter = FilterDescription(self.tree.registry, "FilterDescription", filter.attributes, filter.children)
+        return [("Filter", filter, self.value())]
+    
+    def setControlValue(self, name, value):
+        if type(value) == list:
+            value = "\n".join(value)
+            
+        for i, op in enumerate(self.options):
+            if name == op.internalName:
+                self.cb.setCurrentIndex(i)
+                self.idsEdit.setPlainText(value)
+    
+        
+class CollectionWidget(QGroupBox, Control):
+    NO_FLAGS = 0
+    FILTER_FLAG = 1
+    ATTRIBUTE_FLAG = 2
+    SINGLE_FILTER_FLAG = 4
+    def __init__(self, tree, dataset, master, parent=None):
+        QGroupBox.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
+        
+        self.setFlat(True)
+#        self.setLayout(QFormLayout())
+#        self.enableCB = QCheckBox(getattr(tree, "displayName", ""), self)
+        self.attributes = []
+        self.filters = []
+        
+    def setCollection(self, tree, dataset, flags=0):
+        self.tree = tree
+        self.dataset = dataset
+        self.collectionFlags = flags
+
+    
+def isFilterCollection(tree):
+    """ In case all AttributeDescription nodes contain pointers to filters
+    (case of downstream/upstream_flank)
+    """
+    if tree.tag == "FilterCollection":
+        return True
+    return all(["pointerFilter" in desc.attributes  for desc in tree.elements("AttributeDescription")])
+
+
+class AttributeWidget(QCheckBox, Control):
+    """ Single attribute selection widget
+    """
+    def __init__(self, tree, dataset, master, parent=None):
+        QCheckBox.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
+        
+        self.setText(getattr(tree, "displayName", ""))
+        self.setChecked(getattr(tree, "default", "false") == "true")
+        
+        if hasattr(tree, "description"):
+            self.setToolTip(tree.description)
+    
+        
+    def query(self):
+        if self.isChecked():
+            return [("Attribute", self.tree, self.isChecked())]
+        else:
+            return []
+    
+    
+    def setControlValue(self, name, value):
+        self.setChecked(value == "true")
+        
+    
+class AttributeCollectionWidget(CollectionWidget):
+    def __init__(self, tree, dataset, master, parent=None):
+        CollectionWidget.__init__(self, tree, dataset, master, parent)
+        self.setLayout(QGridLayout(self))
+        self.setCollection(tree, dataset)
+        
+    def setCollection(self, collection, dataset, flags=0):
+        CollectionWidget.setCollection(self, collection, dataset, flags)
+        self.setTitle(getattr(collection, "displayName", ""))
+        
+        if hasattr(collection, "description"):
+            self.setToolTip(collection.description)
+            
+        attributes = [attr for attr in collection.elements("AttributeDescription") if not is_hidden(attr)]
+        
+        numAttrs = max(len(attributes) / 2 + 1, 1)
+        i = 0
+        for attr in attributes:
+            if attr.is_pointer():
+                try:
+                    dataset, newattr = attr.get_pointed()
+                except ValueError, ex:
+                    newattr = None
+                    
+                if not newattr:
+                    continue
+                attr = newattr
+                
+            attr_widget = AttributeWidget(attr, self.dataset, self.master, self)
+            self.layout().addWidget(attr_widget, i % numAttrs, i / numAttrs)
+            self.addSubControl(attr, attr_widget)
+            i += 1
+            
+        
+def filterType(filter):
+    return getattr(filter, "displayType", ""), getattr(filter, "style", ""), getattr(filter, "multipleValues", "")
+
+ 
+class FilterCollectionWidget(CollectionWidget):
+    def __init__(self, tree, dataset, master, parent=None):
+        CollectionWidget.__init__(self, tree, dataset, master, parent)
+        self.setLayout(QGridLayout())
+#        self.setLayout(QFormLayout())
+#        self.layout().setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+#        self.layout().setFormAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        
+        self.layout().setContentsMargins(5, 5, 5, 5)
+        self.layout().setColumnStretch(0, 10)
+        self.layout().setColumnStretch(1, 10)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.setCollection(tree, dataset)
+        
+    def setCollection(self, collection, dataset, flags=0):
+        CollectionWidget.setCollection(self, collection, dataset, flags)
+        filters = [f for f in collection.elements("FilterDescription") if not is_hidden(f)] + \
+                  [f for f in collection.elements("AttributeDescription") if not is_hidden(f)] # in case of pointers to filters (upstream/downstream flank)
+        self.enableCB = QCheckBox(getattr(collection, "displayName", ""), self)
+        
+        if hasattr(collection, "description"):
+            self.setToolTip(collection.description)
+            
+        if len(filters) == 1 and (not hasattr(filters[0], "displayName") or \
+                getattr(filters[0], "displayName", "") == getattr(collection, "displayName", "")):
+            flags = flags | self.SINGLE_FILTER_FLAG
+            
+        i = 0
+        if not flags & self.SINGLE_FILTER_FLAG:
+            self.layout().addWidget(self.enableCB, 0, 0)
+            i += 1
+#            self.layout().addRow(self.enableCB, QWidget(self))
+            
+        for filter in filters:
+            fType = getattr(filter, "type", None)
+            if filter.is_pointer():
+                try:
+                    dataset, newfilter  = filter.get_pointed()
+                except ValueError, ex:
+                    newfilter = None
+                    
+                if not newfilter:
+                    continue
+                filter = newfilter
+                fType = getattr(filter, "type", None) if fType is None else fType
+            label, filter_widget = self.buildFilter(filter, flags, fTypeHint=fType)
+            if isinstance(label, basestring):
+                label = QLabel(label)
+                
+            self.layout().addWidget(label,i, 0)
+            self.layout().addWidget(filter_widget, i, 1)
+            i += 1
+#            self.layout().addRow(label, filter_widget)
+            self.addSubControl(filter, filter_widget)
+            
+            
+    def buildFilter(self, filter, flags, fTypeHint=None):
+        if flags & self.SINGLE_FILTER_FLAG:
+            label = self.enableCB
+        else:
+            label = getattr(filter, "displayName", "")
+            
+        fType = filterType(filter)
+        if fTypeHint == "drop_down_basic_filter":
+            fType = ("list", "menu", "")
+        filter_widget = None
+        
+        if fType == ("text", "", ""):
+            filter_widget = TextFieldFilter(filter, self.dataset, self.master, self)
+            
+        elif fType == ("text", "", "1"):
+            filter_widget = IdListFilter(filter, self.dataset, self.master, self)
+            
+        elif fType == ("list", "radio", ""):
+            filter_widget = RadioBooleanFilter(filter, self.dataset, self.master, self)
+            
+        elif fType == ("list", "menu", ""):
+#            if getattr(filter, "graph", "0") == "1":
+#                filter_widget = GraphDropDownFilter(filter, self.dataset, self.master, self)
+#            else:
+#                filter_widget = DropDownFilter(filter, self.dataset, self.master, self)
+            filter_widget = DropDownFilter(filter, self.dataset, self.master, self)
+            
+        elif fType == ("list", "menu", "1"):
+            filter_widget = MultiSelectListFilter(filter, self.dataset, self.master, self) 
+            
+        elif fType == ("container", "", ""):
+            fType = set(map(filterType, filter.elements_top("Option")))
+            if len(fType) != 1:
+                import warnings
+                warnings.warn("Multiple filter types in a single container!" + str(fType))
+            fType = fType.pop()
+#            if fType == ("text", "", ""):
+#                filter_widget = DropDownTextFilter(filter, self.dataset, self.master, self)
+            if fType[0] == "text": #("text", "", "1"):
+                filter_widget = DropDownIdListFilter(filter, self.dataset, self.master, self)
+            elif fType == ("list", "radio", ""):
+                filter_widget = DropDownRadioBooleanFilter(filter, self.dataset, self.master, self)
+        
+        if filter_widget is None:
+            raise ValueError("Unknown filter type '%s' %s'" % (repr(fType), repr(filter)))
+        
+        filter_widget.setMaximumWidth(400)
+        return label, filter_widget 
+    
+    def query(self):
+        if self.enableCB.isChecked():
+            return CollectionWidget.query(self)
+        else:
+            return []
+            
+        
+class GroupWidget(QGroupBox, Control):
+    def __init__(self, tree, dataset, master, parent=None):
+        QGroupBox.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
+        self.setLayout(QVBoxLayout())
+        
+        if tree:
+            self.setGroup(tree)
+        
+    def setGroup(self, group):
+        self.setTitle(getattr(group, "displayName", ""))
+        if hasattr(group, "description"):
+            self.setToolTip(group.description)
+        self.setCheckable(True)
+        self.setChecked(True)
+        
+        if group.tag == "FilterGroup":
+            collections = group.elements("FilterCollection")
+        else:
+            collections = group.elements("AttributeCollection")
+        for collection in collections: 
+            if isFilterCollection(collection):
+                collection_widget = FilterCollectionWidget(collection, self.dataset, self.master, self)
+            else:
+                collection_widget = AttributeCollectionWidget(collection, self.dataset, self.master, self)
+                
+            self.layout().addWidget(collection_widget)
+            self.addSubControl(collection, collection_widget)
+            
+            
+        
+class PageWidget(QFrame, Control):
+    def __init__(self, tree, dataset, master, parent=None):
+        QFrame.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
+        self.setLayout(QVBoxLayout())
+        self.outFormats = getattr(tree, "outFormats", "tsv")
+        
+        if tree:
+            self.setPage(tree)
+        
+    def setPage(self, tree):
+        if tree.tag == "FilterPage":
+            groups = tree.elements("FilterGroup")
+        else:
+            groups = tree.elements("AttributeGroup")
+            
+        for group in groups:
+            group_widget = GroupWidget(group, self.dataset, self.master, self)
+            self.layout().addWidget(group_widget)
+            self.addSubControl(group, group_widget) 
+            
+        self.layout().addStretch(10)
+        
+        if hasattr(tree, "description"):
+            self.setToolTip(tree.description)
+        
+
+    
 class OWBioMart(OWWidget):
-    SHOW_FILTERS = False
+    SHOW_FILTERS = True
     
     settingsList = ["selectedDataset"]
     def __init__(self, parent=None, signalManager=None, title="Bio Mart"):
         OWWidget.__init__(self, parent, signalManager, title)
         
+        self.inputs = [("Input ids", ExampleTable, self.setData)]
         self.outputs = [("Example Table", ExampleTable)]
         
         self.selectedDatabase = None
         self.selectedDataset = None
         self.lastSelectedDatasets = (None, None)
         
-        self.martsCombo = OWGUI.comboBox(self.controlArea, self, "selectedDatabase", "Database", callback=self.setSelectedMart)
+        self.idAttr = 0
+        self.useAttrNames = False
+        self.uniqueRows = True
+        
+        self.loadSettings()
+        
+        OWGUI.button(OWGUI.widgetBox(self.controlArea, "Cache", addSpace=True),
+                     self, "Clear cache",
+                     tooltip="Clear saved query results",
+                     callback = self.clearCache)
+        
+        self.martsCombo = OWGUI.comboBox(self.controlArea, self, "selectedDatabase", "Database",
+                                         callback=self.setSelectedMart,
+                                         addSpace=True)
         self.martsCombo.setMaximumWidth(250)
-        self.datasetsCombo = OWGUI.comboBox(self.controlArea, self, "selectedDataset", "Dataset", callback=self.setSelectedDataset)
+        
+        self.datasetsCombo = OWGUI.comboBox(self.controlArea, self, "selectedDataset", "Dataset",
+                                            callback=self.setSelectedDataset,
+                                            addSpace=True)
         self.datasetsCombo.setMaximumWidth(250)
+        
+        box = OWGUI.widgetBox(self.controlArea, "Input Ids")
+        
+        cb = OWGUI.checkBox(box, self, "useAttrNames", "Use attribute names", 
+                            tooltip="Use attribute names for ids",
+                            callback=self.updateInputIds)
+        
+        self.idAttrCB = OWGUI.comboBox(box, self, "idAttr", 
+                                       tooltip="Use attribute values from ...",
+                                       callback=self.updateInputIds)
+        
+        cb.disables = [(-1, self.idAttrCB)]
+        cb.makeConsistent()
+        
+#        self.idListView = QListView()
+#        self.idListView.setSelectionMode(QListView.ExtendedSelection)
+#        self.idListView.setModel(QStringListModel(self))
+#        box.layout().addWidget(self.idListView)
+
+        self.idText = QPlainTextEdit()
+        self.idText.setReadOnly(True)
+#        self.idText.setTextInteractionFlags(Qt.TextSelectableByKeyboard)
+        box.layout().addWidget(self.idText)
+        
         OWGUI.rubber(self.controlArea)
         
-        OWGUI.button(self.controlArea, self, "Commit", callback = self.commit, tooltip="Commit the selected dataset to output")
+        box = OWGUI.widgetBox(self.controlArea, "Results")
+        OWGUI.checkBox(box, self, "uniqueRows", "Unique results only",
+                       tooltip="Return unique results only.",
+                       )
+        self.commitButton = OWGUI.button(box, self, "Get Results",
+                                         callback=self.commit,
+                                         tooltip="Query the BioMart server for results and output the results")
+        self.commitButton.setEnabled(False)
         
         self.mainWidget = OWGUI.widgetBox(self.mainArea, orientation=QStackedLayout())
         
@@ -547,7 +767,8 @@ class OWBioMart(OWWidget):
         self.mainWidget.layout().addWidget(self.mainTab)
         
         self.attributesConfigurationBox = OWGUI.createTabPage(self.mainTab, "Attributes", canScroll=True)
-        self.filtersConfigurationBox = OWGUI.createTabPage(self.mainTab, "Filters", canScroll=True)
+        if self.SHOW_FILTERS:
+            self.filtersConfigurationBox = OWGUI.createTabPage(self.mainTab, "Filters", canScroll=True)
 
         self.myThread = OWConcurrent.WorkerThread()
         self.myThread.start()
@@ -558,22 +779,30 @@ class OWBioMart(OWWidget):
         self.connect(self.myThread, SIGNAL("finished()"), lambda :sys.stderr.write("Thread finished\n"))
         
         self.setEnabled(False)
-#        self.get_registry_async = AsyncFunc(self._get_registry, thread=self.myThread)
         self.get_registry_async = OWConcurrent.createTask(self._get_registry,
                                       onResult=self.setBioMartRegistry,
                                       onFinished=self.onFinished,
                                       thread=self.myThread)
-#        self.connect(self.get_registry_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
-#        self.connect(self.get_registry_async, SIGNAL("resultReady(PyQt_PyObject)"), self.setBioMartRegistry, Qt.QueuedConnection)
         
-        self.resize(600, 400)
         
-#        self.get_registry_async()
+        self.resize(800, 600)
+        
+        self.candidateIdAttrs = []
+        self._afterInitQueue = []
+        self.data = None
+        
+        try:
+            from Bio import SeqIO
+            self.hasBiopython = True
+        except Exception, ex:
+            self.warning(100, "Biopython package not found.\nTo retrieve FASTA sequence data from BioMart install Biopython.")
+            self.hasBiopython = False
+        
         
     @staticmethod
     def _get_registry(url=None, precache=True):
         con = obiBioMart.BioMartConnection(url)
-        reg = con.registry()
+        reg = obiBioMart.BioMartRegistry(con)
         if precache:
             marts = reg.marts()
         return reg
@@ -597,15 +826,11 @@ class OWBioMart(OWWidget):
     def setSelectedMart(self):
         self.mart = self.marts[self.selectedDatabase]
         self.setEnabled(False)
-#        self.get_datasets_async = AsyncFunc(self.mart.datasets, thread=self.myThread)
         self.get_datasets_async = OWConcurrent.createTask(self.mart.datasets,
                                     onResult=self.setBioMartDatasets,
                                     onFinished=self.onFinished,
                                     thread=self.myThread)
-#        self.connect(self.get_datasets_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
-#        self.connect(self.get_datasets_async, SIGNAL("resultReady(PyQt_PyObject)"), self.setBioMartDatasets, Qt.QueuedConnection)
-#
-#        self.get_datasets_async()
+        
 
     @pyqtSignature("setBioMartDatasets(PyQt_PyObject)")
     def setBioMartDatasets(self, datasets):
@@ -617,25 +842,28 @@ class OWBioMart(OWWidget):
     def setSelectedDataset(self):
         self.dataset = self.datasets[self.selectedDataset]
         self.setEnabled(False)
-#        self.get_configuration_async = AsyncFunc(self.dataset.configuration, thread=self.myThread)
-        self.get_configuration_async = OWConcurrent.createTask(self.dataset.configuration,
+        
+        def get_configuration(dataset):
+            """ Only get the response, do not yet parse
+            """
+            connection = dataset.connection
+            stream = connection.configuration(dataset=dataset.internalName, virtualSchema=dataset.virtualSchema)
+            response = stream.read()
+            return response
+        
+        self.get_configuration_async = OWConcurrent.createTask(get_configuration, (self.dataset,),
                                             onResult=self.setBioMartConfiguration,
                                             onFinished=self.onFinished,
                                             thread=self.myThread)
-#        self.connect(self.get_configuration_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
-#        self.connect(self.get_configuration_async, SIGNAL("resultReady(PyQt_PyObject)"), self.setBioMartConfiguration, Qt.QueuedConnection)
-#        
-#        self.get_configuration_async()
-
-#    def newConfiguration(self):
-#        widget = QTabWidget()
-#        self.configurationWidget.layout().addWidget(widget)
-#        self.configurationWidget.layout().setCurrentWidget(widget)
-#        attr
+        
         
     @pyqtSignature("setBioMartConfiguration(PyQt_PyObject)")
     def setBioMartConfiguration(self, configuration):
         assert(QThread.currentThread() is self.thread())
+        
+        doc = obiBioMart.parseXML(configuration)
+        config = list(doc.elements("DatasetConfig"))[0]
+        configuration = obiBioMart.DatasetConfig(self.registry, config.tag, config.attributes, config.children)
         
         self.clearConfiguration()
         
@@ -646,19 +874,21 @@ class OWBioMart(OWWidget):
         
         self.attributePagesTabWidget = tabs =  OWGUI.tabWidget(self.attributesConfigurationBox)
         
-        self.registry.connection.configuration = cached_function_instance(self.registry.connection.configuration)
-        
-        for page in configuration.attribute_pages():
+        for page in configuration.elements("AttributePage"):
             if not hidden(page):
-                page_widget = OWBioMartConfigurationPage(page, self.registry, self)
+                page_widget = PageWidget(page, self.dataset, self)
                 OWGUI.createTabPage(tabs, getattr(page, "displayName", ""), widgetToAdd=page_widget )
         
-        if self.SHOW_FILTERS:        
+        if self.SHOW_FILTERS:
             self.filterPagesTabWidget = tabs = OWGUI.tabWidget(self.filtersConfigurationBox)
-            for page in configuration.filter_pages():
+            for page in configuration.elements("FilterPage"):
                 if not hidden(page):
-                    page_widget = OWBioMartConfigurationPage(page, self.registry, self)
+                    page_widget = PageWidget(page, self.dataset, self)
                     OWGUI.createTabPage(tabs, getattr(page, "displayName", ""), widgetToAdd=page_widget )
+                    
+        self.afterInit()
+        
+        self.commitButton.setEnabled(True)
     
     def clearConfiguration_(self):
         while True:
@@ -685,44 +915,63 @@ class OWBioMart(OWWidget):
         self.mainWidget.layout().addWidget(self.mainTab)
         self.mainWidget.layout().setCurrentWidget(self.mainTab)
         
+        self.attributesConfigurationBox = OWGUI.createTabPage(self.mainTab, "Attributes", canScroll=True)
         if self.SHOW_FILTERS:
-            self.attributesConfigurationBox = OWGUI.createTabPage(self.mainTab, "Attributes", canScroll=True)
             self.filtersConfigurationBox = OWGUI.createTabPage(self.mainTab, "Filters", canScroll=True)
-        else:
-            self.attributesConfigurationBox = OWGUI.createTabPage(self.mainTab, "Attributes", canScroll=True)
+            
             
     def count(self):
         filters = []
         count = self.dataset.get_count(filters = filters)
         
+        
     def commit(self):
         pageconf = self.attributePagesTabWidget.currentWidget()
-        format = pageconf.out_format
-        configuration = pageconf.get_configuration()
+        format = pageconf.outFormats
+        
+        self.error(100)
+        if not self.hasBiopython and format.lower() == "fasta":
+            self.error(100, "Cannot parse FASTA format")
+            return
+        
+        query = pageconf.query()
         bydatasets = defaultdict(lambda : ([], []))
 
         version = getattr(self.configuration, "softwareVersion", "0.4")
-        for conftype, dataset, name, val in configuration:
-            if version > "0.4":
-                dataset = self.dataset
-            if conftype == "attribute":
-                bydatasets[dataset][0].append(name)
-            elif conftype == "filter":
-                bydatasets[dataset][1].append((name, val))
+        for conftype, tree, val in query:
+            dataset = self.dataset
+#            if version > "0.4":
+#                dataset = self.dataset
+#            else:
+#                widget = self.findChild(QWidget, tree.internalName)
+#                if widget:
+#                    dataset = widget.dataset
+                
+            if conftype == "Attribute":
+                bydatasets[dataset][0].append(tree.internalName)
+            elif conftype == "Filter":
+                bydatasets[dataset][1].append((tree.internalName, val))
                 
         if self.SHOW_FILTERS:
             pageconf = self.filterPagesTabWidget.currentWidget()
-            configuration =  pageconf.get_configuration()
+#            configuration =  pageconf.get_configuration()
+            query = pageconf.query()
     
-            for conftype, dataset, tree, val in configuration:
-                if version > "0.4":
-                    dataset = self.dataset
-                if conftype == "attribute":
-                    bydatasets[dataset][0].append(tree)
-                elif conftype == "filter":
-                    bydatasets[dataset][1].append((tree, val))
+            for conftype, tree, val in query:
+                dataset = self.dataset
+#                if version > "0.4":
+#                    dataset = self.dataset
+#                else:
+#                    widget = self.findChild(QWidget, tree.internalName)
+#                    if widget:
+#                        dataset = widget.dataset
+                    
+                if conftype == "Attribute":
+                    bydatasets[dataset][0].append(tree.internalName)
+                elif conftype == "Filter":
+                    bydatasets[dataset][1].append((tree.internalName, val))
                 
-        query = self.registry.query(format="TSV" if "tsv" in format.lower() else format.upper())
+        query = self.registry.query(format="TSV" if "tsv" in format.lower() else format.upper(), uniqueRows=self.uniqueRows)
         
         for dataset, (attributes, filters) in bydatasets.items():
             query.set_dataset(dataset if dataset else self.dataset)
@@ -731,25 +980,67 @@ class OWBioMart(OWWidget):
             for filter, value in filters:
                 query.add_filter(filter, value)
         
-#        print query.xml_query()
+        print query.xml_query()
         self.setEnabled(False)
-#        self.run_query_async = AsyncFunc(query.get_example_table, thread=self.myThread)
         self.run_query_async = OWConcurrent.createTask(query.get_example_table,
                                             onResult=self.dataReady,
                                             onFinished=self.onFinished,
                                             thread=self.myThread)
-#        self.connect(self.run_query_async, SIGNAL("finished(QString)"), self.onFinished, Qt.QueuedConnection)
-#        self.connect(self.run_query_async, SIGNAL("resultReady(PyQt_PyObject)"), self.dataReady, Qt.QueuedConnection)
-#        self.run_query_async()
-        
 
+    
     def dataReady(self, data):
         self.setEnabled(True)
         self.send("Example Table", data)
         
+    def pushAction(self, action):
+        ref = action.ref
+        ref_widget = self.findChild(QWidget, ref)
+        if hasattr(ref_widget, "setOptions"):
+            ref_widget.setOptions(action.subelements_top("Option"))
+            
+    def registerDelayedCall(self, call):
+        self._afterInitQueue.append(call)
         
+    def afterInit(self):
+        while self._afterInitQueue:
+            call = self._afterInitQueue.pop(0)
+            call()
+            
+    def setData(self, data =None):
+        self.data = data
+        self.idAttrCB.clear()
+        attrs = data.domain.variables + data.domain.getmetas().values()
+        attrs = [attr for attr in attrs if isinstance(attr, orange.StringVariable)]
+        self.candidateIdAttrs = attrs
+        self.idAttrCB.addItems([attr.name for attr in attrs])
+        
+        self.idAttr = min(self.candidateIdAttrs, len(self.candidateIdAttrs) - 1)
+        
+        self.updateInputIds()
+    
+    def updateInputIds(self):
+        if self.data:
+            if self.useAttrNames:
+                names = [attr.name for attr in self.data.domain.attributes]
+            else:
+                attr = self.candidateIdAttrs[self.idAttr]
+                names = [str(ex[attr]) for ex in self.data if not ex[attr].isSpecial()]
+        else:
+            names = []
+            
+#        self.idListView.model().setStringList(names)
+        self.idText.setPlainText("\n".join(names))
+        
+        
+    def clearCache(self):
+        obiBioMart.DEFAULT_CACHE.clear()
+    
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     ow = OWBioMart()
     ow.show()
+    
+    data = orange.ExampleTable("../../../doc/datasets/brown-selected")
+    ow.setData(data)
     app.exec_()
+    ow.saveSettings()
