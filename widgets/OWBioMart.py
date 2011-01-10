@@ -716,6 +716,7 @@ class OWBioMart(OWWidget):
                      tooltip="Clear saved query results",
                      callback = self.clearCache)
         
+        
         self.martsCombo = OWGUI.comboBox(self.controlArea, self, "selectedDatabase", "Database",
                                          callback=self.setSelectedMart,
                                          addSpace=True)
@@ -778,6 +779,7 @@ class OWBioMart(OWWidget):
         self.connect(self.myThread, SIGNAL("started()"), lambda :sys.stderr.write("Thread started\n"))
         self.connect(self.myThread, SIGNAL("finished()"), lambda :sys.stderr.write("Thread finished\n"))
         
+        self.error(0)
         self.setEnabled(False)
         self.get_registry_async = OWConcurrent.createTask(self._get_registry,
                                       onResult=self.setBioMartRegistry,
@@ -811,7 +813,8 @@ class OWBioMart(OWWidget):
     def onFinished(self, status):
         assert(QThread.currentThread() is self.thread())
         if str(status).lower() != "ok":
-            print "AsyncCall failed with message:", status
+            print >> sys.stderr, "AsyncCall failed with message:", status
+            self.error(0, status)
         self.setEnabled(True)
             
     @pyqtSignature("setBioMartRegistry(PyQt_PyObject)")
@@ -825,6 +828,7 @@ class OWBioMart(OWWidget):
             
     def setSelectedMart(self):
         self.mart = self.marts[self.selectedDatabase]
+        self.error(0)
         self.setEnabled(False)
         self.get_datasets_async = OWConcurrent.createTask(self.mart.datasets,
                                     onResult=self.setBioMartDatasets,
@@ -841,7 +845,7 @@ class OWBioMart(OWWidget):
             
     def setSelectedDataset(self):
         self.dataset = self.datasets[self.selectedDataset]
-        self.setEnabled(False)
+        self.error(0)
         
         def get_configuration(dataset):
             """ Only get the response, do not yet parse
@@ -850,6 +854,8 @@ class OWBioMart(OWWidget):
             stream = connection.configuration(dataset=dataset.internalName, virtualSchema=dataset.virtualSchema)
             response = stream.read()
             return response
+        
+        self.setEnabled(False)
         
         self.get_configuration_async = OWConcurrent.createTask(get_configuration, (self.dataset,),
                                             onResult=self.setBioMartConfiguration,
@@ -980,7 +986,8 @@ class OWBioMart(OWWidget):
             for filter, value in filters:
                 query.add_filter(filter, value)
         
-        print query.xml_query()
+#        print query.xml_query()
+        self.error(0)
         self.setEnabled(False)
         self.run_query_async = OWConcurrent.createTask(query.get_example_table,
                                             onResult=self.dataReady,
@@ -1034,6 +1041,7 @@ class OWBioMart(OWWidget):
         
     def clearCache(self):
         obiBioMart.DEFAULT_CACHE.clear()
+        self.registry.connection.errorCache.clear()
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)

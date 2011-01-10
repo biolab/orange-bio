@@ -30,6 +30,8 @@ import xml.dom.minidom as minidom
 import shelve
 import itertools
 
+import warnings
+
 import orngEnviron
 
 class BioMartError(Exception):
@@ -179,8 +181,9 @@ def safe_iter(generator):
             except StopIteration:
                 raise StopIteration
             except Exception, ex:
-                print >> sys.stderr, "An error occured during iteration:\n"
-                traceback.print_exc(file=sys.stderr)
+                warnings.warn("An error occured during iteration:\n%s" % str(ex), UserWarning, stacklevel=2)
+#                print >> sys.stderr, "An error occured during iteration:\n"
+#                traceback.print_exc(file=sys.stderr)
     return list(_iter(generator))
 
 
@@ -189,7 +192,6 @@ DEFAULT_ADDRESS = "http://www.biomart.org/biomart/martservice"
 try:
     DEFAULT_CACHE = shelve.open(os.path.join(orngEnviron.bufferDir, "BioMartCache.pck"))
 except Exception, ex:
-    import warnings
     warnings.warn("Could not open Bio Mart cache! %s" % str(ex))
     DEFAULT_CACHE = {}
 
@@ -199,6 +201,8 @@ def checkBioMartServerError(response):
         raise DatabaseNameConflictError(response)
     elif response.strip().startswith("Problem retrieving datasets"):
         raise BioMartError(response)
+    elif response.startswith("non-BioMart die():"):
+        raise BioMartServerError(response)
 
 
 class BioMartConnection(object):
@@ -214,16 +218,25 @@ class BioMartConnection(object):
     def __init__(self, address=None, cache=None):
         self.address = address if address is not None else DEFAULT_ADDRESS
         self.cache = cache if cache is not None else DEFAULT_CACHE
+        self.errorCache = {}
         
     def request_url(self, **kwargs):
         url = self.address + "?" + "&".join("%s=%s" % item for item in kwargs.items() if item[0] != "POST")
+#        print url
         return url.replace(" ", "%20")
     
     def request(self, **kwargs):
         url = self.request_url(**kwargs)
+        if url in self.errorCache:
+            raise self.errorCache[url]
         if str(url) not in self.cache:
-            response = urllib2.urlopen(url).read()
-            checkBioMartServerError(response)
+            try:
+                response = urllib2.urlopen(url).read()
+                checkBioMartServerError(response)
+            except Exception, ex:
+                self.errorCache[url] = ex
+                raise ex
+            
             self.cache[str(url)] = response
             if hasattr(self.cache, "sync"):
                 self.cache.sync()
@@ -475,8 +488,22 @@ class BioMartDatabase(object):
         self.serverVirtualSchema = serverVirtualSchema
         self.visible = visible
         self.__dict__.update(kwargs.items())
-        self.connection = BioMartConnection("http://" + self.host + ":" + self.port + self.path) if connection is None \
-                            or (kwargs.get("redirect", None) == "1" and BioMartConnection.FOLLOW_REDIRECTS) else connection
+        
+        if connection is None:
+            connection = BioMartConnection()
+            
+        if kwargs.get("redirect", None) == "1" and BioMartConnection.FOLLOW_REDIRECTS:
+            redirect = BioMartConnection("http://" + self.host + ":" + self.port + self.path, cache=connection.cache)
+            try:
+                registry = redirect.registry()
+                connection = redirect
+            except urllib2.HTTPError, ex:
+                warnings.warn("'%s' is not responding!, using the default original connection. %s" % (redirect.address, str(ex)))
+            
+        self.connection = connection
+        
+#        self.connection = BioMartConnection("http://" + self.host + ":" + self.port + self.path) if connection is None \
+#                            or (kwargs.get("redirect", None) == "1" and BioMartConnection.FOLLOW_REDIRECTS) else connection
 
     @cached    
     def _datasets_index(self):
@@ -486,7 +513,6 @@ class BioMartDatabase(object):
             datasets = self.connection.datasets(mart=self.name, virtualSchema=self.virtualSchema).read()
         except BioMartError, ex:
             if self.virtualSchema == "default":
-                print >> sys.stderr, "error", ex
                 datasets = self.connection.datasets(mart=self.name).read()
             else:
                 raise
@@ -839,12 +865,12 @@ def get_pointed(self):
             name, getter = self.pointerFilter, "FilterDescription"
         
         dataset = self.registry.dataset(pointerDataset)
+        
         conf = dataset.configuration()
         desc = list(conf.elements(getter, internalName=name))
         if desc:
             return dataset, desc[0]
         else:
-            import warnings
             warnings.warn("Could not resolve pointer '%s' in '%s'" % (name, pointerDataset), UserWarning, stacklevel=2)
             return None, None
         
