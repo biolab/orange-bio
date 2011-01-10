@@ -20,6 +20,9 @@ except Exception:
     class DataFiles(object):
         pass
 
+#BUG: OWHeatMap does not support heatmaps which need a image which is larger than maxint X maxint pixels!
+#and no warning appears
+
 import warnings
 warnings.filterwarnings("ignore", "'strain'", orange.AttributeWarning)
 
@@ -1213,7 +1216,7 @@ if __name__=="__main__":
     a=QApplication(sys.argv)
     ow = OWHeatMap()
 
-    fn = "/home/marko/pipa3.tab"
+    fn = "/home/marko/pipa4.tab"
 
     ow.dataset(orange.ExampleTable(fn), 0)
     ow.handleNewSignals()
