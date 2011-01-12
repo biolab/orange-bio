@@ -32,6 +32,8 @@ import itertools
 
 import warnings
 
+from functools import partial
+
 import orngEnviron
 
 class BioMartError(Exception):
@@ -164,6 +166,7 @@ def parseXML(stream, parser=None):
 def de_tab(text, sep="\t"):
     return [line.split(sep) for line in text.split("\n") if line.strip()]
 
+
 def cached(func):
     from functools import wraps
     @wraps(func)
@@ -172,8 +175,11 @@ def cached(func):
             setattr(self, "_cache_" + func.__name__, func(self))
         return getattr(self, "_cache_" + func.__name__)
     return f
+
     
-def safe_iter(generator):
+def drop_iter(generator):
+    """ Drop all elements from the iterator that raise an exception  
+    """
     def _iter(generator):
         while True:
             try:
@@ -182,18 +188,22 @@ def safe_iter(generator):
                 raise StopIteration
             except Exception, ex:
                 warnings.warn("An error occured during iteration:\n%s" % str(ex), UserWarning, stacklevel=2)
-#                print >> sys.stderr, "An error occured during iteration:\n"
-#                traceback.print_exc(file=sys.stderr)
     return list(_iter(generator))
-
 
     
 DEFAULT_ADDRESS = "http://www.biomart.org/biomart/martservice"
+
 try:
-    DEFAULT_CACHE = shelve.open(os.path.join(orngEnviron.bufferDir, "BioMartCache.pck"))
+    DEFAULT_DATA_CACHE = shelve.open(os.path.join(orngEnviron.bufferDir, "BioMartDataCache.pck"))
 except Exception, ex:
-    warnings.warn("Could not open Bio Mart cache! %s" % str(ex))
-    DEFAULT_CACHE = {}
+    warnings.warn("Could not open BioMart data cache! %s" % str(ex))
+    DEFAULT_DATA_CACHE = {}
+    
+try:
+    DEFAULT_META_CACHE = shelve.open(os.path.join(orngEnviron.bufferDir, "BioMartMetaCache.pck"))
+except Exception, ex:
+    warnings.warn("Could not open BioMart meta cache! %s" % str(ex))
+    DEFAULT_META_CACHE = {}
 
 
 def checkBioMartServerError(response):
@@ -209,27 +219,44 @@ class BioMartConnection(object):
     """ A connection to a BioMart martservice server.
     
     Example::
-    >>> connection = BioMartConnection("http://www.biomart.org/biomart/martservice")
-    >>> response = connection.registry()
-    >>> response = connection.datasets(mart="ensembl")
+        >>> connection = BioMartConnection("http://www.biomart.org/biomart/martservice")
+        >>> response = connection.registry()
+        >>> response = connection.datasets(mart="ensembl")
     """
     FOLLOW_REDIRECTS = False
     
-    def __init__(self, address=None, cache=None):
+    
+    def __init__(self, address=None, cache=None, metaCache=None, dataCache=None):
+        metaCache = cache if metaCache is None else metaCache
+        dataCache = cache if dataCache is None else dataCache
+        
         self.address = address if address is not None else DEFAULT_ADDRESS
-        self.cache = cache if cache is not None else DEFAULT_CACHE
+#        self.cache = cache if cache is not None else DEFAULT_CACHE
+        self.metaCache = metaCache if metaCache is not None else DEFAULT_META_CACHE
+        self.dataCache = dataCache if dataCache is not None else DEFAULT_DATA_CACHE
         self.errorCache = {}
+    
+    def _get_cache_for_args(self, kwargs):
+        if "type" in kwargs:
+            return self.metaCache
+        elif "query" in kwargs:
+            return self.dataCache
         
     def request_url(self, **kwargs):
-        url = self.address + "?" + "&".join("%s=%s" % item for item in kwargs.items() if item[0] != "POST")
-#        print url
+        order = ["type", "dataset", "mart", "virtualSchema", "query"]
+        items = sorted(kwargs.iteritems(), key=lambda item: order.index(item[0]) if item[0] in order else 10)
+        url = self.address + "?" + "&".join("%s=%s" % item for item in items if item[0] != "POST")
         return url.replace(" ", "%20")
     
     def request(self, **kwargs):
         url = self.request_url(**kwargs)
+        
+        cache = self._get_cache_for_args(kwargs)
+        
         if url in self.errorCache:
             raise self.errorCache[url]
-        if str(url) not in self.cache:
+        
+        if str(url) not in cache:
             try:
                 response = urllib2.urlopen(url).read()
                 checkBioMartServerError(response)
@@ -237,11 +264,12 @@ class BioMartConnection(object):
                 self.errorCache[url] = ex
                 raise ex
             
-            self.cache[str(url)] = response
-            if hasattr(self.cache, "sync"):
-                self.cache.sync()
+            cache[str(url)] = response
+            if hasattr(cache, "sync"):
+                cache.sync()
+                
         from StringIO import StringIO
-        return StringIO(self.cache[str(url)])
+        return StringIO(cache[str(url)])
     
     def registry(self, **kwargs):
         return self.request(type="registry")
@@ -257,7 +285,11 @@ class BioMartConnection(object):
     
     def configuration(self, dataset="oanatinus_gene_ensembl", **kwargs):
         return self.request(type="configuration", dataset=dataset, **kwargs)
-        
+    
+    def clearCache(self):
+        self.dataCache.clear()
+        self.metaCache.clear()
+        self.errorCache.clear()    
         
         
 class BioMartRegistry(object):
@@ -310,7 +342,7 @@ class BioMartRegistry(object):
     def marts(self):
         """ Return a list off all 'mart' instances (BioMartDatabase instances) regardless of their virtual schemas  
         """
-        return reduce(list.__add__, safe_iter(schema.marts() for schema in self.virtual_schemas()), [])
+        return reduce(list.__add__, drop_iter(schema.marts() for schema in self.virtual_schemas()), [])
     
     def mart(self, name):
         """ Return a named mart.
@@ -328,7 +360,7 @@ class BioMartRegistry(object):
     def datasets(self):
         """ Return a list of all datasets (BioMartDataset instances) from all marts regardless of their virtual schemas
         """
-        return reduce(list.__add__, safe_iter(mart.datasets() for mart in self.marts()), [])
+        return reduce(list.__add__, drop_iter(mart.datasets() for mart in self.marts()), [])
     
     def dataset(self, internalName, virtualSchema=None):
         """ Return a BioMartDataset instance that matches the internalName
@@ -402,7 +434,7 @@ class BioMartVirtualSchema(object):
     def marts(self):
         """ Return a list off all 'mart' instances (BioMartDatabase instances) in this schema
         """
-        return safe_iter(BioMartDatabase(connection=self.connection, **dict((str(key), val) \
+        return drop_iter(BioMartDatabase(connection=self.connection, **dict((str(key), val) \
                 for key, val in loc.attributes.items())) for loc in self.locations.elements("MartURLLocation"))
     
     def databases(self):
@@ -414,7 +446,7 @@ class BioMartVirtualSchema(object):
     def datasets(self):
         """ Return a list of all datasets (BioMartDataset instances) from all marts in this schema
         """
-        return reduce(list.__add__, safe_iter(mart.datasets() for mart in self.marts()), [])
+        return reduce(list.__add__, drop_iter(mart.datasets() for mart in self.marts()), [])
     
     
     def dataset(self, internalName):
@@ -423,7 +455,7 @@ class BioMartVirtualSchema(object):
         for dataset in self.datasets():
             if dataset.internalName == internalName:
                 return dataset
-        raise ValueError("Unknown data set name '%s'" % name)
+        raise ValueError("Unknown data set name '%s'" % internalName)
     
     
     def links_between(self, exporting, importing):
@@ -523,7 +555,7 @@ class BioMartDatabase(object):
     def datasets(self):
         """ Return a list of all datasets (BioMartDataset instances) in this database
         """
-        return safe_iter(BioMartDataset(mart=self.name, connection=self.connection, **dataset) for dataset in self._datasets_index())
+        return drop_iter(BioMartDataset(mart=self.name, connection=self.connection, **dataset) for dataset in self._datasets_index())
     
     def dataset_attributes(self, dataset, **kwargs):
         """ Return a list of dataset attributes
@@ -547,7 +579,7 @@ class BioMartDatabase(object):
         for dataset in self.datasets():
             if dataset.internalName == internalName:
                 return dataset
-        raise ValueError("Uknown dataset name '%s'" % name)
+        raise ValueError("Uknown dataset name '%s'" % internalName)
     
         
     def __getitem__(self, name):
@@ -560,7 +592,7 @@ class BioMartDatabase(object):
     def search(self, string, relevance=False):
         strings = string.lower().split()
         results = []
-        for dataset, conf in safe_iter((dataset, dataset.configuration()) for dataset in self.datasets()):
+        for dataset, conf in drop_iter((dataset, dataset.configuration()) for dataset in self.datasets()):
             trees = conf.attribute_pages() + conf.attribute_groups() + \
                     conf.attribute_collections() + conf.attributes()
                     
@@ -615,41 +647,33 @@ class BioMartDataset(object):
     
     @cached
     def configuration(self, parser=None):
-        """ Return the configuration tree for this dataset (BioMartDatasetConfig instance)
+        """ Return the configuration tree for this dataset (DatasetConfig instance)
         """
         stream = self.connection.configuration(dataset=self.internalName, virtualSchema=self.virtualSchema)
         response = stream.read()
         doc = parseXML(response, parser)
         config = list(doc.elements("DatasetConfig"))[0]
-        return BioMartDatasetConfig(config)
-    
-    @cached
-    def configuration(self, parser=None):
-        stream = self.connection.configuration(dataset=self.internalName, virtualSchema=self.virtualSchema)
-        response = stream.read()
-        doc = parseXML(response, parser)
-        config = list(doc.elements("DatasetConfig"))[0]
         return DatasetConfig(BioMartRegistry(self.connection), config.tag, config.attributes, config.children)
-            
+        
+        
     def get_data(self, attributes=[], filters=[], unique=False):
         """ Constructs and runs a BioMartQuery returning its results 
         """ 
         return BioMartQuery(self.connection, dataset=self, attributes=attributes, filters=filters,
                              uniqueRows=unique, virtualSchema=self.virtualSchema).run()
     
+    
     def count(self, filters=[], unique=False):
         """ Constructs and runs a BioMartQuery to count the number of returned lines
         """
         return BioMartQuery(self.connection, dataset=self, filters=filters, uniqueRows=unique,
                             virtualSchema=self.virtualSchema).get_count()
+    
                             
     def get_example_table(self, attributes=[], filters=[], unique=False):
-        import orange
-        data = self.get_data(attributes, filters, unique)
-#        print data
-        name = lambda attr: str(getattr(attr, "displayName", getattr(attr, "name", attr)))
-        domain = orange.Domain([orange.StringVariable(name(attr)) for attr in attributes], False)
-        return orange.ExampleTable(domain, [line.strip().split("\t") for line in data.split("\n") if line.strip()])
+        query = BioMartQuery(self.connection, dataset=self, attributes=attributes, filters=filters, uniqueRows=unique,
+                            virtualSchema=self.virtualSchema)
+        return query.get_example_table()
         
 
 class BioMartQuery(object):

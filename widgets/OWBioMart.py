@@ -12,6 +12,7 @@ from obiBioMart import *
 
 import sys, os
 import traceback
+import warnings
 
 import socket
 socket.setdefaulttimeout(60)
@@ -70,6 +71,11 @@ class Control(object):
                 ctrl.setControlValue(rest, value)
             
         
+class UnknownFilter(QWidget, Control):
+    def __init__(self, tree, dataset, master, parent=None):
+        QWidget.__init__(self, parent)
+        Control.__init__(self, tree, dataset, master)
+    
 class TextFieldFilter(QLineEdit, Control):
     """ A single edit line filter
     """
@@ -390,12 +396,12 @@ class DropDownIdListFilter(QWidget, Control):
         self.setContentsMargins(0, 0, 0, 0)
         self.cb = QComboBox()
         self.idsEdit = QPlainTextEdit()
-        self.browseButton = QPushButton("Browse ...")
+#        self.browseButton = QPushButton("Browse ...")
         
         self.layout().addWidget(self.cb)
         self.layout().addWidget(self.idsEdit)
-        self.layout().addWidget(self.browseButton)
-        self.layout().setAlignment(self.browseButton, Qt.AlignRight)
+#        self.layout().addWidget(self.browseButton)
+#        self.layout().setAlignment(self.browseButton, Qt.AlignRight)
         
         self.options = []
         self.setOptions(tree.subelements_top("Option"))
@@ -567,13 +573,15 @@ class FilterCollectionWidget(CollectionWidget):
                 fType = getattr(filter, "type", None) if fType is None else fType
             label, filter_widget = self.buildFilter(filter, flags, fTypeHint=fType)
             if isinstance(label, basestring):
-                label = QLabel(label)
-                
+                label = QLabel(label) 
+            
             self.layout().addWidget(label,i, 0)
             self.layout().addWidget(filter_widget, i, 1)
             i += 1
 #            self.layout().addRow(label, filter_widget)
             self.addSubControl(filter, filter_widget)
+        if self.layout().count() == 0:
+            self.layout().addWidget(self.enableCB, 0, 0)
             
             
     def buildFilter(self, filter, flags, fTypeHint=None):
@@ -609,7 +617,6 @@ class FilterCollectionWidget(CollectionWidget):
         elif fType == ("container", "", ""):
             fType = set(map(filterType, filter.elements_top("Option")))
             if len(fType) != 1:
-                import warnings
                 warnings.warn("Multiple filter types in a single container!" + str(fType))
             fType = fType.pop()
 #            if fType == ("text", "", ""):
@@ -620,7 +627,8 @@ class FilterCollectionWidget(CollectionWidget):
                 filter_widget = DropDownRadioBooleanFilter(filter, self.dataset, self.master, self)
         
         if filter_widget is None:
-            raise ValueError("Unknown filter type '%s' %s'" % (repr(fType), repr(filter)))
+            warnings.warn("Unknown filter type '%s' %s'" % (repr(fType), repr(filter)))
+            filter_widget = UnknownFilter(filter, self.dataset, self.master, self)
         
         filter_widget.setMaximumWidth(400)
         return label, filter_widget 
@@ -767,9 +775,9 @@ class OWBioMart(OWWidget):
         
         self.mainWidget.layout().addWidget(self.mainTab)
         
-        self.attributesConfigurationBox = OWGUI.createTabPage(self.mainTab, "Attributes", canScroll=True)
+        self.attributesConfigurationBox = OWGUI.createTabPage(self.mainTab, "Attributes")#, canScroll=True)
         if self.SHOW_FILTERS:
-            self.filtersConfigurationBox = OWGUI.createTabPage(self.mainTab, "Filters", canScroll=True)
+            self.filtersConfigurationBox = OWGUI.createTabPage(self.mainTab, "Filters")#, canScroll=True)
 
         self.myThread = OWConcurrent.WorkerThread()
         self.myThread.start()
@@ -883,14 +891,14 @@ class OWBioMart(OWWidget):
         for page in configuration.elements("AttributePage"):
             if not hidden(page):
                 page_widget = PageWidget(page, self.dataset, self)
-                OWGUI.createTabPage(tabs, getattr(page, "displayName", ""), widgetToAdd=page_widget )
+                OWGUI.createTabPage(tabs, getattr(page, "displayName", ""), widgetToAdd=page_widget, canScroll=True)
         
         if self.SHOW_FILTERS:
             self.filterPagesTabWidget = tabs = OWGUI.tabWidget(self.filtersConfigurationBox)
             for page in configuration.elements("FilterPage"):
                 if not hidden(page):
                     page_widget = PageWidget(page, self.dataset, self)
-                    OWGUI.createTabPage(tabs, getattr(page, "displayName", ""), widgetToAdd=page_widget )
+                    OWGUI.createTabPage(tabs, getattr(page, "displayName", ""), widgetToAdd=page_widget, canScroll=True)
                     
         self.afterInit()
         
@@ -921,9 +929,9 @@ class OWBioMart(OWWidget):
         self.mainWidget.layout().addWidget(self.mainTab)
         self.mainWidget.layout().setCurrentWidget(self.mainTab)
         
-        self.attributesConfigurationBox = OWGUI.createTabPage(self.mainTab, "Attributes", canScroll=True)
+        self.attributesConfigurationBox = OWGUI.createTabPage(self.mainTab, "Attributes")#, canScroll=True)
         if self.SHOW_FILTERS:
-            self.filtersConfigurationBox = OWGUI.createTabPage(self.mainTab, "Filters", canScroll=True)
+            self.filtersConfigurationBox = OWGUI.createTabPage(self.mainTab, "Filters")#, canScroll=True)
             
             
     def count(self):
@@ -932,7 +940,7 @@ class OWBioMart(OWWidget):
         
         
     def commit(self):
-        pageconf = self.attributePagesTabWidget.currentWidget()
+        pageconf = self.attributePagesTabWidget.currentWidget().widget()
         format = pageconf.outFormats
         
         self.error(100)
@@ -959,7 +967,7 @@ class OWBioMart(OWWidget):
                 bydatasets[dataset][1].append((tree.internalName, val))
                 
         if self.SHOW_FILTERS:
-            pageconf = self.filterPagesTabWidget.currentWidget()
+            pageconf = self.filterPagesTabWidget.currentWidget().widget()
 #            configuration =  pageconf.get_configuration()
             query = pageconf.query()
     
@@ -986,7 +994,6 @@ class OWBioMart(OWWidget):
             for filter, value in filters:
                 query.add_filter(filter, value)
         
-#        print query.xml_query()
         self.error(0)
         self.setEnabled(False)
         self.run_query_async = OWConcurrent.createTask(query.get_example_table,
@@ -1029,9 +1036,11 @@ class OWBioMart(OWWidget):
         if self.data:
             if self.useAttrNames:
                 names = [attr.name for attr in self.data.domain.attributes]
-            else:
+            elif self.candidateIdAttrs:
                 attr = self.candidateIdAttrs[self.idAttr]
                 names = [str(ex[attr]) for ex in self.data if not ex[attr].isSpecial()]
+            else:
+                names = []
         else:
             names = []
             
@@ -1040,8 +1049,7 @@ class OWBioMart(OWWidget):
         
         
     def clearCache(self):
-        obiBioMart.DEFAULT_CACHE.clear()
-        self.registry.connection.errorCache.clear()
+        self.registry.connection.clearCache()
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
