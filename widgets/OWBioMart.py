@@ -814,7 +814,7 @@ class OWBioMart(OWWidget):
         assert(QThread.currentThread() is self.thread())
         if str(status).lower() != "ok":
             print >> sys.stderr, "AsyncCall failed with message:", status
-            self.error(0, status)
+            self.error(0, str(status))
         self.setEnabled(True)
             
     @pyqtSignature("setBioMartRegistry(PyQt_PyObject)")
