@@ -13,20 +13,26 @@ import OWGUI
 
 from OWGraph import ColorPaletteHSV
 
-class subBarQwtCurve(QwtCurve):
-    def __init__(self, parent = None, text = None):
-        QwtCurve.__init__(self, parent, text)
+from collections import defaultdict
+
+class subBarQwtPlotCurve(QwtPlotCurve):
+    def __init__(self, text = None):
+        QwtPlotCurve.__init__(self, text or "")
         self.color = Qt.black
 
-    def draw(self, p, xMap, yMap, f, t):
+    def draw(self, p, xMap, yMap, f, t=-1):
         p.setBackgroundMode(Qt.OpaqueMode)
-        p.setBackgroundColor(self.color)
         p.setBrush(self.color)
-##        p.setPen(Qt.black)
         p.setPen(self.color)
-        if t < 0: t = self.dataSize() - 1
-        if divmod(f, 2)[1] != 0: f -= 1
-        if divmod(t, 2)[1] == 0:  t += 1
+        
+        if t < 0:
+            t = self.dataSize() - 1
+            f = 0
+        if divmod(f, 2)[1] != 0:
+            f -= 1
+        if divmod(t, 2)[1] == 0:
+            t += 1
+            
         for i in range(f, t+1, 2):
             px1 = xMap.transform(self.x(i))
             py1 = yMap.transform(self.y(i))
@@ -34,9 +40,6 @@ class subBarQwtCurve(QwtCurve):
             py2 = yMap.transform(self.y(i+1))
             p.drawRect(px1, py1, (px2 - px1), (py2 - py1))
 
-class subBarQwtPlotCurve(QwtPlotCurve, subBarQwtCurve): # there must be a better way to do this
-    def dummy(self):
-        None
 
 class OWDisplayMotifs(OWWidget):
     settingsList = []
@@ -52,7 +55,6 @@ class OWDisplayMotifs(OWWidget):
         self.loadSettings()
 
         # GUI
-        self.box = QVBoxLayout(self.mainArea)
         self.graph = OWGraph(self.mainArea)
         self.graph.setYRlabels(None)
         self.graph.enableGridXB(0)
@@ -61,8 +63,8 @@ class OWDisplayMotifs(OWWidget):
         self.graph.setAxisMaxMajor(QwtPlot.xBottom, 10)
         self.graph.setAxisAutoScale(QwtPlot.xBottom)
         self.graph.setAxisScale(QwtPlot.xBottom, -1020, 0, 0)
-        self.box.addWidget(self.graph)
-
+        self.mainArea.layout().addWidget(self.graph)
+        
         # inputs
         # data and graph temp variables
         self.inputs = [("Examples", ExampleTable, self.cdata, Default), ("Genes", list, self.newGeneList, Default), ("Motifs", list, self.newMotifList, Default)]
@@ -70,7 +72,7 @@ class OWDisplayMotifs(OWWidget):
         self.data = None
         self.motifLines = []
         self.visibleValues = []
-        self.valueToCurveKey = {}
+        self.valueToCurve = {}
         self.allGenes = [] ## genes displayed always in same order
         self.geneList = [] ## selected genes
         self.motifList = [] ## selected motifs
@@ -78,20 +80,25 @@ class OWDisplayMotifs(OWWidget):
 
         self.clusterPostProbThreshold = 0
 
-        # GUI connections
-        self.selValues = QVGroupBox(self.space)
-        self.selcolorBy = QVGroupBox(self.controlArea)
-        self.selcolorBy.setTitle("Color By")
-        self.selValues.setTitle("Values")
+        # GUI
+        self.selValues = OWGUI.widgetBox(self.controlArea, "Values")
+        self.selcolorBy = OWGUI.widgetBox(self.controlArea, "Color By")
 
-        self.colorByCombo = OWGUI.comboBox(self.selcolorBy, self, "colorBy", items=[], callback=self.colorByChanged)
-        self.pvalThresholdCombo = OWGUI.comboBox(self.selValues, self, "pvalThresholdIndex", items=[], callback=self.pvalThresholdChanged)
+        self.colorByCombo = OWGUI.comboBox(self.selcolorBy, self, "colorBy",
+                                           items=[],
+                                           callback=self.colorByChanged)
         
-        self.valuesQLB = QListBox(self.selValues)
-        self.unselectAllQLB = QPushButton("Unselect all", self.selValues)
-        self.valuesQLB.setSelectionMode(QListBox.Multi)
-        self.connect(self.valuesQLB, SIGNAL("selectionChanged()"), self.valuesSelectionChange)
-        self.connect(self.unselectAllQLB, SIGNAL("clicked()"), self.unselAll)
+        self.pvalThresholdCombo = OWGUI.comboBox(self.selValues, self, "pvalThresholdIndex",
+                                                 items=[],
+                                                 callback=self.pvalThresholdChanged)
+        
+        self.valuesQLB = QListWidget(self.selValues)
+        self.valuesQLB.setSelectionMode(QListWidget.MultiSelection)
+        self.connect(self.valuesQLB, SIGNAL("itemSelectionChanged()"), self.valuesSelectionChange)
+        self.selValues.layout().addWidget(self.valuesQLB)
+        
+        self.unselectAllQLB = OWGUI.button(self.selValues, self, "Unselect all",
+                                           callback = self.unselAll)
 
     def unselAll(self):
         self.valuesQLB.clearSelection()
@@ -107,46 +114,51 @@ class OWDisplayMotifs(OWWidget):
 
     def valuesSelectionChange(self):
         visibleOutcomes = []
-        for i in range(self.valuesQLB.numRows()):
-            if self.valuesQLB.isSelected(i):
-                visibleOutcomes.append(str(self.valuesQLB.item(i).text()))
+        for i in range(self.valuesQLB.count()):
+            item = self.valuesQLB.item(i)
+            if item.isSelected():
+                visibleOutcomes.append(str(item.text()))
         self.visibleValues = visibleOutcomes
         self.updateMotifsGraph()
 
     def updateSelectionChange(self):
         ## make new colors only for those colorBy values present in data
-        colors = ColorPaletteHSV(len(self.valuesPresentInData), 255)
+        colors = ColorPaletteHSV(len(self.valuesPresentInData))
         for (i, v) in enumerate(self.valuesPresentInData):
-            ckey = self.valueToCurveKey[v]
-            self.graph.curve(ckey).color = colors[i]
+            curve = self.valueToCurve[v]
+            curve.color = colors[i]
 
         self.setValuesNames(self.valuesPresentInData) 
-        for i in range(self.valuesQLB.numRows()):
-            if str(self.valuesQLB.item(i).text()) in self.visibleValues:
-                self.valuesQLB.setSelected(i, 1)
-            else:
-                self.valuesQLB.setSelected(i, 0)
+        for i in range(self.valuesQLB.count()):
+            item = self.valuesQLB.item(i)
+            item.setSelected(str(item.text()) in self.visibleValues)
+#            else:
+#                self.valuesQLB.setSelected(i, 0)
 
     def colorByChanged(self):
-        self.graph.removeCurves()
-        self.valueToCurveKey = {}
+#        self.graph.removeCurves()
+        self.graph.removeDrawingCurves()
+        self.valueToCurve = {}
 
         if self.colorBy == None:
             self.setValuesNames(None)
             return
             
-        values = self.data.domain[self.colorBy].values.native()
-        values.sort()
+        if self.potentialColorVariables:
+            var = self.potentialColorVariables[self.colorBy]
+            values = sorted(var.values)
+#        values.sort()
 
         ## generate colors for each colorby value (each color on its own curve)
-        colors = ColorPaletteHSV(len(values), 255)
+        colors = ColorPaletteHSV(len(values))
         for (i, v) in enumerate(values):
             ## create curve in graph
-            curve = subBarQwtPlotCurve(self.graph)
+            curve = subBarQwtPlotCurve()
             curve.color = colors[i]
-            ckey = self.graph.insertCurve(curve)
-            self.graph.setCurveStyle(ckey, QwtCurve.UserCurve)
-            self.valueToCurveKey[v] = ckey
+            curve.attach(self.graph)
+#            ckey = self.graph.insertCurve(curve)
+            curve.setStyle(QwtPlotCurve.UserCurve)
+            self.valueToCurve[v] = curve
 
         self.setValuesNames(values)
         self.calcMotifsGraph()
@@ -156,60 +168,64 @@ class OWDisplayMotifs(OWWidget):
         if values == None:
             return
         for v in values:
-            self.valuesQLB.insertItem(ColorPixmap(self.graph.curve(self.valueToCurveKey[v]).color), v)
-        self.valuesQLB.selectAll(TRUE)
+            self.valuesQLB.addItem(QListWidgetItem(QIcon(ColorPixmap(self.valueToCurve[v].color)), v))
+            self.valuesQLB.item(self.valuesQLB.count() - 1).setSelected(True)
+        
 
     ## signal processing
     def newGeneList(self, list):
-	self.geneList = []
-	
-	if list <> None:
-		self.geneList = list
-        self.calcMotifsGraph()
-        self.updateMotifsGraph()
+        self.geneList = []
+        
+        if list is not None:
+            self.geneList = list
+            self.calcMotifsGraph()
+            self.updateMotifsGraph()
  
     def newMotifList(self, list):
-	self.motifList = []
-
-	if list <> None:
-        	self.motifList = list
-        self.calcMotifsGraph()
-        self.updateMotifsGraph()
-
+        self.motifList = []
+        
+        if list is not None:
+            self.motifList = list
+            self.calcMotifsGraph()
+            self.updateMotifsGraph()
+        
     def cdata(self, data):
         self.data = data
         self.motifLines = []
         self.colorByCombo.clear()
-
+    
         if self.data == None:
+            self.colorBy = None
+            self.potentialColorVariables = []
             self.colorByChanged()
             self.graph.setYLlabels(None)
-            potentialColorVariables = []
         else:
-            potentialColorVariables = [v.name for v in self.data.domain if v.varType == orange.VarTypes.Discrete]
-            for i in potentialColorVariables:
-                self.colorByCombo.insertItem(str(i))
-
+            self.potentialColorVariables = [v for v in self.data.domain.variables + self.data.domain.getmetas().values() \
+                                            if v.varType == orange.VarTypes.Discrete]
+            for var in self.potentialColorVariables:
+                self.colorByCombo.addItem(str(var.name))
+    
             ## break motif info according to gene (sequenceID)
-            self.motifLines = {}
+            self.motifLines = defaultdict(list)
             for e in self.data:
-                geneID = str(e['sequenceID'].value)
-                tmpl = self.motifLines.get(geneID, [])
-                tmpl.append( e)
-                self.motifLines[geneID] = tmpl
-            self.allGenes = self.motifLines.keys()
-            self.allGenes.sort() ## genes displayed always in same order
-
-            self.colorBy = 1;
+                geneID = str(e['sequenceID'])
+                self.motifLines[geneID].append(e)
+                
+            self.allGenes = sorted(self.motifLines.keys())
+            if self.potentialColorVariables:
+                self.colorBy = min(len(self.potentialColorVariables) - 1, self.colorBy or 0)
+            else:
+                self.colorBy = None
+                
             self.colorByChanged()
-
-        if len(potentialColorVariables) > 0:
-            self.colorByCombo.setCurrentItem(0)
+    
+        if len(self.potentialColorVariables) > 0:
+            self.colorByCombo.setCurrentIndex(0)
 
     ## update graph
     def calcMotifsGraph(self):
         graphData = {}
-        for (colorKey, curveKey) in self.valueToCurveKey.items():
+        for (colorKey, curve) in self.valueToCurve.iteritems():
             graphData[colorKey] = [[], []]
 
         lineCn = 0
@@ -220,17 +236,19 @@ class OWDisplayMotifs(OWWidget):
 ##            if (self.geneList <> None) and (self.geneList <> []) and (lineKey not in self.geneList): continue
             yVals.append( lineKey)
             for e in self.motifLines[lineKey]:
-                motifName = e['motifName'].value
-                if (self.motifList <> None) and (self.motifList <> []) and (motifName not in self.motifList): continue
+                motifName = str(e['motifName'])#.value
+                if self.motifList is not None and self.motifList != [] and motifName not in self.motifList:
+                    continue
 
-                motifDistToEnd = -int(e['distToEnd'].value)
-                postProb = int(round(e['pvalue'].value * 100))
+                motifDistToEnd = -int(e['distToEnd']) #.value)
+                postProb = int(round(float(e['pvalue']) * 100))
                 dir = str(e['direction'])
 
-                if (1) or (postProb >= self.clusterPostProbThreshold): ## and (chiSquare >= self.motifChiSquareThreshold):
-                    colorKey = str(e[self.colorBy].value)
+                if 1 or (postProb >= self.clusterPostProbThreshold): ## and (chiSquare >= self.motifChiSquareThreshold):
+                    colorAttr = self.potentialColorVariables[self.colorBy]
+                    colorKey = str(e[colorAttr])
                     if colorKey not in self.valuesPresentInData:
-                        self.valuesPresentInData.append( colorKey)
+                        self.valuesPresentInData.append(colorKey)
                     # print motifNumber, colorKey
                     # set the point x values
                     graphData[colorKey][0].append(motifDistToEnd)
@@ -247,27 +265,32 @@ class OWDisplayMotifs(OWWidget):
                         graphData[colorKey][1].append(lineCn + 0.30)
             lineCn += 1
 
+        vals = reduce(list.__add__, [val[0] for val in graphData.itervalues()], [])
+        minX = min(vals or [0]) - 5.0
+        maxX = max(vals or [0]) + 5.0
+        
         self.graph.setYLlabels(yVals)
         self.graph.setAxisScale(QwtPlot.yLeft, -0.5, len(yVals) - 0.5, 1)
+        self.graph.setAxisScale(QwtPlot.xBottom, minX, maxX)
 
-        for (colorKey, curveKey) in self.valueToCurveKey.items():
-            self.graph.curve(curveKey).setEnabled(FALSE)
-            self.graph.setCurveData(curveKey, graphData[colorKey][0], graphData[colorKey][1])
-            self.graph.curve(curveKey).setEnabled(colorKey in self.visibleValues)
-
+        for (colorKey, curve) in self.valueToCurve.iteritems():
+            curve.setData(graphData[colorKey][0], graphData[colorKey][1])
+            curve.setVisible(colorKey in self.visibleValues)
+        self.graph.replot()
         self.valuesPresentInData.sort()
         self.visibleValues = [v for v in self.valuesPresentInData]
         self.updateSelectionChange()
         
     def updateMotifsGraph(self):
-        for (colorKey, curveKey) in self.valueToCurveKey.items():
-            self.graph.curve(curveKey).setEnabled(colorKey in self.visibleValues)
-        self.graph.update()
+        for (colorKey, curve) in self.valueToCurve.items():
+            curve.setVisible(colorKey in self.visibleValues)
+        self.graph.replot()
 
 if __name__ == "__main__":
     a = QApplication(sys.argv)
     owdm = OWDisplayMotifs()
-    a.setMainWidget(owdm)
+    owdm.cdata(orange.ExampleTable(os.path.expanduser("~/Desktop/motif.tab")))
+    owdm.newGeneList(["1", "2"])
     owdm.show()
-    a.exec_loop()
+    a.exec_()
     owdm.saveSettings()
