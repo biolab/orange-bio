@@ -13,12 +13,14 @@ from PyQt4.QtSvg import *
 
 import OWGUI
 import sys, os, urllib2, urllib
+import warnings
 
 import shelve
 from cStringIO import StringIO
 
 import pickle
 import obiChem
+import orngEnviron
 
 class dummy_module(object):
 	def __init__(self, name):
@@ -33,7 +35,7 @@ try:
 except ImportError:
 	pybel = dummy_module("pybel")
 except Exception, ex:
-	pybel = dummy_module("pybel") 
+	pybel = dummy_module("pybel")
 
 svg_error_string = """<?xml version="1.0" ?>
 <svg height="185" version="1.0" width="250" xmlns="http://www.w3.org/2000/svg">
@@ -51,7 +53,7 @@ try:
 except ImportError:
     oasaLocal = False
 
-if oasaLocal:
+if oasaLocal and pybel:
     def mol_to_svg(molSmiles, fragSmiles):
         s = StringIO()
         obiChem.mol_to_svg(molSmiles, fragSmiles, s)
@@ -101,14 +103,18 @@ class ImageCache(object):
     @synchronized(lock)
     def __init__(self):
         self.__dict__ = self.__shared_state
-        if not self.shelve:
-            import orngEnviron
+        if self.shelve is None:
             try:
-            	os.mkdir(os.path.join(orngEnviron.bufferDir, "molimages"))
+                os.mkdir(os.path.join(orngEnviron.bufferDir, "molimages"))
             except OSError:
-            	pass
-            self.shelve = shelve.open(os.path.join(orngEnviron.bufferDir, "molimages", "cache.shelve"))
-            
+                pass
+            try:
+                self.shelve = shelve.open(os.path.join(orngEnviron.bufferDir, "molimages", "cache.shelve"))
+            except Exception, ex:
+                warnings.warn("Cannot open molecule images cache! " + str(ex))
+                self.shelve = {}
+    
+    
     @synchronized(lock)
     def __getitem__(self, key):
         val_str = str(key)
@@ -136,10 +142,12 @@ class ImageCache(object):
         if len(self.shelve.keys()) > 1000:
             for key in self.shelve.keys()[:-900]:
                 del self.shelve[key]
-        self.shelve.sync()
+        if hasattr(self.shelve, "sync"):
+            self.shelve.sync()
 
     def __del__(self):
-        self.sync()
+    	if hasattr(self.shelve, " sync"):
+            self.sync()
 
 class MolWidget(QFrame):
     def setSelected(self, val):
@@ -162,6 +170,7 @@ class MolWidget(QFrame):
             from traceback import print_exc
             print_exc()
             s = svg_error_string % "Error loading: "+str(ex)
+            self.from_cache = False
             self.state = 0
         self.image=SVGImageThumbnail(s, self)
         self.image.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -361,6 +370,9 @@ class OWMoleculeVisualizer(OWWidget):
         
         if not pybel:
         	self.showFragments = 0
+        	self.warning(10, "Pybel module not installed. To view molecule fragments\nplease install openbabel python extension.")
+        if not oasaLocal:
+        	self.warning(11, "OASA module not installed. For faster local molecule\nrendering install OASA module (part of BKChem)")
         
     def setMoleculeTable(self, data):
         self.closeContext()
@@ -601,14 +613,14 @@ class OWMoleculeVisualizer(OWWidget):
             
     def showImages(self, useCached=False):
         self.destroyImageWidgets()
-        self.warning()
+        self.warning(0)
         
         self.renderImages(useCached)
         if not oasaLocal:
             if self.failedCount>0:
                 self.infoLabel.setText("%i chemicals\nFailed to retrieve %i images from server\n%i images from server\n%i images from local cache" \
 									   % (len(self.imageWidgets), self.failedCount, len(self.imageWidgets)-self.failedCount-self.fromCacheCount, self.fromCacheCount))
-                self.warning("Failed to retrieve some images from server")
+                self.warning(0, "Failed to retrieve some images from server")
             elif self.fromCacheCount == len(self.imageWidgets):
                 self.infoLabel.setText("%i chemicals\nAll images from local cache" % len(self.imageWidgets))
             elif self.fromCacheCount == 0:
