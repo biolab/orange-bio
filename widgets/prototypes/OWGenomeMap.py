@@ -9,7 +9,7 @@
 import orange, OWGUI, math, glob
 import os.path # to find out where the local files are
 from OWWidget import *
-from qtcanvas import *
+#from qtcanvas import *
 
 from OWGraph import ColorPaletteHSV
 
@@ -37,10 +37,10 @@ class OWGenomeMap(OWWidget):
 
     def __init__(self, parent=None, signalManager = None):
         OWWidget.__init__(self, parent, signalManager, 'GenomeMap')
-        self.setWFlags(Qt.WResizeNoErase | Qt.WRepaintNoErase) #this works like magic.. no flicker during repaint!
-        self.parent = parent        
+#        self.setWFlags(Qt.WResizeNoErase | Qt.WRepaintNoErase) #this works like magic.. no flicker during repaint!
+#        self.parent = parent        
 
-        self.callbackDeposit = [] # deposit for OWGUI callback functions
+#        self.callbackDeposit = [] # deposit for OWGUI callback functions
         self.MinGeneWidth = 5
         self.ColorByClass = 1
         self.ShowTicks = 1
@@ -75,37 +75,55 @@ class OWGenomeMap(OWWidget):
 
         # inputs and outputs
         self.inputs=[("Examples", ExampleTable, self.dataset, Default)]
-        self.outputs = [("Examples", ExampleTable, Default), ("Classified Examples", ExampleTableWithClass, Default)]
+        self.outputs = [("Examples", ExampleTable, Default)]
 
         # GUI definition
-        self.controls = QVGroupBox(self.controlArea)
-        box = QVButtonGroup("Graph Options", self.controls)
-        box.setMaximumSize(250, 80)
-        OWGUI.qwtHSlider(box, self, "MinGeneWidth", label='Min. mark width: ', labelWidth=80, minValue=1, maxValue=10, step=1, callback=self.graph.repaintGenes)
-        self.colorByClassCB = OWGUI.checkBox(box, self, "ColorByClass", "Gene colors wrt class", callback=self.graph.repaintGenes, disabled=1)
+        self.controls = OWGUI.widgetBox(self.controlArea, "Graph Options")
+#        self.controls = QVGroupBox(self.controlArea)
+        box = OWGUI.widgetBox(self.controls, "Graph Options")
+#        box = QVButtonGroup("Graph Options", self.controls)
+#        box.setMaximumSize(250, 80)
+        OWGUI.qwtHSlider(box, self, "MinGeneWidth", label='Min. mark width: ', 
+                         labelWidth=80, minValue=1, maxValue=10, step=1,
+                         callback=self.graph.repaintGenes)
+        
+        self.colorByClassCB = OWGUI.checkBox(box, self, "ColorByClass", 
+                                             "Gene colors wrt class",
+                                             callback=self.graph.repaintGenes,
+                                             disabled=1)
 
-        box=QBoxLayout(self.mainArea, QVBoxLayout.TopToBottom, 0)
+#        box=QBoxLayout(self.mainArea, QVBoxLayout.TopToBottom, 0)
         self.view = ChromosomeGraphView(self.graph, self.mainArea)
         self.view.setMinimumWidth(500)
-        box.addWidget(self.view)
+        self.mainArea.layout().addWidget(self.view)
+#        box.addWidget(self.view)
 
-        box = QHButtonGroup("Genome Map", self.controls)
-        box.setMaximumSize(250, 50)
-        self.genomeMapCombo = OWGUI.comboBox(box, self, 'GenomeMapIndx', items=[], callback=self.loadGenomeMap)
-        self.genomeMapCombo.setMaximumSize(160, 20)
+#        box = QHButtonGroup("Genome Map", self.controls)
+        box = OWGUI.widgetBox(self.controls, "Genome Map", orientation="horizontal")
+#        box.setMaximumSize(250, 50)
+        self.genomeMapCombo = OWGUI.comboBox(box, self, 'GenomeMapIndx',
+                                             callback=self.loadGenomeMap)
+        
+#        self.genomeMapCombo.setMaximumSize(160, 20)
+
         self.setFilelist(self.genomeMapCombo, self.RecentGenomeMaps)
-        self.genomeMapBrowse = OWGUI.button(box, self, 'Browse', callback=self.browseGenomeMap)
-        self.genomeMapBrowse.setMaximumSize(50, 30)
+        self.genomeMapBrowse = OWGUI.button(box, self, 'Browse',
+                                            callback=self.browseGenomeMap)
+#        self.genomeMapBrowse.setMaximumSize(50, 30)
 
-        box = QHButtonGroup("Gene ID attribute", self.controls)
-        box.setMaximumSize(250, 50)
-        self.geneIDAttrCombo = OWGUI.comboBox(box, self, 'geneIDattrIndx', items=[], callback=self.geneIDchanged)
-        self.geneIDAttrCombo.setMaximumSize(160, 20)
+        box = OWGUI.widgetBox(self.controls, "Gene ID Attribute")
+#        box = QHButtonGroup("Gene ID attribute", self.controls)
+#        box.setMaximumSize(250, 50)
+        self.geneIDAttrCombo = OWGUI.comboBox(box, self, 'geneIDattrIndx',
+                                              callback=self.geneIDchanged)
+#        self.geneIDAttrCombo.setMaximumSize(160, 20)
         self.setGeneIDAttributeList()
+        
+        OWGUI.rubber(self.controlArea)
 
     def geneIDchanged(self):
         if len(self.candidateGeneIDsFromSignal) > self.geneIDattrIndx:
-            self.geneIDAttrCombo.setCurrentItem(self.geneIDattrIndx)
+            self.geneIDAttrCombo.setCurrentIndex(self.geneIDattrIndx)
             self.geneIDattr = self.candidateGeneIDsFromSignal[self.geneIDattrIndx]
         else:
             self.geneIDattr = None
@@ -117,7 +135,7 @@ class OWGenomeMap(OWWidget):
         ## refresh the list
         self.geneIDAttrCombo.clear()
         for f in self.candidateGeneIDsFromSignal:
-            self.geneIDAttrCombo.insertItem(str(f.name))
+            self.geneIDAttrCombo.addItem(str(f.name))
         self.geneIDAttrCombo.setDisabled(len(self.candidateGeneIDsFromSignal) == 0)
 
     def setFilelist(self, filecombo, fileList):
@@ -127,10 +145,10 @@ class OWGenomeMap(OWWidget):
                 (dir, filename) = os.path.split(file)
                 #leave out the path
                 fnToDisp = filename
-                filecombo.insertItem(fnToDisp)
+                filecombo.addItem(fnToDisp)
             filecombo.setDisabled(False)
         else:
-            filecombo.insertItem("(none)")
+            filecombo.addItem("(none)")
             filecombo.setDisabled(True)
 
     def loadChromosomeDefinitions(self, filename):
@@ -174,14 +192,15 @@ class OWGenomeMap(OWWidget):
                 self.RecentGenomeMaps.insert(0, fn) # add to beginning of list
                 self.setFilelist(self.genomeMapCombo, self.RecentGenomeMaps) # update combo
                 self.loadChromosomeDefinitions(fn)
-                if change: self.datasetChanged() ## repaint
+                if change:
+                    self.datasetChanged() ## repaint
 
     def browseGenomeMap(self):
         if self.RecentGenomeMaps == []:
             startfile = "."
         else:
             startfile = self.RecentGenomeMaps[0]
-        filename = QFileDialog.getOpenFileName(startfile, 'Genome Map files (*.tab)\nAll files(*.*)', None, 'Genome Map File')
+        filename = QFileDialog.getOpenFileName(self, 'Genome Map File', startfile, 'Genome Map files (*.tab)\nAll files(*.*)')
         fn = str(filename)
         fn = os.path.abspath(fn)
         if fn in self.RecentGenomeMaps: # if already in list, remove it
@@ -199,9 +218,13 @@ class OWGenomeMap(OWWidget):
             return
 
         ## all discrete and string type attributes are good candidates
-        self.candidateGeneIDsFromSignal = [a for a in self.data.domain.attributes + self.data.domain.getmetas().values() if a.varType == orange.VarTypes.Discrete or a.varType == orange.VarTypes.Other or a.varType == orange.VarTypes.String]
+        self.candidateGeneIDsFromSignal = [a for a in self.data.domain.attributes +\
+                    self.data.domain.getmetas().values() \
+                    if a.varType == orange.VarTypes.Discrete or \
+                    a.varType == orange.VarTypes.Other or \
+                    a.varType == orange.VarTypes.String]
         self.setGeneIDAttributeList()
-        self.geneIDAttrCombo.setDisabled(1)
+        self.geneIDAttrCombo.setDisabled(True)
 
         ## check if there are new genome map files present
         ## remove from geneID2genomeMapfile those not present in the RecentGenomeMaps list
@@ -235,7 +258,8 @@ class OWGenomeMap(OWWidget):
         bestCn = 0
         bestGenomeMap = 0
         lst = self.candidateGeneIDsFromSignal
-        if self.geneIDattr <> None and self.geneIDattr in self.candidateGeneIDsFromSignal: lst = [self.geneIDattr] + lst
+        if self.geneIDattr is not None and self.geneIDattr in self.candidateGeneIDsFromSignal:
+            lst = [self.geneIDattr] + lst
 
         for attr in lst:
             vals = [ex[attr] for ex in self.data]
@@ -246,7 +270,7 @@ class OWGenomeMap(OWWidget):
             for v in vals:
                 v = str(v)
                 i = geneID2genomeMapfile.get(v, -1) ## -1, not present
-                if i <> -1:
+                if i != -1:
                     for ai in i:
                         af = genomeMapFrequency.get(ai, 0)
                         genomeMapFrequency[ai] = af + 1
@@ -254,10 +278,11 @@ class OWGenomeMap(OWWidget):
             if cn > bestCn or (cn > 0 and attr == self.geneIDattr):
                 bestAttr = attr
                 bestCn = cn
-                gmfs = [(f, gmindex) for (gmindex, f) in genomeMapFrequency.items()]
+                gmfs = [(f, gmindex) for (gmindex, f) in genomeMapFrequency.iteritems()]
                 if len(gmfs) > 0:
-                    gmfs.sort()
-                    gmfs.reverse() ## most frequent first
+                    gmfs = sorted(gmfs, reverse=True)
+#                    gmfs.sort()
+#                    gmfs.reverse() ## most frequent first
                     bestGenomeMap = gmfs[0][1]
                 else:
                     bestGenomeMap = 0 ## keep current
@@ -271,7 +296,7 @@ class OWGenomeMap(OWWidget):
             self.geneIDattrIndx = 0
 
         ## load annotation if a better one found
-        if bestGenomeMap <> 0 or not(self.GenomeMapLoaded):
+        if bestGenomeMap != 0 or not(self.GenomeMapLoaded):
             self.GenomeMapIndx = bestGenomeMap
             self.loadGenomeMap(0)
 ##            self.loadChromosomeDefinitions(self.RecentGenomeMaps[self.GenomeMapIndx])
@@ -313,7 +338,7 @@ class OWGenomeMap(OWWidget):
             ## create color map
             self.colorByClassCB.setDisabled(self.data.domain.classVar == None)
             if self.data.domain.classVar:
-                self.classColors = ColorPaletteHSV(len(self.data.domain.classVar.values), 255)
+                self.classColors = ColorPaletteHSV(len(self.data.domain.classVar.values))
             self.repaintChromeGraph()
 
 ##############################################################################
@@ -327,15 +352,15 @@ geneColor = QColor(60,60,60)
 ##geneColor = Qt.gray
 ##gSelectionColor = Qt.yellow
 
-class ChromosomeGraph(QCanvas):
-    def __init__(self, parent, chrom = []):
-        apply(QCanvas.__init__,(self, parent, ""))
-        self.parent = parent
+class ChromosomeGraph(QGraphicsScene):
+    def __init__(self, master, parent=None, chrom = []):
+        QGraphicsScene.__init__(self, parent)
+        self.master = master
         self.chrom = chrom
         self.selection = []
 
     def setMargins(self):
-        view = self.parent.view
+        view = self.master.view
         self.bpL, self.bpR = view.margins[-1]
         self.bpW = float(self.bpR - self.bpL)
         self.ticks = []
@@ -353,13 +378,14 @@ class ChromosomeGraph(QCanvas):
         return int(self.bpL + r * self.bpW)
 
     def paint(self):
-        view = self.parent.view
-        self.resize(view.width()-20, max(view.height()-5, yoffset+(len(self.chrom)+1)*(ychrom+yspace) - yspace))
+        view = self.master.view
+        self.setSceneRect(QRectF(0, 0, view.width()-20, max(view.height()-5, yoffset+(len(self.chrom)+1)*(ychrom+yspace) - yspace)))
+#        self.resize(view.width()-20, max(view.height()-5, yoffset+(len(self.chrom)+1)*(ychrom+yspace) - yspace))
         self.gwidth = self.width() - 2*xoffset
 
         # remove everything on present canvas
-        for i in self.allItems():
-            i.setCanvas(None)
+        for item in self.items():
+            self.removeItem(item)
 
         for (i, c) in enumerate(self.chrom):
             self.paintChrom(yoffset+i*(ychrom+yspace), max(self.bpL, c[0]), min(self.bpR, c[1]), i)
@@ -377,28 +403,38 @@ class ChromosomeGraph(QCanvas):
         # relW = (bpR-bpL)/float(self.bpR-self.bpL) # relative width of the displayed chromosome (0..1)
         # adjust the ticks to that
 
-        r = QCanvasRectangle(xoffset, y, xR-xL+1, ychrom+1, self)
+#        r = QCanvasRectangle(xoffset, y, xR-xL+1, ychrom+1, self)
+        r = QGraphicsRectItem(xoffset, y, xR-xL+1, ychrom+1, self)
         r.setPen(QPen(Qt.white))
         r.y = y; r.id = indx
-        r.setZ(zchrom)
+        r.setZValue(zchrom)
         r.show()
         
-        lu = QCanvasLine(self); lu.setPoints(0, 0, xR-xL, 0)
-        ld = QCanvasLine(self); ld.setPoints(0, ychrom, xR-xL, ychrom)
+        lu = QGraphicsLineItem(0, 0, xR-xL, 0, self)
+#        lu = QCanvasLine(self); lu.setPoints(0, 0, xR-xL, 0)
+        ld = QGraphicsLineItem(0, ychrom, xR-xL, ychrom, self)
+#        ld = QCanvasLine(self); ld.setPoints(0, ychrom, xR-xL, ychrom)
         lines = [lu, ld]
         if bpL == chrom[0]:
-            ll = QCanvasLine(self); ll.setPoints(0, 0, 0, ychrom)
+            ll = QGraphicsLineItem(0, 0, 0, ychrom, self)
+#            ll = QCanvasLine(self); ll.setPoints(0, 0, 0, ychrom)
             lines.append(ll)
         if bpR == chrom[1]:
-            lr = QCanvasLine(self); lr.setPoints(xR-xL, 0, xR-xL, ychrom)
+            lr = QGraphicsLineItem(xR-xL, 0, xR-xL, ychrom, self)
+#            lr = QCanvasLine(self); lr.setPoints(xR-xL, 0, xR-xL, ychrom)
             lines.append(lr)
         for l in lines:
-            l.setX(xoffset); l.setY(y); l.setZ(zchrombb)
+            l.setPos(xoffset, y)
+            l.setZValue(zchrombb)
+#            l.setX(xoffset); l.setY(y); l.setZ(zchrombb)
             l.show()
 
-        # paint chromosome name            
-        label = QCanvasText(chrom[3], self)
-        label.setX(xoffset); label.setY(y-label.boundingRect().height()-1); label.setZ(zticks)
+        # paint chromosome name
+        label = QGraphicsSimpleTextItem(chrom[3], self)            
+#        label = QCanvasText(chrom[3], self)
+        label.setPos(xoffset, y-label.boundingRect().height()-1)
+        label.setZValue(zticks)
+#        label.setX(xoffset); label.setY(y-label.boundingRect().height()-1); label.setZ(zticks)
         label.show()
 
         # paint the ticks
@@ -406,46 +442,56 @@ class ChromosomeGraph(QCanvas):
             ticks = self.ticks[indx]
             for (bp, str) in ticks:
                 x = self.bp2x(bp)
-                tick = QCanvasLine(self); tick.setPoints(x, 0, x, ytick)
-                tick.setX(0); tick.setY(y+ychrom); tick.setZ(zticks)
+                tick = QGraphicsLineItem(x, 0, x, ytick)
+                tixk.setPos(0, y+ychrom)
+                tick.setZValue(zticks)
+#                tick = QCanvasLine(self); tick.setPoints(x, 0, x, ytick)
+#                tick.setX(0); tick.setY(y+ychrom); tick.setZ(zticks)
                 tick.show()
 
-                label = QCanvasText(str, self)
-                label.setX(x - label.boundingRect().width()/2); label.setY(y+ychrom+ytick); label.setZ(zticks)
+                label = QGraphicsSimpleTextItem(str, self)
+                label.setPos(x - label.boundingRect().width()/2, y+ychrom+ytick)
+#                label = QCanvasText(str, self)
+#                label.setX(x - label.boundingRect().width()/2); label.setY(y+ychrom+ytick); label.setZ(zticks)
                 label.show()
 
     # paint the genes
     def paintGenes(self):
-        mid = self.parent.mid
-        if not self.parent.data: return
+        mid = self.master.mid
+        if not self.master.data:
+            return
+        data = self.master.data
         lborder, rborder = xoffset, self.width()-xoffset
-        colorclass = self.parent.data.domain.classVar and self.parent.ColorByClass
-        colors = self.parent.classColors
-        for (i,d) in enumerate(self.parent.data):
+        colorclass = data.domain.classVar and self.master.ColorByClass
+        colors = self.master.classColors
+        for (i,d) in enumerate(data):
             if not int(d[mid]):
                 continue # position not known for this gene
-            coords = self.parent.coord[i]
+            coords = self.master.coord[i]
             for coord in coords:
                 if not(coord[0]>self.bpR or coord[1]<self.bpL):  # is gene in the visible area of the chromosome?
                     l, r = max(coord[0], self.bpL),  min(coord[1], self.bpR)
                     lp, rp = self.bp2x(l), self.bp2x(r)
-                    if rp-lp < self.parent.MinGeneWidth:
-                        diff = int((self.parent.MinGeneWidth - (rp-lp)) / 2)
+                    if rp-lp < self.master.MinGeneWidth:
+                        diff = int((self.master.MinGeneWidth - (rp-lp)) / 2)
                         lp, rp = max(lp-diff, lborder), min(rp+diff, rborder)
                     y = yoffset + coord[2]*(ychrom+yspace)
-                    r = QCanvasRectangle(lp, y, max(self.parent.MinGeneWidth, rp-lp), ychrom+1, self)
+                    r = QGraphicsRectItem(lp, y, max(self.master.MinGeneWidth, rp-lp), ychrom+1, self)
+#                    r = QCanvasRectangle(lp, y, max(self.parent.MinGeneWidth, rp-lp), ychrom+1, self)
                     if colorclass:
                         color = colors[int(d.getclass())]
                     else:
                         color = geneColor
                     r.instance = d
-                    r.setBrush(QBrush(color)); r.setPen(QPen(color))
-                    r.setZ(zgenes)
+                    r.setBrush(QBrush(color))
+                    r.setPen(QPen(color))
+                    r.setZValue(zgenes)
                     r.show()
 
     def repaintGenes(self):
-        for i in filter(lambda i,z=zgenes: i.z()==z, self.allItems()):
-            i.setCanvas(None)
+        for item in filter(lambda i,z=zgenes: i.zValue() == z, self.items()):
+            self.removeItem(item)
+        
         self.paintGenes()
         self.update()
 
@@ -459,14 +505,15 @@ class ChromosomeGraph(QCanvas):
 
     # finds which genes intersect with selection, makes and example table and sends it out
     def exportSelection(self):
-        if not self.selection: return
+        if not self.selection:
+            return
         ex = []
-        for i in filter(lambda i,z=zgenes: i.z()==zsel, self.allItems()):
-            genes =  filter(lambda i,z=zgenes: i.z()==zgenes, self.collisions(i.boundingRect()))
+        for i in filter(lambda i,z=zgenes: i.zValue() == zsel, self.items()):
+            genes =  filter(lambda i,z=zgenes: i.zValue() == zgenes, self.collidingItems(i))
             for g in genes:
                 ex.append(g.instance)
         if len(ex):
-            data = self.parent.data
+            data = self.master.data
             selectedData = orange.ExampleTable(data.domain, ex)
 
             # Reduce the number of class values, if class is defined
@@ -478,9 +525,10 @@ class ChromosomeGraph(QCanvas):
             # (ie to lesser number of values or to one value (alias None))
             if cl != clo:
                 domain = orange.Domain(data[0].domain.attributes, cl)
-                metas = data[0].domain.getmetas()
-                for key in metas:
-                    domain.addmeta(key, metas[key])
+                domain.addmetas(data[0].domain.getmetas())
+#                metas = data[0].domain.getmetas()
+#                for key in metas:
+#                    domain.addmeta(key, metas[key])
             else:
                 domain = data[0].domain
 
@@ -499,9 +547,11 @@ class ChromosomeGraph(QCanvas):
                 lp, rp = self.bp2x(l), self.bp2x(r)
                 if rp<lp:
                     break
-                r = QCanvasRectangle(lp, yoffset+c*(ychrom+yspace), rp-lp, ychrom, self)
-                r.setZ(zsel)
-                r.setBrush(QBrush(gSelectionColor)); r.setPen(QPen(gSelectionColor))
+                r = QGraphicsRectItem(lp, yoffset+c*(ychrom+yspace), rp-lp, ychrom, self)
+#                r = QCanvasRectangle(lp, yoffset+c*(ychrom+yspace), rp-lp, ychrom, self)
+                r.setZValue(zsel)
+                r.setBrush(QBrush(gSelectionColor))
+                r.setPen(QPen(gSelectionColor))
                 r.show()
         
     def getTicks(self, lower, upper, abslower, absupper):
@@ -549,12 +599,12 @@ class ChromosomeGraph(QCanvas):
 ##############################################################################
 # the event manager
 
-class ChromosomeGraphView(QCanvasView):
-    def __init__(self, canvas, mainArea):
-        apply(QCanvasView.__init__,(self,)+(canvas,mainArea))
+class ChromosomeGraphView(QGraphicsView):
+    def __init__(self, canvas, parent=None):
+        QGraphicsView.__init__(self, canvas, parent)
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(1)
-        self.setFocusPolicy(QWidget.ClickFocus)
+        self.setFocusPolicy(Qt.WheelFocus)
         self.setFocus()
         self.margins = []
         self.selStart = None  # starting point of the current gene selection
@@ -562,9 +612,9 @@ class ChromosomeGraphView(QCanvasView):
         self.shiftPressed = 0
         
     def resizeEvent(self, event):
-        apply(QCanvasView.resizeEvent, (self,event))
-        if self.canvas():
-            self.canvas().paint()
+        QGraphicsView.resizeEvent(self,event)
+        if self.scene():
+            self.scene().paint()
 
     def resetMargins(self, left, right):
         self.margins = []
@@ -572,88 +622,108 @@ class ChromosomeGraphView(QCanvasView):
 
     def setMargins(self, left, right):
         self.margins.append((max(0, left), right))
-        self.canvas().setMargins()
+        self.scene().setMargins()
 
     def retractMargins(self):
-        if len(self.margins)>1:
+        if len(self.margins) > 1:
             self.margins.pop(-1)
-            self.canvas().setMargins()
-            self.canvas().paint()
+            self.scene().setMargins()
+            self.scene().paint()
 
-    def contentsMousePressEvent(self, event):
-        if not self.canvas: return
-        if event.button() == QMouseEvent.RightButton:
+    def mousePressEvent(self, event):
+        if not self.scene():
+            return
+        if event.button() == Qt.RightButton:
             self.retractMargins()
-        elif event.button() == QMouseEvent.LeftButton:
-            items = filter(lambda ci: ci.z()==zchrom, self.canvas().collisions(event.pos()))
+        elif event.button() == Qt.LeftButton:
+            pos = self.mapToScene(event.pos())
+            items = [i for i in self.scene().items(pos) if i.zValue() == zchrom]
             # items = self.canvas().collisions(event.pos())
+            
             if items: # user pressed mouse on a chromosome
-                self.addSelection = self.shiftPressed
-                if not self.shiftPressed:
-                    for i in filter(lambda i,z=zgenes: i.z()==zsel, self.canvas().allItems()):
-                        i.setCanvas(None)
+                self.addSelection = event.modifiers() & Qt.ShiftModifier #self.shiftPressed
+                if not self.addSelection:
+                    for i in filter(lambda i,z=zgenes: i.zValue()==zsel, self.scene().items()):
+                        self.scene().removeItem(i)
+#                        i.setCanvas(None)
                 self.chrom = items[0]
-                self.selStart = event.pos().x()
-                self.selRect = QCanvasRectangle(self.canvas())
-                self.selRect.setY(self.chrom.y); self.selRect.setZ(zsel)
-                self.selRect.setBrush(QBrush(gSelectionColor)); self.selRect.setPen(QPen(gSelectionColor))
+                self.selStart = pos.x()
+                self.selRect = QGraphicsRectItem(self.scene())
+#                self.selRect = QCanvasRectangle(self.canvas())
+                self.selRect.setPos(self.selStart, self.chrom.y)
+                self.selRect.setZValue(zsel)
+#                self.selRect.setY(self.chrom.y); self.selRect.setZ(zsel)
+                self.selRect.setBrush(QBrush(gSelectionColor))
+                self.selRect.setPen(QPen(gSelectionColor))
                 self.selRect.show()
                 self.drawSel(self.selStart, self.selStart)
             else: # zooming
-                self.zoomStart = event.pos().x()
-                self.zoomRect = QCanvasRectangle(self.canvas())
-                self.zoomRect.setY(0); self.zoomRect.setZ(0)
+                self.zoomStart = pos.x()
+                self.zoomRect = QGraphicsRectItem(self.scene())
+#                self.zoomRect = QCanvasRectangle(self.canvas())
+                self.zoomRect.setPos(self.zoomStart, 0)
+                self.zoomRect.setZValue(0)
+#                self.zoomRect.setY(0); self.zoomRect.setZ(0)
                 self.zoomRect.setBrush(QBrush(selectionColor))
                 self.zoomRect.setPen(QPen(selectionColor))
                 self.zoomRect.show()
                 self.drawZoom(self.zoomStart, self.zoomStart)
 
-    def contentsMouseMoveEvent(self, event):
-        x = event.pos().x()
-        if self.zoomStart <> None:
+    def mouseMoveEvent(self, event):
+        pos = self.mapToScene(event.pos())
+        x = pos.x()
+        if self.zoomStart is not None:
             self.drawZoom(self.zoomStart, x)
-        if self.selStart <> None:
+        if self.selStart is not None:
             self.drawSel(self.selStart, x)
 
-    def contentsMouseReleaseEvent(self, event):
-        x = event.pos().x()
-        if self.zoomStart <> None:
+    def mouseReleaseEvent(self, event):
+        pos = self.mapToScene(event.pos())
+        x = pos.x()
+        if self.zoomStart is not None:
             zoomStart = self.zoomStart ## remember is locally, and set it to None right away
             self.zoomStart = None
-            left = self.canvas().x2bp(min(zoomStart, x))
-            right = self.canvas().x2bp(max(zoomStart, x))
+            left = self.scene().x2bp(min(zoomStart, x))
+            right = self.scene().x2bp(max(zoomStart, x))
             if abs(right-left) < 50:
-                self.zoomRect.setCanvas(None)
-                self.canvas().update()
+                self.scene().removeItem(self.zoomRect)
+#                self.zoomRect.setCanvas(None)
+#                self.canvas().update()
             else:
                 self.setMargins(left, right)
-                self.canvas().paint()
-        if self.selStart <> None:
+                self.scene().paint()
+        if self.selStart is not None:
             selStart = self.selStart ## remember is locally, and set it to None right away
             self.selStart = None     ## otherwise the selection continues when other widgets process
-            self.canvas().addSelection(selStart, x, self.chrom.id, self.selRect, replace=not self.addSelection)
+            self.scene().addSelection(selStart, x, self.chrom.id, self.selRect, replace=not self.addSelection)
 
-    def keyPressEvent(self, e):
-        if e.key() == 4128:
-            self.shiftPressed = True
-        else:
-            QCanvasView.keyPressEvent(self, e)
-
-    def keyReleaseEvent(self, e):        
-        if e.key() == 4128:
-            self.shiftPressed = False
-        else:
-            QCanvasView.keyReleaseEvent(self, e)
+#    def keyPressEvent(self, e):
+#        if e.key() == 4128:
+#            self.shiftPressed = True
+#        else:
+#            QCanvasView.keyPressEvent(self, e)
+#
+#    def keyReleaseEvent(self, e):        
+#        if e.key() == 4128:
+#            self.shiftPressed = False
+#        else:
+#            QCanvasView.keyReleaseEvent(self, e)
 
     def drawZoom(self, left, right):
-        self.zoomRect.setX(left)
-        self.zoomRect.setSize(right-left, self.canvas().height())
-        self.canvas().update()
+        self.zoomRect.setPos(left, self.zoomRect.y())
+#        self.zoomRect.setX(left)
+        self.zoomRect.setRect(QRectF(self.zoomRect.rect().topLeft(),
+                                     QSizeF(right-left, self.scene().height())))
+#        self.zoomRect.setSize(right-left, self.canvas().height())
+#        self.scene().update()
 
     def drawSel(self, left, right):
-        self.selRect.setX(left)
-        self.selRect.setSize(right-left, ychrom)
-        self.canvas().update()
+        self.selRect.setPos(left, self.selRect.y())
+#        self.selRect.setX(left)
+        self.selRect.setRect(QRectF(self.selRect.rect().topLeft(),
+                                    QSizeF(right-left, ychrom)))
+#        self.selRect.setSize(right-left, ychrom)
+#        self.scene().update()
 
 ##############################################################################
 # test widget's appearance
@@ -661,11 +731,11 @@ class ChromosomeGraphView(QCanvasView):
 if __name__=="__main__":
     a=QApplication(sys.argv)
     ow=OWGenomeMap()
-    a.setMainWidget(ow)
+#    a.setMainWidget(ow)
 #    data = orange.ExampleTable("wtclassed.tab")
     data = orange.ExampleTable("hj.tab")
     ow.show()
     ow.dataset(data)
-    a.exec_loop()
+    a.exec_()
     # save settings
     ow.saveSettings()
