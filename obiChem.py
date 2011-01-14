@@ -866,19 +866,37 @@ def ContaindIn(smiles, fragment):
     pattern.Init(fragment)
     return bool(pattern.Match(mol))
 
+
+"""
+Viasualizations
+===============
+
+"""
 try:
     from oasa.svg_out import svg_out as _svg_out
+    from oasa.pybel_bridge import PybelConverter
+    from oasa.coords_generator import coords_generator
+    from oasa import dom_extensions
 except ImportError:
-    class _svg_out(object):
-        def __init__(self, *args, **kwargs):
-            raise ImportError("OASA library not found")
+    try:
+        from bkchem.oasa.oasa.svg_out import svg_out as _svg_out
+        from bkchem.oasa.oasa.pybel_bridge import PybelConverter
+        from bkchem.oasa.oasa.coords_generator import coords_generator
+        from bkchem.oasa.oasa import dom_extensions
+    except ImportError:
+        class _svg_out(object):
+            def __init__(self, *args, **kwargs):
+                raise ImportError("OASA library not found")
 
 try:
     from oasa.cairo_out import cairo_out as _cairo_out
 except ImportError:
-    class _cairo_out(object):
-        def __init__(self, *args, **kwargs):
-            raise ImportError("OASA library not found")
+    try:
+        from bkchem.oasa.oasa.cairo_out import cairo_out as _cairo_out
+    except ImportError:
+        class _cairo_out(object):
+            def __init__(self, *args, **kwargs):
+                raise ImportError("OASA library not found")
 
 class cairo_out(_cairo_out):
     atom_colors = {"A":(0, 0, 0), "R":(255, 0, 0)}
@@ -926,9 +944,9 @@ class cairo_out(_cairo_out):
             self.ob_matched = reduce(set.union, matches if matches != False else [], set())
         else:
             self.ob_matched = set()
-        from oasa.pybel_bridge import PybelConverter
+#        from oasa.pybel_bridge import PybelConverter
         o_mol, idx2oa = PybelConverter.pybel_to_oasa_molecule_with_atom_map(mol)
-        from oasa.coords_generator import coords_generator
+#        from oasa.coords_generator import coords_generator
         gen = coords_generator(30)
         gen.calculate_coords(o_mol, bond_length=30, force=True)
 ##        self.oasa2obidx = dict([(value, key) for key, value in ix2oa.items()])
@@ -963,7 +981,7 @@ class svg_out(_svg_out):
     def _draw_line( self, parent, start, end, line_width=1, capstyle=""):
         x1, y1 = start
         x2, y2 = end
-        from oasa import dom_extensions
+#        from oasa import dom_extensions
         line = dom_extensions.elementUnder( parent, 'line',
                                             (( 'x1', str( x1)),
                                              ( 'y1', str( y1)),
@@ -974,7 +992,7 @@ class svg_out(_svg_out):
 
     def _draw_text( self, parent, xy, text, font_name="Arial", font_size=16):
         x, y = xy
-        from oasa import dom_extensions
+#        from oasa import dom_extensions
         dom_extensions.textOnlyElementUnder( parent, "text", text,
                                              (( "x", str( x)),
                                               ( "y", str( y)),
@@ -993,9 +1011,9 @@ class svg_out(_svg_out):
             self.ob_matched = reduce(set.union, matches if matches != False else [], set())
         else:
             self.ob_matched = set()
-        from oasa.pybel_bridge import PybelConverter
+#        from oasa.pybel_bridge import PybelConverter
         o_mol, idx2oa = PybelConverter.pybel_to_oasa_molecule_with_atom_map(mol)
-        from oasa.coords_generator import coords_generator
+#        from oasa.coords_generator import coords_generator
         gen = coords_generator(30)
         gen.calculate_coords(o_mol, bond_length=30, force=True)
 ##        self.oasa2obidx = dict([(value, key) for key, value in ix2oa.items()])
