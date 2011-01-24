@@ -10,6 +10,7 @@ from OWWidget import *
 from OWGraph import *
 import OWGUI
 import orange
+import itertools
 from math import log
 from statc import mean, ttest_ind
 from obiGEO import transpose
@@ -343,7 +344,12 @@ class OWVulcanoPlot(OWWidget):
         
     def setTargetCombo(self):
         if self.genesInColumns:
-            self.targets = sorted(reduce(set.union, [attr.attributes.items() for attr in (self.data.domain.attributes if self.data else [])], set()))
+            items = set(reduce(list.__add__, [attr.attributes.items() for attr in (self.data.domain.attributes if self.data else [])], []))
+            grouped = itertools.groupby(sorted(items), key=lambda pair: pair[0])
+            targets = [(key, [value for _, value in group]) for key, group in grouped]
+            targets = [(key, values) for key, values in targets if len(values) > 1]
+            
+            self.targets = [(key, value) for key, values in targets for value in values]
             measurements = [attr.attributes.items() for attr in (self.data.domain.attributes if self.data else [])]
             targets = ["%s: %s" % t for t in self.targets]
             
