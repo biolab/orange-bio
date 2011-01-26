@@ -571,7 +571,7 @@ borg_class(KEGGKO)
 
 class KEGGBriteEntry(object):
     _search_re = {"ids": re.compile('(?P<ids>\[.*:.*\])'),
-                  "title": re.compile('(<B>)?(?P<title>[a-zA-Z0-9].*?)(?(1)</B>)$'),
+                  "title": re.compile(r'(<[Bb]>)?(?P<title>\b[a-zA-Z0-9_/\s,;:.+=\-\[\]{}\(\)]+?)(?(1)</[Bb]>)$'),
                   "links": re.compile('(?P<links><a href=".+?">.*?</a>)')}
     def __init__(self, line, entrys=None):
         self.entrys = [] #entrys if entrys is not None else []
