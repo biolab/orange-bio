@@ -109,24 +109,16 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.selectionAddTermAsClass = 0
         self.selectionChanging = 0
         
-        self.loadSettings()
-        
         # check usage of all evidences
         for etype in obiGO.evidenceTypesOrdered:
-            varName = "useEvidence" + etype 
-##            self.settingsList.append( varName)
+            varName = "useEvidence" + etype
+            if varName not in self.settingsList: 
+                self.settingsList.append(varName)
             code = compile("self.%s = True" % (varName), ".", "single")
             exec(code)
-#        self.progressBarInit()
-#        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-#            self.annotationFiles = listAvailable()
-#        self.progressBarFinished()
-#        self.annotationCodes = sorted(self.annotationFiles.keys())
-#        if not self.annotationCodes:
-#            self.error(0, "No downloaded annotations!!\nUse the Update Genomics Databases widget and download annotations for at least one organism!")
-#        else:
-#            self.error(0)
         self.annotationCodes = []
+        
+        self.loadSettings()
         
         #############
         ##GUI
@@ -137,57 +129,101 @@ class OWGOEnrichmentAnalysis(OWWidget):
         box = OWGUI.widgetBox(self.inputTab, "Info")
         self.infoLabel = OWGUI.widgetLabel(box, "No data on input\n")
         
-        OWGUI.button(box, self, "Ontology/Annotation Info", callback=self.ShowInfo, tooltip="Show information on loaded ontology and annotations", debuggingEnabled=0)
+        OWGUI.button(box, self, "Ontology/Annotation Info", callback=self.ShowInfo,
+                     tooltip="Show information on loaded ontology and annotations",
+                     debuggingEnabled=0)
         box = OWGUI.widgetBox(self.inputTab, "Organism", addSpace=True)
-        self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex", items = self.annotationCodes, callback=self.Update, tooltip="Select organism", debuggingEnabled=0)
+        self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex",
+                            items = self.annotationCodes, callback=self.Update,
+                            tooltip="Select organism", debuggingEnabled=0)
         
-        self.signalManager.freeze(self).push() #(self.signalManager.freezing + 1) ## freeze until annotation combo box is updateded with available annotations.
+        # freeze until annotation combo box is updateded with available annotations.
+        self.signalManager.freeze(self).push()
         QTimer.singleShot(0, self.UpdateOrganismComboBox)
         
-        self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex", box="Gene names", callback=self.Update, tooltip="Use this attribute to extract gene names from input data")
-        OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use data attributes names", disables=[(-1, self.geneAttrIndexCombo)], callback=self.Update, tooltip="Use attribute names for gene names")
-        OWGUI.button(self.geneAttrIndexCombo.box, self, "Gene matcher settings", callback=self.UpdateGeneMatcher, tooltip="Open gene matching settings dialog", debuggingEnabled=0)
+        self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex",
+                            box="Gene names", callback=self.Update,
+                            tooltip="Use this attribute to extract gene names from input data")
+        OWGUI.checkBox(self.geneAttrIndexCombo.box, self, "useAttrNames", "Use data attributes names",
+                       disables=[(-1, self.geneAttrIndexCombo)], callback=self.Update, 
+                       tooltip="Use attribute names for gene names")
+        OWGUI.button(self.geneAttrIndexCombo.box, self, "Gene matcher settings", 
+                     callback=self.UpdateGeneMatcher, 
+                     tooltip="Open gene matching settings dialog", 
+                     debuggingEnabled=0)
         
-        self.referenceRadioBox = OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", ["Entire genome", "Reference set (input)"], tooltips=["Use entire genome for reference", "Use genes from Referece Examples input signal as reference"], box="Reference", callback=self.Update)
+        self.referenceRadioBox = OWGUI.radioButtonsInBox(self.inputTab, self, "useReferenceDataset", 
+                                                         ["Entire genome", "Reference set (input)"],
+                                                         tooltips=["Use entire genome for reference",
+                                                                   "Use genes from Referece Examples input signal as reference"],
+                                                         box="Reference", callback=self.Update)
         self.referenceRadioBox.buttons[1].setDisabled(True)
-        OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process", "Cellular component", "Molecular function"], box="Aspect", callback=self.Update)
+        OWGUI.radioButtonsInBox(self.inputTab, self, "aspectIndex", ["Biological process",
+                                                                     "Cellular component",
+                                                                     "Molecular function"], 
+                                box="Aspect", callback=self.Update)
+        
         self.geneAttrIndexCombo.setDisabled(bool(self.useAttrNames))
-##        self.geneInfoLabel = OWGUI.label(self.geneAttrIndexCombo.box, self, "0 genes on input signal")
-       
-##        box = OWGUI.widgetBox(self.inputTab, "GO update")
-##        b = OWGUI.button(box, self, "Update", callback = self.UpdateGOAndAnnotation)
-##        box.setMaximumWidth(150)
         
         ##Filter tab
         self.filterTab = OWGUI.createTabPage(self.tabs, "Filter")
         box = OWGUI.widgetBox(self.filterTab, "Filter GO Term Nodes", addSpace=True)
-        OWGUI.checkBox(box, self, "filterByNumOfInstances", "Genes", callback=self.FilterAndDisplayGraph, tooltip="Filter by number of input genes mapped to a term")
-##        OWGUI.qwtHSlider(box, self, 'minNumOfInstances', label='#:', labelWidth=5, minValue=1, maxValue=100, step=1.0, precision=1, ticks=0, maxWidth=60, callback=self.FilterAndDisplayGraph)
-        OWGUI.spin(OWGUI.indentedBox(box), self, 'minNumOfInstances', 1, 100, step=1, label='#:', labelWidth=15, callback=self.FilterAndDisplayGraph, callbackOnReturn=True, tooltip="Min. number of input genes mapped to a term")
-        OWGUI.checkBox(box, self, "filterByPValue", "Significance",callback=self.FilterAndDisplayGraph, tooltip="Filter by term p-value")
-##        OWGUI.qwtHSlider(box, self, 'maxPValue', label='p:', labelWidth=5, minValue=0.001, maxValue=1, step=0.001, precision=3, ticks=0, logarithmic=True, maxWidth=60, callback=self.FilterAndDisplayGraph)
-        OWGUI.doubleSpin(OWGUI.indentedBox(box), self, 'maxPValue', 1e-8, 1, step=1e-8,  label='p:', labelWidth=15, callback=self.FilterAndDisplayGraph, callbackOnReturn=True, tooltip="Max term p-value")
+        OWGUI.checkBox(box, self, "filterByNumOfInstances", "Genes",
+                       callback=self.FilterAndDisplayGraph, 
+                       tooltip="Filter by number of input genes mapped to a term")
+        OWGUI.spin(OWGUI.indentedBox(box), self, 'minNumOfInstances', 1, 100, 
+                   step=1, label='#:', labelWidth=15, 
+                   callback=self.FilterAndDisplayGraph, 
+                   callbackOnReturn=True, 
+                   tooltip="Min. number of input genes mapped to a term")
+        
+        OWGUI.checkBox(box, self, "filterByPValue", "Significance",
+                       callback=self.FilterAndDisplayGraph, 
+                       tooltip="Filter by term p-value")
+        OWGUI.doubleSpin(OWGUI.indentedBox(box), self, 'maxPValue', 1e-8, 1, 
+                         step=1e-8,  label='p:', labelWidth=15, 
+                         callback=self.FilterAndDisplayGraph, 
+                         callbackOnReturn=True, 
+                         tooltip="Max term p-value")
         box = OWGUI.widgetBox(box, "Significance test")
-        OWGUI.radioButtonsInBox(box, self, "probFunc", ["Binomial", "Hypergeometric"], tooltips=["Use binomial distribution test", "Use hypergeometric distribution test"], callback=self.Update)
-        OWGUI.checkBox(box, self, "useFDR", "Use FDR (False Discovery Rate)", callback=self.Update, tooltip="Use False Discovery Rate correction")
-        box = OWGUI.widgetBox(self.filterTab, "Evidence codes in annotation", addSpace=True)
-##        box.setMaximumWidth(150)
+        OWGUI.radioButtonsInBox(box, self, "probFunc", ["Binomial", "Hypergeometric"], 
+                                tooltips=["Use binomial distribution test", 
+                                          "Use hypergeometric distribution test"], 
+                                callback=self.Update)
+        OWGUI.checkBox(box, self, "useFDR", "Use FDR (False Discovery Rate)", 
+                       callback=self.Update, 
+                       tooltip="Use False Discovery Rate correction")
+        box = OWGUI.widgetBox(self.filterTab, "Evidence codes in annotation", 
+                              addSpace=True)
         self.evidenceCheckBoxDict = {}
         for etype in obiGO.evidenceTypesOrdered:
-            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype, callback=self.Update, tooltip=obiGO.evidenceTypes[etype])
+            self.evidenceCheckBoxDict[etype] = OWGUI.checkBox(box, self, "useEvidence"+etype, etype,
+                                            callback=self.Update, tooltip=obiGO.evidenceTypes[etype])
         
         ##Select tab
         self.selectTab = OWGUI.createTabPage(self.tabs, "Select")
-        #box = OWGUI.widgetBox(self.selectTab, "Annotated genes", addSpace=True)
-        box = OWGUI.radioButtonsInBox(self.selectTab, self, "selectionDirectAnnotation", ["Directly or Indirectly", "Directly"], box="Annotated genes", callback=self.ExampleSelection)
+        box = OWGUI.radioButtonsInBox(self.selectTab, self, "selectionDirectAnnotation", 
+                                      ["Directly or Indirectly", "Directly"], 
+                                      box="Annotated genes", 
+                                      callback=self.ExampleSelection)
+        
         box = OWGUI.widgetBox(self.selectTab, "Output", addSpace=True)
-##        OWGUI.checkBox(box, self, "selectionDisjoint", "Disjoint/Inclusive", callback=self.ExampleSelection)
-        OWGUI.radioButtonsInBox(box, self, "selectionDisjoint", btnLabels=["All selected genes", "Term-specific genes", "Common term genes"], tooltips=["Outputs genes annotated to all selected GO terms", "Outputs genes that appear in only one of selected GO terms", "Outputs genes common to all selected GO terms"], callback=self.ExampleSelection)
-        OWGUI.checkBox(box, self, "selectionAddTermAsClass", "Add GO Term as class", callback=self.ExampleSelection)
+        OWGUI.radioButtonsInBox(box, self, "selectionDisjoint", 
+                                btnLabels=["All selected genes", 
+                                           "Term-specific genes", 
+                                           "Common term genes"], 
+                                tooltips=["Outputs genes annotated to all selected GO terms", 
+                                          "Outputs genes that appear in only one of selected GO terms", 
+                                          "Outputs genes common to all selected GO terms"], 
+                                callback=[self.ExampleSelection,
+                                          self.UpdateAddClassButton])
+        self.addClassCB = OWGUI.checkBox(box, self, "selectionAddTermAsClass",
+                                         "Add GO Term as class", 
+                                         callback=self.ExampleSelection)
 
         # ListView for DAG, and table for significant GOIDs
         self.DAGcolumns = ['GO term', 'Cluster', 'Reference', 'p value', 'Genes', 'Enrichment']
-        #self.layout=QVBoxLayout(self.mainArea)
+        
         self.splitter = QSplitter(Qt.Vertical, self.mainArea)
         self.mainArea.layout().addWidget(self.splitter)
 
@@ -249,17 +285,11 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 self.annotationFiles = listAvailable()
             self.progressBarFinished()
             self.annotationCodes = sorted(self.annotationFiles.keys())
-    #        if not self.annotationCodes:
-    #            self.error(0, "No downloaded annotations!!\nUse the Update Genomics Databases widget and download annotations for at least one organism!")
-    #        else:
-    #            self.error(0)
             self.annotationComboBox.clear()
             self.annotationComboBox.addItems(self.annotationCodes)
-#            self.annotationIndex = self.annotationCodes.index(currAnnotationCode) if currAnnotationCode in self.annotationCodes else 0
             self.annotationComboBox.setCurrentIndex(self.annotationIndex)
-#            print "update", self.annotationIndex, currAnnotationCode
         finally:
-            self.signalManager.freeze(self).pop() #setFreeze(self.signalManager.freezing - 1)
+            self.signalManager.freeze(self).pop()
             
     def UpdateGeneMatcher(self):
         dialog = GeneMatcherDialog(self, defaults=self.geneMatcherSettings, modal=True)
@@ -284,7 +314,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         w.setModal(True)
         w.show()
         self.UpdateAnnotationComboBox()
-##        self.connect(w, SIGNAL("closed()"), self.UpdateAnnotationComboBox)
 
     def UpdateAnnotationComboBox(self):
         if self.annotationCodes:
@@ -297,7 +326,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.annotationComboBox.clear()
         self.annotationComboBox.addItems(self.annotationCodes)
         self.annotationComboBox.setCurrentIndex(index)
-##        print "updated annotations"
         if not self.annotationCodes:
             self.error(0, "No downloaded annotations!!\nClick the update button and update annotationa for at least one organism!")
         else:
@@ -305,7 +333,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
     def SetGenesComboBox(self):
         self.candidateGeneAttrs = self.clusterDataset.domain.variables + self.clusterDataset.domain.getmetas().values()
-        self.candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, self.candidateGeneAttrs)
+        self.candidateGeneAttrs = filter(lambda v: v.varType in [orange.VarTypes.String,
+                                                                 orange.VarTypes.Other,
+                                                                 orange.VarTypes.Discrete], 
+                                         self.candidateGeneAttrs)
         self.geneAttrIndexCombo.clear()
         self.geneAttrIndexCombo.addItems([a.name for a in  self.candidateGeneAttrs])
 
@@ -323,7 +354,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 geneNames = cPickle.loads(open(p_join(filename, "gene_names.pickle")).read().replace("\r\n", "\n"))
             organismGenes = {currCode: set(geneNames)}
         candidateGeneAttrs = self.clusterDataset.domain.attributes + self.clusterDataset.domain.getmetas().values()
-        candidateGeneAttrs = filter(lambda v: v.varType==orange.VarTypes.String or v.varType==orange.VarTypes.Other or v.varType==orange.VarTypes.Discrete, candidateGeneAttrs)
+        candidateGeneAttrs = filter(lambda v: v.varType in [orange.VarTypes.String, 
+                                                            orange.VarTypes.Other, 
+                                                            orange.VarTypes.Discrete], 
+                                    candidateGeneAttrs)
         attrNames = [v.name for v in self.clusterDataset.domain.variables]
         cn = {}
         for attr in candidateGeneAttrs:
@@ -340,7 +374,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         cn = cn.items()
         cn.sort(lambda a,b:-cmp(a[1],b[1]))
         ((bestAttr, organism), count) = cn[0]
-##        print "match count:", count
         if bestAttr=="_var_names_" and count<=len(attrNames)/10.0 or \
            bestAttr!="_var_names_" and count<=len(self.clusterDataset)/10.0:
             return
@@ -348,16 +381,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.annotationIndex = self.annotationCodes.index(organism)
         if bestAttr=="_var_names_":
             self.useAttrNames = True
-##            self.geneAttrIndexCombo.setDisabled(True)
             self.geneAttrIndex = 0
         else:
             self.useAttrNames = False
-##            self.geneAttrIndexCombo.setDisabled(False)
             self.geneAttrIndex = candidateGeneAttrs.index(bestAttr)
     
     def SetClusterDataset(self, data=None):
         if not self.annotationCodes:
-            #this is a hack setFreeze(1) should prevent signal processing before we initialize annotationCodes
             QTimer.singleShot(200, lambda: self.SetClusterDataset(data))
             return
         self.closeContext()
@@ -365,7 +395,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.infoLabel.setText("\n")
         if data:
             self.SetGenesComboBox()
-#            id = getattr(data, "taxid", None)
             try:
                 taxid = data_hints.get_hint(data, "taxid", "")
                 code = obiGO.from_taxid(taxid)
@@ -375,18 +404,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
                                             if self.annotationFiles[name] ==  filename].pop()
             except Exception:
                 pass
-#            self.useAttrNames = getattr(data, "genesinrows", self.useAttrNames)
             self.useAttrNames = data_hints.get_hint(data, "genesinrows", self.useAttrNames)
             self.openContext("", data)
-#            if not self.ontology:
-#                self.LoadOntology()
-#            if not self.annotations or self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]!= self.loadedAnnotationCode:
-#                self.LoadAnnotation()
-#            
-#            self.Load()
-#            self.FilterUnknownGenes()
-#            graph = self.Enrichment()
-#            self.SetGraph(graph)
             self.Update()
         else:
             self.infoLabel.setText("No data on input\n")
@@ -468,19 +487,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if not self.ontology:
             count += 1
         pb.iter += count*100
-#        self.progressBarInit()
+        
         for i, args in enumerate(calls):
-#            with orngServerFiles.DownloadProgress.setredirect(lambda value: self.progressBarSet(100.0 * i / count + value/count)):
-#                print args
             orngServerFiles.localpath_download(*args, **dict(callback=pb.advance))
             
         i = len(calls)
         if not self.ontology:
-            self.ontology = obiGO.Ontology(progressCallback=lambda value: pb.advance()) #self.progressBarSet(100.0 * i / count + value/count))
+            self.ontology = obiGO.Ontology(progressCallback=lambda value: pb.advance())
             i+=1
         if org != self.loadedAnnotationCode:
             code = self.annotationFiles[org].split(".")[-3]
-            self.annotations = obiGO.Annotations(code, genematcher=obiGene.GMDirect(), progressCallback=lambda value: pb.advance())#self.progressBarSet(100.0 * i / count + value/count))
+            self.annotations = obiGO.Annotations(code, genematcher=obiGene.GMDirect(), progressCallback=lambda value: pb.advance())
             i+=1
             self.loadedAnnotationCode = org
             count = defaultdict(int)
@@ -494,7 +511,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
         if finish:
             pb.finish()
-#        self.progressBarFinished()
             
     def SetGeneMatcher(self):
         if self.annotations:
@@ -510,12 +526,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     except Exception, ex:
                         print ex
             matchers.reverse()
-#            print matchers
             self.annotations.genematcher = obiGene.matcher(matchers)
-#            self.progressBarInit()
-#            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
             self.annotations.genematcher.set_targets(self.annotations.geneNames)
-#            self.progressBarFinished()
             
     def Enrichment(self, pb=None):
         pb = OWGUI.ProgressBar(self, 100) if pb is None else pb
@@ -589,22 +601,18 @@ class OWGOEnrichmentAnalysis(OWWidget):
             if getattr(self, "useEvidence"+etype):
                 evidences.append(etype)
         aspect = ["P", "C", "F"][self.aspectIndex]
-#        self.progressBarInit()
+        
         if clusterGenes:
             self.terms = terms = self.annotations.GetEnrichedTerms(clusterGenes, referenceGenes, evidences, aspect=aspect,
                                                                    prob=self.probFunctions[self.probFunc], useFDR=self.useFDR,
-                                                                   progressCallback=lambda value:pb.advance() )#self.progressBarSet)
-#            if self.useFDR:
-#                terms = sorted(terms.items(), key=lambda (_1, (_2, p, _3)): p)
-#                p_vals = obiProb.FDR([p for _, (_, p, _) in terms])
-#                self.terms = terms = dict([(id, (genes, p, ref)) for p, (id, (genes, _, ref)) in zip(p_vals, terms)])
+                                                                   progressCallback=lambda value:pb.advance() )
         else:
             self.terms = terms = {}
         if not self.terms:
             self.warning(0, "No enriched terms found.")
         else:
             self.warning(0)
-#        self.progressBarFinished()
+            
         pb.finish()
         self.treeStructDict = {}
         ids = self.terms.keys()
@@ -646,7 +654,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.listView.clear()
         self.listViewItems=[]
         self.sigTerms.clear()
-        #self.sigTableItems=[]
 
     def DisplayGraph(self):
         fromParentDict = {}
@@ -679,23 +686,19 @@ class OWGOEnrichmentAnalysis(OWWidget):
         terms = self.graph.items()
         terms.sort(lambda a,b:cmp(a[1][1],b[1][1]))
         self.sigTableTermsSorted = [t[0] for t in terms]
-##        self.sigTermsTable.setRowCount(len(terms))
+        
         self.sigTerms.clear()
         for i, (id, (genes, p_value, refCount)) in enumerate(terms):
-##            text = [go.loadedGO.termDict[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
             text = [self.ontology[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
             item = GOTreeWidgetItem(self.ontology[id], (genes, p_value, refCount), len(self.clusterGenes),
                                     len(self.referenceGenes), maxFoldEnrichment, self.sigTerms)
             item.goId = id
-##            for j,t in enumerate(text):
-##                self.sigTermsTable.setItem(i, j, QTableWidgetItem(t))
                 
         self.listView.expandAll()
         for i in range(4):
             self.listView.resizeColumnToContents(i)
             self.sigTerms.resizeColumnToContents(i)
         self.sigTerms.resizeColumnToContents(5)
-##        print [item.sizeHint(0).width() for item in self.listViewItems]
         width = min(self.listView.columnWidth(0), 350)
         self.listView.setColumnWidth(0, width)
         self.sigTerms.setColumnWidth(0, width)
@@ -706,7 +709,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
         self.selectionChanging = 1
         self.selectedTerms = []
-        #selected = filter(lambda lvi: lvi.isSelected(), self.listViewItems)
         selected = self.listView.selectedItems()
         self.selectedTerms = list(set([lvi.term.id for lvi in selected]))
         self.ExampleSelection()
@@ -724,7 +726,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         for i in range(self.sigTerms.topLevelItemCount()):
             item = self.sigTerms.topLevelItem(i)
             selected = item.goId in selectedIds
-##            term = self.sigTableTermsSorted[row]
             term = item.goId
             
             if selected:
@@ -733,17 +734,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
             for lvi in self.termListViewItemDict[term]:
                 try:
                     lvi.setSelected(selected)
-                    #self.listView.repaintItem(lvi)
                     if selected: lvi.setExpanded(True)
                 except RuntimeError:    ##Underlying C/C++ object deleted (why??)
-##                    print "error 11"
                     pass
                 
-        #self.listView.triggerUpdate()
         self.ExampleSelection()
         self.selectionChanging = 0
             
     
+    def UpdateAddClassButton(self):
+        self.addClassCB.setEnabled(self.selectionDisjoint == 1)
+        
     def ExampleSelection(self):
         selectedExamples = []
         unselectedExamples = []
@@ -758,13 +759,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         for etype in obiGO.evidenceTypesOrdered:
             if getattr(self, "useEvidence"+etype):
                 evidences.append(etype)
-        allTerms = self.annotations.GetAnnotatedTerms(selectedGenes, directAnnotationOnly=self.selectionDirectAnnotation, evidenceCodes=evidences)
+        allTerms = self.annotations.GetAnnotatedTerms(selectedGenes, 
+                          directAnnotationOnly=self.selectionDirectAnnotation, 
+                          evidenceCodes=evidences)
             
         if self.selectionDisjoint:
-            ##count = dict([(g, 0) for g in self.clusterGenes])
             count = defaultdict(int)
             for term in self.selectedTerms:
-                ##for g in self.graph[term][0]:
                 for g in allTerms.get(term, []):
                     count[g]+=1
             ccount = 1 if self.selectionDisjoint==1 else len(self.selectedTerms)
@@ -780,14 +781,24 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.send("Unselected Examples", None)
         elif self.candidateGeneAttrs:
             geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex, len(self.candidateGeneAttrs)-1)]
-            newClass = orange.EnumVariable("GO Term", values=list(self.selectedTerms))
-            newDomain = orange.Domain(self.clusterDataset.domain.variables, newClass)
+            if self.selectionDisjoint == 1:
+                goVar = orange.EnumVariable("GO Term", values=list(self.selectedTerms))
+                newDomain = orange.Domain(self.clusterDataset.domain.variables, goVar)
+                newDomain.addmetas(self.clusterDataset.domain.getmetas())
+#            else:
+#                goVar = orange.StringVariable("GO Terms")
+#                newDomain = orange.Domain(self.clusterDataset.domain)
+#                newDomain.addmeta(orange.newmetaid(), goVar)
+            
+            
             for ex in self.clusterDataset:
                 if not ex[geneAttr].isSpecial() and any(gene in selectedGenes for gene in str(ex[geneAttr]).split(",")):
-                    if self.selectionDisjoint and self.selectionAddTermAsClass:
-                        c = filter(lambda term: any(gene in self.graph[term][0] for gene in str(ex[geneAttr]).split(",")) , self.selectedTerms)[0]
+                    if self.selectionDisjoint == 1 and self.selectionAddTermAsClass:
+                        terms = filter(lambda term: any(gene in self.graph[term][0] for gene in str(ex[geneAttr]).split(",")) , self.selectedTerms)
+                        term = sorted(terms)[0]
                         ex =  orange.Example(newDomain, ex)
-                        ex.setclass(newClass(c))
+                        ex[goVar] = goVar(term)
+#                        ex.setclass(newClass(term))
                     selectedExamples.append(ex)
                 else:
                     unselectedExamples.append(ex)
@@ -845,7 +856,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         for index in range(self.sigTerms.topLevelItemCount()):
             item = self.sigTerms.topLevelItem(index)
             tableText += printTree(item, 0, 1) 
-###            text += '<tr>' + ''.join('<td>%s</td>' % item.text(i) for i in (range(4) + [5])) + '</tr>'
         tableText += '</table>' 
         
         for index in range(self.listView.topLevelItemCount()):
@@ -874,14 +884,12 @@ class GOTreeWidgetItem(QTreeWidgetItem):
         self.enrichment = enrichment = lambda t:float(len(t[0])) / t[2] * (float(nRefGenes)/nClusterGenes)
         self.setText(0, term.name)
         fmt = "%" + str(-int(math.log(nClusterGenes))) + "i (%.2f%%)"
-##        self.setText(1, "%i (%.2f%%)" % (len(enrichmentResult[0]), 100.0*len(self.enrichmentResult[0])/nClusterGenes))
         self.setText(1, fmt % (len(enrichmentResult[0]), 100.0*len(self.enrichmentResult[0])/nClusterGenes))
         fmt = "%" + str(-int(math.log(nRefGenes))) + "i (%.2f%%)"
-##        self.setText(2, "%i (%.2f%%)" % (enrichmentResult[2], 100.0*enrichmentResult[2]/nRefGenes))
         self.setText(2, fmt % (enrichmentResult[2], 100.0*enrichmentResult[2]/nRefGenes))
         self.setText(3, "%.4f" % enrichmentResult[1])
         self.setText(4, ", ".join(enrichmentResult[0]))
-        self.setText(5, "%.2f" % (enrichment(enrichmentResult))) #(float(len(self.graph[term][0]))/self.graph[term][2]))
+        self.setText(5, "%.2f" % (enrichment(enrichmentResult)))
         self.setToolTip(0, "<p>" + term.__repr__()[6:].strip().replace("\n", "<br>"))
         self.sortByData = [term.name, len(self.enrichmentResult[0]), enrichmentResult[2], enrichmentResult[1], ", ".join(enrichmentResult[0]), enrichment(enrichmentResult)]
 
