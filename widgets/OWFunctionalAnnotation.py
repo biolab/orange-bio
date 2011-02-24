@@ -58,24 +58,39 @@ class OWFunctionalAnnotation(OWWidget):
         
         self.loadSettings()
         
-        self.signalManager.freeze(self).push() #setFreeze(self.signalManager.freezing + 1)
+        self.signalManager.freeze(self).push()
         QTimer.singleShot(50, self.updateHierarchy)
         
         box = OWGUI.widgetBox(self.controlArea, "Info")
         self.infoBox = OWGUI.widgetLabel(box, "Info")
         self.infoBox.setText("No data on input")
         
-        self.speciesComboBox = OWGUI.comboBox(self.controlArea, self, "speciesIndex", "Species", callback=lambda :self.data and self.updateAnnotations(), debuggingEnabled=0)
+        self.speciesComboBox = OWGUI.comboBox(self.controlArea, self,
+                      "speciesIndex", "Species",
+                      callback=lambda :self.data and self.updateAnnotations(),
+                      debuggingEnabled=0)
         
         box = OWGUI.widgetBox(self.controlArea, "Gene names")
-        self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneattr", "Gene attribute", sendSelectedValue=0, callback=self.updateAnnotations)
-        cb = OWGUI.checkBox(box, self, "genesinrows", "Use attribute names", callback=lambda :self.data and self.updateAnnotations(), disables=[(-1, self.geneAttrComboBox)])
-        cb.makeConsistent()
-        OWGUI.button(box, self, "Gene matcher settings", callback=self.updateGeneMatcherSettings, tooltip="Open gene matching settings dialog", debuggingEnabled=0)
+        self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneattr",
+                                "Gene attribute",
+                                sendSelectedValue=0,
+                                callback=self.updateAnnotations)
         
-        self.referenceRadioBox = OWGUI.radioButtonsInBox(self.controlArea, self, "useReferenceData", ["Entire genome", "Reference set (input)"],
-                                                        tooltips=["Use entire genome for reference", "Use genes from Referece Examples input signal as reference"],
-                                                        box="Reference", callback=self.updateAnnotations)
+        cb = OWGUI.checkBox(box, self, "genesinrows", "Use attribute names",
+                            callback=lambda :self.data and self.updateAnnotations(),
+                            disables=[(-1, self.geneAttrComboBox)])
+        cb.makeConsistent()
+        
+        OWGUI.button(box, self, "Gene matcher settings",
+                     callback=self.updateGeneMatcherSettings,
+                     tooltip="Open gene matching settings dialog",
+                     debuggingEnabled=0)
+        
+        self.referenceRadioBox = OWGUI.radioButtonsInBox(self.controlArea,
+                    self, "useReferenceData", ["Entire genome", "Reference set (input)"],
+                    tooltips=["Use entire genome for reference",
+                              "Use genes from Referece Examples input signal as reference"],
+                    box="Reference", callback=self.updateAnnotations)
         
         box = OWGUI.widgetBox(self.controlArea, "Annotation Summary")
         self.groupsWidget = QTreeWidget(self)
@@ -84,8 +99,22 @@ class OWFunctionalAnnotation(OWWidget):
 
         hLayout = QHBoxLayout()
         hLayout.setSpacing(10)
-        sb, sbcb = OWGUI.spin(QWidget(self.mainArea), self, "minClusterCount", 0, 100, label="Min. Count", tooltip="Minimum gene count", callback=self.filterAnnotationsChartView, callbackOnReturn=True, checked="useMinCountFilter", checkCallback=self.filterAnnotationsChartView)
-        dsp, dspcb = OWGUI.doubleSpin(QWidget(self.mainArea), self, "maxPValue", 0.0, 1.0, 0.0001, label="Max. P-Value", tooltip="Maximum (FDR corrected) P-Value", callback=self.filterAnnotationsChartView, callbackOnReturn=True, checked="useMaxPValFilter", checkCallback=self.filterAnnotationsChartView)
+        sb, sbcb = OWGUI.spin(QWidget(self.mainArea), self, "minClusterCount",
+                              0, 100, label="Min. Count",
+                              tooltip="Minimum gene count",
+                              callback=self.filterAnnotationsChartView,
+                              callbackOnReturn=True,
+                              checked="useMinCountFilter",
+                              checkCallback=self.filterAnnotationsChartView)
+        
+        dsp, dspcb = OWGUI.doubleSpin(QWidget(self.mainArea), self,
+                        "maxPValue", 0.0, 1.0, 0.0001,
+                        label="Max. P-Value",
+                        tooltip="Maximum (FDR corrected) P-Value",
+                        callback=self.filterAnnotationsChartView,
+                        callbackOnReturn=True,
+                        checked="useMaxPValFilter",
+                        checkCallback=self.filterAnnotationsChartView)
         
         hLayout.addWidget(sb)
         hLayout.addWidget(sbcb)
@@ -95,7 +124,9 @@ class OWFunctionalAnnotation(OWWidget):
         import OWGUIEx
         self.filterLineEdit = OWGUIEx.QLineEditWithActions(self)
         self.filterLineEdit.setPlaceholderText("Filter ...")
-        action = QAction(QIcon(os.path.join(orngEnviron.canvasDir, "icons", "delete_gray.png")), "Clear", self)
+        action = QAction(QIcon(os.path.join(orngEnviron.canvasDir,
+                        "icons", "delete_gray.png")), "Clear", self)
+        
         self.filterLineEdit.addAction(action, 0, Qt.AlignHCenter)
         self.connect(action, SIGNAL("triggered()"), self.filterLineEdit.clear)
         
@@ -106,10 +137,12 @@ class OWFunctionalAnnotation(OWWidget):
         hLayout.addWidget(self.filterLineEdit)
         self.mainArea.layout().addLayout(hLayout)
         
-        self.connect(self.filterLineEdit, SIGNAL("textChanged(QString)"), self.filterAnnotationsChartView)
+        self.connect(self.filterLineEdit, SIGNAL("textChanged(QString)"),
+                     self.filterAnnotationsChartView)
         
         self.annotationsChartView = MyTreeWidget(self)
-        self.annotationsChartView.setHeaderLabels(["Category", "Term", "Count", "Reference count", "P-Value", "Enrichment"])
+        self.annotationsChartView.setHeaderLabels(["Category", "Term",
+                            "Count", "Reference count", "P-Value", "Enrichment"])
         self.annotationsChartView.setAlternatingRowColors(True)
         self.annotationsChartView.setSortingEnabled(True)
         self.annotationsChartView.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -351,12 +384,11 @@ class OWFunctionalAnnotation(OWWidget):
 
         self.genematcher.set_targets(referenceGenes)
         
-        countAll = len(clusterGenes)
-        infoText = "%i genes on input\n" % countAll
+        countAll = len(set(clusterGenes))
+        infoText = "%i unique gene names on input\n" % countAll
         referenceGenes = set(self.mapGeneNames(referenceGenes, cache, passUnknown=False))
         self.progressBarSet(1)
         clusterGenes = set(self.mapGeneNames(clusterGenes, cache, passUnknown=False))
-#        knownClusterGenes = set(self.mapGeneNames(clusterGenes, cache, passUnknown=False))
         self.progressBarSet(2)
         infoText += "%i (%.1f) gene names matched" % (len(clusterGenes), 100.0 * len(clusterGenes) / countAll)
         self.infoBox.setText(infoText)
@@ -375,9 +407,15 @@ class OWFunctionalAnnotation(OWWidget):
             pvals = obiProb.FDR([pval for _, (_, _, pval, _) in results])
             results = [(geneset, (cmapped, rmapped, pvals[i], es)) for i, (geneset, (cmapped, rmapped, _, es)) in enumerate(results)]
         
-#        results = [(geneset, self.enrichment(geneset, clusterGenes, referenceGenes, cache=cache)) for geneset in collections]
         fmt = lambda score, max_decimals=10: "%%.%if" % min(int(abs(math.log(max(score, 1e-10)))) + 2, max_decimals) if score > math.pow(10, -max_decimals) and score < 1 else "%.1f"
         self.annotationsChartView.clear()
+        
+        maxCount = max([len(cm) for _, (cm, _, _, _) in results] + [1])
+        maxRefCount = max([len(rc) for _, (_, rc, _, _) in results] + [1])
+        countSpaces = int(math.ceil(math.log10(maxCount)))
+        refSpaces = int(math.ceil(math.log(maxRefCount)))
+        countFmt = "%"+str(countSpaces) + "s  (%.2f%%)"
+        refFmt = "%"+str(refSpaces) + "s  (%.2f%%)"
             
         self.filterCompleter.setModel(None)
         linkFont = QFont(self.annotationsChartView.viewOptions().font)
@@ -386,10 +424,11 @@ class OWFunctionalAnnotation(OWWidget):
         for i, (geneset, (cmapped, rmapped, p_val, enrichment)) in enumerate(results):
             if len(cmapped) > 0:
                 item = QTreeWidgetItem(self.annotationsChartView, [" ".join(geneset.hierarchy), geneset.name])
-                item.setData(2, Qt.DisplayRole, QVariant(len(cmapped)))
-                item.setData(3, Qt.DisplayRole, QVariant(len(rmapped)))
+                item.setData(2, Qt.DisplayRole, QVariant(countFmt % (len(cmapped), 100.0*len(cmapped)/countAll)))
+                item.setData(3, Qt.DisplayRole, QVariant(refFmt % (len(rmapped), 100.0*len(rmapped)/len(referenceGenes))))
                 item.setData(4, Qt.DisplayRole, QVariant(p_val))
                 item.setData(5, Qt.DisplayRole, QVariant(enrichment))
+                item.setData(5, Qt.ToolTipRole, QVariant("%.3f" % enrichment))
                 item.geneset= geneset
                 self.treeItems.append(item)
                 if geneset.link:
@@ -398,9 +437,6 @@ class OWFunctionalAnnotation(OWWidget):
                     item.setFont(1, linkFont)
                     item.setForeground(1, QColor(Qt.blue))
                     
-#                    link='<a href="%s"> %s</a>' % (geneset.link, geneset.name)
-#                    self.annotationsChartView.setItemWidget(item, 1, QLabel(link, self))
-#                    item.setData(1, Qt.DisplayRole, QVariant(""))
         if not self.treeItems:
             self.warning(0, "No enriched sets found.")
         else:
@@ -412,8 +448,6 @@ class OWFunctionalAnnotation(OWWidget):
         
         self.annotationsChartView.setItemDelegateForColumn(5, BarItemDelegate(self, scale=(0.0, max(t[1][3] for t in results))))
         self.annotationsChartView.setItemDelegateForColumn(1, LinkStyledItemDelegate(self.annotationsChartView))
-#        self.filterCompleter.setModel(self.annotationsChartView.model())
-#        self.filterCompleter.setCompletionColumn(1)
                 
         for i in range(self.annotationsChartView.columnCount()):
             self.annotationsChartView.resizeColumnToContents(i)
@@ -427,7 +461,6 @@ class OWFunctionalAnnotation(OWWidget):
         if self.updatingAnnotationsFlag:
             return
         categories = set(" ".join(cat) for cat, taxid in self.selectedCategories())
-#        print categories
         filterString = str(self.filterLineEdit.text()).lower()
         itemsHidden = []
         for item in self.treeItems:
