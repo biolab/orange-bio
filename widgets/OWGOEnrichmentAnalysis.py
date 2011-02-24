@@ -520,12 +520,14 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 if use:
                     try:
                         if taxid == "352472":
-                            matchers.append([matcher(taxid), obiGene.GMDicty()])
+                            matchers.extend([matcher(taxid), obiGene.GMDicty(),
+                                            [matcher(taxid), obiGene.GMDicty()]])
+                            # The reason machers are duplicated is that we want `matcher` or `GMDicty` to
+                            # match genes by them self if possible. Only use the joint matcher if they fail.   
                         else:
                             matchers.append(matcher(taxid))
                     except Exception, ex:
                         print ex
-            matchers.reverse()
             self.annotations.genematcher = obiGene.matcher(matchers)
             self.annotations.genematcher.set_targets(self.annotations.geneNames)
             
@@ -553,13 +555,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
         except Exception, ex:
             self.error(1, "Failed to extract gene names from input dataset! %s" % str(ex))
             return {}
-
         genesCount = len(clusterGenes)
+        genesSetCount = len(set(clusterGenes))
         
         self.clusterGenes = clusterGenes = self.annotations.GetGeneNamesTranslator(clusterGenes).values()
         
 #        self.clusterGenes = clusterGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, clusterGenes)
-        self.infoLabel.setText("%i genes on input\n%i (%.1f%%) gene names matched" % (genesCount, len(clusterGenes), 100.0*len(clusterGenes)/genesCount if genesCount else 0.0))
+        self.infoLabel.setText("%i unique genes on input\n%i (%.1f%%) genes with known annotations" % (genesSetCount, len(clusterGenes), 100.0*len(clusterGenes)/genesSetCount if genesSetCount else 0.0))
         
         referenceGenes = None
         if self.referenceDataset:
