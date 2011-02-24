@@ -206,7 +206,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         OWGUI.checkBox(box, self, "useAttrNames", "Use variable names", disables=[(-1, self.geneAttrCombo)], callback=self.UseAttrNamesCallback)
         self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
         
-        OWGUI.checkBox(box, self, "caseSensitive", "Case sensitive gene matching", callback=self.Update)
+#        OWGUI.checkBox(box, self, "caseSensitive", "Case sensitive gene matching", callback=self.Update)
         OWGUI.separator(self.controlArea)
         
         OWGUI.checkBox(self.controlArea, self, "useReference", "From signal", box="Reference", callback=self.Update)
@@ -445,7 +445,8 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.org = obiKEGG.KEGGOrganism(org_code)
             self.loadedOrganism = org_code
         uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes), self.caseSensitive)
-        self.infoLabel.setText("%i genes on input\n%i (%.1f%%) genes matched" % (len(genes), len(uniqueGenes), 100.0*len(uniqueGenes)/len(genes) if genes else 0.0))  
+        genesCount = len(set(genes))
+        self.infoLabel.setText("%i unique gene names on input\n%i (%.1f%%) genes names matched" % (genesCount, len(uniqueGenes), 100.0*len(uniqueGenes)/genesCount if genes else 0.0))  
 #        if conflicting:
 #            print >> sys.stderr, "Conflicting genes:", conflicting
 #        if unknown:
