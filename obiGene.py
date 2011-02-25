@@ -80,7 +80,7 @@ class NCBIGeneInfo(dict):
         self.matcher = genematcher
         if self.matcher == None:
             if self.taxid == '352472':
-                self.matcher = matcher([[GMNCBI(self.taxid), GMDicty()]])
+                self.matcher = matcher([GMNCBI(self.taxid), GMDicty(), [GMNCBI(self.taxid), GMDicty()]])
             else:
                 self.matcher = matcher([GMNCBI(self.taxid)])
 
