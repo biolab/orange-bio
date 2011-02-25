@@ -1454,11 +1454,12 @@ class DictyBase(object):
         s = download_url("http://www.dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=general&ID=DDB-GeneID-UniProt.txt").read()
         out = []
         for l in txt2ll(s, separ='\t', lineSepar='\n')[1:]:
-            if len(l) == 3:
+            if len(l) == 4:
                 ddb = empty_none(l[0])
                 ddb_g = empty_none(l[1])
-                uniprot = empty_none(l[2])
-                out.append((ddb, ddb_g, uniprot))
+                name = empty_none(l[2])
+                uniprot = empty_none(l[3])
+                out.append((ddb, ddb_g, name, uniprot))
         return out
 
     @classmethod
