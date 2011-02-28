@@ -48,10 +48,16 @@ svg_error_string = """<?xml version="1.0" ?>
 """
 
 oasaLocal = True
+
+#  try import from bkchem 
 try:
-    import oasa
+    from bkchem import oasa
 except ImportError:
-    oasaLocal = False
+    #  try stanalone import 
+	try:
+	    import oasa
+	except ImportError:
+	    oasaLocal = False
 
 if oasaLocal and pybel:
     def mol_to_svg(molSmiles, fragSmiles):
