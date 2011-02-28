@@ -1,8 +1,8 @@
 """
 <name>Gene Info</name>
-<description>Displays gene information from NCBI.</description>
+<description>Displays gene information from NCBI and other sources.</description>
 <priority>2010</priority>
-<contact>Ales Erjavec (ales.erjevec(@at@)fri.uni-lj.si)</contact>
+<contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si)</contact>
 <icon>icons/GeneInfo.png</icon>
 """
 from __future__ import with_statement
@@ -65,10 +65,122 @@ class TreeModel(QAbstractItemModel):
         return QVariant()
 
 from OWGUI import LinkStyledItemDelegate, LinkRole
+
+def lru_cache(maxsize=100):
+    """ A least recently used cache function decorator.
+    """
+    
+    def decorating_function(func):
+        import functools
+        cache = {}
         
+        functools.wraps(func)
+        def wrapped(*args, **kwargs):
+            key = args + tuple(sorted(kwargs.items()))
+            if key not in cache:
+                res = func(*args, **kwargs)
+                cache[key] = (time.time(), res)
+                if len(cache) > maxsize:
+                    key, (_, _) = min(cache.iteritems(), key=lambda item: item[1][0])
+                    del cache[key]
+            else:
+                _, res = cache[key]
+                cache[key] = (time.time(), res) # update the time
+                
+            return res
+        
+        def clear():
+            cache.clear()
+        
+        wrapped.clear = clear
+        
+        return wrapped
+    return decorating_function
+                
+class LinkFmt(object):
+    def __init__(self, link_fmt, name):
+        self.link_fmt = link_fmt
+        self.name = name
+        
+    def format(self, *args, **kwargs):
+        return Link(self.link_fmt.format(*args, **kwargs), **kwargs)
+    
+    def __repr__(self):
+        return "<LinkFmt " + repr(self.name) + " >"
+    
+    def __str__(self):
+        return self.name
+    
+class Link(object):
+    def __init__(self, link, text=None, **kwargs):
+        self.link = link
+        self.text = text if text is not None else "link"
+        self.__dict__.update(kwargs)
+        
+    def str(self):
+        return link
+    
+    
+@lru_cache(maxsize=2)
+def get_ncbi_info(taxid):
+    return obiGene.NCBIGeneInfo(taxid)
+
+def ncbi_info(taxid, genes):
+    info = get_ncbi_info(taxid)
+    schema_link = LinkFmt("http://www.ncbi.nlm.nih.gov/sites/entrez?Db=gene&Cmd=ShowDetailView&TermToSearch={gene_id}", name="NCBI ID")
+    schema = [schema_link, "Symbol", "Locus Tag", "Chromosome",
+              "Description", "Synonyms", "Nomenclature"]
+    ret = []
+    for gene in genes:
+        gi = info.get_info(gene)
+        if gi:
+            ret.append([schema_link.format(gene_id=gi.gene_id, text=gi.gene_id),
+                        gi.symbol + " (%s)" % gene if gene != gi.symbol else gi.symbol,
+                        gi.locus_tag or "",
+                        gi.chromosome or "",
+                        gi.description or "",
+                        ", ".join(gi.synonyms),
+                        gi.symbol_from_nomenclature_authority or ""
+                        ])
+        else:
+            ret.append(None)
+    return schema, ret
+    
+def dicty_info(taxid, genes):
+    import obiDicty 
+    info = obiDicty.DictyBase()
+    name_matcher = obiGene.GMDicty()
+    name_matcher.set_targets(info.info.keys())
+    schema_link = LinkFmt("http://dictybase.org/db/cgi-bin/gene_page.pl?dictybaseid={gene_id}", name="Dicty Base Id")
+    schema = [schema_link, "Name", "Synonyms", "Gene Products"]
+    
+    ret = []
+    for gene in genes:
+        gene = name_matcher.umatch(gene)
+        gi = info.info.get(gene, None)
+        if gi:
+            ret.append([schema_link.format(gene_id=gene, text=gene),
+                        gi[0] + " (%s)" % gene if gene != gi[0] else gi[0], # Gene Name
+                        ", ".join(gi[1]), # Synonyms
+                        gi[2] or "", # Gene Products
+                        ])
+            
+        else:
+            ret.append(None)
+    
+    return schema, ret
+    
+    
+INFO_SOURCES = {"default": [("NCBI Info", ncbi_info)],
+                "352472": [("NCBI Info", ncbi_info),
+                           ("Dicty Base", dicty_info)
+                           ]
+                }
+
 class OWGeneInfo(OWWidget):
     settingsList = ["organismIndex", "geneAttr", "useAttr", "autoCommit"]
-    contextHandlers = {"":DomainContextHandler("", ["organismIndex", "geneAttr", "useAttr"])}
+    contextHandlers = {"":DomainContextHandler("", ["organismIndex",
+                                "geneAttr", "useAttr", "useAltSource"])}
     def __init__(self, parent=None, signalManager=None, name="Gene Info"):
         OWWidget.__init__(self, parent, signalManager, name)
 
@@ -81,24 +193,50 @@ class OWGeneInfo(OWWidget):
         self.autoCommit = False
         self.searchString = ""
         self.selectionChangedFlag = False
+        self.useAltSource = 0
         self.loadSettings()
         
-        self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info", addSpace=True), "No data on input\n")
-        self.organisms = sorted(set([name.split(".")[-2] for name in orngServerFiles.listfiles("NCBI_geneinfo")] + obiGene.NCBIGeneInfo.essential_taxids()))
+        self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea,
+                                                    "Info", addSpace=True),
+                                           "No data on input\n")
+        self.organisms = sorted(set([name.split(".")[-2] for name in \
+                            orngServerFiles.listfiles("NCBI_geneinfo")] + \
+                            obiGene.NCBIGeneInfo.essential_taxids()))
     
-        self.orgaismsComboBox = OWGUI.comboBox(self.controlArea, self, "organismIndex", "Organism", items=[obiTaxonomy.name(id) for id in self.organisms], callback=self.setItems, debuggingEnabled=0)
-        OWGUI.separator(self.controlArea)
+        self.organismBox = OWGUI.widgetBox(self.controlArea, "Organism",
+                                           addSpace=True)
+        self.organismComboBox = OWGUI.comboBox(self.organismBox, self,
+                                "organismIndex", "Organism",
+                                items=[obiTaxonomy.name(id) for id in self.organisms],
+                                callback=self.setItems,
+                                debuggingEnabled=0)
+        
+        # For now only support one alt source, with a checkbox
+        # In the future this can be extended to multiple selections
+        self.altSourceCheck = OWGUI.checkBox(self.organismBox, self,
+                            "useAltSource", "Use information from dictyBase",
+                            callback=self.onAltSourceChange,
+#                            debuggingEnabled=0,
+                            )
+        self.altSourceCheck.hide()
+        
         box = OWGUI.widgetBox(self.controlArea, "Gene names", addSpace=True)
-        self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneAttr", "Gene atttibute", callback=self.setItems)
-        c = OWGUI.checkBox(box, self, "useAttr", "Use attribute names", callback=self.setItems, disables=[(-1, self.geneAttrComboBox)])
+        self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneAttr",
+                                "Gene atttibute", callback=self.setItems)
+        
+        c = OWGUI.checkBox(box, self, "useAttr", "Use attribute names",
+                           callback=self.setItems,
+                           disables=[(-1, self.geneAttrComboBox)])
+        
         self.geneAttrComboBox.setDisabled(bool(self.useAttr))
 
         box = OWGUI.widgetBox(self.controlArea, "Commit", addSpace=True)
         b = OWGUI.button(box, self, "Commit", callback=self.commit)
         c = OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
-        OWGUI.setStopper(self, b, c, "selectionChangedFlag", callback=self.commit)
+        OWGUI.setStopper(self, b, c, "selectionChangedFlag",
+                         callback=self.commit)
         
-        ##A label for dictyExpress link
+        ## A label for dictyExpress link
         self.dictyExpressBox = OWGUI.widgetBox(self.controlArea, "Dicty Express")
         self.linkLabel = OWGUI.widgetLabel(self.dictyExpressBox, "")
         self.linkLabel.setOpenExternalLinks(True)
@@ -106,10 +244,10 @@ class OWGeneInfo(OWWidget):
         
         OWGUI.rubber(self.controlArea)
 
-        OWGUI.lineEdit(self.mainArea, self, "searchString", "Filter", callbackOnType=True, callback=self.searchUpdate)
-#        self.treeWidget = QTreeWidget(self.mainArea)
+        OWGUI.lineEdit(self.mainArea, self, "searchString", "Filter",
+                       callbackOnType=True, callback=self.searchUpdate)
+        
         self.treeWidget = QTreeView(self.mainArea)
-        #self.treeWidget.setHeaderLabels(["NCBI ID", "Symbol", "Locus Tag", "Chromosome", "Description", "Synonyms", "Nomenclature"])
         self.treeWidget.setRootIsDecorated(False)
         self.treeWidget.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.treeWidget.setItemDelegate(LinkStyledItemDelegate(self.treeWidget))
@@ -118,14 +256,18 @@ class OWGeneInfo(OWWidget):
         self.treeWidget.setSortingEnabled(True)
         self.mainArea.layout().addWidget(self.treeWidget)
         
-        box = OWGUI.widgetBox(self.mainArea, "", orientation="horizontal")
-        OWGUI.button(box, self, "Select Filtered", callback=self.selectFiltered)
-        OWGUI.button(box, self, "Clear Selection", callback=self.treeWidget.clearSelection)
+        box = OWGUI.widgetBox(self.mainArea, "",
+                              orientation="horizontal")
+        OWGUI.button(box, self, "Select Filtered",
+                     callback=self.selectFiltered)
+        OWGUI.button(box, self, "Clear Selection",
+                     callback=self.treeWidget.clearSelection)
         
         self.resize(1000, 700)        
 
         self.geneinfo = []
         self.cells = []
+        self.row2geneinfo = {}
         self.data = None
         self.currentLoaded = None, None
         self.selectionUpdateInProgress = False
@@ -135,7 +277,10 @@ class OWGeneInfo(OWWidget):
         self.data = data
         if data:
             self.geneAttrComboBox.clear()
-            self.attributes = [attr for attr in self.data.domain.variables + self.data.domain.getmetas().values() if attr.varType in [orange.VarTypes.String, orange.VarTypes.Discrete]]
+            self.attributes = [attr for attr in self.data.domain.variables + \
+                               self.data.domain.getmetas().values() \
+                               if attr.varType in [orange.VarTypes.String,
+                                                   orange.VarTypes.Discrete]]
             self.geneAttrComboBox.addItems([attr.name for attr in self.attributes])
             self.openContext("", data)
             self.geneAttr = min(self.geneAttr, len(self.attributes) - 1)
@@ -150,6 +295,17 @@ class OWGeneInfo(OWWidget):
         else:
             self.clear()
 
+    def infoSource(self):
+        """ Return the current selected info source getter function from 
+        INFO_SOURCES
+        """
+        org = self.organisms[min(self.organismIndex, len(self.organisms) - 1)]
+        if org not in INFO_SOURCES:
+            org = "default"
+        sources = INFO_SOURCES[org]
+        name, func =  sources[min(self.useAltSource, len(sources) - 1)]
+        return name, func
+        
     def setItems(self):
         self.warning(0)
         if not self.data:
@@ -165,41 +321,69 @@ class OWGeneInfo(OWWidget):
             self.warning(0, "Could not extract genes from input dataset.")
         self.warning(1)
         org = self.organisms[min(self.organismIndex, len(self.organisms) - 1)]
+        source_name, info_getter = self.infoSource()
         info , currorg = self.currentLoaded
         self.error(0)
-        if currorg != org:
-            self.progressBarInit()
-            
-            ## Load the gene info in a worker thread
-            call = self.asyncCall(obiGene.NCBIGeneInfo, (org,), name="Loading NCBI Gene info", blocking=False)
-            call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet, Qt.QueuedConnection)
-            with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
-                call.__call__()
-                info = call.get_result()
-
-#            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-#                info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
-            self.progressBarFinished()
-            self.currentLoaded = info, org
-            
+#        if currorg != org:
+#            self.progressBarInit()
+#            
+#            ## Load the gene info in a worker thread
+#            call = self.asyncCall(obiGene.NCBIGeneInfo, (org,), name="Loading NCBI Gene info", blocking=False)
+#            call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet, Qt.QueuedConnection)
+#            with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+#                call.__call__()
+#                info = call.get_result()
+#
+##            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+##                info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
+#            self.progressBarFinished()
+#            self.currentLoaded = info, org
+        
         self.updateDictyExpressLink(genes, show=org == "352472")
-            
-        self.geneinfo = geneinfo = [(gene, info.get_info(gene, None)) for gene in genes]
+        self.altSourceCheck.setVisible(org == "352472")
+        
+        # get the info for the genes in a separate thread
+        self.progressBarInit()
+        call = self.asyncCall(info_getter, (org, genes),
+                              name="Load NCBI Gene Info",
+                              blocking=False)
+#        call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet, Qt.QueuedConnection)
+        with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+            call.__call__()
+            schema, geneinfo = call.get_result()
+#        call.__call__()
+#        schema, geneinfo = call.get_result()
+        self.progressBarFinished()
+        # schema, geneinfo = info_getter(org, genes) 
+
+        self.geneinfo = geneinfo = list(zip(genes, geneinfo))
 
         self.progressBarInit()
         milestones = set([i for i in range(0, len(geneinfo), max(len(geneinfo)/100, 1))])
         self.cells = cells = []
+        self.row2geneinfo = {}
         links = []
         for i, (gene, gi) in enumerate(geneinfo):
             if gi:
-                cells.append([gi.gene_id, gi.symbol + " (%s)" % gene if gene != gi.symbol else gi.symbol,
-                            gi.locus_tag or "", gi.chromosome or "", gi.description or "",
-                            ", ".join(gi.synonyms), gi.symbol_from_nomenclature_authority or ""])
-                links.append("http://www.ncbi.nlm.nih.gov/sites/entrez?Db=gene&Cmd=ShowDetailView&TermToSearch=%s" % gi.gene_id)
+                row = []
+                for sch, item in zip(schema, gi):
+                    if isinstance(item, Link): # TODO: This should be handled by delegates 
+                        row.append(item.text)
+                        links.append(item.link)
+                    else:
+                        row.append(item)
+                cells.append(row)
+                self.row2geneinfo[len(cells) - 1] = i
+#                cells.append([gi.gene_id, gi.symbol + " (%s)" % gene if gene != gi.symbol else gi.symbol,
+#                            gi.locus_tag or "", gi.chromosome or "", gi.description or "",
+#                            ", ".join(gi.synonyms), gi.symbol_from_nomenclature_authority or ""])
+#                links.append("http://www.ncbi.nlm.nih.gov/sites/entrez?Db=gene&Cmd=ShowDetailView&TermToSearch=%s" % gi.gene_id)
+                
 
             if i in milestones:
                 self.progressBarSet(100.0*i/len(geneinfo))
-        model = TreeModel(cells, ["NCBI ID", "Symbol", "Locus Tag", "Chromosome", "Description", "Synonyms", "Nomenclature"], self.treeWidget)
+        model = TreeModel(cells, [str(col) for col in schema], self.treeWidget)
+        
         model.setColumnLinks(0, links)
         proxyModel = QSortFilterProxyModel(self)
         proxyModel.setSourceModel(model)
@@ -216,7 +400,9 @@ class OWGeneInfo(OWWidget):
 
     def clear(self):
         self.infoLabel.setText("No data on input\n")
-        self.treeWidget.setModel(TreeModel([], ["NCBI ID", "Symbol", "Locus Tag", "Chromosome", "Description", "Synonyms", "Nomenclature"], self.treeWidget))
+        self.treeWidget.setModel(TreeModel([], ["NCBI ID", "Symbol", "Locus Tag",
+                                            "Chromosome", "Description", "Synonyms",
+                                            "Nomenclature"], self.treeWidget))
         self.geneAttrComboBox.clear()
         self.send("Selected Examples", None)
 
@@ -232,23 +418,32 @@ class OWGeneInfo(OWWidget):
         
         mapToSource = self.treeWidget.model().mapToSource
         selectedIds = [self.cells[mapToSource(index).row()][0] for index in self.treeWidget.selectedIndexes()]
+        selectedRows = self.treeWidget.selectedIndexes()
+        selectedRows = [mapToSource(index).row() for index in selectedRows]
         
-        selected = [gi for gene, gi in self.geneinfo if gi and gi.gene_id in selectedIds]
+        selectedGeneids = [self.row2geneinfo[row] for row in selectedRows]
+        selectedIds = [self.geneinfo[i][0] for i in selectedGeneids]
+        selectedIds = set(selectedIds)
+        
         if self.useAttr:
-            attrs = [attr for attr, (name, gi) in zip(self.data.domain.attributes, self.geneinfo) if gi in selected]
+            def is_selected(attr):
+                return attr.name in selectedIds
+            attrs = [attr for attr in self.data.domain.attributes if is_selected(attr)]
             domain = orange.Domain(attrs, self.data.domain.classVar)
             domain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(domain, self.data)
             self.send("Selected Examples", newdata)
-        else:
+        elif self.attributes:
             attr = self.attributes[self.geneAttr]
             geneinfo = dict(self.geneinfo)
-            examples = [ex for ex in self.data if geneinfo.get(str(ex[attr])) in selected]
+            examples = [ex for ex in self.data if str(ex[attr]) in selectedIds]
             if examples:
                 newdata = orange.ExampleTable(examples)
             else:
                 newdata = None
             self.send("Selected Examples", newdata)
+        else:
+            self.send("Selected Examples", None)
             
     def rowFiltered(self, row):
         searchStrings = self.searchString.lower().split()
@@ -305,6 +500,9 @@ class OWGeneInfo(OWWidget):
             self.dictyExpressBox.show()
         else:
             self.dictyExpressBox.hide()
+            
+    def onAltSourceChange(self):
+        self.setItems()
         
 def reportItemView(view):
     model = view.model()
