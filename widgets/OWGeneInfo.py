@@ -214,7 +214,7 @@ class OWGeneInfo(OWWidget):
         # For now only support one alt source, with a checkbox
         # In the future this can be extended to multiple selections
         self.altSourceCheck = OWGUI.checkBox(self.organismBox, self,
-                            "useAltSource", "Use information from dictyBase",
+                            "useAltSource", "Show information from dictyBase",
                             callback=self.onAltSourceChange,
 #                            debuggingEnabled=0,
                             )
@@ -324,35 +324,23 @@ class OWGeneInfo(OWWidget):
         source_name, info_getter = self.infoSource()
         info , currorg = self.currentLoaded
         self.error(0)
-#        if currorg != org:
-#            self.progressBarInit()
-#            
-#            ## Load the gene info in a worker thread
-#            call = self.asyncCall(obiGene.NCBIGeneInfo, (org,), name="Loading NCBI Gene info", blocking=False)
-#            call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet, Qt.QueuedConnection)
-#            with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
-#                call.__call__()
-#                info = call.get_result()
-#
-##            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-##                info = obiGene.NCBIGeneInfo(self.organisms[min(self.organismIndex, len(self.organisms) - 1)])
-#            self.progressBarFinished()
-#            self.currentLoaded = info, org
         
         self.updateDictyExpressLink(genes, show=org == "352472")
         self.altSourceCheck.setVisible(org == "352472")
         
         # get the info for the genes in a separate thread
         self.progressBarInit()
-        call = self.asyncCall(info_getter, (org, genes),
-                              name="Load NCBI Gene Info",
-                              blocking=False)
+#        call = self.asyncCall(info_getter, (org, genes),
+#                              name="Load NCBI Gene Info",
+#                              blocking=False)
 #        call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet, Qt.QueuedConnection)
-        with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
-            call.__call__()
-            schema, geneinfo = call.get_result()
+#        with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+#            call.__call__()
+#            schema, geneinfo = call.get_result()
 #        call.__call__()
 #        schema, geneinfo = call.get_result()
+        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+            schema, geneinfo = info_getter(org, genes)
         self.progressBarFinished()
         # schema, geneinfo = info_getter(org, genes) 
 
