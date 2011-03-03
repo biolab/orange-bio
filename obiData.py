@@ -117,18 +117,20 @@ class FtpWorker(object):
 ##                        raise
                     break
             except ftplib.error_perm, ex:
-                #print ex
                 if ex.args[0].startswith("550"):
                     self.connect()
                 else:
-                    break
+                    raise
             except ftplib.error_temp, ex:
-                #print ex
-                break
+                if retryCount >= 3:
+                    raise
             except socket.error:
-                self.connect()
+                if retryCount >= 3:
+                    raise
+                else:
+                    self.connect()
             except FileNotFoundError:
-                break
+                raise
     
     def isLocal(self, filename):
         try:
