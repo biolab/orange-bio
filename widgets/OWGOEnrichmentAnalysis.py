@@ -69,6 +69,8 @@ class GOTreeWidget(QTreeWidget):
 
     def BrowserAction(self, term):
         import webbrowser
+        if isinstance(term, obiGO.Term):
+            term = term.id
         webbrowser.open("http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term="+term)
         
     def paintEvent(self, event):
