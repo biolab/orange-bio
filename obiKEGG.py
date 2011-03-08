@@ -121,7 +121,7 @@ class pickle_cache(dict):
         
     def sync(self):
 #        print "sync", self, self.filename
-        cPickle.dump(dict(self.items()), open(self.filename, "wb,", 2))
+        cPickle.dump(dict(self.items()), open(self.filename, "wb"), 2)
         
 def persistent_cached_method(func):
     return cached_method(func, cache_name="_persistent_cached_method_cache")
