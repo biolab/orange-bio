@@ -335,7 +335,8 @@ class OWGEODatasets(OWWidget):
                                              )
            
     def commit(self):
-        if self.currentGds: 
+        if self.currentGds:
+            self.error(0) 
             sample_type = None
             self.progressBarInit()
             self.progressBarSet(10)
@@ -350,11 +351,25 @@ class OWGEODatasets(OWWidget):
             call = self.asyncCall(getdata, (self.currentGds["dataset_id"],), dict(report_genes=self.mergeSpots,
                                            transpose=self.outputRows,
                                            sample_type=sample_type if sample_type!="Include all" else None),
-                                  onResult=self.onData, onFinished=lambda: self.setEnabled(True),
+                                  onResult=self.onData,
+                                  onFinished=lambda: self.setEnabled(True),
+                                  onError=self.onAsyncError,
                                   threadPool=QThreadPool.globalInstance()
                                  )
             call.__call__() #invoke
 #            data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, sample_type=sample_type if sample_type!="Include all" else None)
+
+    def onAsyncError(self, (exctype, value, tb)):
+        import ftplib
+        if issubclass(exctype, ftplib.error_temp):
+            self.error(0, "Can not download dataset from NCBI ftp server! Try again later.")
+        elif issubclass(exctype, ftplib.all_errors):
+            self.error(0, "Error while connecting to the NCBI ftp server! %s" % str(value))
+        else:
+            sys.excepthook(exctype, value, tb)
+            
+        self.progressBarFinished()
+
     def onData(self, data):
         self.progressBarSet(50)
 #            samples = set([self.annotationsTree.topLevelItem(i).child(j).key[2] for i in range(self.annotationsTree.topLevelItemCount()) for j in self.annotationsTree.topLevelItem(i).])

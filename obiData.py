@@ -124,6 +124,8 @@ class FtpWorker(object):
             except ftplib.error_temp, ex:
                 if retryCount >= 3:
                     raise
+                else:
+                    time.sleep(3)
             except socket.error:
                 if retryCount >= 3:
                     raise
