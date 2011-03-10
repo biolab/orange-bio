@@ -2,7 +2,7 @@
 Array Express
 -------------
 
-A python module for accessing the ArrayExpress and Gene Atlas web services.
+A python module for accessing the ArrayExpress and GeneExpressionAtlas web services.
 
 Example::
 
@@ -411,8 +411,25 @@ def query_atlas(condition, format="json"):
     return results
 
 
-def get_atlas_info(genes, organism):
-    genes_condition = AtlasConditionGeneProperty("", "Is", genes)
+def get_atlas_summary(genes, organism):
+    """ Return 3 dictionaries containing a summary of atlas information
+    about three experimental factors:
+    
+        - Organism Part (OP) 
+        - Disease State (DS)
+        - Cell type (CT)
+    
+    Each dictionary contains query genes as keys. Values are dictionaries
+    mapping factor values to a 2-tuple containig the count of up regulated
+    and down regulated experiments.
+    
+    Example::
+    
+        >>> get_atlas_summary(["RUNX1"], "Homo sapiens")
+        ({u'RUNX1': ...
+        
+    """
+    genes_condition = AtlasConditionGeneProperty("Gene", "Is", genes)
     org_condition = AtlasConditionOrganism(organism)
     condition = AtlasConditionList([genes_condition, org_condition])
     result = query_atlas(condition, format="json")
@@ -447,12 +464,11 @@ def collect_ef_summary(info, ef):
     return dict(summary)
     
     
-if __name__ == "__main__":    
-#    print get_atlas_info(['Pou5f1', 'Dppa3'], 'Mus musculus')
-#    
-#    print get_atlas_info(['PDLIM5', 'FGFR2' ], 'Homo sapiens')
-    
-    
+if __name__ == "__main__":
+    from pprint import pprint    
+    pprint(get_atlas_summary(['Pou5f1', 'Dppa3'], 'Mus musculus'))
+       
+    pprint(get_atlas_summary(['PDLIM5', 'FGFR2' ], 'Homo sapiens'))
     
     
     conn = ArrayExpressConnection()
