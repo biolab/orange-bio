@@ -46,7 +46,8 @@ class ArrayExpressConnection(object):
         warnings.warn("Could not load persistent cache!")
         DEFAULT_CACHE = {}
     
-    DEFAULT_ADDRESS = "http://www.ebi.ac.uk/arrayexpress/xml/v2/"
+    DEFAULT_ADDRESS = "http://www.ebi.ac.uk/arrayexpress/{format}/v2/"
+    DEFAULT_FORMAT = "json"
     
     # Order of arguments in the query
     _ARGS_ORDER = ["keywords", "species", "array"]
@@ -82,6 +83,7 @@ class ArrayExpressConnection(object):
         """
         query = self.format_query(**kwargs)
         url = posixpath.join(self.address, what)
+        url = url.format(format=kwargs.get("format", self.DEFAULT_FORMAT))
         url = url + "?" + query
 #        print url
         url = url.replace(" ", "%20")
@@ -258,8 +260,9 @@ def ef_ontology():
     """ Return the EF (Experimental Factor) ontology
     """
     import obiOntology
+#    return obiOntology.OBOOntology(urllib2.urlopen("http://efo.svn.sourceforge.net/svnroot/efo/trunk/src/efoinobo/efo.obo"))
     import orngServerFiles
-    # Should this be in the OBOFoundry domain
+    # Should this be in the OBOFoundry (Ontology) domain
     file_name = orngServerFiles.localpath_download("ArrayExpress", "efo.obo")
     return obiOntology.OBOOntology(open(filename, "rb"))
 
@@ -398,7 +401,7 @@ TODO: can this be implemented query_atlas(organism="...", Locuslink="...", Chebi
       Need a full list of accepted factors 
 """
 
-def query_atlas(condition, format="json"):
+def query_atlas(condition, format="json", start=None, rows=None, indent=False):
     """ Query Atlas based on a `condition` (instance of AtlasCondition)
     
     Example::
@@ -407,7 +410,8 @@ def query_atlas(condition, format="json"):
         
     """
     connection = GeneExpressionAtlasConenction()
-    results = connection.query(condition, format=format)
+    results = connection.query(condition, format=format, start=start,
+                               rows=rows, indent=indent)
     return results
 
 
@@ -475,5 +479,3 @@ if __name__ == "__main__":
     import doctest
     doctest.testmod(optionflags=doctest.ELLIPSIS, extraglobs={"conn": conn})
     
-    
-        
