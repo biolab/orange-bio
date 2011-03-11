@@ -78,6 +78,12 @@ class TreeModel(QAbstractItemModel):
     
 from OWGUI import LinkStyledItemDelegate, LinkRole
 
+def childiter(item):
+    """ Iterate over the children of an QTreeWidgetItem instance.
+    """
+    for i in range(item.childCount()):
+        yield item.child(i)
+                
 class OWGEODatasets(OWWidget):
     settingsList = ["outputRows", "mergeSpots", "gdsSelectionStates", "splitterSettings", "currentGds", "autoCommit"]
 
@@ -305,35 +311,62 @@ class OWGEODatasets(OWWidget):
             self.treeWidget.setRowHidden(mapFromSource(index(i, 0)).row(), QModelIndex(), self.rowFiltered(i))
         self.updateInfo()
 
+    def selectedSamples(self):
+        """ Return the currently selected sample annotations (list of
+        sample type, sample value tuples).
+        
+        .. note:: if some Sample annotation type has no selected values.
+                  this method will return all values for it.
+        
+        """
+        samples = []
+        unused_types = []
+        for stype in childiter(self.annotationsTree.invisibleRootItem()):
+            selected_values = []
+            all_values = []
+            for sval in childiter(stype):
+                value = (str(stype.text(0)), str(sval.text(0)))
+                if self.gdsSelectionStates.get(sval.key, True):
+                    selected_values.append(value)
+                all_values.append(value)
+            if selected_values:
+                samples.extend(selected_values)
+            else:
+                # If no sample of sample type is selected we don't filter on it.
+                samples.extend(all_values)
+                unused_types.append(str(stype.text(0)))
+                
+        return samples
+    
     def commitIf(self):
         if self.autoCommit:
             self.commit()
         else:
             self.selectionChanged = True
             
-    def commit(self):
-        if self.currentGds:
-#            classes = [s["description"] for s in self.currentGds["subsets"]]
-#            classes = [classes[i] for i in self.selectedSubsets] or None
-#            sample_type = self.annotationCombo.currentText()
-            sample_type = None
-            self.progressBarInit()
-            self.progressBarSet(10)
-            
-            def getdata(gds_id, **kwargs):
-                gds = obiGEO.GDS(gds_id)
-                data = gds.getdata(**kwargs)
-                return data
-            from OWConcurrent import createTask
-            self.setEnabled(False)
-            qApp.processEvents()
-            self.get_data_async = createTask(getdata, (self.currentGds["dataset_id"],), dict(report_genes=self.mergeSpots,
-                                                                   transpose=self.outputRows,
-                                                                   sample_type=sample_type if sample_type!="Include all" else None),
-                                             onResult=self.onData, onFinished=lambda: self.setEnabled(True),
-                                             threadPool=QThreadPool.globalInstance()
-                                             )
-           
+#    def commit(self):
+#        if self.currentGds:
+##            classes = [s["description"] for s in self.currentGds["subsets"]]
+##            classes = [classes[i] for i in self.selectedSubsets] or None
+##            sample_type = self.annotationCombo.currentText()
+#            sample_type = None
+#            self.progressBarInit()
+#            self.progressBarSet(10)
+#            
+#            def getdata(gds_id, **kwargs):
+#                gds = obiGEO.GDS(gds_id)
+#                data = gds.getdata(**kwargs)
+#                return data
+#            from OWConcurrent import createTask
+#            self.setEnabled(False)
+#            qApp.processEvents()
+#            self.get_data_async = createTask(getdata, (self.currentGds["dataset_id"],), dict(report_genes=self.mergeSpots,
+#                                                                   transpose=self.outputRows,
+#                                                                   sample_type=sample_type if sample_type!="Include all" else None),
+#                                             onResult=self.onData, onFinished=lambda: self.setEnabled(True),
+#                                             threadPool=QThreadPool.globalInstance()
+#                                             )
+    
     def commit(self):
         if self.currentGds:
             self.error(0) 
@@ -347,7 +380,6 @@ class OWGEODatasets(OWWidget):
                 return data
             
             self.setEnabled(False)
-#            qApp.processEvents()
             call = self.asyncCall(getdata, (self.currentGds["dataset_id"],), dict(report_genes=self.mergeSpots,
                                            transpose=self.outputRows,
                                            sample_type=sample_type if sample_type!="Include all" else None),
@@ -372,28 +404,25 @@ class OWGEODatasets(OWWidget):
 
     def onData(self, data):
         self.progressBarSet(50)
-#            samples = set([self.annotationsTree.topLevelItem(i).child(j).key[2] for i in range(self.annotationsTree.topLevelItemCount()) for j in self.annotationsTree.topLevelItem(i).])
-        class itemiter(QTreeWidgetItemIterator):
-            def next(self):
-                self.__iadd__(1)
-                if self.value():
-                    return self.value()
-                else:
-                    raise StopIteration
-            def __iter__(self):
-                return self
-            
-        samples = set([str(item.text(0)) for item in itemiter(self.annotationsTree) if self.gdsSelectionStates.get(item.key, True)])
         
+        samples = self.selectedSamples()
+        
+        message = None
         if self.outputRows:
-            select = [1 if samples.intersection(str(ex.getclass()).split("|")) else 0 for ex in data]
+            samples = set(s[1] for s in samples) # dont have info on sample types in the data class variable
+            select = [1 if samples.issuperset(str(ex.getclass()).split("|")) else 0 for ex in data]
             data = data.select(select)
+            # TODO: add sample types as separate features  
             data.domain.classVar.values = ["|".join([cl for cl in val.split("|") if cl in samples]) for val in data.domain.classVar.values]
+            if len(data) == 0:
+                message = "No selected samples with selected sample annotations."
         else:
-            domain = orange.Domain([attr for attr in data.domain.attributes if samples.intersection(attr.attributes.values())], data.domain.classVar)
+            samples = set(samples)
+            domain = orange.Domain([attr for attr in data.domain.attributes if samples.issuperset(attr.attributes.items())], data.domain.classVar)
             domain.addmetas(data.domain.getmetas())
+            stypes = set(s[0] for s in samples)
             for attr in domain.attributes:
-                attr.attributes = dict([(key, value) for key, value in attr.attributes.items() if value in samples])
+                attr.attributes = dict([(key, value) for key, value in attr.attributes.items() if key in stypes])
             data = orange.ExampleTable(domain, data)
 
         data_hints.set_hint(data, "taxid", self.currentGds.get("taxid", ""), 10.0)
