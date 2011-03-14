@@ -8,10 +8,13 @@ Example::
 
     >>> import obiArrayExpress
     >>> obiArrayExpress.query_experiments(accession='E-MEXP-31')
-    <addinfourl at ...
+    {u'experiments': ...
     
-    
-    
+    >>> obiArrayExpress.query_files(accession='E-MEXP-32', format="xml")
+    XMLNode(...
+   
+.. note: Currently querying ArrayExpress files only works with the xml format.
+ 
 """
 
 import os, sys
@@ -21,10 +24,25 @@ import orngEnviron
 import warnings
 import posixpath
 import shelve
+import json
 from collections import defaultdict
 
+parse_json = json.load
+
+def parse_xml(stream):
+    #TODO: parse stream, return the same structure as parse_json            
+    from Orange.misc.xml import parse
+    tree = parse(stream)
+    return tree
+    
+#    raise NotImplementedError()
+
+
+# All searchable fields of ArrayExpress (see query_experiments docstring
+# for a description of the fields)
 ARRAYEXPRESS_FIELDS = \
-    ["accession",
+    ["keywords",
+     "accession",
      "array",
      "ef",
      "efv",
@@ -34,10 +52,21 @@ ARRAYEXPRESS_FIELDS = \
      "pmid",
      "sa",
      "species",
+     "expandefo",
+     "directsub",
+     "assaycount",
+     "efcount",
+     "samplecount",
+     "sacount",
+     "rawcount",
+     "fgemcount",
+     "miamescore",
+     "date",
+     "wholewords",
     ]
 
 class ArrayExpressConnection(object):
-    """ A connection to the ArrayExpress database with query caching
+    """ A connection to the ArrayExpress database with query caching.
     """
     
     try:
@@ -52,39 +81,105 @@ class ArrayExpressConnection(object):
     # Order of arguments in the query
     _ARGS_ORDER = ["keywords", "species", "array"]
     
-    def __init__(self, address=None, cache=None, timeout=30):
+    def __init__(self, address=None, cache=None, timeout=30,
+                 username=None, password=None):
+        """ Initialize the connection object.
+        
+        :param address: address of the ArrayExpress API
+        :param cache: a dict like object to use for caching
+        :param timeout: timeout for the socket connection
+        
+        .. todo: implement user login (see Accessing Private Data in API docs)
+        
+        """
         self.address = address if address is not None else self.DEFAULT_ADDRESS
         self.cache = cache if cache is not None else self.DEFAULT_CACHE
         self.timeout = timeout
         
     def format_query(self, **kwargs):
+        """ Format the query arguments.
+        
+        Example::
+            >>> conn.format_query(gxa=True, efcount=(1, 5))
+            'efcount=[1 TO 5]&gxa=true'
+            
+        """
+        # Formaters:
+        def format_default(val):
+            if isinstance(val, basestring):
+                return val
+            else:
+                return "+".join(val)
         def format_species(val):
             return '"%s"' % val.lower()
-        # TODO: range values (e.g. [1 TO 2]), handle AND, OR, +, check for valid keys
+        def format_gxa(val):
+            if val:
+                return "true"
+            else:
+                raise ValueError("gxa={0}".format(val))
+        def format_expandefo(val):
+            if val:
+                return "on"
+            else:
+                raise ValueError("expandefo={0}".format(val))
+        def format_true_false(val):
+            return "true" if val else "false"
+        def format_interval(val):
+            if isinstance(val, tuple):
+                return "[{0} TO {1}]".format(*val)
+            else:
+                raise ValueError("Must be an interval argument (min, max)!")
+        def format_date(val):
+            return val
+        def format_wholewords(val):
+            if val:
+                return "on"
+            else:
+                raise ValueError("wholewords={0}".format(val))
+        
         formaters = {"species": format_species,
+                     "gxa": format_gxa,
+                     "expandefo": format_expandefo,
+                     "directsub": format_true_false,
+                     "assaycount": format_interval,
+                     "efcount": format_interval,
+                     "samplecount": format_interval,
+                     "sacount": format_interval,
+                     "rawcount": format_interval,
+                     "fgemcount": format_interval,
+                     "miamescore": format_interval,
+                     "date": format_date,
+                     "wholewords": format_wholewords,
                      }
         parts = []
         arg_items = kwargs.items()
         ordered = sorted(arg_items, key=lambda arg: self._ARGS_ORDER.index(arg[0]) \
                          if arg[0] in self._ARGS_ORDER else 100)
+        
         for key, value in kwargs.iteritems():
-            fmt = formaters.get("key", lambda val: val)
-            value = fmt(value)
-            parts.append("{0}={1}".format(key, value)) 
+            if key == "format":
+                continue # format is handled in query_url
+            if key not in ARRAYEXPRESS_FIELDS:
+                raise ValueError("Invalid argument name: '{0}'".format(key))
+            if value is not None and value != []:
+                fmt = formaters.get(key, format_default)
+                value = fmt(value)
+                parts.append("{0}={1}".format(key, value))
+                 
         return "&".join(parts)
         
     def query_url(self, what="experiments", **kwargs):
-        """ Return a formated query url for the calls arguments
+        """ Return a formated query URL for the query arguments
         
         Example::
             >>> conn.query_url(accession="E-MEXP-31")
-            'http://www.ebi.ac.uk/arrayexpress/xml/v2/experiments?accession=E-MEXP-31'
+            'http://www.ebi.ac.uk/arrayexpress/json/v2/experiments?accession=E-MEXP-31'
             
         """
         query = self.format_query(**kwargs)
         url = posixpath.join(self.address, what)
         url = url.format(format=kwargs.get("format", self.DEFAULT_FORMAT))
-        url = url + "?" + query
+        url = url + ("?" + query if query else "")
 #        print url
         url = url.replace(" ", "%20")
         return url
@@ -100,15 +195,24 @@ class ArrayExpressConnection(object):
         return self.query_url("files", **kwargs)
     
     def query_experiment(self, **kwargs):
+        """ Return an open stream to the experiments query results.
+        
+        .. note: This member function takes the same arguments as the module
+                 level query_experiemnts function.
+          
+        """
         url = self.query_url_experiments(**kwargs)
         stream = urllib2.urlopen(url, timeout=self.timeout)
-        #  TODO: check stream for errors  
         return stream
     
     def query_files(self, **kwargs):
+        """ Return an open stream to the files query results.
+        
+        .. note: This member function takes the same arguments as the module
+                 level query_files function.
+        """
         url = self.query_url_files(**kwargs)
         stream = urllib2.urlopen(url, timeout=self.timeout)
-        #  TODO: check stream for errors  
         return stream
     
     def open_file(self, accession, kind="raw", ext=None):
@@ -128,7 +232,7 @@ class ArrayExpressConnection(object):
              
         """
         from Orange.misc.xml import parse 
-        files = parse(self.query_files(accession=accession))
+        files = parse(self.query_files(accession=accession), format="xml")
         files = list(files.elements("file"))
         for file in files:
             filekind = file.elements("kind").next()
@@ -138,37 +242,104 @@ class ArrayExpressConnection(object):
                 return urllib2.urlopen(url.data.strip(), timeout=self.timeout)
     
     
-def query_experiments(**kwargs):
+def query_experiments(keywords=None, accession=None, array=None, ef=None,
+                      efv=None, expdesign=None, exptype=None,
+                      gxa=None, pmid=None, sa=None, species=None,
+                      expandefo=None, directsub=None, assaycount=None,
+                      efcount=None, samplecount=None, rawcount=None,
+                      fgemcount=None, miamescore=None, date=None, 
+                      format="json", wholewords=None, connection=None):
     """ Query Array Express experiments.
+    
+    :param keywords: A list of keywords to search (e.g. ['gliobastoma']
+    :param accession: Search by experiment accession (e.g. 'E-MEXP-31')
+    :param array: Search by array design name or accession (e.g. 'A-AFFY-33')
+    :param ef: Experimental factor (names of main variables of experiments)
+    :param efv: Experimental factor value (Has EFO expansion)
+    :param expdesign: Experiment design type. (e.g. ["dose", "response"])
+    :param exptype: Experiment type (e.g. 'RNA-Seq', has EFO expansion)
+    :param gxa: If True limit the results to experiments from the Gene
+        Expreission Atlas only.
+    :param pmid: Search by PubMed identifier
+    :param sa: Sample attribute values (e.g. 'fibroblast', has EFO expansion)
+    :param species: Search by species (e.g. 'Homo sapiens', has EFO expansion)
+    
+    :param expandefo: If True expand the search terms with all its child terms
+        in the Experimental Factor Ontology (EFO_) (e.g. keywords="cancer"
+        will be expanded to include for synonyms and sub types of cancer).
+    :param directsub: If True return only experiments submited directly to
+        Array Express else if False return only experiments imported from GEO
+        database (default None, return both)
+    :param assaycount: A two tuple (min, max) for filter on the number of
+        assays (e.g. (1, 5) will return only experiments with at least one
+        and no more then 5 assays).
+    :param efcount: Filter on the number of experimental factors (e.g. (1, 5))
+    :param sacount: Filter on the number of sample attribute categories
+    :param rawcount: Filter on the number or raw files
+    :param fgemcount: Filter on the number of final gene expression matrix
+        (processed data) files
+    :param miamescore: Filter on the MIAME complience score (max 5)
+    :param date: Filter by release date
     
     Example ::
     
         >>> query_experiments(species="Homo sapiens", ef="organism_part", efv="liver")
-        <addinfourl at ...
+        {u'experiments': ...
         
+    .. _EFO: http://www.ebi.ac.uk/efo/
+    
     """
-    return ArrayExpressConnection().query_experiment(**kwargs)
+    if connection is None:
+        connection = ArrayExpressConnection()
+        
+    stream = connection.query_experiment(keywords=keywords, accession=accession,
+                array=array, ef=ef, efv=efv, expdesign=expdesign, exptype=exptype,
+                gxa=gxa, pmid=pmid, sa=sa, species=species, expandefo=expandefo,
+                directsub=directsub, assaycount=assaycount, efcount=efcount,
+                samplecount=samplecount, rawcount=rawcount, fgemcount=fgemcount,
+                miamescore=miamescore, date=date,  format=format,
+                wholewords=wholewords)
+    
+    if format == "json":
+        return parse_json(stream)
+    else:
+        return parse_xml(stream)
 
 def query_files(**kwargs):
     """ Query Array Express files.
     
+    This function accepts the same arguments as `query_experiments`.
+    
     Example ::
     
-        >>> query_files(species="Mus musculus", ef="developmental_stage", efv="embryo")
-        <addinfourl at ...
+        >>> query_files(species="Mus musculus", ef="developmental_stage", efv="embryo", format="xml")
+        XMLNode(...
                         
     """
-    return ArrayExpressConnection().query_files(**kwargs)
+    connection = kwargs.get("connection", None)
+    if connection is None:
+        connection = ArrayExpressConnection()
     
-# TODO: List all accepted keyword values for query_* functions.
-
-"""\
+    stream = connection.query_files(**kwargs)
+    if kwargs.get("format", "json") == "json":
+        return parse_json(stream)
+    else:
+        return parse_xml(stream)
+    
+__doc__ += """\
 Gene Expression Atlas
 ---------------------
+
+Use `query_atlas_simple` for simple querys.
+
+Example (query human genes for experiments in which they are up regulated)::
+    >>> obiArrayExpress.query_atlas_simple(genes=["SORL1", "PSIP1", "CDKN1C"], regulation="up", organism="Homo sapiens")
+    {u'...
+    
 """
 
 class GeneExpressionAtlasConenction(object):
-    """ A connection to Gene Expression Atlas database
+    """ A connection to Gene Expression Atlas database.
     """
     try:
         DEFAULT_CACHE = shelve.open(os.path.join(orngEnviron.bufferDir, "GeneExpressionAtlasCache.shelve"))
@@ -179,6 +350,13 @@ class GeneExpressionAtlasConenction(object):
     DEFAULT_ADDRESS = "http://www.ebi.ac.uk:80/gxa/"
     
     def __init__(self, address=None, cache=None, timeout=30):
+        """ Initialize the conenction.
+        
+        :param address: Address of the server
+        :param cache: A dict like object to use for caching
+        :timeout: Socket timeout.
+        
+        """
         self.address = address if address is not None else self.DEFAULT_ADDRESS
         self.cache = cache if cache is not None else self.DEFAULT_CACHE
         self.timeout = timeout
@@ -354,7 +532,7 @@ class AtlasConditionExperimentalFactor(AtlasCondition):
         
     def validate(self):
         # TODO: validate the factor and value
-#        assert(self.factor in efv_ontology())
+#        assert(self.factor in ef_ontology())
         assert(self.regulation in ["up", "down", "updown"])
         
     def rest(self):
@@ -374,30 +552,50 @@ class AtlasConditionOrganism(AtlasCondition):
         return "species={0}".format(self.organism.replace(" ", "+").lower())
         
     
-def query_atlas_simple(genes=None, regulated=None, organism=None, format="json"):
+def query_atlas_simple(genes=None, regulation=None, organism=None,
+                       condition=None, format="json", start=None,
+                       rows=None, indent=False):
     """ A simple Atlas query.
+    
+    :param genes: A list of gene names to search for.
+    :param regulation: Search for experiments in which `genes` are "up",
+        "down", "updown" or "none" regulated. If None all experiments
+        are searched.
+    :param organism: Search experiments for organism. If None all experiments
+        are searched.
+    :param condition: An EFO factor value (e.g. "brain")
     
     Example::
         
         >>> query_atlas_simple(genes=['Pou5f1', 'Dppa3'], organism="Mus musculus")
-        <addinfourl at ...
+        {u'...
         
-        >>> query_atlas_simple(genes=['Pou5f1', 'Dppa3'], regulated="up", organism="Mus musculus")
-        <addinfourl at ...
+        >>> query_atlas_simple(genes=['Pou5f1', 'Dppa3'], regulation="up", organism="Mus musculus")
+        {u'...
+        
+        >>> query_atlas_simple(genes=['Pou5f1', 'Dppa3'], regulation="up", condition="liver", organism="Mus musculus")
+        {u'...
         
     """
     conditions = AtlasConditionList()
     conditions.append(AtlasConditionGeneProperty("Gene", "Is", genes))
-    if regulated:
-        conditions.append(AtlasConditionExperimentalFactor("", regulated, 1, ""))
+    if regulation or condition:
+        regulation = "any" if regulation is None else regulation
+        condition = "" if condition is None else condition
+        conditions.append(AtlasConditionExperimentalFactor("", regulation, 1, condition))
     if organism:
         conditions.append(AtlasConditionOrganism(organism))
+        
     connection = GeneExpressionAtlasConenction()
-    results = connection.query(conditions, format=format)
-    return results
+    results = connection.query(conditions, format=format, start=start,
+                               rows=rows)
+    if format == "json":
+        return parse_json(results)
+    else:
+        return parse_xml(results)
 
 """\
-TODO: can this be implemented query_atlas(organism="...", Locuslink="...", Chebi="...", up3InCompound="..." downInEFO="...")
+.. TODO: can this be implemented query_atlas(organism="...", Locuslink="...", Chebi="...", up3InCompound="..." downInEFO="...")
       Need a full list of accepted factors 
 """
 
@@ -406,13 +604,20 @@ def query_atlas(condition, format="json", start=None, rows=None, indent=False):
     
     Example::
         
-        >>> #condition = AtlasConditionGeneProperty()
+        >>> condition1 = AtlasConditionGeneProperty("Goterm", "Is", "p53 binding")
+        >>> condition2 = AtlasConditionExperimentalFactor("Organism_part", "up", 3, "heart")
+        >>> condition = AtlasConditionList([condition1, condition2])
+        >>> query_atlas(condition)
+        {u'...
         
     """
     connection = GeneExpressionAtlasConenction()
     results = connection.query(condition, format=format, start=start,
                                rows=rows, indent=indent)
-    return results
+    if format == "json":
+        return parse_json(results)
+    else:
+        return parse_xml(results)
 
 
 def get_atlas_summary(genes, organism):
@@ -437,8 +642,6 @@ def get_atlas_summary(genes, organism):
     org_condition = AtlasConditionOrganism(organism)
     condition = AtlasConditionList([genes_condition, org_condition])
     result = query_atlas(condition, format="json")
-    import json
-    result = json.load(result)
     
     org_part = collect_ef_summary(result, "organism_part")
     disease_state = collect_ef_summary(result, "disease_state")
@@ -468,7 +671,7 @@ def collect_ef_summary(info, ef):
     return dict(summary)
     
     
-if __name__ == "__main__":
+def test():
     from pprint import pprint    
     pprint(get_atlas_summary(['Pou5f1', 'Dppa3'], 'Mus musculus'))
        
@@ -478,4 +681,7 @@ if __name__ == "__main__":
     conn = ArrayExpressConnection()
     import doctest
     doctest.testmod(optionflags=doctest.ELLIPSIS, extraglobs={"conn": conn})
+    
+if __name__ == "__main__":
+    test()
     
