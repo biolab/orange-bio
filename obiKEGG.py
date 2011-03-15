@@ -177,12 +177,18 @@ def proxy_dict_decorator(cls, proxy_name):
         setattr(cls, name, proxy(getattr(dict, name)))
     return cls
 
+def _create_path_for_file(target): 
+    try:
+        os.makedirs(os.path.dirname(target))
+    except OSError:
+        pass
+
 def downloader(func):
     def wrapper(*args, **kwargs):
         import shutil
         def download(src, dst):
             if isinstance(dst, basestring):
-                orngServerFiles.createPathForFile(dst)
+                _create_path_for_file(dst)
                 dst = open(dst, "wb")
             shutil.copyfileobj(src, dst)
         jobs = func(*args, **kwargs)
