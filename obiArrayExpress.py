@@ -1,10 +1,18 @@
 """
+obiArrayExpress
+===============
+
+A python module for accessing the ArrayExpress and GeneExpressionAtlas
+web services.
+
+
 Array Express
 -------------
 
-A python module for accessing the ArrayExpress and GeneExpressionAtlas web services.
+`Array Express Archive <http://www.ebi.ac.uk/arrayexpress/>`_ is a database of gene expression experiments that you
+can query and download.
 
-Example::
+Example of an Array Express query ::
 
     >>> import obiArrayExpress
     >>> obiArrayExpress.query_experiments(accession='E-MEXP-31')
@@ -13,8 +21,11 @@ Example::
     >>> obiArrayExpress.query_files(accession='E-MEXP-32', format="xml")
     XMLNode(...
    
-.. note: Currently querying ArrayExpress files only works with the xml format.
- 
+.. note:: Currently querying ArrayExpress files only works with the xml format.
+
+.. note:: See the documentation of `query_experiments` for a full set of
+          parameters that these functions accept.
+
 """
 
 import os, sys
@@ -34,8 +45,6 @@ def parse_xml(stream):
     from Orange.misc.xml import parse
     tree = parse(stream)
     return tree
-    
-#    raise NotImplementedError()
 
 
 # All searchable fields of ArrayExpress (see query_experiments docstring
@@ -66,14 +75,11 @@ ARRAYEXPRESS_FIELDS = \
     ]
 
 class ArrayExpressConnection(object):
-    """ A connection to the ArrayExpress database with query caching.
-    """
+    """ A connection to the ArrayExpress. Used for query construction,
+    and user login. 
     
-    try:
-        DEFAULT_CACHE = shelve.open(os.path.join(orngEnviron.bufferDir, "ArrayExpressCache.shelve"))
-    except ImportError:
-        warnings.warn("Could not load persistent cache!")
-        DEFAULT_CACHE = {}
+    .. todo:: Implement user login.
+    """
     
     DEFAULT_ADDRESS = "http://www.ebi.ac.uk/arrayexpress/{format}/v2/"
     DEFAULT_FORMAT = "json"
@@ -81,25 +87,24 @@ class ArrayExpressConnection(object):
     # Order of arguments in the query
     _ARGS_ORDER = ["keywords", "species", "array"]
     
-    def __init__(self, address=None, cache=None, timeout=30,
+    def __init__(self, address=None, timeout=30,
                  username=None, password=None):
         """ Initialize the connection object.
         
-        :param address: address of the ArrayExpress API
-        :param cache: a dict like object to use for caching
-        :param timeout: timeout for the socket connection
+        :param address: Address of the ArrayExpress API
+        :param timeout: Timeout for the socket connection
         
-        .. todo: implement user login (see Accessing Private Data in API docs)
+        .. todo:: Implement user login (see Accessing Private Data in API docs)
         
         """
         self.address = address if address is not None else self.DEFAULT_ADDRESS
-        self.cache = cache if cache is not None else self.DEFAULT_CACHE
         self.timeout = timeout
         
     def format_query(self, **kwargs):
         """ Format the query arguments.
         
-        Example::
+        Example ::
+        
             >>> conn.format_query(gxa=True, efcount=(1, 5))
             'efcount=[1 TO 5]&gxa=true'
             
@@ -171,7 +176,7 @@ class ArrayExpressConnection(object):
     def query_url(self, what="experiments", **kwargs):
         """ Return a formated query URL for the query arguments
         
-        Example::
+        Example ::
             >>> conn.query_url(accession="E-MEXP-31")
             'http://www.ebi.ac.uk/arrayexpress/json/v2/experiments?accession=E-MEXP-31'
             
@@ -197,8 +202,8 @@ class ArrayExpressConnection(object):
     def query_experiment(self, **kwargs):
         """ Return an open stream to the experiments query results.
         
-        .. note: This member function takes the same arguments as the module
-                 level query_experiemnts function.
+        .. note:: This member function takes the same arguments as the module
+                  level `query_experiemnts` function.
           
         """
         url = self.query_url_experiments(**kwargs)
@@ -208,8 +213,8 @@ class ArrayExpressConnection(object):
     def query_files(self, **kwargs):
         """ Return an open stream to the files query results.
         
-        .. note: This member function takes the same arguments as the module
-                 level query_files function.
+        .. note:: This member function takes the same arguments as the module
+                  level `query_files` function.
         """
         url = self.query_url_files(**kwargs)
         stream = urllib2.urlopen(url, timeout=self.timeout)
@@ -225,7 +230,7 @@ class ArrayExpressConnection(object):
             - adf: array design description
             - mageml: MAGE-ML file
             
-        Example::
+        Example ::
         
             >>> raw_file = conn.open_file("E-TABM-1087", kind="raw")
             >>> processed_file = conn.open_file("E-TABM-1087", kind="fgem")
@@ -330,10 +335,27 @@ __doc__ += """\
 Gene Expression Atlas
 ---------------------
 
+`Gene Expression Atlas <http://www.ebi.ac.uk/gxa/>`_ is a curated subset of 
+gene expression experiments in Array Express Archive.
+
 Use `query_atlas_simple` for simple querys.
 
-Example (query human genes for experiments in which they are up regulated)::
+Example (query human genes for experiments in which they are up regulated) ::
+
     >>> obiArrayExpress.query_atlas_simple(genes=["SORL1", "PSIP1", "CDKN1C"], regulation="up", organism="Homo sapiens")
+    {u'...
+    
+Or use the `AtlasCondition` subclasses in this module to construct a more
+advanced query and use the `query_atlas` function.
+
+Example (query human genes annotated to the GO term 'transporter activity'
+that are up regulated in the liver in at least three experiments) ::
+
+    >>> go_cond = AtlasConditionGeneProperty("Goterm", "Is", "transporter activity")
+    >>> liver_cond = AtlasConditionExperimentalFactor("Organism_part", "up", 3, "liver")
+    >>> org_cond = AtlasConditionOrganism("Homo sapiens")
+    >>> cond_list = AtlasConditionList([go_cond, liver_cond, org_cond])
+    >>> query_atlas(cond_list)
     {u'...
     
 """
@@ -341,28 +363,17 @@ Example (query human genes for experiments in which they are up regulated)::
 class GeneExpressionAtlasConenction(object):
     """ A connection to Gene Expression Atlas database.
     """
-    try:
-        DEFAULT_CACHE = shelve.open(os.path.join(orngEnviron.bufferDir, "GeneExpressionAtlasCache.shelve"))
-    except ImportError:
-        warnings.warn("Could not load persistent cache!")
-        DEFAULT_CACHE = {}
-    
     DEFAULT_ADDRESS = "http://www.ebi.ac.uk:80/gxa/"
     
-    def __init__(self, address=None, cache=None, timeout=30):
+    def __init__(self, address=None, timeout=30):
         """ Initialize the conenction.
         
-        :param address: Address of the server
-        :param cache: A dict like object to use for caching
+        :param address: Address of the server.
         :timeout: Socket timeout.
         
         """
         self.address = address if address is not None else self.DEFAULT_ADDRESS
-        self.cache = cache if cache is not None else self.DEFAULT_CACHE
         self.timeout = timeout
-        
-    def format_query(self,):
-        pass
     
     def query(self, condition, format="json", start=None, rows=None, indent=False):
         url = self.address + "api?" + condition.rest()
@@ -375,6 +386,7 @@ class GeneExpressionAtlasConenction(object):
         response = urllib2.urlopen(url)
         return response
     
+# Names of all Gene Property filter names
 GENE_FILTERS = \
     ["Name", # Gene name
      "Goterm", #Gene Ontology Term
@@ -409,11 +421,13 @@ GENE_FILTERS = \
      "Synonym", #Gene Synonym
      ]
     
+# Valid Gene Property filter qualifiers 
 GENE_FILTER_QUALIFIERS =\
     ["Is",
      "IsNot"
      ]
 
+# Organisms in the Atlas
 ATLAS_ORGANISMS = \
     ["Anopheles gambiae",
      "Arabidopsis thaliana",
@@ -435,7 +449,7 @@ ATLAS_ORGANISMS = \
      ]
     
 def ef_ontology():
-    """ Return the EF (Experimental Factor) ontology
+    """ Return the `EF <http://www.ebi.ac.uk/efo/>`_ (Experimental Factor) ontology
     """
     import obiOntology
 #    return obiOntology.OBOOntology(urllib2.urlopen("http://efo.svn.sourceforge.net/svnroot/efo/trunk/src/efoinobo/efo.obo"))
@@ -554,7 +568,7 @@ class AtlasConditionOrganism(AtlasCondition):
     
 def query_atlas_simple(genes=None, regulation=None, organism=None,
                        condition=None, format="json", start=None,
-                       rows=None, indent=False):
+                       rows=None):
     """ A simple Atlas query.
     
     :param genes: A list of gene names to search for.
@@ -565,7 +579,7 @@ def query_atlas_simple(genes=None, regulation=None, organism=None,
         are searched.
     :param condition: An EFO factor value (e.g. "brain")
     
-    Example::
+    Example ::
         
         >>> query_atlas_simple(genes=['Pou5f1', 'Dppa3'], organism="Mus musculus")
         {u'...
@@ -578,7 +592,8 @@ def query_atlas_simple(genes=None, regulation=None, organism=None,
         
     """
     conditions = AtlasConditionList()
-    conditions.append(AtlasConditionGeneProperty("Gene", "Is", genes))
+    if genes:
+        conditions.append(AtlasConditionGeneProperty("Gene", "Is", genes))
     if regulation or condition:
         regulation = "any" if regulation is None else regulation
         condition = "" if condition is None else condition
@@ -595,14 +610,14 @@ def query_atlas_simple(genes=None, regulation=None, organism=None,
         return parse_xml(results)
 
 """\
-.. TODO: can this be implemented query_atlas(organism="...", Locuslink="...", Chebi="...", up3InCompound="..." downInEFO="...")
+.. todo:: can this be implemented query_atlas(organism="...", Locuslink="...", Chebi="...", up3InCompound="..." downInEFO="...")
       Need a full list of accepted factors 
 """
 
 def query_atlas(condition, format="json", start=None, rows=None, indent=False):
     """ Query Atlas based on a `condition` (instance of AtlasCondition)
     
-    Example::
+    Example ::
         
         >>> condition1 = AtlasConditionGeneProperty("Goterm", "Is", "p53 binding")
         >>> condition2 = AtlasConditionExperimentalFactor("Organism_part", "up", 3, "heart")
@@ -632,7 +647,7 @@ def get_atlas_summary(genes, organism):
     mapping factor values to a 2-tuple containig the count of up regulated
     and down regulated experiments.
     
-    Example::
+    Example ::
     
         >>> get_atlas_summary(["RUNX1"], "Homo sapiens")
         ({u'RUNX1': ...
