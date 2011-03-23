@@ -498,6 +498,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.ontology = obiGO.Ontology(progressCallback=lambda value: pb.advance())
             i+=1
         if org != self.loadedAnnotationCode:
+            self.annotations = None
+            gc.collect() # Force run garbage collection.
             code = self.annotationFiles[org].split(".")[-3]
             self.annotations = obiGO.Annotations(code, genematcher=obiGene.GMDirect(), progressCallback=lambda value: pb.advance())
             i+=1
@@ -622,9 +624,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
         ids = self.terms.keys()
         
         self.treeStructRootKey = None
+        
+        parents = {}
+        for id in ids:
+            parents[id] = set([term for typeId, term in self.ontology[id].related])
+            
+        children = {}
         for term in self.terms:
-            parents = lambda t: [term for typeId, term in  self.ontology[t].related]
-            self.treeStructDict[term] = TreeNode(self.terms[term], [id for id in ids if term in parents(id)])
+            children[term] = set([id for id in ids if term in parents[id]])
+            
+        for term in self.terms:
+            self.treeStructDict[term] = TreeNode(self.terms[term], children[term])
             if not self.ontology[term].related and not getattr(self.ontology[term], "is_obsolete", False):
                 self.treeStructRootKey = term
         return terms
@@ -688,7 +698,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             addNode(self.treeStructRootKey, None, self.listView)
 
         terms = self.graph.items()
-        terms.sort(lambda a,b:cmp(a[1][1],b[1][1]))
+        terms = sorted(terms, key=lambda item: item[1][1])
         self.sigTableTermsSorted = [t[0] for t in terms]
         
         self.sigTerms.clear()
