@@ -158,6 +158,7 @@ class OBOObject(object):
     Example:
     >>> OBOObject(r"[Term]\nid: FOO:001\nname: bar", ontology)
     """
+    _INTERN_TAGS = ["id", "name", "namespace", "alt_id", "is_a"]
     def __init__(self, stanza=None, ontology=None):
         self.ontology = ontology
         self._lines = []
@@ -168,6 +169,7 @@ class OBOObject(object):
             self.ParseStanza(stanza)
 
     def ParseStanza(self, stanza):
+        intern_tags = set(self._INTERN_TAGS)
         for line in stanza.split("\n"):
             if ":" not in line:
                 continue
@@ -180,7 +182,11 @@ class OBOObject(object):
                 modifiers = modifiers.strip("}")
             else:
                 value = rest
+            tag = intern(tag)
             value = value.strip()
+            comment = comment.strip()
+            if tag in intern_tags:
+                value, comment = intern(value), intern(comment)
             self._lines.append((tag, value, modifiers, comment))
             if tag in multipleTagSet:
                 self.values.setdefault(tag, []).append(value)
@@ -197,8 +203,9 @@ class OBOObject(object):
         typeId and the second id of object to whom the relationship applys to.
         """
         ##TODO: add other defined Typedef ids
-        result = [(typeId, id) for typeId in ["is_a"] for id in self.values.get(typeId, [])] 
-        result = result + [tuple(r.split(None, 1)) for r in self.values.get("relationship", [])]
+        typeIds = [intern("is_a")]
+        result = [(typeId, id) for typeId in typeIds for id in self.values.get(typeId, [])] 
+        result = result + [tuple(map(intern, r.split(None, 1))) for r in self.values.get("relationship", [])]
         return result
 
     def __repr__(self):
@@ -434,21 +441,26 @@ class AnnotationRecord(object):
     method (e.g. rec.get("GO ID")) The object also provides the following
     data members for quicker access: geneName, GOId, evidence, aspect and
     alias(a list of aliases)
+    
     """
     __slots__ = annotationFields + ["geneName", "GOId", "evidence",
                                     "aspect", "alias", "additionalAliases"]
     def __init__(self, fullText):
+        """\
+        :param fulText: A single line from the annotation file.
+        
+        """
         for slot, val in zip(annotationFields, fullText.split("\t")):
-            setattr(self, slot, val)
+            setattr(self, slot, intern(val))
         self.geneName = self.DB_Object_Symbol
         self.GOId = self.GO_ID
         self.evidence = self.Evidence_Code
         self.aspect = self.Aspect
-        self.alias = self.DB_Object_Synonym.split("|")
+        self.alias = list(map(intern, self.DB_Object_Synonym.split("|")))
 
         self.additionalAliases = []
         if ":" in self.DB_Object_Name:
-            self.additionalAliases = _re_obj_name_.findall(self.DB_Object_Name.split(":")[0])
+            self.additionalAliases = [] #_re_obj_name_.findall(self.DB_Object_Name.split(":")[0])
 
     def __getattr__(self, name):
         if name in annotationFieldsDict:
