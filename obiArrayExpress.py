@@ -432,7 +432,7 @@ def parse_sdrf(file):
     lines = data.splitlines()
     lines = [line.split("\t") for line in lines if line.strip() and not line.startswith("#")]
     header = [h for h in lines[0] if h]
-    rows = lines[1:]
+    rows = [line[:len(header)] for line in lines[1:]]
     assert(all([len(r) == len(header) for r in rows]))
     return header, rows
     
@@ -783,6 +783,50 @@ def _is_continuous(items, check_count=100):
             break
     return count >= i * 0.5
     
+def processed_matrix_to_orange(matrix_file):
+    """ Load a single processed matrix file in to an Orange.data.Table
+    instance. 
+    """
+    import numpy
+    import Orange
+    
+    if isinstance(matrix_file, basestring):
+        matrix_file = open(matrix_file, "rb")
+        
+#    data_matrix = matrix_file.read()
+    header, quantification, rows, matrix = parse_data_matrix(matrix_file)
+    header_ref, header = header
+    row_ref, rows = rows
+    
+    matrix = numpy.array(matrix, dtype=object)
+    
+    
+    features = []
+    is_float = numpy.frompyfunc(_is_float, 1, 1) # an numpy ufunc
+         
+    for header_name, quant, column in zip(header, quantification, matrix.T):
+        if _is_continuous(column):
+            feature = Orange.data.variable.Continuous(header_name)
+            column[numpy.where(1 - is_float(column))] = "?" # relace all non parsable floats with '?'
+        else:
+            values = set(column)
+            feature = Orange.data.variable.Discrete(header_name, values=sorted(values))
+        feature.attributes["quantification"] = quant
+        features.append(feature)
+        
+    row_ref_feature = Orange.data.variable.String(row_ref)
+    domain = Orange.data.Domain(features, None)
+    domain.addmeta(Orange.data.new_meta_id(), row_ref_feature)
+    
+    table = Orange.data.Table(domain, [list(row) for row in matrix])
+    
+    # Add row identifiers
+    for instance, row in zip(table, rows):
+        instance[row_ref_feature] = row
+    
+    return table
+    
+
 def mage_tab_to_orange(idf_filename):
     """ Convert an MAGE-TAB annotated experiment into an Orange.data.Table
     instance (assumes all the associated MAGE-TAB files are in the same
@@ -799,37 +843,47 @@ def mage_tab_to_orange(idf_filename):
     sdrf = SampleDataRelationship(sdrf_filename)
     
     data_matrices = set(sdrf.derived_array_data_matrix_file())
-    assert(len(data_matrices) == 1) # How to handle multiple array designs.
-    data_matrix = open(os.path.join(dirname, data_matrices.pop()), "rb")
-    header, quantification, rows, matrix = parse_data_matrix(data_matrix)
-    header_ref, header = header
-    row_ref, rows = rows
+    data_matrices = [name for name in data_matrices if name.strip()]
     
-    import numpy
-    matrix = numpy.array(matrix, dtype=str)
-    
-    
-    features = []
-    for header_name, quant, column in zip(header, quantification, matrix.T):
-        if _is_continuous(column):
-            feature = Orange.data.variable.Continuous(header_name)
-        else:
-            values = set(column)
-            feature = Orange.data.variable.Discrete(header_name, values=sorted(values))
-        feature.attributes["quantification"] = quant
-        features.append(feature)
+    tables = []
+    for filename in data_matrices:
+        matrix_file = os.path.join(dirname, filename)
+        table = processed_matrix_to_orange(matrix_file)
+        tables.append(table)
         
-    row_ref_feature = Orange.data.variable.String(row_ref)
-    domain = Orange.data.Domain(features, None)
-    domain.addmeta(Orange.data.new_meta_id(), row_ref_feature)
+    return hstack_tables(tables)
     
-    matrix[numpy.where(matrix == "NA")] = "?"
+def hstack_tables(tables):
+    """ Stack the tables horizontaly.
+    """
+    import Orange
+    max_len = max([len(table) for table in tables])
+    stacked_features = []
+    stacked_values = [[] for i in range(max_len)]
+    stacked_meta_features = []
+    stacked_meta_values = [{} for i in range(max_len)]
     
-    table = Orange.data.Table(domain, [list(row) for row in matrix])
+    for table in tables:
+        stacked_features.extend(table.domain.variables)
+        stacked_meta_features.extend(table.domain.getmetas().items())
+        
+        for i, instance in enumerate(table):
+            stacked_values[i].extend(list(instance))
+            stacked_meta_values[i].update(instance.getmetas())
+            
+        # Fill extra lines with unknowns
+        for i in range(len(table), max_len):
+            stacked_values[i].extend(["?"] * len(table.domain.variables))
+        
+    domain = Orange.data.Domain(stacked_features, tables[-1].domain.class_var)
+    domain.addmetas(dict(set(stacked_meta_features)))
+    table = Orange.data.Table(domain, stacked_values)
     
-    for instance, row in zip(table, rows):
-        instance[row_ref_feature] = row
-    
+    # Add meta attributes
+    for instance, metas in zip(table, stacked_meta_values):
+        for m, val in metas.iteritems():
+            instance[m] = val
+            
     return table
     
 def _dictify(element):
@@ -1079,7 +1133,9 @@ class ArrayExpressExperiment(object):
         self._open(matrix_file.get("url")) 
         matrix_files = sorted(set(sdrf.derived_array_data_matrix_file()))
         
-        return mage_tab_to_orange(os.path.join(repo_dir, self.accession + ".idf.txt"))
+        idf_file = self._search_files("idf", "txt")[0]
+        self._open(idf_file.get("url")) # To download if not cached
+        return mage_tab_to_orange(os.path.join(repo_dir, idf_file.get("name")))
         
     
 __doc__ += """\
