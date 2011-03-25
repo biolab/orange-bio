@@ -4,7 +4,7 @@ obiOntology
 
 Python module for manipulating OBO Ontology files (http://www.obofoundry.org/)
 
-Example::
+You can construct an ontology from scratch with custom terms ::
 
     >>> term = OBOObject("Term", id="foo:bar", name="Foo bar")
     >>> print term
@@ -14,7 +14,30 @@ Example::
     
     >>> ontology = OBOOntology()
     >>> ontology.add_object(term)
+    >>> ontology.add_header_tag("created-by", "ales") # add a header tag
+    >>> from StringIO import StringIO
+    >>> buffer = StringIO()
+    >>> ontology.dump(buffer) # Save the ontology to a file like object
+    >>> print buffer.getvalue() # Print the contents of the buffer
+    created-by: ales
+    <BLANKLINE>
+    [Term]
+    id: foo:bar
+    name: Foo bar
+    <BLANKLINE>
     
+To load an ontology from a file pass the file or filename to the OBOOntology
+constructor or call its load method ::
+
+    >>> buffer.seek(0) # rewind
+    >>> ontology = OBOOntology(buffer)
+    >>> # Or
+    >>> buffer.seek(0) # rewind
+    >>> ontology = OBOOntology()
+    >>> ontology.load(buffer)
+    
+See OBOOntology docstring for more details.
+
 """
 
 from itertools import chain
@@ -346,7 +369,7 @@ class OBOParser(object):
         >>> for event, value in parser:
         ...     print event, value
         ...     
-        HEADER_TAG ['header_tag', ' header_value']
+        HEADER_TAG ['header_tag', 'header_value']
         START_STANZA Term
         TAG_VALUE ('id', 'FOO', 'modifier=bar', 'comment')
         CLOSE_STANZA None
@@ -358,14 +381,14 @@ class OBOParser(object):
     def parse(self, progress_callback=None):
         """ Parse the file and yield parse events.
         
-        .. TODO: List events
+        .. TODO: List events and values
         """
         data = self.file.read()
         header = data[: data.index("\n[")]
         body = data[data.index("\n[") + 1:]
         for line in header.splitlines():
             if line.strip():
-                yield "HEADER_TAG", line.split(":", 1)
+                yield "HEADER_TAG", line.split(": ", 1)
                 
         current = None
         #  For speed make these functions local
@@ -395,8 +418,10 @@ class OBOParser(object):
         
         
 class OBOOntology(object):
-    BUILTINS = BUILTIN_OBO_OBJECTS
+    """ The main ontology object.
+    """
     
+    BUILTINS = BUILTIN_OBO_OBJECTS
     def __init__(self, file=None):
         """ Init an ontology instance from a file like object (.obo format)
         
@@ -465,8 +490,10 @@ class OBOOntology(object):
             file = open(file, "wb")
             
         for key, value in self.header_tags:
-            file.write(key + ":" + value + "\n")
-        for object in self.objects:
+            file.write(key + ": " + value + "\n")
+            
+        # Skip the builtins
+        for object in self.objects[len(self.BUILTINS):]:
             file.write("\n")
             file.write(object.format_stanza())
             file.write("\n")
@@ -544,60 +571,6 @@ class OBOOntology(object):
         for rel in relationships:
             related.append(tuple(rel.split(None, 1)))
         return related
-            
-    def to_network(self):
-        """ Return an Orange.network.Network instance constructed from
-        this ontology.
-        
-        """
-        edge_types = self.edge_types()
-        terms = self.terms()
-        import orngNetwork, orange
-        
-        network = orngNetwork.Network(len(terms), True, len(edge_types))
-        network.objects = dict([(term.id, i) for i, term in enumerate(terms)])
-        
-        edges = defaultdict(set)
-        for term in self.terms():
-            related = self.related_terms(term)
-            for relType, relTerm in related:
-                edges[(term.id, relTerm)].add(relType)
-                
-        edgeitems = edges.items()
-        for (src, dst), eTypes in edgeitems:
-            network[src, dst] = [1 if e in eTypes else 0 for e in edge_types]
-            
-        domain = orange.Domain([orange.StringVariable("id"),
-                                orange.StringVariable("name"),
-                                orange.StringVariable("def"),
-                                ], False)
-        
-        items = orange.ExampleTable(domain)
-        for term in terms:
-            ex = orange.Example(domain, [term.id, term.name, term.values.get("def", [""])[0]])
-            items.append(ex)
-        
-        relationships = set([", ".join(sorted(eTypes)) for (_, _), eTypes in edgeitems])
-        domain = orange.Domain([orange.FloatVariable("u"),
-                                orange.FloatVariable("v"),
-                                orange.EnumVariable("relationship", values=list(edge_types))
-                                ], False)
-        
-        id2index = dict([(term.id, i + 1) for i, term in enumerate(terms)])
-        links = orange.ExampleTable(domain)
-        for (src, dst), eTypes in edgeitems:
-            ex = orange.Example(domain, [id2index[src], id2index[dst], eTypes.pop()])
-            links.append(ex)
-            
-        network.items = items
-        network.links = links
-        network.optimization = None
-        return network
-    
-    def to_networkx(self):
-        """ Return a NetworkX graph of this ontology
-        """
-        raise NotImplementedError
         
     def edge_types(self):
         """ Return a list of all edge types in the ontology
@@ -655,7 +628,6 @@ class OBOOntology(object):
             children.append(term)
         return set(children)
         
-    
     def parent_terms(self, term):
         """ Return a set of all parent terms for this `term`
         """
@@ -692,6 +664,115 @@ class OBOOntology(object):
     
     def has_key(self, key):
         return self.id2tem.has_key(key)
+    
+    def to_network(self, terms=None):
+        """ Return an Orange.network.Network instance constructed from
+        this ontology.
+        
+        """
+        edge_types = self.edge_types()
+        terms = self.terms()
+        import orngNetwork, orange
+        
+        network = orngNetwork.Network(len(terms), True, len(edge_types))
+        network.objects = dict([(term.id, i) for i, term in enumerate(terms)])
+        
+        edges = defaultdict(set)
+        for term in self.terms():
+            related = self.related_terms(term)
+            for relType, relTerm in related:
+                edges[(term.id, relTerm)].add(relType)
+                
+        edgeitems = edges.items()
+        for (src, dst), eTypes in edgeitems:
+            network[src, dst] = [1 if e in eTypes else 0 for e in edge_types]
+            
+        domain = orange.Domain([orange.StringVariable("id"),
+                                orange.StringVariable("name"),
+                                orange.StringVariable("def"),
+                                ], False)
+        
+        items = orange.ExampleTable(domain)
+        for term in terms:
+            ex = orange.Example(domain, [term.id, term.name, term.values.get("def", [""])[0]])
+            items.append(ex)
+        
+        relationships = set([", ".join(sorted(eTypes)) for (_, _), eTypes in edgeitems])
+        domain = orange.Domain([orange.FloatVariable("u"),
+                                orange.FloatVariable("v"),
+                                orange.EnumVariable("relationship", values=list(edge_types))
+                                ], False)
+        
+        id2index = dict([(term.id, i + 1) for i, term in enumerate(terms)])
+        links = orange.ExampleTable(domain)
+        for (src, dst), eTypes in edgeitems:
+            ex = orange.Example(domain, [id2index[src], id2index[dst], eTypes.pop()])
+            links.append(ex)
+            
+        network.items = items
+        network.links = links
+        network.optimization = None
+        return network
+    
+    def to_networkx(self, terms=None):
+        """ Return a NetworkX graph of this ontology
+        """
+        import networkx
+        graph = networkx.Graph()
+        
+        edge_types = self.edge_types()
+        
+        edge_colors = {"is_a": "red"}
+        
+        if terms is None:
+            terms = self.terms()
+        else:
+            terms = [self.term(term) for term in terms]
+            super_terms = [self.super_terms(term) for term in terms]
+            terms = reduce(set.union, super_terms, set(terms))
+            
+        for term in terms:
+            graph.add_node(term.id, name=term.name)
+            
+        for term in terms:
+            for rel_type, rel_term in self.related_terms(term):
+                rel_term = self.term(rel_term)
+                if rel_term in terms:
+                    graph.add_edge(term.id, rel_term.id, label=rel_type, color=edge_colors.get(rel_type, "blue"))
+                    
+        return graph
+    
+    def to_graphviz(self, terms=None):
+        """ Return an pygraphviz.AGraph representation of the ontology in.
+        If `terms` is not `None` it must be a list of terms in the ontology.
+        The graph will in this case contain only the super graph of those
+        terms.  
+        
+        """
+        import pygraphviz as pgv
+        graph = pgv.AGraph(directed=True, name="ontology")
+        
+        edge_types = self.edge_types()
+        
+        edge_colors = {"is_a": "red"}
+        
+        if terms is None:
+            terms = self.terms()
+        else:
+            terms = [self.term(term) for term in terms]
+            super_terms = [self.super_terms(term) for term in terms]
+            terms = reduce(set.union, super_terms, set(terms))
+            
+        for term in terms:
+            graph.add_node(term.id, name=term.name)
+            
+        for term in terms:
+            for rel_type, rel_term in self.related_terms(term):
+                rel_term = self.term(rel_term)
+                if rel_term in terms:
+                    graph.add_edge(term.id, rel_term.id, label=rel_type, color=edge_colors.get(rel_type, "blue"))
+                    
+        return graph
     
     
 def load(file):
