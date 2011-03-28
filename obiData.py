@@ -2,7 +2,7 @@ from __future__ import with_statement
 import ftplib
 import urllib, urllib2
 import threading
-import os
+import os, sys
 import time
 import socket
 from Queue import Queue
@@ -181,6 +181,18 @@ class FtpWorker(object):
     def statLocal(self, filename):
         stat = os.stat(filename)
         return stat.st_size, datetime.fromtimestamp(stat.st_mtime)
+    
+    def listdir(self, ftp_dir):
+        """ List the contents of a remote ftp directory (similar to os.listdir)
+        """
+        if not self.ftp:
+            self.connect()
+        lines = []
+        self.ftp.dir(ftp_dir, lines.append)
+        self.statCache[dir] = dict([(line.split()[-1].strip(), line.strip()) for line in lines if line.strip()])
+        contents = [line.split()[-1] for line in lines]
+        return [name for name in contents if name not in [".", ".."]] 
+        
 
 class FtpThreadWorker(threading.Thread, FtpWorker):
     def __init__(self, ftpAddr, queue, statCache=None, group=None, target=None, name=None, args=(), kwargs={}):
@@ -191,7 +203,10 @@ class FtpThreadWorker(threading.Thread, FtpWorker):
     def run(self):
         while True:
             filename, local, update, retryCount, progressCallback = self.queue.get()
-            self.retrieve(filename, local, update, progressCallback)
+            try:
+                self.retrieve(filename, local, update, progressCallback)
+            except Exception, ex:
+                sys.excepthook(*sys.exc_info())
             self.queue.task_done()
 
 class FtpDownloader(object):
@@ -251,10 +266,9 @@ class FtpDownloader(object):
                 progressCallback(min(100.0, 100.0*(float(count)-self.queue.qsize())/count))
             time.sleep(0.1)
         self.queue.join()
-
-##class HTTPDownloader(DownloaderBase):
-##    def __init__(self, *args, **kwargs):
-##        DownloaderBase.__init__(self, *args, **kwargs)
-##
-##    def retrieve(self, filename):
-##        
+        
+    def listdir(self, ftp_dir):
+        """ List the contents of the remote ftp dir (similar to os.listdir)
+        """
+        return self.ftpWorker.listdir(self.ftpDir + ftp_dir)
+    

@@ -1,5 +1,15 @@
-"""obiKEGG is an interface to Kyoto Encyclopedia of Genes and Genomes (http://www.genome.jp/kegg/) that allows easy access to KEGG pathway and genes data.
+"""
+=======
+obiKEGG
+=======
+obiKEGG module is an interface to `Kyoto Encyclopedia of Genes and Genomes
+<http://www.genome.jp/kegg/>`_ that allows easy access to KEGG pathway
+and genes data.
 
+Example ::
+    
+    >>> genes = KEGGOrganism("human")
+    >>> genes
 """
 try:
     import Image, ImageDraw, ImageMath
@@ -1018,9 +1028,16 @@ class KEGGPathway(object):
         from obiData import FtpDownloader
         ftp = FtpDownloader("ftp.genome.jp", _join(), "pub/kegg/", numOfThreads=15)
         ftp.massRetrieve([png_path + pathway + ".png" for pathway in pathways])
+            
         if org != "map" :
-            ftp.massRetrieve([xml_path + pathway + ".xml" for pathway in pathways])
-            ftp.massRetrieve([xml_path.replace("metabolic", "non-metabolic") + pathway + ".xml" for pathway in pathways]) 
+            pathways = ftp.listdir(xml_path)
+            pathways = [p for p in pathways if p.endswith(".xml")]
+            ftp.massRetrieve([xml_path + pathway for pathway in pathways])
+            if org not in ["ec", "rn"]: # Add non-metabolic pathways to the download list
+                xml_path = xml_path.replace("metabolic", "non-metabolic")
+                pathways = ftp.listdir(xml_path)
+                pathways = [p for p in pathways if p.endswith(".xml")] 
+                ftp.massRetrieve([xml_path + pathway for pathway in pathways])
         ftp.massRetrieve([png_path + org + ".list"])
         return []
     
