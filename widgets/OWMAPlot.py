@@ -31,8 +31,6 @@ class ProgressBarDiscard(QObject):
                 self.redirect.progressBarSet(value)
             finally:
                 self._delay = False
-#        else:
-#            QTimer.singleShot(10, partial(self.redirect.progressBarSet, value))
         
         
 class OWMAPlot(OWWidget):
@@ -127,11 +125,9 @@ class OWMAPlot(OWWidget):
         self.data = None
         
         self.resize(800, 600)
-    
         
     def onFinished(self, status):
         self.setEnabled(True)
-    
     
     def onUnhandledException(self, ex_info):
         self.setEnabled(True)
@@ -143,24 +139,20 @@ class OWMAPlot(OWWidget):
         else:
             sys.excepthook(*ex_info)
     
-    
     def onGroupSelection(self):
         if self.data:
             self.updateInfoBox()
             self.splitData()
             self.runNormalization()
         
-        
     def onCenterMethodChange(self):
         if self.data:
             self.runNormalization()
-        
         
     def onMergeMethodChange(self):
         if self.data:
             self.splitData()
             self.runNormalization()
-        
         
     def proposeGroups(self, data):
         col_labels = [attr.attributes.items() for attr in data.domain.attributes]
@@ -185,16 +177,20 @@ class OWMAPlot(OWWidget):
         
         return col_labels + row_labels
     
-    
     def setData(self, data):
         self.closeContext("")
         self.data = data
-        self.error(0)
+        self.error([0 ,1])
         if data is not None:
             self.infoBox.setText("%i genes on input" % len(data))
             self.groups = self.proposeGroups(data)
             self.groupCombo.clear()
             self.groupCombo.addItems(["%s: %s" % (key, value) for key, value, axis in self.groups])
+            
+            if not self.groups:
+                self.error(1, "Input data has no class attribute or attribute labels!")
+                self.clear()
+                return
             
             self.openContext("", data)
             self.selectedGroup = min(self.selectedGroup, len(self.groups) - 1)
@@ -204,7 +200,6 @@ class OWMAPlot(OWWidget):
             self.runNormalization()
         else:
             self.clear()
-        
         
     def clear(self):
         self.groups = []
@@ -217,21 +212,17 @@ class OWMAPlot(OWWidget):
         self.send("Normalized expression array", None)
         self.send("Filtered expression array", None)
         
-        
     def updateInfoBox(self):
         genes = self.getGeneNames()
         self.infoBox.setText("%i genes on input" % len(self.data))
         
-        
     def getSelectedGroup(self):
         return self.groups[self.selectedGroup]
-    
     
     def getSelectedGroupSplit(self):
         key, value, axis = self.getSelectedGroup()
         other_values = [v for k, v, a in self.groups if k == key and a == axis and v != value]
         return [(key, value), (key, other_values)], axis
-    
     
     def getGeneNames(self):
         key, value, axis = self.getSelectedGroup()
@@ -242,12 +233,10 @@ class OWMAPlot(OWWidget):
             
         return genes
     
-    
     def splitData(self): 
         groups, axis = self.getSelectedGroupSplit()
         self.split_ind = [obiExpression.select_indices(self.data, key, value, axis) for key, value in groups]
         self.split_data = obiExpression.split_data(self.data, groups, axis)
-        
         
     def getMerged(self):
         split1, split2 = self.split_data
@@ -261,7 +250,6 @@ class OWMAPlot(OWWidget):
         self.merged_splits = merged1, merged2
         
         return self.merged_splits
-        
         
     def runNormalization(self):
         self.progressBarInit()
@@ -282,7 +270,6 @@ class OWMAPlot(OWWidget):
         self.progressBarSet(100.0)
         self.plotMA(Gc, Rc, self.z_scores, self.zCutoff)
         self.progressBarFinished()
-        
         
     def runNormalizationAsync(self):
         """ Run MA centering and z_score estimation in a separate thread 
