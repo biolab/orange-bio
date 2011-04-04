@@ -131,14 +131,8 @@ socket.setdefaulttimeout(60)
 
 verbose = 0
 
-def median(l):
-    if len(l) == 0:
-        return None
-    l = sorted(l)
-    if len(l) % 2 == 1: #odd
-        return l[len(l)/2]
-    else: #even
-        return (l[len(l)/2-1] + l[len(l)/2])/2.0
+import statc
+median = statc.median
 
 class HttpGetException(Exception): pass
 
@@ -1153,45 +1147,31 @@ def averageAttributes(data, joinc="DDB", fn=median):
 
     attributes = [ a for a in data.domain.attributes ]
     domain = data.domain
-
+    
     #accumulate values
-    valuesddb = dict( [ (at,{}) for at in attributes ])
 
     for ex in data:
-        #join attribute - ddb
         j = str(ex[joinc])
 
         if j not in valuess:
             valueso.append(j)
             valuess.add(j)
 
-        for a in attributes:
+    valuesddb = [ dict( (n,[]) for n in valueso) for at in attributes ]
+    
+    for ex in data:
+        j = str(ex[joinc])
+
+        for a in range(len(attributes)):
             val = ex[a]
-            l = valuesddb[a].get(j, [])
             if not val.isSpecial():
-                l.append(val.native())
-            valuesddb[a][j] = l
+                valuesddb[a][j].append(val.native())
 
-    #print "len valueso", len(valueso)
-    #print sorted(set([ str(ex[join]) for ex in data ]))
-
-    #apply function fn to each attribute
-
-    """
-    for i,at in enumerate(data.domain.attributes):
-        print valuesddb[at]["DDB_G0282817"], "CI" + data.annot["chipids"][i]
-    """
-
-    for a in attributes:
-        for n,v in valuesddb[a].items():
-            valuesddb[a][n] = floatOrUnknown(fn(v))
-            #if n == "DDB_G0282817": print valuesddb[a][n]
-
-    #create a new example table reusing the domain
+    #create a new example table reusing the domain - apply fn
     examples = []
     for v in valueso:
         example = orange.Example(domain, \
-            [ valuesddb[a][v] for a in attributes ] )
+            [ floatOrUnknown(fn(valuesddb[a][v])) for a in range(len(attributes)) ] )
         example[joinc] = v
         examples.append(example)
 
