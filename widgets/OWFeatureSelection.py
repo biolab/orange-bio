@@ -59,6 +59,18 @@ class ScoreHist(OWInteractiveHist):
         self.master.UpdateSelectedInfoLabel(low, hi)
         self.master.CommitIf()
             
+def disable_controls(method):
+    """ Disable the widget's control area during the duration of this call.
+    """
+    @wraps(method)
+    def f(self, *args, **kwargs):
+        self.controlArea.setDisabled(True)
+        qApp.processEvents()
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            self.controlArea.setDisabled(False)
+    return f
         
 class OWFeatureSelection(OWWidget):
     settingsList = ["methodIndex", "dataLabelIndex", "computeNullDistribution", "permutationsCount", "selectPValue", "autoCommit"]
@@ -101,32 +113,50 @@ class OWFeatureSelection(OWWidget):
         boxHistogram.layout().addWidget(self.histogram)
         self.histogram.show()
         
-        box = OWGUI.widgetBox(self.controlArea, "Info") #, addSpace=True)
+        box = OWGUI.widgetBox(self.controlArea, "Info")
         self.dataInfoLabel = OWGUI.widgetLabel(box, "\n\n")
         self.selectedInfoLabel = OWGUI.widgetLabel(box, "")
 
-        #self.testRadioBox = OWGUI.radioButtonsInBox(self.controlArea, self, "methodIndex", [sm[0] for sm in self.scoreMethods], box="Scoring Method", callback=self.Update, addSpace=True)
-        # OWGUI.comboBoxWithCaption(box, self, "ptype", items=nth(self.permutationTypes, 0), \
-        #             tooltip="Permutation type.", label="Permutate")
         box1 = OWGUI.widgetBox(self.controlArea, "Scoring Method")
-        self.testRadioBox = OWGUI.comboBox(box1, self, "methodIndex", items=[sm[0] for sm in self.scoreMethods], callback=self.Update)
-        self.dataLabelComboBox = OWGUI.comboBox(box1, self, "dataLabelIndex", "Attribute labels", callback=self.Update, tooltip="Use attribute labels for score computation")
-##        self.useClassCheck = OWGUI.checkBox(box1, self, "useClass", "Use class information", callback=self.Update, tooltip="Use class information for score computation", disables=[self.da)
-    
-        ZoomSelectToolbar(self, self.controlArea, self.histogram, buttons=[ZoomSelectToolbar.IconSelect, ZoomSelectToolbar.IconZoom, ZoomSelectToolbar.IconPan])
-#        OWGUI.separator(self.controlArea)
+        self.testRadioBox = OWGUI.comboBox(box1, self, "methodIndex",
+                                    items=[sm[0] for sm in self.scoreMethods],
+                                    callback=self.Update)
         
-        box = OWGUI.widgetBox(self.controlArea, "Selection") #, addSpace=True)
+        self.dataLabelComboBox = OWGUI.comboBox(box1, self, "dataLabelIndex", "Attribute labels",
+                                                callback=self.Update,
+                                                tooltip="Use attribute labels for score computation")
+    
+        ZoomSelectToolbar(self, self.controlArea, self.histogram,
+                          buttons=[ZoomSelectToolbar.IconSelect,
+                                   ZoomSelectToolbar.IconZoom,
+                                   ZoomSelectToolbar.IconPan])
+        
+        box = OWGUI.widgetBox(self.controlArea, "Selection")
         box.layout().setSpacing(0)
         callback = self.SetBoundary
-        self.upperBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.upperBoundary", min=-1e6, max=1e6, step= 1e-6, label="Upper threshold:", callback=callback, callbackOnReturn=True)
-        self.lowerBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.lowerBoundary", min=-1e6, max=1e6, step= 1e-6, label="Lower threshold:", callback=callback, callbackOnReturn=True)
-        check = OWGUI.checkBox(box, self, "computeNullDistribution", "Compute null distribution", callback=self.Update)
+        self.upperBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.upperBoundary",
+                                                  min=-1e6, max=1e6, step= 1e-6,
+                                                  label="Upper threshold:", 
+                                                  callback=callback, 
+                                                  callbackOnReturn=True)
+        
+        self.lowerBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.lowerBoundary", 
+                                                  min=-1e6, max=1e6, step= 1e-6, 
+                                                  label="Lower threshold:", 
+                                                  callback=callback, 
+                                                  callbackOnReturn=True)
+        
+        check = OWGUI.checkBox(box, self, "computeNullDistribution", "Compute null distribution",
+                               callback=self.Update)
 
-        check.disables.append(OWGUI.spin(box, self, "permutationsCount", min=1, max=10, label="Permutations:", callback=self.Update, callbackOnReturn=True))
+        check.disables.append(OWGUI.spin(box, self, "permutationsCount", min=1, max=10, 
+                                         label="Permutations:", callback=self.Update, 
+                                         callbackOnReturn=True))
 
         box1 = OWGUI.widgetBox(box, orientation='horizontal')
-        check.disables.append(OWGUI.doubleSpin(box1, self, "selectPValue" , min=2e-7, max=1.0, step=1e-7, label="P-value:"))
+        check.disables.append(OWGUI.doubleSpin(box1, self, "selectPValue", 
+                                               min=2e-7, max=1.0, step=1e-7, 
+                                               label="P-value:"))
         check.disables.append(OWGUI.button(box1, self, "Select", callback=self.SelectPBest))
         check.makeConsistent()
 
@@ -138,7 +168,8 @@ class OWFeatureSelection(OWWidget):
         b = OWGUI.button(box, self, "&Commit", callback=self.Commit)
         cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
         OWGUI.setStopper(self, b, cb, "dataChangedFlag", self.Commit)
-        OWGUI.checkBox(box, self, "addScoresToOutput", "Add gene scores to output", callback=self.CommitIf) 
+        OWGUI.checkBox(box, self, "addScoresToOutput", "Add gene scores to output",
+                       callback=self.CommitIf) 
         
         OWGUI.rubber(self.controlArea)
 
@@ -184,7 +215,7 @@ class OWFeatureSelection(OWWidget):
         self.dataLabelComboBox.setDisabled(len(self.dataLabels) <= 1)
         self.dataLabelIndex = max(min(self.dataLabelIndex, len(self.dataLabels) - 1), 0)
         
-        if not self.dataLabels:
+        if self.data and not self.dataLabels:
             self.error(1, "Cannot compute gene scores! Gene Selection widget requires a data-set with a discrete class variable or attribute labels!")
             self.data = None
         self.Update()
@@ -206,23 +237,18 @@ class OWFeatureSelection(OWWidget):
         dist = scoreFunc.null_distribution(permCount, target, advance=advance)
         return [score for run in dist for k, score in run if score is not ma.masked]
         
-    def disable_controls(method):
-        @wraps(method)
-        def f(self, *args, **kwargs):
-            self.controlArea.setDisabled(True)
-            qApp.processEvents()
-            try:
-                return method(self, *args, **kwargs)
-            finally:
-                self.controlArea.setDisabled(False)
-        return f
-                
-    @disable_controls
-    def Update(self):        
+    def Update(self):
         if not self.data:
             self.histogram.removeDrawingCurves()
             self.histogram.clear()
-            return
+            self.histogram.replot()
+        else:
+            self.UpdateScores()
+            
+    @disable_controls
+    def UpdateScores(self):
+        """ Compute the scores and update the histogram.
+        """
         targetLabel = self.dataLabels[self.dataLabelIndex]
         if targetLabel == "(None)":
             target = [self.data.domain.classVar(0), self.data.domain.classVar(1)]
