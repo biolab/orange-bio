@@ -7,6 +7,8 @@ from OWItemModels import PyListModel
 import Orange
 
 from collections import defaultdict
+import numpy
+import math
 
 def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
     """
@@ -73,6 +75,36 @@ def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
             sorted(elements, key=lambda x: relevant_vals(annotations[x] if isinstance(x,int) else x)))
         
     return ngroups
+
+def float_or_none(value):
+    return value.value if value.value != "?" else None
+
+def linearize(data, ids):
+    """ Returns a list of floats in the data subspace (or None's
+    if the values are unknown or not present. """
+    l = [ [ None ] * len(data) if id1 == None \
+        else [ float_or_none(ex[id1]) for ex in data ] for id1 in ids ]
+    l = reduce(lambda x,y: x+y, l)
+    return l
+
+def pearson_lists(l1, l2):
+    """ Returns pearson correlation between two lists. Ignores elements
+    which are None."""
+    okvals = [ (a,b) for a,b in zip(l1,l2) if a != None and b != None ]
+    return numpy.corrcoef([ [ v[0] for v in okvals], [ v[1] for v in okvals] ])[0,1]
+
+def euclidean_lists(l1, l2):
+    """ Returns pearson correlation between two lists. Ignores elements
+    which are None."""
+    okvals = [ (a,b) for a,b in zip(l1,l2) if a != None and b != None ]
+    return math.sqrt( sum((a-b)*(a-b) for a,b in okvals ))
+
+def dist_pcorr(l1, l2):
+    #normalized to 0..1
+    return (1-pearson_lists(l1, l2))/2
+
+def dist_eucl(l1, l2):
+    return euclidean_lists(l1, l2)
 
 class MyHeaderView(QHeaderView):
     def __init__(self, *args):
@@ -357,8 +389,16 @@ class OWGenotypeDistances(OWWidget):
         
         #Compute distances here
         
-        
-if __name__ == "__main__":
+data = Orange.data.Table("tmp.tab")
+partitions = separate_by(data, [ "genotype" ], consider=["tp", "replicate"]).items()
+print partitions
+l1 = linearize(data, partitions[0][1])
+l2 = linearize(data, partitions[1][1])
+print  dist_eucl(l1, l2)
+print  dist_pcorr(l1, l2)
+
+
+if __name__ == "__main1__":
     import os, sys
     app = QApplication(sys.argv )
     w = OWGenotypeDistances()
