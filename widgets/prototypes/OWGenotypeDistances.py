@@ -143,11 +143,17 @@ class KeyValueContextHandler(ContextHandler):
 class OWGenotypeDistances(OWWidget):
     contextHandlers = {"": KeyValueContextHandler("")}
     settingsList = []
+    
+    DISTANCE_FUNCTIONS = [("Euclidean distance", dist_eucl),
+                          ("Pearson correlation", dist_pcorr)]
+    
     def __init__(self, parent=None, signalManager=None, title="Genotype Distances"):
         OWWidget.__init__(self, parent, signalManager, title)
         
         self.inputs = [("Example Table", ExampleTable, self.set_data)]
         self.outputs = [("Distances", Orange.core.SymMatrix)]
+        
+        self.distance_measure = 0
         
         self.loadSettings()
         
@@ -157,7 +163,7 @@ class OWGenotypeDistances(OWWidget):
         
         self.info_box = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info",
                                                          addSpace=True),
-                                         "No data on input")
+                                         "No data on input\n\n")
         
         box = OWGUI.widgetBox(self.controlArea, "Separate By",
                               addSpace=True)
@@ -174,7 +180,9 @@ class OWGenotypeDistances(OWWidget):
         box.layout().addWidget(self.relevant_view)
         
         self.distance_view = OWGUI.comboBox(self.controlArea, self, "distance_measure",
-                                            box="Distance Measure")
+                                            box="Distance Measure",
+                                            items=[d[0] for d in self.DISTANCE_FUNCTIONS])
+        
         self.groups_box = OWGUI.widgetBox(self.mainArea, "Groups")
         self.groups_scroll_area = QScrollArea()
         self.groups_box.layout().addWidget(self.groups_scroll_area)
@@ -194,14 +202,17 @@ class OWGenotypeDistances(OWWidget):
         self.clear()
         self.data = data
         if data:
+            self.info_box.setText("Table with:\n {0} instances\nand\n {1} features".format(len(data), len(data.domain)))
             self.update_control()
             self.split_data()
+        else:
+            self.info_box.setText("No data on input.\n\n")
             
     def update_control(self):
         """ Update the control area of the widget. Populate the list
         views with keys from attribute labels.
         """
-        attrs = [attr.attributes.items() for attr in data.domain.attributes]
+        attrs = [attr.attributes.items() for attr in self.data.domain.attributes]
         attrs = reduce(set.union, attrs, set())
         values = defaultdict(set)
         for key, value in attrs:
@@ -281,14 +292,14 @@ class OWGenotypeDistances(OWWidget):
         
         if not separate_keys:
             return
-        ann = separate_by(self.data, separate_keys, consider=relevant_keys)
-        print ann
+        partitions = separate_by(self.data, separate_keys, consider=relevant_keys).items()
+        print partitions
         
         split_data = []
         
         # Collect relevant key value pairs for all columns
         relevant_items = {}
-        for keys, indices in sorted(ann.items()):
+        for keys, indices in sorted(partitions):
             for i, ind in enumerate(indices):
                 if ind is not None:
                     attr = self.data.domain[ind]
@@ -303,13 +314,15 @@ class OWGenotypeDistances(OWWidget):
             else:
                 return self.data.domain[attr_index]
             
-        for keys, indices in sorted(ann.items()):
+        for keys, indices in sorted(partitions):
             attrs = [get_attr(attr_index, i) for i, attr_index in enumerate(indices)]
             domain = Orange.data.Domain(attrs, None)
             newdata = Orange.data.Table(domain, self.data)
             split_data.append((keys, newdata))
             
         self.set_groups(separate_keys, split_data, relevant_keys)
+        
+        self.update_distances(separate_keys, partitions, self.data)
         
     def set_groups(self, keys, groups, relevant_keys):
         """ Set the current data groups and update the Group widget
@@ -319,7 +332,7 @@ class OWGenotypeDistances(OWWidget):
         header_views = []
         palette = self.palette()
         for ann_vals, table in groups:
-            label = QLabel(" <b>|</b> ".join(["<b>{0}</b> = {1}".format(key,val) \
+            label = QLabel(" <b>|</b> ".join(["<b>{0}</ b> = {1}".format(key,val) \
                                      for key, val in zip(keys, ann_vals)]))
             
             model = QStandardItemModel()
@@ -387,18 +400,34 @@ class OWGenotypeDistances(OWWidget):
         widget.setMinimumWidth(max_width + left + right)
         self.groups_scroll_area.setWidget(widget)
         
-        #Compute distances here
+    def update_distances(self, separate_keys, partitions, data):
+        """ Compute the distances between genotypes.
+        """
+        matrix = Orange.core.SymMatrix(len(partitions))
+        profiles = [linearize(data, indices) for _, indices in partitions]
+        dist_func = self.DISTANCE_FUNCTIONS[self.distance_measure][1]
+        from Orange.misc import progressBarMilestones
+        count = (len(profiles) * len(profiles) - 1) / 2
+        milestones = progressBarMilestones(count)
+        iter_count = 0
+        self.progressBarInit()
+        for i in range(len(profiles)):
+            for j in range(i + 1, len(profiles)):
+                matrix[i, j] = dist_func(profiles[i], profiles[j])
+                iter_count += 1
+                if iter_count in milestones:
+                    self.progressBarSet(100.0 * iter_count / count)
+        self.progressBarFinished()
         
-data = Orange.data.Table("tmp.tab")
-partitions = separate_by(data, [ "genotype" ], consider=["tp", "replicate"]).items()
-print partitions
-l1 = linearize(data, partitions[0][1])
-l2 = linearize(data, partitions[1][1])
-print  dist_eucl(l1, l2)
-print  dist_pcorr(l1, l2)
+        items = [["{0}={1}".format(key, value) for key, value in zip(separate_keys, values)] \
+                  for values, _ in partitions]
+        items = [" | ".join(item) for item in items]
+        matrix.items = items
+        
+        self.send("Distances", matrix)
+    
 
-
-if __name__ == "__main1__":
+if __name__ == "__main__":
     import os, sys
     app = QApplication(sys.argv )
     w = OWGenotypeDistances()
@@ -408,5 +437,14 @@ if __name__ == "__main1__":
     w.show()
     app.exec_()
     w.saveSettings()
+    
+#    data = Orange.data.Table("tmp.tab")
+#    partitions = separate_by(data, [ "genotype" ], consider=["tp", "replicate"]).items()
+#    print partitions
+#    l1 = linearize(data, partitions[0][1])
+#    l2 = linearize(data, partitions[1][1])
+#    print  dist_eucl(l1, l2)
+#    print  dist_pcorr(l1, l2)
+
     
 
