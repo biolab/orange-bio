@@ -120,7 +120,6 @@ class KeyValueContextHandler(ContextHandler):
     def match(self, context, imperfect, items):
         items = set(items)
         saved_items = set(getattr(context, "items", []))
-        print "Saved Context", saved_items  
         if imperfect:
             return len(items.intersection(saved_items))/len(items.union(saved_items))
         else:
@@ -154,6 +153,8 @@ class OWGenotypeDistances(OWWidget):
         self.outputs = [("Distances", Orange.core.SymMatrix)]
         
         self.distance_measure = 0
+        self.auto_commit = False
+        self.changed_flag = False
         
         self.loadSettings()
         
@@ -183,17 +184,34 @@ class OWGenotypeDistances(OWWidget):
                                             box="Distance Measure",
                                             items=[d[0] for d in self.DISTANCE_FUNCTIONS])
         
+        OWGUI.rubber(self.controlArea)
+        
+        box = OWGUI.widgetBox(self.controlArea, "Commit")
+        cb = OWGUI.checkBox(box, self, "auto_commit", "Commit on any change",
+                            tooltip="Compute and send the distances on any change.",
+                            callback=self.commit_if)
+        
+        b = OWGUI.button(box, self, "Commit",
+                         tooltip="Compute and send the distances.",
+                         callback=self.commit)
+        
+        OWGUI.setStopper(self, b, cb, "changed_flag", callback=self.commit)
+        
         self.groups_box = OWGUI.widgetBox(self.mainArea, "Groups")
         self.groups_scroll_area = QScrollArea()
         self.groups_box.layout().addWidget(self.groups_scroll_area)
         
         self.data = None
+        self.partitions = []
+        self.matrix = None
         self._disable_updates = False
         
         self.resize(800, 600)
         
     def clear(self):
-        pass
+        self.data = None
+        self.partitions = []
+        self.matrix = None
         
     def set_data(self, data=None):
         """ Set the input example table.
@@ -206,7 +224,12 @@ class OWGenotypeDistances(OWWidget):
             self.update_control()
             self.split_data()
         else:
+            self.separate_view.setModel(PyListModel([]))
+            self.relevant_view.setModel(PyListModel([]))
+            self.groups_scroll_area.setWidget(QWidget())
             self.info_box.setText("No data on input.\n\n")
+            
+        self.commit_if()
             
     def update_control(self):
         """ Update the control area of the widget. Populate the list
@@ -293,7 +316,7 @@ class OWGenotypeDistances(OWWidget):
         if not separate_keys:
             return
         partitions = separate_by(self.data, separate_keys, consider=relevant_keys).items()
-        print partitions
+#        print partitions
         
         split_data = []
         
@@ -309,7 +332,7 @@ class OWGenotypeDistances(OWWidget):
         def get_attr(attr_index, i):
             if attr_index is None:
                 attr = Orange.data.variable.Continuous("missing")
-                attr.attributes.update(relevant_items[i])
+                attr.attributes.update(relevant_items.get(i, []))
                 return attr
             else:
                 return self.data.domain[attr_index]
@@ -322,7 +345,8 @@ class OWGenotypeDistances(OWWidget):
             
         self.set_groups(separate_keys, split_data, relevant_keys)
         
-        self.update_distances(separate_keys, partitions, self.data)
+        self.partitions = partitions
+#        self.update_distances(separate_keys, partitions, self.data)
         
     def set_groups(self, keys, groups, relevant_keys):
         """ Set the current data groups and update the Group widget
@@ -339,7 +363,7 @@ class OWGenotypeDistances(OWWidget):
             for i, attr in enumerate(table.domain.attributes):
                 item = QStandardItem()
                 if attr.name != "missing":
-                    header_text = ["{0}={1}".format(key, attr.attributes[key]) \
+                    header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
                                    for key in relevant_keys]
                     header_text = "\n".join(header_text)
                     item.setData(QVariant(header_text), Qt.DisplayRole)
@@ -347,7 +371,7 @@ class OWGenotypeDistances(OWWidget):
                     
                 else:
 #                    header_text = "\n".join("{0}=?".format(key) for key in relevant_keys)
-                    header_text = ["{0}={1}".format(key, attr.attributes[key]) \
+                    header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
                                    for key in relevant_keys]
                     header_text = "\n".join(header_text)
                     item.setData(QVariant(header_text), Qt.DisplayRole)
@@ -400,31 +424,47 @@ class OWGenotypeDistances(OWWidget):
         widget.setMinimumWidth(max_width + left + right)
         self.groups_scroll_area.setWidget(widget)
         
-    def update_distances(self, separate_keys, partitions, data):
+    def compute_distances(self, separate_keys, partitions, data):
         """ Compute the distances between genotypes.
         """
-        matrix = Orange.core.SymMatrix(len(partitions))
-        profiles = [linearize(data, indices) for _, indices in partitions]
-        dist_func = self.DISTANCE_FUNCTIONS[self.distance_measure][1]
-        from Orange.misc import progressBarMilestones
-        count = (len(profiles) * len(profiles) - 1) / 2
-        milestones = progressBarMilestones(count)
-        iter_count = 0
-        self.progressBarInit()
-        for i in range(len(profiles)):
-            for j in range(i + 1, len(profiles)):
-                matrix[i, j] = dist_func(profiles[i], profiles[j])
-                iter_count += 1
-                if iter_count in milestones:
-                    self.progressBarSet(100.0 * iter_count / count)
-        self.progressBarFinished()
+        if separate_keys and partitions:
+            matrix = Orange.core.SymMatrix(len(partitions))
+            profiles = [linearize(data, indices) for _, indices in partitions]
+            dist_func = self.DISTANCE_FUNCTIONS[self.distance_measure][1]
+            from Orange.misc import progressBarMilestones
+            count = (len(profiles) * len(profiles) - 1) / 2
+            milestones = progressBarMilestones(count)
+            iter_count = 0
+            self.progressBarInit()
+            for i in range(len(profiles)):
+                for j in range(i + 1, len(profiles)):
+                    matrix[i, j] = dist_func(profiles[i], profiles[j])
+                    iter_count += 1
+                    if iter_count in milestones:
+                        self.progressBarSet(100.0 * iter_count / count)
+            self.progressBarFinished()
+            
+            items = [["{0}={1}".format(key, value) for key, value in zip(separate_keys, values)] \
+                      for values, _ in partitions]
+            items = [" | ".join(item) for item in items]
+            matrix.items = items
+        else:
+            matrix = None
+            
+        self.matrix = matrix
         
-        items = [["{0}={1}".format(key, value) for key, value in zip(separate_keys, values)] \
-                  for values, _ in partitions]
-        items = [" | ".join(item) for item in items]
-        matrix.items = items
-        
-        self.send("Distances", matrix)
+    def commit_if(self):
+        if self.auto_commit and self.changed_flag:
+            self.commit()
+        else:
+            self.changed_flag = True
+            
+    def commit(self):
+        self.compute_distances(self.selected_separeate_by_keys(),
+                               self.partitions,
+                               self.data)
+        self.send("Distances", self.matrix)
+        self.changed_flag = False
     
 
 if __name__ == "__main__":
