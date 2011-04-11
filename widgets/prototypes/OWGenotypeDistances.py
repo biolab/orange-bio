@@ -143,8 +143,8 @@ class OWGenotypeDistances(OWWidget):
     contextHandlers = {"": KeyValueContextHandler("")}
     settingsList = []
     
-    DISTANCE_FUNCTIONS = [("Euclidean distance", dist_eucl),
-                          ("Pearson correlation", dist_pcorr)]
+    DISTANCE_FUNCTIONS = [("Pearson correlation", dist_pcorr),
+                          ("Euclidean distance", dist_eucl)]
     
     def __init__(self, parent=None, signalManager=None, title="Genotype Distances"):
         OWWidget.__init__(self, parent, signalManager, title)
@@ -152,7 +152,7 @@ class OWGenotypeDistances(OWWidget):
         self.inputs = [("Example Table", ExampleTable, self.set_data)]
         self.outputs = [("Distances", Orange.core.SymMatrix)]
         
-        self.distance_measure = 1
+        self.distance_measure = 0
         self.auto_commit = False
         self.changed_flag = False
         
