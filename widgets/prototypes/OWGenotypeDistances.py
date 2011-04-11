@@ -10,6 +10,17 @@ from collections import defaultdict
 import numpy
 import math
 
+def data_type(vals):
+    try:
+        _ = [ int(a) for a in vals ]
+        return int
+    except:
+        try:
+            _ = [ float(a) for a in vals ]
+            return float
+        except:
+            return None
+
 def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
     """
     data - the data - annotations are saved in the at.attributes
@@ -28,15 +39,7 @@ def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
 
     types = {}
     for k,vals in all_values.iteritems():
-        try:
-            _ = [ int(a) for a in vals ]
-            types[k] = int
-        except:
-            try:
-                _ = [ float(a) for a in vals ]
-                types[k] = float
-            except:
-                types[k] = None
+        types[k] = data_type(vals)
     
     groups = defaultdict(list)
     for i,a in enumerate(annotations):
@@ -335,9 +338,14 @@ class OWGenotypeDistances(OWWidget):
         if not separate_keys:
             self.warning(0, "No separate by attribute selected.")
         partitions = separate_by(self.data, separate_keys, consider=relevant_keys).items()
-#        print partitions
-        
-        partitions = sorted(partitions)
+
+        pkeys = [ key for key,_ in partitions ]
+        types = [ data_type([a[i] for a in pkeys]) for i in range(len(pkeys[0])) ]
+
+        partitions = sorted(partitions, key=lambda x:
+                    tuple(v if types[i] == None else types[i](v)
+                    for i,v in enumerate(x[0])))
+
         split_data = []
         
         # Collect relevant key value pairs for all columns
@@ -357,7 +365,7 @@ class OWGenotypeDistances(OWWidget):
             else:
                 return self.data.domain[attr_index]
             
-        for keys, indices in sorted(partitions):
+        for keys, indices in partitions:
             attrs = [get_attr(attr_index, i) for i, attr_index in enumerate(indices)]
             domain = Orange.data.Domain(attrs, None)
             newdata = Orange.data.Table(domain)#, self.data)
