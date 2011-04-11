@@ -213,12 +213,30 @@ class OWGenotypeDistances(OWWidget):
         self.partitions = []
         self.matrix = None
         
+    def get_suitable_keys(self, data):
+        """ Return suitable attr label keys from the data where the key has at least
+        two unique values in the data.
+        
+        """
+        attrs = [attr.attributes.items() for attr in data.domain.attributes]
+        attrs = reduce(set.union, attrs, set())
+        values = defaultdict(set)
+        for key, value in attrs:
+            values[key].add(value)
+        keys = [key for key in values if len(values[key]) > 1]
+        return keys
+        
     def set_data(self, data=None):
         """ Set the input example table.
         """
         self.closeContext()
         self.clear()
         self.data = data
+        self.error(0)
+        if data and not self.get_suitable_keys(data):
+            self.error(0, "Data has no suitable attribute labels.")
+            data = None
+            
         if data:
             self.info_box.setText("Table with:\n {0} instances\nand\n {1} features".format(len(data), len(data.domain)))
             self.update_control()
@@ -340,7 +358,7 @@ class OWGenotypeDistances(OWWidget):
         for keys, indices in sorted(partitions):
             attrs = [get_attr(attr_index, i) for i, attr_index in enumerate(indices)]
             domain = Orange.data.Domain(attrs, None)
-            newdata = Orange.data.Table(domain, self.data)
+            newdata = Orange.data.Table(domain)#, self.data)
             split_data.append((keys, newdata))
             
         self.set_groups(separate_keys, split_data, relevant_keys)
