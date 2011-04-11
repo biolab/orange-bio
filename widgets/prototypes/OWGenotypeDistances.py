@@ -104,7 +104,7 @@ def dist_pcorr(l1, l2):
     return (1-pearson_lists(l1, l2))/2
 
 def dist_eucl(l1, l2):
-    return euclidean_lists(l1, l2)
+    return euclidean_lists(l1, l2)    
 
 class MyHeaderView(QHeaderView):
     def __init__(self, *args):
@@ -152,7 +152,7 @@ class OWGenotypeDistances(OWWidget):
         self.inputs = [("Example Table", ExampleTable, self.set_data)]
         self.outputs = [("Distances", Orange.core.SymMatrix)]
         
-        self.distance_measure = 0
+        self.distance_measure = 1
         self.auto_commit = False
         self.changed_flag = False
         
@@ -162,23 +162,22 @@ class OWGenotypeDistances(OWWidget):
         # GUI
         ########
         
-        self.info_box = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info",
+        self.info_box = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Input",
                                                          addSpace=True),
-                                         "No data on input\n\n")
+                                         "No data on input\n")
+        
+        box = OWGUI.widgetBox(self.controlArea, "Relevant attributes",
+                              addSpace=True)
+        self.relevant_view = QListView()
+        self.relevant_view.setSelectionMode (QListView.MultiSelection)
+        box.layout().addWidget(self.relevant_view)
         
         box = OWGUI.widgetBox(self.controlArea, "Separate By",
                               addSpace=True)
-        
         self.separate_view = QListView()
         self.separate_view.setSelectionMode(QListView.MultiSelection)
         box.layout().addWidget(self.separate_view)
         
-        box = OWGUI.widgetBox(self.controlArea, "Relevant attributes",
-                              addSpace=True)
-        
-        self.relevant_view = QListView()
-        self.relevant_view.setSelectionMode (QListView.MultiSelection)
-        box.layout().addWidget(self.relevant_view)
         
         self.distance_view = OWGUI.comboBox(self.controlArea, self, "distance_measure",
                                             box="Distance Measure",
@@ -233,19 +232,20 @@ class OWGenotypeDistances(OWWidget):
         self.clear()
         self.data = data
         self.error(0)
+        self.warning(0)
         if data and not self.get_suitable_keys(data):
             self.error(0, "Data has no suitable attribute labels.")
             data = None
             
         if data:
-            self.info_box.setText("Table with:\n {0} instances\nand\n {1} features".format(len(data), len(data.domain)))
+            self.info_box.setText("{0} genes\n{1} experiments".format(len(data), len(data.domain)))
             self.update_control()
             self.split_data()
         else:
             self.separate_view.setModel(PyListModel([]))
             self.relevant_view.setModel(PyListModel([]))
             self.groups_scroll_area.setWidget(QWidget())
-            self.info_box.setText("No data on input.\n\n")
+            self.info_box.setText("No data on input.\n")
             
         self.commit_if()
             
@@ -331,16 +331,18 @@ class OWGenotypeDistances(OWWidget):
         separate_keys = self.selected_separeate_by_keys()
         relevant_keys = self.selected_relevant_keys()
         
+        self.warning(0)
         if not separate_keys:
-            return
+            self.warning(0, "No separate by attribute selected.")
         partitions = separate_by(self.data, separate_keys, consider=relevant_keys).items()
 #        print partitions
         
+        partitions = sorted(partitions)
         split_data = []
         
         # Collect relevant key value pairs for all columns
         relevant_items = {}
-        for keys, indices in sorted(partitions):
+        for keys, indices in partitions:
             for i, ind in enumerate(indices):
                 if ind is not None:
                     attr = self.data.domain[ind]
