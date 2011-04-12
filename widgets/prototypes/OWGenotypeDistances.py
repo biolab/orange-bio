@@ -169,18 +169,17 @@ class OWGenotypeDistances(OWWidget):
                                                          addSpace=True),
                                          "No data on input\n")
         
-        box = OWGUI.widgetBox(self.controlArea, "Relevant attributes",
-                              addSpace=True)
-        self.relevant_view = QListView()
-        self.relevant_view.setSelectionMode (QListView.MultiSelection)
-        box.layout().addWidget(self.relevant_view)
-        
         box = OWGUI.widgetBox(self.controlArea, "Separate By",
                               addSpace=True)
         self.separate_view = QListView()
         self.separate_view.setSelectionMode(QListView.MultiSelection)
         box.layout().addWidget(self.separate_view)
         
+        box = OWGUI.widgetBox(self.controlArea, "Sort By",
+                              addSpace=True)
+        self.relevant_view = QListView()
+        self.relevant_view.setSelectionMode (QListView.MultiSelection)
+        box.layout().addWidget(self.relevant_view)
         
         self.distance_view = OWGUI.comboBox(self.controlArea, self, "distance_measure",
                                             box="Distance Measure",
@@ -214,6 +213,7 @@ class OWGenotypeDistances(OWWidget):
         self.data = None
         self.partitions = []
         self.matrix = None
+        self.send("Distances", None)
         
     def get_suitable_keys(self, data):
         """ Return suitable attr label keys from the data where the key has at least
@@ -221,7 +221,10 @@ class OWGenotypeDistances(OWWidget):
         
         """
         attrs = [attr.attributes.items() for attr in data.domain.attributes]
-        attrs = reduce(set.union, attrs, set())
+        attrs  = reduce(list.__add__, attrs, [])
+        # in case someone put non string values in attributes dict
+        attrs = [(str(key), str(value)) for key, value in attrs]
+        attrs = set(attrs)
         values = defaultdict(set)
         for key, value in attrs:
             values[key].add(value)
@@ -290,13 +293,13 @@ class OWGenotypeDistances(OWWidget):
                 
         self._disable_updates = True
         try:
-            select(self.separate_view.model(),
-                   self.separate_view.selectionModel(),
-                   separate_keys)
-            
             select(self.relevant_view.model(),
                    self.relevant_view.selectionModel(),
                    relevant_keys)
+            
+            select(self.separate_view.model(),
+                   self.separate_view.selectionModel(),
+                   separate_keys)
         finally:
             self._disable_updates = False
         
