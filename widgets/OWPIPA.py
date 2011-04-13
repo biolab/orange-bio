@@ -240,6 +240,9 @@ class SelectionByKey(object):
         for i in range(model.rowCount()):
             if self._row_key(model, i) in self._selected_keys:
                 selectionModel.select(model.index(i, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+
+    def __len__(self):
+        return len(self._selected_keys)
                 
 class SortedListWidget(QWidget):
     class _MyItemDelegate(QStyledItemDelegate):
@@ -436,7 +439,8 @@ class OWPIPA(OWWidget):
         OWGUI.checkBox(self.controlArea, self, "joinreplicates", "Average replicates (use median)" )
         OWGUI.checkBox(self.controlArea, self, "log2", "Logarithmic (base 2) transformation" )
 
-        OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
+        self.commit_button = OWGUI.button(self.controlArea, self, "&Commit", callback=self.Commit)
+        self.commit_button.setDisabled(True)
 
         OWGUI.rubber(self.controlArea)
         OWGUI.rubber(self.controlArea)
@@ -621,6 +625,8 @@ class OWPIPA(OWWidget):
         if self.currentSelection:
             self.currentSelection.select(self.experimentsWidget.selectionModel())
 
+        self.handle_commit_button()
+
     def UpdateCached(self):
         if self.wantbufver and self.dbc:
             fn = self.dbc.chips_keynaming(self.ctype())
@@ -666,36 +672,42 @@ class OWPIPA(OWWidget):
             # need 'id' labels in join_replicates for attribute names
             allowed_labels.append("id")
         
-        table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn, allowed_labels=allowed_labels, ctype=self.ctype())
+        if len(ids):
+            table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn, allowed_labels=allowed_labels, ctype=self.ctype())
 
-        if self.joinreplicates:
-            table = obiDicty.join_replicates(table, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=obiDicty.median)
+            if self.joinreplicates:
+                table = obiDicty.join_replicates(table, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=obiDicty.median)
 
-        end = int(time.time()-start)
-        
+            end = int(time.time()-start)
+            
+
+            # Sort attributes
+            sortOrder = self.columnsSortingWidget.sortingOrder
+            # print sortOrder
+            
+            attributes = sorted(table.domain.attributes, key=lambda attr: tuple([attr.attributes.get(keys[name], "") for name in sortOrder]))
+            domain = orange.Domain(attributes, table.domain.classVar)
+            domain.addmetas(table.domain.getmetas())
+            table = orange.ExampleTable(domain, table)
+            
+            from orngDataCaching import data_hints
+            data_hints.set_hint(table, "taxid", "352472") 
+            data_hints.set_hint(table, "genesinrows", False)
+            
+            self.send("Example table", table)
+
+            self.UpdateCached()
+
         pb.finish()
 
-        # Sort attributes
-        sortOrder = self.columnsSortingWidget.sortingOrder
-#        print sortOrder
-        
-        attributes = sorted(table.domain.attributes, key=lambda attr: tuple([attr.attributes.get(keys[name], "") for name in sortOrder]))
-        domain = orange.Domain(attributes, table.domain.classVar)
-        domain.addmetas(table.domain.getmetas())
-        table = orange.ExampleTable(domain, table)
-        
-        from orngDataCaching import data_hints
-        data_hints.set_hint(table, "taxid", "352472") 
-        data_hints.set_hint(table, "genesinrows", False)
-        
-        self.send("Example table", table)
-
-        self.UpdateCached()
-
     def onSelectionChanged(self, selected, deselected):
+        self.handle_commit_button()
+        
+    def handle_commit_button(self):
         self.currentSelection = SelectionByKey(self.experimentsWidget.selectionModel().selection(),
                                                key=(1, 2, 3, 9))
-        
+        self.commit_button.setDisabled(not len(self.currentSelection))
+
     def saveHeaderState(self):
         hview = self.experimentsWidget.header()
         for i, label in enumerate(self.headerLabels):

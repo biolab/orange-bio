@@ -127,12 +127,20 @@ def issequencens(x):
 
 #end utility functions
 
+import statc
+#median = statc.median
+
+def median(l):
+    if len(l) == 0:
+        return None
+    else:
+        return statc.median(l)
+
+
+
 socket.setdefaulttimeout(60)
 
 verbose = 0
-
-import statc
-median = statc.median
 
 class HttpGetException(Exception): pass
 
@@ -612,9 +620,7 @@ class PIPA(DBCommon):
         cbc = CallBack(1, optcb, callbacks=10)
 
         if not ids:
-            #returns ids of elements that match the search function
-            #FIXME do a search
-            searchNotDone
+            return None
 
         cbc.end()
 
@@ -1103,7 +1109,7 @@ def createExampleTable(names, vals, annots, ddb, cname="DDB", \
     #print oknames
 
     for a,an in zip(attributes, annots):
-        a.setattr("attributes", dict([(name,val) for name,val in an if name in oknames]))
+        a.setattr("attributes", dict([(name,str(val)) for name,val in an if name in oknames]))
 
     domain = orange.Domain(attributes, False)
     ddbv = orange.StringVariable(cname)
@@ -1330,7 +1336,7 @@ def join_ats(atts):
         if len(s) == 1:
             od[k] = list(s)[0]
         else:
-            od[k] = [ at[k] for at in atts ]
+            od[k] = str([ at[k] for at in atts ])
     return od
 
 def join_replicates(data, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=median):
@@ -1488,11 +1494,12 @@ if __name__=="__main__":
     print d.annotations().items()[0]
     print ("annots", d.annotations().items()[:2])
 
-    allids = map(str, [ 151, 150 ])
+    allids = map(str, allids)
 
     import math
 
-    #data = d.get_data(ids=allids)
-    data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2), allowed_labels=["strain"], ctype="3")
+    data = d.get_data(ids=allids, ctype="3")
+
+    #data = d.get_data(ids=allids, transform=lambda x: math.log(x+1, 2), allowed_labels=["strain"], ctype="3")
 
     printet(data)
