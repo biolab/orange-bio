@@ -708,7 +708,7 @@ class OWHeatMap(OWWidget):
             y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + c_spaceAverageX)
             
             if self.attrCluster and self.ShowClustering:
-                item = HierarchicalClusterItem(self.attrCluster, None, self.scene)
+                item = HierarchicalClusterItem.create(self.attrCluster, None, self.scene)
                 item.setSize(self.widths[i], 100.0)
                 item.scale(1.0, -1.0)
                 item.setPos(x + self.CellWidth/2.0, y + 100.0)
@@ -724,7 +724,7 @@ class OWHeatMap(OWWidget):
                 if not i: self.imgStart.append(y)
                 ycoord.append(y)
                 if showClusters:
-                    item = HierarchicalClusterItem(self.groupClusters[g], None, self.scene)
+                    item = HierarchicalClusterItem.create(self.groupClusters[g], None, self.scene)
                     item.setSize(self.heights[g], 100.0)
 #                    item.setTransform(QTransform().scale(100.0/item.rect().height(), self.heights[g]/float(len(item.cluster))).\
 #                                    rotate(90).translate(0, -item.rect().height()))
@@ -1217,7 +1217,7 @@ if __name__=="__main__":
     ow = OWHeatMap()
 
     fn = "/home/marko/pipa4.tab"
-
+    
     ow.dataset(orange.ExampleTable(fn), 0)
     ow.handleNewSignals()
     ow.show()
