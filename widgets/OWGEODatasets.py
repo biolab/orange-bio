@@ -20,6 +20,8 @@ from functools import partial
 
 LOCAL_GDS_COLOR = Qt.darkGreen
 
+TextFilterRole = OWGUI.OrangeUserRole.next()
+
 class TreeModel(QAbstractItemModel):
     def __init__(self, data, header, parent):
         QAbstractItemModel.__init__(self, parent)
@@ -75,6 +77,82 @@ class TreeModel(QAbstractItemModel):
         
     def setHeaderData(self, section, orientation, value, role=Qt.EditRole):
         self._header[orientation][section][role] = value
+        
+class MySortFilterProxyModel(QSortFilterProxyModel):    
+    def __init__(self, parent=None):
+        QSortFilterProxyModel.__init__(self, parent)
+        self._filter_strings = []
+        self._cache = {}
+        self._cache_fixed = {}
+        self._cache_prefix = {}
+        self._row_text = {}
+    
+#    def setFilterFixedStrings(self, strings, op="AND"):
+#        self._filter_strings = strings
+#        for string in strings:
+#            for row in range(self.sourceModel().rowCount()):
+#                self._cache[row]
+#        self._op = op
+#        self.invalidate()
+
+    def setSourceModel(self, model):
+        self._filter_strings = []
+        self._cache = {}
+        self._cache_fixed = {}
+        self._cache_prefix = {}
+        self._row_text = {}
+        QSortFilterProxyModel.setSourceModel(self, model)
+        
+    def addFilterFixedString(self, string, invalidate=True):
+        self._filter_strings.append(string)
+        all_rows = range(self.sourceModel().rowCount())
+        row_text = [self.rowFilterText(row) for row in all_rows]
+        self._cache[string] = [string in text for text in row_text]
+        if invalidate:
+            self.updateCached()
+            self.invalidate()
+        
+    def removeFilterFixedString(self, index=-1, invalidate=True):
+        string = self._filter_strings.pop(index)
+        del self._cache[string]
+        if invalidate:
+            self.updateCached()
+            self.invalidate()
+            
+    def setFilterFixedStrings(self, strings):
+        s_time = time.time()
+        to_remove = set(self._filter_strings) - set(strings)
+        to_add = set(strings) - set(self._filter_strings)
+        for str in to_remove:
+            self.removeFilterFixedString(self._filter_strings.index(str), invalidate=False)
+        
+        for str in to_add:
+            self.addFilterFixedString(str, invalidate=False)
+        self.updateCached()
+        self.invalidate()
+            
+    def updateCached(self):
+        all_rows = range(self.sourceModel().rowCount())
+        self._cache_fixed = dict([(row, all([self._cache[str][row] for str in self._filter_strings])) for row in all_rows])
+        
+    def setFilterFixedString(self, string):
+        QSortFilterProxyModel.setFilterFixedString(self, string)
+        
+    def rowFilterText(self, row):
+        f_role = self.filterRole()
+        f_column = self.filterKeyColumn()
+        s_model = self.sourceModel()
+        data = s_model.data(s_model.index(row, f_column), f_role)
+        if isinstance(data, QVariant):
+            data = unicode(data.toString(), errors="ignore")
+        else:
+            data = unicode(data, errors="ignore")
+        return data
+        
+    def filterAcceptsRow(self, row, parent):
+##        accepts = QSortFilterProxyModel.filterAcceptsRow(self, row, parent) 
+        return self._cache_fixed.get(row, True) #and accepts
+    
     
 from OWGUI import LinkStyledItemDelegate, LinkRole
 
@@ -137,6 +215,7 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.setRootIsDecorated(False)
         self.treeWidget.setSortingEnabled(True)
         self.treeWidget.setAlternatingRowColors(True)
+        self.treeWidget.setUniformRowHeights(True)
         self.treeWidget.setItemDelegate(LinkStyledItemDelegate(self.treeWidget))
         self.treeWidget.setItemDelegateForColumn(0, OWGUI.IndicatorItemDelegate(self.treeWidget, role=Qt.DisplayRole))
         
@@ -171,9 +250,9 @@ class OWGEODatasets(OWWidget):
         self.resize(1000, 600)
 
     def updateInfo(self):
-        gds_info = obiGEO.GDSInfo()
+        gds_info = self.gds_info #obiGEO.GDSInfo()
         text = "%i datasets\n%i datasets cached\n" % (len(gds_info), len(glob.glob(orngServerFiles.localpath("GEO") + "/GDS*")))
-        filtered = len([row for row in range(len(self.cells)) if self.rowFiltered(row)])
+        filtered = self.treeWidget.model().rowCount()
         if len(self.cells) != filtered:
             text += ("%i after filtering") % filtered
         self.infoBox.setText(text)
@@ -182,12 +261,14 @@ class OWGEODatasets(OWWidget):
         self.treeItems = []
         self.progressBarInit()
         with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            info = obiGEO.GDSInfo()
+            self.gds_info = info = obiGEO.GDSInfo()
         milestones = set(range(0, len(info), max(len(info)/100, 1)))
         self.cells = cells = []
         gdsLinks = []
         pmLinks = []
         localGDS = []
+        full_text_search_data = []
+        
         self.gds = []
         for i, (name, gds) in enumerate(info.items()):
             local = os.path.exists(orngServerFiles.localpath(obiGEO.DOMAIN, gds["dataset_id"] + ".soft.gz"))
@@ -201,17 +282,26 @@ class OWGEODatasets(OWWidget):
                 localGDS.append(i)
             self.gds.append(gds)
             
+            full_text_search_data.append(unicode(" | ".join([gds.get(key, "").lower() for key in self.searchKeys]), errors="ignore"))
+            
             if i in milestones:
                 self.progressBarSet(100.0*i/len(info))
 
         model = TreeModel(cells, ["", "ID", "Title", "Organism", "Samples", "Features", "Genes", "Subsets", "PubMedID"], self.treeWidget)
         model.setColumnLinks(1, gdsLinks)
         model.setColumnLinks(8, pmLinks)
-#        for i in localGDS:
-#            model._roleData[Qt.ForegroundRole][i].update(zip(range(2, 8), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
-#            mode.._roleData[OWGUI.IndicatorItemDelegate.]
-        proxyModel = QSortFilterProxyModel(self.treeWidget)
+        
+        for i, text in enumerate(full_text_search_data):
+            model.setData(model.index(i, 0), QVariant(text), TextFilterRole)
+        
+        proxyModel = MySortFilterProxyModel(self.treeWidget)
+#        proxyModel = QSortFilterProxyModel(self.treeWidget)
         proxyModel.setSourceModel(model)
+        proxyModel.setFilterKeyColumn(0)
+        proxyModel.setFilterRole(TextFilterRole)
+        proxyModel.setFilterCaseSensitivity(False)
+#        proxyModel.setFilterWildcard("*" + self.filterString + "*")
+        proxyModel.setFilterFixedString(self.filterString)
         self.treeWidget.setModel(proxyModel)
         self.connect(self.treeWidget.selectionModel(), SIGNAL("selectionChanged(QItemSelection , QItemSelection )"), self.updateSelection)
         filterItems = " ".join([self.gds[i][key] for i in range(len(self.gds)) for key in self.searchKeys])
@@ -294,13 +384,19 @@ class OWGEODatasets(OWWidget):
             return not all([s in string for s in filterStrings])
     
     def filter(self):
-        filterStrings = self.filterString.lower().split()
-        mapFromSource = self.treeWidget.model().mapFromSource
-        index = self.treeWidget.model().sourceModel().index
-        
-        for i, row in enumerate(self.cells):
-            self.treeWidget.setRowHidden(mapFromSource(index(i, 0)).row(), QModelIndex(), self.rowFiltered(i))
+        filter_string = unicode(self.filterLineEdit.text(), errors="ignore")
+        proxyModel = self.treeWidget.model()
+        strings = filter_string.lower().strip().split()
+        proxyModel.setFilterFixedStrings(strings)
         self.updateInfo()
+        
+#        filterStrings = self.filterString.lower().split()
+#        mapFromSource = self.treeWidget.model().mapFromSource
+#        index = self.treeWidget.model().sourceModel().index
+#        
+#        for i, row in enumerate(self.cells):
+#            self.treeWidget.setRowHidden(mapFromSource(index(i, 0)).row(), QModelIndex(), self.rowFiltered(i))
+#        self.updateInfo()
 
     def selectedSamples(self):
         """ Return the currently selected sample annotations (list of
@@ -312,7 +408,7 @@ class OWGEODatasets(OWWidget):
         """
         samples = []
         unused_types = []
-        for stype in childiter(self.annotationsTree.invisibleRootItem()):
+        for stype in childiter(self.annotationsTree.invisibleRootItem()): 
             selected_values = []
             all_values = []
             for sval in childiter(stype):
