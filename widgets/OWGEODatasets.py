@@ -113,14 +113,6 @@ class OWGEODatasets(OWWidget):
 
         ## GUI
         self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info", addSpace=True), "\n\n")
-#        box = OWGUI.widgetBox(self.controlArea, "Sample Subset")
-#        OWGUI.listBox(box, self, "selectedSubsets", "sampleSubsets", selectionMode=QListWidget.ExtendedSelection)
-#        box = OWGUI.widgetBox(self.controlArea, "Sample Annotations (Types)")
-#        self.annotationCombo = OWGUI.comboBox(box, self, "selectedAnnotation", items=["Include all"])
-        
-##        OWGUI.button(box, self, "Clear selection", callback=self.clearSubsetSelection)
-##        c = OWGUI.checkBox(box, self, "includeIf", "Include if at least", callback=self.commitIf)
-##        OWGUI.spin(OWGUI.indentedBox(box), self, "minSamples", 2, 100, posttext="samples", callback=self.commitIf)
 
         box = OWGUI.widgetBox(self.controlArea, "Output", addSpace=True)
         OWGUI.radioButtonsInBox(box, self, "outputRows", ["Genes or spots", "Samples"], "Rows", callback=self.commitIf)
@@ -128,17 +120,18 @@ class OWGEODatasets(OWWidget):
 
         box = OWGUI.widgetBox(self.controlArea, "Output", addSpace=True)
         self.commitButton = OWGUI.button(box, self, "Commit", callback=self.commit)
-#        self.commitButton.setDisabled(True)
         cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on any change")
         OWGUI.setStopper(self, self.commitButton, cb, "selectionChanged", self.commit)
-##        OWGUI.checkBox(box, self, "autoCommit", "Commit automatically")
         OWGUI.rubber(self.controlArea)
 
-        self.filterLineEdit = OWGUIEx.lineEditHint(self.mainArea, self, "filterString", "Filter", caseSensitive=False, matchAnywhere=True, listUpdateCallback=self.filter, callbackOnType=True, callback=self.filter, delimiters=" ")
+        self.filterLineEdit = OWGUIEx.lineEditHint(self.mainArea, self, "filterString", "Filter",
+                                   caseSensitive=False, matchAnywhere=True, 
+                                   listUpdateCallback=self.filter, callbackOnType=True, 
+                                   callback=self.filter,  delimiters=" ")
+        
         splitter = QSplitter(Qt.Vertical, self.mainArea)
         self.mainArea.layout().addWidget(splitter)
         self.treeWidget = QTreeView(splitter)
-#        splitter.addWidget(self.treeWidget)
         
         self.treeWidget.setSelectionMode(QAbstractItemView.SingleSelection)
         self.treeWidget.setRootIsDecorated(False)
@@ -147,13 +140,11 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.setItemDelegate(LinkStyledItemDelegate(self.treeWidget))
         self.treeWidget.setItemDelegateForColumn(0, OWGUI.IndicatorItemDelegate(self.treeWidget, role=Qt.DisplayRole))
         
-#        self.mainArea.layout().addWidget(self.treeWidget)
         self.connect(self.treeWidget, SIGNAL("itemSelectionChanged ()"), self.updateSelection)
         self.treeWidget.viewport().setMouseTracking(True)
-##        self.connect(self.treeWidget, SIGNAL("currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*))"), self.updateSelection_)
-#        self.connect(self.treeWidget.model(), SIGNAL("layoutChanged()"), self.filter)
+        
         splitterH = QSplitter(Qt.Horizontal, splitter) 
-#        splitter.addWidget(splitterH)
+        
         box = OWGUI.widgetBox(splitterH, "Description")
         self.infoGDS = OWGUI.widgetLabel(box, "")
         self.infoGDS.setWordWrap(True)
@@ -175,7 +166,7 @@ class OWGEODatasets(OWWidget):
             
         self.searchKeys = ["dataset_id", "title", "platform_organism", "description"]
         self.cells = []
-#        self.currentGds = None
+        
         QTimer.singleShot(50, self.updateTable)
         self.resize(1000, 600)
 
@@ -343,29 +334,6 @@ class OWGEODatasets(OWWidget):
             self.commit()
         else:
             self.selectionChanged = True
-            
-#    def commit(self):
-#        if self.currentGds:
-##            classes = [s["description"] for s in self.currentGds["subsets"]]
-##            classes = [classes[i] for i in self.selectedSubsets] or None
-##            sample_type = self.annotationCombo.currentText()
-#            sample_type = None
-#            self.progressBarInit()
-#            self.progressBarSet(10)
-#            
-#            def getdata(gds_id, **kwargs):
-#                gds = obiGEO.GDS(gds_id)
-#                data = gds.getdata(**kwargs)
-#                return data
-#            from OWConcurrent import createTask
-#            self.setEnabled(False)
-#            qApp.processEvents()
-#            self.get_data_async = createTask(getdata, (self.currentGds["dataset_id"],), dict(report_genes=self.mergeSpots,
-#                                                                   transpose=self.outputRows,
-#                                                                   sample_type=sample_type if sample_type!="Include all" else None),
-#                                             onResult=self.onData, onFinished=lambda: self.setEnabled(True),
-#                                             threadPool=QThreadPool.globalInstance()
-#                                             )
     
     def commit(self):
         if self.currentGds:
@@ -389,7 +357,6 @@ class OWGEODatasets(OWWidget):
                                   threadPool=QThreadPool.globalInstance()
                                  )
             call.__call__() #invoke
-#            data = gds.getdata(report_genes=self.mergeSpots, transpose=self.outputRows, sample_type=sample_type if sample_type!="Include all" else None)
 
     def onAsyncError(self, (exctype, value, tb)):
         import ftplib
@@ -407,6 +374,7 @@ class OWGEODatasets(OWWidget):
         
         samples = self.selectedSamples()
         
+        self.warning(0)
         message = None
         if self.outputRows:
             samples = set(s[1] for s in samples) # dont have info on sample types in the data class variable
@@ -415,16 +383,21 @@ class OWGEODatasets(OWWidget):
             # TODO: add sample types as separate features  
             data.domain.classVar.values = ["|".join([cl for cl in val.split("|") if cl in samples]) for val in data.domain.classVar.values]
             if len(data) == 0:
-                message = "No selected samples with selected sample annotations."
+                message = "No samples with selected sample annotations."
         else:
             samples = set(samples)
             domain = orange.Domain([attr for attr in data.domain.attributes if samples.issuperset(attr.attributes.items())], data.domain.classVar)
             domain.addmetas(data.domain.getmetas())
+            if len(domain.attributes) == 0:
+                message = "No samples with selected sample annotations."
             stypes = set(s[0] for s in samples)
             for attr in domain.attributes:
                 attr.attributes = dict([(key, value) for key, value in attr.attributes.items() if key in stypes])
             data = orange.ExampleTable(domain, data)
-
+        
+        if message is not None:
+            self.warning(0, message)
+            
         data_hints.set_hint(data, "taxid", self.currentGds.get("taxid", ""), 10.0)
         data_hints.set_hint(data, "genesinrows", self.outputRows, 10.0)
         
