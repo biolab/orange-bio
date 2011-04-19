@@ -524,6 +524,9 @@ class OWPIPA(OWWidget):
                 self.error(1, "Wrong username or password")
                 self.dbc = None
             except Exception, ex:
+                print "Error when contacting the PIPA database", ex
+                import traceback
+                print traceback.format_exc()
                 try: #mable cached?
                     self.dbc.annotations()
                     self.warning(1, "Can not access database - using cached data.")

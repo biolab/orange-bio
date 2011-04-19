@@ -175,15 +175,25 @@ class DBInterface(object):
         if verbose:
             print "tryN", tryN
 
-        if tryN == 0:
-            return None
-        try:
-            if data == None:
-                return httpGet(self.address + request)
-            else:
-                return httpGet(self.address + request, data=urllib.urlencode(data))
-        except IOError:
-            return self.raw(request, data=data, tryN=tryN-1)
+        def try_down():
+            try:
+                if data == None:
+                    return httpGet(self.address + request)
+                else:
+                    return httpGet(self.address + request, data=urllib.urlencode(data))
+            except urllib2.HTTPError, e:
+                if e.code == 403:
+                    raise AuthenticationError()
+                else:
+                    raise e
+
+        if tryN > 1:
+            try:
+                try_down()
+            except IOError:
+                return self.raw(request, data=data, tryN=tryN-1)
+        else:
+            try_down()
 
     def get(self, request, data=None, tryN=3):
         rawf = self.raw(request, data)
@@ -207,7 +217,6 @@ class DBInterface(object):
         if a[-1][0] == "": #remove empty line on end
             a = a[:-1]
         return a
-
 
 def _test():
     import doctest
