@@ -64,15 +64,27 @@ def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
         return tuple(annotation[v] if types[v] == None else types[v](annotation[v]) 
             for v in other_relevant)
 
-    other_relevant_d = defaultdict(list)
-    for i,a in enumerate(annotations):
-        other_relevant_d[relevant_vals(a)].append(i)
-
+    other_relevant_d2 = defaultdict(int) #"multiset" - number
+    #of maximum occurances of a relevant value in a group
+    for _,g in groups.items():
+        d = defaultdict(int)
+        for i in g:
+            d[relevant_vals(annotations[i])] += 1
+        for rv,n in d.items():
+            if n > other_relevant_d2[rv]:
+                other_relevant_d2[rv] = n
+    
     if add_empty: #fill in with "empty" relevant vals
         ngroups = {}
         for g in groups:
-            ngroups[g] = groups[g] + list(set(other_relevant_d) - 
-                set([ relevant_vals(annotations[e]) for e in groups[g] ]))
+            need_to_fill = other_relevant_d2.copy()
+            for i in groups[g]:
+                need_to_fill[relevant_vals(annotations[i])] -= 1
+            add = []
+            for rv,num in need_to_fill.items():
+                for a in range(num):
+                    add.append(rv)
+            ngroups[g] = groups[g] + add
         groups = ngroups
 
     ngroups = {}
@@ -502,6 +514,7 @@ class OWGenotypeDistances(OWWidget):
         self.send("Distances", self.matrix)
         self.changed_flag = False
     
+
 
 if __name__ == "__main__":
     import os, sys
