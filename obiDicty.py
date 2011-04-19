@@ -189,15 +189,16 @@ class DBInterface(object):
 
         if tryN > 1:
             try:
-                try_down()
+                return try_down()
             except IOError:
                 return self.raw(request, data=data, tryN=tryN-1)
         else:
-            try_down()
+            return try_down()
 
     def get(self, request, data=None, tryN=3):
         rawf = self.raw(request, data)
         if rawf == None:
+            print "rawf == None!"
             raise Exception("Connection error when contacting " + self.address + request)
         if rawf.startswith("error: authentication failed"):
             raise AuthenticationError()
