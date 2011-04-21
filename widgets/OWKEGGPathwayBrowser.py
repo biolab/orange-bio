@@ -219,7 +219,7 @@ class OWKEGGPathwayBrowser(OWWidget):
 
         box = OWGUI.widgetBox(self.controlArea, "Selection")
         OWGUI.checkBox(box, self, "autoCommit", "Commit on update")
-        OWGUI.button(box, self, "Commit", callback=self.Commit)
+        OWGUI.button(box, self, "Commit", callback=self.Commit, default=True)
         OWGUI.rubber(self.controlArea)
         
         spliter = QSplitter(Qt.Vertical, self.mainArea)

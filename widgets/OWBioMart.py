@@ -766,7 +766,8 @@ class OWBioMart(OWWidget):
                        )
         self.commitButton = OWGUI.button(box, self, "Get Results",
                                          callback=self.commit,
-                                         tooltip="Query the BioMart server for results and output the results")
+                                         tooltip="Query the BioMart server for results and output the results",
+                                         autoDefault=True)
         self.commitButton.setEnabled(False)
         
         self.mainWidget = OWGUI.widgetBox(self.mainArea, orientation=QStackedLayout())

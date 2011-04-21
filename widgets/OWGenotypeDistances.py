@@ -210,7 +210,8 @@ class OWGenotypeDistances(OWWidget):
         
         b = OWGUI.button(box, self, "Commit",
                          tooltip="Compute and send the distances.",
-                         callback=self.commit)
+                         callback=self.commit,
+                         default=True)
         
         OWGUI.setStopper(self, b, cb, "changed_flag", callback=self.commit)
         

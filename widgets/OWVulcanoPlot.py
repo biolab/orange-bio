@@ -309,7 +309,7 @@ class OWVulcanoPlot(OWWidget):
         OWGUI.checkBox(toolbar, self, "graph.symetricSelections", "Symetric selection", callback=self.graph.reselect)
 
         box = OWGUI.widgetBox(self.controlArea, "Commit")
-        b = OWGUI.button(box, self, "Commit", callback=self.commit)
+        b = OWGUI.button(box, self, "Commit", callback=self.commit, default=True)
         cb = OWGUI.checkBox(box, self, "autoCommit", "Commit automatically")
         OWGUI.setStopper(self, b, cb, "selectionChangedFlag", self.commitIf)
 
