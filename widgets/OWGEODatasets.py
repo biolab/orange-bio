@@ -305,8 +305,11 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.setModel(proxyModel)
         self.connect(self.treeWidget.selectionModel(), SIGNAL("selectionChanged(QItemSelection , QItemSelection )"), self.updateSelection)
         filterItems = " ".join([self.gds[i][key] for i in range(len(self.gds)) for key in self.searchKeys])
-        filterItems = reduce(lambda s, d: s.replace(d, " "), [",", ".", ":", "!", "?", "(", ")"], filterItems.lower())
+        filterItems = reduce(lambda s, d: s.replace(d, " "), [",", ".", ":", ";", "!", "?", "(", ")", "{", "}"
+                                                              "[", "]", "_", "-", "+", "\\", "|", "/"],
+                                                              filterItems.lower())
         filterItems = sorted(set(filterItems.split(" ")))
+        filterItems = [item for item in filterItems if len(filterItems) > 3]
         self.filterLineEdit.setItems(filterItems)
         
         for i in range(8):
