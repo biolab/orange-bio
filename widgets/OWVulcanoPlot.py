@@ -284,7 +284,7 @@ class OWVulcanoPlot(OWWidget):
         self.infoLabel2 = OWGUI.label(box, self, "")
         self.infoLabel2.setText("0 selected genes")
         
-        box = OWGUI.widgetBox(self.controlArea, "Target Label (Class)")
+        box = OWGUI.widgetBox(self.controlArea, "Group By")
         self.genesInColumnsCheck = OWGUI.checkBox(box, self, "genesInColumns", "Genes in columns", callback=[self.setTargetCombo, self.plot])
         self.targetClassCombo = OWGUI.comboBox(box, self, "targetClass", callback=self.plot)
 
@@ -366,9 +366,9 @@ class OWVulcanoPlot(OWWidget):
     def plot(self):
         self.values = {}
         if self.data and self.targets:
-            self.warning(0)
+            self.warning([0, 1])
             targetClassIndex = min(self.targetClass, len(self.targets) - 1)
-            if self.targetMeasurements[targetClassIndex] < 2 or sum(self.targetMeasurements) - self.targetMeasurements[targetClassIndex] < 2:
+            if self.targetMeasurements[targetClassIndex] < 2 and sum(self.targetMeasurements) - self.targetMeasurements[targetClassIndex] < 2:
                 self.warning(0, "Insufficient data to compute statistics. More than one measurement per class should be provided")
             targetClass = self.targets[targetClassIndex]
             self.progressBarInit()
@@ -385,6 +385,8 @@ class OWVulcanoPlot(OWWidget):
             logratio = numpy.log2(numpy.abs([v for k, v in fold]))
             logpval = -numpy.log10([p for k, (t, p) in tt])
             self.values = dict(zip([k for k, v in tt], zip(logratio, logpval)))
+            if not self.values:
+                self.warning(1, "Could not compute statistics for any genes!")
             self.progressBarFinished()
         self.graph.setPlotValues(self.values)
         self.setAxesTitles()
