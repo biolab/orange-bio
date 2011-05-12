@@ -11,6 +11,7 @@ from OWItemModels import PyListModel
 import Orange
 
 from collections import defaultdict
+from operator import add
 import numpy
 import math
 
@@ -103,7 +104,8 @@ def linearize(data, ids):
     if the values are unknown or not present. """
     l = [ [ None ] * len(data) if id1 == None \
         else [ float_or_none(ex[id1]) for ex in data ] for id1 in ids ]
-    l = reduce(lambda x,y: x+y, l)
+#    l = reduce(lambda x,y: x+y, l)
+    l = reduce(add, l)
     return l
 
 def pearson_lists(l1, l2):
@@ -123,7 +125,30 @@ def dist_pcorr(l1, l2):
     return (1-pearson_lists(l1, l2))/2
 
 def dist_eucl(l1, l2):
-    return euclidean_lists(l1, l2)    
+    return euclidean_lists(l1, l2)
+
+
+def clone_attr(attr):
+    newattr = attr.clone()
+    def get_value_from(ex, w=None):
+        if attr in ex.domain:
+            v = str(ex[attr])
+        else:
+            v = "?"
+        return newattr(v)
+        
+    newattr.get_value_from = get_value_from
+    newattr.source_variable = attr
+    newattr.attributes.update(attr.attributes)
+    return newattr
+    
+def missing_name_gen():
+    i = 1
+    while True:
+        yield "missing {0}".format(i)
+        i += 1
+        
+missing_name_gen = missing_name_gen()
 
 class MyHeaderView(QHeaderView):
     def __init__(self, *args):
@@ -135,12 +160,13 @@ class MyHeaderView(QHeaderView):
     def wheelEvent(self, event):
         event.ignore()
         
+        
 class SetContextHandler(ContextHandler):
     def match(self, context, imperfect, items):
         items = set(items)
         saved_items = set(getattr(context, "items", []))
         if imperfect:
-            return len(items.intersection(saved_items))/len(items.union(saved_items))
+            return float(len(items.intersection(saved_items)))/(len(items.union(saved_items)) or 1)
         else:
             return items == saved_items
         
@@ -160,7 +186,7 @@ class SetContextHandler(ContextHandler):
         
 class OWGenotypeDistances(OWWidget):
     contextHandlers = {"": SetContextHandler("")}
-    settingsList = []
+    settingsList = ["auto_commit"]
     
     DISTANCE_FUNCTIONS = [("Pearson correlation", dist_pcorr),
                           ("Euclidean distance", dist_eucl)]
@@ -169,7 +195,7 @@ class OWGenotypeDistances(OWWidget):
         OWWidget.__init__(self, parent, signalManager, title)
         
         self.inputs = [("Example Table", ExampleTable, self.set_data)]
-        self.outputs = [("Distances", Orange.core.SymMatrix)]
+        self.outputs = [("Distances", Orange.core.SymMatrix), ("Sorted Example Table", ExampleTable)]
         
         self.distance_measure = 0
         self.auto_commit = False
@@ -209,7 +235,7 @@ class OWGenotypeDistances(OWWidget):
                             callback=self.commit_if)
         
         b = OWGUI.button(box, self, "Commit",
-                         tooltip="Compute and send the distances.",
+                         tooltip="Compute the distances and send the output signals.",
                          callback=self.commit,
                          default=True)
         
@@ -222,6 +248,7 @@ class OWGenotypeDistances(OWWidget):
         self.data = None
         self.partitions = []
         self.matrix = None
+        self.split_groups = []
         self._disable_updates = False
         
         self.resize(800, 600)
@@ -229,6 +256,7 @@ class OWGenotypeDistances(OWWidget):
     def clear(self):
         self.data = None
         self.partitions = []
+        self.split_groups = []
         self.matrix = None
         self.send("Distances", None)
         
@@ -269,19 +297,13 @@ class OWGenotypeDistances(OWWidget):
             self.relevant_view.setModel(PyListModel([]))
             self.groups_scroll_area.setWidget(QWidget())
             self.info_box.setText("No data on input.\n")
-            
-        self.commit_if()
+            self.commit()
             
     def update_control(self):
         """ Update the control area of the widget. Populate the list
         views with keys from attribute labels.
+        
         """
-#        attrs = [attr.attributes.items() for attr in self.data.domain.attributes]
-#        attrs = reduce(set.union, attrs, set())
-#        values = defaultdict(set)
-#        for key, value in attrs:
-#            values[key].add(value)
-#        keys = [key for key in values if len(values[key]) > 1]
         keys = self.get_suitable_keys(self.data)
          
         model = PyListModel(keys)
@@ -367,7 +389,7 @@ class OWGenotypeDistances(OWWidget):
                     tuple(v if types[i] == None else types[i](v)
                     for i,v in enumerate(x[0])))
 
-        split_data = []
+        split_groups = []
         
         # Collect relevant key value pairs for all columns
         relevant_items = {}
@@ -380,7 +402,7 @@ class OWGenotypeDistances(OWWidget):
                     
         def get_attr(attr_index, i):
             if attr_index is None:
-                attr = Orange.data.variable.Continuous("missing")
+                attr = Orange.data.variable.Continuous(missing_name_gen.next())
                 attr.attributes.update(relevant_items.get(i, []))
                 return attr
             else:
@@ -389,12 +411,16 @@ class OWGenotypeDistances(OWWidget):
         for keys, indices in partitions:
             attrs = [get_attr(attr_index, i) for i, attr_index in enumerate(indices)]
             domain = Orange.data.Domain(attrs, None)
-            newdata = Orange.data.Table(domain)#, self.data)
-            split_data.append((keys, newdata))
+            domain.add_metas(self.data.domain.get_metas().items())
+#            newdata = Orange.data.Table(domain)
+            split_groups.append((keys, domain))
             
-        self.set_groups(separate_keys, split_data, relevant_keys)
+        self.set_groups(separate_keys, split_groups, relevant_keys)
         
         self.partitions = partitions
+        self.split_groups = split_groups
+        
+        self.commit_if()
 #        self.update_distances(separate_keys, partitions, self.data)
         
     def set_groups(self, keys, groups, relevant_keys):
@@ -404,14 +430,14 @@ class OWGenotypeDistances(OWWidget):
         header_widths = []
         header_views = []
         palette = self.palette()
-        for ann_vals, table in groups:
+        for ann_vals, domain in groups:
             label = QLabel(" <b>|</b> ".join(["<b>{0}</ b> = {1}".format(key,val) \
                                      for key, val in zip(keys, ann_vals)]))
             
             model = QStandardItemModel()
-            for i, attr in enumerate(table.domain.attributes):
+            for i, attr in enumerate(domain.attributes):
                 item = QStandardItem()
-                if attr.name != "missing":
+                if not str(attr.name).startswith("missing "): ## TODO: Change this to not depend on name
                     header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
                                    for key in relevant_keys]
                     header_text = "\n".join(header_text)
@@ -419,21 +445,17 @@ class OWGenotypeDistances(OWWidget):
                     item.setData(QVariant(attr.name), Qt.ToolTipRole)
                     
                 else:
-#                    header_text = "\n".join("{0}=?".format(key) for key in relevant_keys)
                     header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
                                    for key in relevant_keys]
                     header_text = "\n".join(header_text)
                     item.setData(QVariant(header_text), Qt.DisplayRole)
                     item.setFlags(Qt.NoItemFlags)
-                    
-#                    item.setData(QVariant(palette.color(QPalette.Disabled, QPalette.Text)), Qt.ForegroundRole)
                     item.setData(QVariant(QColor(Qt.red)), Qt.ForegroundRole)
-#                    item.setData(QVariant(QColor(Qt.red)), Qt.BackgroundRole)
                     item.setData(QVariant(palette.color(QPalette.Disabled, QPalette.Window)), Qt.BackgroundRole)
                     item.setData(QVariant("Missing feature."), Qt.ToolTipRole)
                 
                 model.setHorizontalHeaderItem(i, item)
-            attr_count = len(table.domain.attributes)
+            attr_count = len(domain.attributes)
             view = MyHeaderView(Qt.Horizontal)
             view.setResizeMode(QHeaderView.Fixed)
             view.setModel(model)
@@ -496,7 +518,7 @@ class OWGenotypeDistances(OWWidget):
             items = [["{0}={1}".format(key, value) for key, value in zip(separate_keys, values)] \
                       for values, _ in partitions]
             items = [" | ".join(item) for item in items]
-            matrix.items = items
+            matrix.setattr("items", items)
         else:
             matrix = None
             
@@ -509,9 +531,32 @@ class OWGenotypeDistances(OWWidget):
             self.changed_flag = True
             
     def commit(self):
-        self.compute_distances(self.selected_separeate_by_keys(),
+        separate_keys = self.selected_separeate_by_keys()
+        self.compute_distances(separate_keys,
                                self.partitions,
                                self.data)
+        
+        if self.split_groups:
+            all_attrs = []
+            for group, domain in self.split_groups:
+                attrs = []
+                group_name = " | ".join("{0}={1}".format(*item) for item in \
+                                        zip(separate_keys, group))
+                for attr in domain.attributes:
+                    newattr = clone_attr(attr)
+                    newattr.attributes["$(GROUP)"] = group_name # Need a better way to pass the groups to downstream widgets.
+                    attrs.append(newattr)
+                    
+                all_attrs.extend(attrs)
+                
+            #all_attrs = reduce(add, [list(domain.attributes) for _, domain in self.split_groups], [])
+            domain = Orange.data.Domain(all_attrs, self.data.domain.class_var)
+            domain.add_metas(self.data.domain.get_metas().items())
+            
+            data = Orange.data.Table(domain, self.data)
+        else:
+            data = None
+        self.send("Sorted Example Table", data)
         self.send("Distances", self.matrix)
         self.changed_flag = False
     
