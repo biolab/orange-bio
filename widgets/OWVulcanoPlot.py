@@ -229,17 +229,17 @@ class LabelSelectionWidget(QWidget):
                     index = self._values_model.index(i, 0)
                     selection.select(index, index)
             self.values_view.selectionModel().select(selection,  QItemSelectionModel.ClearAndSelect)
+        else:
+            self.values_view.selectionModel().clear()
             
     def set_current_label(self, index):
         """ Set the current label
         """
         self.labels_combo.setCurrentIndex(index)
         label, values = self.labels[index]
-#        self._block_selection_emit = True
         # Block selection changed
         with self._blocked_signals():
             self._values_model[:] = values
-#        self._block_selection_emit = False
         
     def on_label_activated(self, index):
         label, values = self.labels[index]
@@ -468,7 +468,7 @@ class OWVulcanoPlot(OWWidget):
         
         self.genesInColumnsCheck = OWGUI.checkBox(box, self, "genesInColumns",
                                     "Genes in columns", 
-                                    callback=[self.update_target_labels, self.plot])
+                                    callback=[self.init_from_data, self.plot])
 
         box = OWGUI.widgetBox(self.controlArea, "Settings")
         OWGUI.hSlider(box, self, "graph.symbolSize", label="Symbol size:   ", minValue=2, maxValue=20, step=1, callback = self.graph.updateSymbolSize)
@@ -508,12 +508,15 @@ class OWVulcanoPlot(OWWidget):
         self.targets = []
         self.label_selections = []
         self.target_group = None, []
+        self.clear_graph()
+        
+    def clear_graph(self):
         self.values = {}
         self.graph.setPlotValues({})
         self.updateTooltips()
         
     def setData(self, data=None):
-        self.closeContext()
+        self.closeContext("")
         self.closeContext("targets")
         self.clear()
         self.data = data
@@ -523,18 +526,30 @@ class OWVulcanoPlot(OWWidget):
             self.genesInColumns = not bool(data.domain.classVar)
             self.genesInColumnsCheck.setDisabled(not bool(data.domain.classVar))
             if self.genesInColumns:
-                self.genesInColumns = not data_hints.get_hint(data, "genesinrows", not self.genesInColumns) 
-            self.update_target_labels()
-            if not self.targets:
-                self.error(0, "Data set with no column labels (attribute tags) or row labels (classes).")
+                self.genesInColumns = not data_hints.get_hint(data, "genesinrows", not self.genesInColumns)
+            self.openContext("", data)
         else:
-            self.update_target_labels()
-            self.infoLabel.setText("No data on input")
+            self.infoLabel.setText("No data on input.")
+        self.init_from_data()
+            
+    def init_from_data(self):
+        """ Init widget state from the data.
+        """ 
+        self.update_target_labels()
+        self.error(0)
+        if self.data:
+            if not self.targets:
+                if self.genesInColumns:
+                    self.error(0, "Data set with no column labels (attribute tags)")
+                else:
+                    self.error(0, "Data has no class.")
         
-        self.openContext("", data)
         self.openContext("targets", [(label, v) for label, vals in self.targets \
                                                 for v in vals])
         
+        if len(self.label_selections) != len(self.targets): # Some times this happens.
+            self.label_selections = [[] for t in self.targets]
+            
         if self.target_group == (None, []) and self.targets:
             label, values = self.targets[0]
             self.target_group = (label, values[:1])
@@ -542,7 +557,7 @@ class OWVulcanoPlot(OWWidget):
         if self.target_group != (None, []):
             self.target_widget.set_selection(*self.target_group)
         else:
-            self.plot()
+            self.clear_graph()
 
     def update_target_labels(self):
         if self.data:
@@ -598,6 +613,8 @@ class OWVulcanoPlot(OWWidget):
         # replot
         if label and values:
             self.plot()
+        else:
+            self.clear_graph()
     
     @disable_controls
     def plot(self):
