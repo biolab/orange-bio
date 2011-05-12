@@ -422,7 +422,7 @@ from OWFeatureSelection import disable_controls
 
 class OWVulcanoPlot(OWWidget):
     settingsList =["targetClass", "graph.cutoffX", "graph.cutoffY", "graph.symbolSize", "graph.symetricSelections", "showXTitle", "showYTitle"]
-    contextHandlers = {"":DomainContextHandler("", [ContextField("targetClass"), ContextField("graph.cutoffX"),
+    contextHandlers = {"":DomainContextHandler("", [ContextField("graph.symbolSize"), ContextField("graph.cutoffX"),
                                                     ContextField("graph.cutoffY")]),
                        "targets": SetContextHandler("targets")}
     def __init__(self, parent=None, signalManager=None, name="Vulcano Plot"):
@@ -503,26 +503,34 @@ class OWVulcanoPlot(OWWidget):
         
         self.resize(800, 600)
 
+    def clear(self):
+        self.target_widget.set_labels([])
+        self.targets = []
+        self.label_selections = []
+        self.target_group = None, []
+        self.values = {}
+        self.graph.setPlotValues({})
+        self.updateTooltips()
+        
     def setData(self, data=None):
         self.closeContext()
         self.closeContext("targets")
+        self.clear()
         self.data = data
-        self.target_group = None, []
         self.error(0)
+        self.warning([0,1])
         if data:
             self.genesInColumns = not bool(data.domain.classVar)
             self.genesInColumnsCheck.setDisabled(not bool(data.domain.classVar))
             if self.genesInColumns:
                 self.genesInColumns = not data_hints.get_hint(data, "genesinrows", not self.genesInColumns) 
             self.update_target_labels()
-            self.error()
             if not self.targets:
                 self.error(0, "Data set with no column labels (attribute tags) or row labels (classes).")
         else:
+            self.update_target_labels()
             self.infoLabel.setText("No data on input")
-            self.targets = []
-            self.plot()
-            
+        
         self.openContext("", data)
         self.openContext("targets", [(label, v) for label, vals in self.targets \
                                                 for v in vals])
@@ -533,6 +541,8 @@ class OWVulcanoPlot(OWWidget):
             
         if self.target_group != (None, []):
             self.target_widget.set_selection(*self.target_group)
+        else:
+            self.plot()
 
     def update_target_labels(self):
         if self.data:
@@ -558,6 +568,12 @@ class OWVulcanoPlot(OWWidget):
         else:
             self.targets = []
             
+        if self.targets:
+            label, values = self.targets[0]
+            self.target_group = (label, values[:1])
+        else:
+            self.target_group = None, []
+            
         self.label_selections = [[] for t in self.targets]
         self.target_widget.set_labels(self.targets)
                 
@@ -567,7 +583,7 @@ class OWVulcanoPlot(OWWidget):
         """
         selected = self.label_selections[index]
         if not selected:
-            selected = self.targets[index][:1]
+            selected = self.targets[index][1][:1]
             
         self.target_widget.set_selection(index, selected)
         
@@ -587,8 +603,9 @@ class OWVulcanoPlot(OWWidget):
     def plot(self):
         self.values = {}
         target_label, target_values = self.target_group
+        self.warning([0, 1])
+        self.error(1)
         if self.data and target_values:
-            self.warning([0, 1])
             target_label, target_values = self.target_group
             if self.genesInColumns:
                 target = set([(target_label, value) for value in target_values])
@@ -598,15 +615,20 @@ class OWVulcanoPlot(OWWidget):
             ttest = obiExpression.ExpressionSignificance_TTest(self.data, useAttributeLabels=self.genesInColumns)
             ind1, ind2 = ttest.test_indices(target)
             
+            if not len(ind1) or not len(ind2):
+                self.error(1, "Target labels most exclude/include at least one value.")
+                
             if len(ind1) < 2 and len(ind2) < 2:
                 self.warning(0, "Insufficient data to compute statistics. More than one measurement per class should be provided")
             
             self.progressBarInit()
-            tt = ttest(target)
-            
-            self.progressBarSet(25)
-            fold = obiExpression.ExpressionSignificance_FoldChange(self.data, useAttributeLabels=self.genesInColumns)(target)
-            self.progressBarSet(50)
+            try:
+                tt = ttest(target)
+                self.progressBarSet(25)
+                fold = obiExpression.ExpressionSignificance_FoldChange(self.data, useAttributeLabels=self.genesInColumns)(target)
+                self.progressBarSet(50)
+            except ZeroDivisionError, ex:
+                tt, fold = [], []
             self.infoLabel.setText("%i genes on input" % len(fold))
             
             invalid = set([key for (key, (t, p)), (_, f) in zip(tt, fold) if any(v is numpy.ma.masked for v in [t, p, f]) or f==0.0])
