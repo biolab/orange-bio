@@ -12,7 +12,7 @@
 	<name>Bioinformatics</name>	<!-- Mandatory. A meaningful display
 					     name of this add-on. -->
 
-	<version>10509</version>
+	<version>10549</version>
 		<!-- Mandatory. Must be dot-separated integer values. The
 		     first component is the most important etc., and each
 		     component must be an integer. Therefore 17.5 is greater
