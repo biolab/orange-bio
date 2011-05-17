@@ -24,6 +24,8 @@ from orngDataCaching import data_hints
 from OWToolbars import ZoomSelectToolbar
 
 class GraphSelections(QObject):
+    """ Selection manager using a union of rectangle areas 
+    """
     def __init__(self, parent):
         QObject.__init__(self, parent)
         self.selection = []
@@ -64,9 +66,11 @@ class GraphSelections(QObject):
         return test
         
 class SymetricSelections(GraphSelections):
+    """ Selection manager using two symmetric areas extending to 'infinity'  
+    """
     def __init__(self, parent, x=3, y=3):
         GraphSelections.__init__(self, parent)
-        max = 10000
+        max = 100000
         self.selection = [(QPointF(-max, max), QPointF(-x, y)), (QPointF(max, max), QPointF(x, y))]
         self.updateAxes = None
         
@@ -314,6 +318,7 @@ class VulcanoGraph(OWGraph):
             
     def onSelectionChanged(self):
         self.replot_()
+        self.emit(SIGNAL("selectionChanged()"))
         
     def splitSelected(self):
         test =  self.selection.testSelection(self.plotData)
@@ -349,7 +354,6 @@ class VulcanoGraph(OWGraph):
                 self.setAxisScale(QwtPlot.yLeft, 0.0, self.maxY)
             
             selected, unselected = self.splitSelected()
-            getData = lambda keys, dim: [self.plotValues[attr][dim] for attr in keys]
             
             self.selectedCurve.setData(selected[:,0], selected[:,1])
             self.selectedCurve.setBrush(QBrush(Qt.blue))
@@ -421,7 +425,7 @@ from OWGenotypeDistances import SetContextHandler
 from OWFeatureSelection import disable_controls
 
 class OWVulcanoPlot(OWWidget):
-    settingsList =["targetClass", "graph.cutoffX", "graph.cutoffY", "graph.symbolSize", "graph.symetricSelections", "showXTitle", "showYTitle"]
+    settingsList = ["graph.cutoffX", "graph.cutoffY", "graph.symbolSize", "graph.symetricSelections", "showXTitle", "showYTitle"]
     contextHandlers = {"":DomainContextHandler("", [ContextField("graph.symbolSize"), ContextField("graph.cutoffX"),
                                                     ContextField("graph.cutoffY")]),
                        "targets": SetContextHandler("targets")}
@@ -431,20 +435,20 @@ class OWVulcanoPlot(OWWidget):
         self.inputs = [("Examples", ExampleTable, self.setData)]
         self.outputs =[("Examples with selected attributes", ExampleTable)]
 
-        self.genesInColumns = False
-        self.targetClass = 0
+        self.genes_in_columns = False
 
         self.showXTitle = True
         self.showYTitle = True
 
-        self.autoCommit = False
-        self.selectionChangedFlag = False
+        self.auto_commit = False
+        self.selection_changed_flag = False
         self.target_group = None, []
         self.label_selections = []
 
         self.graph = VulcanoGraph(self)
+        self.connect(self.graph, SIGNAL("selectionChanged()"), self.on_selection_changed)
         self.mainArea.layout().addWidget(self.graph)
-
+        
         self.loadSettings()
         
         ## GUI
@@ -466,7 +470,7 @@ class OWVulcanoPlot(OWWidget):
         
         box.layout().addWidget(self.target_widget)
         
-        self.genesInColumnsCheck = OWGUI.checkBox(box, self, "genesInColumns",
+        self.genesInColumnsCheck = OWGUI.checkBox(box, self, "genes_in_columns",
                                     "Genes in columns", 
                                     callback=[self.init_from_data, self.plot])
 
@@ -491,8 +495,8 @@ class OWVulcanoPlot(OWWidget):
 
         box = OWGUI.widgetBox(self.controlArea, "Commit")
         b = OWGUI.button(box, self, "Commit", callback=self.commit, default=True)
-        cb = OWGUI.checkBox(box, self, "autoCommit", "Commit automatically")
-        OWGUI.setStopper(self, b, cb, "selectionChangedFlag", self.commitIf)
+        cb = OWGUI.checkBox(box, self, "auto_commit", "Commit automatically")
+        OWGUI.setStopper(self, b, cb, "selection_changed_flag", self.commit_if)
 
         self.connect(self.graphButton, SIGNAL("clicked()"), self.graph.saveToFile)
         
@@ -500,6 +504,7 @@ class OWVulcanoPlot(OWWidget):
 
         self.data = None
         self.target_group = None, []
+        self.current_selection = []
         
         self.resize(800, 600)
 
@@ -523,10 +528,10 @@ class OWVulcanoPlot(OWWidget):
         self.error(0)
         self.warning([0,1])
         if data:
-            self.genesInColumns = not bool(data.domain.classVar)
+            self.genes_in_columns = not bool(data.domain.classVar)
             self.genesInColumnsCheck.setDisabled(not bool(data.domain.classVar))
-            if self.genesInColumns:
-                self.genesInColumns = not data_hints.get_hint(data, "genesinrows", not self.genesInColumns)
+            if self.genes_in_columns:
+                self.genes_in_columns = not data_hints.get_hint(data, "genesinrows", not self.genes_in_columns)
             self.openContext("", data)
         else:
             self.infoLabel.setText("No data on input.")
@@ -539,7 +544,7 @@ class OWVulcanoPlot(OWWidget):
         self.error(0)
         if self.data:
             if not self.targets:
-                if self.genesInColumns:
+                if self.genes_in_columns:
                     self.error(0, "Data set with no column labels (attribute tags)")
                 else:
                     self.error(0, "Data has no class.")
@@ -561,7 +566,7 @@ class OWVulcanoPlot(OWWidget):
 
     def update_target_labels(self):
         if self.data:
-            if self.genesInColumns:
+            if self.genes_in_columns:
                 items = [a.attributes.items() for a in self.data.domain.attributes]
                 items = reduce(add, items, [])
                 
@@ -619,17 +624,18 @@ class OWVulcanoPlot(OWWidget):
     @disable_controls
     def plot(self):
         self.values = {}
+        self.current_selection = []
         target_label, target_values = self.target_group
         self.warning([0, 1])
         self.error(1)
         if self.data and target_values:
             target_label, target_values = self.target_group
-            if self.genesInColumns:
+            if self.genes_in_columns:
                 target = set([(target_label, value) for value in target_values])
             else:
                 target = set(target_values)
             
-            ttest = obiExpression.ExpressionSignificance_TTest(self.data, useAttributeLabels=self.genesInColumns)
+            ttest = obiExpression.ExpressionSignificance_TTest(self.data, useAttributeLabels=self.genes_in_columns)
             ind1, ind2 = ttest.test_indices(target)
             
             if not len(ind1) or not len(ind2):
@@ -642,7 +648,7 @@ class OWVulcanoPlot(OWWidget):
             try:
                 tt = ttest(target)
                 self.progressBarSet(25)
-                fold = obiExpression.ExpressionSignificance_FoldChange(self.data, useAttributeLabels=self.genesInColumns)(target)
+                fold = obiExpression.ExpressionSignificance_FoldChange(self.data, useAttributeLabels=self.genes_in_columns)(target)
                 self.progressBarSet(50)
             except ZeroDivisionError, ex:
                 tt, fold = [], []
@@ -670,35 +676,59 @@ class OWVulcanoPlot(OWWidget):
         self.graph.tips.removeAll()
         for key, (logratio, logpval) in self.values.items():
             self.graph.tips.addToolTip(logratio, logpval, "<b>%s</b><hr>log<sub>2</sub>(ratio): %.5f<br>p-value: %.5f" \
-                                       %(str(key) if self.genesInColumns else key.name, logratio, math.pow(10, -logpval)))
-
-    def commit(self):
-        if self.data and self.genesInColumns:
+                                       %(str(key) if self.genes_in_columns else key.name, logratio, math.pow(10, -logpval)))
+            
+    def selection(self, items=None):
+        """ Return the current selection.
+        """
+        if items is None:
             items = sorted(self.values.items())
-            test = self.graph.selection.testSelection([val for key, val in items])
+        values = [val for key, val in items]
+        test = self.graph.selection.testSelection(values)
+        return test
+    
+    def on_selection_changed(self):
+        """ Called when user changes the selection area on the plot.
+        """
+        if self.auto_commit:
+            selection = list(self.selection())
+            # Did the selection actually change
+            if selection != self.current_selection: 
+                self.current_selection = selection
+                self.commit()
+        else:
+            self.selection_changed_flag = True
+    
+    def commit(self):
+        if self.data and self.genes_in_columns:
+            items = sorted(self.values.items())
+            test = self.selection(items)
             selected = [self.data[i] for t, (i, value) in zip(test, items) if t]
             if selected:
                 data = orange.ExampleTable(self.data.domain, selected)
             else:
                 data = None
+            self.current_selection = list(test) # For testing in on_selection_changed
         elif self.data:
             attrs = [(attr, self.values[attr])  for attr in self.data.domain.attributes if attr in self.values]
-            test = self.graph.selection.testSelection([val for attr, val in attrs])
+            test = self.selection(attrs)
+#            test = self.graph.selection.testSelection([val for attr, val in attrs])
             selected = [attr for t, (attr, val) in zip(test, attrs) if t]
             newdomain = orange.Domain(selected + [self.data.domain.classVar])
             newdomain.addmetas(self.data.domain.getmetas())
             data = orange.ExampleTable(newdomain, self.data)
+            self.current_selection = list(test) # For testing in on_selection_changed
         else:
             data = None
         
         self.send("Examples with selected attributes", data)
-        self.selectionChangedFlag = False
+        self.selection_changed_flag = False
 
-    def commitIf(self):
-        if self.autoCommit:
+    def commit_if(self):
+        if self.auto_commit:
             self.commit()
         else:
-            self.selectionChangedFlag = True
+            self.selection_changed_flag = True
             
     def settingsToWidgetCallbacktargets(self, handler, context):
         self.label_selections = list(getattr(context, "label_selections", self.label_selections))
