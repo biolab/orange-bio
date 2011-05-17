@@ -1,4 +1,4 @@
-"""<name>GEO DataSets</name>
+"""<name>GEO Data Sets</name>
 <description>Access to Gene Expression Omnibus data sets.</description>
 <priority>20</priority>
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si)</contact>
@@ -78,6 +78,8 @@ class TreeModel(QAbstractItemModel):
     def setHeaderData(self, section, orientation, value, role=Qt.EditRole):
         self._header[orientation][section][role] = value
         
+from Orange.misc import lru_cache
+
 class MySortFilterProxyModel(QSortFilterProxyModel):    
     def __init__(self, parent=None):
         QSortFilterProxyModel.__init__(self, parent)
@@ -86,16 +88,13 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
         self._cache_fixed = {}
         self._cache_prefix = {}
         self._row_text = {}
-    
-#    def setFilterFixedStrings(self, strings, op="AND"):
-#        self._filter_strings = strings
-#        for string in strings:
-#            for row in range(self.sourceModel().rowCount()):
-#                self._cache[row]
-#        self._op = op
-#        self.invalidate()
+        
+        # Create a cached version of _filteredRows
+        self._filteredRows = lru_cache(100)(self._filteredRows) 
 
     def setSourceModel(self, model):
+        """ Set the source model for the filter
+        """ 
         self._filter_strings = []
         self._cache = {}
         self._cache_fixed = {}
@@ -104,22 +103,30 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
         QSortFilterProxyModel.setSourceModel(self, model)
         
     def addFilterFixedString(self, string, invalidate=True):
+        """ Add `string` filter to the list of filters. If invalidate is
+        True the filter cache will be recomputed.
+        """
         self._filter_strings.append(string)
         all_rows = range(self.sourceModel().rowCount())
         row_text = [self.rowFilterText(row) for row in all_rows]
         self._cache[string] = [string in text for text in row_text]
         if invalidate:
             self.updateCached()
-            self.invalidate()
+            self.invalidateFilter()
         
     def removeFilterFixedString(self, index=-1, invalidate=True):
-        string = self._filter_strings.pop(index)
-        del self._cache[string]
+        """ Remove the `index`-th filter string. If invalidate is True the
+        filter cache will be recomputed.
+        """
+        string = self._filter_strings.pop(index) 
+        del self._cache[string] 
         if invalidate:
             self.updateCached()
-            self.invalidate()
+            self.invalidateFilter()
             
     def setFilterFixedStrings(self, strings):
+        """ Set a list of string to be the new filters.
+        """
         s_time = time.time()
         to_remove = set(self._filter_strings) - set(strings)
         to_add = set(strings) - set(self._filter_strings)
@@ -129,16 +136,29 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
         for str in to_add:
             self.addFilterFixedString(str, invalidate=False)
         self.updateCached()
-        self.invalidate()
+        self.invalidateFilter()
             
-    def updateCached(self):
+    def _filteredRows(self, filter_strings):
+        """ Return a dictionary mapping row indexes to True False values.
+        .. note:: This helper function is wrapped in the __init__ method. 
+        """
         all_rows = range(self.sourceModel().rowCount())
-        self._cache_fixed = dict([(row, all([self._cache[str][row] for str in self._filter_strings])) for row in all_rows])
+        cache = self._cache
+        return dict([(row, all([cache[str][row] for str in filter_strings])) for row in all_rows])
+    
+    def updateCached(self):
+        """ Update the combined filter cache.
+        """
+        self._cache_fixed = self._filteredRows(tuple(sorted(self._filter_strings))) 
         
     def setFilterFixedString(self, string):
+        """Should this raise an error? It is not being used.
+        """
         QSortFilterProxyModel.setFilterFixedString(self, string)
         
     def rowFilterText(self, row):
+        """ Return text for `row` to filter on. 
+        """
         f_role = self.filterRole()
         f_column = self.filterKeyColumn()
         s_model = self.sourceModel()
@@ -149,10 +169,8 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
             data = unicode(data, errors="ignore")
         return data
         
-    def filterAcceptsRow(self, row, parent):
-##        accepts = QSortFilterProxyModel.filterAcceptsRow(self, row, parent) 
-        return self._cache_fixed.get(row, True) #and accepts
-    
+    def filterAcceptsRow(self, row, parent): 
+        return self._cache_fixed.get(row, True)
     
 from OWGUI import LinkStyledItemDelegate, LinkRole
 
@@ -165,7 +183,7 @@ def childiter(item):
 class OWGEODatasets(OWWidget):
     settingsList = ["outputRows", "mergeSpots", "gdsSelectionStates", "splitterSettings", "currentGds", "autoCommit"]
 
-    def __init__(self, parent=None ,signalManager=None, name=" GEO Data sets"):
+    def __init__(self, parent=None ,signalManager=None, name=" GEO Data Sets"):
         OWWidget.__init__(self, parent ,signalManager, name)
 
         self.outputs = [("Expression Data", ExampleTable)]
@@ -300,14 +318,15 @@ class OWGEODatasets(OWWidget):
         proxyModel.setFilterKeyColumn(0)
         proxyModel.setFilterRole(TextFilterRole)
         proxyModel.setFilterCaseSensitivity(False)
-#        proxyModel.setFilterWildcard("*" + self.filterString + "*")
         proxyModel.setFilterFixedString(self.filterString)
         self.treeWidget.setModel(proxyModel)
         self.connect(self.treeWidget.selectionModel(), SIGNAL("selectionChanged(QItemSelection , QItemSelection )"), self.updateSelection)
         filterItems = " ".join([self.gds[i][key] for i in range(len(self.gds)) for key in self.searchKeys])
-        filterItems = reduce(lambda s, d: s.replace(d, " "), [",", ".", ":", ";", "!", "?", "(", ")", "{", "}"
-                                                              "[", "]", "_", "-", "+", "\\", "|", "/"],
-                                                              filterItems.lower())
+        filterItems = reduce(lambda s, d: s.replace(d, " "),
+                             [",", ".", ":", ";", "!", "?", "(", ")", "{", "}"
+                              "[", "]", "_", "-", "+", "\\", "|", "/", "%", "#",
+                              "@", "$", "^", "&", "*", "<", ">", "~", "`"],
+                             filterItems.lower())
         filterItems = sorted(set(filterItems.split(" ")))
         filterItems = [item for item in filterItems if len(filterItems) > 3]
         self.filterLineEdit.setItems(filterItems)
@@ -342,10 +361,6 @@ class OWGEODatasets(OWWidget):
         
     
     def setAnnotations(self, gds):
-#        self.sampleSubsets = ["%s (%d)" % (s["description"], len(s["sample_id"])) for s in gds["subsets"]]
-#        self.annotationCombo.clear()
-#        self.annotationCombo.addItems(["Include all"] + list(set([sampleinfo["type"] for sampleinfo in gds["subsets"]])))
-        
         self._annotationsUpdating = True
         self.annotationsTree.clear()
         annotations = reduce(lambda d, info: d[info["type"]].add(info["description"]) or d, gds["subsets"], defaultdict(set))
@@ -392,14 +407,6 @@ class OWGEODatasets(OWWidget):
         strings = filter_string.lower().strip().split()
         proxyModel.setFilterFixedStrings(strings)
         self.updateInfo()
-        
-#        filterStrings = self.filterString.lower().split()
-#        mapFromSource = self.treeWidget.model().mapFromSource
-#        index = self.treeWidget.model().sourceModel().index
-#        
-#        for i, row in enumerate(self.cells):
-#            self.treeWidget.setRowHidden(mapFromSource(index(i, 0)).row(), QModelIndex(), self.rowFiltered(i))
-#        self.updateInfo()
 
     def selectedSamples(self):
         """ Return the currently selected sample annotations (list of
