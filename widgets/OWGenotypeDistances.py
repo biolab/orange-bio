@@ -407,9 +407,11 @@ class OWGenotypeDistances(OWWidget):
                 return attr
             else:
                 return self.data.domain[attr_index]
-            
+        
         for keys, indices in partitions:
             attrs = [get_attr(attr_index, i) for i, attr_index in enumerate(indices)]
+            for attr in attrs:
+                attr.attributes.update(zip(separate_keys, keys))
             domain = Orange.data.Domain(attrs, None)
             domain.add_metas(self.data.domain.get_metas().items())
 #            newdata = Orange.data.Table(domain)
@@ -538,13 +540,13 @@ class OWGenotypeDistances(OWWidget):
         
         if self.split_groups:
             all_attrs = []
-            for group, domain in self.split_groups:
+            for group, domain in self.split_groups: 
                 attrs = []
                 group_name = " | ".join("{0}={1}".format(*item) for item in \
                                         zip(separate_keys, group))
                 for attr in domain.attributes:
                     newattr = clone_attr(attr)
-                    newattr.attributes["$(GROUP)"] = group_name # Need a better way to pass the groups to downstream widgets.
+                    newattr.attributes["<GENOTYPE GROUP>"] = group_name # Need a better way to pass the groups to downstream widgets.
                     attrs.append(newattr)
                     
                 all_attrs.extend(attrs)
@@ -559,8 +561,6 @@ class OWGenotypeDistances(OWWidget):
         self.send("Sorted Example Table", data)
         self.send("Distances", self.matrix)
         self.changed_flag = False
-    
-
 
 if __name__ == "__main__":
     import os, sys

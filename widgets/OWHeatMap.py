@@ -12,13 +12,14 @@ import OWGUI
 from OWWidget import *
 from OWDlgs import OWChooseImageSizeDlg
 from ColorPalette import signedPalette
-from OWClustering import HierarchicalClusterItem
+from OWClustering import HierarchicalClusterItem, DendrogramWidget, DendrogramItem
 import OWColorPalette
-try:
-    from OWDataFiles import DataFiles
-except Exception:
-    class DataFiles(object):
-        pass
+
+from collections import defaultdict
+import itertools
+import orngClustering
+
+DEBUG = False
 
 #BUG: OWHeatMap does not support heatmaps which need a image which is larger than maxint X maxint pixels!
 #and no warning appears
@@ -26,7 +27,93 @@ except Exception:
 import warnings
 warnings.filterwarnings("ignore", "'strain'", orange.AttributeWarning)
 
-# from OWChipANOVA import ANOVAResults
+def split_domain(domain, split_label):
+    """ Split the domain based on values of `split_label` value.
+    """
+    groups = defaultdict(list)
+    for attr in domain.attributes:
+        groups[attr.attributes.get(split_label)].append(attr)
+        
+    attr_values = [attr.attributes.get(split_label) for attr in domain.attributes]
+    
+    domains = []
+    for value, attrs in groups.items():
+        group_domain = orange.Domain(attrs, domain.class_var)
+        group_domain.add_metas(domain.get_metas())
+        domains.append((value, group_domain))
+        
+    if domains:
+        assert(all(len(dom) == len(domains[0][1]) for _, dom in domains))
+        
+    return sorted(domains, key=lambda t: attr_values.index(t[0]))
+    
+def vstack_by_subdomain(data, sub_domains):
+    domain = sub_domains[0]
+    newtable = orange.ExampleTable(domain)
+    
+    for sub_dom in sub_domains:
+        for ex in data:
+            vals = [ex[a].native() for a in sub_dom]
+            newtable.append(orange.Example(domain, vals))
+    
+    return newtable
+    
+    
+def select_by_class(data, class_):
+    indices = select_by_class_indices(data, class_)
+    return data.select(indices)
+
+def select_by_class_indices(data, class_):
+    return [1 if class_ == ex.getclass() else 0 for ex in data]
+
+def group_by_unordered(iterable, key):
+    groups = defaultdict(list)
+    for item in iterable:
+        groups[key(item)].append(item)
+    return groups.items()
+
+def hierarchical_cluster_ordering(data, group_domains=None, opt_order=False, progress_callback=None):
+    classVar = data.domain.classVar
+    if classVar and isinstance(classVar, orange.EnumVariable):
+        class_data = [select_by_class_indices(data, val) for val in data.domain.classVar.values]
+    else:
+        class_data = [[1] * len(data)]
+        
+    parts = len(class_data) + 1 
+    
+    def pp_callback(part):
+        def callback(value):
+            return progress_callback(value / parts + 100.0 * part / parts)
+        if progress_callback:
+            callback(100.0 * part / parts)
+            return callback
+        else:
+            return progress_callback
+        
+    if group_domains is not None and len(group_domains) > 1:
+        stacked = vstack_by_subdomain(data, group_domains)
+    else:
+        stacked = data    
+        
+    attr_cluster = orngClustering.hierarchicalClustering_attributes(stacked, order=opt_order, progressCallback=pp_callback(0))
+    attr_ordering = list(attr_cluster.mapping)
+        
+    def indices_map(indices):
+        map = zip(range(len(indices)), indices)
+        map = [i for i, test in map if test]
+        return dict(enumerate(map))
+    
+    data_ordering = []
+    data_clusters = []
+    for i, indices in enumerate(class_data):
+        sub_data = data.select(indices)
+        cluster = orngClustering.hierarchicalClustering(sub_data, order=opt_order, progressCallback=pp_callback(i + 1))
+        ind_map = indices_map(indices)
+        data_ordering.append([ind_map[m] for m in cluster.mapping])
+        data_clusters.append(cluster)
+        
+    return attr_ordering, attr_cluster, data_ordering, data_clusters  
+        
 
 ##############################################################################
 # parameters that determine the canvas layout
@@ -52,17 +139,19 @@ class ExampleTableContextHandler(ContextHandler):
             return None, False
         context.checksum = examples.checksum()
         return context, isNew
+    
+from OWGenotypeDistances import SetContextHandler
 
 class OWHeatMap(OWWidget):
     contextHandlers = {"": DomainContextHandler("", ["CellWidth", "CellHeight"]),
-                       "Selection": ExampleTableContextHandler("Selection")}
+                       "Selection": ExampleTableContextHandler("Selection", contextDataVersion=2)}
     
     settingsList = ["CellWidth", "CellHeight", "SpaceX", "Merge",
                     "Gamma", "CutLow", "CutHigh", "CutEnabled", 
                     "ShowAnnotation", "LegendOnTop", "LegendOnBottom",
                     "ShowAverageStripe", "ShowGroupLabel",
                     "MaintainArrayHeight",
-                    "BShowballoon", "BShowColumnID", "BShowSpotIndex",
+                    "GShowToolTip", "BShowColumnID", "BShowSpotIndex",
                     "BShowAnnotation", 'BShowGeneExpression',
                     "BSpotVar", "ShowGeneAnnotations",
                     "ShowDataFileNames", "BAnnotationVar",
@@ -71,25 +160,25 @@ class OWHeatMap(OWWidget):
                     "palette", "ShowColumnLabels", "ColumnLabelPosition"]
 
     def __init__(self, parent=None, signalManager = None):
-#        self.callbackDeposit = [] # deposit for OWGUI callback functions
         OWWidget.__init__(self, parent, signalManager, 'HeatMap', TRUE)
         
-        self.inputs = [("Structured Data", DataFiles, self.chipdata, Single + NonDefault), ("Examples", ExampleTable, self.dataset, Default + Multiple)]
-        self.outputs = [("Structured Data", DataFiles, Single + NonDefault), ("Examples", ExampleTable, Default)]
+        self.inputs = [("Examples", ExampleTable, self.set_dataset)]
+        self.outputs = [("Examples", ExampleTable, Default)]
 
         #set default settings
         self.CellWidth = 3; self.CellHeight = 3
         self.SpaceX = 10
         self.Merge = 1; self.savedMerge = self.Merge
         self.Gamma = 1
-        self.CutLow = 0; self.CutHigh = 0; self.CutEnabled = 0
+        self.CutLow = self.CutHigh = self.CutEnabled = 0
         self.ShowAnnotation = 0
         self.LegendOnTop = 0           # legend stripe on top (bottom)?
         self.LegendOnBottom = 1
+        self.ShowLegend = 1
         self.ShowGroupLabel = 1        # show class names in case of classified data?
         self.ShowAverageStripe = 0     # show the stripe with the evarage
         self.MaintainArrayHeight = 0   # adjust cell height while changing the merge factor
-        self.BShowballoon = 1          # balloon help
+        self.GShowToolTip = 1          # balloon help
         self.ShowGeneAnnotations = 1   # show annotations for genes
         self.ShowColumnLabels = 1
         self.ColumnLabelPosition = 0
@@ -106,6 +195,8 @@ class OWHeatMap(OWWidget):
 
         self.colorSettings =None
         self.selectedSchemaIndex = 0
+        self.auto_commit = True
+        self.selection_changed_flag = False
 
         self.palette = self.ColorPalettes[0]
         
@@ -116,15 +207,41 @@ class OWHeatMap(OWWidget):
 
         # GUI definition
         self.connect(self.graphButton, SIGNAL("clicked()"), self.saveFig)
-        self.tabs = OWGUI.tabWidget(self.controlArea) #QTabWidget(self.controlArea, 'tabWidget')
+        self.tabs = OWGUI.tabWidget(self.controlArea)
 
         # SETTINGS TAB
-        settingsTab = OWGUI.createTabPage(self.tabs, "Settings") #QVGroupBox(self)
-        box = OWGUI.widgetBox(settingsTab, "Cell Size (Pixels)", addSpace=True) #QVButtonGroup("Cell Size (Pixels)", settingsTab)
-        OWGUI.qwtHSlider(box, self, "CellWidth", label='Width: ', labelWidth=38, minValue=1, maxValue=self.maxHSize, step=1, precision=0, callback=self.drawHeatMap)
-        self.sliderVSize = OWGUI.qwtHSlider(box, self, "CellHeight", label='Height: ', labelWidth=38, minValue=1, maxValue=self.maxVSize, step=1, precision=0, callback=self.createHeatMap)
-        OWGUI.qwtHSlider(box, self, "SpaceX", label='Space: ', labelWidth=38, minValue=0, maxValue=50, step=2, precision=0, callback=self.drawHeatMap)
-        OWGUI.qwtHSlider(settingsTab, self, "Gamma", box="Gamma", minValue=0.1, maxValue=1, step=0.1, callback=self.drawHeatMap)
+        settingsTab = OWGUI.createTabPage(self.tabs, "Settings")
+        box = OWGUI.widgetBox(settingsTab, "Cell Size (Pixels)", addSpace=True)
+        OWGUI.qwtHSlider(box, self, "CellWidth", label='Width: ',
+                         labelWidth=38, minValue=1, maxValue=self.maxHSize,
+                         step=1, precision=0, callback=self.update_cell_size)
+        
+#        OWGUI.hSlider(box, self, "CellWidth", label="Width:", minValue=1,
+#                      maxValue=self.maxHSize, step=1, ticks=5,
+#                      callback=self.update_cell_size,
+#                      tooltip="Width of each heatmap cell.")
+        
+        self.sliderVSize = OWGUI.qwtHSlider(box, self, "CellHeight",
+                                label='Height: ', labelWidth=38,
+                                minValue=1, maxValue=self.maxVSize,
+                                step=1, precision=0,
+                                callback=self.update_cell_size)
+#        self.sliderVSize = OWGUI.hSlider(box, self, "CellHeight",
+#                      label='Height:', 
+#                      minValue=1, maxValue=50, ticks=5,
+#                      callback = self.update_cell_size)
+        
+        OWGUI.qwtHSlider(box, self, "SpaceX", label='Space: ', 
+                         labelWidth=38, minValue=0, maxValue=50,
+                         step=2, precision=0,
+                         callback=self.update_grid_spacing)
+#                         callback=self.drawHeatMap)
+        
+        OWGUI.qwtHSlider(settingsTab, self, "Gamma", box="Gamma",
+                         minValue=0.1, maxValue=1, step=0.1,
+                         callback=self.update_color_schema)
+#                         callback=self.drawHeatMap)
+        
         OWGUI.separator(settingsTab)
 
         # define the color stripe to show the current palette
@@ -144,46 +261,70 @@ class OWHeatMap(OWWidget):
         
         OWGUI.separator(settingsTab)
 
-##        OWGUI.checkBox(settingsTab, self, "SortGenes", "Sort genes", box="Sort", callback=self.constructHeatmap)
-        OWGUI.comboBox(settingsTab, self, "SortGenes", "Sort genes", items=["No sorting", "Sort genes", "Clustering", "Clustering with leaf ordering"], callback=self.constructHeatmap)
+        OWGUI.comboBox(settingsTab, self, "SortGenes", "Sort genes",
+                       items=["No sorting", "Sort genes", "Clustering",
+                              "Clustering with leaf ordering"],
+                               callback=self.update_sorting)
         OWGUI.rubber(settingsTab)
         
         # FILTER TAB
-        tab = OWGUI.createTabPage(self.tabs, "Filter") #QVGroupBox(self)
-        box = OWGUI.widgetBox(tab, "Threshold Values", addSpace=True) #QVButtonGroup("Threshold Values", tab)
-        OWGUI.checkBox(box, self, 'CutEnabled', "Enabled", callback=self.setCutEnabled)
-        self.sliderCutLow = OWGUI.qwtHSlider(box, self, 'CutLow', label='Low:', labelWidth=33, minValue=-100, maxValue=0, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.drawHeatMap)
-        self.sliderCutHigh = OWGUI.qwtHSlider(box, self, 'CutHigh', label='High:', labelWidth=33, minValue=0, maxValue=100, step=0.1, precision=1, ticks=0, maxWidth=80, callback=self.drawHeatMap)
+        tab = OWGUI.createTabPage(self.tabs, "Filter")
+        box = OWGUI.widgetBox(tab, "Threshold Values", addSpace=True)
+        OWGUI.checkBox(box, self, 'CutEnabled', "Enabled",
+                       callback=self.update_thresholds)
+        
+        self.sliderCutLow = OWGUI.qwtHSlider(box, self, 'CutLow', label='Low:', 
+                            labelWidth=40, minValue=-100, maxValue=0, step=0.1,
+                            precision=1, ticks=0, maxWidth=80,
+                            callback=self.update_thresholds)
+        
+        self.sliderCutHigh = OWGUI.qwtHSlider(box, self, 'CutHigh', label='High:', 
+                            labelWidth=40, minValue=0, maxValue=100, step=0.1,
+                            precision=1, ticks=0, maxWidth=80,
+                            callback=self.update_thresholds)
+        
         if not self.CutEnabled:
             self.sliderCutLow.box.setDisabled(1)
             self.sliderCutHigh.box.setDisabled(1)
 
-        box = OWGUI.widgetBox(tab, "Merge", addSpace=True) #QVButtonGroup("Merge", tab)
+        box = OWGUI.widgetBox(tab, "Merge", addSpace=True)
 ##        OWGUI.qwtHSlider(box, self, "Merge", label='Rows:', labelWidth=33, minValue=1, maxValue=500, step=1, callback=self.mergeChanged, precision=0, ticks=0)
-        OWGUI.spin(box, self, "Merge", min=1, max=500, step=1, label='Rows:', callback=self.mergeChanged, callbackOnReturn=True)
+        OWGUI.spin(box, self, "Merge", min=1, max=500, step=1, label='Rows:',
+#                   callback=self.mergeChanged,
+                   callback=self.on_merge_changed,
+                   callbackOnReturn=True)
         OWGUI.checkBox(box, self, 'MaintainArrayHeight', "Maintain array height")
         OWGUI.rubber(tab)
 
         # INFO TAB
-        tab = OWGUI.createTabPage(self.tabs, "Info") #QVGroupBox(self)
+        tab = OWGUI.createTabPage(self.tabs, "Info")
 
-        box = OWGUI.widgetBox(tab,'Annotation && Legends') #QVButtonGroup("Annotation && Legends", tab)
-        OWGUI.checkBox(box, self, 'LegendOnTop', 'Show legend', callback=self.drawHeatMap)
-        OWGUI.checkBox(box, self, 'ShowAverageStripe', 'Stripes with averages', callback=self.drawHeatMap)
-        self.geneAnnotationsCB = OWGUI.checkBox(box, self, 'ShowGeneAnnotations', 'Gene annotations', callback=self.drawHeatMap)
+        box = OWGUI.widgetBox(tab,'Annotation && Legends')
+        OWGUI.checkBox(box, self, 'ShowLegend', 'Show legend', 
+                       callback=self.update_legend)
+        OWGUI.checkBox(box, self, 'ShowAverageStripe', 'Stripes with averages', 
+                       callback=self.update_averages_stripe)
+        self.geneAnnotationsCB = OWGUI.checkBox(box, self, 'ShowGeneAnnotations', 'Gene annotations', 
+                                                callback=self.update_annotations)
         
-        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationIndx", items=[], callback=lambda x='BAnnotationVar', y='BAnnotationIndx': self.setMetaID(x, y))
+        self.annotationCombo = OWGUI.comboBox(box, self, "BAnnotationIndx", items=[],
+                                              callback=self.update_annotations) 
+                                              #callback=lambda x='BAnnotationVar', y='BAnnotationIndx': self.setMetaID(x, y))
 
         box = OWGUI.widgetBox(tab, 'Column Labels')
-        columnLabelCB = OWGUI.checkBox(box, self, "ShowColumnLabels", "Display column labels", callback=self.drawHeatMap)
-        comboBox = OWGUI.comboBox(OWGUI.indentedBox(box), self, "ColumnLabelPosition", "Position", items=["Top", "Bottom"], callback=self.drawHeatMap)
+        columnLabelCB = OWGUI.checkBox(box, self, "ShowColumnLabels", "Display column labels",
+                                       callback=self.update_column_annotations)
+        posbox = OWGUI.widgetBox(OWGUI.indentedBox(box), "Position", flat=True)
+        comboBox = OWGUI.comboBox(posbox, self, "ColumnLabelPosition", 
+                                  items=["Top", "Bottom"], 
+                                  callback=self.update_column_annotations)
         columnLabelCB.disables.append(comboBox.box)
         columnLabelCB.makeConsistent()
         
-        box = OWGUI.widgetBox(tab, "Ballon") #QVButtonGroup("Balloon", tab)
-        OWGUI.checkBox(box, self, 'BShowballoon', "Show balloon", \
-            callback=lambda: self.balloonInfoBox.setDisabled(not self.BShowballoon))
-        box = OWGUI.widgetBox(tab, "Ballon info") #QVButtonGroup("Balloon Info", tab)
+        box = OWGUI.widgetBox(tab, "Tool Tips")
+        cb = OWGUI.checkBox(box, self, 'GShowToolTip', "Show tool tips")
+        box = OWGUI.widgetBox(OWGUI.indentedBox(box), "Tool Tip Info")
+        box.setFlat(True)
         OWGUI.checkBox(box, self, 'BShowColumnID', "Column ID")
         self.spotIndxCB = OWGUI.checkBox(box, self, 'BShowSpotIndex', "Spot Index", \
             callback=lambda: self.spotCombo.setDisabled(not self.BShowSpotIndex))
@@ -191,50 +332,55 @@ class OWHeatMap(OWWidget):
             callback=lambda x='BSpotVar', y='BSpotIndx': self.setMetaID(x, y))
         OWGUI.checkBox(box, self, 'BShowGeneExpression', "Gene expression")
         OWGUI.checkBox(box, self, 'BShowAnnotation', "Annotation")
-        self.balloonInfoBox = box
+        self.toolTipInfoBox = box
+        cb.disables.append(box)
+        cb.makeConsistent()
         OWGUI.rubber(tab)
 
-        # FILES TAB
-        self.filesTab = OWGUI.createTabPage(self.tabs, "Files")
-        box = OWGUI.widgetBox(self.filesTab, "Data Files")
-        self.fileLB = QListWidget(box)
-        box.layout().addWidget(self.fileLB)
-##        self.fileLB.setMaximumWidth(10)
-        self.connect(self.fileLB, SIGNAL("highlighted(int)"), self.fileSelectionChanged)
-        self.connect(self.fileLB, SIGNAL("selected(int)"), self.setFileReferenceBySelection)
-##        self.tabs.insertTab(self.filesTab, "Files")
-        self.tabs.setTabEnabled(self.tabs.indexOf(self.filesTab), 0)
-        hbox = OWGUI.widgetBox(box, orientation="horizontal") #QHBox(box)
-        self.fileUp = OWGUI.button(hbox, self, 'Up', \
-            callback=lambda i=-1: self.fileOrderChange(i), disabled=1)
-        self.fileRef = OWGUI.button(hbox, self, 'Ref', self.setFileReference, disabled=1)
-        self.fileDown = OWGUI.button(hbox, self, 'Down', \
-            callback=lambda i=1: self.fileOrderChange(i), disabled=1)
-        for btn in [self.fileUp, self.fileRef, self.fileDown]:
-            btn.setMaximumWidth(45)
+        # SPLIT TAB
+        self.splitTab = OWGUI.createTabPage(self.tabs, "Split Data")
+        box = OWGUI.widgetBox(self.splitTab, "Split By")
+        self.splitLB = QListWidget(box)
+        box.layout().addWidget(self.splitLB)
+        self.connect(self.splitLB, SIGNAL("itemSelectionChanged()"), self.split_changed)
 
-        OWGUI.checkBox(self.filesTab, self, 'ShowDataFileNames', 'Show data file names',
-           callback=self.drawHeatMap)
-        OWGUI.radioButtonsInBox(self.filesTab, self, 'SelectionType', \
-           ['Single data set', 'Multiple data sets'], box='Selection', callback=self.removeSelection)
-        OWGUI.rubber(self.filesTab)
-
-        self.resize(800,400)
-
-        # canvas with microarray
-        self.scene = HeatMapGraphicsScene()
-        self.sceneView = MyGraphicsView(self.scene, self.mainArea)
-        self.selection = SelectData(self, self.scene)
+        # Scene with microarray
+        self.heatmap_scene = self.scene = HeatmapScene()
+        self.selection_manager = HeatmapSelectionManager(self)
+        self.connect(self.selection_manager, SIGNAL("selection_changed()"), self.on_selection_changed)
+        self.connect(self.selection_manager, SIGNAL("selection_finished()"), self.on_selection_finished)
+        self.heatmap_scene.set_selection_manager(self.selection_manager)
+        item = QGraphicsRectItem(0, 0, 10, 10, None, self.heatmap_scene)
+        self.heatmap_scene.itemsBoundingRect()
+        self.heatmap_scene.removeItem(item)
+        
+        self.sceneView = QGraphicsView(self.scene)
         self.currentHighlightedCluster = None
         self.selectedClusters = []
         self.mainArea.layout().addWidget(self.sceneView)
+        self.heatmap_scene.widget = None
+        self.heatmap_widget_grid = [[]]
+        self.attr_annotation_widgets = []
+        self.attr_dendrogram_widgets = []
+        self.gene_annotation_widgets = []
+        self.gene_dendrogram_widgets = []
+        
+        self.heatmaps = []
+        
+        self.selection_rects = []
+        
+        self.attr_cluster = None
+        self.data_clusters = []
+        self.sorted_data = None
+        
+        self.resize(800,400)
 
     def createColorStripe(self, palette):
         dx = 104; dy = 18
         bmp = chr(252)*dx*2 + reduce(lambda x,y:x+y, \
            [chr(i*250/dx) for i in range(dx)] * (dy-4)) + chr(252)*dx*2 
-##        image = QImage(bmp, dx, dy, 8, self.ColorPalettes[palette], 256, QImage.LittleEndian)
-        image = QImage(bmp, dx, dy, QImage.Format_Indexed8)# self.ColorPalettes[palette], 256, QImage.LittleEndian)
+        
+        image = QImage(bmp, dx, dy, QImage.Format_Indexed8)
         image.setColorTable(signedPalette(self.ColorPalettes[palette]))
 
         pm = QPixmap.fromImage(image, Qt.AutoColor);
@@ -257,6 +403,46 @@ class OWHeatMap(OWWidget):
         self.SelectionColors = [QColor(0,0,0), QColor(255,255,128), QColor(0,255,255)]
         self.CurrentPalette = 0
         
+    def getGammaCorrectedPalette(self):
+        return [QColor(*self.contPalette.getRGB(float(i)/250, gamma=self.Gamma)).rgb() for i in range(250)] + self.palette[-6:]
+
+    def setColor(self, index, dialog=None, update=True):
+        self.selectedSchemaIndex = index
+        if not dialog:
+            dialog = self.createColorDialog()
+
+        self.colorCombo.setPalettes("palette", dialog)
+        self.colorCombo.setCurrentIndex(self.selectedSchemaIndex)
+        self.contPalette = palette = dialog.getExtendedContinuousPalette("palette")
+        unknown = dialog.getColor("unknown").rgb()
+        underflow = dialog.getColor("underflow").rgb()
+        overflow = dialog.getColor("overflow").rgb()
+        self.palette = [QColor(*palette.getRGB(float(i)/250, gamma=self.Gamma)).rgb() for i in range(250)] + [qRgb(255, 255, 255)]*3 +[underflow, overflow, unknown]
+
+        if update:
+            self.update_color_schema()
+#            self.drawHeatMap()
+        
+    def openColorDialog(self):
+        dialog = self.createColorDialog()
+        if dialog.exec_():
+            self.colorSettings = dialog.getColorSchemas()
+            self.selectedSchemaIndex = dialog.selectedSchemaIndex
+            self.colorCombo.setCurrentIndex(self.selectedSchemaIndex)
+            self.setColor(self.selectedSchemaIndex, dialog)
+
+    def createColorDialog(self):
+        c = OWColorPalette.ColorPaletteDlg(self, "Color Palette")
+        c.createExtendedContinuousPalette("palette", "Continuous Palette", initialColor1=QColor(Qt.blue), initialColor2=QColor(255, 255, 0).rgb(), extendedPassThroughColors = ((Qt.red, 1), (Qt.darkYellow, 1), (Qt.black, 1), (Qt.magenta, 1), (Qt.green, 1)))
+        box = c.createBox("otherColors", "Other Colors")
+        c.createColorButton(box, "unknown", "Unknown", Qt.gray)
+        box.layout().addSpacing(5)
+        c.createColorButton(box, "overflow", "Overflow", Qt.black)
+        box.layout().addSpacing(5)
+        c.createColorButton(box, "underflow", "Underflow", Qt.white)
+        c.setColorSchemas(self.colorSettings, self.selectedSchemaIndex)
+        return c
+    
     # any time the data changes, the two combo boxes showing meta attributes
     # have to be adjusted
     def setMetaCombo(self, cb, value, enabled=1, default=None):
@@ -286,976 +472,1421 @@ class OWHeatMap(OWWidget):
 
     def setMetaID(self, val, valIndx):
         setattr(self, val, self.meta[getattr(self, valIndx)])
-        if val=='BAnnotationVar':
-            self.drawHeatMap()
+#        if val=='BAnnotationVar':
+#            self.drawHeatMap()
 
     def setMetaCombos(self):
-        self.meta = [m.name for m in self.data[0].domain.getmetas().values()]
+        self.meta = [m.name for m in self.data.domain.getmetas().values()]
         self.BSpotVar, self.BSpotIndx = self.setMetaCombo(self.spotCombo, self.BSpotVar, \
             enabled=self.BShowSpotIndex, default='RMI')
         self.BAnnotationVar, self.BAnnotationIndx = self.setMetaCombo(self.annotationCombo, \
             self.BAnnotationVar, enabled=self.BShowAnnotation, default='xannotation')
+        
+    def set_meta_combos(self):
+        self.spotCombo.clear()
+        self.annotationCombo.clear()
+        
+        self.meta = self.data.domain.getmetas().values()
+        names = [m.name for m in self.meta]
+        
+        self.spotCombo.addItems(names)
+        self.annotationCombo.addItems(names)
+        enabled = bool(self.meta)
+        
+        self.spotIndxCB.setEnabled(enabled)
+        self.geneAnnotationsCB.setEnabled(enabled)
+        
+        self.spotCombo.setEnabled(enabled and self.BShowSpotIndex)
+        self.annotationCombo.setEnabled(enabled and self.BShowAnnotation)
+        
+        self.BSpotIndx = 0
+        self.BSpotVar = self.meta[0] if self.meta else None
+        self.BAnnotationIndx = 0
+        self.BAnnotationVar = self.meta[0] if self.meta else None
 
+    def get_candidate_splits(self):
+        """ Return candidate labels on which we can split the data. 
+        """
+        if self.data is not None:
+            groups = defaultdict(list)
+            for attr in self.data.domain.attributes:
+                for item in attr.attributes.items():
+                    groups[item].append(attr)
+                
+            by_keys = defaultdict(list)
+            for (key, value), attrs in groups.items():
+                by_keys[key].append(attrs)
+            
+            # Find the keys for which all values have the same number of attributes.
+            candidates = []
+            for key, groups in by_keys.items():
+                count = len(groups[0])
+                if all(len(attrs) == count for attrs in groups) and len(groups) > 1 and count > 1:
+                    candidates.append(key)
+                    
+            return candidates
+        else:
+            return []
+            
+    def set_split_labels(self):
+        """ Set the list view in Split tab.
+        """
+        self.splitLB.addItems(self.get_candidate_splits())
+        
+    def selected_split_label(self):
+        item = self.splitLB.currentItem()
+        return str(item.text()) if item else None
+        
+    def clear(self):
+        self.data = None
+        self.spotCombo.clear()
+        self.annotationCombo.clear()
+        self.splitLB.clear()
+        self.meta = []
+        
+        self.clear_scene()
+        
+    def clear_scene(self):
+        self.selection_manager.set_heatmap_widgets([[]])
+        self.heatmap_scene.clear()
+        self.heatmap_scene.widget = None
+        self.heatmap_widget_grid = [[]]
+        self.attr_annotation_widgets = []
+        self.attr_dendrogram_widgets = []
+        self.gene_annotation_widgets = []
+        self.gene_dendrogram_widgets = []
+        
+        self.selection_rects = []
+        
+        
     def saveFig(self):
         sizeDlg = OWChooseImageSizeDlg(self.scene, parent=self)
         sizeDlg.exec_()
 
     ##########################################################################
     # handling of input/output signals
-
-    def dataset(self, data, id, blockUpdate=0):
+        
+    def set_dataset(self, data=None, id=None):
         self.closeContext("Selection")
-        ids = [d.id for d in self.data]
-        if not data:
-            if id in ids:
-                k = ids.index(id)
-                del self.data[k]
-                self.fileLB.takeItem(k)
-                if self.refFile == k:
-                    self.refFile = 0
-                    if len(self.data):
-                        self.fileLB.changeItem(self.createListItem(self.data[0].name, self.refFile), \
-                                               self.refFile)
-        else:
-            # check if the same length
-            if data.domain.classVar:
-                domain = self.checkDomain(data)
-                if domain:
-                    data = orange.ExampleTable(domain, data)
-            data.setattr("id", id)
-            if id in ids:
-                indx = ids.index(id)
-                self.data[indx] = data
-##                self.fileLB.changeItem(self.createListItem(data.name, indx), indx)
-                self.fileLB.takeItem(indx)
-                self.fileLB.insertItem(indx, self.createListItem(data.name, indx))
-            else:
-                self.fileLB.addItem(self.createListItem(data.name, len(self.data)))
-                self.data.append(data)
-
-            if len(self.data) > 1:
-                self.tabs.setTabEnabled(self.tabs.indexOf(self.filesTab), True)
-            else:
-                self.tabs.setTabEnabled(self.tabs.indexOf(self.filesTab), False)
-            self.setMetaCombos() # set the two combo widgets according to the data
-
+        self.clear()
+        self.data = data
+        if data is not None:
+#            self.setMetaCombos()
+            self.set_meta_combos()
+            self.set_split_labels()
+            
         self.unorderedData = None
         self.groupClusters = None
-
-    def chipdata(self, data):
-        self.data = [] # XXX should only remove the data from the same source, use id in this rutine
-        self.fileLB.clear()
-        self.refFile = 0
-        if not data:
-            for i in self.scene.items():
-                self.scene.removeItem(i)
-            self.scene.update()
-            return
-        indx = 0
-        for (strainname, ds) in data:
-            for d in ds:
-                self.dataset(d, indx, blockUpdate=1)
-                indx += 1
-#        self.createHeatMap()
-
-        pb = OWGUI.ProgressBar(self, iterations=len(self.data))
-        self.constructHeatmap(callback=pb.advance)
-        self.scene.update()
-        pb.finish()
         
     def handleNewSignals(self):
         self.send('Examples', None)
-        self.send('Structured Data', None)
-        self.constructHeatmap()
-#        self.scene.update()
         if self.data:
-            self.openContext("Selection", self.data[0])
+            self.update_heatmaps()
+        else:
+            self.clear()
         
+        if self.data:
+            self.openContext("Selection", self.data)
+            
+    def construct_heatmaps(self, data, split_label=None):
+        if split_label is not None:
+            groups = split_domain(data.domain, split_label)
+        else:
+            groups = [("", data.domain)]
+            
+        group_domains = [dom for _, dom in groups]
         
-
-    def orderClustering(self, data):
-        import orngClustering
-        self.progressBarInit()
-        progressCallback = lambda value, caller=None: self.progressBarSet(value)
-        
-        clusterRoots = []
-        orderedData = []
-        mapping = []
-        
-        valuesCount = len(data.domain.classVar.values) if data.domain.classVar else 0
-        attrRoot = orngClustering.hierarchicalClustering_attributes(data, progressCallback=lambda value: progressCallback((value)/(valuesCount or 1 + 1)), order=self.SortGenes==3)
-        orderedDomain = orange.Domain([data.domain.attributes[i] for i in attrRoot], data.domain.classVar)
-        orderedDomain.addmetas(data.domain.getmetas())
-        
-        data = orange.ExampleTable(orderedDomain, data)
-         
-        if data.domain.classVar and data.domain.classVar.values:
-            valuesCount = len(data.domain.classVar.values) + 1
-            for i, val in enumerate(data.domain.classVar.values):
-                self.progressBarSet(100.0*(i + 1)/valuesCount)
-                tmpData = orange.ExampleTable([ex for ex in data if ex.getclass()==val])
-                root = orngClustering.hierarchicalClustering(tmpData, progressCallback=lambda value: progressCallback((100.0*(i + 1) + value)/valuesCount), order=self.SortGenes==3)
-                orderedData.extend([tmpData[i] for i in root.mapping])
-                mapping.extend([i+len(mapping) for i in root.mapping])
-                clusterRoots.append(root)
+        if self.SortGenes > 1:
+            self.progressBarInit()
+            attr_ordering, attr_cluster, data_ordering, data_clusters = \
+                    hierarchical_cluster_ordering(data, group_domains,
+                                                  opt_order=self.SortGenes == 3,
+                                                  progress_callback=self.progressBarSet)
+            sorted_data = [data[i] for i in itertools.chain(*data_ordering)]
+            self.progressBarFinished()
             
         else:
-            root = orngClustering.hierarchicalClustering(data, progressCallback=progressCallback, order=self.SortGenes==3)
-            orderedData.extend([data[i] for i in root.mapping])
-            mapping = list(root.mapping)
-            clusterRoots.append(root)
-
-        self.progressBarFinished()
-        return orange.ExampleTable(orderedData), clusterRoots, mapping, attrRoot
+            attr_ordering = range(len(group_domains[0][1].attributes))
+            attr_cluster = None
+            data_ordering = []
+            data_clusters = [None]
+            sorted_data = data
+            
+        self.heatmapconstructor = []
+        self._group_data = []
         
-    def constructHeatmap(self, callback=None):
-        if len(self.data):
-            self.heatmapconstructor = [None] * len(self.data)
-            self.unorderedData = self.data if not self.unorderedData else self.unorderedData
-            self.groupClusters = []
-            self.attrCluster = None
-            self.mapping = None
-            sortData = lambda data, mapping, domain=None: orange.ExampleTable(domain or data.domain, [data[i] for i in mapping])
-            if self.SortGenes:
-                if self.SortGenes > 1: ## cluster sort
-                    refData, self.groupClusters , self.mapping, self.attrCluster = self.orderClustering(self.unorderedData[self.refFile])
-                    sortedData = sortData(self.data[self.refFile], self.mapping, refData.domain)
-                    self.heatmapconstructor[self.refFile] = \
-                        orangene.HeatmapConstructor(sortedData, None)
-                    self.heatmapconstructor[self.refFile].setattr("_sortedData", sortedData)
-                else:
-                    self.heatmapconstructor[self.refFile] = \
-                        orangene.HeatmapConstructor(self.data[self.refFile])
+        for name, group_domain in groups:
+            if attr_ordering != sorted(attr_ordering):
+                domain = orange.Domain([group_domain[i] for i in attr_ordering], group_domain.classVar)
+                domain.addmetas(group_domain.getmetas())
+                group_domain = domain
+                
+            group_data = orange.ExampleTable(group_domain, sorted_data)
+            self._group_data.append((group_data, group_domain)) # Crashes at accessing the heatmap.examples[0] without this 
+            if self.SortGenes == 1:
+                hc = orangene.HeatmapConstructor(group_data)
             else:
-                self.heatmapconstructor[self.refFile] = \
-                    orangene.HeatmapConstructor(self.data[self.refFile], None)
-            if callback: callback()
-
-            for i in range(len(self.data)):
-                if i <> self.refFile:
-                    if self.mapping:
-                        self.heatmapconstructor[i] = orangene.HeatmapConstructor(sortData(self.data[i],self.mapping, refData.domain),
-                            self.heatmapconstructor[self.refFile])
-                    else:                        
-                        self.heatmapconstructor[i] = orangene.HeatmapConstructor(self.data[i],
-                            self.heatmapconstructor[self.refFile])
-                    if callback: callback()
-        else:
-            self.heatmapconstructor = []
-        self.createHeatMap()
-
-    # remove unused values from the class of the data set
-    def checkDomain(self, data, selection = None):
-        # Reduce the number of class values, if class is defined
-        cl = clo = data.domain.classVar
-        if cl:
-            if selection:
-                cl = orange.RemoveUnusedValues(cl, selection, removeOneValued = 1)
-            else:
-                cl = orange.RemoveUnusedValues(cl, data, removeOneValued = 1)
-
-        # Construct a new domain only if the class has changed
-        # (ie to lesser number of values or to one value (alias None))
-        if cl != clo:
-            domain = orange.Domain(data.domain.attributes, cl)
-            metas = data.domain.getmetas()
-            for key in metas:
-                domain.addmeta(key, metas[key])
-            return domain
-        else:
-            return None
-
-    # send out the data for selected rows, rows = [(group, from, to), ...]
-    def prepareData(self, rows, indx):
-        ex = []
-        for (g,s,e) in rows:
-            hm = self.heatmaps[indx][g]
-            ex += hm.examples[hm.exampleIndices[s] : hm.exampleIndices[e+1]]
-
-        # Reduce the number of class values, if class is defined
-        newdomain = self.checkDomain(self.data[indx], selection=ex)
-        if not newdomain:
-            newdomain = self.data[indx].domain
-        selectedData = orange.ExampleTable(newdomain, ex)
-        return selectedData
-
-    def sendOne(self, data, indx):
-        self.send("Examples", data)
+                hc = orangene.HeatmapConstructor(group_data, None)
+            
+            self.heatmapconstructor.append(hc)
+            
+        self.attr_cluster = attr_cluster
+        self.data_clusters = data_clusters
+        self.sorted_data = sorted_data
+        self.group_domains = groups
+            
+    def create_heatmaps(self, constructors):
+        self.lowerBound = 1000
+        self.upperBound = -1000
+        squeeze = 1.0 / self.Merge
+        self.heatmaps = []
+        for hmc in constructors:
+            hm, lb, ub = hmc(squeeze)
+            
+            self.lowerBound = min(self.lowerBound, lb)
+            self.upperBound = max(self.upperBound, ub)
+                
+            self.heatmaps.append(hm)
+            
+        for cluster, heatmap in zip(self.data_clusters, self.heatmaps[0]):
+            if cluster is not None:
+                cluster._heatmap = heatmap
+            
+        self.sliderCutLow.setRange(self.lowerBound, 0, 0.1)
+        self.sliderCutHigh.setRange(1e-10, self.upperBound, 0.1)
+        self.CutLow = max(self.CutLow, self.lowerBound)
+        self.CutHigh = min(self.CutHigh, self.upperBound)
+        self.sliderCutLow.setValue(self.CutLow)
+        self.sliderCutHigh.setValue(self.CutHigh)
+            
+    def point_size_hint(self, height):
+        font = QFont(self.font())
+        font.setPointSize(height)
+        fix = 0
+        while QFontMetrics(font).lineSpacing() > height and height - fix > 1:
+            fix += 1
+            font.setPointSize(height - fix)
+        return height - fix
     
-    def sendData(self, rows, indxs):
-        indxs.sort()
-
-        newdata = [None] * (max(indxs) + 1)
-        for i in indxs:
-            newdata[i] = self.prepareData(rows, i)
-            newdata[i].name = self.data[i].name
-            if not hasattr(self.data[i], "strain"):
-                newdata[i].strain = "NoName (%d)" % i
+    def construct_heatmaps_scene(self, heatmaps, data, attr_cluster=None, data_clusters=None):
+        self.heatmap_scene.clear()
+        widget = GridWidget()
+        self.heatmap_scene.addItem(widget)
+        layout = QGraphicsGridLayout()
+        layout.setSpacing(self.SpaceX)
+        widget.setLayout(layout)
+        
+        classVar = data.domain.classVar
+        if classVar and isinstance(classVar, orange.EnumVariable):
+            classes = classVar.values
+        else:
+            classes = [None]
+        
+        if self.CutEnabled:
+            cut_low, cut_high = self.CutLow, self.CutHigh
+        else:
+            cut_low, cut_high = self.lowerBound, self.upperBound
+            
+        palette = self.getGammaCorrectedPalette() if self.Gamma !=0 else self.palette
+        
+        class_dendrograms = []
+        attr_dendrograms = []
+        heatmap_widgets = []
+        attr_annotation_widgets = []
+        gene_annotation_widgets = []
+        attr_annotation_widgets_top = []
+        attr_annotation_widgets_bottom = []
+        
+        # Dendrograms on the left side
+        if data_clusters and any(data_clusters):
+            for i, cluster in enumerate(data_clusters):
+                class_dendrogram = DendrogramWidget(cluster, parent=widget, orientation=Qt.Vertical)
+                class_dendrogram.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+                left, top, right, bottom = class_dendrogram.layout().getContentsMargins()
+                class_dendrogram.layout().setContentsMargins(left, self.CellHeight / 2.0 / self.Merge, 0.0, self.CellHeight / 2.0 / self.Merge)
+                class_dendrogram.setMinimumWidth(100)
+                class_dendrogram.setMaximumWidth(100)
+                
+                layout.addItem(class_dendrogram, i*2 + 5, 0)
+                class_dendrograms.append(class_dendrogram)
+            
+        # Class labels    
+        for i, class_ in enumerate(classes):
+            if class_ is not None:
+                item = GtI(class_, widget)
+                item = GraphicsSimpleTextLayoutItem(item, parent=widget)
+                item.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+                layout.addItem(item, i*2 + 4, 2)
+                layout.setRowSpacing(i*2 + 4, 2)
+                layout.setAlignment(item, Qt.AlignLeft | Qt.AlignVCenter)
+                
+        font = QFont()
+        font.setPointSize(self.point_size_hint(self.CellHeight))
+        
+        class_row_labels = [map(str, hm.exampleIndices) for hm in heatmaps[0]]
+        group_column_labels = [[a.name for a in hm[0].examples.domain.attributes] for hm in heatmaps]
+        
+        # Gene annotations on the right side
+        for i, labels in enumerate(class_row_labels):
+            list = GraphicsSimpleTextList(labels, parent=widget, orientation=Qt.Vertical)
+            list.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            list.setFont(font)
+            list.setContentsMargins(0.0, 0.0, 0.0, 0.0)
+            list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.MinimumExpanding)
+            
+            layout.addItem(list, i*2 + 5, len(self.heatmaps) + 2)
+            layout.setAlignment(list, Qt.AlignLeft)
+            gene_annotation_widgets.append(list)
+            
+        font = QFont()
+        font.setPointSizeF(self.point_size_hint(self.CellWidth))
+        
+        if self.ShowAverageStripe:
+            stripe_offset = c_averageStripeWidth + 2
+        else:
+            stripe_offset = 0
+            
+        for column, (hm, labels, group) in enumerate(zip(heatmaps, group_column_labels, self.group_domains)):
+            column_heatmap_widgets = []
+            
+            # Top group label
+            if len(heatmaps) > 1:
+                item = GtI(group[0], widget)
+                item = GraphicsSimpleTextLayoutItem(item, parent=widget)
+                layout.addItem(item, 1, column + 2)
+                layout.setRowSpacing(1, 2)
+                layout.setRowMaximumHeight(1, item.geometry().height())
+                layout.setAlignment(item, Qt.AlignLeft | Qt.AlignVCenter)
             else:
-                newdata[i].strain = self.data[i].strain
+                layout.setRowMaximumHeight(1, 0)
+                layout.setRowSpacing(1, 0)
+                
+            # Top dendrogram
+            if attr_cluster is not None:
+                attr_dendrogram = DendrogramWidget(attr_cluster, parent=widget, orientation=Qt.Horizontal)
+                attr_dendrogram.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+                attr_dendrogram.translate(0.0, attr_dendrogram.size().height())
+                attr_dendrogram.scale(1.0, -1.0)
+                
+                left, top, right, bottom = attr_dendrogram.layout().getContentsMargins()
+                attr_dendrogram.layout().setContentsMargins(stripe_offset + self.CellWidth / 2.0, 0.0, self.CellWidth / 2.0, bottom)
+                attr_dendrogram.setMinimumHeight(100)
+                attr_dendrogram.setMaximumHeight(100)
+                
+                layout.addItem(attr_dendrogram, 2, column + 2)
+                layout.setRowMaximumHeight(2, 100)
+                attr_dendrograms.append(attr_dendrogram)
             
-            self.sendOne(newdata[i], i)
             
-        groups = {}
-        for i in indxs:
-            groups[newdata[i].strain] = []
-        for i in indxs:
-            groups[newdata[i].strain].append(i)
-        strains = groups.keys()
-        strains.sort()
-        datafiles = []
-        for s in strains:
-            datafiles.append( (s, [newdata[i] for i in groups[s]]) )
-        datafiles
-        self.send("Structured Data", datafiles)
+            # Heatmap widget for each class 
+            for i, (class_, chm) in enumerate(zip(classes, hm)): 
+                hm_widget = GraphicsHeatmapWidget(heatmap=chm, parent=widget)
+                hm_widget.set_cell_size(int(self.CellWidth), int(self.CellHeight))
+                hm_widget.set_cuts(cut_low, cut_high)
+                hm_widget.set_color_table(palette)
+                hm_widget.set_show_averages(self.ShowAverageStripe)
+                hm_widget.cell_tool_tip = lambda row, col, hm=hm_widget: self.cell_tool_tip(hm, row, col)
+                layout.addItem(hm_widget, i*2 + 5, column + 2)
+                column_heatmap_widgets.append(hm_widget)
+            heatmap_widgets.append(column_heatmap_widgets)
+            
+            # Top attr annotations
+            list = GraphicsSimpleTextList(labels, parent=widget, orientation=Qt.Horizontal)
+            list.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            
+            list.setFont(font)
+            list.layout().setContentsMargins(stripe_offset, 0, 0, 0)
+            list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            
+            layout.addItem(list, 3, column + 2, Qt.AlignBottom | Qt.AlignLeft)
+            attr_annotation_widgets.append(list)
+            attr_annotation_widgets_top.append(list)
+            
+            # Bottom attr annotations
+            list = GraphicsSimpleTextList(labels, parent=widget, orientation=Qt.Horizontal)
+            list.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+            
+            list.setFont(font)
+            list.layout().setContentsMargins(stripe_offset, 0, 0, 0)
+            list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            
+            layout.addItem(list, len(hm)*2 + 5, column + 2)
+            attr_annotation_widgets.append(list)
+            attr_annotation_widgets_bottom.append(list)
+            
+            # Legend
+            if column == 0:
+                item = GraphicsLegendWidget(self.heatmapconstructor[0], self.lowerBound, self.upperBound, parent=widget)
+                item.set_color_table(palette)
+                item.setVisible(self.ShowLegend)
+                layout.addItem(item, 0, 2, 1, len(self.heatmaps) + 1)
+                layout.setRowSpacing(0, 2)
+#                layout.setRowMaximumHeight(0, item.geometry().height())
+            
+        self.heatmap_scene.addItem(widget)
+        self.heatmap_scene.widget = widget
+        self.heatmap_widget_grid = heatmap_widgets
+        self.gene_annotation_widgets = gene_annotation_widgets
+        self.attr_annotation_widgets = attr_annotation_widgets
+        self.attr_annotation_widgets_top = attr_annotation_widgets_top
+        self.attr_annotation_widgets_bottom = attr_annotation_widgets_bottom
+        self.attr_dendrogram_widgets = attr_dendrograms
         
-    ##########################################################################
-    # callback functions
-
-    def getGammaCorrectedPalette(self):
-        return [QColor(*self.contPalette.getRGB(float(i)/250, gamma=self.Gamma)).rgb() for i in range(250)] + self.palette[-6:]
-
-    def setColor(self, index, dialog=None, update=True):
-        self.selectedSchemaIndex = index
-        if not dialog:
-            dialog = self.createColorDialog()
-
-        self.colorCombo.setPalettes("palette", dialog)
-        self.colorCombo.setCurrentIndex(self.selectedSchemaIndex)
-        self.contPalette = palette = dialog.getExtendedContinuousPalette("palette")
-        unknown = dialog.getColor("unknown").rgb()
-        underflow = dialog.getColor("underflow").rgb()
-        overflow = dialog.getColor("overflow").rgb()
-        self.palette = [QColor(*palette.getRGB(float(i)/250, gamma=self.Gamma)).rgb() for i in range(250)] + [qRgb(255, 255, 255)]*3 +[underflow, overflow, unknown]
-
-        if update:        
-            self.drawHeatMap()
+        self.update_annotations()
+        self.update_column_annotations()
         
-    def openColorDialog(self):
-        dialog = self.createColorDialog()
-        if dialog.exec_():
-            self.colorSettings = dialog.getColorSchemas()
-            self.selectedSchemaIndex = dialog.selectedSchemaIndex
-            self.colorCombo.setCurrentIndex(self.selectedSchemaIndex)
-            self.setColor(self.selectedSchemaIndex, dialog)
+        self.fix_grid_layout()
+        
+        self.selection_manager.set_heatmap_widgets(heatmap_widgets)
+        
+    def fix_grid_layout(self):
+        """ Fix grid layout when cell size changes or average
+        stripes are shown/hiddens.
+        """
+        if self.heatmap_scene.widget:
+            layout = self.heatmap_scene.widget.layout()
+            layout.invalidate()
+            layout.activate()
+            
+            for i, hw in enumerate(self.heatmap_widget_grid[0]):
+                max_h = hw.size().height()
+                layout.setRowMaximumHeight(i*2 + 5, max_h)
+                
+            for i, hw in enumerate(self.heatmap_widget_grid):
+                max_w = hw[0].size().width()
+                layout.setColumnMaximumWidth(i + 2, max_w)
+                if self.attr_dendrogram_widgets:
+                    dendrogram = self.attr_dendrogram_widgets[i]
+#                    dendrogram.resize(max_w, -1)
+                    dendrogram.setMaximumWidth(max_w)
+                self.attr_annotation_widgets_top[i].setMaximumWidth(max_w)
+                self.attr_annotation_widgets_bottom[i].setMaximumWidth(max_w)
+                
+#            for i, (hw, dend) in enumerate(zip(self.heatmap_widget_grid, self.attr_dendrogram_widgets)):
+#                max_w = hw[0].size().width()
+            
+#            self.update_widget_margins()    
+            self.heatmap_scene.widget.resize(self.heatmap_scene.widget.sizeHint(Qt.PreferredSize))
+            
+            self.on_selection_changed()
+            self.update_scene_rect()
+        
+    def update_scene_rect(self):
+        rect = QRectF()
+        for item in self.heatmap_scene.items():
+            rect |= item.sceneBoundingRect()
+        self.heatmap_scene.setSceneRect(rect)
+            
+    def heatmap_widgets(self):
+        """ Iterate over heatmap widgets.
+        """
+        for item in self.heatmap_scene.items():
+            if isinstance(item, GraphicsHeatmapWidget):
+                yield item
+                
+    def label_widgets(self):
+        """ Iterate over GraphicsSimpleTextList widgets.
+        """
+        for item in self.heatmap_scene.items():
+            if isinstance(item, GraphicsSimpleTextList):
+                yield item
+                
+    def dendrogram_widgets(self):
+        """ Iterate over dendrogram widgets
+        """
+        for item in self.heatmap_scene.items():
+            if isinstance(item, DendrogramWidget):
+                yield item
+                
+    def legend_widgets(self):
+        for item in self.heatmap_scene.items():
+            if isinstance(item, GraphicsLegendWidget):
+                yield item
+                
+    def update_cell_size(self):
+        """ Update cell sizes (by user request - height/width sliders)
+        """ 
+        for heatmap in self.heatmap_widgets():
+            heatmap.set_cell_size(self.CellWidth, self.CellHeight)
+            
+        hor_font = QFont(self.font())
+        hor_font.setPointSize(self.point_size_hint(self.CellWidth))
+        vert_font = QFont(self.font())
+        vert_font.setPointSize(self.point_size_hint(self.CellHeight))
+        
+        # Also update the annotation items font.
+        for labels in self.label_widgets():
+            if labels.orientation == Qt.Vertical:
+                labels.setFont(vert_font)
+            else:
+                labels.setFont(hor_font)
 
-    def createColorDialog(self):
-        c = OWColorPalette.ColorPaletteDlg(self, "Color Palette")
-        c.createExtendedContinuousPalette("palette", "Continuous Palette", initialColor1=QColor(Qt.blue), initialColor2=QColor(255, 255, 0).rgb(), extendedPassThroughColors = ((Qt.red, 1), (Qt.darkYellow, 1), (Qt.black, 1), (Qt.magenta, 1), (Qt.green, 1)))
-        box = c.createBox("otherColors", "Other Colors")
-        c.createColorButton(box, "unknown", "Unknown", Qt.gray)
-        box.layout().addSpacing(5)
-        c.createColorButton(box, "overflow", "Overflow", Qt.black)
-        box.layout().addSpacing(5)
-        c.createColorButton(box, "underflow", "Underflow", Qt.white)
-        c.setColorSchemas(self.colorSettings, self.selectedSchemaIndex)
-        return c
-
-
-    def setCutEnabled(self):
+        self.update_widget_margins()
+        ## To hide the annotations if cell sizes to small.
+        self.update_annotations()
+        self.update_column_annotations()
+            
+        self.fix_grid_layout()
+        
+    def update_widget_margins(self):
+        """ Update dendrogram and text list widgets margins to incude the
+        space for average stripe.
+        """
+        if self.ShowAverageStripe:
+            stripe_offset = c_averageStripeWidth + 2
+        else:
+            stripe_offset = 0
+        right = self.CellWidth / 2.0
+        
+        top = self.CellHeight / 2.0 / self.Merge
+        bottom = self.CellHeight / 2.0 / self.Merge
+        
+        for dendrogram in self.dendrogram_widgets():
+            layout = dendrogram.layout() 
+            if dendrogram.orientation == Qt.Horizontal:
+#                index = self.attr_dendrogram_widgets.index(dendrogram)
+#                heatmap = self.heatmap_widget_grid[index][0]
+#                h_w = heatmap.size().width()
+#                d_w = dendrogram.size().width()
+#                right_ = d_w - stripe_offset - self.CellWidth - h_w
+                _, top_h, _, bottom_h = layout.getContentsMargins()
+                layout.setContentsMargins(stripe_offset + self.CellWidth / 2.0, top_h, right, bottom_h)
+            else:
+                left_v, _, right_v, _ = layout.getContentsMargins()
+                layout.setContentsMargins(left_v, top, right_v, bottom)
+                
+        for widget in self.label_widgets():
+            layout = widget.layout()
+            if widget.orientation == Qt.Horizontal:
+                left_h, top, right, bottom = layout.getContentsMargins()
+                layout.setContentsMargins(stripe_offset, top, right, bottom)
+        
+    def update_averages_stripe(self):
+        """ Update the visibility of the averages stripe.
+        """
+        if self.data:
+            for widget in self.heatmap_widgets():
+                widget.set_show_averages(self.ShowAverageStripe)
+                
+            self.update_widget_margins()
+            self.fix_grid_layout()
+            
+    def update_grid_spacing(self):
+        """ Update layout spacing.
+        """
+        if self.scene.widget:
+            layout = self.scene.widget.layout()
+            layout.setSpacing(self.SpaceX)
+            self.fix_grid_layout()
+        
+    def update_color_schema(self):
+        palette = self.getGammaCorrectedPalette() if self.Gamma !=0 else self.palette
+        for heatmap in self.heatmap_widgets():
+            heatmap.set_color_table(palette)
+            
+        for legend in self.legend_widgets():
+            legend.set_color_table(palette)
+            
+    def update_thresholds(self):
         self.sliderCutLow.box.setDisabled(not self.CutEnabled)
         self.sliderCutHigh.box.setDisabled(not self.CutEnabled)
-        self.drawHeatMap()
+            
+        if self.data:
+            if self.CutEnabled:
+                low, high = self.CutLow, self.CutHigh
+            else:
+                low, high = self.lowerBound, self.upperBound
+            for heatmap in self.heatmap_widgets():
+                heatmap.set_cuts(low, high)
+    
+    def update_sorting(self):
+        if self.data:
+            self.update_heatmaps()
+            
+    def update_legend(self):
+        for item in self.heatmap_scene.items():
+            if isinstance(item, GraphicsLegendWidget):
+                item.setVisible(self.ShowLegend)
+        
+    def update_annotations(self):
+        if self.data:
+            if self.meta:
+                attr = self.meta[self.BAnnotationIndx]
+            else:
+                attr = None
+            
+            show = self.ShowGeneAnnotations and attr and self.Merge == 1
+            show = show and self.CellHeight > 3
+            for list_widget, hm in zip(self.gene_annotation_widgets, self.heatmap_widget_grid[0]):
+                list_widget.setVisible(bool(show))
+                if show:
+                    hm = hm.heatmap
+                    examples = hm.examples
+                    indices = hm.exampleIndices[:-1]
+                    labels = [str(examples[i][attr]) for i in indices]
+                    list_widget.set_labels(labels)
 
-    def mergeChanged(self):
+    def update_column_annotations(self):
+        if self.data:
+            show = self.CellWidth > 3
+            show_top = self.ShowColumnLabels and self.ColumnLabelPosition == 0 and show
+            show_bottom = self.ShowColumnLabels and self.ColumnLabelPosition == 1 and show
+            
+            for list_widget in self.attr_annotation_widgets_top:
+                list_widget.setVisible(show_top)
+                
+            layout = self.heatmap_scene.widget.layout()
+            layout.setRowMaximumHeight(3,  -1 if show_top else 0)
+            layout.setRowSpacing(3, -1 if show_top else 0)
+                
+            for list_widget in self.attr_annotation_widgets_bottom:
+                list_widget.setVisible(show_bottom)
+                
+            layout.setRowMaximumHeight(len(self.heatmap_widget_grid[0]) + 4, -1 if show_top else 0)
+                
+            self.fix_grid_layout()
+            
+    def update_heatmaps(self):
+        if self.data:
+            self.construct_heatmaps(self.data, self.selected_split_label())
+            self.create_heatmaps(self.heatmapconstructor)
+            self.clear_scene()
+            self.construct_heatmaps_scene(self.heatmaps, self.data,
+                                          attr_cluster=self.attr_cluster,
+                                          data_clusters=self.data_clusters)
+        else:
+            self.clear()
+        
+    def update_heatmaps_stage2(self):
+        if self.data:
+            self.create_heatmaps(self.heatmapconstructor)
+            self.clear_scene()
+            self.construct_heatmaps_scene(self.heatmaps, self.data,
+                                          attr_cluster=self.attr_cluster,
+                                          data_clusters=self.data_clusters)
+        
+    def cell_tool_tip(self, heatmap_widget, row, column):
+        if not self.GShowToolTip:
+            return ""
+        hm = heatmap_widget.heatmap
+        examples = hm.examples[hm.exampleIndices[row] : hm.exampleIndices[row+1]]
+        domain = hm.examples.domain
+        if hm.getCellIntensity(row, column) != None:
+            head = "%6.4f" % hm.getCellIntensity(row, column)
+        else:
+            head = "Missing Data"
+        if self.BShowColumnID:
+            head += "\n" + domain.attributes[column].name
+        # tool tip, construct body
+        body = ""
+        if (self.BShowSpotIndex and self.BSpotVar) or \
+                (self.BShowAnnotation and self.BAnnotationVar) or \
+                 self.BShowGeneExpression:
+            for (i, e) in enumerate(examples):
+                if i > 5:
+                    body += "\n... (%d more)" % (len(examples) - 5)
+                    break
+                else:
+                    s = []
+                    if self.BShowSpotIndex and self.BSpotVar:
+                        s.append(str(e[self.BSpotVar]))
+                    if self.BShowGeneExpression:
+                        s.append(str(e[column]))
+                    if self.BShowAnnotation and self.BAnnotationVar:
+                        s.append(str(e[self.BAnnotationVar]))
+            
+                body += "\n"
+                body += " | ".join(s)
+        return head + body
+    
+    def on_merge_changed(self):
         self.oldMerge = self.savedMerge
-        if self.MaintainArrayHeight and self.oldMerge <> self.Merge:
-            k = self.Merge / self.oldMerge
-            l = max(1, min(self.CellHeight * k, self.maxVSize))
-            if l <> self.CellHeight:
+        if self.MaintainArrayHeight and self.oldMerge != self.Merge:
+            k = float(self.Merge) / self.oldMerge
+            l = max(1, min(int(self.CellHeight * k), self.maxVSize))
+            if l != self.CellHeight:
                 self.CellHeight = l
                 self.sliderVSize.setValue(self.CellHeight)
 
-        self.createHeatMap()
+        self.update_heatmaps_stage2()
         self.savedMerge = self.Merge
-
-    def fileOrderChange(self, chg):
-        if chg==-1 and self.selectedFile>0:
-            switchFiles(self.selectedFile, self.selectedFile-1)
-        if chg==1  and self.selectedFile < len(self.data - 1):
-            switchFiles(self.selectedFile, self.selectedFile+1)
+            
+    def on_selection_changed(self):
+        for item in self.selection_rects:
+            item.hide()
+            item.setParentItem(None)
+            item.update()
+            self.heatmap_scene.removeItem(item)
+        self.selection_rects = []
+        self.selection_manager.update_selection_rects()
+        rects = self.selection_manager.selection_rects
+        for rect in rects:
+            item = QGraphicsRectItem(rect, None, self.heatmap_scene)
+            item.setPen(QPen(Qt.black, 2))
+            self.selection_rects.append(item)
+            
+    def on_selection_finished(self):
+        self.selected_rows = self.selection_manager.selections
+        self.commit_if()
         
-
-    # ########################################################################
-    # drawing
-
-    def drawLegend(self, x, y, width, height, palette):
-        legend = self.heatmapconstructor[0].getLegend(width, height, 1.0) #self.Gamma)
-
-        lo = self.CutEnabled and self.CutLow   or self.lowerBound
-        hi = self.CutEnabled and self.CutHigh  or self.upperBound
-
-        t = QGraphicsSimpleTextItem("%3.1f" % lo, None, self.scene) #QCanvasText("%3.1f" % lo, self.canvas)
-        t.setPos(x, y) #setX(x); t.setY(y)
-        t.show()
-        t = QGraphicsSimpleTextItem("%3.1f" % hi, None, self.scene) #QCanvasText("%3.1f" % hi, self.canvas)
-        t.setPos(x+width-t.boundingRect().width(), y) #setX(x+width-t.boundingRect().width()); t.setY(y)
-        t.show()
-        y += t.boundingRect().height()+1
-        self.legendItem = ImageItem(legend, self.scene, width, height, palette, x=x, y=y)
-        return y + c_legendHeight + c_spaceY
-
-    def drawFileName(self, label, x, y, width):
-        t = QGraphicsSimpleTextItem(label, None, self.scene)
-        t.setPos(x, y) #setX(x); t.setY(y)
-        t.show()
-        line = QGraphicsLineItem(None, self.scene)
-        line.setPoints(0, 0, width, 0)
-        y += t.boundingRect().height()
-        line.setPos(x, y) #setX(x); line.setY(y)
-        line.show()
-        return y + 5
-
-    def drawGroupLabel(self, label, x, y, width):
-        t = QGraphicsSimpleTextItem(label, None, self.scene)
-        t.setPos(x, y) #(x); t.setY(y)
-        t.show()
-        return y + t.boundingRect().height() + 1
-
-    def drawGeneAnnotation(self, x, y, group):
-        font = QFont()
-
-        font.setPixelSize(max(self.CellHeight - 1, 1))
-
-        # annotate
-        hm = self.heatmaps[0][group]
-        if self.BAnnotationVar:
-            for (row, indices) in enumerate(hm.exampleIndices[:-1]):
-                t = QGraphicsSimpleTextItem(str(hm.examples[hm.exampleIndices[row]][self.BAnnotationVar]), None, self.scene)
-                t.setFont(font)
-                t.setPos(x, y)
-                t.show()
-                y += self.CellHeight
-
-    def drawColumnLabels(self, x, y, heatmap):
-        font = QFont()
-        font.setPixelSize(min(max(self.CellWidth - 1, 1), 11))
-        t = QGraphicsSimpleTextItem("Dummy123", None, self.scene)
-        t.setFont(font)
-        if t.boundingRect().height() < self.CellWidth:
-            x += (self.CellWidth - t.boundingRect().height()) / 2
-        self.scene.removeItem(t)
-
-        maxY = y
-        items = []
-        if self.ShowColumnLabels:
-            angle = -90 #-90 if self.ColumnLabelPosition == 0 else 90
-            for attr in heatmap[0].examples.domain.attributes:
-                t = QGraphicsSimpleTextItem(str(attr.name), None, self.scene)
-                t.setFont(font)
-                t.setPos(x, y)
-                t.show()
-                x += self.CellWidth
-                maxY = max(y + t.boundingRect().width(), maxY)
-                t.rotate(angle)
-                items.append(t)
-
-        for item in items:
-            if self.ColumnLabelPosition == 0:
-                item.setPos(item.x(), maxY)
+    def commit_if(self):
+        if self.auto_commit:
+            self.commit()
+        else:
+            self.selection_changed_flag = True
+        
+    def commit(self):
+        data = None
+        if self.sorted_data:
+            if self.selected_rows:
+                examples = [self.sorted_data[i] for i in self.selected_rows]
+                data = orange.ExampleTable(examples)
             else:
-                item.setPos(item.x(), item.y() + item.boundingRect().width())
-
-        return maxY                
-
-    def drawHeatMap(self):
-        # remove everything from current canvas
-        for i in self.scene.items():
-            self.scene.removeItem(i)
-        if not len(self.data):
-            return
-
-        lo = self.CutEnabled and self.CutLow   or self.lowerBound
-        hi = self.CutEnabled and self.CutHigh  or self.upperBound
-
-##        self.sceneView.heatmapParameters(self, self.CellWidth, self.CellHeight) # needed for event handling
-        self.scene.heatmapParameters(self, self.CellWidth, self.CellHeight) # needed for event handling
-
-##        palette = self.ColorPalettes[self.CurrentPalette]
-        palette = self.getGammaCorrectedPalette() if self.Gamma !=0 else self.palette
-        groups = (not self.data[0].domain.classVar and 1) or \
-                 len(self.data[0].domain.classVar.values) # mercy! (just had to do this)
-
-        self.bmps = []; self.heights = []; self.widths = []; self.imgStart = []; self.imgEnd = []
-        for (i,hm) in enumerate(self.heatmaps):
-            bmpl = []
-            for g in range(groups):
-                bmp, self.imageWidth, imageHeight = hm[g].getBitmap(int(self.CellWidth), \
-                    int(self.CellHeight), lo, hi, 1.0) #self.Gamma)
-                bmpl.append(bmp)
-                if not i: self.heights.append(imageHeight)
-            self.bmps.append(bmpl)
-            self.widths.append(self.imageWidth)
-
-        totalHeight = max(reduce(lambda x,y:x+y, self.heights) + 500, 2000)
-        self.scene.setSceneRect(0, 0, 2000, totalHeight) # this needs adjustment
-        x = c_offsetX; y0 = c_offsetY
-
-        self.legend = self.heatmapconstructor[0].getLegend(self.imageWidth, c_legendHeight, 1.0) #self.Gamma)
-        if self.LegendOnTop:
-            y0 = self.drawLegend(x, y0, self.imageWidth, c_legendHeight, palette)
-
-        self.heatmapPositionsX = [] # start and end positions of heatmaps
-        for i in range(len(self.data)):
-            y = y0; y1 = y0
-            if self.ShowDataFileNames and len(self.data)>1:
-                y1 = self.drawFileName(self.data[i].name, x, y, \
-                    self.imageWidth+self.ShowAverageStripe*(c_averageStripeWidth + c_spaceAverageX))
-            x0 = x                    
-            # plot the heatmap (and group label)
-            showClusters = (i == 0 and self.groupClusters and self.ShowClustering)
-            ycoord = []
-            y = y1; x += self.ShowAverageStripe * (c_averageStripeWidth + c_spaceAverageX)
-            
-            if self.attrCluster and self.ShowClustering:
-                item = HierarchicalClusterItem.create(self.attrCluster, None, self.scene)
-                item.setSize(self.widths[i], 100.0)
-                item.scale(1.0, -1.0)
-                item.setPos(x + self.CellWidth/2.0, y + 100.0)
-                y += 100.0 + c_spaceY
-            if self.ColumnLabelPosition == 0:
-                y = self.drawColumnLabels(x, y, self.heatmaps[i]) + 2 
-                
-            self.heatmapPositionsX.append((x, x + self.widths[i]-1))
-            for g in range(groups):
-              if self.heights[g]:
-                if self.ShowGroupLabel and groups>1:
-                    y = self.drawGroupLabel(self.data[i][0].domain.classVar.values[g], x, y, self.imageWidth)          
-                if not i: self.imgStart.append(y)
-                ycoord.append(y)
-                if showClusters:
-                    item = HierarchicalClusterItem.create(self.groupClusters[g], None, self.scene)
-                    item.setSize(self.heights[g], 100.0)
-#                    item.setTransform(QTransform().scale(100.0/item.rect().height(), self.heights[g]/float(len(item.cluster))).\
-#                                    rotate(90).translate(0, -item.rect().height()))
-                    item.rotate(90)
-#                    item.setPos(-100, y+self.CellHeight/2.0)
-                    item.setPos(0, y+self.CellHeight/2.0/self.Merge)
-                    item.update()
-
-                image = ImageItem(self.bmps[i][g], self.scene, self.imageWidth, \
-                                  self.heights[g], palette, x=x, y=y, z=z_heatmap)
-                image.hm = self.heatmaps[i][g] # needed for event handling
-                image.height = self.heights[g]; image.width = self.imageWidth
-                if not i: self.imgEnd.append(y+self.heights[g]-1)
-                y += self.heights[g] + c_spaceY
-            
-            if self.ColumnLabelPosition == 1:
-                self.drawColumnLabels(x, y - c_spaceY + 2, self.heatmaps[i])
-            x = x0
-            # plot stripe with averages
-            if self.ShowAverageStripe:
-                for g in range(groups):
-                    avg, avgWidth, avgHeight = self.heatmaps[i][g].getAverages(c_averageStripeWidth, \
-                        int(self.CellHeight), lo, hi, 1.0) # self.Gamma)
-                    ImageItem(avg, self.scene, avgWidth, avgHeight, palette, x=x, y=ycoord[g])
-            x += self.imageWidth + self.SpaceX + self.ShowAverageStripe * \
-                (c_averageStripeWidth + c_spaceAverageX)
-
-        # plot the gene annotation
-        for g in range(groups):
-            if self.ShowGeneAnnotations and self.CellHeight>4:
-                self.drawGeneAnnotation(x, ycoord[g], g)
-
-        self.selection.redraw()
-        self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-c_offsetX, -c_offsetY, c_offsetX, c_offsetY))
-        self.scene.currentHighlightedCluster = None
-        self.scene.update()
+                data = None
         
-    def createHeatMap(self):
-        if len(self.data):
-            merge = min(self.Merge, float(len(self.data[0])))
-            squeeze = 1. / merge
-            self.lowerBound = 1000; self.upperBound = -1000 # CHANGE!!!
-            self.heatmaps = []
-            for (i, hmc) in enumerate(self.heatmapconstructor):
-                hm, lb, ub = hmc(squeeze)
-                self.heatmaps.append(hm)
-                self.lowerBound = min(self.lowerBound, lb)
-                self.upperBound = max(self.upperBound, ub)
-
-            self.sliderCutLow.setRange(self.lowerBound, 0, 0.1)
-            self.sliderCutHigh.setRange(1e-10, self.upperBound, 0.1)
-            self.CutLow = max(self.CutLow, self.lowerBound)
-            self.CutHigh = min(self.CutHigh, self.upperBound)
-            self.sliderCutLow.setValue(self.CutLow)
-            self.sliderCutHigh.setValue(self.CutHigh)
-            self.selection.remove()
-        self.drawHeatMap()
-
-    ##########################################################################
-    # file list management
-
-    # rel = -1 for up, or 1 for down
-    def fileOrderChange(self, rel):
-        sel = self.selectedFile
-        data = self.data
-        data[sel], data[sel+rel] = (data[sel+rel], data[sel])
-        if sel == self.refFile:
-            self.refFile += rel
-        elif sel + rel == self.refFile:
-            self.refFile += -rel
-        # i got lazy here
-        self.fileLB.clear()
-        for i in range(len(data)):
-            self.fileLB.addItem(self.createListItem(data[i].name, i))
-        self.fileLB.setSelected(sel + rel, 1)
-        self.constructHeatmap()
-
-    def setFileReferenceBySelection(self, sel):
-        self.fileSelectionChanged(sel)
-        self.setFileReference()
-        
-    def setFileReference(self):
-        sel = self.selectedFile
-        self.fileLB.changeItem(self.createListItem(self.data[self.refFile].name, -1), self.refFile)
-        self.refFile = sel
-        self.fileLB.changeItem(self.createListItem(self.data[sel].name, sel), sel)
-        self.constructHeatmap()
-
-    def fileSelectionChanged(self, sel):
-        # self.fileRef.setDisabled(sel==0)
-        self.selectedFile = sel
-        self.fileDown.setEnabled(sel < len(self.data)-1)
-        self.fileUp.setEnabled(sel>0)
-        self.fileRef.setEnabled(sel <> self.refFile)
-
-    def createListItem(self, text, position):
-        pixmap = QPixmap(14, 13)
-        pixmap.fill(Qt.white)
-        
-        if position == self.refFile:
-            painter = QPainter()
-            painter.begin(pixmap)
-            painter.setPen(Qt.black)
-            painter.setBrush(Qt.black)
-            painter.drawRect(3, 3, 8, 8)
-            painter.end()
+        self.send("Examples", data)
+        self.selection_changed_flag
             
-        listItem = QListWidgetItem(QIcon(pixmap), text) #QListBoxPixmap(pixmap)
-##        listItem.setText(text)
-        return listItem
-
-    # remove gene selection (when changing some of the options)
-    def removeSelection(self):
-        if self.selection:
-            self.selection.remove()
-            self.scene.update()
-            
-    ## handle selections
+    ## handle saved selections 
     def settingsFromWidgetCallbackSelection(self, handler, context):
-        context.selection = self.selection.indxs, self.selection.startIndx, self.selection.rows
-        context.selectedRows = list(self.selection.rows)
+        context.selection = self.selection_manager.selections
 
     def settingsToWidgetCallbackSelection(self, handler, context):
         selection = getattr(context, "selection", None)
         if selection:
             try:
-                self.selection.setSelection(*selection)
+                self.selection_manager.select_rows(selection)
             except Exception, ex:
-                sys.excepthook(*sys.exc_info())
+                pass
+#                self.warning(3, "Could not restore selection")
+                
+    def split_changed(self):
+        if self.data:
+            self.clear_scene()
+            self.construct_heatmaps(self.data, self.selected_split_label())
+            self.create_heatmaps(self.heatmapconstructor)
+            self.construct_heatmaps_scene(self.heatmaps, self.data,
+                                          attr_cluster=self.attr_cluster,
+                                          data_clusters=self.data_clusters)
         
 
-##################################################################################################
-# new canvas items
+class GraphicsPixmapLayoutItem(QGraphicsLayoutItem):
+    """ A layout item wraping a QGraphicsPixmapItem
+    """
+    def __init__(self, pixmap_item, parent=None):
+        QGraphicsLayoutItem.__init__(self, parent)
+        self.pixmap_item = pixmap_item
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        
+    def setGeometry(self, rect):
+        QGraphicsLayoutItem.setGeometry(self, rect)
+        self.pixmap_item.setPos(rect.topLeft())
+        
+    def sizeHint(self, which, constraint=QSizeF()):
+        return QSizeF(self.pixmap_item.pixmap().size())
+    
+    def setPixmap(self, pixmap):
+        self.pixmap_item.setPixmap(pixmap)
+        self.updateGeometry()
+        
+        
+class GraphicsHeatmapWidget(QGraphicsWidget):
+    def __init__(self, heatmap=None, parent=None, scene=None):
+        QGraphicsWidget.__init__(self, parent)
+        self.setAcceptHoverEvents(True)
+        layout = QGraphicsLinearLayout(Qt.Horizontal)
+        layout.setContentsMargins(0, 0, 0, 0)
+        item = QGraphicsPixmapItem(self)
+        item.setShapeMode(QGraphicsPixmapItem.BoundingRectShape)
+        self.heatmap_item = GraphicsPixmapLayoutItem(item, self)
+        
+        item = QGraphicsPixmapItem(self)
+        item.setShapeMode(QGraphicsPixmapItem.BoundingRectShape)
+        self.averages_item = GraphicsPixmapLayoutItem(item, self)
+        
+        layout.addItem(self.averages_item)
+        layout.addItem(self.heatmap_item)
+        layout.setItemSpacing(0, 2)
+        
+        self.setLayout(layout)
+        
+        self.heatmap = None
+        self.show_averages = True
+        self._pixmap_args = None
+        self.color_table = None
+        self.selection_manager = None
+        self.set_cell_size(4, 4)
+        self.set_cuts(0, 255)
+        self.set_heatmap(heatmap)
+        
+        if scene is not None:
+            scene.addItem(self)
+            
+    def clear(self):
+        """ Clear the current heatmap.
+        """
+        self.heatmap = None
+        self._pixmap_args = None
+        self.heatmap_item.setPixmap(QPixmap())
+        self.averages_item.setPixmap(QPixmap())
+        self.show_averages = True
+        self.layout().invalidate()
+            
+    def set_heatmap(self, heatmap):
+        """ Set the heatmap for display.
+        """
+        self.clear()
+        self.heatmap = heatmap
+        self.update()
+        
+    def set_cell_size(self, width, height):
+        self.cell_width = width
+        self.cell_height = height
+        self.update()
+        
+    def set_cuts(self, low, high):
+        self.cut_low = low
+        self.cut_high = high
+        self.update()
+        
+    def set_show_averages(self, show):
+        self.show_averages = show
+        self._pixmap_args = None
+        self.update()
 
-class ImageItem(QGraphicsPixmapItem):
-    def __init__(self, bitmap, scene, width, height, palette, depth=8, numColors=256, x=0, y=0, z=0):
-        image = QImage(bitmap, width, height, QImage.Format_Indexed8)
-        image.bitmap = bitmap # this is tricky: bitmap should not be freed, else we get mess. hence, we store it in the object
+    def set_color_table(self, color_table):
         if qVersion() <= "4.5":
-            image.setColorTable(signedPalette(palette))
+            self.color_table = signedPalette(color_table)
         else:
-            image.setColorTable(palette)
-        pixmap = QPixmap.fromImage(image)
-        QGraphicsPixmapItem.__init__(self, pixmap, None, scene)
-        self.setPos(x, y)
-        self.setZValue(z)
+            self.color_table = color_table
         
-# ################################################################################################
-# mouse event handler
-
-v_sel_width = 2
-
-class HeatMapGraphicsScene(QGraphicsScene):
-    def __init__(self, *args):
-        QGraphicsScene.__init__(self, *args)
-        self.clicked = False
-        self.shiftPressed = False
-        self.currentHighlightedCluster = None
-        self.selectedClusters = []
-
-    def heatmapParameters(self, master, cellWidth, cellHeight):
-        self.master = master
-        self.dx, self.dy = cellWidth, cellHeight
-        self.selector = QGraphicsRectItem(0, 0, \
-            self.dx + 2 * v_sel_width - 1, self.dy + 2 * v_sel_width - 1, None, self)
-        self.selector.setPen(QPen(self.master.SelectionColors[self.master.CurrentPalette], v_sel_width))
-        self.selector.setZValue(10)
-
-    def mouseMoveEvent(self, event):
-        QGraphicsScene.mouseMoveEvent(self, event)
-        # handling of selection
-        if self.clicked:
-            self.master.selection(self.clicked, (event.scenePos().x(), event.scenePos().y()))
-
-        item = self.itemAt(event.scenePos())
-        if self.currentHighlightedCluster and self.currentHighlightedCluster != item:
-            try:
-                self.currentHighlightedCluster.setHighlight(False)
-            except RuntimeError: ## Underlying object deleted. Why?
-                self.currentHighlightedCluster = None
+        self._pixmap_args = None
+        self.update()
+            
+    def _update_pixmap(self):
+        """ Update the pixmap if its construction arguments changed.
+        """
+        if self.heatmap:
+            args = (int(self.cell_width), int(self.cell_height),
+                    self.cut_low, self.cut_high, 1.0)
+            
+            if args != self._pixmap_args:
+                bitmap, width, height = self.heatmap.getBitmap(*args)
+                image = QImage(bitmap, width, height, QImage.Format_Indexed8)
+                color_table = self.color_table
+                if color_table:
+                    image.setColorTable(color_table)
+                self.pixmap = QPixmap.fromImage(image)
+                
+                bitmap, width, height = self.heatmap.getAverages(*((c_averageStripeWidth,) + args[1:]))
+                image = QImage(bitmap, width, height, QImage.Format_Indexed8)
+                if self.color_table:
+                    image.setColorTable(color_table)
+                self.averages_pixmap = QPixmap.fromImage(image)
+                
+                self._pixmap_args = args
+                
+                self.layout().invalidate()
+        else:
+            self.averages_pixmap = None
+            self.pixmap = None
+            
+        self.heatmap_item.setPixmap(self.pixmap or QPixmap())
+        if self.show_averages and self.averages_pixmap:
+            self.averages_item.setPixmap(self.averages_pixmap)
+        else:
+            self.averages_item.setPixmap(QPixmap())
+            
+    def update(self):
+        self._update_pixmap()
+        QGraphicsWidget.update(self)
         
-        if isinstance(item, HierarchicalClusterItem):
-            root = item
-            while root.parentItem():
-                root = root.parentItem()
-#            print item, root, self.master.attrCluster
-            if root.cluster != self.master.attrCluster:
-                item.setHighlight(True)
-                self.currentHighlightedCluster = item
-        items = filter(lambda ci: ci.zValue()==z_heatmap, self.items(event.scenePos()))
-        if len(items) == 0 and hasattr(self, "selector"): # mouse over nothing special
-            self.selector.hide()
-            self.update()
-        elif items:
-            item = items[0]
-            hm = item.hm
-            x, y = event.scenePos().x() - item.x(), event.scenePos().y() - item.y()
-            if x<0 or y<0 or x>item.width-1 or y>item.height-1: 
-                self.selector.hide()
-                return
-            col, row = int(x / self.dx), int(y / self.dy)
-            # hm.getCellIntensity(row, col), hm.getRowIntensity(row)
-            ex = hm.examples[hm.exampleIndices[row] : hm.exampleIndices[row+1]]
-            bb = self.selector.sceneBoundingRect()
-            self.selector.setPos(item.x()+col*self.dx-v_sel_width+1, item.y()+row*self.dy-v_sel_width+1)
-            self.selector.show()
-            self.update(bb)
-            # balloon handling
-            try:
-                if self.master <> None and not self.master.BShowballoon: return
-            except:
-                return
+    def set_selection_manager(self, manager):
+        self.selection_manager = manager
+        
+    def cell_at(self, pos):
+        """ Return the cell row, column from a point `pos` in local
+        coordinates.
+        
+        """
+        pos = self.mapToItem(self.heatmap_item.pixmap_item, pos)
+        x, y = pos.x(), pos.y()
+        def clamp(i, m):
+            return int(min(max(i, 0), m))
+        return (clamp(math.floor(y / self.cell_height), self.heatmap.height),
+                clamp(math.floor(x / self.cell_width), self.heatmap.width))
+    
+    def cell_rect(self, row, column):
+        """ Return a QRectF in local coordinates containing the cell
+        at `row` and `column`.
+        
+        """
+        top = QPointF(column * self.cell_width, row * self.cell_height)
+        top = self.mapFromItem(self.heatmap_item.pixmap_item, top)
+        size = QSizeF(self.cell_width, self.cell_height)
+        return QRectF(top, size)
 
-            # bubble, construct head
-            if hm.getCellIntensity(row, col)!=None:
-                head = "%6.4f" % hm.getCellIntensity(row, col)
-            else:
-                head = "Missing Data"
-            if self.master.BShowColumnID:
-                head += "\n"+ex[0].domain.attributes[col].name
-            # bubble, construct body
-            body = ""
-            if (self.master.BShowSpotIndex and self.master.BSpotVar) or \
-                    self.master.BShowAnnotation or self.master.BShowGeneExpression:
-                for (i, e) in enumerate(ex):
-                    if i>5:
-                        body += "\n... (%d more)" % (len(ex)-5)
-                        break
-                    else:
-                        s = []
-                        if self.master.BShowSpotIndex and self.master.BSpotVar:
-                            s.append(str(e[self.master.BSpotVar]))
-                        if self.master.BShowGeneExpression:
-                            s.append(str(e[col]))
-                        if self.master.BShowAnnotation and self.master.BAnnotationVar:
-                            s.append(str(e[self.master.BAnnotationVar]))
-                    if body: body += "\n"
-                    else: body=""
-                    body += reduce(lambda x,y: x + ' | ' + y, s, "")
-
-            QToolTip.showText(QPoint(event.screenPos().x(), event.screenPos().y()), "")
-            QToolTip.showText(QPoint(event.screenPos().x(), event.screenPos().y()), head + body)
-
-    def keyPressEvent(self, e):
-        if e.key() == 4128:
-            self.shiftPressed = True
+    def row_rect(self, row):
+        """ Return a QRectF in local coordinates containing the entire row.
+        """
+        rect = self.cell_rect(row, 0).united(self.cell_rect(row, self.heatmap.width - 1))
+        rect.setLeft(0) # To include the average stripe if show.
+        return rect
+    
+    def cell_tool_tip(self, row, column):
+        hm = self.heatmap
+        start = int(hm.exampleIndices[row])
+        end = int(hm.exampleIndices[row + 1])
+        examples = [hm.examples[start]]
+        attr = hm.examples.domain[column]
+        val = "%i, %i: %f" % (row, column, float(examples[0][attr]))
+        return val
+    
+    def hoverEnterEvent(self, event):
+        row, col = self.cell_at(event.pos())
+    
+    def hoverMoveEvent(self, event):
+        pos = event.pos()
+        row, column = self.cell_at(pos)
+        tooltip = self.cell_tool_tip(row, column)
+        QToolTip.showText(event.screenPos(), tooltip)
+        return QGraphicsWidget.hoverMoveEvent(self, event)
+    
+    def hoverLeaveEvent(self, event):
+        row, col = self.cell_at(event.pos())
+    
+    if DEBUG:
+        def paint(self, painter, option, widget=0):
+            rect =  self.geometry()
+            rect.translate(-self.pos())
+            painter.drawRect(rect.adjusted(-1, -1, 1, 1))
+    
+    
+class GridWidget(QGraphicsWidget):
+    def __init__(self, parent=None):
+        QGraphicsWidget.__init__(self, parent)
+        
+    if DEBUG:
+        def paint(self, painter, option, widget=0):
+            rect =  self.geometry()
+            rect.translate(-self.pos())
+            painter.drawRect(rect)
+            
+            
+class HeatmapScene(QGraphicsScene):
+    """ A Graphics Scene with heatmap widgets.
+    """
+    def __init__(self, parent=None):
+        QGraphicsScene.__init__(self, parent)
+        self.selection_manager = HeatmapSelectionManager()
+        
+    def set_selection_manager(self, manager):
+        self.selection_manager = manager
+        
+    def _items(self, pos=None, cls=object):
+        if pos is not None:
+            items = self.items(QRectF(pos, QSizeF(3, 3)).translated(-1.5, -1.5))
         else:
-            QGraphicsScene.keyPressEvent(self, e)
-
-    def keyReleaseEvent(self, e):        
-        if e.key() == 4128:
-            self.shiftPressed = False
+            items = self.items()
+            
+        for item in items:
+            if isinstance(item, cls):
+                yield item
+            
+    def heatmap_at_pos(self, pos):
+        items  = list(self._items(pos, GraphicsHeatmapWidget))
+        if items:
+            return items[0]
         else:
-            QGraphicsScene.keyReleaseEvent(self, e)
-
+            return None
+        
+    def dendrogram_at_pos(self, pos):
+        items  = list(self._items(pos, DendrogramItem))
+        if items:
+            return items[0]
+        else:
+            return None
+        
+    def heatmap_widgets(self):
+        return self._items(None, GraphicsHeatmapWidget)
+        
+    def select_from_dendrogram(self, dendrogram, clear=True):
+        """ Select all heatmap rows which belong to the dendrogram.
+        """
+        dendrogram_widget = dendrogram.parentWidget()
+        anchors = list(dendrogram_widget.leaf_anchors())
+        cluster = dendrogram.cluster
+        start, end = anchors[cluster.first], anchors[cluster.last - 1]
+        start, end = dendrogram_widget.mapToScene(start), dendrogram_widget.mapToScene(end)
+        # Find a heatmap widget containing start and end y coordinates.
+        
+        heatmap = None
+        for hm in self.heatmap_widgets():
+            b_rect = hm.sceneBoundingRect()
+            if b_rect.contains(QPointF(b_rect.center().x(), start.y())):
+                heatmap = hm
+                break
+            
+        if dendrogram:
+            b_rect = hm.boundingRect()
+            start, end = hm.mapFromScene(start), hm.mapFromScene(end)
+            start, _ = hm.cell_at(QPointF(b_rect.center().x(), start.y()))
+            end, _ = hm.cell_at(QPointF(b_rect.center().x(), end.y()))
+            self.selection_manager.selection_add(start, end, hm, clear=clear)
+        return
+        
     def mousePressEvent(self, event):
-        # self.viewport().setMouseTracking(False)
-        item = self.itemAt(event.scenePos())
-        if isinstance(item ,HierarchicalClusterItem):
-            leaves = list(item)
-            first, last = leaves[0], leaves[-1]
-            first_x, first_y = first.mapToScene(first.rect().topLeft()).x(), first.mapToScene(first.rect().topLeft()).y()
-            last_x, last_y = last.mapToScene(last.rect().topLeft()).x(), last.mapToScene(last.rect().topLeft()).y()
-            self.master.selection.start((first_x, first_y), (first_x, first_y), self.shiftPressed)
-            self.master.selection((first_x, first_y), (last_x, last_y))
-            self.master.selection.release()
-            return
-        self.clicked = (event.scenePos().x(), event.scenePos().y())
-        if not self.master.selection.start(self.clicked, self.clicked, self.shiftPressed):
-            self.clicked = None
-
-    def mouseReleaseEvent(self, event):
-        if self.clicked:
-            self.clicked = False
-            self.update()
-            self.master.selection.release()
+        pos = event.scenePos()
+        heatmap = self.heatmap_at_pos(pos)
+        if heatmap and event.button() & Qt.LeftButton:
+            row, _ = heatmap.cell_at(heatmap.mapFromScene(pos))
+            self.selection_manager.selection_start(heatmap, event)
             
-
-class MyGraphicsView(QGraphicsView):
-    def __init__(self, *args):
-        QGraphicsView.__init__(self, *args)
-        self.clicked = False
-        self.viewport().setMouseTracking(True)
-        self.setFocusPolicy(Qt.WheelFocus)
-        self.shiftPressed = False
-
-    def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Shift:
-            self.scene().shiftPressed = True
-        else:
-            QGraphicsView.keyPressEvent(self, e)
-
-    def keyReleaseEvent(self, e):        
-        if e.key() == Qt.Key_Shift:
-            self.scene().shiftPressed = False
-        else:
-            QGraphicsView.keyReleaseEvent(self, e)
-
-# ################################################################################################
-# data selection
-
-def interval_position(x, l, forced=None):
-    if forced:
-        for (i,(min,max)) in enumerate(l):
-            if x>=min and x<=max:
-                return i
-        return None
-    else:
-        for (i,(min,max)) in enumerate(l):
-            if x>=min and x<=max:
-                return i
-            if x<min:
-                if i>forced:
-                    if i-1>0: return i-1
-                    return 0
-                else:
-                    return i
-        return i
-
-class SelectData(object):
-    def __init__(self, master, scene):
-        self.scene = scene
-        self.master = master
-        self.add = False
-        self.squares = []; self.rows = []    # cumulative, used for multiple selection
-        self.cRows = []; self.cSquares = []  # workaround for when release(self) is called
-                        # before any clicking at all has occured (maybe caused by a Qt bug?)
-        self.startIndx = None; self.indxs = []
-
-    # removes the selection and relate information
-    def remove(self):
-        for r in self.squares:
-            self.scene.removeItem(r)
-        self.squares = []; self.rows = []
-
-    # starts the selection, called after the first click
-    def start(self, p1, p2, add=False):
-        indx = interval_position(p1[0], self.master.heatmapPositionsX)
-        if indx == None:
-            self.remove()
-            self.indx = []; self.startIndx = None
-            return False
+        dendrogram = self.dendrogram_at_pos(pos)
+        if dendrogram and event.button() & Qt.LeftButton:
+            if dendrogram.orientation == Qt.Vertical:
+                self.select_from_dendrogram(dendrogram, clear=not event.modifiers() & Qt.ControlModifier)
+            return 
         
-        if not add:
-            self.remove()
-            self.startIndx = indx
-            self.indxs = [indx]
+        return QGraphicsScene.mousePressEvent(self, event)
+    
+    def mouseMoveEvent(self, event):
+        pos = event.scenePos()
+        heatmap = self.heatmap_at_pos(pos)
+        if heatmap and event.buttons() & Qt.LeftButton:
+            row, _ = heatmap.cell_at(heatmap.mapFromScene(pos))
+            self.selection_manager.selection_update(heatmap, event)
+            
+        dendrogram = self.dendrogram_at_pos(pos)
+        if dendrogram and dendrogram.orientation == Qt.Horizontal: # Filter mouse move events
+            return
+            
+        return QGraphicsScene.mouseMoveEvent(self, event)
+    
+    def mouseReleaseEvent(self, event):
+        pos = event.scenePos()
+        heatmap = self.heatmap_at_pos(pos)
+        if heatmap:
+            row, _ = heatmap.cell_at(heatmap.mapFromScene(pos))
+            self.selection_manager.selection_finish(heatmap, event)
+        
+        dendrogram = self.dendrogram_at_pos(pos)
+        if dendrogram and dendrogram.orientation == Qt.Horizontal: # Filter mouse events
+            return
+        
+        return QGraphicsScene.mouseReleaseEvent(self, event)
+    
+    def mouseDoubleClickEvent(self, event):
+        pos = event.scenePos()
+        dendrogram = self.dendrogram_at_pos(pos)
+        if dendrogram: # Filter mouse events
+            return
+        return QGraphicsScene.mouseDoubleClickEvent(self, event)
+        
+        
+class GtI(QGraphicsSimpleTextItem):
+    if DEBUG:
+        def paint(self, painter, option, widget =0):
+            QGraphicsSimpleTextItem.paint(self, painter, option, widget)
+            painter.drawRect(self.boundingRect())
+            
+    
+class GraphicsSimpleTextLayoutItem(QGraphicsLayoutItem):
+    """ A Graphics layout item wrapping a QGraphicsSimpleTextItem alowing it 
+    to be managed by a layout.
+    """
+    def __init__(self, text_item, orientation=Qt.Horizontal, parent=None):
+        QGraphicsLayoutItem.__init__(self, parent)
+        self.orientation = orientation
+        self.text_item = text_item
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        if orientation == Qt.Vertical:
+            self.text_item.rotate(-90)
+            self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
         else:
-            if self.master.SelectionType==0:
-                if self.startIndx<>None and self.startIndx<>indx:
-                    self.remove()
-                    self.indx = [indx]
-                    self.startIndx = indx                    
+            self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.MinimumExpanding)
+        
+    def setGeometry(self, rect):
+        QGraphicsLayoutItem.setGeometry(self, rect)
+        if self.orientation == Qt.Horizontal:
+            self.text_item.setPos(rect.topLeft())
+        else:
+            self.text_item.setPos(rect.bottomLeft())
+        
+    def sizeHint(self, which, constraint=QSizeF()):
+        if which in [Qt.PreferredSize]:
+            size = self.text_item.boundingRect().size()
+            if self.orientation == Qt.Horizontal:
+                return size
             else:
-                self.startIndx = indx
-                if indx not in self.indxs:
-                    self.indxs.append(indx)
-
-        self.cSquares = []; self.cRows = [] # current selection
-        self.add = add
-        self.__call__(p1, p2)
-        # determines which microarray was clicked
-        return True
- 
-    # called during dragging (extending the selection)
-    def __call__(self, p1, p2):
-        for r in self.cSquares:
-            self.scene.removeItem(r)
-        y1 = min(p1[1], p2[1]); y2 = max(p1[1], p2[1])
-        if self.master.SelectionType == 1:
-            indx = interval_position(p2[0], self.master.heatmapPositionsX)
-            if indx==None:
-                indx = interval_position(p2[0], self.master.heatmapPositionsX, forced=self.startIndx)
-            irange = range(min(indx, self.startIndx), max(indx, self.startIndx)+1)
-            for i in irange:
-                if indx not in self.indxs:
-                    self.indxs.append(indx)
-
-        self.cRows = self.findSelectionRows([(y1,y2)])
-        self.cSquares = self.draw(self.cRows)
-
-    # merges two selection lists, account for any overlaping or directly neighboring selections
-    def mergeRows(self, pl1, pl2):
-        new = []
-        l = {}
-        for (g, p1, p2) in pl1+pl2:
-            if l.has_key((g,p1)): l[(g,p1)] += 1
-            else: l[(g,p1)] = 1
-            if l.has_key((g,p2)): l[(g,p2)] += -1
-            else: l[(g,p2)] = -1
-        kk = l.keys()
-        kk.sort()
-        current = 0 # sum of ups and downs, if positive then selection, else, empty
-        intermediate = FALSE; # true if previous end was only one point before, indicates join
-        for k in kk:
-            if current == 0 and not intermediate:
-                start = k
-            current += l[k]
-            if current == 0:
-                if l.has_key((k[0],k[1]+1)):
-                    intermediate = TRUE
-                else:
-                    intermediate = FALSE
-                    new += [(start[0], start[1], k[1])]
-        return new
-
-    # mouse release, end of selection
-    # if shift click, then merge with previous, else only remember current
-    def release(self):
-        if self.add:
-            newrows = self.mergeRows(self.rows, self.cRows)
-            self.remove()
-            for r in self.cSquares:
-                self.scene.removeItem(r)
-            self.rows = newrows
-            squares = self.draw(self.rows)
-            self.squares = squares
+                return QSizeF(size.height(), size.width())
         else:
-            self.rows = self.cRows
-            self.squares = self.cSquares
-        if self.rows:
-            self.master.sendData(self.rows, self.indxs)
-
-    def findSelectionRows(self, points):
-        start = self.master.imgStart; end = self.master.imgEnd
-        rows = []
-        for (y1, y2) in points: # this could be optimized, since points are ordered
-            for i in range(len(start)):
-                if y2<start[i]:
-                    break
-                if y1<end[i]:
-                    if y1>start[i]:
-                        a = int((y1-start[i])/self.master.CellHeight)
-                    else:
-                        a = 0
-                    if y2<end[i]:
-                        b = int((y2-start[i])/self.master.CellHeight)
-                    else:
-                        b = int((end[i]-start[i])/self.master.CellHeight)
-                    rows.append((i,a,b))
-        return rows
-
-    # draws rectangles around selected points for a indx-th microarray
-    def drawOne(self, rows, indx):
-        lines = []
-        start = self.master.imgStart; end = self.master.imgEnd
-        self.master.heatmapPositionsX[indx][0]
-        for (g, r1, r2) in rows:
-            y1 = start[g] + r1 * self.master.CellHeight
-            y2 = start[g] + (r2+1) * self.master.CellHeight - 1
-            r = QGraphicsRectItem(self.master.heatmapPositionsX[indx][0]-v_sel_width+1, y1-v_sel_width+1, \
-                    self.master.widths[indx]+2*v_sel_width-1, y2-y1+v_sel_width+2, None, self.scene)
-            r.setPen(QPen(self.master.SelectionColors[self.master.CurrentPalette], v_sel_width))
-            #r.setPen(QPen(Qt.red, v_sel_width))
-            r.setZValue(10)
-            r.show()
-            lines.append(r)
-        return lines
+            return QSizeF()
+    
+    def setFont(self, font):
+        self.text_item.setFont(font)
+        self.updateGeometry()
+        
+    def setText(self, text):
+        self.text_item.setText(text)
+        self.updateGeometry()
+        
+        
+class GraphicsSimpleTextList(QGraphicsWidget):
+    """ A simple text list widget.
+    """
+    def __init__(self, labels=[], orientation=Qt.Vertical, parent=None, scene=None):
+        QGraphicsWidget.__init__(self, parent)
+        layout = QGraphicsLinearLayout(orientation)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.setLayout(layout)
+        self.orientation = orientation
+        self.alignment = Qt.AlignCenter
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.set_labels(labels)
+        
+        if scene is not None:
+            scene.addItem(self)
+        
+    def clear(self):
+        """ Remove all text items.
+        """
+        layout = self.layout()
+        for i in reversed(range(layout.count())):
+            item = layout.itemAt(i)
+            item.text_item.setParentItem(None)
+            if self.scene():
+                self.scene().removeItem(item.text_item)
+            layout.removeAt(i)
+        
+        self.label_items = []
+        self.updateGeometry()
+        
+    def set_labels(self, labels):
+        """ Set the text labels to show in the widget.
+        """
+        self.clear()
+        orientation = Qt.Horizontal if self.orientation == Qt.Vertical else Qt.Vertical
+        for text in labels:
+#            item = QGraphicsSimpleTextItem(text, self)
+            item = GtI(text, self)
+            item.setFont(self.font())
+            item.setToolTip(text)
+            item = GraphicsSimpleTextLayoutItem(item, orientation, parent=self)
+            self.layout().addItem(item)
+            self.layout().setAlignment(item, self.alignment)
+            self.label_items.append(item)
             
-    # draws rectangles around selected points
-    def draw(self, rows):
-        if self.master.SelectionType==0: # selection on single data set
-            lines = self.drawOne(rows, self.startIndx)
-        else: # selection on multiple data set
-            lines = []
-            for i in self.indxs:
-                l = self.drawOne(rows, i)
-                lines += l
-        self.scene.update()
-        return lines
-
-    def redraw(self):
-        for r in self.squares:
-            self.scene.removeItem(r)
-        if self.rows:
-            self.squares = self.draw(self.rows)
+        self.layout().activate()
+        self.updateGeometry()
+    
+    def setAlignment(self, alignment):
+        """ Set alignment of text items in the widget
+        """
+        self.alignment = alignment
+        layout = self.layout()
+        for i in range(layout.count()):
+            layout.setAlignment(layout.itemAt(i), alignment)
             
-    def setSelection(self, indxs, startIndx, rows):
-        self.indxs = indxs
-        self.startIndx = startIndx
-        self.rows = rows
-        self.redraw()
+    def setVisible(self, bool):
+        QGraphicsWidget.setVisible(self, bool)
+        self.updateGeometry()
+            
+    def setFont(self, font):
+        """ Set the font for the text.
+        """
+        QGraphicsWidget.setFont(self, font)
+        for item in self.label_items:
+            item.setFont(font)
+        self.layout().invalidate()
+        self.updateGeometry()
+        
+    def sizeHint(self, which, constraint=QRectF()):
+        if not self.isVisible():
+            return QSizeF(0, 0)
+        else:
+            return QGraphicsWidget.sizeHint(self, which, constraint)
+            
+    if DEBUG:
+        def paint(self, painter, options, widget=0):
+            rect =  self.geometry()
+            rect.translate(-self.pos())
+            painter.drawRect(rect)
+        
+class GraphicsLegendWidget(QGraphicsWidget):
+    def __init__(self, heatmap_constructor, low, high, parent=None, scene=None):
+        QGraphicsWidget.__init__(self, parent)
+        layout = QGraphicsLinearLayout(Qt.Vertical)
+        self.setLayout(layout)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(1)
+        
+        layout_labels = QGraphicsLinearLayout(Qt.Horizontal)
+        layout.addItem(layout_labels)
+        layout_labels.setContentsMargins(0, 0, 0, 0)
+        label_lo = GtI("%.2f" % low, self)
+        label_hi = GtI("%.2f" % high, self)
+        self.item_low = GraphicsSimpleTextLayoutItem(label_lo, parent=self)
+        self.item_high = GraphicsSimpleTextLayoutItem(label_hi, parent=self)
+        
+        layout_labels.addItem(self.item_low)
+        layout.addStretch()
+        layout_labels.addItem(self.item_high)
+        
+        self._pixmap = QPixmap(c_legendHeight, c_legendHeight)
+        self.pixmap_item = QGraphicsPixmapItem(self._pixmap, self)
+        self.pixmap_item = GraphicsPixmapLayoutItem(self.pixmap_item, parent=self)
+        layout.addItem(self.pixmap_item)
+        
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.set_legend(heatmap_constructor, low, high)
+        
+        if scene is not None:
+            scene.addItem(self)
+        
+    def set_legend(self, heatmap_constructor, low, high):
+        self.heatmap_constructor = heatmap_constructor
+        self.low = low
+        self.high = high
+        self.color_table = None
+        self._pixmap = None
+        self._pixmap_args = None
+        self.update()
+        self.updateGeometry()
+        
+    def set_color_table(self, color_table):
+        if qVersion() <= "4.5":
+            self.color_table = signedPalette(color_table)
+        else:
+            self.color_table = color_table
+        
+        self._pixmap_args = None
+        self.update()
+        
+    def update(self):
+        crect = self.contentsRect()
+        width = crect.width()
+        height = c_legendHeight
+        if not self.pixmap_item or self._pixmap_args != (width, height):
+            bitmap = self.heatmap_constructor.getLegend(int(width), int(height), 1.0)
+            image = QImage(bitmap, width, height, QImage.Format_Indexed8)
+            color_table = self.color_table
+            if color_table:
+                image.setColorTable(color_table)
+            self._pixmap = QPixmap.fromImage(image)
+            
+        self.pixmap_item.setPixmap(self._pixmap)
+        self.item_low.setText("%.2f" % self.low)
+        self.item_high.setText("%.2f" % self.high)
+        self.layout().activate()
+        QGraphicsWidget.update(self)
+            
+    if DEBUG:
+        def paint(self, painter, options, widget=0):
+            rect =  self.geometry()
+            rect.translate(-self.pos())
+            painter.drawRect(rect)
 
-
+        
+class HeatmapSelectionManager(QObject):
+    """ Selection manager for heatmap rows
+    """
+    def __init__(self, parent=None):
+        QObject.__init__(self, parent)
+        self.selections = []
+        self.selection_ranges = []
+        self.heatmap_widgets = []
+        self.selection_rects = []
+        self.heatmaps = []
+        self._heatmap_ranges = {}
+        self._start_row = 0
+        
+    def set_heatmap_widgets(self, widgets):
+        self.remove_rows(self.selections)
+        self.heatmaps = widgets
+        
+        # Compute row ranges for all heatmaps
+        self._heatmap_ranges = {}
+        for group in widgets:
+            start = end = 0
+            for heatmap in group:
+                end += heatmap.heatmap.height
+                self._heatmap_ranges[heatmap] = (start, end)
+                start = end
+        
+    def select_rows(self, rows, heatmap=None, clear=True):
+        """ Add `rows` to selection. If `heatmap` is provided the rows
+        are mapped from the local indices to global heatmap indics. If `clear`
+        then remove previous rows.
+        """
+        if heatmap is not None:
+            start, end = self._heatmap_ranges[heatmap]
+            rows = [start + r for r in rows]
+            
+        old_selection = list(self.selections)
+        if clear:
+            self.selections = rows
+        else:
+            self.selections = sorted(set(self.selections + rows))
+        if self.selections != old_selection:
+            self.update_selection_rects()
+            self.emit(SIGNAL("selection_changed()"))
+            self.emit(SIGNAL("selection_rects_changed"), self.selection_rects)
+            
+    def remove_rows(self, rows):
+        """ Remove `rows` from the selection.
+        """
+        old_selection = list(self.selections)
+        self.selections = sorted(set(self.selections) - set(rows))
+        if old_selection != self.selections:
+            self.update_selection_rects()
+            self.emit(SIGNAL("selection_changed()"))
+            self.emit(SIGNAL("selection_rects_changed"), self.selection_rects)
+            
+    def combined_ranges(self, ranges):
+        combined_ranges = set()
+        for start, end in ranges:
+            if start <= end:
+                rng = range(start, end + 1)
+            else:
+                rng = range(start, end - 1, -1)
+            combined_ranges.update(rng)
+        return sorted(combined_ranges)
+        
+    def selection_start(self, heatmap_widget, event):
+        """ Selection  started by `heatmap_widget` due to `event`.
+        """
+        pos = heatmap_widget.mapFromScene(event.scenePos())
+        row, column = heatmap_widget.cell_at(pos)
+        start, _ = self._heatmap_ranges[heatmap_widget]
+        row = start + row
+        self._start_row = row
+        range = (row, row)
+        if event.modifiers() & Qt.ControlModifier:
+            self.selection_ranges.append(range)
+        else:
+            self.selection_ranges = [range]
+        self.select_rows(self.combined_ranges(self.selection_ranges))
+        
+    def selection_update(self, heatmap_widget, event):
+        """ Selection updated by `heatmap_widget due to `event` (mouse drag).
+        """
+        pos = heatmap_widget.mapFromScene(event.scenePos())
+        row, column = heatmap_widget.cell_at(pos)
+        start, _ = self._heatmap_ranges[heatmap_widget]
+        row = start + row
+        if self.selection_ranges:
+            self.selection_ranges[-1] = (self._start_row, row)
+        else:
+            self.selection_ranges = [(row, row)]
+            
+        self.select_rows(self.combined_ranges(self.selection_ranges))
+        
+    def selection_finish(self, heatmap_widget, event):
+        """ Selection finished by `heatmap_widget due to `event`.
+        """
+        pos = heatmap_widget.mapFromScene(event.scenePos())
+        row, column = heatmap_widget.cell_at(pos)
+        start, _ = self._heatmap_ranges[heatmap_widget]
+        row = start + row
+        range = (self._start_row, row)
+        self.selection_ranges[-1] = range
+        self.select_rows(self.combined_ranges(self.selection_ranges),
+                         clear=not event.modifiers() & Qt.ControlModifier)
+        self.emit(SIGNAL("selection_finished()"))
+        
+    def selection_add(self, start, end, heatmap=None, clear=True):
+        """ Add a selection range from `start` to `end`.
+        """ 
+        if heatmap is not None:
+            _start, _ = self._heatmap_ranges[heatmap]
+            start = _start + start
+            end = _start + end
+        
+        if clear:
+            self.selection_ranges = []
+        self.selection_ranges.append((start, end))
+        self.select_rows(self.combined_ranges(self.selection_ranges))
+        self.emit(SIGNAL("selection_finished()"))
+        
+    def update_selection_rects(self):
+        """ Update the selection rects.
+        """
+        def continuous_ranges(selections):
+            """ Group continuous ranges
+            """
+            selections = iter(selections)
+            start = end = selections.next()
+            try:
+                while True:
+                    new_end = selections.next()
+                    if new_end > end + 1:
+                        yield start, end
+                        start = end = new_end
+                    else:
+                        end = new_end
+            except StopIteration:
+                yield start, end
+                
+        def group_selections(selections):
+            """ Group selections along with heatmaps.
+            """
+            rows2hm = self.rows_to_heatmaps()
+            selections = iter(selections)
+            start = end = selections.next()
+            end_heatmaps= rows2hm[end]
+            try:
+                while True:
+                    new_end = selections.next()
+                    new_end_heatmaps = rows2hm[new_end]
+                    if new_end > end + 1 or new_end_heatmaps != end_heatmaps:
+                        yield start, end, end_heatmaps
+                        start = end = new_end
+                        end_heatmaps = new_end_heatmaps
+                    else:
+                        end = new_end
+                        
+            except StopIteration:
+                yield start, end, end_heatmaps
+                
+        def selection_rect(start, end, heatmaps):
+            rect = QRectF()
+            for heatmap in heatmaps:
+                h_start, _ = self._heatmap_ranges[heatmap] 
+                rect |= heatmap.mapToScene(heatmap.row_rect(start - h_start)).boundingRect()
+                rect |= heatmap.mapToScene(heatmap.row_rect(end - h_start)).boundingRect()
+            return rect
+                 
+        self.selection_rects = []
+        for start, end, heatmaps in group_selections(self.selections):
+            rect = selection_rect(start, end, heatmaps)
+            self.selection_rects.append(rect)
+            
+    def rows_to_heatmaps(self):
+        heatmap_groups = zip(*self.heatmaps)
+        rows2hm = {}
+        for heatmaps in heatmap_groups:
+            hm = heatmaps[0]
+            start, end = self._heatmap_ranges[hm]
+            rows2hm.update(dict.fromkeys(range(start, end), heatmaps))
+        return rows2hm
+    
+         
 ##################################################################################################
 # test script
 
 if __name__=="__main__":
     a=QApplication(sys.argv)
     ow = OWHeatMap()
-
-    fn = "/home/marko/pipa4.tab"
     
-    ow.dataset(orange.ExampleTable(fn), 0)
+#    fn = "/home/marko/pipa4.tab"
+#    fn = "../../../doc/datasets/brown-selected.tab"
+    fn = os.path.expanduser("~/Documents/abc-subset")
+    ow.set_dataset(orange.ExampleTable(fn), 0)
     ow.handleNewSignals()
     ow.show()
-
-    a.exec_()
-
-    ow.saveSettings()
-    """
-    import orngSignalManager
-    signalManager = orngSignalManager.SignalManager(0)
-    ow=OWHeatMap(signalManager = signalManager)
-    #signalManager.addWidget(ow)
-    #a.setMainWidget(ow)
-    ow.show()
-    import OWDataFiles
-    ds = OWDataFiles.OWDataFiles(signalManager = signalManager, loaddata=0)
-    signalManager.addWidget(ds)
-    ds.loadData("potato.sub100")
-#    ds.loadData("yakApufA")
-#    ds.loadData("smallchipdata")
-#    ds.loadData("testchip")
-    signalManager.setFreeze(1)
-    signalManager.addLink(ds, ow, 'Structured Data', 'Structured Data', 1)
-    signalManager.setFreeze(0)
     
-##    d = orange.ExampleTable('wt'); d.name = 'wt'
-##    d = orange.ExampleTable('wt-nometa'); d.name = 'wt'
-##    ow.dataset(d, 2)
-##    d = orange.ExampleTable('wt-nometa'); d.name = 'wt'
-##    ow.dataset(d, 1)
-##    ow.dataset(None, 1)
-##    ow.dataset(None, 2)
-
-##    names = ['wt1', 'wt2', 'wt3', 'wt4']
-##    for i, s in enumerate(names): 
-##        d = orange.ExampleTable(s); d.name = s
-##        ow.dataset(d, i)
-##    ow.dataset(None, 2)
-"""
-
+    a.exec_()
+    ow.saveSettings()
 
