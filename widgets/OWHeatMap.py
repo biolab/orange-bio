@@ -732,7 +732,7 @@ class OWHeatMap(OWWidget):
             list.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             list.setFont(font)
             list.setContentsMargins(0.0, 0.0, 0.0, 0.0)
-            list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.MinimumExpanding)
+            list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
             
             layout.addItem(list, i*2 + 5, len(self.heatmaps) + 2)
             layout.setAlignment(list, Qt.AlignLeft)
@@ -1499,12 +1499,11 @@ class GraphicsSimpleTextLayoutItem(QGraphicsLayoutItem):
         QGraphicsLayoutItem.__init__(self, parent)
         self.orientation = orientation
         self.text_item = text_item
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         if orientation == Qt.Vertical:
             self.text_item.rotate(-90)
-            self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
+            self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         else:
-            self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.MinimumExpanding)
+            self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         
     def setGeometry(self, rect):
         QGraphicsLayoutItem.setGeometry(self, rect)
