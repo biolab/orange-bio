@@ -222,7 +222,7 @@ class OWGEODatasets(OWWidget):
 
         self.filterLineEdit = OWGUIEx.lineEditHint(self.mainArea, self, "filterString", "Filter",
                                    caseSensitive=False, matchAnywhere=True, 
-                                   listUpdateCallback=self.filter, callbackOnType=True, 
+                                   #listUpdateCallback=self.filter, callbackOnType=False, 
                                    callback=self.filter,  delimiters=" ")
         
         splitter = QSplitter(Qt.Vertical, self.mainArea)
