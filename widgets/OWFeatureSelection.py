@@ -15,9 +15,11 @@ from OWGraphTools import PolygonCurve
 from OWWidget import *
 from OWHist import OWInteractiveHist
 from OWToolbars import ZoomSelectToolbar
+
 from obiGEO import transpose
 from collections import defaultdict
 from functools import wraps
+from operator import add
 import numpy as np
 import numpy.ma as ma
 
@@ -25,27 +27,33 @@ import OWGUI
         
 class ExpressionSignificance_TTest_PValue(ExpressionSignificance_TTest):
     def __call__(self, *args, **kwargs):
-        return [(key, pval) for key, (t, pval) in ExpressionSignificance_TTest.__call__(self, *args, **kwargs)]
+        return [(key, pval) for key, (t, pval) in \
+                ExpressionSignificance_TTest.__call__(self, *args, **kwargs)]
     
 class ExpressionSignificance_TTest_T(ExpressionSignificance_TTest):
     def __call__(self, *args, **kwargs):
-        return [(key, t) for key, (t, pval) in ExpressionSignificance_TTest.__call__(self, *args, **kwargs)]
+        return [(key, t) for key, (t, pval) in \
+                ExpressionSignificance_TTest.__call__(self, *args, **kwargs)]
     
 class ExpressionSignificance_ANOVA_PValue(ExpressionSignificance_ANOVA):
     def __call__(self, *args, **kwargs):
-        return [(key, pval) for key, (t, pval) in ExpressionSignificance_ANOVA.__call__(self, *args, **kwargs)]
+        return [(key, pval) for key, (t, pval) in \
+                ExpressionSignificance_ANOVA.__call__(self, *args, **kwargs)]
     
 class ExpressionSignificance_ANOVA_F(ExpressionSignificance_ANOVA):
     def __call__(self, *args, **kwargs):
-        return [(key, f) for key, (f, pval) in ExpressionSignificance_ANOVA.__call__(self, *args, **kwargs)]
+        return [(key, f) for key, (f, pval) in \
+                ExpressionSignificance_ANOVA.__call__(self, *args, **kwargs)]
     
 class ExpressionSignificance_Log2FoldChange(ExpressionSignificance_FoldChange):
     def __call__(self, *args, **kwargs):
-        return [(key, math.log(fold, 2.0) if fold > 1e-300 and fold < 1e300 else 0.0) for key, fold in ExpressionSignificance_FoldChange.__call__(self, *args, **kwargs)]
+        return [(key, math.log(fold, 2.0) if fold > 1e-300 and fold < 1e300 else 0.0) \
+                for key, fold in ExpressionSignificance_FoldChange.__call__(self, *args, **kwargs)]
     
 class ExpressionSignigicance_MannWhitneyu_U(ExpressionSignificance_MannWhitneyu):
     def __call__(self, *args, **kwargs):
-        return [(key, u) for key, (u, p_val) in ExpressionSignificance_MannWhitneyu.__call__(self, *args, **kwargs)]    
+        return [(key, u) for key, (u, p_val) in \
+                ExpressionSignificance_MannWhitneyu.__call__(self, *args, **kwargs)]    
     
 class ScoreHist(OWInteractiveHist):
     def __init__(self, master, parent=None, type="hiTail"):
@@ -56,8 +64,8 @@ class ScoreHist(OWInteractiveHist):
         
     def setBoundary(self, low, hi):
         OWInteractiveHist.setBoundary(self, low, hi)
-        self.master.UpdateSelectedInfoLabel(low, hi)
-        self.master.CommitIf()
+        self.master.update_selected_info_label(low, hi)
+        self.master.commit_if()
             
 def disable_controls(method):
     """ Disable the widget's control area during the duration of this call.
@@ -71,24 +79,33 @@ def disable_controls(method):
         finally:
             self.controlArea.setDisabled(False)
     return f
-        
+
+from orngDataCaching import data_hints
+from OWGenotypeDistances import SetContextHandler
+from OWVulcanoPlot import LabelSelectionWidget
+
 class OWFeatureSelection(OWWidget):
-    settingsList = ["methodIndex", "dataLabelIndex", "computeNullDistribution", "permutationsCount", "selectPValue", "autoCommit"]
-##    contextHandlers={"":DomainContextHandler("",[])}
+    settingsList = ["method_index", "dataLabelIndex", "compute_null",
+                    "permutations_count", "selectPValue", "auto_commit"]
+    contextHandlers={"Data": DomainContextHandler("Data", ["genes_in_columns"]),
+                     "TargetSelection": SetContextHandler("TargetSelection",
+                                                          findImperfect=False)}
+    
     def __init__(self, parent=None, signalManager=None, name="Gene selection"):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True, showSaveGraph=True)
-        self.inputs = [("Examples", ExampleTable, self.SetData)]
+        self.inputs = [("Examples", ExampleTable, self.set_data)]
         self.outputs = [("Example table with selected genes", ExampleTable), ("Example table with remaining genes", ExampleTable), ("Selected genes", ExampleTable)]
 
-        self.methodIndex = 0
-        self.dataLabelIndex = 0
-        self.computeNullDistribution = False
-        self.permutationsCount = 10
-        self.autoCommit = False
+        self.method_index = 0
+#        self.dataLabelIndex = 0
+        self.genes_in_columns = False
+        self.compute_null = False
+        self.permutations_count = 10
+        self.auto_commit = False
         self.selectNBest = 20
         self.selectPValue = 0.01
-        self.dataChangedFlag = False
-        self.addScoresToOutput = True
+        self.data_changed_flag = False
+        self.add_scores_to_output = True
 
         self.oneTailTestHi = oneTailTestHi = lambda array, low, hi: array >= hi
         self.oneTailTestLow = oneTailTestLow = lambda array, low, hi: array <= low
@@ -97,16 +114,17 @@ class OWFeatureSelection(OWWidget):
         
         self.histType = {oneTailTestHi:"hiTail", oneTailTestLow:"lowTail", twoTailTest:"twoTail", middleTest:"middle"}
 
-        self.scoreMethods = [("fold change", ExpressionSignificance_FoldChange, twoTailTest),
-                             ("log2 fold change", ExpressionSignificance_Log2FoldChange, twoTailTest),
-                             ("t-test", ExpressionSignificance_TTest_T, twoTailTest),
-                             ("t-test p-value", ExpressionSignificance_TTest_PValue, oneTailTestLow),
-                             ("anova", ExpressionSignificance_ANOVA_F, oneTailTestHi),
-                             ("anova p-value", ExpressionSignificance_ANOVA_PValue, oneTailTestLow),
-                             ("signal to noise ratio", ExpressionSignificance_SignalToNoise, twoTailTest),
-                             ("info gain", ExpressionSignificance_Info, oneTailTestHi),
-                             ("chi-square", ExpressionSignificance_ChiSquare, oneTailTestHi),
-                             ("mann-whitney", ExpressionSignigicance_MannWhitneyu_U, oneTailTestLow)]
+        # [(name, func, tail test, two sample test), ...]
+        self.score_methods = [("fold change", ExpressionSignificance_FoldChange, twoTailTest, True),
+                             ("log2 fold change", ExpressionSignificance_Log2FoldChange, twoTailTest, True),
+                             ("t-test", ExpressionSignificance_TTest_T, twoTailTest, True),
+                             ("t-test p-value", ExpressionSignificance_TTest_PValue, oneTailTestLow, True),
+                             ("anova", ExpressionSignificance_ANOVA_F, oneTailTestHi, False),
+                             ("anova p-value", ExpressionSignificance_ANOVA_PValue, oneTailTestLow, False),
+                             ("signal to noise ratio", ExpressionSignificance_SignalToNoise, twoTailTest, True),
+                             ("info gain", ExpressionSignificance_Info, oneTailTestHi, True),
+                             ("chi-square", ExpressionSignificance_ChiSquare, oneTailTestHi, True),
+                             ("mann-whitney", ExpressionSignigicance_MannWhitneyu_U, oneTailTestLow, True)]
 
         boxHistogram = OWGUI.widgetBox(self.mainArea)
         self.histogram = ScoreHist(self, boxHistogram)
@@ -115,25 +133,38 @@ class OWFeatureSelection(OWWidget):
         
         box = OWGUI.widgetBox(self.controlArea, "Info")
         self.dataInfoLabel = OWGUI.widgetLabel(box, "\n\n")
+        self.dataInfoLabel.setWordWrap(True)
         self.selectedInfoLabel = OWGUI.widgetLabel(box, "")
 
         box1 = OWGUI.widgetBox(self.controlArea, "Scoring Method")
-        self.testRadioBox = OWGUI.comboBox(box1, self, "methodIndex",
-                                    items=[sm[0] for sm in self.scoreMethods],
-                                    callback=self.Update)
+        self.testRadioBox = OWGUI.comboBox(box1, self, "method_index",
+                                    items=[sm[0] for sm in self.score_methods],
+                                    callback=[self.on_scoring_method_changed, self.update_scores])
         
-        self.dataLabelComboBox = OWGUI.comboBox(box1, self, "dataLabelIndex", "Attribute labels",
-                                                callback=self.Update,
-                                                tooltip="Use attribute labels for score computation")
+        box = OWGUI.widgetBox(self.controlArea, "Target Labels")
+        self.label_selection_widget = LabelSelectionWidget(self)
+        self.label_selection_widget.setMaximumHeight(150)
+        box.layout().addWidget(self.label_selection_widget)
+        self.connect(self.label_selection_widget,
+                     SIGNAL("selection_changed()"),
+                     self.on_target_changed)
+        
+        self.connect(self.label_selection_widget,
+                     SIGNAL("label_activated(int)"),
+                     self.on_label_activated)
+        
+        self.genes_in_columns_check = OWGUI.checkBox(box, self, "genes_in_columns",
+                                                  "Genes in columns",
+                                                  callback=self.on_genes_in_columns_change)
     
-        ZoomSelectToolbar(self, self.controlArea, self.histogram,
-                          buttons=[ZoomSelectToolbar.IconSelect,
-                                   ZoomSelectToolbar.IconZoom,
-                                   ZoomSelectToolbar.IconPan])
+#        ZoomSelectToolbar(self, self.controlArea, self.histogram,
+#                          buttons=[ZoomSelectToolbar.IconSelect,
+#                                   ZoomSelectToolbar.IconZoom,
+#                                   ZoomSelectToolbar.IconPan])
         
         box = OWGUI.widgetBox(self.controlArea, "Selection")
         box.layout().setSpacing(0)
-        callback = self.SetBoundary
+        callback = self.update_boundary
         self.upperBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.upperBoundary",
                                                   min=-1e6, max=1e6, step= 1e-6,
                                                   label="Upper threshold:", 
@@ -146,30 +177,30 @@ class OWFeatureSelection(OWWidget):
                                                   callback=callback, 
                                                   callbackOnReturn=True)
         
-        check = OWGUI.checkBox(box, self, "computeNullDistribution", "Compute null distribution",
-                               callback=self.Update)
+        check = OWGUI.checkBox(box, self, "compute_null", "Compute null distribution",
+                               callback=self.update_scores)
 
-        check.disables.append(OWGUI.spin(box, self, "permutationsCount", min=1, max=10, 
-                                         label="Permutations:", callback=self.Update, 
+        check.disables.append(OWGUI.spin(box, self, "permutations_count", min=1, max=10, 
+                                         label="Permutations:", callback=self.update_scores, 
                                          callbackOnReturn=True))
 
         box1 = OWGUI.widgetBox(box, orientation='horizontal')
         check.disables.append(OWGUI.doubleSpin(box1, self, "selectPValue", 
                                                min=2e-7, max=1.0, step=1e-7, 
                                                label="P-value:"))
-        check.disables.append(OWGUI.button(box1, self, "Select", callback=self.SelectPBest))
+        check.disables.append(OWGUI.button(box1, self, "Select", callback=self.select_p_best))
         check.makeConsistent()
 
         box1 = OWGUI.widgetBox(box, orientation='horizontal')
         OWGUI.spin(box1, self, "selectNBest", 0, 10000, step=1, label="Best Ranked:")
-        OWGUI.button(box1, self, "Select", callback=self.SelectNBest)
+        OWGUI.button(box1, self, "Select", callback=self.select_n_best)
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
-        b = OWGUI.button(box, self, "&Commit", callback=self.Commit)
-        cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on change")
-        OWGUI.setStopper(self, b, cb, "dataChangedFlag", self.Commit)
-        OWGUI.checkBox(box, self, "addScoresToOutput", "Add gene scores to output",
-                       callback=self.CommitIf) 
+        b = OWGUI.button(box, self, "&Commit", callback=self.commit)
+        cb = OWGUI.checkBox(box, self, "auto_commit", "Commit on change")
+        OWGUI.setStopper(self, b, cb, "data_changed_flag", self.commit)
+        OWGUI.checkBox(box, self, "add_scores_to_output", "Add gene scores to output",
+                       callback=self.commit_if) 
         
         OWGUI.rubber(self.controlArea)
 
@@ -183,107 +214,193 @@ class OWFeatureSelection(OWWidget):
         self.nullDistCache = {}
         self.cuts = {}
         self.discretizer = orange.EquiNDiscretization(numberOfIntervals=5)
-        self.transposedData = False
-        self.nullDistribution = []
+        self.null_dist = []
         self.targets = []
         self.scores = {}
-
+        self.genes_in_columns = True
+        self.target_selections = None
+        
+        self.on_scoring_method_changed()
+        
         self.resize(800, 600)
         
-    def SetData(self, data):
-        self.error(0)
-        self.error(1)
-        self.warning(0)
+    def clear(self):
+        """ Clear widget.
+        """
         self.scoreCache = {}
         self.nullDistCache = {}
         self.discData = None
-        self.data = data
-        self.transposedData = None
-        disabled = []
+        self.data = None
+        self.attribute_targets = []
+        self.class_targets = []
+        self.label_selection_widget.clear()
+        self.clear_plot()
+        
+    def clear_plot(self):
+        """ Clear the histogram plot.
+        """
+        self.histogram.removeDrawingCurves()
+        self.histogram.clear()
+        self.histogram.replot()
+        
+    def init_from_data(self, data):
+        """ Init widget state from the data.
+        """
+        if data:
+            items = [attr.attributes.items() for attr in data.domain.attributes]
+            items = reduce(add, items, [])
+            
+            targets = defaultdict(set)
+            for label, value in items:
+                targets[label].add(value)
+                
+            targets = [(key, sorted(vals)) for key, vals in targets.items() \
+                       if len(vals) >= 2]
+            self.attribute_targets = targets
+            
+            class_var = data.domain.class_var
+            if class_var and isinstance(class_var, orange.EnumVariable):
+                targets = [(class_var.name,
+                            list(class_var.values))]
+                self.class_targets = targets
+            else:
+                self.class_targets = []
+            
+    def update_targets_widget(self):
+        """ Update the contents of the targets widget.
+        """
         if self.data:
-            self.dataLabels = reduce(lambda dict, tags: [dict[key].add(value) for key, value in tags.items()] and False or dict,
-                                       [attr.attributes for attr in self.data.domain.attributes],
-                                       defaultdict(set))
-            self.dataLabels = [key for key, value in self.dataLabels.items() if len(value) > 1]
+            if self.genes_in_columns:
+                targets = self.attribute_targets
+            elif self.data.domain.classVar:
+                targets = self.class_targets
+            else:
+                targets = []
         else:
-            self.dataLabels = []
-        self.dataLabelComboBox.clear()
-        if self.data and data.domain.classVar and data.domain.classVar.varType == orange.VarTypes.Discrete:
-            self.dataLabels = ["(None)"] + self.dataLabels
-        self.dataLabelComboBox.addItems(self.dataLabels)
+            targets = []
+            
+        self.label_selection_widget.clear()
+        self.label_selection_widget.set_labels(targets)
+        self.data_labels = targets
         
-        self.dataLabelComboBox.setDisabled(len(self.dataLabels) <= 1)
-        self.dataLabelIndex = max(min(self.dataLabelIndex, len(self.dataLabels) - 1), 0)
+    def set_data(self, data):
+        self.closeContext("Data")
+        self.closeContext("TargetSelection")
+        self.error([0, 1])
+        self.warning(0)
+        self.clear()
+        self.genes_in_columns_check.setEnabled(True)
+        self.data = data
+        self.init_from_data(data)
         
-        if self.data and not self.dataLabels:
+        if self.data:
+            self.genes_in_columns = not data_hints.get_hint(data, "genesinrows", False)
+            self.openContext("Data", data)
+            
+            # If only attr. labels or only class values then disable the 'Genes in columns' control
+            if not self.attribute_targets or not self.class_targets:
+                self.genes_in_columns_check.setEnabled(False)
+                self.genes_in_columns = bool(self.attribute_targets)
+        
+        self.update_targets_widget()
+        
+        # If both attr. labels and classes are missing, show an error
+        if not (self.attribute_targets or self.class_targets):
+#        if self.data and not self.data_labels:
             self.error(1, "Cannot compute gene scores! Gene Selection widget requires a data-set with a discrete class variable or attribute labels!")
             self.data = None
-        self.Update()
+        
+        if self.data:
+            # Load context selection
+            items = [(label, v) for label, values in self.data_labels for v in values]
+            
+            self.target_selections = [values[:1] for _, values in self.data_labels]
+            label, values = self.data_labels[0]
+            self.current_target_selection = label, values[:1] # Default selections
+            
+            self.openContext("TargetSelection", set(items)) # Load selections from context
+            self.label_selection_widget.set_selection(*self.current_target_selection)
+
         if not self.data:
-            self.UpdateDataInfoLabel()
             self.send("Example table with selected genes", None)
             self.send("Example table with remaining genes", None)
             self.send("Selected genes", None)
+            
+    def set_targets(self, targets):
+        """ Set the target groups for score computation.
+        """
+        self.targets = targets
+        self.update_scores()
     
-    def ComputeScores(self, data, scoreFunc, useAttributeLabels, target=None, advance=lambda :None):
-        scoreFunc = scoreFunc(data, useAttributeLabels)
+    def compute_scores(self, data, score_func, use_attribute_labels,
+                       target=None, advance=lambda: None):
+        score_func = score_func(data, use_attribute_labels)
         advance()
-        score = scoreFunc(target=target)
+        score = score_func(target=target)
         score = [(key, val) for key, val in score if val is not ma.masked]
         return score
     
-    def ComputeNullDistribution(self, data, scoreFunc, useAttributes, target=None, permCount=10, advance=lambda: None):
-        scoreFunc = scoreFunc(data, useAttributes)
-        dist = scoreFunc.null_distribution(permCount, target, advance=advance)
+    def compute_null_distribution(self, data, score_func, use_attributes,
+                                  target=None, perm_count=10, advance=lambda: None):
+        score_func = score_func(data, use_attributes)
+        dist = score_func.null_distribution(perm_count, target, advance=advance)
         return [score for run in dist for k, score in run if score is not ma.masked]
-        
-    def Update(self):
-        if not self.data:
-            self.histogram.removeDrawingCurves()
-            self.histogram.clear()
-            self.histogram.replot()
-        else:
-            self.UpdateScores()
             
     @disable_controls
-    def UpdateScores(self):
+    def update_scores(self):
         """ Compute the scores and update the histogram.
         """
-        targetLabel = self.dataLabels[self.dataLabelIndex]
-        if targetLabel == "(None)":
-            target = [self.data.domain.classVar(0), self.data.domain.classVar(1)]
-            self.targets = targets = list(self.data.domain.classVar.values)
-            self.genesInColumns = False
-        else:
-            self.targets = targets = list(set([attr.attributes.get(targetLabel) for attr in self.data.domain.attributes]) - set([None]))
-            target = [(targetLabel, targets[0]), (targetLabel, targets[1])]
-            self.genesInColumns = True
-        if self.methodIndex in [4, 5]: ## ANOVA
-            target = targets if targetLabel == "(None)" else [(targetLabel, t) for t in targets]
-        scoreFunc = self.scoreMethods[self.methodIndex][1] 
-        pb = OWGUI.ProgressBar(self, 4 + self.permutationsCount if self.computeNullDistribution else 3)
-        self.scores = dict(self.ComputeScores(self.data, scoreFunc, self.genesInColumns, target, advance=pb.advance))
+        self.clear_plot()
+        self.error(0)
+        if not self.data:
+            return
+        _, score_func, _, two_sample_test = self.score_methods[self.method_index]
+        
+        target_label, target_values = self.current_target_selection
+        if two_sample_test:
+            target = self.targets
+            score_target = set(target)
+            ind1, ind2 = score_func(self.data, self.genes_in_columns).test_indices(score_target)
+            if not len(ind1) or not len(ind2):
+                self.error(0, "Target labels most exclude/include at least one value.")
+                return
+            
+        else: # ANOVA should use all labels. 
+            label, values = self.current_target_selection
+            target = dict(self.data_labels)[label]
+            if self.genes_in_columns:
+                target = [(label, t) for t in target]
+            score_target = target
+#            indices = score_func(self.data, self.genes_in_columns).test_indices(score_target)
+            # TODO: Check that each label has more than one measurement, raise warning otherwise.
+         
+        pb = OWGUI.ProgressBar(self, 4 + self.permutations_count if self.compute_null else 3)
+        self.scores = dict(self.compute_scores(self.data, score_func,
+                    self.genes_in_columns, score_target, advance=pb.advance))
         pb.advance()
-        if self.computeNullDistribution:
-            self.nullDistribution = self.ComputeNullDistribution(self.data, scoreFunc, self.genesInColumns, target, self.permutationsCount, advance=pb.advance)
+        if self.compute_null:
+            self.null_dist = self.compute_null_distribution(self.data,
+                        score_func, self.genes_in_columns, score_target,
+                        self.permutations_count, advance=pb.advance)
         else:
-            self.nullDistribution = []
+            self.null_dist = []
         pb.advance()
-        self.histogram.type = self.histType[self.scoreMethods[self.methodIndex][2]]
+        self.histogram.type = self.histType[self.score_methods[self.method_index][2]]
         if self.scores:
             self.histogram.setValues(self.scores.values())
-#        self.histogram.setBoundary(*self.cuts.get(None, (self.histogram.minx if self.histogram.type in ["lowTail", "twoTail"] else self.histogram.maxx,
-#                                                                     self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)))
             self.histogram.setBoundary(self.histogram.minx if self.histogram.type in ["lowTail", "twoTail"] else self.histogram.maxx,
                                        self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)
-            if self.computeNullDistribution and self.nullDistribution:
-                nullY, nullX = numpy.histogram(self.nullDistribution, bins=self.histogram.xData)
-                self.histogram.nullCurve = self.histogram.addCurve("nullCurve", Qt.black, Qt.black, 6, symbol = QwtSymbol.NoSymbol, style = QwtPlotCurve.Steps, xData = nullX, yData = nullY/self.permutationsCount)
+            if self.compute_null and self.null_dist:
+                nullY, nullX = numpy.histogram(self.null_dist, bins=self.histogram.xData)
+                self.histogram.nullCurve = self.histogram.addCurve("nullCurve",
+                        Qt.black, Qt.black, 6, symbol=QwtSymbol.NoSymbol,
+                        style=QwtPlotCurve.Steps, xData = nullX,
+                        yData = nullY/self.permutations_count)
                 
                 minx = min(min(nullX), self.histogram.minx)
                 maxx = max(max(nullX), self.histogram.maxx)
-                miny = min(min(nullY/self.permutationsCount), self.histogram.miny)
-                maxy = max(max(nullY/self.permutationsCount), self.histogram.maxy)
+                miny = min(min(nullY/self.permutations_count), self.histogram.miny)
+                maxy = max(max(nullY/self.permutations_count), self.histogram.maxy)
 
                 self.histogram.setAxisScale(QwtPlot.xBottom, minx - (0.05 * (maxx - minx)), maxx + (0.05 * (maxx - minx)))
                 self.histogram.setAxisScale(QwtPlot.yLeft, miny - (0.05 * (maxy - miny)), maxy + (0.05 * (maxy - miny)))
@@ -291,61 +408,76 @@ class OWFeatureSelection(OWWidget):
             for spin, visible in zip((self.upperBoundarySpin, self.lowerBoundarySpin), state[self.histogram.type]):
                 spin.setVisible(visible)
             
-##            if self.methodIndex in [2, 3, 5, 6]:
-            if self.methodIndex in [0, 2, 6]:
-                if self.methodIndex == 0: ## fold change is centered on 1.0
+            # If this is a two sample test add markers to the left and right
+            # plot indicating which target group is over-expressed in that
+            # part  
+            if self.method_index in [0, 2, 6]:
+                if self.method_index == 0: ## fold change is centered on 1.0
                     x1, y1 = (self.histogram.minx + 1) / 2 , self.histogram.maxy
                     x2, y2 = (self.histogram.maxx + 1) / 2 , self.histogram.maxy
                 else:
                     x1, y1 = (self.histogram.minx) / 2 , self.histogram.maxy
                     x2, y2 = (self.histogram.maxx) / 2 , self.histogram.maxy
-                self.histogram.addMarker(self.targets[0], x1, y1)
-                self.histogram.addMarker(self.targets[1], x2, y2)
+                if self.genes_in_columns:
+                    label = target[0][0]
+                    target_values = [t[1] for t in target]
+                    values = dict(self.data_labels)[label]
+                else:
+                    target_values = target
+                    values = self.data_labels[0][1]
+                    
+                left = ", ".join(v for v in values if v not in target_values)
+                right = ", ".join(v for v in values if v in target_values)
+                    
+                self.histogram.addMarker(left, x1, y1)
+                self.histogram.addMarker(right, x2, y2)
             self.warning(0)
         else:
             self.warning(0, "No scores obtained.")
         self.histogram.replot()
         pb.advance()
         pb.finish()
-        self.UpdateDataInfoLabel()
+        self.update_data_info_label()
             
-            
-    def UpdateDataInfoLabel(self):
+    def update_data_info_label(self):
         if self.data:
             samples, genes = len(self.data), len(self.data.domain.attributes)
-            if self.genesInColumns:
+            if self.genes_in_columns:
                 samples, genes = genes, samples
+                target_labels = [t[1] for t in self.targets]
+            else:
+                target_labels = self.targets
             text = "%i samples, %i genes\n" % (samples, genes)
-            text += "Sample label: %s" % self.targets[0]
+            text += "Sample target: '%s'" % (",".join(target_labels))
         else:
             text = "No data on input\n"
         self.dataInfoLabel.setText(text)
 
-    def UpdateSelectedInfoLabel(self, cutOffLower=0, cutOffUpper=0):
-        self.cuts[self.methodIndex] = (cutOffLower, cutOffUpper)
+    def update_selected_info_label(self, cutOffLower=0, cutOffUpper=0):
+        self.cuts[self.method_index] = (cutOffLower, cutOffUpper)
         if self.data:
             scores = np.array(self.scores.values())
-            test = self.scoreMethods[self.methodIndex][2]
+            test = self.score_methods[self.method_index][2]
             self.selectedInfoLabel.setText("%i selected genes" % len(np.nonzero(test(scores, cutOffLower, cutOffUpper))[0]))
         else:
             self.selectedInfoLabel.setText("0 selected genes")
 
-    def SelectNBest(self):
+    def select_n_best(self):
         scores = self.scores.items()
         scores.sort(lambda a,b:cmp(a[1], b[1]))
         if not scores:
             return
-        if self.scoreMethods[self.methodIndex][2]==self.oneTailTestHi:
+        if self.score_methods[self.method_index][2]==self.oneTailTestHi:
             scores = scores[-max(self.selectNBest, 1):]
             self.histogram.setBoundary(scores[0][1], scores[0][1])
-        elif self.scoreMethods[self.methodIndex][2]==self.oneTailTestLow:
+        elif self.score_methods[self.method_index][2]==self.oneTailTestLow:
             scores = scores[:max(self.selectNBest,1)]
             self.histogram.setBoundary(scores[-1][1], scores[-1][1])
         else:
             scoresHi = scores[-max(min(self.selectNBest, len(scores)/2), 1):]
             scoresLo = scores[:max(min(self.selectNBest, len(scores)/2), 1)]
             scores = [(abs(score), 1) for attr, score in scoresHi] + [(abs(score), -1) for attr, score in scoresLo]
-            if self.scoreMethods[self.methodIndex][0]=="fold change": ## comparing fold change on a logaritmic scale
+            if self.score_methods[self.method_index][0]=="fold change": ## comparing fold change on a logaritmic scale
                 scores =  [(abs(math.log(max(min(score, 1e300), 1e-300), 2.0)), sign) for score, sign in scores]
             scores.sort()
             scores = scores[-max(self.selectNBest, 1):]
@@ -355,20 +487,20 @@ class OWFeatureSelection(OWWidget):
             cutLo = scoresLo[countLo-1][1] if countLo else scoresLo[0][1] - 1e-7
             self.histogram.setBoundary(cutLo, cutHi)
 
-    def SetBoundary(self):
+    def update_boundary(self):
         if self.data != None and self.scores.items():
-            if self.scoreMethods[self.methodIndex][2]==self.oneTailTestHi:
+            if self.score_methods[self.method_index][2]==self.oneTailTestHi:
                 self.histogram.setBoundary(self.histogram.lowerBoundary, self.histogram.lowerBoundary)
-            elif self.scoreMethods[self.methodIndex][2]==self.oneTailTestLow:
+            elif self.score_methods[self.method_index][2]==self.oneTailTestLow:
                 self.histogram.setBoundary(self.histogram.upperBoundary, self.histogram.upperBoundary)
             else:
                 self.histogram.setBoundary(self.histogram.lowerBoundary, self.histogram.upperBoundary)
 
-    def SelectPBest(self):
-        if not self.nullDistribution:
+    def select_p_best(self):
+        if not self.null_dist:
             return
-        nullDist = sorted(self.nullDistribution)
-        test = self.scoreMethods[self.methodIndex][2]
+        nullDist = sorted(self.null_dist)
+        test = self.score_methods[self.method_index][2]
         count = min(int(len(nullDist)*self.selectPValue), len(nullDist))
         if test == self.oneTailTestHi:
             cut = nullDist[-count] if count else nullDist[-1] # + 1e-7
@@ -380,7 +512,7 @@ class OWFeatureSelection(OWWidget):
             scoresHi = nullDist[-count:]
             scoresLo = nullDist[:count]
             scores = [(abs(score), 1) for score in scoresHi] + [(abs(score), -1) for score in scoresLo]
-            if self.scoreMethods[self.methodIndex][0] == "fold change": ## fold change is on a logaritmic scale
+            if self.score_methods[self.method_index][0] == "fold change": ## fold change is on a logaritmic scale
                 scores =  [(abs(math.log(max(min(score, 1e300), 1e-300), 2.0)), sign) for score, sign in scores]
             scores = sorted(scores)[-count:]
             countHi = len([score for score, sign in scores if sign==1])
@@ -392,16 +524,16 @@ class OWFeatureSelection(OWWidget):
             self.histogram.setBoundary(nullDist[0] - 1e-7, nullDist[-1] + 1e-7)
             
 
-    def CommitIf(self):
-        if self.autoCommit:
-            self.Commit()
+    def commit_if(self):
+        if self.auto_commit:
+            self.commit()
         else:
-            self.dataChangedFlag = True
+            self.data_changed_flag = True
         
-    def Commit(self):
+    def commit(self):
         if not self.data or not self.scores:
             return
-        test = self.scoreMethods[self.methodIndex][2]
+        test = self.score_methods[self.method_index][2]
         
         cutOffUpper = self.histogram.upperBoundary
         cutOffLower = self.histogram.lowerBoundary
@@ -410,69 +542,132 @@ class OWFeatureSelection(OWWidget):
         scores[:, 1] = test(np.array(scores[:, 1], dtype=float), cutOffLower, cutOffUpper)
         selected = set([key for key, test in scores if test])
         remaining = set([key for key, test in scores if not test])
-        if self.data and self.genesInColumns:
+        if self.data and self.genes_in_columns:
             selected = sorted(selected)
-            newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in selected]) if selected else None
-            if self.addScoresToOutput:
-                scoreAttr = orange.FloatVariable(self.scoreMethods[self.methodIndex][0])
+            if selected:
+                newdata = orange.ExampleTable(orange.Domain(self.data.domain),
+                                        [self.data[int(i)] for i in selected])
+            else:
+                newdata = None
+            if self.add_scores_to_output:
+                score_attr = orange.FloatVariable(self.score_methods[self.method_index][0])
                 mid = orange.newmetaid()
                 
-            if self.addScoresToOutput and newdata is not None:
-                newdata.domain.addmeta(mid, scoreAttr)
+            if self.add_scores_to_output and newdata is not None:
+                newdata.domain.addmeta(mid, score_attr)
                 for ex, key in zip(newdata, selected):
                     ex[mid] = self.scores[key]
                     
             self.send("Example table with selected genes", newdata)
             
             remaining = sorted(remaining)
-            newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in remaining]) if remaining else None
+            if remaining:
+                newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in remaining])
+            else:
+                newdata = None
             
-            if self.addScoresToOutput and newdata is not None:
-                newdata.domain.addmeta(mid, scoreAttr)
+            if self.add_scores_to_output and newdata is not None:
+                newdata.domain.addmeta(mid, score_attr)
                 for ex, key in zip(newdata, remaining):
                     ex[mid] = self.scores[key]
                     
             self.send("Example table with remaining genes", newdata)
             
-        elif self.data and not self.genesInColumns:
+        elif self.data and not self.genes_in_columns:
             
-            selectedAttrs = [attr for attr in self.data.domain.attributes if attr in selected or attr.varType == orange.VarTypes.String]
-            newdomain = orange.Domain(selectedAttrs, self.data.domain.classVar)
-            if self.addScoresToOutput:
+            selected_attrs = [attr for attr in self.data.domain.attributes \
+                             if attr in selected or \
+                                attr.varType == orange.VarTypes.String]
+            newdomain = orange.Domain(selected_attrs, self.data.domain.classVar)
+            if self.add_scores_to_output:
                 for attr in newdomain.attributes:
-                    attr.attributes[self.scoreMethods[self.methodIndex][0]] = str(self.scores[attr])
+                    attr.attributes[self.score_methods[self.method_index][0]] = str(self.scores[attr])
             newdomain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(newdomain, self.data)
             
-            self.send("Example table with selected genes", newdata if selectedAttrs else None)
+            self.send("Example table with selected genes", newdata if selected_attrs else None)
             
-            remainingAttrs = [attr for attr in self.data.domain.attributes if attr in remaining]
-            newdomain = orange.Domain(remainingAttrs, self.data.domain.classVar)
-            if self.addScoresToOutput:
+            remaining_attrs = [attr for attr in self.data.domain.attributes if attr in remaining]
+            newdomain = orange.Domain(remaining_attrs, self.data.domain.classVar)
+            if self.add_scores_to_output:
                 for attr in newdomain.attributes:
-                    attr.attributes[self.scoreMethods[self.methodIndex][0]] = str(self.scores[attr])
+                    attr.attributes[self.score_methods[self.method_index][0]] = str(self.scores[attr])
             newdomain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(newdomain, self.data)
             
-            self.send("Example table with remaining genes", newdata if remainingAttrs else None)
+            self.send("Example table with remaining genes", newdata if remaining_attrs else None)
             
-            domain = orange.Domain([orange.StringVariable("label"), orange.FloatVariable(self.scoreMethods[self.methodIndex][0])], False)
-            self.send("Selected genes", orange.ExampleTable([orange.Example(domain, [attr.name, self.scores.get(attr, 0)]) for attr in selectedAttrs]) if selectedAttrs else None)
+            domain = orange.Domain([orange.StringVariable("label"),
+                                    orange.FloatVariable(self.score_methods[self.method_index][0])],
+                                    False)
+            if selected_attrs:
+                selected_genes = orange.ExampleTable(domain,
+                            [[attr.name, self.scores.get(attr, 0)] for attr in selected_attrs])
+            else:
+                selected_genes = None
+            self.send("Selected genes",  selected_genes)
             
         else:
             self.send("Example table with selected genes", None)
             self.send("Example table with remaining genes", None)
             self.send("Selected genes", None)
-        self.dataChangedFlag = False
+        self.data_changed_flag = False
+        
+    def on_target_changed(self):
+        label, values  = self.label_selection_widget.current_selection()
+        if self.genes_in_columns:
+            targets = [(label, t) for t in values]
+        else:
+            targets = values
+        self.targets = targets
+        self.current_target_selection = label, values
+        # Save target label selection
+        labels = [l for l, _ in self.data_labels]
+        if label in labels:
+            label_index = labels.index(label)
+            self.target_selections[label_index] = values
+        self.set_targets(targets) 
+    
+    def on_label_activated(self, index):
+        selection = self.target_selections[index]
+        if not selection:
+            selection = self.data_labels[index][1][:1]
+        self.label_selection_widget.set_selection(index, selection)
 
+    def on_genes_in_columns_change(self):
+        self.closeContext("TargetSelection")
+        self.update_targets_widget()
+        items = [(label, v) for label, values in self.data_labels \
+                                for v in values]
+        if self.data_labels:
+            label, values = self.data_labels[0] 
+            self.current_target_selection = label, values[:1]
+            self.target_selections = [values[1:] for _, values in self.data_labels]
+            self.openContext("TargetSelection", set(items))
+            self.label_selection_widget.set_selection(*self.current_target_selection)
+        
+    def on_scoring_method_changed(self):
+        two_sample = self.score_methods[self.method_index][3]
+        self.label_selection_widget.values_view.setDisabled(not two_sample)
+        
+    def settingsFromWidgetCallbackTargetSelection(self, handler, context):
+        context.target_selections = self.target_selections
+        context.current_target_selection = self.current_target_selection
+        
+    def settingsToWidgetCallbackTargetSelection(self, handler, context):
+        self.target_selections = getattr(context, "target_selections", self.target_selections)
+        self.current_target_selection = getattr(context, "current_target_selection", self.current_target_selection)
+    
 if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
-#    data = orange.ExampleTable("E:\\out1.tab")
 #    data = orange.ExampleTable("/home/marko/t2.tab")
-    data = orange.ExampleTable("../../../doc/datasets/brown-selected")
+#    data = orange.ExampleTable("../../../doc/datasets/brown-selected")
+    data = orange.ExampleTable(os.path.expanduser("~/Documents/GDS636"))
     w = OWFeatureSelection()
     w.show()
-    w.SetData(data)
+    w.set_data(data)
+#    w.set_data(None)
+#    w.set_data(data)
     app.exec_()
     w.saveSettings()
