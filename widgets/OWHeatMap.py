@@ -373,6 +373,8 @@ class OWHeatMap(OWWidget):
         self.data_clusters = []
         self.sorted_data = None
         
+        self._ordering_cache = {}
+        
         self.resize(800,400)
 
     def createColorStripe(self, palette):
@@ -568,6 +570,7 @@ class OWHeatMap(OWWidget):
         
     def set_dataset(self, data=None, id=None):
         self.closeContext("Selection")
+        self._ordering_cache.clear()
         self.clear()
         self.data = data
         if data is not None:
@@ -598,10 +601,20 @@ class OWHeatMap(OWWidget):
         
         if self.SortGenes > 1:
             self.progressBarInit()
-            attr_ordering, attr_cluster, data_ordering, data_clusters = \
-                    hierarchical_cluster_ordering(data, group_domains,
-                                                  opt_order=self.SortGenes == 3,
-                                                  progress_callback=self.progressBarSet)
+            
+            args_key = tuple(tuple(d) for d in group_domains), self.SortGenes == 3
+            cluster_ordering = self._ordering_cache.get(args_key, None)
+            if cluster_ordering is None:
+                attr_ordering, attr_cluster, data_ordering, data_clusters = \
+                        hierarchical_cluster_ordering(data, group_domains,
+                                      opt_order=self.SortGenes == 3,
+                                      progress_callback=self.progressBarSet)
+                # Cache the clusters
+                self._ordering_cache[args_key] = (attr_ordering, attr_cluster,
+                                                  data_ordering, data_clusters)
+            else:
+                 attr_ordering, attr_cluster, data_ordering, data_clusters = cluster_ordering
+                    
             sorted_data = [data[i] for i in itertools.chain(*data_ordering)]
             self.progressBarFinished()
             
