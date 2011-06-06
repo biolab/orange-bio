@@ -886,6 +886,14 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if stateType == "Warning":
             self.listView._userMessage = text
             self.listView.viewport().update()
+            
+    def onDeleteWidget(self):
+        """ Called before the widget is removed from the canvas.
+        """
+        self.annotations = None
+        self.ontology = None
+        gc.collect() # Force collection
+        
 
 class GOTreeWidgetItem(QTreeWidgetItem):
     def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes, maxFoldEnrichment, parent):
