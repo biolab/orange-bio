@@ -315,7 +315,7 @@ def transpose_class_to_labels(data, attcol="sample"):
 
     return new
 
-def transpose_labels_to_class(data, class_label=None):
+def transpose_labels_to_class(data, class_label=None, gene_label="gene"):
     """Converts data with genes in rows to data with genes as attributes."""
     # if no class_label (attribute type) given, guess it from the data
     if not class_label:
@@ -329,8 +329,8 @@ def transpose_labels_to_class(data, class_label=None):
             warnings.warn("More than single attribute label types (%s), took %s"
                           % (", ".join(l), class_label))
 
-    if "gene" in [v.name for v in data.domain.getmetas().values()]:
-        atts = [orange.FloatVariable(str(d["gene"])) for d in data]
+    if gene_label in [v.name for v in data.domain.getmetas().values()]:
+        atts = [orange.FloatVariable(str(d[gene_label])) for d in data]
     else:
         atts = [orange.FloatVariable("A%d" % i) for i in range(len(data))]
         
