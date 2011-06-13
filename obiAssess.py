@@ -371,7 +371,7 @@ def PLSCall(data, y=None, x=None, nc=None, weight=None, save_partial=False):
         
     dataX = orange.ExampleTable(orange.Domain(x, False), data)
     dataY = orange.ExampleTable(orange.Domain(y, False), data)
-   
+
     # transformation to numpy arrays
     X = dataX.toNumpy()[0]
     Y = dataY.toNumpy()[0]
@@ -699,6 +699,6 @@ if __name__ == "__main__":
             ar[a].append(b)
 
     ol =  sorted(ar.items())
-    print ol
+    #print ol
 
-    #print '\n'.join([ str(a) + ": " +str(b) for a,b in ol])
+    print '\n'.join([ str(a) + ": " +str(b) for a,b in ol])
