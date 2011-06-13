@@ -682,13 +682,13 @@ if __name__ == "__main__":
     gsets = obiGeneSets.collections("steroltalk.gmt")
     #gsets = obiGeneSets.collections("C2.CP.gmt", "C5.MF.gmt", "C5.BP.gmt")
 
-    #ass = AssessLearner()(data, matcher, obiGeneSets.collections(["steroltalk.gmt"], default=False), rankingf=AT_loessLearner())
-    #ass = MeanLearner()(data, matcher, obiGeneSets.collections(["steroltalk.gmt"], default=False))
-    #ass = PLSLearner()(data, matcher, obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv)
-    #ass = SetSigOLDLearner()(ldata, matcher, obiGeneSets.collections(["steroltalk.gmt"], default=False), classValues=choosen_cv, minPart=0.0)
+    #ass = AssessLearner()(data, matcher, gsets, rankingf=AT_loessLearner())
+    #ass = MeanLearner()(data, matcher, gsets, default=False))
+    ass = PLSLearner()(data, matcher, gsets, classValues=choosen_cv)
+    #ass = SetSigOLDLearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
     #ass = SetSigLearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
     #ass = PCALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
-    ass = GSALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
+    #ass = GSALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
 
     ar = defaultdict(list)
 
