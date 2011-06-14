@@ -78,14 +78,6 @@ ARRAYEXPRESS_FIELDS = \
      "date",
      "wholewords",
     ]
-
-class forgetfull(dict):
-    """ A forgetfull dictionary.
-    """
-    def __setitem__(self, key, value):
-        """ Do nothing.
-        """
-        return
     
 
 class ArrayExpressConnection(object):
@@ -157,7 +149,8 @@ class ArrayExpressConnection(object):
             else:
                 raise ValueError("Must be an interval argument (min, max)!")
         def format_date(val):
-            return val
+            # TODO check if val contains a datetime.date object, assert proper format
+            return format_interval(val)
         def format_wholewords(val):
             if val:
                 return "on"
@@ -229,7 +222,6 @@ class ArrayExpressConnection(object):
         """
         url = self.query_url_experiments(**kwargs)
         stream = self._cache_urlopen(url, timeout=self.timeout)
-#        stream = urllib2.urlopen(url, timeout=self.timeout)
         return stream
     
     def query_files(self, **kwargs):
@@ -538,7 +530,6 @@ class SampleDataRelationship(object):
         >>> sdr.extract_protocol_ref
         ['bar the foo', ...
         
-        >>> sdr.
         >>> sdr.derived_array_data_matrix_file
         ['foobar.data.txt', ...
         
@@ -921,7 +912,7 @@ class ArrayExpressExperiment(object):
         experiments = tree.findall("experiment")
         # find the exact match (more then one experiment can be listed in the query result)
         experiments = [e for e in experiments if e.find("accession").text.strip() == accession]
-        self._experiment = experiment = experiments[0] #tree.find("experiment") 
+        self._experiment = experiment = experiments[0]
         
         self.species = [e.text for e in experiment.findall("species")]
         bool_values = {"true": True, "false": False}
@@ -955,22 +946,18 @@ class ArrayExpressExperiment(object):
             
         self.bioassaydatagroups = [_dictify(group) for group in experiment.findall("bioassaydatagroup")]
         self.bibliography = [_dictify(e) for e in experiment.findall("bibliography")]
-#        assert(len(experiment.findall("bibliography")) < 2)
         self.provider = [_dictify(e) for e in experiment.findall("provider")]
-#        assert(len(experiment.findall("provider")) < 2)
         
         self.experimentdesign = []
         for expd in experiment.findall("experimentdesign"):
             self.experimentdesign.append(expd.text)
             
         self.description = [_dictify(e) for e in experiment.findall("description")]
-#        assert(len(experiment.findall("description")) < 2)
         
         tree = query_files(accession=self.accession, format="xml", connection=self.connection)
         experiments = tree.findall("experiment")
         experiments = [e for e in experiments if e.find("accession").text.strip() == accession]
         experiment = experiments[0]
-#        files = tree.findall("experiment/file")
         files = experiment.findall("file")
         self.files = [_dictify(file) for file in files]
         
@@ -1005,7 +992,7 @@ class ArrayExpressExperiment(object):
                 import gzip
                 gzfile = gzip.open(local_filename)
                 gzfile.extractall(repo_dir)
-            elif file["extension"] in ["tgz", "tar.gz"]:
+            elif file["extension"] in ["tgz", "tar"]:
                 import tarfile
                 tfile = tarfile.TarFile(local_filename)
                 tfile.extractall(repo_dir)
@@ -1183,7 +1170,7 @@ class GeneExpressionAtlasConenction(object):
         self.timeout = timeout
     
     def query(self, condition, format="json", start=None, rows=None, indent=False):
-        url = self.address + "api?" + condition.rest()
+        url = self.address + "api/v1?" + condition.rest()
         if start and rows:
             url += "&start={0}&rows={1}".format(start, rows)
         url += "&format={0}".format(format)
@@ -1372,7 +1359,70 @@ class AtlasConditionOrganism(AtlasCondition):
     def rest(self):
         return "species={0}".format(self.organism.replace(" ", "+").lower())
         
+        
+class AtlasConditionExperiment(AtlasCondition):
+    """ Condition on experiement
     
+    :param property: Property of the experiment. If None or "" all properties 
+        will be searched.
+    :param qualifier: Qualifier can be 'Has' or 'HasNot'
+    :param value: The value to search for.
+    
+    Example ::
+    
+        >>> # Condition on a experiemnt acession
+        >>> condition = AtlasConditionExperiment("", "", "E-GEOD-24283")
+        >>> # Condition on experiments involving lung
+        >>> condition = AtlasConditionGeneProperty("Organism_part", "Has", "lung")
+        
+    """
+#    EXPERIMENT_FILTERS = [
+#                "Organism"
+#                "Factor"]
+    
+    EXPERIMENT_FILTER_QUALIFIERS = [
+                "Has",
+                "HasNot"]
+    
+    def __init__(self, property, qualifier, value):
+        self.property = property
+        self.qualifier = qualifier
+        if isinstance(value, basestring):
+            self.value = value.replace(" ", "+")
+        elif isinstance(value, list):
+            self.value = "+".join(value)
+        else:
+            raise ValueError(value)
+        
+        self.validate()
+        
+    def validate(self):
+        # TODO: check to EFO factors
+#        assert(self.property in EXPERIMENT_FILTERS + [""])
+        assert(self.qualifier in self.EXPERIMENT_FILTER_QUALIFIERS + [""])
+        
+    def rest(self):
+        return "experiment{property}{qualifier}={value}".format(**self.__dict__)
+        
+        
+class GeneAtlasError(ValueError):
+    """ An error response from the Atlas server.
+    """
+    pass
+    
+    
+def __check_atlas_error_json(response):
+     if "error" in response:
+         raise GeneAtlasError(response["error"])
+     return response
+     
+def __check_atlas_error_xml(response):
+    error = response.find("error")
+    if error is not None:
+        raise GeneAtlasError(error.text)
+    return response
+    
+        
 def query_atlas_simple(genes=None, regulation=None, organism=None,
                        condition=None, format="json", start=None,
                        rows=None):
@@ -1437,9 +1487,11 @@ def query_atlas(condition, format="json", start=None, rows=None, indent=False):
     results = connection.query(condition, format=format, start=start,
                                rows=rows, indent=indent)
     if format == "json":
-        return parse_json(results)
+        response = parse_json(results)
+        return __check_atlas_error_json(response)
     else:
-        return parse_xml(results)
+        response = parse_xml(results)
+        return __check_atlas_error_xml(response)
 
 
 def get_atlas_summary(genes, organism):
