@@ -1,0 +1,3 @@
+include *.py *.txt addon.xml
+recursive-include widgets *
+recursive-include doc *
