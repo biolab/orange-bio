@@ -716,7 +716,7 @@ class Annotations(object):
         return list(set([ann.geneName for ann in annotations if ann.Evidence_Code in evidenceCodes]))
 
     def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None, 
-                         slimsOnly=False, aspect="P", prob=obiProb.Binomial(),
+                         slimsOnly=False, aspect=None, prob=obiProb.Binomial(),
                          useFDR=True, progressCallback=None):
         """ Return a dictionary of enriched terms, with tuples of
         (list_of_genes, p_value, reference_count) for items and term
@@ -727,7 +727,8 @@ class Annotations(object):
                           annotations will be used).
         :param evidenceCodes: List of evidence codes to consider.
         :param slimsOnly: If `True` return only slim terms
-        :param aspect: 
+        :param aspect: Which aspects to use. Use all by default. "P", "F", "C"
+            or a set containing these elements.
         """
         revGenesDict = self.GetGeneNamesTranslator(genes)
         genes = set(revGenesDict.keys())
@@ -736,7 +737,12 @@ class Annotations(object):
             reference = set(refGenesDict.keys())
         else:
             reference = self.geneNames
-        aspects_set = set([aspect]) if type(aspect) == str else aspect
+
+        if aspect == None:
+            aspects_set = set(["P", "C", "F"])
+        else:
+            aspects_set = set([aspect]) if isinstance(aspect, basestring) else aspect
+
         evidenceCodes = set(evidenceCodes or evidenceDict.keys())
         annotations = [ann for gene in genes for ann in self.geneAnnotations[gene] \
                        if ann.Evidence_Code in evidenceCodes and ann.Aspect in aspects_set]
