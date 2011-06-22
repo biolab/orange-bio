@@ -1,13 +1,14 @@
 from __future__ import division
 import urllib
 import re
-import pylab
+#import pylab
 import random
 import os
 import math
-import locale
+#import locale
 import statc
-import numpy as np
+#import numpy as np
+import math
 
 import obiTaxonomy
 import obiGO as go
@@ -15,6 +16,8 @@ import obiProb as op
 import orngServerFiles as osf
 import obiGene as ge
 import obiKEGG as kg
+
+from collections import defaultdict
 
 
 mirnafile = osf.localpath_download('miRNA','miRNA.txt')
@@ -53,30 +56,128 @@ def __build_lib(filename, labels=True, MATtoPRE=True, ACCtoID=True, clust=False)
     
     return to_return
 
-### library:    
-[IDs, LABELS, miRNA_lib, mat_toPre, ACCtoID] = __build_lib(mirnafile, 1,1,1,0)
-[preIDs, premiRNA_lib, preACCtoID, clusters] = __build_lib(premirnafile,0,0,1,1)
+def open_microcosm(org="mus_musculus", version="v5"):
+    """ Open the miRna targets from the EBI microcosm site. 
+    """
+    import urllib2, zipfile
+    import StringIO
+    stream = urllib2.urlopen("ftp://ftp.ebi.ac.uk/pub/databases/microcosm/{version}/arch.{version}.txt.{org}.zip".format(org=org, version=version))
+    contents = stream.read()
+    stream = StringIO.StringIO(contents)
+    return stream
+    
+def parse_targets_microcosm_v5(file, max_pvalue=None, min_score=None):
+    """ Parse miRna targets (version 'v5.txt' format file from microcosm) 
+    """
+    
+    ids = set() #mirna ids
+    labels = set() # org codes (i.e hsa, mmu ..)
+    #["mirna accession", "seq", "mirna id", "targets"]
+    mirna_lib = defaultdict(lambda: ["", "", "", set()])
+    mat_to_pre = {}
+    if isinstance(file, basestring):
+        file = open(file, "rb")
+    import csv
+    reader = csv.reader(file, delimiter="\t")
+    for line in reader:
+        if not line or line[0].startswith("##"):
+            continue
+        
+        seq = line[1]
+        org = seq.split("-", 1)[0] #SEQ
+        ids.add(seq)
+        labels.add(org)
+        
+        mirna_lib[seq] #In case some mirna dont have any targets
+        
+        if max_pvalue is not None:
+            if float(line[10]) > max_pvalue:
+                continue
+        if min_score is not None:
+            if float(line[9]) < min_score:
+                continue
+            
+        mirna_lib[seq][-1].add(line[11]) #TRANSCRIPT_ID
+        
+    for key, value in mirna_lib.iteritems():
+        value[-1] = ",".join(sorted(value[-1]) or ["None"])
+        
+    ids = sorted(ids)
+    labels = sorted(labels)
+    mirna_lib = dict(mirna_lib)
+    return ids, labels, mirna_lib, {}, {}
+
+
+def load_miRNA_microCosm(org="mus_musculus", max_pvalue=None, min_score=None):
+    """ Load miRNA's from microcosm into the global scope (currently
+    only Mus musculus is supported)
+    
+    """
+    global IDs, LABELS, miRNA_lib, mat_toPre, ACCtoID
+    global preIDs, premiRNA_lib, preACCtoID, clusters
+    global num_toClusters,  clusters_toNum
+    
+    file = osf.localpath_download("miRNA", "v5.txt.{org}".format(org=org))
+    [IDs, LABELS, miRNA_lib, mat_toPre, ACCtoID] = parse_targets_microcosm_v5(file,
+                                max_pvalue=max_pvalue, min_score=min_score)
+    [preIDs, premiRNA_lib, preACCtoID, clusters] = [], {}, {}, {}
+    num_toClusters, clusters_toNum = {}, {}
+
+    
+load_miRNA = load_miRNA_microCosm
+
+
+def load_miRNA_TargetScan():
+    """ This loads miRNAs from miRBase and targets from TargetScan.
+    Will also load pre-miRNAs
+    """
+    global IDs, LABELS, miRNA_lib, mat_toPre, ACCtoID
+    global preIDs, premiRNA_lib, preACCtoID, clusters
+    global num_toClusters,  clusters_toNum
+    
+    [IDs, LABELS, miRNA_lib, mat_toPre, ACCtoID] = __build_lib(mirnafile, 1,1,1,0)
+    [preIDs, premiRNA_lib, preACCtoID, clusters] = __build_lib(premirnafile,0,0,1,1)
+    
+    num_toClusters = {}
+    clusters_toNum = {}
+    n=0
+    for k,v in clusters.items():
+        if v !='None':
+            g = v.split(',')
+            g.append(k)        
+            group = sorted(g)
+            if not(group in num_toClusters.values()):
+                 num_toClusters[n] = group
+                 for e in group:
+                     clusters_toNum[e]=n
+                 n += 1
+     
+### library:
+load_miRNA()
+
+#[IDs, LABELS, miRNA_lib, mat_toPre, ACCtoID] = __build_lib(mirnafile, 1,1,1,0)
+#[preIDs, premiRNA_lib, preACCtoID, clusters] = __build_lib(premirnafile,0,0,1,1)
+#
+#num_toClusters = {}
+#clusters_toNum = {}
+#n=0
+#for k,v in clusters.items():
+#    if v !='None':
+#        g = v.split(',')
+#        g.append(k)        
+#        group = sorted(g)
+#        if not(group in num_toClusters.values()):
+#             num_toClusters[n] = group
+#             for e in group:
+#                 clusters_toNum[e]=n
+#             n += 1
+
 
 fromTaxo = {3702:'ath', 9913:'bta', 6239:'cel', 3055:'cre', 7955:'dre',\
              352472:'ddi', 7227:'dme', 9606:'hsa', 10090:'mmu', 4530:'osa',\
               10116:'rno', 8355:'xla', 4577:'zma'}
 
-toTaxo = dict(zip(fromTaxo.values(),fromTaxo.keys()))
-
-num_toClusters = {}
-clusters_toNum = {}
-n=0
-for k,v in clusters.items():
-    if v !='None':
-        g = v.split(',')
-        g.append(k)        
-        group = sorted(g)
-        if not(group in num_toClusters.values()):
-             num_toClusters[n] = group
-             for e in group:
-                 clusters_toNum[e]=n
-             n += 1
-
+toTaxo = dict(zip(fromTaxo.values(), fromTaxo.keys()))
 
 
 class miRNAException(Exception):
