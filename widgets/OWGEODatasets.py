@@ -404,9 +404,10 @@ class OWGEODatasets(OWWidget):
     def filter(self):
         filter_string = unicode(self.filterLineEdit.text(), errors="ignore")
         proxyModel = self.treeWidget.model()
-        strings = filter_string.lower().strip().split()
-        proxyModel.setFilterFixedStrings(strings)
-        self.updateInfo()
+        if proxyModel:
+            strings = filter_string.lower().strip().split()
+            proxyModel.setFilterFixedStrings(strings)
+            self.updateInfo()
 
     def selectedSamples(self):
         """ Return the currently selected sample annotations (list of
