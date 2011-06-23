@@ -6,7 +6,6 @@ import obiArrayExpress
 import Orange
 
 import OWGUI
-#from OWItemModels import PyTableModel
 from OWWidget import *
 
 from Orange.misc import lru_cache
@@ -19,7 +18,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
                                                      "selected_ef_value"])}
     settingsList = []
     
-    ORGANISMS = obiArrayExpress.ATLAS_ORGANISMS #["Homo sapiens", "Mus musculus"]
+    ORGANISMS = obiArrayExpress.ATLAS_ORGANISMS
     FACTORS = ["Organism part", "Disease state", "Cell type"]
     
     def __init__(self, parent=None, signalManager=None, title="Gene Atlas"):
@@ -86,13 +85,14 @@ class OWGeneAtlasTissueExpression(OWWidget):
                      callback=self.commit,
                      tooltip="Send selected genes")
         
-        self.report_view = QTreeView()
-        self.report_view.setSelectionMode(QTreeView.MultiSelection)
+        self.report_view = QTreeView(self.mainArea)
+        self.report_view.setSelectionMode(QTreeView.ExtendedSelection)
         self.report_view.setSortingEnabled(True)
         self.report_view.setRootIsDecorated(False)
         self.report_view.setAlternatingRowColors(True)
+        self.report_view.setEditTriggers(QTreeView.NoEditTriggers)
         self.mainArea.layout().addWidget(self.report_view)
-        self.report_header = ["Gene Symbol", "Up", "Down"]
+        self.report_header = ["Gene symbol", "Up", "Down"]
         
         model = QStandardItemModel()
         model.setHorizontalHeaderLabels(self.report_header)
@@ -211,11 +211,15 @@ class OWGeneAtlasTissueExpression(OWWidget):
             # Non threaded
             # self.results = self.get_atlas_summary(tuple(genes), self.selected_organism)
             # Threaded
-            call = self.asyncCall(self.get_atlas_summary, (tuple(genes), self.selected_organism),
-                                  name="Query Gene Expression Atlas")
-            
-            call()
-            self.results = call.get_result(processEvents=True)
+            self.controlArea.setEnabled(False)
+            try:
+                call = self.asyncCall(self.get_atlas_summary, (tuple(genes), self.selected_organism),
+                                      name="Query Gene Expression Atlas")
+                
+                call()
+                self.results = call.get_result(processEvents=True)
+            finally:
+                self.controlArea.setEnabled(True)
         
     def update_ef_values_box(self):
         """ Update the "Values" box.
@@ -237,8 +241,11 @@ class OWGeneAtlasTissueExpression(OWWidget):
         results = self.results[self.selected_ef]
         
         model = QStandardItemModel()
+        
+                
         def standard_item(val):
-            item = QStandardItem()
+            item = StandardPyItem()
+            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             item.setData(QVariant(val), Qt.DisplayRole)
             return item
         
@@ -247,9 +254,6 @@ class OWGeneAtlasTissueExpression(OWWidget):
             for gene, efvs in results.iteritems():
                 if ef_value in efvs:
                     up, down = efvs[ef_value]
-                    up_item = QStandardItem()
-                    down_item = QStandardItem()
-                    up_item
                     model.appendRow([standard_item(gene),
                                      standard_item(up),
                                      standard_item(down)])
@@ -295,12 +299,17 @@ class OWGeneAtlasTissueExpression(OWWidget):
                 data = None
         self.send("Selected Genes", data)
             
+class StandardPyItem(QStandardItem):
+    def __lt__(self, other):
+        my = self.data(Qt.DisplayRole).toPyObject()
+        other = other.data(Qt.DisplayRole)
+        return my < other
         
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     w = OWGeneAtlasTissueExpression()
-    data = Orange.data.variable.Table("RUNX1")
+    data = Orange.data.Table("RUNX1.tab")
     w.show()
     w.set_data(data)
     app.exec_()
