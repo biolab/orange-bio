@@ -12,6 +12,7 @@ from collections import defaultdict
 from Orange.misc import lru_cache
 
 import orngDataCaching
+import obiGene
 
 # Mapping for common taxids from obiTaxonomy
 TAXID_TO_ORG = {"": "Anopheles gambiae",
@@ -31,6 +32,9 @@ TAXID_TO_ORG = {"": "Anopheles gambiae",
                 "4896": "Schizosaccharomyces pombe",
                 "8355": "Xenopus laevis"
      }
+
+def construct_matcher(taxid):
+    return obiGene.matcher([obiGene.GMEnsembl(taxid), obiGene.GMNCBI(taxid)])
 
 class OWGeneAtlasTissueExpression(OWWidget):
     contextHandlers = {"": DomainContextHandler("", ["selected_organism",
@@ -127,13 +131,18 @@ class OWGeneAtlasTissueExpression(OWWidget):
         self.candidate_var_names = []
         self.results = {}, {}, {}
         
+        self.gene_matcher = obiGene.GMDirect()
+        self.query_genes = []
+        
         # Cached get_atlas_summary 
         @lru_cache(maxsize=20)
         def get_atlas_summary(genes, organism):
             return obiArrayExpress.get_atlas_summary(list(genes), organism)
         
-        self.get_atlas_summary = get_atlas_summary 
+        self.get_atlas_summary = get_atlas_summary
         
+        #Cached construct_matcher
+        self.construct_matcher = lru_cache(maxsize=3)(construct_matcher)
         
     def set_data(self, data=None):
         """ Set the input example table with gene names. 
@@ -153,6 +162,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
                 self.genes_in_columns = genesinrows
                 
             self.openContext("", data)
+            self.update_gene_matcher()
             self.update_info_box()
             self.run_query()
             self.update_ef_values_box()
@@ -193,6 +203,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
     def on_organism_change(self):
         """ Called when the user changes the organism.
         """
+        self.update_gene_matcher()
         self.run_query()
         self.update_ef_values_box()
         self.update_report_view()
@@ -265,6 +276,16 @@ class OWGeneAtlasTissueExpression(OWWidget):
             finally:
                 self.controlArea.setEnabled(True)
                 self.update_info_box(query_running=False)
+            
+            self.query_genes = genes
+        
+    def update_gene_matcher(self):
+        taxid = dict((v,k) for v,k in TAXID_TO_ORG.items()).get(self.selected_organism)
+        if taxid:
+            self.gene_matcher = self.construct_matcher(taxid)
+        else:
+            self.gene_matcher = obiGene.GMDirect()
+            
         
     def update_ef_values_box(self):
         """ Update the "Values" box.
@@ -335,10 +356,12 @@ class OWGeneAtlasTissueExpression(OWWidget):
             
     def commit(self):
         genes = set(self.selected_report_genes())
+        self.gene_matcher.set_targets(genes)
+        
         genes = [gene.lower() for gene in genes]
         if self.genes_in_columns:
             attrs = [a for a in self.data.domain.attributes \
-                     if a.name.lower() in genes]
+                     if a.name.lower() in genes or self.gene_matcher.umatch(a.name)]
             domain = Orange.data.Domain(attrs, self.data.domain.class_var)
             domain.add_metas(self.data.domain.get_metas())
             data = Orange.data.Table(domain, self.data)
@@ -346,7 +369,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
             attr = self.candidate_vars[self.selected_gene_attr]
             examples = []
             for ex in self.data:
-                if str(ex[attr]).lower() in genes:
+                if str(ex[attr]).lower() in genes or self.gene_matcher.umatch(str(ex[attr])):
                     examples.append(ex)
             if examples:
                 data = Orange.data.Table(examples)
@@ -356,7 +379,8 @@ class OWGeneAtlasTissueExpression(OWWidget):
         
     def handle_assync_error(self, *args):
         pass
-            
+        
+        
 class StandardPyItem(QStandardItem):
     def __lt__(self, other):
         my = self.data(Qt.DisplayRole).toPyObject()

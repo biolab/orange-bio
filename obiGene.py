@@ -213,7 +213,7 @@ class NCBIGeneInfo(dict):
 """
 Gene matcher.
 
-"Database" for each oranism is a list of sets of gene aliases.
+"Database" for each organism is a list of sets of gene aliases.
 """
 
 from collections import defaultdict
@@ -639,6 +639,46 @@ class MatcherAliasesAffy(MatcherAliasesPickled):
     def __init__(self, organism, **kwargs):
         self.organism = organism
         MatcherAliasesPickled.__init__(self, **kwargs)
+    
+        
+class MatcherAliasesEnsembl(MatcherAliasesPickled):
+    """ A matcher for Ensemble ids
+    """
+    DEF_ATTRS = ["ensembl_gene_id", "external_gene_id", "entrezgene"]
+    # taxid: (dataset_name, [name_attr1, name_attr2 ...])
+    BIOMART_CONF = {}
+    def __init__(self, organism, **kwargs):
+        self.organism = organism
+        MatcherAliasesPickled.__init__(self, **kwargs)
+        
+    def filename(self):
+        return "ensembl_" + self.organism
+    
+    def create_aliases_version(self):
+        return "v1"
+    
+    def create_aliases(self):
+        import obiBioMart
+        if self.organism in self.BIOMART_CONF:
+            dset_name, attrs = self.BIOMART_CONF[self.organism]
+        else:
+            dset_name, attrs = self.default_biomart_conf(self.organism)
+        
+        dataset = obiBioMart.BioMartDataset("ensembl", dset_name)
+        table = dataset.get_example_table(attributes=attrs)
+        from collections import defaultdict
+        names = defaultdict(set)
+        for ex in table:
+            row = [str(v) for v in ex if not v.isSpecial() and str(v)]
+            names[row[1]].update(row)
+        return names.values()
+        
+    def default_biomart_conf(self, taxid):
+        name = obiTaxonomy.name(self.organism).lower()
+        name1, name2 = name.split(" ")[: 2]
+        dset_name = name1[0] + name2 + "_gene_ensembl"
+        return dset_name, self.DEF_ATTRS
+        
 
 class MatcherAliasesPickledJoined(MatcherAliasesPickled):
     """
@@ -736,6 +776,7 @@ GMGO = MatcherAliasesGO
 GMNCBI = MatcherAliasesNCBI
 GMDicty = MatcherAliasesDictyBase
 GMAffy = MatcherAliasesAffy
+GMEnsembl = MatcherAliasesEnsembl
 
 def issequencens(x):
     return hasattr(x, '__getitem__') and not isinstance(x, basestring)
