@@ -11,6 +11,27 @@ from OWWidget import *
 from collections import defaultdict
 from Orange.misc import lru_cache
 
+import orngDataCaching
+
+# Mapping for common taxids from obiTaxonomy
+TAXID_TO_ORG = {"": "Anopheles gambiae",
+                "3702": "Arabidopsis thaliana",
+                "9913": "Bos taurus",
+                "6239": "Caenorhabditis elegans",
+                "7955": "Danio rerio",
+                "7227": "Drosophila melanogaster",
+                "": "Epstein barr virus",
+                "": "Gallus gallus",
+                "9606": "Homo sapiens",
+                "": "Human cytomegalovirus",
+                "": "Kaposi sarcoma-associated herpesvirus",
+                "10090": "Mus musculus",
+                "10116": "Rattus norvegicus",
+                "4932": "Saccharomyces cerevisiae",
+                "4896": "Schizosaccharomyces pombe",
+                "8355": "Xenopus laevis"
+     }
+
 class OWGeneAtlasTissueExpression(OWWidget):
     contextHandlers = {"": DomainContextHandler("", ["selected_organism",
                                                      "selected_gene_attr",
@@ -22,7 +43,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
     ORGANISMS = obiArrayExpress.ATLAS_ORGANISMS
     FACTORS = ["Organism part", "Disease state", "Cell type"]
     
-    def __init__(self, parent=None, signalManager=None, title="Gene Atlas"):
+    def __init__(self, parent=None, signalManager=None, title="Gene Atlas Tissue Expression"):
         OWWidget.__init__(self, parent, signalManager, title)
         
         self.inputs = [("Example Table", Orange.data.Table, self.set_data)]
@@ -40,7 +61,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
         # GUI
         #####
         box = OWGUI.widgetBox(self.controlArea, "Info", addSpace=True)
-        self.info_label = OWGUI.widgetLabel(box, "No data on input.")
+        self.info_label = OWGUI.widgetLabel(box, "No data on input.\n")
         
         box = OWGUI.widgetBox(self.controlArea, "Organism", addSpace=True)
         cb = OWGUI.comboBox(box, self, "selected_organism",
@@ -122,6 +143,15 @@ class OWGeneAtlasTissueExpression(OWWidget):
         self.data = data
         if data is not None:
             self.init_gene_box(data)
+            taxid = orngDataCaching.data_hints.get_hint(data, key="taxid", default=None)
+            if taxid is not None:
+                if taxid in TAXID_TO_ORG:
+                    self.selected_organism = TAXID_TO_ORG[taxid]
+                    
+            genesinrows = orngDataCaching.data_hints.get_hint(data, key="genesinrows", default=None)
+            if genesinrows is not None:
+                self.genes_in_columns = genesinrows
+                
             self.openContext("", data)
             self.update_info_box()
             self.run_query()
@@ -219,9 +249,11 @@ class OWGeneAtlasTissueExpression(OWWidget):
             # self.results = self.get_atlas_summary(tuple(genes), self.selected_organism)
             # Threaded
             self.error(0)
+            self.update_info_box(query_running=True)
             self.controlArea.setEnabled(False)
             try:
-                call = self.asyncCall(self.get_atlas_summary, (tuple(genes), self.selected_organism),
+                call = self.asyncCall(self.get_atlas_summary, (tuple(genes),
+                                                               self.selected_organism),
                                       name="Query Gene Expression Atlas",
                                       onError=self.handle_assync_error)
                 
@@ -232,6 +264,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
             
             finally:
                 self.controlArea.setEnabled(True)
+                self.update_info_box(query_running=False)
         
     def update_ef_values_box(self):
         """ Update the "Values" box.
@@ -279,12 +312,16 @@ class OWGeneAtlasTissueExpression(OWWidget):
         self.report_view.resizeColumnToContents(1)
         self.report_view.resizeColumnToContents(2)
         
-    def update_info_box(self):
+    def update_info_box(self, query_running=False):
+        text = ""
         if self.data is not None:
             genes = self.input_genes()
-            self.info_label.setText("{0} gene names on input.".format(len(genes)))
+            text = "{0} gene names on input.\n".format(len(genes))
         else:
-            self.info_label.setText("No data on input.")
+            text = "No data on input.\n"
+        if query_running:
+            text += "Querying Gene Atlas. Please wait."
+        self.info_label.setText(text)
             
     def selected_report_genes(self):
         """ Return the gene names selected in the report view.
