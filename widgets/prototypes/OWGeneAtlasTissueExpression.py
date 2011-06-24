@@ -149,6 +149,10 @@ class OWGeneAtlasTissueExpression(OWWidget):
         vars = [var for var in vars if isinstance(var, (Orange.data.variable.String))]
         self.candidate_vars = vars
         self.gene_attr_cb.addItems([var.name for var in vars])
+        # See if any var name contains 'gene'
+        gene_in_name = [v for v in vars if "gene" in v.name.lower()]
+        if gene_in_name:
+            self.selected_gene_attr = vars.index(gene_in_name[-1])
         self.candidate_var_names = [a.name for a in data.domain.attributes]
         if not self.candidate_vars:
             self.genes_in_columns = True
@@ -211,6 +215,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
             # Non threaded
             # self.results = self.get_atlas_summary(tuple(genes), self.selected_organism)
             # Threaded
+            self.error(0)
             self.controlArea.setEnabled(False)
             try:
                 call = self.asyncCall(self.get_atlas_summary, (tuple(genes), self.selected_organism),
@@ -218,6 +223,9 @@ class OWGeneAtlasTissueExpression(OWWidget):
                 
                 call()
                 self.results = call.get_result(processEvents=True)
+            except obiArrayExpress.GeneAtlasError, ex:
+                self.error(0, str(ex))
+            
             finally:
                 self.controlArea.setEnabled(True)
         
@@ -260,6 +268,9 @@ class OWGeneAtlasTissueExpression(OWWidget):
         
         model.setHorizontalHeaderLabels(self.report_header)
         self.report_view.setModel(model)
+        self.report_view.resizeColumnToContents(0)
+        self.report_view.resizeColumnToContents(1)
+        self.report_view.resizeColumnToContents(2)
         
     def update_info_box(self):
         if self.data is not None:
