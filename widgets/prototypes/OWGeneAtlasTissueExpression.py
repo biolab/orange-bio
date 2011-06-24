@@ -8,6 +8,7 @@ import Orange
 import OWGUI
 from OWWidget import *
 
+from collections import defaultdict
 from Orange.misc import lru_cache
 
 class OWGeneAtlasTissueExpression(OWWidget):
@@ -71,6 +72,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
                                 tooltip="Experimental factor.",
                                 callback=self.on_ef_change,
                                 )
+        self.categories_cb.box.setFlat(True)
         
         self.values_cb = OWGUI.comboBox(box, self, "selected_ef_value",
                                 box="Values",
@@ -78,6 +80,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
                                 callback=self.on_ef_value_change
                                 )
         self.values_cb.setMaximumWidth(250)
+        self.values_cb.box.setFlat(True)
         
         OWGUI.rubber(self.controlArea)
         
@@ -219,7 +222,8 @@ class OWGeneAtlasTissueExpression(OWWidget):
             self.controlArea.setEnabled(False)
             try:
                 call = self.asyncCall(self.get_atlas_summary, (tuple(genes), self.selected_organism),
-                                      name="Query Gene Expression Atlas")
+                                      name="Query Gene Expression Atlas",
+                                      onError=self.handle_assync_error)
                 
                 call()
                 self.results = call.get_result(processEvents=True)
@@ -234,12 +238,15 @@ class OWGeneAtlasTissueExpression(OWWidget):
         """
         ef_values = set() 
         results = self.results[self.selected_ef]
+        efv_count = defaultdict(int)
         if self.results:
             for gene, val in  results.iteritems():
                 for ef_val, (up, down) in val.iteritems():
                    ef_values.add(ef_val)
-                   
-        self.ef_values = sorted(ef_values)
+                   efv_count[ef_val] += up + down
+        
+        # Sort by up and down count sum of all genes
+        self.ef_values = sorted(ef_values, key=efv_count.get, reverse=True)
         self.values_cb.clear()
         self.values_cb.addItems(self.ef_values)
         if self.ef_values:
@@ -309,11 +316,14 @@ class OWGeneAtlasTissueExpression(OWWidget):
             else:
                 data = None
         self.send("Selected Genes", data)
+        
+    def handle_assync_error(self, *args):
+        pass
             
 class StandardPyItem(QStandardItem):
     def __lt__(self, other):
         my = self.data(Qt.DisplayRole).toPyObject()
-        other = other.data(Qt.DisplayRole)
+        other = other.data(Qt.DisplayRole).toPyObject()
         return my < other
         
     
