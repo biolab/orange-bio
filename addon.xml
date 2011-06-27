@@ -12,7 +12,7 @@
 	<name>Bioinformatics</name>	<!-- Mandatory. A meaningful display
 					     name of this add-on. -->
 
-	<version>10841</version>
+	<version>10859</version>
 		<!-- Mandatory. Must be dot-separated integer values. The
 		     first component is the most important etc., and each
 		     component must be an integer. Therefore 17.5 is greater
@@ -61,6 +61,7 @@
     <homePage>http://www.biolab.si/supp/bi-visprog/</homePage> <!--Optional. -->
 	
 <id>e13e13c2-118b-11df-94c3-001f162b97fb</id></OrangeAddOn>
+
 
 
 
