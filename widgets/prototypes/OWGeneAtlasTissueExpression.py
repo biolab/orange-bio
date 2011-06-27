@@ -12,7 +12,11 @@ from collections import defaultdict
 from Orange.misc import lru_cache
 
 import orngDataCaching
+import orngServerFiles
 import obiGene
+
+import shelve
+
 
 # Mapping for common taxids from obiTaxonomy
 TAXID_TO_ORG = {"": "Anopheles gambiae",
@@ -33,8 +37,18 @@ TAXID_TO_ORG = {"": "Anopheles gambiae",
                 "8355": "Xenopus laevis"
      }
 
+
+try:
+    cache_filename = orngServerFiles.localpath("ArrayExpress", "GeneAtlasTissue.shelve")
+    GENE_ATLAS_TISSUE_CACHE = shelve.open(cache_filename)
+except Exception, ex:
+    print >> sys.stderr, ex
+    GENE_ATLAS_TISSUE_CACHE = {}
+    
+     
 def construct_matcher(taxid):
     return obiGene.matcher([obiGene.GMEnsembl(taxid), obiGene.GMNCBI(taxid)])
+
 
 class OWGeneAtlasTissueExpression(OWWidget):
     contextHandlers = {"": DomainContextHandler("", ["selected_organism",
@@ -107,6 +121,11 @@ class OWGeneAtlasTissueExpression(OWWidget):
         self.values_cb.setMaximumWidth(250)
         self.values_cb.box.setFlat(True)
         
+        box = OWGUI.widgetBox(self.controlArea, "Cache", addSpace=True)
+        OWGUI.button(box, self, "Clear cache",
+                     callback=self.on_cache_clear,
+                     tooltip="Clear Gene Atlas cache.")
+        
         OWGUI.rubber(self.controlArea)
         
         OWGUI.button(self.controlArea, self, label="Commit",
@@ -134,10 +153,21 @@ class OWGeneAtlasTissueExpression(OWWidget):
         self.gene_matcher = obiGene.GMDirect()
         self.query_genes = []
         
-        # Cached get_atlas_summary 
-        @lru_cache(maxsize=20)
+        # Cached get_atlas_summary
         def get_atlas_summary(genes, organism):
-            return obiArrayExpress.get_atlas_summary(list(genes), organism)
+            import time
+            args = (tuple(genes), organism)
+            args = repr(args)
+            if args not in GENE_ATLAS_TISSUE_CACHE:
+                results = obiArrayExpress.get_atlas_summary(list(genes), organism)
+                GENE_ATLAS_TISSUE_CACHE[args] = (time.time(), results)
+                if len(GENE_ATLAS_TISSUE_CACHE) > 30:
+                    key_time = [(time, key) for key, (time, _) in GENE_ATLAS_TISSUE_CACHE.iteritems()]
+                    key_time = sorted(key_time)
+                    for key, _ in key_time[: 10]:
+                        del GENE_ATLAS_TISSUE_CACHE[key]
+                GENE_ATLAS_TISSUE_CACHE.sync()
+            return GENE_ATLAS_TISSUE_CACHE[args][1]
         
         self.get_atlas_summary = get_atlas_summary
         
@@ -237,6 +267,10 @@ class OWGeneAtlasTissueExpression(OWWidget):
         results = self.results[self.selected_ef]
         ef_value = self.ef_values[self.selected_ef_value]
         self.update_report_view()
+        
+    def on_cache_clear(self):
+        GENE_ATLAS_TISSUE_CACHE.clear()
+        GENE_ATLAS_TISSUE_CACHE.sync()
         
     def input_genes(self):
         """ Extract input gene names from ``self.data``. 

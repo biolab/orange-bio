@@ -40,6 +40,7 @@ import shutil
 import posixpath
 import json
 from xml.etree.ElementTree import ElementTree
+from StringIO import StringIO
 
 from collections import defaultdict
 
@@ -263,7 +264,6 @@ class ArrayExpressConnection(object):
 #                return urllib2.urlopen(url.strip(), timeout=self.timeout)
             
     def _cache_urlopen(self, url, timeout=30):
-        from StringIO import StringIO
         if self.cache is not None and url in self.cache:
             stream = StringIO(self.cache[url])
             return stream
@@ -1158,16 +1158,22 @@ class GeneExpressionAtlasConenction(object):
     """ A connection to Gene Expression Atlas database.
     """
     DEFAULT_ADDRESS = "http://www.ebi.ac.uk:80/gxa/"
-    
-    def __init__(self, address=None, timeout=30):
+    try:
+        DEFAULT_CACHE = shelve.open(orngServerFiles.localpath("ArrayExpress", "GeneAtlasCache.shelve"))
+    except Exception, ex:
+        print ex
+        DEFAULT_CACHE = {}
+    def __init__(self, address=None, timeout=30, cache=None):
         """ Initialize the conenction.
         
         :param address: Address of the server.
-        :timeout: Socket timeout.
+        :param timeout: Socket timeout.
+        :param cache : A dict like object to use as a cache.
         
         """
         self.address = address if address is not None else self.DEFAULT_ADDRESS
         self.timeout = timeout
+        self.cache = cache
     
     def query(self, condition, format="json", start=None, rows=None, indent=False):
         url = self.address + "api/v1?" + condition.rest()
@@ -1177,8 +1183,24 @@ class GeneExpressionAtlasConenction(object):
         if indent:
             url += "&indent"
 #        print url
-        response = urllib2.urlopen(url)
+        if self.cache is not None:
+            return self._query_cached(url)
+        else:
+            return urllib2.urlopen(url)
         return response
+    
+    def _query_cached(self, url):
+        if self.cache is not None:
+            if url not in self.cache:
+                response = urllib2.urlopen(url)
+                contents = response.read()
+                self.cache[url] = contents
+                if hasattr(self.cache, "sync"):
+                    self.cache.sync()
+            return StringIO(self.cache[url])
+        else:
+            return urllib2.urlopen(url)
+                
     
 # Names of all Gene Property filter names
 GENE_FILTERS = \
@@ -1238,7 +1260,7 @@ ATLAS_ORGANISMS = \
      "Rattus norvegicus",
      "Saccharomyces cerevisiae",
      "Schizosaccharomyces pombe",
-     "Unknown",
+#     "Unknown",
      "Xenopus laevis"
      ]
     
@@ -1249,8 +1271,11 @@ def ef_ontology():
 #    return obiOntology.OBOOntology(urllib2.urlopen("http://efo.svn.sourceforge.net/svnroot/efo/trunk/src/efoinobo/efo.obo"))
     import orngServerFiles
     # Should this be in the OBOFoundry (Ontology) domain
-    file_name = orngServerFiles.localpath_download("ArrayExpress", "efo.obo")
-    return obiOntology.OBOOntology(open(filename, "rb"))
+    try:
+        file = open(orngServerFiles.localpath_download("ArrayExpress", "efo.obo"), "rb")
+    except urllib2.HTTPError:
+        file = urllib2.urlopen("http://efo.svn.sourceforge.net/svnroot/efo/trunk/src/efoinobo/efo.obo")
+    return obiOntology.OBOOntology(file)
 
 
 class AtlasCondition(object):
@@ -1276,6 +1301,7 @@ class AtlasConditionList(list, AtlasCondition):
         
     def rest(self):
         return "&".join(cond.rest() for cond in self)
+
 
 class AtlasConditionGeneProperty(AtlasCondition):
     """ An atlas gene filter condition.
@@ -1471,7 +1497,7 @@ def query_atlas_simple(genes=None, regulation=None, organism=None,
       Need a full list of accepted factors 
 """
 
-def query_atlas(condition, format="json", start=None, rows=None, indent=False):
+def query_atlas(condition, format="json", start=None, rows=None, indent=False, connection=None):
     """ Query Atlas based on a `condition` (instance of AtlasCondition)
     
     Example ::
@@ -1483,7 +1509,8 @@ def query_atlas(condition, format="json", start=None, rows=None, indent=False):
         {u'...
         
     """
-    connection = GeneExpressionAtlasConenction()
+    if connection is None:
+        connection = GeneExpressionAtlasConenction()
     results = connection.query(condition, format=format, start=start,
                                rows=rows, indent=indent)
     if format == "json":
@@ -1494,7 +1521,7 @@ def query_atlas(condition, format="json", start=None, rows=None, indent=False):
         return __check_atlas_error_xml(response)
 
 
-def get_atlas_summary(genes, organism):
+def get_atlas_summary(genes, organism, connection=None):
     """ Return 3 dictionaries containing a summary of atlas information
     about three experimental factors:
     
@@ -1515,13 +1542,14 @@ def get_atlas_summary(genes, organism):
     genes_condition = AtlasConditionGeneProperty("Gene", "Is", genes)
     org_condition = AtlasConditionOrganism(organism)
     condition = AtlasConditionList([genes_condition, org_condition])
-    result = query_atlas(condition, format="json")
+    result = query_atlas(condition, format="json", connection=connection)
     
     org_part = collect_ef_summary(result, "organism_part")
     disease_state = collect_ef_summary(result, "disease_state")
     cell_type = collect_ef_summary(result, "cell_type")
     
     return org_part, disease_state, cell_type
+    
     
 def collect_ef_summary(info, ef):
     """ Collect the results summary from query_atlas, result for experimental
@@ -1555,6 +1583,7 @@ def test():
     conn = ArrayExpressConnection()
     import doctest
     doctest.testmod(optionflags=doctest.ELLIPSIS, extraglobs={"conn": conn})
+    
     
 if __name__ == "__main__":
     test()
