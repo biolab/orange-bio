@@ -9,6 +9,7 @@ from __future__ import with_statement
 import orange
 
 from obiExpression import *
+from obiDifscale import ExpressionSignificance_AREA, ExpressionSignificance_FCts
 
 from OWGraph import *
 from OWGraphTools import PolygonCurve
@@ -124,7 +125,9 @@ class OWFeatureSelection(OWWidget):
                              ("signal to noise ratio", ExpressionSignificance_SignalToNoise, twoTailTest, True),
                              ("info gain", ExpressionSignificance_Info, oneTailTestHi, True),
                              ("chi-square", ExpressionSignificance_ChiSquare, oneTailTestHi, True),
-                             ("mann-whitney", ExpressionSignigicance_MannWhitneyu_U, oneTailTestLow, True)]
+                             ("mann-whitney", ExpressionSignigicance_MannWhitneyu_U, oneTailTestLow, True),
+                             ("AREA (timeseries)", ExpressionSignificance_AREA, oneTailTestHi, False),
+                             ("FC (timeseries)", ExpressionSignificance_FCts, oneTailTestHi, False)]
 
         boxHistogram = OWGUI.widgetBox(self.mainArea)
         self.histogram = ScoreHist(self, boxHistogram)

@@ -1,11 +1,13 @@
 import random
 from math import log
+from operator import itemgetter
 
 import numpy
 from matplotlib.mlab import prctile
 
 import Orange
 import obiGEO
+from obiExpression import ExpressionSignificance_Test
 
 
 # Normalization
@@ -179,6 +181,14 @@ def AREA(data, attr_set, control='t0', weighted=False, auto=False, perc=99):
             areas.append((g, area_diff))
     return areas
 
+class ExpressionSignificance_AREA(ExpressionSignificance_Test):
+    def __call__(self, target=None):
+        attr_set = {}
+        for a in self.data.domain.attributes:
+            attr_set[a.attributes['time']] = attr_set.get(a.attributes['time'], []) + [a.name]
+        scores = AREA(self.data, sorted(attr_set.items()))
+        return zip(self.keys, map(itemgetter(1), scores))
+
 def FC(data, attr_set, control='t0', thr=2, auto=False, p_thr=0.2):
     """ Gene filtering based on the number of FC of all time points with the control series > thr """
     serie = costruct_series(data, attr_set, False)
@@ -190,6 +200,14 @@ def FC(data, attr_set, control='t0', thr=2, auto=False, p_thr=0.2):
         thr_points = round(p_thr*num_points)
         fc = [(g, v) for g, v in fc if v >= thr_points]
     return fc
+
+class ExpressionSignificance_FCts(ExpressionSignificance_Test):
+    def __call__(self, target=None):
+        attr_set = {}
+        for a in self.data.domain.attributes:
+            attr_set[a.attributes['time']] = attr_set.get(a.attributes['time'], []) + [a.name]
+        scores = FC(self.data, sorted(attr_set.items()))
+        return zip(self.keys, map(itemgetter(1), scores))
 
 def spearmanr_filter(data, limit=1000):
     """ Spearman ranks gene filtering """
