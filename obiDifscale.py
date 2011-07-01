@@ -11,7 +11,7 @@ import obiGEO
 # Normalization
 
 def quantilenorm(data):
-    """ normalization of microarray data to obtain the same distribution in all chips """
+    """normalization of microarray data to obtain the same distribution in all chips"""
     chips = data.domain.attributes
     genes = [str(d["gene"]) for d in data]
     d_sort = {}
@@ -34,22 +34,23 @@ def quantilenorm(data):
     return data_norm
 
 def get_mediannorm(modeldata):
-    """ returns the function for median scale normalization """
+    """returns the function for median scale normalization"""
     globalmedian = numpy.median([float(d[c]) for d in modeldata for c in modeldata.domain.attributes])
     def normalize(data):
         chips = data.domain.attributes
         medians = [numpy.median([float(d[c]) for d in data]) for c in chips]
         data_norm = Orange.data.Table(data.domain)
+        data_norm.domain.add_metas(data.domain.get_metas())
         for i, d in enumerate(data):
-            g = str(d["gene"])
             ex = [(d[c.name].value*globalmedian)/medians[k] for k,c in enumerate(chips)]
             data_norm.append(ex)
-            data_norm[i]["gene"] = g
+            for m in data.domain.get_metas():
+                data_norm[i][m] = data[i][m]
         return data_norm
     return normalize
 
 def medianscalenorm(data, newsamples=None):
-    """ normalization of microarray data to obtain the distributions in all chips centered on the same global median """
+    """normalization of microarray data to center the distributions in all chips on the same global median"""
     n = get_mediannorm(data)
     if not newsamples:
         return n(data), None
@@ -91,14 +92,15 @@ def compute_diff_pairs(at_a, d):
             differ.append(log2(d[at_a[i]])-log2(d[at_a[j]]))
     return differ
 
-def costruct_series(data, attr_set, f):
+def costruct_series(data, attr_set, differences=False):
     """ Constructs the time series by averaging the replicates of the same time point """
-    ##print "creating the time series..."
-    serie = dict([(str(d["gene"]), [numpy.mean([d[at] for at in at_samples]) for at_name, at_samples in attr_set]) for d in data])
-    if f == "AREA":
-        """ for AREA filtering, store the differences between replicates while creating the time series """
+    serie = dict([(str(d["gene"]), [numpy.mean([d[at] for at in at_samples])
+                    for at_name, at_samples in attr_set]) for d in data])
+    if differences:
+        """store the differences between replicates while creating the time series"""
         differences = []
-        r = [[differences.extend(compute_diff_pairs(at_samples, d)) for at_name, at_samples in attr_set] for d in data]
+        r = [[differences.extend(compute_diff_pairs(at_samples, d))
+              for at_name, at_samples in attr_set] for d in data]
         return serie, differences
     else:
         return serie
@@ -115,15 +117,18 @@ def costruct_control_series(serie, num_points, control):
 
 def compute_area(serie, tempi):
     """ Function that calculates the area between 2 time series """
-    # if the ith point and the next point have the same sign it computes the area by the
-    # integral with the trapezoidal method, else it computes the area of the two triangles found with linear interpolation
+    # if the ith point and the next point have the same sign it computes the
+    # area by the integral with the trapezoidal method, else it computes the
+    # area of the two triangles found with linear interpolation
     area_pieces = []
     for i in range(len(serie)-1):
         if sign(serie[i]) == sign(serie[i+1]):
             area_pieces.append(abs(numpy.trapz([serie[i], serie[i+1]], [tempi[i], tempi[i+1]])))
         else:
-            area_triangle_1 = float(serie[i]*(tempi[i+1]-tempi[i]))/(serie[i]-serie[i+1])*abs(serie[i])/2
-            area_triangle_2 = float(serie[i+1]*(tempi[i]-tempi[i+1]))/(serie[i]-serie[i+1])*abs(serie[i+1])/2
+            area_triangle_1 = float(serie[i] * (tempi[i+1] - tempi[i])) / \
+                              (serie[i] - serie[i+1]) * abs(serie[i]) / 2
+            area_triangle_2 = float(serie[i+1] * (tempi[i] - tempi[i+1])) / \
+                              (serie[i] - serie[i+1]) * abs(serie[i+1]) / 2
             area_pieces.append(area_triangle_1 + area_triangle_2)
 
     area = sum(area_pieces);
@@ -138,66 +143,53 @@ def uniform_time_scale(attr_set):
         time_points = [float(t.split(" ")[0]) for t,s in attr_set]
     else:
         first_measure = min([(ord_measures.index(m),m) for m in measures])[1]
-        time_points = [float(t.split(" ")[0]) for t,s in attr_set if t.split(" ")[1] == first_measure]
-        time_points.extend([float(t.split(" ")[0])*converter[first_measure][t.split(" ")[1]] for t,s in attr_set if t.split(" ")[1] != first_measure])
+        time_points = [float(t.split(" ")[0]) for t, s in attr_set
+                       if t.split(" ")[1] == first_measure]
+        time_points.extend([float(t.split(" ")[0]) * converter[first_measure][t.split(" ")[1]]
+                            for t, s in attr_set if t.split(" ")[1] != first_measure])
     return time_points
 
-def AREA(data, attr_set, perc, control, scale, limit):
+def AREA(data, attr_set, control='t0', weighted=False, auto=False, perc=99):
     """ AREA (Area Under the Curve) filtering method """
-    if scale == "weighted":
+    if weighted:
         time_points = uniform_time_scale(attr_set)
     else:
         time_points = range(len(attr_set))
 
-    serie, differences = costruct_series(data, attr_set, "AREA")
+    # Monte Carlo approach to create the null distribution of the areas
+    if auto: # null distribution
+        serie, differences = costruct_series(data, attr_set, auto)
+        serie_campionata = {}
+        area = []
+        for i in range(20000):
+            serie_campionata = random.sample(differences, len(time_points))
+            area.append(compute_area(serie_campionata, time_points))
+        area_threshold = prctile(area, perc)
+    else:
+        serie = costruct_series(data, attr_set, auto)
+
     serie_0 = costruct_control_series(serie, len(time_points), control)
 
-    """ Monte Carlo approach to create the null distribution of the areas """
-    ##print "null distribution..."
-    serie_campionata = {}
-    area = []
-    for i in range(20000):
-        serie_campionata = random.sample(differences, len(time_points));
-        area.append(compute_area(serie_campionata, time_points));
-
-    area_soglia = prctile(area,perc);
-
-
-    """ Gene filtering based on the threshold (selected percentile of null distribution of areas) """
-    ##print "filtering..."
-    diff_expr = []
+    # Gene filtering
     areas = []
     for g in serie:
         diff_s = [log2(serie[g][i]) - log2(serie_0[g][i]) for i in range(len(time_points))]
         area_diff = compute_area(diff_s, time_points);
-        areas.append((area_diff,g))
-        if area_diff > area_soglia:
-            diff_expr.append(g)
-    areas.sort(reverse = True)
-    if limit == 0:
-        de_genes = diff_expr
-    else:
-        de_genes = [d[1] for d in areas][:limit]
+        if not auto or area_diff > area_threshold:
+            areas.append((g, area_diff))
+    return areas
 
-    ##print "%d genes differentially expressed" %len(de_genes)
-    return de_genes
-
-def FC(data, attr_set, thr, p_thr, control, limit):
+def FC(data, attr_set, control='t0', thr=2, auto=False, p_thr=0.2):
     """ Gene filtering based on the number of FC of all time points with the control series > thr """
-    serie = costruct_series(data, attr_set, "fc")
+    serie = costruct_series(data, attr_set, False)
     num_points = len(serie.values()[0])
     serie_0 = costruct_control_series(serie, num_points, control)
-    thr_points = round(p_thr*num_points)
-    ##print "filtering..."
-    if limit == 0:
-        de_genes = [gene for gene,s in serie.items() if len([True for i in range(num_points) if abs(my_ratio(s[i], serie_0[gene][i])) >= log2(thr)]) >= thr_points]
-    else:
-        fc = [(len([True for i in range(num_points) if abs(my_ratio(s[i], serie_0[gene][i])) >= log2(thr)]),gene) for gene,s in serie.items()]
-        fc.sort(reverse = True)
-        de_genes = [d[1] for d in fc][:limit]
-
-    ##print "%d genes differentially expressed" %len(de_genes)
-    return de_genes
+    fc = [(g, len([0 for i in range(num_points) if abs(my_ratio(s[i], serie_0[g][i])) >= thr]))
+          for g, s in serie.items()]
+    if auto:
+        thr_points = round(p_thr*num_points)
+        fc = [(g, v) for g, v in fc if v >= thr_points]
+    return fc
 
 def spearmanr_filter(data, limit=1000):
     """ Spearman ranks gene filtering """
