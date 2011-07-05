@@ -10,6 +10,31 @@ import obiGEO
 from obiExpression import ExpressionSignificance_Test
 
 
+# Utility functiions
+
+log2 = lambda x: log(x, 2.)
+
+def my_ratio(x, y):
+    """ compute the log-ratio """
+    return log2(x/y)
+
+def sign(x):
+    return cmp(x, 0)
+
+def common_domain(data1, data2):
+    """Use only attributes that are in both data sets"""
+    atts = sorted(set([a.name for a in data1.domain.attributes]).intersection(
+               [a.name for a in data2.domain.attributes]))
+    new1 = Orange.data.Table(Orange.data.Domain(atts + [data1.domain.classVar], data1.domain), data1)
+    new2 = Orange.data.Table(Orange.data.Domain(atts + [data2.domain.classVar], data2.domain), data2)
+    return new1, new2
+
+def common_genes(data1, data2, att='gene'):
+    common_set = list(set(ex[att].value for ex in data1).intersection(ex[att].value for ex in data2))
+    print len(set(ex[att].value for ex in data1))
+    print len(common_set)
+    return data1.filter(**{att: common_set}), data2.filter(**{att: common_set})
+
 # Normalization
 
 def quantilenorm(data):
@@ -51,13 +76,16 @@ def get_mediannorm(modeldata):
         return data_norm
     return normalize
 
-def medianscalenorm(data, newsamples=None):
+def medianscalenorm(data, newsamples=None, intersection=True):
     """normalization of microarray data to center the distributions in all chips on the same global median"""
-    n = get_mediannorm(data)
     if not newsamples:
+        n = get_mediannorm(data)
         return n(data), None
     else:
-        return n(data), n(newsamples)
+        if intersection:
+            idata, inewsamples = common_genes(data, newsamples)
+        n = get_mediannorm(idata)
+        return n(idata), n(inewsamples)
 
 def normalize(data1, data2=None, type='median'):
     if type == 'quantile':
@@ -70,21 +98,6 @@ def normalize(data1, data2=None, type='median'):
 
 
 # Gene filtering
-
-log2 = lambda x: log(x, 2.)
-
-def my_ratio(x, y):
-    """ compute the log-ratio """
-    return log2(x/y)
-
-def sign(int):
-    """ returns the sign of int """
-    if(int < 0):
-        return -1;
-    elif(int > 0):
-        return 1;
-    else:
-        return 0;
 
 def compute_diff_pairs(at_a, d):
     """ computes the pairwise differences between the replicates """
@@ -215,5 +228,101 @@ def spearmanr_filter(data, limit=1000):
     time = [a.attributes['time'] for a in data.domain.attributes]
     exs = sorted(data, reverse=True, key=lambda ex: abs(spearmanr([a.value for a in ex], time)[0]))
     return [str(ex['gene']) for ex in exs[:limit]]
+
+
+def signed_PCA(data):
+    pca = Orange.projection.pca.Pca(data, standardize=False, max_components=1)
+    classifier = lambda X: [x[0].value for x in pca(X)]
+    predictions = classifier(data)
+    classes = [ex.getclass().value for ex in data]
+    n = 0
+    for i1,c1 in enumerate(classes):
+        for i2,c2 in enumerate(classes[:i1]):
+            n += cmp(c1,c2) * cmp(predictions[i1], predictions[i2])
+    if n < 0:
+        def invert(X):
+            y = classifier(X)
+            return -y if type(y) == float else [-x for x in y]
+        return invert
+    else:
+        return classifier
+
+signed_PCA.name = 'PCA'
+
+
+def conttime(data, d):
+    for a in data.domain.attributes:
+        a.attributes['time'] = d[a.attributes['time']]
+
+def conv(attr_set, ticks=True):
+    """Obtain time points with a unique measure (the lowest among [min,h,d]) present in data"""
+    ord_measures = ["min","h","d"]
+    converter = {"min":{"h":60, "d":24*60}, "h": {"d":24}}
+    measures = list(set([t.split(" ")[1] for t in attr_set]))
+    if len(measures) == 1:
+        time_points = [(t, float(t.split(" ")[0])) for t in attr_set]
+    else:
+        first_measure = min([(ord_measures.index(m),m) for m in measures])[1]
+        time_points = [(t, float(t.split(" ")[0])) for t in attr_set if t.split(" ")[1] == first_measure]
+        time_points.extend([(t, float(t.split(" ")[0]) * converter[first_measure][t.split(" ")[1]])
+                            for t in attr_set if t.split(" ")[1] != first_measure])
+    time_points.sort(key=itemgetter(1))
+    if ticks:
+        time_points = [(t[0],float(i)) for i,t in enumerate(time_points)]
+    return dict(time_points)
+
+
+def get_projections(data1, data2=None):
+    labels1 = list(a.attributes['time'] for a in data1.domain.attributes)
+    tdata1 = obiGEO.transpose(data1)
+    if data2:
+        labels2 = list(a.attributes['time'] for a in data2.domain.attributes)
+        tdata2 = obiGEO.transpose(data2)
+        tdata1, tdata2 = common_domain(tdata1, tdata2)
+        classifier = signed_PCA(tdata1)
+        proj1 = classifier(tdata1)
+        proj2 = classifier(tdata2)
+    else:
+        classifier = signed_PCA(tdata1)
+        proj1 = classifier(tdata1)
+        proj2, labels2 = [], []
+    return proj1, labels1, proj2, labels2
+
+
+############
+
+if False and __name__ == '__main__':
+    import obiGEO
+    # Data set 1
+    data1 = obiGEO.GDS('GDS2666').getdata(report_genes=True, transpose=False)
+    labels1 = list(a.attributes['time'] for a in data1.domain.attributes)
+    attr_set = list(set(a.attributes['time'] for a in data1.domain.attributes))
+    convd = conv(attr_set)
+    conttime(data1, convd)
+    # Data set 2
+    data2 = obiGEO.GDS('GDS2667').getdata(report_genes=True, transpose=False)
+    labels2 = list(a.attributes['time'] for a in data2.domain.attributes)
+    attr_set = list(set(a.attributes['time'] for a in data2.domain.attributes))
+    convd = conv(attr_set)
+    conttime(data2, convd)
+    # Normalize data set 1
+    ndata1, _ = normalize(data1, type='quantile')
+    # Filtering
+    attr_set = {}
+    for a in ndata1.domain.attributes:
+        attr_set[a.attributes['time']] = attr_set.get(a.attributes['time'], []) + [a.name]
+    scores = AREA(ndata1, sorted(attr_set.items()))
+    genes = map(itemgetter(0), sorted(scores, key=itemgetter(1))[:1000])
+    fdata1 = ndata1.filter(gene=genes)
+    # Rescale data set 2
+    ttrain, ttest = normalize(fdata1, data2)
+    # Model construction and prediction
+    # train = obiGEO.transpose(ttrain)
+    # test = obiGEO.transpose(ttest)
+    # cdtrain, cdtest = common_domain(train, test)
+    # classifier = signed_PCA(cdtrain)
+    # proj1 = classifier(cdtrain)
+    # proj2 = classifier(cdtest)
+
 
 
