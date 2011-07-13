@@ -172,6 +172,18 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
     def filterAcceptsRow(self, row, parent): 
         return self._cache_fixed.get(row, True)
     
+    def lessThan(self, left, right):
+        if left.column() == 1 and right.column(): # TODO: Remove fixed column handling
+            left_gds = str(left.data(Qt.DisplayRole).toString())
+            right_gds = str(right.data(Qt.DisplayRole).toString())
+            left_gds = left_gds.lstrip("GDS")
+            right_gds = right_gds.lstrip("GDS")
+            try:
+                return int(left_gds) < int(right_gds)
+            except Exception, ex:
+                pass
+        return QSortFilterProxyModel.lessThan(self, left, right)
+    
 from OWGUI import LinkStyledItemDelegate, LinkRole
 
 def childiter(item):
