@@ -4,6 +4,7 @@
 
 import os, sys
 import numpy
+import random
 
 import obiDifscale
 import Orange
@@ -255,12 +256,42 @@ and  {1} samples on input.""".format(len(self.additional_data),
             title.setPos(scene_size_hint.width() - w, -15)
             self.scene.addItem(title)
             
-            for center, (label, _) in zip(centers, self.time_samples):
+            rects = []
+            ticks = []
+            axis_label_items = []
+            labels = [(center, label) for center, (label, _) in zip(centers, self.time_samples)]
+            labels = sorted(labels, key=lambda (c, l): c[0])
+            for center, label in labels:
                 x, y = center
+                item = QGraphicsSimpleTextItem(label)
+                w = item.boundingRect().width()
+                item.setPos(x - w / 2.0, 4.0)
+                rects.append(item.sceneBoundingRect().normalized())
+                ticks.append(QPointF(x - w / 2.0, 4.0))
+                axis_label_items.append(item)
+            
+#            rects = SA_axis_label_layout(ticks, rects, max_time=0.5,
+#                                         x_factor=scene_size_hint.width() / 50.0,
+#                                         y_factor=10,
+#                                         random=random.Random(0))
+
+            rects = greedy_scale_label_layout(ticks, rects, spacing=5)
+            
+            for (tick, label), rect, item in zip(labels, rects, axis_label_items):
+                x, y = tick
                 self.scene.addLine(x, -2, x, 2)
-                text = QGraphicsSimpleTextItem(label)
-                w = text.boundingRect().width()
-                text.setPos(x - w / 2.0, 4)
+                if rect.top() - item.pos().y() > 5:
+                    self.scene.addLine(x, 2, rect.center().x(), 14.0)
+                if rect.top() - item.pos().y() > 15:
+                    self.scene.addLine(rect.center().x(), 14.0, rect.center().x(), rect.top())
+#                item.setPos(rect.topLeft())
+                
+#                text = QGraphicsSimpleTextItem(label)
+#            for tick, rect, item in zip(ticks, rects, axis_label_items):
+                item.setPos(rect.topLeft())
+                self.scene.addItem(item)
+#                w = text.boundingRect().width()
+#                text.setPos(x - w / 2.0, 4)
                 # Need to compute axis label layout.
 #                self.scene.addItem(text)
 
@@ -287,7 +318,6 @@ and  {1} samples on input.""".format(len(self.additional_data),
         self.selected_time_samples = selected_attrs1, selected_attrs2
         print self.selected_time_samples
         self.commit_if()
-                
             
     def commit_if(self):
         if self.auto_commit:
@@ -392,7 +422,124 @@ def point_layout(labels, points, label_size_hints=None):
         groups[label] = [(x, level) for x in points]
         
     return list(groups.items())
+
     
+def greedy_scale_label_layout(ticks, rects, spacing=3):
+    """ Layout the labels at ticks on a linear scale, by raising the
+    overlapping labels.
+    
+    """
+    def adjust_interval(start, end, min_v, max_v):
+        """ Adjust (start, end) interval to fit inside the (min_v, max_v).
+        """
+        if start < min_v:
+            return (min_v, min_v + (end - start))
+        elif max_v > end:
+            return (max_v - (end - start), max_v)
+        else:
+            return (start, end)
+        
+    def center_interval(start, end, center):
+        """ Center the interval on `center`
+        """
+        span = end - start
+        return centered(center, span)
+    
+    def centered(center, span):
+        """ Return an centered interval with span.
+        """
+        return (center - span / 2.0, center + span / 2.0)
+    
+    def contains((start, end), (start1, end1)):
+        return start <= start1  and end >= end1
+    
+    def fit(work, ticks, min_x, max_x):
+        """ Fit the work set between min_x and max_x  and centered on the
+        ticks, if possible.
+        """
+        fits = False
+        work_set = map(QRectF, work)
+        tick_center = sum([r.center().x() for r in work_set]) / len(work_set)
+        if len(work_set) == 1:
+            if work_set[0].left() >= min_x and work_set[0].right() <= max_x:
+                return work_set
+            else:
+                return []
+        
+        elif len(work_set) == 2: # TODO: MErge this with the > 2
+            w_sum = sum([r.width() for r in work_set]) + spacing
+            if w_sum < max_x - min_x:
+                r1, r2 = work_set
+                interval = centered(tick_center, w_sum)
+                
+                if not contains((min_x, max_x), interval):
+                    interval = adjust_interval(*(interval + (min_x, max_x)))
+                    
+                if contains((min_x, max_x), interval):
+                    r1.moveLeft(interval[0])
+                    r2.moveLeft(interval[1] - r2.width())
+                    r1.moveTop(r1.top() + 10)
+                    r2.moveTop(r2.top() + 10)
+                    return work_set
+                else:
+                    return []
+            else:
+                return []
+        
+        elif len(work_set) > 2:
+            center = (work_set[0].center().x() + work_set[-1].center().x()) / 2.0
+            w_sum = work_set[0].width() / 2.0 + work_set[-1].width() / 2.0 + spacing
+            for i, r in enumerate(work_set[1:-1]):
+                w_sum += r.width() + spacing
+            interval = centered(center, w_sum)
+            
+            if not contains((min_x, max_x), interval):
+                interval = adjust_interval(*(interval + (min_x, max_x)))
+                
+            if contains((min_x, max_x), interval):
+                istart, iend = interval
+                rstart, rend = work_set[0], work_set[-1]
+                rstart.moveLeft(istart)
+                rstart.moveTop(rstart.top() + 10)
+                rend.moveLeft(iend - rend.width())
+                rend.moveTop(rend.top() + 10)
+                istart += rstart.width() / 2.0
+                iend -= rend.width() / 2.0
+                for r in work_set[1: -1]:
+                    r.moveLeft(istart)
+                    r.moveTop(r.top() + 20)
+                    istart += r.width() + spacing
+                return work_set
+            else:
+                return []
+            
+    queue = sorted(zip(ticks, rects),
+                   key=lambda (t, _): t.x(),
+                   reverse=True)
+    done = False
+    rects = []
+    
+    min_x = -1e30
+    max_x = 1e30
+    
+    while queue:
+        work_set = [queue.pop(-1)]
+        set_fits = False
+        max_x = queue[-1][1].left() if queue else 1e30
+        while not set_fits:
+            new_rects = fit(map(itemgetter(1), work_set),
+                            map(itemgetter(0), work_set),
+                            min_x, max_x)
+            if new_rects: # Can the work set be fit.
+                set_fits = True
+                rects.extend(new_rects)
+                min_x = work_set[-1][1].right()
+                
+            else:
+                # Extend the work set with one more label rect
+                work_set.append(queue.pop(-1))
+                max_x = queue[-1][1].left() if queue else 1e30
+    return rects
         
     
 if __name__ == "__main__":
