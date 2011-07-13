@@ -1,4 +1,4 @@
-"""<name>Bio Mart</name>
+"""<name>BioMart</name>
 <description>Query BioMart service</description>
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si</contact>
 <priority>2010</priority>
@@ -703,7 +703,7 @@ class OWBioMart(OWWidget):
     SHOW_FILTERS = True
     
     settingsList = ["selectedDataset"]
-    def __init__(self, parent=None, signalManager=None, title="Bio Mart"):
+    def __init__(self, parent=None, signalManager=None, title="BioMart"):
         OWWidget.__init__(self, parent, signalManager, title)
         
         self.inputs = [("Input ids", ExampleTable, self.setData)]

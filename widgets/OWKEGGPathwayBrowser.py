@@ -1,5 +1,5 @@
 """
-<name>KEGG Pathway Browser</name>
+<name>KEGG Pathways</name>
 <description>Browse KEGG pathways that include an input set of genes.</description>
 <priority>2030</priority>
 <icon>icons/KEGG.png</icon>
@@ -172,7 +172,7 @@ class OWKEGGPathwayBrowser(OWWidget):
     contextHandlers = {"":DomainContextHandler("",[ContextField("organismIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
                                                    ContextField("geneAttrIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
                                                    ContextField("useAttrNames", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes)])}
-    def __init__(self, parent=None, signalManager=None, name="KEGG Pathway Browser"):
+    def __init__(self, parent=None, signalManager=None, name="KEGG Pathways"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Examples", ExampleTable, self.SetData), ("Reference", ExampleTable, self.SetRefData)]
         self.outputs = [("Selected Examples", ExampleTable), ("Unselected Examples", ExampleTable)]

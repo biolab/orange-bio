@@ -1,5 +1,5 @@
 """
-<name>PIPA Database</name>
+<name>PIPA</name>
 <description>Access data from PIPA RNA-Seq database.</description>
 <icon>icons/PIPA.png</icon>
 <priority>30</priority>
@@ -386,7 +386,7 @@ class SortedListWidget(QWidget):
 class OWPIPA(OWWidget):
     settingsList = [ "platform", "selectedExperiments", "server", "buffertime", "excludeconstant", "username", "password","joinreplicates",
                      "selectionSetsWidget.selections", "columnsSortingWidget.sortingOrder", "currentSelection", "log2", "raw", "experimentsHeaderState", "ctypei"]
-    def __init__(self, parent=None, signalManager=None, name="PIPA database"):
+    def __init__(self, parent=None, signalManager=None, name="PIPA"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
 

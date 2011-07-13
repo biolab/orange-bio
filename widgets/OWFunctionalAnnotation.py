@@ -1,4 +1,4 @@
-"""<name>Gene Functional Annotation</name>
+"""<name>Enrichment Analysis</name>
 """
 from __future__ import with_statement
 
@@ -37,7 +37,7 @@ class OWFunctionalAnnotation(OWWidget):
     settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
     contextHandlers = {"":DomainContextHandler("", ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
     
-    def __init__(self, parent=None, signalManager=None, name="Gene Functional Annotation", **kwargs):
+    def __init__(self, parent=None, signalManager=None, name="Enrichment Analysis", **kwargs):
         OWWidget.__init__(self, parent, signalManager, name, **kwargs)
         self.inputs = [("Example Table", ExampleTable, self.setData, Default), ("Reference", ExampleTable, self.setReference)]
         self.outputs = [("Selected Examples", ExampleTable)]

@@ -1,5 +1,5 @@
 """
-<name>DictyExpress Database</name>
+<name>dictyExpress</name>
 <description>Access to data in dictyExpress database.</description>
 <icon>icons/dictyExpress.png</icon>
 <priority>40</priority>
@@ -28,7 +28,7 @@ bufferfile = os.path.join(bufferpath, "database.sq3")
 
 class OWDicty(OWWidget):
     settingsList = ["serverToken", "platform", "selectedExperiments", "server", "buffertime", "excludeconstant" ]
-    def __init__(self, parent=None, signalManager=None, name="Dicty database"):
+    def __init__(self, parent=None, signalManager=None, name="dictyExpress"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
         self.serverToken = ""

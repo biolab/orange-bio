@@ -1,5 +1,5 @@
 """
-<name>GO Enrichment Analysis</name>
+<name>GO Browser</name>
 <description>Enrichment analysis for Gene Ontology terms.</description>
 <contact>Ales Erjavec</contact>
 <icon>icons/GOTermFinder.png</icon>
@@ -88,7 +88,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     "filterByNumOfInstances", "minNumOfInstances", "filterByPValue", "maxPValue", "selectionDirectAnnotation", "selectionDisjoint", "selectionType",
                     "selectionAddTermAsClass", "useAttrNames", "probFunc", "useFDR"]
     contextHandlers = {"": DomainContextHandler("", ["geneAttrIndex", "useAttrNames", "annotationIndex", "geneMatcherSettings"], matchValues=1)}
-    def __init__(self, parent=None, signalManager=None, name="GO Enrichment Analysis"):
+    def __init__(self, parent=None, signalManager=None, name="GO Browser"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.inputs = [("Cluster Examples", ExampleTable, self.SetClusterDataset, Default), ("Reference Examples", ExampleTable, self.SetReferenceDataset, Single + NonDefault)] #, ("Structured Data", DataFiles, self.chipdata, Single + NonDefault)]
         self.outputs = [("Selected Examples", ExampleTable, Default), ("Unselected Examples", ExampleTable, Default), ("Example With Unknown Genes", ExampleTable, Default)] #, ("Selected Structured Data", DataFiles, Single + NonDefault)]

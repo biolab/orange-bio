@@ -1,5 +1,5 @@
 """
-<name>MeSH Term Browser</name>
+<name>MeSH Browser</name>
 <description>Browse MeSH ontology.</description>
 <icon>icons/MeSH.png</icon>
 <contact>Crt Gorup (crt.gorup@gmail.com)</contact> 

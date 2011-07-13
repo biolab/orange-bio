@@ -1,4 +1,5 @@
-"""<name>Gene Mania</name>
+"""<name>GeneMANIA</name>
+<icon>icons/GeneMANIA.png</icon>
 """
 
 from OWWidget import *
@@ -65,7 +66,7 @@ class BarItemDelegate(QStyledItemDelegate):
 class OWGeneMania(OWWidget):
     contextHandlers = {"": DomainContextHandler("", ["selectedOrganismIndex", "selectedGeneAttrIndex", "genesInColumns"])}
     settingsList = ["serverAddress", "selectedOrganismIndex", "selectedGeneAttrIndex", "genesInColumns", "selectedMethodIndex", "resultCount"]
-    def __init__(self, parent=None, signalManager=None, name="Gene Mania"):
+    def __init__(self, parent=None, signalManager=None, name="GeneMANIA"):
         OWWidget.__init__(self, parent, signalManager, name, wantMainArea=True)
         
         self.inputs = [("Input Genes", ExampleTable, self.setData)]
