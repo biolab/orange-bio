@@ -53,6 +53,8 @@ class GDSInfo:
     def __getitem__(self, key): return self.info[key]
     def __setitem__(self, key, item): self.info[key] = item
     def __len__(self): return len(self.info)
+    def __iter__(self): return iter(self.info)
+    def __contains__(self, key): return key in self.info
     
 
 class GeneData:
