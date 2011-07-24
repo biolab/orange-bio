@@ -130,24 +130,25 @@ def costruct_control_series(serie, num_points, control):
         serie_0.update(dict([(g,[serie[g][0] for i in range(num_points)]) for g in serie]))
     return serie_0
 
-def compute_area(serie, tempi):
-    """ Function that calculates the area between 2 time series """
-    # if the ith point and the next point have the same sign it computes the
-    # area by the integral with the trapezoidal method, else it computes the
-    # area of the two triangles found with linear interpolation
-    area_pieces = []
-    for i in range(len(serie)-1):
-        if sign(serie[i]) == sign(serie[i+1]):
-            area_pieces.append(abs(numpy.trapz([serie[i], serie[i+1]], [tempi[i], tempi[i+1]])))
-        else:
-            area_triangle_1 = float(serie[i] * (tempi[i+1] - tempi[i])) / \
-                              (serie[i] - serie[i+1]) * abs(serie[i]) / 2
-            area_triangle_2 = float(serie[i+1] * (tempi[i] - tempi[i+1])) / \
-                              (serie[i] - serie[i+1]) * abs(serie[i+1]) / 2
-            area_pieces.append(area_triangle_1 + area_triangle_2)
+def compute_area(vals, t, baseline=0.):
+    return sum(a_pair((t[i], vals[i]), (t[i+1], vals[i+1]), baseline) \
+        for i in xrange(len(vals)-1))
 
-    area = sum(area_pieces);
-    return area
+def a_pair(p1, p2, baseline):
+    """Area under the line bounded by a pair of two points (x,y) with
+    respect to baseline. Both parts around the diagonal are
+    positive."""
+    x1,y1 = p1
+    x2,y2 = p2
+    x2 = x2-x1 #same start
+    x1 = 0.0
+    a = y1-baseline
+    b = y2-baseline
+    if a*b >= 0: #both on one side
+        return abs(x2*(b+a)/2.0)
+    else:
+        xp = -a * x2 / float(y2-y1)
+        return (abs(xp * a) + abs((x2-xp)*b)) / 2.0
 
 def uniform_time_scale(attr_set):
     """ Obtains time points with a unique measure (the lowest among [min,h,d]) present in data"""
