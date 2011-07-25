@@ -201,7 +201,8 @@ class ExpressionSignificance_AREA(ExpressionSignificance_Test):
         for a in self.data.domain.attributes:
             attr_set[a.attributes['time']] = attr_set.get(a.attributes['time'], []) + [a.name]
         scores = AREA(self.data, sorted(attr_set.items()))
-        return zip(self.keys, map(itemgetter(1), scores))
+        gene2ind = dict((g, i) for i,g in enumerate(ex['gene'].value for ex in self.data))
+        return [(gene2ind[g], s) for g, s in scores]
 
 def FC(data, attr_set, control='t0', thr=2, auto=False, p_thr=0.2):
     """ Gene filtering based on the number of FC of all time points with the control series > thr """
@@ -277,7 +278,7 @@ def get_projections(data1, data2=None):
     labels1 = list(a.attributes['time'] for a in data1.domain.attributes)
     tdata1 = obiGEO.transpose(data1)
     if data2:
-        labels2 = list(a.attributes['time'] for a in data2.domain.attributes)
+        labels2 = list('[%s]' % a.attributes['time'] for a in data2.domain.attributes)
         tdata2 = obiGEO.transpose(data2)
         tdata1, tdata2 = common_domain(tdata1, tdata2)
         classifier = signed_PCA(tdata1)
