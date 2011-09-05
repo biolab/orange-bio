@@ -210,6 +210,106 @@ class NCBIGeneInfo(dict):
         taxids = obiTaxonomy.essential_taxids()
         return [cls.TAX_MAP.get(id, id) for id in taxids if cls.TAX_MAP.get(id, id)]
 
+
+class EnsembleGeneInfo(object):
+#    BIO_MART_DATASETS = {"9606": "hsapiens"}
+    DEF_ATTRS = ["ensembl_gene_id", "external_gene_id", "entrezgene"]
+    BIOMART_CONF = {"9606": ("hsapiens_gene_ensembl", DEF_ATTRS) # + ["hgnc_symbol"])
+                    }
+    def __init__(self, organism, gene_matcher=None):
+        self.organism = self.organism_name_search(organism) 
+        self.load()
+        if gene_matcher is None:
+            self.gene_matcher = matcher([GMEnsembl(self.organism), GMNCBI(self.organism)])
+        else:
+            self.gene_matcher = gene_matcher
+        
+    @classmethod
+    def organism_name_search(cls, name):
+        taxids = obiTaxonomy.to_taxid(name, mapTo=cls.common_taxids())
+        if len(taxids) == 1:
+            return taxids[0]
+        else:
+            raise ValueError(name)
+        
+    @classmethod
+    def common_taxids(cls):
+        return ["3702", "9913", "6239", "7955", "9606", "7227",
+                "10090", "10116", "4932", "4896", "8355"]
+    
+    @classmethod
+    def version(cls):
+        return "v1.0"
+        
+    def filename(self):
+        return "ensembl_" + self.organism
+    
+    def create_info(self):
+        import obiBioMart
+        if self.organism in self.BIOMART_CONF:
+            dset_name, attrs = self.BIOMART_CONF[self.organism]
+        else:
+            dset_name, attrs = self.default_biomart_conf(self.organism)
+        
+        dataset = obiBioMart.BioMartDataset("ensembl", dset_name)
+        table = dataset.get_example_table(attributes=attrs, unique=True)
+        print len(table)
+        table.save(dset_name + ".tab")
+        from collections import defaultdict
+        names = defaultdict(set)
+        for ex in table:
+            row = [str(v) for v in ex if not v.isSpecial() and str(v)]
+            names[row[0]].update(row)
+        return names
+        
+    def default_biomart_conf(self, taxid):
+        name = obiTaxonomy.name(self.organism).lower()
+        name1, name2 = name.split(" ")[: 2]
+        dset_name = name1[0] + name2 + "_gene_ensembl"
+        return dset_name, self.DEF_ATTRS
+    
+    def load(self):
+        import cPickle
+        dir = orngServerFiles.localpath("EnsembleGeneInfo")
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        
+        try:
+            filename = orngServerFiles.localpath_download("EnsembleGeneInfo", self.filename())
+            info = cPickle.load(open(filename, "rb"))
+        except Exception, ex:    
+            filename = orngServerFiles.localpath("EnsembleGeneInfo", self.filename())
+            info = self.create_info()
+            cPickle.dump(info, open(filename, "wb"))
+            
+        self.info = info
+        
+    def __getitem__(self, key):
+        return self.info[key]
+    def __contains__(self, key):
+        return key in self.info
+    def __len__(self):
+        return len(self.info)
+    def __iter__(self):
+        return iter(self.info)
+    def keys(self):
+        return self.info.keys()
+    def values(self):
+        return self.info.values()
+    def items(self):
+        return self.info.items()
+    def get(self, key, default=None):
+        return self.info.get(key, default)
+    
+    def genes(self):
+        return self.info.keys()
+    
+    def aliases(self):
+        return [(key,) + tuple(value) for key, value in self.items()]
+    
+    def ensembl_id(self, name):
+        return self.gene_matcher.umatch(name)
+        
 """
 Gene matcher.
 
@@ -670,7 +770,7 @@ class MatcherAliasesEnsembl(MatcherAliasesPickled):
         names = defaultdict(set)
         for ex in table:
             row = [str(v) for v in ex if not v.isSpecial() and str(v)]
-            names[row[1]].update(row)
+            names[row[0]].update(row)
         return names.values()
         
     def default_biomart_conf(self, taxid):
