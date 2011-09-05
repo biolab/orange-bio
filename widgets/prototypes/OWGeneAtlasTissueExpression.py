@@ -3,6 +3,7 @@
 """
 import os, sys
 import obiArrayExpress
+import obiGeneAtlas
 import Orange
 
 import OWGUI
@@ -17,38 +18,7 @@ import obiGene
 
 import shelve
 
-
-# Mapping for common taxids from obiTaxonomy
-TAXID_TO_ORG = {"": "Anopheles gambiae",
-                "3702": "Arabidopsis thaliana",
-                "9913": "Bos taurus",
-                "6239": "Caenorhabditis elegans",
-                "7955": "Danio rerio",
-                "7227": "Drosophila melanogaster",
-                "": "Epstein barr virus",
-                "": "Gallus gallus",
-                "9606": "Homo sapiens",
-                "": "Human cytomegalovirus",
-                "": "Kaposi sarcoma-associated herpesvirus",
-                "10090": "Mus musculus",
-                "10116": "Rattus norvegicus",
-                "4932": "Saccharomyces cerevisiae",
-                "4896": "Schizosaccharomyces pombe",
-                "8355": "Xenopus laevis"
-     }
-
-
-try:
-    cache_filename = orngServerFiles.localpath("ArrayExpress", "GeneAtlasTissue.shelve")
-    GENE_ATLAS_TISSUE_CACHE = shelve.open(cache_filename)
-except Exception, ex:
-    print >> sys.stderr, ex
-    GENE_ATLAS_TISSUE_CACHE = {}
-    
-     
-def construct_matcher(taxid):
-    return obiGene.matcher([obiGene.GMEnsembl(taxid), obiGene.GMNCBI(taxid)])
-
+TAXID_TO_ORG = obiGeneAtlas.TAXID_TO_ORG
 
 class OWGeneAtlasTissueExpression(OWWidget):
     contextHandlers = {"": DomainContextHandler("", ["selected_organism",
@@ -150,29 +120,21 @@ class OWGeneAtlasTissueExpression(OWWidget):
         self.candidate_var_names = []
         self.results = {}, {}, {}
         
+        self.ensembl_info = None
         self.gene_matcher = obiGene.GMDirect()
+        self.loaded_matcher_taxid = None
+        self.unknown_genes = []
         self.query_genes = []
         
-        # Cached get_atlas_summary
-        def get_atlas_summary(genes, organism):
-            import time
-            args = (tuple(genes), organism)
-            args = repr(args)
-            if args not in GENE_ATLAS_TISSUE_CACHE:
-                results = obiArrayExpress.get_atlas_summary(list(genes), organism)
-                GENE_ATLAS_TISSUE_CACHE[args] = (time.time(), results)
-                if len(GENE_ATLAS_TISSUE_CACHE) > 30:
-                    key_time = [(time, key) for key, (time, _) in GENE_ATLAS_TISSUE_CACHE.iteritems()]
-                    key_time = sorted(key_time)
-                    for key, _ in key_time[: 10]:
-                        del GENE_ATLAS_TISSUE_CACHE[key]
-                GENE_ATLAS_TISSUE_CACHE.sync()
-            return GENE_ATLAS_TISSUE_CACHE[args][1]
+#        self.set_organism(self.selected_organism, update_results=False)
         
-        self.get_atlas_summary = get_atlas_summary
+        self.get_atlas_summary = obiGeneAtlas.get_atlas_summary
         
         #Cached construct_matcher
-        self.construct_matcher = lru_cache(maxsize=3)(construct_matcher)
+        @lru_cache(maxsize=3)
+        def my_cached_matcher(org):
+            return obiGeneAtlas.default_gene_matcher(org)
+        self.construct_matcher = my_cached_matcher
         
     def set_data(self, data=None):
         """ Set the input example table with gene names. 
@@ -228,7 +190,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
             self.selected_gene_attr = vars.index(gene_in_name[-1])
         self.candidate_var_names = [a.name for a in data.domain.attributes]
         if not self.candidate_vars:
-            self.genes_in_columns = True
+            self.genes_in_columns = True            
             
     def on_organism_change(self):
         """ Called when the user changes the organism.
@@ -269,10 +231,11 @@ class OWGeneAtlasTissueExpression(OWWidget):
         self.update_report_view()
         
     def on_cache_clear(self):
-        GENE_ATLAS_TISSUE_CACHE.clear()
-        GENE_ATLAS_TISSUE_CACHE.sync()
+        from contextlib import closing
+        with closing(obiGeneAtlas._cache()) as cache:
+            cache.clear()
         
-    def input_genes(self):
+    def input_genes(self, full_res=False):
         """ Extract input gene names from ``self.data``. 
         """
         if self.genes_in_columns:
@@ -283,22 +246,61 @@ class OWGeneAtlasTissueExpression(OWWidget):
             for ex in self.data:
                 if not ex[attr].is_special():
                     names.append(str(ex[attr]))
+            
         return sorted(set(names))
+    
+    def match_genes(self, genes, full_res=True):
+        """ Match the genes to ensembl gene ids.
+        """
+        if self.gene_matcher and self.ensembl_info:
+            self.gene_matcher.set_targets(self.ensembl_info.keys())
+            match_genes = map(self.gene_matcher.match, genes)
+            genes = map(self.gene_matcher.umatch, genes)
+        else:
+            match_genes = None
+        genes = sorted(set(genes) - set([None]))
+        
+        if full_res:
+            return genes, match_genes
+        else:
+            return genes
     
     def run_query(self):
         """ Query the Gene Atlas.
         """
         if self.data is not None:
             genes = self.input_genes()
+            matched, match_res = self.match_genes(genes, True)
+            all_matched, unknown = [], []
+            for gene, match in zip(genes, match_res):
+                if len(match) == 1:
+                    all_matched.append(match[0])
+                elif len(match) > 1:
+                    all_matched.append(match[0])
+                else:
+                    unknown.append(gene)
+            self.unknown_genes = unknown
+            self.warning(2)
+            self.information(2)
+            if float(len(unknown)) / len(genes) > 0.5:
+                self.warning(2, "%i unknown genes" % len(unknown))
+            elif unknown:
+                self.information(2, "%i unknown genes" % len(unknown))
+                
+            gm = obiGene.GMDirect()
+            gm.set_targets(all_matched)
+            
             # Non threaded
-            # self.results = self.get_atlas_summary(tuple(genes), self.selected_organism)
+#            self.results = self.get_atlas_summary(all_matched, self.selected_organism, gm)
             # Threaded
             self.error(0)
             self.update_info_box(query_running=True)
             self.controlArea.setEnabled(False)
+            self.results = None
             try:
-                call = self.asyncCall(self.get_atlas_summary, (tuple(genes),
-                                                               self.selected_organism),
+                call = self.asyncCall(self.get_atlas_summary, (all_matched,
+                                                               self.selected_organism,
+                                                               gm),
                                       name="Query Gene Expression Atlas",
                                       onError=self.handle_assync_error)
                 
@@ -306,7 +308,6 @@ class OWGeneAtlasTissueExpression(OWWidget):
                 self.results = call.get_result(processEvents=True)
             except obiArrayExpress.GeneAtlasError, ex:
                 self.error(0, str(ex))
-            
             finally:
                 self.controlArea.setEnabled(True)
                 self.update_info_box(query_running=False)
@@ -314,12 +315,17 @@ class OWGeneAtlasTissueExpression(OWWidget):
             self.query_genes = genes
         
     def update_gene_matcher(self):
-        taxid = dict((v,k) for v,k in TAXID_TO_ORG.items()).get(self.selected_organism)
-        if taxid:
-            self.gene_matcher = self.construct_matcher(taxid)
-        else:
-            self.gene_matcher = obiGene.GMDirect()
-            
+        taxid = dict((v,k) for k,v in TAXID_TO_ORG.items()).get(self.selected_organism)
+        self.warning(0)
+        if taxid != self.loaded_matcher_taxid:
+            if taxid:
+                self.ensembl_info = obiGene.EnsembleGeneInfo(taxid)
+                self.gene_matcher = self.construct_matcher(taxid)
+            else:
+                self.warning(0, "Cannot match gene names!")
+                self.ensembl_info = None
+                self.gene_matcher = obiGene.GMDirect()
+            self.loded_matcher_taxid = taxid
         
     def update_ef_values_box(self):
         """ Update the "Values" box.
@@ -371,9 +377,17 @@ class OWGeneAtlasTissueExpression(OWWidget):
         text = ""
         if self.data is not None:
             genes = self.input_genes()
-            text = "{0} gene names on input.\n".format(len(genes))
+#            unique, matched = self.match_genes(genes, full_res=True)
+            # TODO: How many genes are matched (should update after the query is run).
+            if self.results and not query_running:
+#                matched = min(max([len(r) for r in self.results]), len(genes))
+                matched = len(genes) - len(self.unknown_genes)
+                with_results = len(reduce(set.union, [d.keys() for d in self.results], set()))
+                text = "{0} gene names on input.\n{1} genes matched.\n{2} genes annotated.".format(len(genes), matched, with_results)
+            else:
+                text = "{0} gene names on input.\n\n".format(len(genes))
         else:
-            text = "No data on input.\n"
+            text = "No data on input.\n\n"
         if query_running:
             text += "Querying Gene Atlas. Please wait."
         self.info_label.setText(text)
