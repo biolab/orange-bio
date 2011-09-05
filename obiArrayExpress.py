@@ -1,13 +1,9 @@
 """
+===============
 obiArrayExpress
 ===============
 
-A python module for accessing the ArrayExpress and GeneExpressionAtlas
-web services.
-
-
-Array Express
--------------
+A python module for accessing the ArrayExpress web services.
 
 `Array Express Archive <http://www.ebi.ac.uk/arrayexpress/>`_ is a database of gene expression experiments that you
 can query and download.
@@ -16,6 +12,9 @@ Example of an Array Express query ::
 
     >>> import obiArrayExpress
     >>> obiArrayExpress.query_experiments(accession='E-MEXP-31')
+    {u'experiments': ...
+    
+    >>> obiArrayExpress.query_experiments(keywords='gliobastoma')
     {u'experiments': ...
     
     >>> obiArrayExpress.query_files(accession='E-MEXP-32', format="xml")
@@ -43,6 +42,8 @@ from xml.etree.ElementTree import ElementTree
 from StringIO import StringIO
 
 from collections import defaultdict
+from functools import partial
+from contextlib import closing
 
 parse_json = json.load
 
@@ -50,8 +51,6 @@ def parse_xml(stream):
     """ Parse an xml stream into an instance of xml.etree.ElementTree.ElementTree.
     """
     return ElementTree(file=stream) 
-#    tree.parse(stream)
-#    return tree
 
 # All searchable fields of ArrayExpress (see query_experiments docstring
 # for a description of the fields)
@@ -82,19 +81,16 @@ ARRAYEXPRESS_FIELDS = \
     
 
 class ArrayExpressConnection(object):
-    """ A connection to the ArrayExpress. Used for query construction,
-    and user login. 
+    """ A connection to the ArrayExpress. Used to construct a REST query
+    and run it.
     
     .. todo:: Implement user login.
+    
     """
     
     DEFAULT_ADDRESS = "http://www.ebi.ac.uk/arrayexpress/{format}/v2/"
     DEFAULT_FORMAT = "json"
-    
-    try:
-        DEFAULT_CACHE = shelve.open(orngServerFiles.localpath("ArrayExpress", "ArrayExpressCache.shelve"))
-    except Exception:
-        DEFAULT_CACHE = {}
+    DEFAULT_CACHE = orngServerFiles.localpath("ArrayExpress", "ArrayExpressCache.shelve")
     # Order of arguments in the query
     _ARGS_ORDER = ["keywords", "species", "array"]
     
@@ -113,7 +109,6 @@ class ArrayExpressConnection(object):
         self.cache = cache if cache is not None else self.DEFAULT_CACHE
         self.username = username
         self.password = password
-        
         
     def format_query(self, **kwargs):
         """ Format the query arguments.
@@ -233,7 +228,6 @@ class ArrayExpressConnection(object):
         """
         url = self.query_url_files(**kwargs)
         stream = self._cache_urlopen(url, timeout=self.timeout)
-#        stream = urllib2.urlopen(url, timeout=self.timeout)
         return stream
     
     def open_file(self, accession, kind="raw", ext=None):
@@ -261,20 +255,38 @@ class ArrayExpressConnection(object):
             if filekind.strip() == kind and (fileext.strip() == ext or ext is None): 
                 url = file.find("url").text
                 return self._cache_urlopen(url.strip(), timeout=self.timeout)
-#                return urllib2.urlopen(url.strip(), timeout=self.timeout)
             
     def _cache_urlopen(self, url, timeout=30):
-        if self.cache is not None and url in self.cache:
-            stream = StringIO(self.cache[url])
-            return stream
-        elif self.cache is not None:
-            stream = urllib2.urlopen(url, timeout=timeout)
-            data = stream.read()
-            self.cache[url] = data
+        if self.cache is not None:
+            with self.open_cache() as cache:
+                cached = url in cache
+            if not cached:
+                stream = urllib2.urlopen(url, timeout=timeout)
+                data = stream.read()
+                with self.open_cache() as cache:
+                    cache[url] = data
+            else:
+                with self.open_cache() as cache:
+                    data = cache[url]
             return StringIO(data)
         else:
             return urllib2.urlopen(url, timeout=timeout)
         
+    def open_cache(self):
+        if isinstance(self.cache, basestring):
+            return closing(shelve.open(self.cache))
+        elif hasattr(self.cache, "close"):
+            return closing(self.cache)
+        elif self.cache is None:
+            return fake_closing({})
+        else:
+            return fake_closing(self.cache)
+        
+from contextlib import contextmanager
+
+@contextmanager
+def fake_closing(obj):
+    yield obj
     
 def query_experiments(keywords=None, accession=None, array=None, ef=None,
                       efv=None, expdesign=None, exptype=None,
@@ -354,7 +366,7 @@ def query_files(keywords=None, accession=None, array=None, ef=None,
     Example ::
     
         >>> query_files(species="Mus musculus", ef="developmental_stage", efv="embryo", format="xml")
-        <xml.etree.ElementTree.ElementTree instance...
+        <xml.etree.ElementTree.ElementTree object ...
         
     .. todo:: why does the json interface not work.
                         
@@ -900,7 +912,7 @@ class ArrayExpressExperiment(object):
         
         >>> for file in ae.files:
         ...     print file["name"], file["url"]
-        E-MEXP-2917.biosamples.svg http://www.ebi.ac.uk/arrayexpress/files/E-MEXP-2917/E-MEXP-2917.biosamples.svg
+        E-MEXP-2917.sdrf.txt http://www.ebi.ac.uk/arrayexpress/files/E-MEXP-2917/E-MEXP-2917.sdrf.txt
         ...
             
     """
@@ -1129,6 +1141,8 @@ __doc__ += """\
 Gene Expression Atlas
 ---------------------
 
+.. WARNING:: Deprecated, use ``obiGeneAtlas`` instead.
+
 `Gene Expression Atlas <http://www.ebi.ac.uk/gxa/>`_ is a curated subset of 
 gene expression experiments in Array Express Archive.
 
@@ -1173,11 +1187,11 @@ class GeneExpressionAtlasConenction(object):
         """
         self.address = address if address is not None else self.DEFAULT_ADDRESS
         self.timeout = timeout
-        self.cache = cache
+        self.cache = cache if cache is not None else self.DEFAULT_CACHE
     
     def query(self, condition, format="json", start=None, rows=None, indent=False):
-        url = self.address + "api/v1?" + condition.rest()
-        if start and rows:
+        url = self.address + "api/vx?" + condition.rest()
+        if start is not None and rows is not None:
             url += "&start={0}&rows={1}".format(start, rows)
         url += "&format={0}".format(format)
         if indent:
@@ -1263,6 +1277,26 @@ ATLAS_ORGANISMS = \
 #     "Unknown",
      "Xenopus laevis"
      ]
+    
+#_COMMON_TAXIDS = \
+#    {"Anopheles gambiae",
+#     "Arabidopsis thaliana",
+#     "Bos taurus",
+#     "Caenorhabditis elegans",
+#     "Danio rerio",
+#     "Drosophila melanogaster",
+#     "Epstein barr virus",
+#     "Gallus gallus",
+#     "Homo sapiens",
+#     "Human cytomegalovirus",
+#     "Kaposi sarcoma-associated herpesvirus",
+#     "Mus musculus",
+#     "Rattus norvegicus",
+#     "Saccharomyces cerevisiae",
+#     "Schizosaccharomyces pombe",
+##     "Unknown",
+#     "Xenopus laevis"
+#     }
     
 def ef_ontology():
     """ Return the `EF <http://www.ebi.ac.uk/efo/>`_ (Experimental Factor) ontology
@@ -1438,9 +1472,10 @@ class GeneAtlasError(ValueError):
     
     
 def __check_atlas_error_json(response):
-     if "error" in response:
-         raise GeneAtlasError(response["error"])
-     return response
+    if "error" in response:
+        raise GeneAtlasError(response["error"])
+    return response
+ 
      
 def __check_atlas_error_xml(response):
     error = response.find("error")
@@ -1474,6 +1509,8 @@ def query_atlas_simple(genes=None, regulation=None, organism=None,
         {u'...
         
     """
+    import warnings
+    warnings.warn("Use 'obiGeneAtlas.run_simple_query' instead.", DeprecationWarning)
     conditions = AtlasConditionList()
     if genes:
         conditions.append(AtlasConditionGeneProperty("Gene", "Is", genes))
@@ -1509,6 +1546,8 @@ def query_atlas(condition, format="json", start=None, rows=None, indent=False, c
         {u'...
         
     """
+    import warnings
+    warnings.warn("Use 'obiGeneAtlas.run_query' instead.", DeprecationWarning)
     if connection is None:
         connection = GeneExpressionAtlasConenction()
     results = connection.query(condition, format=format, start=start,
@@ -1539,6 +1578,8 @@ def get_atlas_summary(genes, organism, connection=None):
         ({u'RUNX1': ...
         
     """
+    import warnings
+    warnings.warn("Use 'obiGeneAtlas.get_atlas_summary' instead.", DeprecationWarning)
     genes_condition = AtlasConditionGeneProperty("Gene", "Is", genes)
     org_condition = AtlasConditionOrganism(organism)
     condition = AtlasConditionList([genes_condition, org_condition])
@@ -1548,14 +1589,16 @@ def get_atlas_summary(genes, organism, connection=None):
     disease_state = collect_ef_summary(result, "disease_state")
     cell_type = collect_ef_summary(result, "cell_type")
     
-    return org_part, disease_state, cell_type
+    return dict(org_part), dict(disease_state), dict(cell_type)
     
     
-def collect_ef_summary(info, ef):
+def collect_ef_summary(info, ef, summary=None):
     """ Collect the results summary from query_atlas, result for experimental
     factor `ef`. 
     """
-    summary = defaultdict(dict)
+    if summary is None:
+        summary = defaultdict(dict)
+        
     results = info["results"]
     for res in results:
         gene = res["gene"]
@@ -1570,16 +1613,10 @@ def collect_ef_summary(info, ef):
                 if any(updown):
                     summary[gene["name"]][efv] = updown
     
-    return dict(summary)
+    return summary
     
     
-def test():
-    from pprint import pprint    
-    pprint(get_atlas_summary(['Pou5f1', 'Dppa3'], 'Mus musculus'))
-       
-    pprint(get_atlas_summary(['PDLIM5', 'FGFR2' ], 'Homo sapiens'))
-    
-    
+def test():    
     conn = ArrayExpressConnection()
     import doctest
     doctest.testmod(optionflags=doctest.ELLIPSIS, extraglobs={"conn": conn})
