@@ -3,7 +3,6 @@ from math import log
 from operator import itemgetter
 
 import numpy
-from matplotlib.mlab import prctile
 
 import Orange
 import obiGEO
@@ -167,6 +166,7 @@ def uniform_time_scale(attr_set):
 
 def AREA(data, attr_set, control='t0', weighted=False, auto=False, perc=99):
     """ AREA (Area Under the Curve) filtering method """
+    from matplotlib.mlab import prctile
     if weighted:
         time_points = uniform_time_scale(attr_set)
     else:
