@@ -1417,13 +1417,13 @@ def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], 
     types = {}
     for k,vals in all_values.iteritems():
         types[k] = data_type(vals)
-  
+
     for group, elements in d.items():
         a = orange.FloatVariable()
         #here sort elements
     
         def sk(x):
-            return ( types[n](x[n]) for n in ignorenames if n in all_values )
+            return [ types[n](x[n]) for n in ignorenames if n in all_values ]
 
         elements = sorted(elements, key=lambda x: sk(data.domain.attributes[x].attributes))
 
