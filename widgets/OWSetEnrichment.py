@@ -1,4 +1,4 @@
-"""<name>Enrichment Analysis</name>
+"""<name>Gene Set Enrichment</name>
 """
 from __future__ import with_statement
 
@@ -33,7 +33,7 @@ class MyTreeWidget(QTreeWidget):
             painter.end()
             
             
-class OWFunctionalAnnotation(OWWidget):
+class OWSetEnrichment(OWWidget):
     settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
     contextHandlers = {"":DomainContextHandler("", ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
     
@@ -543,7 +543,7 @@ if __name__ == "__main__":
     import cProfile
     
     app = QApplication(sys.argv)
-    w = OWFunctionalAnnotation()
+    w = OWSetEnrichment()
     w.updateHierarchy()
     data = orange.ExampleTable("../../../doc/datasets/brown-selected")
 #    data = orange.ExampleTable("../human")
