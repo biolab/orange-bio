@@ -120,9 +120,20 @@ def euclidean_lists(l1, l2):
     okvals = [ (a,b) for a,b in zip(l1,l2) if a != None and b != None ]
     return math.sqrt( sum((a-b)*(a-b) for a,b in okvals ))
 
+def spearman_lists(l1, l2):
+    """ Returns pearson correlation between two lists. Ignores elements
+    which are None."""
+    import scipy.stats
+    okvals = [ (a,b) for a,b in zip(l1,l2) if a != None and b != None ]
+    #print okvals, len(okvals)
+    return scipy.stats.spearmanr([ v[0] for v in okvals], [ v[1] for v in okvals] )[0]
+
+def dist_spearman(l1, l2):
+    return (1.-spearman_lists(l1, l2))/2
+
 def dist_pcorr(l1, l2):
     #normalized to 0..1
-    return (1-pearson_lists(l1, l2))/2
+    return (1.-pearson_lists(l1, l2))/2
 
 def dist_eucl(l1, l2):
     return euclidean_lists(l1, l2)
@@ -188,8 +199,9 @@ class OWGenotypeDistances(OWWidget):
     contextHandlers = {"": SetContextHandler("")}
     settingsList = ["auto_commit"]
     
-    DISTANCE_FUNCTIONS = [("Pearson correlation", dist_pcorr),
-                          ("Euclidean distance", dist_eucl)]
+    DISTANCE_FUNCTIONS = [("Distance from Pearson correlation", dist_pcorr),
+                          ("Euclidean distance", dist_eucl),
+                          ("Distance from Spearman correlation", dist_spearman)]
     
     def __init__(self, parent=None, signalManager=None, title="Genotype Distances"):
         OWWidget.__init__(self, parent, signalManager, title)
