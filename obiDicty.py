@@ -1349,9 +1349,12 @@ def join_ats(atts):
             od[k] = str([ at[k] for at in atts ])
     return od
 
-def join_replicates(data, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=median):
+def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], namefn=None, avg=median):
     """ Join replicates by median. 
-    Default parameters work for PIPA data."""
+    Default parameters work for PIPA data.
+    Sort elements in the same order as ignorenames!
+    """
+
     d = defaultdict(list)
 
     if namefn == None:
@@ -1395,8 +1398,35 @@ def join_replicates(data, ignorenames=["id", "replicate", "name", "map_stop1"], 
         else:
             return None
 
+    def data_type(vals): #data type converter
+        try:
+            _ = [ int(a) for a in vals ]
+            return int
+        except:
+            try:
+                _ = [ float(a) for a in vals ]
+                return float
+            except:
+                return lambda x: x
+
+    all_values = defaultdict(set)
+    for a in [ at.attributes for at in data.domain.attributes ]:
+        for k,v in a.iteritems():
+            all_values[k].add(v)
+
+    types = {}
+    for k,vals in all_values.iteritems():
+        types[k] = data_type(vals)
+  
     for group, elements in d.items():
         a = orange.FloatVariable()
+        #here sort elements
+    
+        def sk(x):
+            return ( types[n](x[n]) for n in ignorenames if n in all_values )
+
+        elements = sorted(elements, key=lambda x: sk(data.domain.attributes[x].attributes))
+
         a.attributes.update(join_ats([data.domain.attributes[i].attributes for i in elements]))
         a.name = namefn(a.attributes)
 

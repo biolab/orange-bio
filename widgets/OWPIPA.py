@@ -679,7 +679,7 @@ class OWPIPA(OWWidget):
             table = self.dbc.get_data(ids=ids, callback=pb.advance, exclude_constant_labels=self.excludeconstant, bufver=self.wantbufver, transform=transfn, allowed_labels=allowed_labels, ctype=self.ctype())
 
             if self.joinreplicates:
-                table = obiDicty.join_replicates(table, ignorenames=["id", "replicate", "name", "map_stop1"], namefn=None, avg=obiDicty.median)
+                table = obiDicty.join_replicates(table, ignorenames=["replicate", "id", "name", "map_stop1"], namefn=None, avg=obiDicty.median)
 
             end = int(time.time()-start)
             
