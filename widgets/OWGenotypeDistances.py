@@ -103,7 +103,6 @@ def linearize(data, ids):
     if the values are unknown or not present. """
     l = [ [ None ] * len(data) if id1 == None \
         else [ float_or_none(ex[id1]) for ex in data ] for id1 in ids ]
-#    l = reduce(lambda x,y: x+y, l)
     l = reduce(add, l)
     return l
 
@@ -553,6 +552,7 @@ class OWGenotypeDistances(OWWidget):
         """ Compute the distances between genotypes.
         """
         if separate_keys and partitions:
+            self.progressBarInit()
             matrix = Orange.core.SymMatrix(len(partitions))
             profiles = [linearize(data, indices) for _, indices in partitions]
             dist_func = self.DISTANCE_FUNCTIONS[self.distance_measure][1]
@@ -560,7 +560,6 @@ class OWGenotypeDistances(OWWidget):
             count = (len(profiles) * len(profiles) - 1) / 2
             milestones = progressBarMilestones(count)
             iter_count = 0
-            self.progressBarInit()
             for i in range(len(profiles)):
                 for j in range(i + 1, len(profiles)):
                     matrix[i, j] = dist_func(profiles[i], profiles[j])
