@@ -24,7 +24,7 @@ def data_type(vals):
             _ = [ float(a) for a in vals ]
             return float
         except:
-            return None
+            return lambda x: x
 
 def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
     """
@@ -62,8 +62,7 @@ def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
     def relevant_vals(annotation):
         if isinstance(annotation, tuple):
             return annotation
-        return tuple(annotation[v] if types[v] == None else types[v](annotation[v]) 
-            for v in other_relevant)
+        return tuple(types[v](annotation[v]) for v in other_relevant)
 
     other_relevant_d2 = defaultdict(int) #"multiset" - number
     #of maximum occurances of a relevant value in a group
@@ -153,13 +152,15 @@ def clone_attr(attr):
     newattr.attributes.update(attr.attributes)
     return newattr
     
-def missing_name_gen():
+def name_gen(a):
     i = 1
     while True:
-        yield "missing {0}".format(i)
+        yield a + " {0}".format(i)
         i += 1
         
-missing_name_gen = missing_name_gen()
+missing_name_gen = name_gen("!!missing")
+inactive_name_gen = name_gen("!!inactive")
+
 
 class MyHeaderView(QHeaderView):
     def __init__(self, *args):
@@ -339,7 +340,10 @@ class OWGenotypeDistances(OWWidget):
         
         def select(model, selection_model, selected_items):
             all_items = list(model)
-            indices = [all_items.index(item) for item in selected_items]
+            try:
+                indices = [all_items.index(item) for item in selected_items]
+            except:
+                indices = []
             for ind in indices:
                 selection_model.select(model.index(ind), QItemSelectionModel.Select)
                 
@@ -392,30 +396,47 @@ class OWGenotypeDistances(OWWidget):
         self.warning(0)
         if not separate_keys:
             self.warning(0, "No separate by attribute selected.")
+
         partitions = separate_by(self.data, separate_keys, consider=relevant_keys).items()
 
+        all_values = defaultdict(set)
+        for a in [ at.attributes for at in self.data.domain.attributes ]:
+            for k,v in a.iteritems():
+                all_values[k].add(v)
+
+        #sort groups
         pkeys = [ key for key,_ in partitions ]
         types = [ data_type([a[i] for a in pkeys]) for i in range(len(pkeys[0])) ]
 
         partitions = sorted(partitions, key=lambda x:
-                    tuple(v if types[i] == None else types[i](v)
-                    for i,v in enumerate(x[0])))
+                    tuple(types[i](v) for i,v in enumerate(x[0])))
 
         split_groups = []
         
         # Collect relevant key value pairs for all columns
-        relevant_items = {}
+        relevant_items = None
+
         for keys, indices in partitions:
+            if relevant_items == None:
+                relevant_items = [ defaultdict(set) for _ in range(len(indices)) ]
             for i, ind in enumerate(indices):
                 if ind is not None:
                     attr = self.data.domain[ind]
-                    relevant_items[i] = [(key, attr.attributes[key]) \
-                                         for key in relevant_keys]
-                    
+                    for key in relevant_keys:
+                        relevant_items[i][key].add(attr.attributes[key])
+
+        #those with different values between rows are not relevant
+        for d in relevant_items:
+            for k,s in d.items():
+                if len(s) > 1:
+                    del d[k]
+                else:
+                    d[k] = s.pop()
+
         def get_attr(attr_index, i):
             if attr_index is None:
                 attr = Orange.data.variable.Continuous(missing_name_gen.next())
-                attr.attributes.update(relevant_items.get(i, []))
+                attr.attributes.update(relevant_items[i])
                 return attr
             else:
                 return self.data.domain[attr_index]
@@ -429,7 +450,7 @@ class OWGenotypeDistances(OWWidget):
 #            newdata = Orange.data.Table(domain)
             split_groups.append((keys, domain))
             
-        self.set_groups(separate_keys, split_groups, relevant_keys)
+        self.set_groups(separate_keys, split_groups, relevant_keys, relevant_items, all_values)
         
         self.partitions = partitions
         self.split_groups = split_groups
@@ -437,37 +458,55 @@ class OWGenotypeDistances(OWWidget):
         self.commit_if()
 #        self.update_distances(separate_keys, partitions, self.data)
         
-    def set_groups(self, keys, groups, relevant_keys):
+    def set_groups(self, keys, groups, relevant_keys, relevant_items, all_values):
         """ Set the current data groups and update the Group widget
         """
         layout = QVBoxLayout()
         header_widths = []
         header_views = []
         palette = self.palette()
-        for ann_vals, domain in groups:
-            label = QLabel(" <b>|</b> ".join(["<b>{0}</ b> = {1}".format(key,val) \
-                                     for key, val in zip(keys, ann_vals)]))
+        all_values = all_values.keys()
+
+        def for_print(rd):
+            attrs = []
+            for d in rd:
+                attr = Orange.data.variable.Continuous(inactive_name_gen.next())
+                attr.attributes.update(d)
+                attrs.append(attr)
+            return Orange.data.Domain(attrs, None)
+
+        for ann_vals, domain in [ (None, for_print(relevant_items)) ] + groups:
+            label = None
+            if ann_vals != None:
+                ann_vals = " <b>|</b> ".join(["<b>{0}</ b> = {1}".format(key,val) \
+                     for key, val in zip(keys, ann_vals)])
+                label = QLabel(ann_vals)
             
             model = QStandardItemModel()
             for i, attr in enumerate(domain.attributes):
                 item = QStandardItem()
-                if not str(attr.name).startswith("missing "): ## TODO: Change this to not depend on name
+                if str(attr.name).startswith("!!missing "): ## TODO: Change this to not depend on name
                     header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
-                                   for key in relevant_keys]
-                    header_text = "\n".join(header_text)
-                    item.setData(QVariant(header_text), Qt.DisplayRole)
-                    item.setData(QVariant(attr.name), Qt.ToolTipRole)
-                    
-                else:
-                    header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
-                                   for key in relevant_keys]
+                                   for key in all_values if key not in relevant_items[i]]
                     header_text = "\n".join(header_text)
                     item.setData(QVariant(header_text), Qt.DisplayRole)
                     item.setFlags(Qt.NoItemFlags)
                     item.setData(QVariant(QColor(Qt.red)), Qt.ForegroundRole)
                     item.setData(QVariant(palette.color(QPalette.Disabled, QPalette.Window)), Qt.BackgroundRole)
                     item.setData(QVariant("Missing feature."), Qt.ToolTipRole)
-                
+                elif str(attr.name).startswith("!!inactive "):
+                    header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
+                                   for key in all_values if key in relevant_items[i]]
+                    header_text = "\n".join(header_text)
+                    item.setData(QVariant(header_text), Qt.DisplayRole)
+                    item.setData(QVariant(palette.color(QPalette.Disabled, QPalette.Window)), Qt.BackgroundRole)
+                else:
+                    header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
+                                   for key in all_values if key not in relevant_items[i]]
+                    header_text = "\n".join(header_text)
+                    item.setData(QVariant(header_text), Qt.DisplayRole)
+                    item.setData(QVariant(attr.name), Qt.ToolTipRole)
+                    
                 model.setHorizontalHeaderItem(i, item)
             attr_count = len(domain.attributes)
             view = MyHeaderView(Qt.Horizontal)
@@ -480,7 +519,8 @@ class OWGenotypeDistances(OWWidget):
             header_widths.append(widths)
             header_views.append(view)
             
-            layout.addWidget(label)
+            if label:
+                layout.addWidget(label)
             layout.addWidget(view)
             layout.addSpacing(8)
             
@@ -579,7 +619,8 @@ if __name__ == "__main__":
     app = QApplication(sys.argv )
     w = OWGenotypeDistances()
 #    data = Orange.data.Table(os.path.expanduser("~/Documents/dicty-express-sample.tab"))
-    data = Orange.data.Table(os.path.expanduser("~/Downloads/tmp.tab"))
+#    data = Orange.data.Table(os.path.expanduser("~/Downloads/tmp.tab"))
+    data = Orange.data.Table(os.path.expanduser("~/tgr.tab"))
     w.set_data(data)
     w.show()
     app.exec_()
