@@ -25,6 +25,7 @@ import sqlite3
 import urllib2
 import posixpath
 import shutil
+import gzip
 
 class PPIDatabase(object):
     """ A general interface for protein-protein interaction database access.
@@ -383,7 +384,13 @@ class BioGRID(PPIDatabase):
            on proteins (biogrid_id_interactor)
         """)
         
-    
+from collections import namedtuple
+from functools import partial
+
+STRINGInteraction = namedtuple("STRINGInteraciton",
+        ["protein_id1", "protein_id2", "combined_score", "mode",
+         "action", "score"])
+
 class STRING(PPIDatabase):
     """ Access `STRING <http://www.string-db.org/>`_ PPI database.
     
@@ -413,6 +420,18 @@ class STRING(PPIDatabase):
     DOMAIN = "PPI"
     FILENAME = "string-protein.sqlite"
     VERSION = "1.0"
+    
+    # Mapping from obiTaxonomy.common_taxids() to taxids in STRING.
+     
+    TAXID_MAP = {"352472": "44689", # Dictyostelium discoideum
+                 "562": None,
+                 "2104": "272634", # Mycoplasma pneumoniae M129
+                 "4530": "39947", # Oryza sativa Japonica Group
+                 "4754": None,
+                 "8355": None,
+                 "4577": None
+                 }
+    
     
     def __init__(self):
         self.filename = orngServerFiles.localpath_download(self.DOMAIN, self.FILENAME)
@@ -486,9 +505,17 @@ class STRING(PPIDatabase):
         return cur.fetchall()
         
     def edges_annotated(self, id):
-        """ Return a list of all links
+        """ Return a list of all edges annotated.
         """
-        raise NotImplementedError
+        cur = self.db.execute("""\
+        select links.protein_id1, links.protein_id2, links.score, 
+               actions.action, actions.mode, actions.score
+        from links left join actions on 
+               links.protein_id1=actions.protein_id1 and
+               links.protein_id2=actions.protein_id2
+        where links.protein_id1=?
+        """, (id,))
+        return map(partial(apply,STRINGInteraction), cur.fetchall())
     
     @classmethod
     def download_data(cls, version, taxids=None):
@@ -577,101 +604,101 @@ class STRING(PPIDatabase):
         taxids = set(taxids) if taxids else set(obiTaxonomy.common_taxids())
                 
         con = sqlite3.connect(orngServerFiles.localpath(cls.DOMAIN, cls.FILENAME))
-        
-        con.execute("drop table if exists links")
-        con.execute("drop table if exists proteins")
-        con.execute("drop table if exists actions")
-        con.execute("drop table if exists aliases")
-        
-        con.execute("create table links (protein_id1 text, protein_id2 text, score int)")
-        con.execute("create table proteins (protein_id text, taxid text)")
-        con.execute("create table actions (protein_id1 text, protein_id2 text, mode text, action text, score int)")
-        con.execute("create table aliases (protein_id text, alias text)")
-        
-        header = links_file.readline() # read the header
-        
-        import csv
-        reader = csv.reader(links_file, delimiter=" ")
-        
-        def read_links(reader):
-            links = []
-            i = 0
-            for p1, p2, score in reader:
-                taxid1 = p1.split(".", 1)[0]
-                taxid2 = p2.split(".", 1)[0]
-                if taxid1 in taxids and taxid2 in taxids:
-                    links.append((intern(p1), intern(p2), int(score)))
-                i += 1
-                if i % 1000 == 0: # Update the progress every 1000 lines
-                    progress(100.0 * links_file.tell() / filesize)
-            links.sort()
-            return links
-        
-        con.executemany("insert into links values (?, ?, ?)", read_links(reader))
+        with con:
+            con.execute("drop table if exists links")
+            con.execute("drop table if exists proteins")
+            con.execute("drop table if exists actions")
+            con.execute("drop table if exists aliases")
             
-        con.commit()
-        
-        progress.finish()
-        
-        proteins = [res[0] for res in con.execute("select distinct protein_id1 from links")]
-        progress = ConsoleProgressBar("Processing proteins:")
-        
-        def protein_taxids(proteins):
-            protein_taxids = []
-            for i, prot in enumerate(proteins):
-                taxid = prot.split(".", 1)[0]
-                protein_taxids.append((prot, taxid))
-                if i % 1000 == 0:
-                    progress(100.0 * i / len(proteins))
-            protein_taxids.sort()
-            return protein_taxids
-        
-        con.executemany("insert into proteins values (?, ?)", protein_taxids(proteins))
-
-        con.commit()
-        progress.finish()
-        
-        filesize = os.stat(actions_filename).st_size
-        
-        actions_file.readline() # read header
-        
-        progress = ConsoleProgressBar("Processing actions:")
-        reader = csv.reader(actions_file, delimiter="\t")
-        def read_actions(reader):
-            actions = []
-            i = 0
-            for p1, p2, mode, action, a_is_acting, score in reader:
-                taxid1 = p1.split(".", 1)[0]
-                taxid2 = p2.split(".", 1)[0]
-                if taxid1 in taxids and taxid2 in taxids:
-                    actions.append((intern(p1), intern(p2), mode, action, int(score)))
-                i += 1
-                if i % 1000 == 0:
-                    progress(100.0 * actions_file.tell() / filesize)
-            actions.sort()
-            return actions
-        
-        con.executemany("insert into actions values (?, ?, ?, ?, ?)", read_actions(reader))
-        con.commit()
-        progress.finish()
-        
-        filesize = os.stat(aliases_filename).st_size
-        aliases_file.readline() # read header
-        
-        progress = ConsoleProgressBar("Processing aliases:")
+            con.execute("create table links (protein_id1 text, protein_id2 text, score int)")
+            con.execute("create table proteins (protein_id text, taxid text)")
+            con.execute("create table actions (protein_id1 text, protein_id2 text, mode text, action text, score int)")
+            con.execute("create table aliases (protein_id text, alias text)")
+            
+            header = links_file.readline() # read the header
+            
+            import csv
+            reader = csv.reader(links_file, delimiter=" ")
+            
+            def read_links(reader):
+                links = []
+                i = 0
+                for p1, p2, score in reader:
+                    taxid1 = p1.split(".", 1)[0]
+                    taxid2 = p2.split(".", 1)[0]
+                    if taxid1 in taxids and taxid2 in taxids:
+                        links.append((intern(p1), intern(p2), int(score)))
+                    i += 1
+                    if i % 1000 == 0: # Update the progress every 1000 lines
+                        progress(100.0 * links_file.tell() / filesize)
+                links.sort()
+                return links
+            
+            con.executemany("insert into links values (?, ?, ?)", read_links(reader))
+                
+            con.commit()
+            
+            progress.finish()
+            
+            proteins = [res[0] for res in con.execute("select distinct protein_id1 from links")]
+            progress = ConsoleProgressBar("Processing proteins:")
+            
+            def protein_taxids(proteins):
+                protein_taxids = []
+                for i, prot in enumerate(proteins):
+                    taxid = prot.split(".", 1)[0]
+                    protein_taxids.append((prot, taxid))
+                    if i % 1000 == 0:
+                        progress(100.0 * i / len(proteins))
+                protein_taxids.sort()
+                return protein_taxids
+            
+            con.executemany("insert into proteins values (?, ?)", protein_taxids(proteins))
+    
+            con.commit()
+            progress.finish()
+            
+            filesize = os.stat(actions_filename).st_size
+            
+            actions_file.readline() # read header
+            
+            progress = ConsoleProgressBar("Processing actions:")
+            reader = csv.reader(actions_file, delimiter="\t")
+            def read_actions(reader):
+                actions = []
+                i = 0
+                for p1, p2, mode, action, a_is_acting, score in reader:
+                    taxid1 = p1.split(".", 1)[0]
+                    taxid2 = p2.split(".", 1)[0]
+                    if taxid1 in taxids and taxid2 in taxids:
+                        actions.append((intern(p1), intern(p2), mode, action, int(score)))
+                    i += 1
+                    if i % 1000 == 0:
+                        progress(100.0 * actions_file.tell() / filesize)
+                actions.sort()
+                return actions
+            
+            con.executemany("insert into actions values (?, ?, ?, ?, ?)", read_actions(reader))
+            con.commit()
+            progress.finish()
+            
+            filesize = os.stat(aliases_filename).st_size
+            aliases_file.readline() # read header
+            
+            progress = ConsoleProgressBar("Processing aliases:")
+                            
+            reader = csv.reader(aliases_file, delimiter="\t")
+            def read_aliases(reader):
+                i = 0
+                for taxid, name, alias, source in reader:
+                    if taxid in taxids:
+                        yield ".".join([taxid, name]), alias
+                    i += 1
+                    if i % 1000 == 0:
+                        progress(100.0 * aliases_file.tell() / filesize)
                         
-        reader = csv.reader(aliases_file, delimiter="\t")
-        def read_aliases(reader):
-            i = 0
-            for taxid, name, alias, source in reader:
-                if taxid in taxids:
-                    yield ".".join([taxid, name]), alias
-                i += 1
-                if i % 1000 == 0:
-                    progress(100.0 * aliases_file.tell() / filesize)
-                    
-        con.executemany("insert into aliases values (?, ?)", read_aliases(reader))
-        con.commit()
+            con.executemany("insert into aliases values (?, ?)", read_aliases(reader))
+#            con.commit()
         progress.finish()
         
     def init_db_index(self):
