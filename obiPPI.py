@@ -20,7 +20,11 @@ import obiTaxonomy
 from obiTaxonomy import pickled_cache
 
 from Orange.misc import lru_cache
+
 import sqlite3
+import urllib2
+import posixpath
+import shutil
 
 class PPIDatabase(object):
     """ A general interface for protein-protein interaction database access.
@@ -504,10 +508,10 @@ class STRING(PPIDatabase):
             shutil.copyfileobj(stream, tmpfile)
             tmpfile.close()
             os.rename(tmpfilename, basename)
-            
-        links = "http://www.string-db.org:8080/newstring_download/protein.links.{version}.txt.gz"
-        actions = "http://www.string-db.org:8080/newstring_download/protein.actions.{version}.txt.gz"
-        aliases = "http://www.string-db.org:8080/newstring_download/protein.aliases.{version}.txt.gz"
+        base_url = "http://www.string-db.org/newstring_download/" #protein.links.v9.0.txt.gz
+        links = base_url + "protein.links.{version}.txt.gz"
+        actions = base_url + "protein.actions.{version}.txt.gz"
+        aliases = base_url + "protein.aliases.{version}.txt.gz"
         
         download(links.format(version=version), dir)
         download(actions.format(version=version), dir)
