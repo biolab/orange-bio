@@ -88,12 +88,23 @@ def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
         groups = ngroups
 
     ngroups = {}
+    uniquepos = {} #which positions are unique
     for g in groups:
         elements = list(groups[g])
+
+        rv2 = lambda x: relevant_vals(annotations[x] if isinstance(x,int) else x)
+
         ngroups[g] = map(lambda x: x if isinstance(x,int) else None,
-            sorted(elements, key=lambda x: relevant_vals(annotations[x] if isinstance(x,int) else x)))
+            sorted(elements, key=rv2))
+
+        d = defaultdict(int) #get groups of different relevant values
+        for i in elements:
+            d[rv2(i)] += 1
         
-    return ngroups
+        uniquepos[g] = map(lambda x: not d[rv2(x)] > 1,
+             sorted(elements, key=rv2))
+    
+    return ngroups, uniquepos
 
 def float_or_none(value):
     return value.value if value.value != "?" else None
@@ -396,7 +407,8 @@ class OWGenotypeDistances(OWWidget):
         if not separate_keys:
             self.warning(0, "No separate by attribute selected.")
 
-        partitions = separate_by(self.data, separate_keys, consider=relevant_keys).items()
+        partitions,uniquepos = separate_by(self.data, separate_keys, consider=relevant_keys)
+        partitions = partitions.items()
 
         all_values = defaultdict(set)
         for a in [ at.attributes for at in self.data.domain.attributes ]:
@@ -448,8 +460,8 @@ class OWGenotypeDistances(OWWidget):
             domain.add_metas(self.data.domain.get_metas().items())
 #            newdata = Orange.data.Table(domain)
             split_groups.append((keys, domain))
-            
-        self.set_groups(separate_keys, split_groups, relevant_keys, relevant_items, all_values)
+         
+        self.set_groups(separate_keys, split_groups, relevant_keys, relevant_items, all_values, uniquepos)
         
         self.partitions = partitions
         self.split_groups = split_groups
@@ -457,7 +469,7 @@ class OWGenotypeDistances(OWWidget):
         self.commit_if()
 #        self.update_distances(separate_keys, partitions, self.data)
         
-    def set_groups(self, keys, groups, relevant_keys, relevant_items, all_values):
+    def set_groups(self, keys, groups, relevant_keys, relevant_items, all_values, uniquepos):
         """ Set the current data groups and update the Group widget
         """
         layout = QVBoxLayout()
@@ -474,20 +486,24 @@ class OWGenotypeDistances(OWWidget):
                 attrs.append(attr)
             return Orange.data.Domain(attrs, None)
 
-        for ann_vals, domain in [ (None, for_print(relevant_items)) ] + groups:
+        for separatev, domain in [ (None, for_print(relevant_items)) ] + groups:
             label = None
-            if ann_vals != None:
+            if separatev != None:
                 ann_vals = " <b>|</b> ".join(["<b>{0}</ b> = {1}".format(key,val) \
-                     for key, val in zip(keys, ann_vals)])
+                     for key, val in zip(keys, separatev)])
                 label = QLabel(ann_vals)
             
             model = QStandardItemModel()
             for i, attr in enumerate(domain.attributes):
                 item = QStandardItem()
+                if separatev != None:
+                    up = uniquepos[separatev][i]
+                else:
+                    up = False if False in [ a[i] for a in uniquepos.values() ] else True
                 if str(attr.name).startswith("!!missing "): ## TODO: Change this to not depend on name
                     header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
                                    for key in all_values if key not in relevant_items[i]]
-                    header_text = "\n".join(header_text)
+                    header_text = "\n".join(header_text) if header_text else "Empty"
                     item.setData(QVariant(header_text), Qt.DisplayRole)
                     item.setFlags(Qt.NoItemFlags)
                     item.setData(QVariant(QColor(Qt.red)), Qt.ForegroundRole)
@@ -496,15 +512,18 @@ class OWGenotypeDistances(OWWidget):
                 elif str(attr.name).startswith("!!inactive "):
                     header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
                                    for key in all_values if key in relevant_items[i]]
-                    header_text = "\n".join(header_text)
+                    header_text = "\n".join(header_text) if header_text else "No descriptor"
                     item.setData(QVariant(header_text), Qt.DisplayRole)
                     item.setData(QVariant(palette.color(QPalette.Disabled, QPalette.Window)), Qt.BackgroundRole)
                 else:
                     header_text = ["{0}={1}".format(key, attr.attributes.get(key, "?")) \
                                    for key in all_values if key not in relevant_items[i]]
-                    header_text = "\n".join(header_text)
+                    header_text = "\n".join(header_text) if header_text else "Empty"
                     item.setData(QVariant(header_text), Qt.DisplayRole)
                     item.setData(QVariant(attr.name), Qt.ToolTipRole)
+
+                if up == False:
+                    item.setData(QVariant(QColor(Qt.red)), Qt.ForegroundRole)
                     
                 model.setHorizontalHeaderItem(i, item)
             attr_count = len(domain.attributes)
