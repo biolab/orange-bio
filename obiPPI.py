@@ -436,7 +436,6 @@ class STRING(PPIDatabase):
     def __init__(self):
         self.filename = orngServerFiles.localpath_download(self.DOMAIN, self.FILENAME)
         self.db = sqlite3.connect(self.filename)
-        self.init_db_index()
         
     def organisms(self):
         """ Return all organism taxids contained in this database.
@@ -522,7 +521,8 @@ class STRING(PPIDatabase):
         """ Download the  PPI data for local work (this may take some time).
         Pass the version of the  STRING release e.g. v8.3.
         The resulting sqlite database will only contain the protein
-        interactions for `taxids` (if None all interactions will be present).
+        interactions for `taxids` (if None obiTaxonomy.common_taxids() will
+        be used).
         
         """
         dir = orngServerFiles.localpath("PPI")
@@ -601,8 +601,12 @@ class STRING(PPIDatabase):
         progress(0.0)
         filesize = os.stat(links_filename).st_size
         
-        taxids = set(taxids) if taxids else set(obiTaxonomy.common_taxids())
-                
+        if taxids:
+            taxids = set(taxids)
+        else:
+            taxids = [cls.TAXID_MAP.get(id, id) for id in obiTaxonomy.common_taxids()]
+            taxids = set(filter(None, taxids))
+                        
         con = sqlite3.connect(orngServerFiles.localpath(cls.DOMAIN, cls.FILENAME))
         with con:
             con.execute("drop table if exists links")
@@ -620,7 +624,7 @@ class STRING(PPIDatabase):
             import csv
             reader = csv.reader(links_file, delimiter=" ")
             
-            def read_links(reader):
+            def read_links(reader, chunk_size=1000000):
                 links = []
                 i = 0
                 for p1, p2, score in reader:
@@ -628,13 +632,17 @@ class STRING(PPIDatabase):
                     taxid2 = p2.split(".", 1)[0]
                     if taxid1 in taxids and taxid2 in taxids:
                         links.append((intern(p1), intern(p2), int(score)))
+                        if len(links) == chunk_size:
+                            yield links
+                            links = []
                     i += 1
                     if i % 1000 == 0: # Update the progress every 1000 lines
                         progress(100.0 * links_file.tell() / filesize)
-                links.sort()
-                return links
+                if links:
+                    yield links
             
-            con.executemany("insert into links values (?, ?, ?)", read_links(reader))
+            for chunk in read_links(reader):
+                con.executemany("insert into links values (?, ?, ?)", chunk)
                 
             con.commit()
             
@@ -692,13 +700,16 @@ class STRING(PPIDatabase):
                 i = 0
                 for taxid, name, alias, source in reader:
                     if taxid in taxids:
-                        yield ".".join([taxid, name]), alias
+                        yield ".".join([taxid, name]), alias.decode("utf-8", errors="ignore")
                     i += 1
                     if i % 1000 == 0:
                         progress(100.0 * aliases_file.tell() / filesize)
                         
             con.executemany("insert into aliases values (?, ?)", read_aliases(reader))
-#            con.commit()
+
+            print "Indexing the database"
+            self.init_db_index()
+            
         progress.finish()
         
     def init_db_index(self):
