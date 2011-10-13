@@ -532,9 +532,9 @@ class STRING(PPIDatabase):
             basename = posixpath.basename(address)
             tmpfilename = os.path.join(dir, basename + ".part")
             tmpfile = open(tmpfilename, "wb")
-            shutil.copyfileobj(stream, os.path.join(dir, basename))
+            shutil.copyfileobj(stream, tmpfile)
             tmpfile.close()
-            os.rename(tmpfilename, basename)
+            os.rename(tmpfilename, os.path.join(dir, basename))
         base_url = "http://www.string-db.org/newstring_download/" #protein.links.v9.0.txt.gz
         links = base_url + "protein.links.{version}.txt.gz"
         actions = base_url + "protein.actions.{version}.txt.gz"
