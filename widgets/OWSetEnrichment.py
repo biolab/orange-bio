@@ -20,6 +20,19 @@ from collections import defaultdict
 from OWGUI import LinkStyledItemDelegate, LinkRole
 from OWGUI import BarItemDelegate
 
+def _toPyObject(variant):
+    val = variant.toPyObject()
+    if isinstance(val, type(NotImplemented)): # PyQt 4.4 converts python int, floats ... to C types
+        qtype = variant.type()
+        if qtype == QVariant.Double:
+            val, ok = variant.toDouble()
+        elif qtype == QVariant.Int:
+            val, ok = variant.toInt()
+        elif qtype == QVariant.LongLong:
+            val, ok = variant.toLongLong()
+        elif qtype == QVariant.String:
+            val = variant.toString()
+    return val
 
 class MyTreeWidget(QTreeWidget):
     def paintEvent(self, event):
@@ -32,12 +45,20 @@ class MyTreeWidget(QTreeWidget):
             painter.drawText(self.viewport().geometry(), Qt.AlignCenter, self._userMessage)
             painter.end()
             
+class MyTreeWidgetItem(QTreeWidgetItem):
+    def __lt__(self, other):
+        if not self.treeWidget():
+            return id(self) < id(other)
+        column = self.treeWidget().sortColumn()
+        lhs = _toPyObject(self.data(column, Qt.DisplayRole))
+        rhs = _toPyObject(other.data(column, Qt.DisplayRole))
+        return lhs < rhs
             
 class OWSetEnrichment(OWWidget):
     settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
     contextHandlers = {"":DomainContextHandler("", ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
     
-    def __init__(self, parent=None, signalManager=None, name="Enrichment Analysis", **kwargs):
+    def __init__(self, parent=None, signalManager=None, name="Gene Set Enrichment Analysis", **kwargs):
         OWWidget.__init__(self, parent, signalManager, name, **kwargs)
         self.inputs = [("Example Table", ExampleTable, self.setData, Default), ("Reference", ExampleTable, self.setReference)]
         self.outputs = [("Selected Examples", ExampleTable)]
@@ -99,7 +120,8 @@ class OWSetEnrichment(OWWidget):
 
         hLayout = QHBoxLayout()
         hLayout.setSpacing(10)
-        sb, sbcb = OWGUI.spin(QWidget(self.mainArea), self, "minClusterCount",
+        hWidget = OWGUI.widgetBox(self.mainArea, orientation=hLayout)
+        sb, sbcb = OWGUI.spin(hWidget, self, "minClusterCount",
                               0, 100, label="Min. Count",
                               tooltip="Minimum gene count",
                               callback=self.filterAnnotationsChartView,
@@ -107,7 +129,7 @@ class OWSetEnrichment(OWWidget):
                               checked="useMinCountFilter",
                               checkCallback=self.filterAnnotationsChartView)
         
-        dsp, dspcb = OWGUI.doubleSpin(QWidget(self.mainArea), self,
+        dsp, dspcb = OWGUI.doubleSpin(hWidget, self,
                         "maxPValue", 0.0, 1.0, 0.0001,
                         label="Max. P-Value",
                         tooltip="Maximum (FDR corrected) P-Value",
@@ -115,11 +137,6 @@ class OWSetEnrichment(OWWidget):
                         callbackOnReturn=True,
                         checked="useMaxPValFilter",
                         checkCallback=self.filterAnnotationsChartView)
-        
-        hLayout.addWidget(sb)
-        hLayout.addWidget(sbcb)
-        hLayout.addWidget(dsp)
-        hLayout.addWidget(dspcb)
         
         import OWGUIEx
         self.filterLineEdit = OWGUIEx.QLineEditWithActions(self)
@@ -135,7 +152,7 @@ class OWSetEnrichment(OWWidget):
         self.filterLineEdit.setCompleter(self.filterCompleter)
         
         hLayout.addWidget(self.filterLineEdit)
-        self.mainArea.layout().addLayout(hLayout)
+        self.mainArea.layout().addWidget(hWidget)
         
         self.connect(self.filterLineEdit, SIGNAL("textChanged(QString)"),
                      self.filterAnnotationsChartView)
@@ -169,6 +186,8 @@ class OWSetEnrichment(OWWidget):
         self.resize(1024, 600)
         
         self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.onStateChange)
+        
+        self.updatingAnnotationsFlag = False
         
     def updateHierarchy(self):
         try:
@@ -423,8 +442,9 @@ class OWSetEnrichment(OWWidget):
         self.treeItems = []
         for i, (geneset, (cmapped, rmapped, p_val, enrichment)) in enumerate(results):
             if len(cmapped) > 0:
-                item = QTreeWidgetItem(self.annotationsChartView, [" ".join(geneset.hierarchy), geneset.name])
+                item = MyTreeWidgetItem(self.annotationsChartView, [" ".join(geneset.hierarchy), geneset.name])
                 item.setData(2, Qt.DisplayRole, QVariant(countFmt % (len(cmapped), 100.0*len(cmapped)/countAll)))
+                item.setData(2, Qt.ToolTipRole, QVariant(len(cmapped))) # For filtering
                 item.setData(3, Qt.DisplayRole, QVariant(refFmt % (len(rmapped), 100.0*len(rmapped)/len(referenceGenes))))
                 item.setData(4, Qt.DisplayRole, QVariant(p_val))
                 item.setData(5, Qt.DisplayRole, QVariant(enrichment))
@@ -465,7 +485,7 @@ class OWSetEnrichment(OWWidget):
         itemsHidden = []
         for item in self.treeItems:
             item_cat = str(item.data(0, Qt.EditRole).toString())
-            (count, _), (pval, _) = item.data(2, Qt.EditRole).toInt(), item.data(4, Qt.EditRole).toDouble()
+            count, pval = _toPyObject(item.data(2, Qt.ToolTipRole)), _toPyObject(item.data(4, Qt.DisplayRole))
             geneset = item.geneset.name.lower()
             hidden = item_cat not in categories or (self.useMinCountFilter and count < self.minClusterCount) or \
                      (self.useMaxPValFilter and pval > self.maxPValue) or filterString not in geneset
@@ -515,7 +535,6 @@ class OWSetEnrichment(OWWidget):
         if stateType == "Warning" or stateType == "Info":
             self.annotationsChartView._userMessage = text
             self.annotationsChartView.viewport().update()
-        
         
         
 def reportItemView(view):
