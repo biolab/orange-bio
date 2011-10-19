@@ -45,9 +45,9 @@ def _cache(name="AtlasGeneResult.shelve"):
             pass
     return shelve.open(orngServerFiles.localpath("GeneAtlas", name))
 
-SLEEP_TIME_MULTIPLIER = 4.0
+SLEEP_TIME_MULTIPLIER = 3.0
 
-def gene_expression_atlas(genes):
+def gene_expression_atlas(genes, progress_callback=None):
     """ Return GeneResults instances for genes (genes must be valid ensembl ids).
     """
     import time
@@ -86,7 +86,9 @@ def gene_expression_atlas(genes):
             time.sleep(60)
         else:
             time.sleep(min(20.0, SLEEP_TIME_MULTIPLIER*(time.time() - start_time)))
-        print start
+            
+        if progress_callback:
+            progress_callback(100.0 * start / len(genes_not_cached))
     
     return [result_dict.get(g, None) for g in genes]
 
@@ -138,7 +140,8 @@ def _cached_default_gene_matcher(organism):
     return default_gene_matcher(organism)
     
 
-def get_atlas_summary(genes, organism, gene_matcher=None):
+def get_atlas_summary(genes, organism, gene_matcher=None,
+                      progress_callback=None):
     """ Return 3 dictionaries containing a summary of atlas information
     about three experimental factors:
     
@@ -169,7 +172,7 @@ def get_atlas_summary(genes, organism, gene_matcher=None):
         import warnings
         warnings.warn("Unmatched genes " + "," .join(["%r" % g for g in unmatched]))
     
-    results = gene_expression_atlas(matched)
+    results = gene_expression_atlas(matched, progress_callback=progress_callback)
     
     def collect_ef_summary(result, ef, summary):
         for exp in result.expressions:

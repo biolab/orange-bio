@@ -295,6 +295,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
             # Threaded
             self.error(0)
             self.update_info_box(query_running=True)
+            self.progressBarInit()
             self.controlArea.setEnabled(False)
             self.results = None
             try:
@@ -303,14 +304,15 @@ class OWGeneAtlasTissueExpression(OWWidget):
                                                                gm),
                                       name="Query Gene Expression Atlas",
                                       onError=self.handle_assync_error)
-                
-                call()
+                QObject.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
+                call(progress_callback=call.emitProgressChanged)
                 self.results = call.get_result(processEvents=True)
             except obiArrayExpress.GeneAtlasError, ex:
                 self.error(0, str(ex))
             finally:
                 self.controlArea.setEnabled(True)
                 self.update_info_box(query_running=False)
+                self.progressBarFinished()
             
             self.query_genes = genes
         
