@@ -75,6 +75,16 @@ class PPIDatabase(object):
         """ Return a list of all edges (a list of 3-tuples (id1, id2, score)).
         """
         raise NotImplementedError
+    
+    def all_edges_annotated(self, taxid=None):
+        """ Return a list of all edges annotated. If taxid is not None
+        return the edges for this organism only.
+        
+        """
+        res = []
+        for id in self.ids(taxid):
+            res.extend(self.edges_annotated(id))
+        return res
         
     def edges_annotated(self, id=None):
         """ Return a list of all edges annotated
@@ -253,6 +263,27 @@ class BioGRID(PPIDatabase):
         """, (id, id))
         return cur.fetchall() 
         
+    def all_edges_annotated(self, taxid=None):
+        """ Return a list of all edges annotated. If taxid is not None
+        return the edges for this organism only.
+        
+        """
+        if taxid is not None:
+            cur = self.db.execute("""\
+                select *
+                from links left join proteins on 
+                    biogrid_id_interactor_a=biogrid_id_interactor or
+                    biogrid_id_interactor_b=biogrid_id_interactor
+                where organism_interactor=?
+            """, (taxid,))
+        else:
+            cur = self.db.execute("""\
+                select *
+                from links
+            """)
+        edges = cur.fetchall()
+        return edges
+        
         
     def edges_annotated(self, id):
         """ Return a list of all links
@@ -278,7 +309,7 @@ class BioGRID(PPIDatabase):
                       systematic_name_interactor=? or
                       official_symbol_interactor=? or
                       synonyms_interactor=?
-            """ (id,) * 5)
+            """, (id,) * 5)
     
     @classmethod
     def download_data(cls, address):
@@ -502,6 +533,16 @@ class STRING(PPIDatabase):
             where protein_id1=?
             """, (id,))
         return cur.fetchall()
+    
+    def all_edges_annotated(self, taxid=None):
+        """ Return a list of all edges annotated. If taxid is not None
+        return the edges for this organism only.
+        
+        """
+        res = []
+        for id in self.ids(taxid):
+            res.extend(self.edges_annotated(id))
+        return res
         
     def edges_annotated(self, id):
         """ Return a list of all edges annotated.
