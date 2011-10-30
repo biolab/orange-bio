@@ -98,7 +98,24 @@ c = [1.0]
 for m in range(2, 100000):
     c.append( c[-1] + 1.0/m)
 
-def FDR(p_values, dependent=False, m=None):
+def is_sorted(l):
+    return all(l[i] <= l[i+1] for i in xrange(len(l)-1))
+
+def FDR(p_values, dependent=False, m=None, ordered=False):
+    """
+    If the user is sure that pvalues as already sorted nondescendingly
+    setting ordered=True will make the computation faster.
+    """
+
+    if not ordered:
+        ordered = is_sorted(p_values)
+
+    if not ordered:
+        joined = [ (v,i) for i,v in enumerate(p_values) ]
+        joined.sort()
+        p_values = [ p[0] for p in joined ]
+        indices = [ p[1] for p in joined ]
+
     if not m:
         m = len(p_values)
     if m <= 0 or not p_values:
@@ -115,6 +132,13 @@ def FDR(p_values, dependent=False, m=None):
         cmin = min(f, cmin)
         fdrs.append( cmin)
     fdrs.reverse()
+
+    if not ordered:
+        new = [ None ] * len(fdrs)
+        for v,i in zip(fdrs, indices):
+            new[i] = v
+        fdrs = new
+
     return fdrs
 
 def Bonferroni(p_values, m=None):
