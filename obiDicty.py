@@ -12,6 +12,7 @@ import pickle
 defaddress = "http://bcm.fri.uni-lj.si/microarray/api/index.php?"
 #defaddresspipa = "https://pipa.fri.uni-lj.si/pipa/script/api/orange.py?action="
 defaddresspipa = "https://pipa.fri.uni-lj.si/PIPA/PIPAapi/PIPAorange.py"
+defaddresspipa_coverage = "https://pipa.biolab.si/tbrowse/api/pipa.py"
 
 pipaparuser = "pipa_username"
 pipaparpass = "pipa_password"
@@ -308,14 +309,16 @@ class DBCommon(object):
             self.toBuffer(bufkey, res, bufver)
         return res
 
-    def sq(self, s1, data=None, buffer=True, bufadd="", bufname=None, bufver="0", reload=False, bufferkey=None):
+    def sq(self, s1, data=None, buffer=True, bufadd="", bufname=None, bufver="0", reload=False, bufferkey=None, db=None):
+        if db == None:
+            db = self.db
         if buffer:
             bufkey = bufadd + (bufname if bufname != None else s1)
             if bufferkey != None:
                 bufkey = bufferkey(bufkey, data)
-            res = self.bufferFun(bufkey, bufver, reload, self.db.get, s1, data=data)
+            res = self.bufferFun(bufkey, bufver, reload, db.get, s1, data=data)
         else:
-            res = self.db.get(s1, data=data)
+            res = db.get(s1, data=data)
         return res[1:],res[0]
 
     def inBuffer(self, addr):
@@ -550,6 +553,7 @@ class PIPA(DBCommon):
     def __init__(self, address=defaddresspipa, buffer=None, username=None, password=None):
         self.address = address
         self.db=DBInterface(address)
+        self.db_coverage=DBInterface(defaddresspipa_coverage) #temporary
         self.buffer = buffer
         self.username = None
         if username != None:
@@ -594,6 +598,32 @@ class PIPA(DBCommon):
         antss = self.downloadMulti("", ids, data=self.add_auth(datadict), chunk=10, separatefn=separatefn, bufferkey=bufferkeypipa, bufreload=reload, bufver=bufver)
         for a,legend in antss:
             yield a
+
+    def coverage(self, id_, genome, chromosome, reload=False, bufver="0"):
+        data = self.add_auth({"action": "coverage_strand", "chr_name": str(chromosome), 
+            "pixel_size": "1", "genome": genome, "sample_id": str(id_) })
+
+        def comp():
+
+            d = dict(data)
+
+            def get():
+                #sq returns [ "all lines after first", "firstline"] - take first column!
+                #do not use buffering on this stage!
+                a = self.sq("", data=d, reload=reload, buffer=False, bufferkey=bufferkeypipa, bufver=bufver, db=self.db_coverage)[1][0].strip("[]")
+                return map(int, a.split(", "))
+                
+            d["strand"] = "plus"
+            plus = get()
+            d["strand"] = "minus"
+            minus = get()
+
+            import numpy
+            return numpy.array([plus, minus])
+        
+        bufkey =  bufferkeypipa("", data)
+        return self.bufferFun(bufkey, bufver, reload, comp)
+
 
     def gene_expression_types(self, reload=False, bufver="0"):
         #res, legend = self.sq("gene_expression_type", data={self.add_auth(), reload=reload, bufferkey=bufferkeypipa, bufver=bufver)
@@ -1529,7 +1559,11 @@ if __name__=="__main__":
 
     print d.gene_expression_types()
 
+    cov = d.coverage("777", chromosome=1, genome="dd")
+    print cov
+
     allids = d.annotations().keys()
+    allids = allids[:1]
     print ("list", allids)
     print d.annotations().items()[0]
     print ("annots", d.annotations().items()[:2])
