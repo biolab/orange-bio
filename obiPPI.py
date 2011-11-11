@@ -15,6 +15,7 @@ import orngServerFiles
 from obiKEGG import downloader
 
 from collections import defaultdict
+from operator import itemgetter
 
 import obiTaxonomy
 from obiTaxonomy import pickled_cache
@@ -97,6 +98,24 @@ class PPIDatabase(object):
          
         """
         raise NotImplementedError
+    
+    def extract_network(self, ids):
+        """
+        """
+        from Orange import network
+        
+        graph = network.Graph()
+        for id in ids:
+            graph.add_node(id, synonyms=",".join(self.synonyms(id)))
+            
+        for id in ids:
+            edges = self.edges(id)
+            
+            for id1, id2, score in edges:
+                graph.add_edge(id1, id2, weight=score)
+                
+        return graph
+        
     
     @classmethod
     def download_data(self):
@@ -226,8 +245,11 @@ class BioGRID(PPIDatabase):
             where biogrid_id_interactor=?
             """, (id,))
         rec = cur.fetchone()
-        synonyms = list(rec[:-1]) + (rec[-1].split("|") if rec[-1] is not None else [])
-        return [s for s in synonyms if s is not None]
+        if rec:
+            synonyms = list(rec[:-1]) + (rec[-1].split("|") if rec[-1] is not None else [])
+            return [s for s in synonyms if s is not None]
+        else:
+            return []
     
     def all_edges(self, taxid=None):
         """ Return a list of all edges. If taxid is not None return the
@@ -300,16 +322,31 @@ class BioGRID(PPIDatabase):
         primary ids. Use `taxid` to limit the results to a single organism.
          
         """
+        # TODO: synonyms_interactor can contain multiple synonyms
+        # (should create an indexed table of synonyms)
         if taxid is None:
-            self.db.execute("""\
+            cur = self.db.execute("""\
                 select biogrid_id_interactor
                 from proteins
-                where biogrid_id_interactor=? or
-                      entrez_id_interactor=? or
-                      systematic_name_interactor=? or
-                      official_symbol_interactor=? or
-                      synonyms_interactor=?
-            """, (id,) * 5)
+                where (biogrid_id_interactor=? or
+                       entrez_gene_interactor=? or
+                       systematic_name_interactor=? or
+                       official_symbol_interactor=? or
+                       synonyms_interactor=?)
+            """, ((name,) * 5))
+        else:
+            cur = self.db.execute("""\
+                select biogrid_id_interactor
+                from proteins
+                where (biogrid_id_interactor=? or
+                       entrez_gene_interactor=? or
+                       systematic_name_interactor=? or
+                       official_symbol_interactor=? or
+                       synonyms_interactor=?)
+                      and organism_interactor=? 
+            """, ((name,) * 5) + (taxid,))
+        res = map(itemgetter(0), cur)
+        return res 
     
     @classmethod
     def download_data(cls, address):
@@ -424,7 +461,9 @@ STRINGInteraction = namedtuple("STRINGInteraciton",
 
 class STRING(PPIDatabase):
     """ Access `STRING <http://www.string-db.org/>`_ PPI database.
+    """
     
+    DATABASE_SCHEMA = """\
     Database schema
     ---------------
     table `links`:
@@ -548,15 +587,30 @@ class STRING(PPIDatabase):
         """ Return a list of all edges annotated.
         """
         cur = self.db.execute("""\
-        select links.protein_id1, links.protein_id2, links.score, 
-               actions.action, actions.mode, actions.score
-        from links left join actions on 
-               links.protein_id1=actions.protein_id1 and
-               links.protein_id2=actions.protein_id2
-        where links.protein_id1=?
+            select links.protein_id1, links.protein_id2, links.score, 
+                   actions.action, actions.mode, actions.score
+            from links left join actions on 
+                   links.protein_id1=actions.protein_id1 and
+                   links.protein_id2=actions.protein_id2
+            where links.protein_id1=?
         """, (id,))
         return map(partial(apply,STRINGInteraction), cur.fetchall())
     
+    def search_id(self, name, taxid=None):
+        if taxid is None:
+            cur = self.db.execute("""\
+                select proteins.protein_id
+                from proteins natural join aliases 
+                where aliases.alias=?
+            """, (name,))
+        else:
+            cur = self.db.execute("""\
+                select proteins.protein_id
+                from proteins natural join aliases 
+                where aliases.alias=? and proteins.taxid=?
+            """, (name, taxid))
+        return map(itemgetter(0), cur)
+        
     @classmethod
     def download_data(cls, version, taxids=None):
         """ Download the  PPI data for local work (this may take some time).
@@ -749,38 +803,32 @@ class STRING(PPIDatabase):
             con.executemany("insert into aliases values (?, ?)", read_aliases(reader))
 
             print "Indexing the database"
-            self.init_db_index()
             
-        progress.finish()
-        
-    def init_db_index(self):
-        """ Will create indexes (if not already pressent) in the database
-        for faster searching by primary ids.
-        
-        """
-        self.db.execute("""\
+            con.execute("""\
             create index if not exists index_link_protein_id1
                 on links (protein_id1)""")
         
-        self.db.execute("""\
-            create index if not exists index_action_protein_id1
-                on actions (protein_id1)""")
-        
-        self.db.execute("""\
-            create index if not exists index_proteins_id
-                on proteins (protein_id)""")
-        
-        self.db.execute("""\
-            create index if not exists index_taxids
-                on proteins (taxid)""")
-        
-        self.db.execute("""\
-            create index if not exists index_aliases_id
-                on aliases (protein_id)""")
-        
-        self.db.execute("""\
-            create index if not exists index_aliases_alias
-                on aliases (alias)""")
+            con.execute("""\
+                create index if not exists index_action_protein_id1
+                    on actions (protein_id1)""")
+            
+            con.execute("""\
+                create index if not exists index_proteins_id
+                    on proteins (protein_id)""")
+            
+            con.execute("""\
+                create index if not exists index_taxids
+                    on proteins (taxid)""")
+            
+            con.execute("""\
+                create index if not exists index_aliases_id
+                    on aliases (protein_id)""")
+            
+            con.execute("""\
+                create index if not exists index_aliases_alias
+                    on aliases (alias)""")
+            
+        progress.finish()
         
         
 class Interaction(object):
