@@ -10,7 +10,10 @@ from OWDatabasesUpdate import *
 
 class OWUpdateGenomicsDatabases(OWDatabasesUpdate): 
     def __init__(self, parent=None, signalManager=None, name="Databases", **kwds):
-        OWDatabasesUpdate.__init__(self, parent, signalManager, name, domains = ["GO", "KEGG", "MeSH", "Taxonomy", "NCBI_geneinfo", "GEO", "dictybase", "OMIM", "HomoloGene", "Affy", "miRNA", "gene_sets"], **kwds)
+        OWDatabasesUpdate.__init__(self, parent, signalManager, name, domains = \
+                ["GO", "KEGG", "MeSH", "Taxonomy", "NCBI_geneinfo", "GEO", 
+                 "dictybase", "OMIM", "HomoloGene", "Affy", "miRNA", "gene_sets",
+                 "PPI"], **kwds)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
