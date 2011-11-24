@@ -868,16 +868,20 @@ class STRING(PPIDatabase):
         progress.finish()
         
 
-STRINGNonCommercialInteraction = namedtuple("STRINGNonCommercialInteraction",
+STRINGDetailedInteraction = namedtuple("STRINGDetailedInteraction",
         ["protein_id1", "protein_id2", "combined_score", "mode",
          "action", "score", "neighborhood", "fusion", "cooccurence", 
          "coexpression", "experimental", "database", "textmining"
          ])
 
-class STRINGNonCommercial(STRING):
-    """ The Creative Commons Attribution-Noncommercial-Share 
-    Alike licensed part of STRING.
+class STRINGDetailed(STRING):
+    """  Access `STRING <http://www.string-db.org/>`_ PPI database.
+    This class also allows access to subscores per channel.
     
+    .. note:: This data is released under a 
+        `Creative Commons Attribution-Noncommercial-Share Alike 3.0 License <http://creativecommons.org/licenses/by-nc-sa/3.0/>`_.
+        If you want to use this data for commercial purpuses 
+        you must get a license from STRING.
     
     """
     
@@ -897,14 +901,14 @@ class STRINGNonCommercial(STRING):
         - `textmining`: score (int)
         
     """
-    FILENAME_NC = "string-protein-NC.sqlite"
+    FILENAME_DETAILED = "string-protein-detailed.sqlite"
     
     def __init__(self):
         STRING.__init__(self)
-        db_nc_file = orngServerFiles.localpath(self.DOMAIN, self.FILENAME_NC)
         db_file = orngServerFiles.localpath(self.DOMAIN, self.FILENAME)
-        self.db_nc = sqlite3.connect(db_nc_file)
-        self.db_nc.execute("ATTACH DATABASE ? as string", (db_file,))
+        db_detailed_file = orngServerFiles.localpath_download(self.DOMAIN, self.FILENAME_DETAILED)
+        self.db_detailed = sqlite3.connect(db_detailed_file)
+        self.db_detailed.execute("ATTACH DATABASE ? as string", (db_file,))
         
     def edges_annotated(self, id):
         """ Return a list of all edges annotated.
@@ -913,7 +917,7 @@ class STRINGNonCommercial(STRING):
         edges_nc = []
         for edge in edges:
             id1, id2 = edge.protein_id1, edge.protein_id2
-            cur = self.db_nc.execute("""\
+            cur = self.db_detailed.execute("""\
                 SELECT neighborhood, fusion, cooccurence, coexpression,
                        experimental, database, textmining
                 FROM evidence
@@ -925,7 +929,7 @@ class STRINGNonCommercial(STRING):
             else:
                 evidence = [0] * 7
             edges_nc.append(
-                STRINGNonCommercialInteraction(*(tuple(edge) + tuple(evidence)))
+                STRINGDetailedInteraction(*(tuple(edge) + tuple(evidence)))
             )
         return edges_nc
         
@@ -968,7 +972,7 @@ class STRINGNonCommercial(STRING):
         
         links_file = open(links_filename, "rb")
         
-        con = sqlite3.connect(os.path.join(dir, cls.FILENAME_NC))
+        con = sqlite3.connect(os.path.join(dir, cls.FILENAME_DETAILED))
         with con:
             con.execute("""\
                 DROP TABLE IF EXISTS evidence
