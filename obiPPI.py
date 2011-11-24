@@ -20,7 +20,7 @@ from operator import itemgetter
 import obiTaxonomy
 from obiTaxonomy import pickled_cache
 
-from Orange.misc import lru_cache
+from Orange.misc import lru_cache, ConsoleProgressBar
 
 import sqlite3
 import urllib2
@@ -455,6 +455,25 @@ class BioGRID(PPIDatabase):
 from collections import namedtuple
 from functools import partial
 
+from obiGeneMania import wget, copyfileobj
+
+def chainiter(iterable):
+    for sub_iter in iterable:
+        for obj in sub_iter:
+            yield obj
+
+def chunks(iter, chunk_size=1000):
+    chunk = []
+    i = 0
+    for obj in iter:
+        chunk.append(obj)
+        if len(chunk) == chunk_size:
+            yield chunk
+            chunk = []
+    if chunk:
+        # The remaining items if any
+        yield chunk
+    
 STRINGInteraction = namedtuple("STRINGInteraciton",
         ["protein_id1", "protein_id2", "combined_score", "mode",
          "action", "score"])
@@ -484,12 +503,13 @@ class STRING(PPIDatabase):
         
     table `aliases`:
         - `protein_id: id (text)
-        - `alias`: protein alias (text) 
+        - `alias`: protein alias (text)
+        - `source`: protein alias source (text)
         
     """
     DOMAIN = "PPI"
     FILENAME = "string-protein.sqlite"
-    VERSION = "1.0"
+    VERSION = "2.0"
     
     # Mapping from obiTaxonomy.common_taxids() to taxids in STRING.
      
@@ -507,6 +527,12 @@ class STRING(PPIDatabase):
         self.filename = orngServerFiles.localpath_download(self.DOMAIN, self.FILENAME)
         self.db = sqlite3.connect(self.filename)
         
+    @classmethod
+    def common_taxids(cls):
+        common = obiTaxonomy.common_taxids()
+        common = [cls.TAXID_MAP.get(id, id) for id in common]
+        return filter(None, common)
+    
     def organisms(self):
         """ Return all organism taxids contained in this database.
         """
@@ -541,6 +567,19 @@ class STRING(PPIDatabase):
             """, (id,))
         res = cur.fetchall()
         return [r[0] for r in res]
+    
+    def synonyms_with_source(self, id):
+        """ Return a list of synonyms for primary `id` along 
+        with its source as reported by STRING 
+        (proteins.aliases.{version}.txt file)
+        
+        """
+        cur = self.db.execute("""\
+            select alias, source
+            from aliases
+            where protein_id=?
+            """, (id,))
+        return cur.fetchall()
     
     def all_edges(self, taxid=None):
         """ Return a list of all edges. If taxid is not None return the
@@ -621,29 +660,19 @@ class STRING(PPIDatabase):
         
         """
         dir = orngServerFiles.localpath("PPI")
-        
-        def download(address, dir):
-            stream = urllib2.urlopen(address)
-            basename = posixpath.basename(address)
-            tmpfilename = os.path.join(dir, basename + ".part")
-            tmpfile = open(tmpfilename, "wb")
-            shutil.copyfileobj(stream, tmpfile)
-            tmpfile.close()
-            os.rename(tmpfilename, os.path.join(dir, basename))
-        base_url = "http://www.string-db.org/newstring_download/" #protein.links.v9.0.txt.gz
+
+        base_url = "http://www.string-db.org/newstring_download/"
         links = base_url + "protein.links.{version}.txt.gz"
         actions = base_url + "protein.actions.{version}.txt.gz"
         aliases = base_url + "protein.aliases.{version}.txt.gz"
         
-        download(links.format(version=version), dir)
-        download(actions.format(version=version), dir)
-        download(aliases.format(version=version), dir)
+        wget(links.format(version=version), dir, progress=True)
+        wget(actions.format(version=version), dir, progress=True)
+        wget(aliases.format(version=version), dir, progress=True)
         
         links_filename = os.path.join(dir, "protein.links.{version}.txt".format(version=version))
-        actions_filename = os.path.join(dir, "protein.links.{version}.txt".format(version=version))
+        actions_filename = os.path.join(dir, "protein.actions.{version}.txt".format(version=version))
         aliases_filename = os.path.join(dir, "protein.aliases.{version}.txt".format(version=version))
-        
-        from orngMisc import ConsoleProgressBar
         
         progress = ConsoleProgressBar("Extracting files:")
         progress(1.0)
@@ -653,12 +682,10 @@ class STRING(PPIDatabase):
         progress(60.0)
         actions_file = gzip.GzipFile(actions_filename + ".gz", "rb")
         shutil.copyfileobj(actions_file, open(actions_filename, "wb"))
-        actions_file = open(actions_filename, "rb")
-#        
+        
         progress(90.0)
         aliases_file = gzip.GzipFile(aliases_filename + ".gz", "rb")
         shutil.copyfileobj(aliases_file, open(aliases_filename, "wb"))
-        aliases_file = open(aliases_filename, "rb")
         progress.finish()
         
         cls.init_db(version, taxids)
@@ -690,19 +717,17 @@ class STRING(PPIDatabase):
         actions_file = open(actions_filename, "rb")
         aliases_file = open(aliases_filename, "rb")
         
-        from orngMisc import ConsoleProgressBar
-        
-        progress = ConsoleProgressBar("Processing links file:")
+        progress = ConsoleProgressBar("Processing links:")
         progress(0.0)
         filesize = os.stat(links_filename).st_size
         
         if taxids:
             taxids = set(taxids)
         else:
-            taxids = [cls.TAXID_MAP.get(id, id) for id in obiTaxonomy.common_taxids()]
-            taxids = set(filter(None, taxids))
+            taxids = set(cls.common_taxids())
                         
         con = sqlite3.connect(orngServerFiles.localpath(cls.DOMAIN, cls.FILENAME))
+        
         with con:
             con.execute("drop table if exists links")
             con.execute("drop table if exists proteins")
@@ -712,7 +737,7 @@ class STRING(PPIDatabase):
             con.execute("create table links (protein_id1 text, protein_id2 text, score int)")
             con.execute("create table proteins (protein_id text, taxid text)")
             con.execute("create table actions (protein_id1 text, protein_id2 text, mode text, action text, score int)")
-            con.execute("create table aliases (protein_id text, alias text)")
+            con.execute("create table aliases (protein_id text, alias text, source text)")
             
             header = links_file.readline() # read the header
             
@@ -722,10 +747,9 @@ class STRING(PPIDatabase):
             def read_links(reader, chunk_size=1000000):
                 links = []
                 i = 0
+                split = str.split
                 for p1, p2, score in reader:
-                    taxid1 = p1.split(".", 1)[0]
-                    taxid2 = p2.split(".", 1)[0]
-                    if taxid1 in taxids and taxid2 in taxids:
+                    if split(p1, ".", 1)[0] in taxids and split(p2, ".", 1)[0] in taxids:
                         links.append((intern(p1), intern(p2), int(score)))
                         if len(links) == chunk_size:
                             yield links
@@ -738,8 +762,6 @@ class STRING(PPIDatabase):
             
             for chunk in read_links(reader):
                 con.executemany("insert into links values (?, ?, ?)", chunk)
-                
-            con.commit()
             
             progress.finish()
             
@@ -757,8 +779,7 @@ class STRING(PPIDatabase):
                 return protein_taxids
             
             con.executemany("insert into proteins values (?, ?)", protein_taxids(proteins))
-    
-            con.commit()
+            
             progress.finish()
             
             filesize = os.stat(actions_filename).st_size
@@ -770,10 +791,9 @@ class STRING(PPIDatabase):
             def read_actions(reader):
                 actions = []
                 i = 0
+                split = str.split
                 for p1, p2, mode, action, a_is_acting, score in reader:
-                    taxid1 = p1.split(".", 1)[0]
-                    taxid2 = p2.split(".", 1)[0]
-                    if taxid1 in taxids and taxid2 in taxids:
+                    if split(p1, ".", 1)[0] in taxids and split(p2, ".", 1)[0] in taxids:
                         actions.append((intern(p1), intern(p2), mode, action, int(score)))
                     i += 1
                     if i % 1000 == 0:
@@ -782,7 +802,7 @@ class STRING(PPIDatabase):
                 return actions
             
             con.executemany("insert into actions values (?, ?, ?, ?, ?)", read_actions(reader))
-            con.commit()
+            
             progress.finish()
             
             filesize = os.stat(aliases_filename).st_size
@@ -795,12 +815,17 @@ class STRING(PPIDatabase):
                 i = 0
                 for taxid, name, alias, source in reader:
                     if taxid in taxids:
-                        yield ".".join([taxid, name]), alias.decode("utf-8", errors="ignore")
+                        yield (".".join([taxid, name]), 
+                               alias.decode("utf-8", errors="ignore"), 
+                               source.decode("utf-8", errors="ignore"),
+                               )
                     i += 1
                     if i % 1000 == 0:
                         progress(100.0 * aliases_file.tell() / filesize)
                         
-            con.executemany("insert into aliases values (?, ?)", read_aliases(reader))
+            con.executemany("insert into aliases values (?, ?, ?)", read_aliases(reader))
+            
+            progress.finish()
 
             print "Indexing the database"
             
@@ -828,7 +853,187 @@ class STRING(PPIDatabase):
                 create index if not exists index_aliases_alias
                     on aliases (alias)""")
             
+            con.executescript("""
+                DROP TABLE IF EXISTS version;
+                
+                CREATE TABLE version (
+                     string_version text,
+                     api_version text
+                );""")
+            
+            con.execute("""
+                INSERT INTO version
+                VALUES (?, ?)""", (version, cls.VERSION))
+            
         progress.finish()
+        
+
+STRINGNonCommercialInteraction = namedtuple("STRINGNonCommercialInteraction",
+        ["protein_id1", "protein_id2", "combined_score", "mode",
+         "action", "score", "neighborhood", "fusion", "cooccurence", 
+         "coexpression", "experimental", "database", "textmining"
+         ])
+
+class STRINGNonCommercial(STRING):
+    """ The Creative Commons Attribution-Noncommercial-Share 
+    Alike licensed part of STRING.
+    
+    
+    """
+    
+    DATABASE_SCHEMA = """\
+    DATABASE SCHEMA
+    ===============
+    
+    table `evidence`:
+        - `protein_id1`: protein id (text)
+        - `protein_id2`: protein id (text)
+        - `neighborhood`: score (int)
+        - `fusion`: score (int)
+        - `cooccurence`: score (int)
+        - `coexpression`: score (int)
+        - `experimental`: score (int)
+        - `database`: score (int)
+        - `textmining`: score (int)
+        
+    """
+    FILENAME_NC = "string-protein-NC.sqlite"
+    
+    def __init__(self):
+        STRING.__init__(self)
+        db_nc_file = orngServerFiles.localpath(self.DOMAIN, self.FILENAME_NC)
+        db_file = orngServerFiles.localpath(self.DOMAIN, self.FILENAME)
+        self.db_nc = sqlite3.connect(db_nc_file)
+        self.db_nc.execute("ATTACH DATABASE ? as string", (db_file,))
+        
+    def edges_annotated(self, id):
+        """ Return a list of all edges annotated.
+        """
+        edges = STRING.edges_annotated(self, id)
+        edges_nc = []
+        for edge in edges:
+            id1, id2 = edge.protein_id1, edge.protein_id2
+            cur = self.db_nc.execute("""\
+                SELECT neighborhood, fusion, cooccurence, coexpression,
+                       experimental, database, textmining
+                FROM evidence
+                WHERE protein_id1=? AND protein_id2=?
+                """, (id1, id2))
+            res = cur.fetchone()
+            if res:
+                evidence = res
+            else:
+                evidence = [0] * 7
+            edges_nc.append(
+                STRINGNonCommercialInteraction(*(tuple(edge) + tuple(evidence)))
+            )
+        return edges_nc
+        
+    @classmethod
+    def download_data(cls, version, taxids=None):
+        import gzip, shutil, csv
+        
+        baseurl = "http://www.string-db.org/newstring_download/"
+        links_filename = "protein.links.detailed.{version}.txt.gz".format(version=version)
+        
+        dir = orngServerFiles.localpath(cls.DOMAIN)
+        local_filename = os.path.join(dir, links_filename)
+         
+        if not os.path.exists(local_filename):
+            wget(baseurl + links_filename, dir, progress=True)
+        else:
+            print "Already downloaded - skiping"
+            
+        gz = gzip.open(os.path.join(dir, links_filename), "rb")
+
+        # Strip .gz extension
+        links_filename = os.path.join(dir, os.path.splitext(links_filename)[0])
+        if not os.path.exists(links_filename):
+            shutil.copyfileobj(gz, open(links_filename))
+        
+        cls.init_db(version, taxids)
+            
+    @classmethod
+    def init_db(cls, version, taxids=None):
+        import csv
+        dir = orngServerFiles.localpath(cls.DOMAIN)
+        
+        links_filename = "protein.links.detailed.{version}.txt".format(version=version)
+        links_filename = os.path.join(dir, links_filename)
+        
+        if taxids:
+            taxids = set(taxids)
+        else:
+            taxids = set(cls.common_taxids())
+        
+        links_file = open(links_filename, "rb")
+        
+        con = sqlite3.connect(os.path.join(dir, cls.FILENAME_NC))
+        with con:
+            con.execute("""\
+                DROP TABLE IF EXISTS evidence
+            """)
+            
+            con.execute("""\
+                CREATE TABLE evidence(
+                     protein_id1 TEXT,
+                     protein_id2 TEXT,
+                     neighborhood INTEGER, 
+                     fusion INTEGER,
+                     cooccurence INTEGER,
+                     coexpression INTEGER,
+                     experimental INTEGER,
+                     database INTEGER,
+                     textmining INTEGER
+                    )
+                """)
+            
+            links = csv.reader(links_file, delimiter=" ")
+            links.next() # Read header
+            filesize = os.stat(links_filename).st_size
+            
+            progress = ConsoleProgressBar("Processing links file:")
+            progress(1.0)
+            
+            def read_links(reader, chunk_size=100000):
+                split = str.split
+                for links in chunks(reader, chunk_size):
+                    chunk = []
+                    for p1, p2, n, f, c, cx, ex, db, t, _ in links:
+                        if split(p1, ".", 1)[0] in taxids and split(p2, ".", 1)[0] in taxids:
+                            chunk.append((intern(p1), intern(p2), n, f, c, cx, ex, db, t))
+                        
+                    progress(100.0 * links_file.tell() / filesize)
+                    if chunk:
+                        yield chunk
+            
+            # The links are read in chunks for better performace 
+            for chunk in read_links(links):
+                con.executemany("""
+                    INSERT INTO evidence 
+                    VALUES  (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, chunk)
+        
+            progress.finish()
+            
+            print "Indexing"
+            con.execute("""\
+                CREATE INDEX IF NOT EXISTS index_evidence
+                    ON evidence (protein_id1, protein_id2)
+            """)
+            
+            con.executescript("""
+                DROP TABLE IF EXISTS version;
+                
+                CREATE TABLE version (
+                     string_version text,
+                     api_version text
+                );
+                """)
+            
+            con.execute("""
+                INSERT INTO version
+                VALUES (?, ?)""", (version, cls.VERSION))
         
         
 class Interaction(object):
