@@ -579,7 +579,9 @@ class STRING(PPIDatabase):
             from aliases
             where protein_id=?
             """, (id,))
-        return cur.fetchall()
+        res = cur.fetchall()
+        return [(syn, set(source.split(" "))) \
+                for syn, source in res]
     
     def all_edges(self, taxid=None):
         """ Return a list of all edges. If taxid is not None return the
