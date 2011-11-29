@@ -1,6 +1,7 @@
 import orngServerFiles
 import sys, os
 import urllib2
+import shutil
 import re
 
 from collections import defaultdict
@@ -23,12 +24,23 @@ class OMIM(object):
     VERSION = 1
     DEFAULT_DATABASE_PATH = orngServerFiles.localpath("OMIM")
     def __init__(self, local_database_path=None):
-        self.local_database_path = local_database_path if local_database_path else self.DEFAULT_DATABASE_PATH
-        self.load()
+        self.local_database_path = local_database_path if local_database_path is not None else self.DEFAULT_DATABASE_PATH
+        
+        if not os.path.exists(self.local_database_path):
+            os.makedirs(self.local_database_path)
+            
+        filename = os.path.join(self.local_database_path, "morbidmap")
+        if not os.path.exists(filename):
+            stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/repository/OMIM/ARCHIVE/morbidmap")
+            with open(filename, "wb") as file:
+                shutil.copyfileobj(stream, file, length=10)
+            
+            
+        self.load(filename)
     
     @classmethod
     def download_from_NCBI(cls, file=None):
-        data = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/repository/OMIM/morbidmap").read()
+        data = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/repository/OMIM/ARCHIVE/morbidmap").read()
         if file is None:
             if not os.path.exists(cls.DEFAULT_DATABASE_PATH):
                 os.mkdir(cls.DEFAULT_DATABASE_PATH)
@@ -46,9 +58,9 @@ class OMIM(object):
         instance.__dict__ = cls._shared_dict
         return instance 
     
-    def load(self):
-        orngServerFiles.localpath_download("OMIM", "morbidmap")
-        lines = open(os.path.join(self.local_database_path, "morbidmap")).read().split("\n")
+    def load(self, filename):
+        file = open(filename, "rb")
+        lines = file.read().split("\n")
         self._disease_dict = dict([(disease(line), line) for line in lines if line])
         
     def diseases(self):
