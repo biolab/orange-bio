@@ -41,7 +41,7 @@ class MyTreeWidgetItem(QTreeWidgetItem):
  
     def __lt__(self, o1):
         col = self.par.sortColumn()
-        if col in [7,8,9]: #WARNING: hardcoded column numbers
+        if col in [8,9,10]: #WARNING: hardcoded column numbers
             return tfloat(self.text(col)) < tfloat(o1.text(col))
         else:
             return QTreeWidgetItem.__lt__(self, o1)
@@ -159,7 +159,7 @@ class SelectionSetsWidget(QFrame):
         self.connect(self.selectionModel, SIGNAL("selectionChanged(QItemSelection, QItemSelection)"), self._onSelectionChanged)
         
     def addCurrentSelection(self):
-        item = self.addSelection(SelectionByKey(self.selectionModel.selection(), name="New selection", key=(1, 2, 3, 9)))
+        item = self.addSelection(SelectionByKey(self.selectionModel.selection(), name="New selection", key=(1, 2, 3 ,10)))
         index = self._proxyModel.mapFromSource(item.index())
         self._setListView.setCurrentIndex(index)
         self._setListView.edit(index)
@@ -404,7 +404,7 @@ class OWPIPA(OWWidget):
         self.joinreplicates = False
         self.currentSelection = None
         
-        self.experimentsHeaderState = {"": False, "Name":False, "Species": False, "Strain": False, "Genotype": False, "Treatment": False,
+        self.experimentsHeaderState = {"": False, "Name":False, "Species": False, "Strain": False, "Experiment":False, "Genotype": False, "Treatment": False,
                                        "Growth": False, "Timepoint": False, "Replicate": False, "ID": False}
 
         self.exTypes  = []
@@ -427,8 +427,8 @@ class OWPIPA(OWWidget):
         self.columnsSortingWidget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
 #        self.controlArea.layout().addWidget(self.columnsSortingWidget)
         b.layout().addWidget(self.columnsSortingWidget)
-        self.columnsSortingWidget.setModel(QStringListModel(["Strain", "Genotype", "Timepoint", "Growth", "Species", "Id", "Name"]))
-        self.columnsSortingWidget.sortingOrder = ["Strain", "Genotype", "Timepoint"]
+        self.columnsSortingWidget.setModel(QStringListModel(["Strain", "Experiment", "Genotype", "Timepoint", "Growth", "Species", "Id", "Name"]))
+        self.columnsSortingWidget.sortingOrder = ["Strain", "Experiment", "Genotype", "Timepoint"]
         OWGUI.rubber(self.controlArea)
 
         box = OWGUI.widgetBox(self.controlArea, 'Expression Type')
@@ -454,7 +454,7 @@ class OWPIPA(OWWidget):
         self.passf.setEchoMode(QLineEdit.Password)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search", callbackOnType=True, callback=self.SearchUpdate)
-        self.headerLabels = ["", "Name", "Species", "Strain", "Genotype", "Treatment", "Growth", "Timepoint", "Replicate", "ID",
+        self.headerLabels = ["", "Name", "Species", "Strain", "Experiment", "Genotype", "Treatment", "Growth", "Timepoint", "Replicate", "ID",
                              "Date RNA", "Adapter", "Who", "Date Rep", "Band", "Amount", "Experimenter","Polya", "Primer", "Shearing", "Unit"]
         self.experimentsWidget = QTreeWidget()
         self.experimentsWidget.setHeaderLabels(self.headerLabels)
@@ -605,7 +605,7 @@ class OWPIPA(OWWidget):
         for chip,annot in self.annots.items():
             pos += 1
             d = defaultdict(lambda: "?", annot)
-            elements.append(["", d["name"], d["species"], d["strain"], d["genotype"], d["treatment"], d["growth"], d["tp"], d["replicate"], chip] + \
+            elements.append(["", d["name"], d["species"], d["strain"], d["Experiment"], d["genotype"], d["treatment"], d["growth"], d["tp"], d["replicate"], chip] + \
                              [d[label.lower().replace(" ", "_")] for label in ["Date RNA", "Adapter", "Who", "Date Rep", "Band", "Amount", "Experimenter", "Polya", "Primer", "Shearing", "Unit"]])
             
 #            self.progressBarSet((100.0 * pos) / len(chips))
@@ -635,7 +635,7 @@ class OWPIPA(OWWidget):
             fn = self.dbc.chips_keynaming(self.ctype())
 
             for item in self.items:
-                c = str(item.text(9))
+                c = str(item.text(10))
                 item.setData(0, Qt.DisplayRole, QVariant(" " if self.dbc.inBuffer(fn(c)) == self.wantbufver(c) else ""))
 
     def SearchUpdate(self, string=""):
@@ -656,7 +656,7 @@ class OWPIPA(OWWidget):
 
         ids = []
         for item in self.experimentsWidget.selectedItems():
-            ids += [ str(item.text(9)) ]
+            ids += [ str(item.text(10)) ]
 
         transfn = None
         if self.log2:
@@ -665,7 +665,7 @@ class OWPIPA(OWWidget):
         keys = {"Strain": "strain", "Genotype": "genotype", "Treatment": "treatment", "Timepoint": "tp", "Growth": "growth", "Replicate": "replicate", 
                 "Species": "species", "Name": "name", "Date RNA": "date_rna", "Adapter":"adapter",
                 "Who": "who", "Date Rep": "date_rep", "Band": "band", "Amount": "amount", "Experimenter":"experimenter",
-                "Polya": "polya", "Primer": "primer", "Shearing": "shearing", "Unit": "unit"}
+                "Polya": "polya", "Primer": "primer", "Shearing": "shearing", "Unit": "unit", "Experiment":"Experiment"}
         
         hview = self.experimentsWidget.header()
         shownHeaders = [label for i, label in list(enumerate(self.headerLabels))[1:] if not hview.isSectionHidden(i)]
@@ -708,7 +708,7 @@ class OWPIPA(OWWidget):
         
     def handle_commit_button(self):
         self.currentSelection = SelectionByKey(self.experimentsWidget.selectionModel().selection(),
-                                               key=(1, 2, 3, 9))
+                                               key=(1, 2, 3, 10))
         self.commit_button.setDisabled(not len(self.currentSelection))
 
     def saveHeaderState(self):
