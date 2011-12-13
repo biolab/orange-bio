@@ -396,8 +396,7 @@ PPI Database interface
 
 """
 
-import obiPPI
-import orngServerFiles
+
 import sqlite3
 import csv
 import os
@@ -446,7 +445,8 @@ def copyfileobj(src, dst, buffer=2**10, content_len=None, progress=None):
             
 def wget(url, directory=".", dst_obj=None, progress=None):
     """
-    .. todo:: Move too Orange.misc
+    .. todo:: Move to Orange.misc
+    
     """
     stream = urllib2.urlopen(url)
     length = stream.headers.get("content-length", None)
@@ -470,6 +470,9 @@ def wget(url, directory=".", dst_obj=None, progress=None):
         copyfileobj(stream, dst_obj, buffer=2**10, content_len=length,
                     progress=progress)
     
+import obiPPI
+import orngServerFiles
+
 import obiTaxonomy
 from collections import namedtuple
 from operator import itemgetter
