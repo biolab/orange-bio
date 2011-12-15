@@ -173,7 +173,7 @@ class OWKEGGPathwayBrowser(OWWidget):
                                                    ContextField("geneAttrIndex", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes),
                                                    ContextField("useAttrNames", DomainContextHandler.Required + DomainContextHandler.IncludeMetaAttributes)])}
     def __init__(self, parent=None, signalManager=None, name="KEGG Pathways"):
-        OWWidget.__init__(self, parent, signalManager, name)
+        OWWidget.__init__(self, parent, signalManager, name, wantGraph=True)
         self.inputs = [("Examples", ExampleTable, self.SetData), ("Reference", ExampleTable, self.SetRefData)]
         self.outputs = [("Selected Examples", ExampleTable), ("Unselected Examples", ExampleTable)]
         self.organismIndex = 0
@@ -240,6 +240,8 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.listView.setMaximumHeight(200)
         
         self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.UpdatePathwayView)
+        
+        self.connect(self.graphButton, SIGNAL("clicked()"), self.saveGraph)
         
         self.ctrlPressed = False
         self.selectedObjects = defaultdict(list)
@@ -560,6 +562,10 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.pathwayView._userMessage = text
             self.pathwayView.viewport().update()
             
+    def saveGraph(self):
+        from OWDlgs import OWChooseImageSizeDlg
+        sizeDlg = OWChooseImageSizeDlg(self.pathwayView.scene(), parent=self)
+        sizeDlg.exec_()
 
 if __name__=="__main__":
     app = QApplication(sys.argv)
