@@ -4,8 +4,8 @@
 
 from OWWidget import *
 import OWGUI
-import orngNetwork
 import obiGeneMania
+import Orange
 
 import os, sys
 import multiprocessing
@@ -70,7 +70,7 @@ class OWGeneMania(OWWidget):
         OWWidget.__init__(self, parent, signalManager, name, wantMainArea=True)
         
         self.inputs = [("Input Genes", ExampleTable, self.setData)]
-        self.outputs = [("Network", orngNetwork.Network, Default), ("Items", ExampleTable)]
+        self.outputs = [("Network", Orange.network.Graph, Default), ("Items", ExampleTable)]
         
         self.serverAddress = obiGeneMania.DEFAULT_SERVER
         self.selectedOrganismIndex = 0
@@ -244,7 +244,7 @@ class OWGeneMania(OWWidget):
             # Qt's threading model)
             dom = obiGeneMania.minidom.parseString(xml)
             net = obiGeneMania.parse(dom)
-            items = net.items
+            items = net.items()
         except Exception, ex:
             self.error(0, "Failed to retrieve network from server!\n" + str(ex))
             sys.excepthook(*sys.exc_info())

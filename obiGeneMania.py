@@ -179,20 +179,31 @@ def parse(DOM):
     edgeTypes = set([int(data["networkGroupId"]) for data in allData])
     groupId2int = dict(zip(edgeTypes, range(len(edgeTypes))))
     groupId2groupCode = dict([(int(data["networkGroupId"]), str(data["networkGroupCode"])) for data in allData])
+    graphNode2nodeNumber = dict(zip(graphNodes, range(len(graphNodes))))
     
-    graph = orngNetwork.Network(len(graphNodes), False, len(edgeTypes))
-    graph.objects = graphNodes.keys()
+    import Orange
+    graph = Orange.network.Graph()
+    for id, data in graphNodes.items():
+        graph.add_node(graphNode2nodeNumber[id],
+                       original_id=str(id),
+                       symbol=data["symbol"],
+                       score=float(data["score"]))
+         
+    graph.add_nodes_from(sorted(graphNode2nodeNumber.values()))
     
     edgeWeights = []
     for (source, target), edge_data in graphEdges.items():
         edgesDefined = [None] * len(edgeTypes)
         for data in edge_data:
-            edgeType = int(data["networkGroupId"])
-            edgeInd = groupId2int[edgeType]
+            networkGroupId = int(data["networkGroupId"])
+            edgeInd = groupId2int[networkGroupId]
             edgesDefined[edgeInd] = float(data["weight"])
+            graph.add_edge(graphNode2nodeNumber[source], 
+                           graphNode2nodeNumber[target],
+                           weight=float(data["weight"]),
+                           networkGroupId=networkGroupId)
             
         edgesDefined = [0 if w is None else w for w in edgesDefined]
-        graph[source, target] = edgesDefined
         edgeWeights.append(edgesDefined)
         
         
@@ -208,18 +219,22 @@ def parse(DOM):
                                [orange.FloatVariable("weight_%s" % groupId2groupCode[id]) for id in edgeTypes],
                                None)
     
-    label_id = lambda id: graph.objects.index(id) + 1
+    node_items = graphNodes.items()
+    node_items = sorted(node_items, key=lambda t: graphNode2nodeNumber[t[0]])
+    
     nodeitems = orange.ExampleTable(nodedomain,
                   [[str(node["symbol"]), str(id), float(node["score"]),
                     str(node["symbol"]), str(node["go"]), str(node["source"])]\
-                     for id, node in graphNodes.items()])
-    edgeitems = orange.ExampleTable(edgedomain,
-                  [[str(label_id(source)), str(label_id(target))] + weights \
-                      for ((source, target), _), weights in zip(graphEdges.items(), edgeWeights)])
+                     for id, node in node_items])
     
-    graph.items = nodeitems
-    graph.links = edgeitems
-    graph.optimization = None
+    edgeitems = orange.ExampleTable(edgedomain,
+                  [[str(graphNode2nodeNumber[source] + 1), 
+                    str(graphNode2nodeNumber[target] + 1)] + weights \
+                   for ((source, target), _), weights in zip(graphEdges.items(), edgeWeights)])
+        
+    graph.set_items(nodeitems)
+    graph.set_links(edgeitems)
+    
     return graph
 
 def parseValidationResponse(dom):
