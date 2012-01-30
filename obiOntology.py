@@ -540,7 +540,7 @@ class OBOOntology(object):
             elif id in self.alt2id:
                 return self.id2term[self.alt2id[id]]
             else:
-                raise ValueError("Unknown term id: %s" % id)
+                raise ValueError("Unknown term id: %r" % id)
         elif isinstance(id, OBOObject):
             return id
         
@@ -548,6 +548,14 @@ class OBOOntology(object):
         """ Return all `Term` instances in the ontology.
         """
         return [obj for obj in self.objects if obj.stanza_type == "Term"]
+    
+    def term_by_name(self, name):
+        """ Return the term with name ``name``. 
+        """
+        terms = [t for t in self.terms() if t.name == name]
+        if len(terms) != 1:
+            raise ValueError("Unknown term name: %r" % name)
+        return terms[0]
     
     def typedefs(self):
         """ Return all `Typedef` instances in the ontology.
@@ -664,6 +672,25 @@ class OBOOntology(object):
     
     def has_key(self, key):
         return self.id2tem.has_key(key)
+    
+    def traverse_bf(self, term):
+        """ BF traverse of the ontology down from term.
+        """
+        queue = list(self.child_terms(term))
+        while queue:
+            term = queue.pop(0)
+            queue.extend(self.child_terms(term))
+            yield term
+                    
+    def traverse_df(self, term, depth=1e30):
+        """ DF traverse of the ontology down from term.
+        """
+        if depth >= 1:
+            for child in self.child_terms(term):
+                yield child
+                for t in self.traverse_df(child, depth-1):
+                    yield t
+        
     
     def to_network(self, terms=None):
         """ Return an Orange.network.Network instance constructed from
