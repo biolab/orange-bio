@@ -3,12 +3,33 @@
 obiArrayExpress
 ===============
 
-A python module for accessing the ArrayExpress web services.
+A python module for accessing the ArrayExpress web services and database.
 
 `Array Express Archive <http://www.ebi.ac.uk/arrayexpress/>`_ is a database of gene expression experiments that you
 can query and download.
 
-Example of an Array Express query ::
+Example ::
+
+    >>> # Retrieve the object representing experiment with accession E-TABM-25 
+    >>> experiment = ArrayExpressExperiment("E-TABM-25")
+    >>> print experiment.accession
+    E-TABM-25
+    
+    >>> print experiment.name
+    Transcription profiling of aging in the primate brain
+    
+    >>> print experiment.species
+    ['Pan troglodytes']
+    
+    >>> print experiment.files
+    [{'kind': ...
+    
+    >>> # Retrieve the data matrix for experiment 'E-MEXP-2917'
+    >>> experiment = ArrayExpressExperiment("E-MEXP-2917")
+    >>> table = experiment.fgem_to_table() 
+
+
+Low level Array Express query using REST services::
 
     >>> import obiArrayExpress
     >>> obiArrayExpress.query_experiments(accession='E-MEXP-31')
@@ -18,7 +39,7 @@ Example of an Array Express query ::
     {u'experiments': ...
     
     >>> obiArrayExpress.query_files(accession='E-MEXP-32', format="xml")
-    <xml.etree.ElementTree.ElementTree instance...
+    <xml.etree.ElementTree.ElementTree object ...
    
 .. note:: Currently querying ArrayExpress files only works with the xml format.
 
@@ -30,7 +51,6 @@ Example of an Array Express query ::
 import os, sys
 import urllib2
 
-import orngEnviron
 import orngServerFiles
 import warnings
 import posixpath
@@ -472,7 +492,7 @@ def parse_data_matrix(file):
             (row_ref, row_names),
             rows) 
     
-class InvesigationDesign(dict):
+class InvestigationDesign(dict):
     """ Investigation design (contains the contents of the .idf).
     
     Example ::
@@ -835,12 +855,12 @@ def mage_tab_to_orange(idf_filename):
     instance (assumes all the associated MAGE-TAB files are in the same
     directory.
     
-    .. todo:: Add Characteristics, Factor Values ... to the feture.attributes dict
+    .. todo:: Add Characteristics, Factor Values ... to the feature.attributes dict
     
     """
     import Orange
     dirname = os.path.dirname(idf_filename)
-    idf = InvesigationDesign(idf_filename)
+    idf = InvestigationDesign(idf_filename)
     
     sdrf_filename = os.path.join(dirname, idf.sdrf_file[0])
     sdrf = SampleDataRelationship(sdrf_filename)
@@ -890,7 +910,10 @@ def hstack_tables(tables):
     return table
     
 def _dictify(element):
-    """ Dictify and xml.etree.Element.Element instance.
+    """ 'Dictify' and xml.etree.Element.Element instance by taking all
+    subnode tags as keys and the corresponding text values as items i.e. turn
+    `<node><bla>foo</bla><a>b</b></node>` into a {"bla":"foo", "a":b"}
+        
     """
     if element is None:
         element = []
@@ -900,6 +923,25 @@ def _dictify(element):
         dict[node.tag] = strip(getattr(node, "text", None))
     return dict
     
+class SearchableList(list):
+    """ A list with a `search` method
+    """
+    def search(self, **kwargs):
+        """ Search the list for elements with members that correspond the
+        supplied keyword arguments.
+        
+            >>> foo.bar = "foo"
+            >>> list = SearchableList([foo, bar])
+            >>> list.search(bar="foo") # Search for objects which have a member named "bar" and that member equals "foo"
+            [<__main__.foo object ...
+            
+        """
+        ret = []
+        for obj in self:
+            for member, value in kwargs.items():
+                if hasattr(obj, member) and getattr(obj, member) == value:
+                    ret.append(obj)
+        return ret
     
 class ArrayExpressExperiment(object):
     """ An convinience class representing an Array Express Experiment.
@@ -914,6 +956,8 @@ class ArrayExpressExperiment(object):
         ...     print file["name"], file["url"]
         E-MEXP-2917.sdrf.txt http://www.ebi.ac.uk/arrayexpress/files/E-MEXP-2917/E-MEXP-2917.sdrf.txt
         ...
+        
+        >>> table = ae.fgem_to_table() # Retieve the experiment data table 
             
     """
     
@@ -975,6 +1019,8 @@ class ArrayExpressExperiment(object):
         
     def _download_processed(self):
         """ Download the processed matrix file, and associated MAGE-TAB files (idf, sdrf, adf)
+        
+        .. todo:: What about the raw data files (we need converters for other file types) 
         """
         assert(self.fgemdatafiles)
         exp_files = [(f["kind"], f) for f in self.files if f.get("kind") in ["idf", "sdrf"] and f.get("extension") == "txt"]
@@ -1104,7 +1150,7 @@ class ArrayExpressExperiment(object):
         if not files:
             raise ValueError("The experiment '{0}' does not have an investigation design file".format(self.accession))
         file = files[0]
-        return InvesigationDesign(self._open(file.get("url")))
+        return InvestigationDesign(self._open(file.get("url")))
         
         
     def sample_data_relationship(self):
@@ -1118,6 +1164,10 @@ class ArrayExpressExperiment(object):
         return SampleDataRelationship(self._open(file.get("url")))
         
     def fgem_to_table(self):
+        """ Retrieve the processed matrix from the Array Express ftp
+        server and convert it to an :class:`Orange.data.Table` instance.
+         
+        """
         assert(self.fgemdatafiles)
         repo_dir = orngServerFiles.localpath("ArrayExpress", self.accession)
         # Find the file listing the data matrix files (should be in sdrf but sometimes it is in 2column file only, why?)
@@ -1137,7 +1187,7 @@ class ArrayExpressExperiment(object):
         return mage_tab_to_orange(os.path.join(repo_dir, idf_file.get("name")))
         
     
-__doc__ += """\
+"""\
 Gene Expression Atlas
 ---------------------
 
@@ -1433,7 +1483,7 @@ class AtlasConditionExperiment(AtlasCondition):
         >>> # Condition on a experiemnt acession
         >>> condition = AtlasConditionExperiment("", "", "E-GEOD-24283")
         >>> # Condition on experiments involving lung
-        >>> condition = AtlasConditionGeneProperty("Organism_part", "Has", "lung")
+        >>> condition = AtlasConditionExperiment("Organism_part", "Has", "lung")
         
     """
 #    EXPERIMENT_FILTERS = [
@@ -1619,7 +1669,11 @@ def collect_ef_summary(info, ef, summary=None):
 def test():    
     conn = ArrayExpressConnection()
     import doctest
-    doctest.testmod(optionflags=doctest.ELLIPSIS, extraglobs={"conn": conn})
+    foo = type("foo", (object,), {})()
+    bar = type("bar", (object,), {})()
+    
+    doctest.testmod(optionflags=doctest.ELLIPSIS,
+                    extraglobs={"conn": conn, "foo": foo,"bar": bar})
     
     
 if __name__ == "__main__":
