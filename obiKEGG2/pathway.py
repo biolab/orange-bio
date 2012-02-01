@@ -1,0 +1,271 @@
+"""
+KEGG Pathway (from kgml file)
+
+"""
+from __future__ import absolute_import
+
+import os
+import urllib2
+
+import xml.dom
+import xml.parsers
+from xml.dom import minidom
+
+from contextlib import closing
+
+from . import conf
+from . import caching
+
+from Orange.misc import deprecated_attribute
+
+    
+def cached_method(func, cache_name="_cached_method_cache", store=None):
+    def wrapper(self, *args, **kwargs):
+        sig = (func.__name__,) + args + tuple(sorted(kwargs.items()))
+        if not hasattr(self, cache_name):
+            setattr(self, cache_name, store() if store is not None else {})
+        if sig not in getattr(self, cache_name):
+            getattr(self, cache_name)[sig] = func(self, *args, **kwargs)
+        return getattr(self, cache_name)[sig]
+    return wrapper
+
+class Pathway(object):
+    KGML_URL_FORMAT = "http://www.genome.jp/kegg-bin/download?entry={pathway_id}&format=kgml"
+    
+    """
+    TODO: Caching should be done using a Store interface.
+    
+    """
+    def __init__(self, pathway_id, local_cache=None, connection=None):
+        if pathway_id.startswith("path:"):
+            _, pathway_id = pathway_id.split(":", 1)
+            
+        self.pathway_id = pathway_id
+        if local_cache is None:
+            local_cache = conf.params["cache.path"]
+        self.local_cache = local_cache
+        self.connection = connection
+        
+    def cache_store(self):
+        caching.touch_path(self.local_cache)
+        return caching.Sqlite3Store(os.path.join(self.local_cache,
+                                                 "pathway_store.sqlite3"))
+        
+    def _open_last_modified_store(self):
+        import shelve
+        caching.touch_dir(self.local_cache)
+        return caching.Sqlite3Store(os.path.join(self.local_cache,
+                                                 "last-modified.sqlite3"))
+        
+    def _get_kgml(self):
+        """ Return an open kgml file for the pathway.
+        """
+        local_filename = os.path.join(self.local_cache, self.pathway_id + ".xml")
+        
+        if not os.path.exists(local_filename):
+            url = self.KGML_URL_FORMAT.format(pathway_id=self.pathway_id)
+            s = urllib2.urlopen(url)
+            contents = s.read()
+            with open(local_filename, "wb") as f:
+                f.write(contents)
+                
+        return open(local_filename, "rb")
+    
+    def _get_image_filename(self):
+        """ Return a filename of a local copy of the pathway image
+        """
+        # TODO: keep-alive (using httplib if it supports it)
+        # better to move all code to use requests package
+        
+        url = str(self.image)
+        
+        local_filename = os.path.join(self.local_cache, self.pathway_id + ".png")
+        
+        if not os.path.exists(local_filename):
+            response = urllib2.urlopen(url)
+            modified_since = response.headers.get("last-modified")
+            image = response.read()
+        else:
+            request = urllib2.Request(url)
+            modified_cache = os.path.join(self.local_cache, "http-last-modified-cache.store")
+            with closing(self._open_last_modified_store()) as store:
+                modified_since = store.get(url, None)
+                
+            request.add_header("If-Modified-Since", modified_since)
+            try:
+                response = urllib2.urlopen(request)
+            except urllib2.HTTPError, ex:
+                if ex.code == 304:
+                    return local_filename
+                else:
+                    raise
+            modified_since = response.headers.get("last-modified")
+            image = response.read()
+                
+        with open(local_filename, "wb") as f:
+            f.write(image)
+            
+        with closing(self._open_last_modified_store()) as store:
+            store[url] = modified_since
+            
+        return local_filename 
+        
+    def _local_kgml_filename(self):
+        """ Return the local kgml xml filename for the pathway.
+        """
+        local_filename = os.path.join(self.local_cache, self.pathway_id + ".xml")
+        return local_filename
+        
+    class entry(object):
+        def __init__(self, dom_element):
+            self.__dict__.update(dom_element.attributes.items())
+            self.graphics = ()
+            self.components = []
+            self.graphics = dict(dom_element.getElementsByTagName("graphics")[0].attributes.items())
+            self.components = [node.getAttribute("id") for node in dom_element.getElementsByTagName("component")]
+            
+    class reaction(object):
+        def __init__(self, dom_element):
+            self.__dict__.update(dom_element.attributes.items())
+            self.substrates = [node.getAttribute("name") for node in dom_element.getElementsByTagName("substrate")]
+            self.products = [node.getAttribute("name") for node in dom_element.getElementsByTagName("product")]
+            
+    class relation(object):
+        def __init__(self, dom_element):
+            self.__dict__.update(dom_element.attributes.items())
+            self.subtypes = [node.attributes.items() for node in dom_element.getElementsByTagName("subtype")]
+        
+    @cached_method
+    def pathway_attributes(self):
+        return dict(self.pathway_dom().attributes.items())
+    
+    @property
+    def name(self):
+        return self.pathway_attributes().get("name")
+    
+    @property
+    def org(self):
+        return self.pathway_attributes().get("org")
+    
+    @property
+    def number(self):
+        return self.pathway_attributes().get("number")
+    
+    @property    
+    def title(self):
+        return self.pathway_attributes().get("title")
+    
+    @property
+    def image(self):
+        return self.pathway_attributes().get("image")
+    
+    @property
+    def link(self):
+        return self.pathway_attributes().get("link")
+    
+    @cached_method
+    def pathway_dom(self):
+        try:
+            return minidom.parse(self._get_kgml()).getElementsByTagName("pathway")[0]
+        except xml.parsers.expat.ExpatError:
+            # TODO: Should delete the cached xml file.
+            return None
+    
+    @cached_method
+    def entries(self):
+        dom = self.pathway_dom()
+        if dom:
+            return [self.entry(e) for e in dom.getElementsByTagName("entry")]
+        else:
+            return []
+    
+    entrys = deprecated_attribute("entrys", "entries")
+    
+    @cached_method
+    def reactions(self):
+        dom = self.pathway_dom()
+        if dom:
+            return [self.reaction(e) for e in dom.getElementsByTagName("reaction")]
+        else:
+            return []
+    
+    @cached_method
+    def relations(self):
+        dom = self.pathway_dom()
+        if dom:
+            return [self.relation(e) for e in dom.getElementsByTagName("relation")]
+        else:
+            return []
+    
+    def __iter__(self):
+        """ Iterate over all elements in the pathway
+        """
+        return iter(self.all_elements())
+    
+    def __contains__(self, element):
+        """ Retrurn true if element in the pathway
+        """
+        return element in self.all_elements()
+    
+    @classmethod
+    def split_pathway_id(cls, id):
+        path, id = id.split(":") if ":" in id else ("path", id)
+        org, id = id[:-5], id[-5:]
+        return path, org, id  
+    
+    @cached_method
+    def all_elements(self):
+        """ Return all elements
+        """
+        return reduce(list.__add__, [self.genes(), self.compounds(), self.enzmes(), self.reactions()], [])
+    
+    def _get_entries_by_type(self, type):
+        return reduce(set.union, [entry.name.split() for entry in self.entries() if entry.type == type], set())
+    
+    @cached_method
+    def genes(self):
+        """ Return all genes on the pathway
+        """
+        return self._get_entries_by_type("gene")
+    
+    @cached_method
+    def compounds(self):
+        """ Return all compounds on the pathway
+        """
+        return self._get_entries_by_type("compound")
+    
+    @cached_method
+    def enzymes(self):
+        """ Return all enzymes on the pathway
+        """
+        return self._get_entries_by_type("enzyme")
+    
+    @cached_method
+    def orthologs(self):
+        """ Return all orthologs on the pathway
+        """
+        return self._get_entries_by_type("ortholog")
+    
+    @cached_method
+    def maps(self):
+        """ Return all linked maps on the pathway
+        """
+        return self._get_entries_by_type("map")
+    
+    @cached_method
+    def groups(self):
+        """ Return all groups on the pathway
+        """
+        return self._get_entries_by_type("ortholog")
+    
+    def get_image(self):
+        """ Return an image of the pathway
+        """
+        return self._get_image_filename()
+    
+    @classmethod
+    def list(cls, organism):
+        from . import api 
+        kegg = api.CachedKeggApi()
+        return kegg.list_pathways(organism)
+    
