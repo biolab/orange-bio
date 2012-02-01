@@ -11,6 +11,10 @@ import orange
 import obiKEGG, orngServerFiles
 import obiTaxonomy
 
+import obiKEGG2 as obiKEGG
+import obiGeneSets
+import orngMisc
+
 import webbrowser
 
 from OWWidget import *
@@ -19,6 +23,19 @@ from collections import defaultdict
 
 from orngDataCaching import data_hints
 
+USE_THREADING = True
+
+if USE_THREADING:
+    import threading
+    from functools import partial
+    def threading_queued_invoke(qobj, func):
+        def safe_wrapper(*args, **kwargs):
+            QMetaObject.invokeMethod(qobj, "queuedInvoke", 
+                                     Qt.QueuedConnection, 
+                                     Q_ARG("PyQt_PyObject",
+                                           partial(func, *args, **kwargs)))
+        return safe_wrapper
+    
 def split_and_strip(string, sep=None):
     return [s.strip() for s in string.split(sep)]
 
@@ -192,29 +209,52 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.infoLabel = OWGUI.widgetLabel(box, "No data on input\n")
         
         self.allOrganismCodes = {} 
-
-        self.organismCodes = []
-
-        self.organismComboBox = cb = OWGUI.comboBox(self.controlArea, self, "organismIndex", box="Organism", items=[], callback=self.Update, addSpace=True, debuggingEnabled=0)
-        cb.setMaximumWidth(200)
         
-        self.signalManager.freeze(self).push() #setFreeze(1)
-        QTimer.singleShot(100, self.UpdateOrganismComboBox)
+        self.organismCodes = []
+        
+        box = OWGUI.widgetBox(self.controlArea, "Organism")
+        self.organismComboBox = cb = OWGUI.comboBox(box, self,
+                                "organismIndex", 
+                                items=[],
+                                callback=self.OrganismSelectionCallback, 
+                                addSpace=True,
+                                debuggingEnabled=0)
+        OWGUI.button(box, self, "Update Pathways", callback=self.UpdateToLatestPathways)
+        
+#        cb.setMaximumWidth(200)
+        
+        self.signalManager.freeze(self).push()
         
         box = OWGUI.widgetBox(self.controlArea, "Gene attribute")
-        self.geneAttrCombo = OWGUI.comboBox(box, self, "geneAttrIndex", callback=self.Update)
-        OWGUI.checkBox(box, self, "useAttrNames", "Use variable names", disables=[(-1, self.geneAttrCombo)], callback=self.UseAttrNamesCallback)
+        self.geneAttrCombo = OWGUI.comboBox(box, self, "geneAttrIndex",
+                                            callback=self.Update)
+        
+        OWGUI.checkBox(box, self, "useAttrNames",
+                       "Use variable names", 
+                       disables=[(-1, self.geneAttrCombo)],
+                       callback=self.UseAttrNamesCallback)
+        
         self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
         
-#        OWGUI.checkBox(box, self, "caseSensitive", "Case sensitive gene matching", callback=self.Update)
         OWGUI.separator(self.controlArea)
         
-        OWGUI.checkBox(self.controlArea, self, "useReference", "From signal", box="Reference", callback=self.Update)
+        OWGUI.checkBox(self.controlArea, self, "useReference",
+                       "From signal",
+                       box="Reference",
+                       callback=self.Update)
+        
         OWGUI.separator(self.controlArea)
 
-        OWGUI.checkBox(self.controlArea, self, "showOrthology", "Show pathways in full orthology", box="Orthology", callback=self.UpdateListView)
+        OWGUI.checkBox(self.controlArea, self, "showOrthology",
+                       "Show pathways in full orthology",
+                       box="Orthology",
+                       callback=self.UpdateListView)
         
-        OWGUI.checkBox(self.controlArea, self, "autoResize", "Resize to fit", box="Image", callback=lambda :self.pathwayView.updateTransform())
+        OWGUI.checkBox(self.controlArea, self, "autoResize",
+                       "Resize to fit",
+                       box="Image",
+                       callback=self.UpdatePathwayViewTransform)
+        
         OWGUI.separator(self.controlArea)
 
         box = OWGUI.widgetBox(self.controlArea, "Selection")
@@ -231,59 +271,92 @@ class OWKEGGPathwayBrowser(OWWidget):
         
         self.listView.setAllColumnsShowFocus(1)
         self.listView.setColumnCount(4)
-        self.listView.setHeaderLabels(["Pathway", "P value", "Genes", "Reference"])
+        self.listView.setHeaderLabels(["Pathway", "P value", 
+                                       "Genes", "Reference"])
 
         self.listView.setSelectionMode(QAbstractItemView.SingleSelection)
             
         self.listView.setSortingEnabled(True)
-        #self.listView.setAllColumnsShowFocus(1)
+        
         self.listView.setMaximumHeight(200)
         
-        self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.UpdatePathwayView)
+        self.connect(self.listView,
+                     SIGNAL("itemSelectionChanged()"),
+                     self.UpdatePathwayView)
         
-        self.connect(self.graphButton, SIGNAL("clicked()"), self.saveGraph)
+        self.connect(self.graphButton,
+                     SIGNAL("clicked()"),
+                     self.saveGraph)
         
         self.ctrlPressed = False
         self.selectedObjects = defaultdict(list)
         self.data = None
         self.refData = None
-        self.loadedOrganism = None
         
         self.resize(800, 600)
         
-        self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.onStateChange)
+        self.connect(self,
+                     SIGNAL("widgetStateChanged(QString, int, QString)"),
+                     self.onStateChange)
+        
+        self.has_new_data = False
+        self.has_new_reference_set = False
+        
+        self.setEnabled(False)
+        QTimer.singleShot(100, self.UpdateOrganismComboBox)
+        
         
     def UpdateOrganismComboBox(self):
         try:
-            self.progressBarInit()
-            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                genome = obiKEGG.KEGGGenome()
-            self.progressBarFinished()
+            genome = obiKEGG.KEGGGenome()
+            all_codes = list(genome)
             
             self.allOrganismCodes = genome 
     
             essential = genome.essential_organisms()
+            common = genome.common_organisms()
+            common = [c for c in common if c not in essential]
             
-            local = [name.split(".")[0].split("_")[-1] for name in orngServerFiles.listfiles("KEGG") if "kegg_genes" in name]
-            self.organismCodes = [(code, organism.definition) for code, organism in self.allOrganismCodes.items() if code in local or code in essential]
-            self.organismCodes.sort()
+            self.infoLabel.setText("Fetching organism definitions\n")
+            
+            pb = OWGUI.ProgressBar(self, len(essential + common))
+            codes = []
+            for i, code in enumerate(essential + common):
+                codes.append((code, genome[code].definition))
+                pb.advance()
+            pb.finish()
+            self.organismCodes = codes
+            
             items = [desc for code, desc in self.organismCodes]
-            self.organismCodes = [code for code, desc in self.organismCodes]
             
+            self.organismCodes = [code for code, desc in self.organismCodes]
+
+            # TODO: Add option to specify additional organisms not 
+            # in the common list.
+
             self.organismComboBox.addItems(items)
         finally:
+            self.setEnabled(True)
+            self.infoLabel.setText("No data on input\n")
             self.signalManager.freeze(self).pop() #setFreeze(0)
 
+    def Clear(self):
+        self.infoLabel.setText("No data on input\n")
+        self.listView.clear()
+        self.ClearPathway()
+        
+        self.send("Selected Examples", None)
+        self.send("Unselected Examples", None)
+        
+    def ClearPathway(self):
+        self.pathwayView.SetPathway(None)
+        self.selectedObjects = defaultdict(list)
         
     def SetData(self, data=None):
-        if not self.organismCodes: ## delay this call until we retrieve organism codes from the server files 
-            QTimer.singleShot(200, lambda: self.SetData(data))
-            return
-
         self.closeContext()
         self.data = data
         self.warning(0)
-        if data:
+        if data is not None:
             self.SetGeneAttrCombo()
             taxid = data_hints.get_hint(data, "taxid", None)
             if taxid:
@@ -291,49 +364,44 @@ class OWKEGGPathwayBrowser(OWWidget):
                     code = obiKEGG.from_taxid(taxid)
                     self.organismIndex = self.organismCodes.index(code)
                 except Exception, ex:
+#                    self.log.exception(self, level=self.log.INFO)
                     print ex, taxid
             
             self.useAttrNames = data_hints.get_hint(data, "genesinrows", self.useAttrNames)
             
             self.openContext("", data)
-            self.Update()
         else:
-            self.infoLabel.setText("No data on input\n")
-            self.listView.clear()
-            self.selectedObjects = defaultdict(list)
-            self.pathwayView.SetPathway(None)
-            self.send("Selected Examples", None)
-            self.send("Unselected Examples", None)
+            self.Clear()
+            
+        self.has_new_data = True
 
     def SetRefData(self, data=None):
         self.refData = data
-        if self.useReference and self.data and self.organismCodes:
+        self.has_new_reference_set = True
+        
+    def handleNewSignals(self):
+        if self.has_new_data or (self.has_new_reference_set and \
+                                 self.useReference):
             self.Update()
-
+            
+            self.has_new_data = False
+            self.has_new_reference_set = False
+        
     def UseAttrNamesCallback(self):
-##        self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
         self.Update()
 
+    def OrganismSelectionCallback(self):
+        self.Update()
+        
     def SetGeneAttrCombo(self):
-        self.geneAttrCandidates = self.data.domain.attributes + self.data.domain.getmetas().values()
-        self.geneAttrCandidates = filter(lambda v:v.varType in [orange.VarTypes.Discrete ,orange.VarTypes.String], self.geneAttrCandidates)
+        self.geneAttrCandidates = self.data.domain.attributes + \
+                                  self.data.domain.getmetas().values()
+        self.geneAttrCandidates = filter(lambda v:v.varType in [orange.VarTypes.Discrete,
+                                                                orange.VarTypes.String],
+                                         self.geneAttrCandidates)
         self.geneAttrCombo.clear()
-        #print 'geneAttrCandidates', self.geneAttrCandidates
+        
         self.geneAttrCombo.addItems([var.name for var in self.geneAttrCandidates])
-        return
-                
-    def PreDownload(self, org=None, pb=None):
-        pb, finish = (OWGUI.ProgressBar(self, 0), True) if pb is None else (pb, False)
-        files = ["kegg_brite.tar.gz", "kegg_pathways_map.tar.gz", "kegg_genome.tar.gz"]
-        if org:
-            files += ["kegg_genes_%s.tar.gz" % org, "kegg_pathways_%s.tar.gz" % org]
-        files = [file for file in files if file not in orngServerFiles.listfiles("KEGG")]
-        pb.iter += len(files) * 100
-        for i, filename in enumerate(files):
-#            print filename
-            orngServerFiles.download("KEGG", filename, callback=pb.advance)
-        if finish:
-            pb.finish()
             
     def UpdateListView(self):
         self.bestPValueItem = None
@@ -342,8 +410,10 @@ class OWKEGGPathwayBrowser(OWWidget):
             return
         allPathways = self.org.pathways()
         allRefPathways = obiKEGG.pathways("map")
-        self.progressBarFinished()
+#        self.progressBarFinished()
         items = []
+        kegg_pathways = obiKEGG.KEGGPathways()
+        
         if self.showOrthology:
             self.koOrthology = obiKEGG.KEGGBrite("ko00001")
             self.listView.setRootIsDecorated(True)
@@ -359,16 +429,21 @@ class OWKEGGPathwayBrowser(OWWidget):
             def _walkCreate(koEntry, lvItem):
                 item = QTreeWidgetItem(lvItem)
                 id = "path:"+self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)] + koEntry.title[:5]
+                p = kegg_pathways.get_entry(id)
                 if koEntry.title[:5] in path_ids:
+                    if p is None:
+                        # In case the genesets still have obsolete entries 
+                        name = koEntry.title
+                    else:
+                        name = p.name
                     genes, p_value, ref = self.pathways[id]
-                    item.setText(0, obiKEGG.KEGGPathway(id).title)
-#                    print id, obiKEGG.KEGGPathway(id).title
+                    item.setText(0, name)
                     item.setText(1, "%.5f" % p_value)
                     item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
                     item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
-                    item.pathway_id = id
+                    item.pathway_id = id if p is not None else None
                 else:
-                    item.setText(0, obiKEGG.KEGGPathway(id).title if id in allPathways else koEntry.title)
+                    item.setText(0, p.name if id in allPathways else koEntry.title)
                     if id in allPathways:
                         item.pathway_id = id
                     elif "path:map" + koEntry.title[:5] in allRefPathways:
@@ -391,7 +466,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             pathways.sort(lambda a,b:cmp(a[1][1], b[1][1]))
             for id, (genes, p_value, ref) in pathways:
                 item = QTreeWidgetItem(self.listView)
-                item.setText(0, obiKEGG.KEGGPathway(id).title)
+                item.setText(0, kegg_pathways.get_entry(id).name)
                 item.setText(1, "%.5f" % p_value)
                 item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
                 item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
@@ -420,10 +495,39 @@ class OWKEGGPathwayBrowser(OWWidget):
         if not item or not item.pathway_id:
             self.pathwayView.SetPathway(None)
             return
-        self.pathway = obiKEGG.KEGGPathway(item.pathway_id)
+        
+        if USE_THREADING:
+            result = {}
+            def call(pathway_id):
+                result["pathway"] = p = obiKEGG.KEGGPathway(pathway_id)
+                p.title # makes sure the kgml file is downloaded
+                p.image
+                p.get_image() # makes sure the image is downloaded
+                
+            self.setEnabled(False)
+            try:
+                thread = threading.Thread(None,
+                                          call,
+                                          name="get_kgml_and_image",
+                                          args=(item.pathway_id,))
+                thread.start()
+                while thread.is_alive():
+                    thread.join(timeout=0.025)
+                    qApp.processEvents()
+            finally:
+                self.setEnabled(True)
+            if "pathway" in result:
+                self.pathway = result["pathway"]
+            else:
+                raise Exception("Could not get kgml and  pathway image")
+        else:
+            self.pathway = obiKEGG.KEGGPathway(item.pathway_id)
+            
         self.pathwayView.SetPathway(self.pathway, self.pathways.get(item.pathway_id, [[]])[0])
             
-            
+    def UpdatePathwayViewTransform(self):
+        self.pathwayView.updateTransform()
+        
     def Update(self):
         if not self.data:
             return
@@ -437,22 +541,42 @@ class OWKEGGPathwayBrowser(OWWidget):
             genes = [str(e[geneAttr]) for e in self.data if not e[geneAttr].isSpecial()]
             if any("," in gene for gene in genes):
                 genes = reduce(list.__add__, (split_and_strip(gene, ",") for gene in genes), [])
-                self.information(0, "Separators detected in input gene names. Assuming multiple genes per example.")
+                self.information(0, "Separators detected in input gene names. Assuming multiple genes per instance.")
         else:
-            self.error(0, "Cannot extact gene names from input")
+            self.error(0, "Cannot extract gene names from input")
             genes = []
         org_code = self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)]
-        if self.loadedOrganism != org_code:
-            self.PreDownload(org_code, pb=pb)
-            self.org = obiKEGG.KEGGOrganism(org_code)
-            self.loadedOrganism = org_code
-        uniqueGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(genes), self.caseSensitive)
+        
+        if USE_THREADING:
+            result = {}
+            def callable(*args, **kwargs):
+                result["org"] = org = obiKEGG.KEGGOrganism(org_code)
+                # Make sure genes are cached for global reference set
+                result["genes"] = org.genes.keys()
+                
+            self.setEnabled(False)
+            try:
+                thread = threading.Thread(None, callable,
+                                          name="get_organism_genes",
+                                          )
+                thread.start()
+                while thread.is_alive():
+                    thread.join(timeout=0.025)
+                    qApp.processEvents()
+            finally:
+                self.setEnabled(True)
+            
+            if "org" in result:
+                org = result["org"]
+            else:
+                raise Exception("Could not get organism genes")
+        else:
+            org = obiKEGG.KEGGOrganism(org_code)
+        
+        uniqueGenes, conflicting, unknown = org.get_unique_gene_ids(set(genes), self.caseSensitive)
         genesCount = len(set(genes))
         self.infoLabel.setText("%i unique gene names on input\n%i (%.1f%%) genes names matched" % (genesCount, len(uniqueGenes), 100.0*len(uniqueGenes)/genesCount if genes else 0.0))  
-#        if conflicting:
-#            print >> sys.stderr, "Conflicting genes:", conflicting
-#        if unknown:
-#            print >> sys.stderr, "Unknown genes:", unknown
+        
         self.information(1)
         if self.useReference and self.refData:
             if self.useAttrNames:
@@ -463,27 +587,67 @@ class OWKEGGPathwayBrowser(OWWidget):
                 if any("," in gene for gene in reference):
                     reference = reduce(list.__add__, (split_and_strip(gene, ",") for gene in reference), [])
                     self.information(1, "Separators detected in reference gene names. Assuming multiple genes per example.")
-            uniqueRefGenes, conflicting, unknown = self.org.get_unique_gene_ids(set(reference), self.caseSensitive)
+            uniqueRefGenes, conflicting, unknown = org.get_unique_gene_ids(set(reference), self.caseSensitive)
             self.referenceGenes = reference = uniqueRefGenes.keys()
         else:
-            self.referenceGenes = reference = self.org.get_genes()
+            self.referenceGenes = reference = org.get_genes()
         self.uniqueGenesDict = uniqueGenes
         self.genes = uniqueGenes.keys()
         self.revUniqueGenesDict = dict([(val, key) for key, val in self.uniqueGenesDict.items()])
-#        self.progressBarInit()
-#        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-        self.pathways = self.org.get_enriched_pathways(self.genes, reference, callback=lambda value: pb.advance()) #self.progressBarSet)
+        
+        taxid = obiKEGG.to_taxid(org.org_code)
+        r_tax_map = dict((v,k) for k, v in obiKEGG.KEGGGenome.TAXID_MAP.items())
+        if taxid in r_tax_map:
+            taxid = r_tax_map[taxid]
+            
+        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
+            kegg_gs_collections = list(obiGeneSets.collections((("KEGG",), taxid)))
+        
+        print self.genes
+        print taxid
+#        print kegg_gs_collections
+        if USE_THREADING:
+            result = {}
+            def callable(*args, **kwargs):
+#                result["result"] = org.get_enriched_pathways(*args, **kwargs)
+                result["result"] = pathway_enrichment(*args, **kwargs)
+            
+            self.setEnabled(False)
+            try:
+                thread = threading.Thread(None, callable,
+                                          name="get_enriched_pathways",
+                                          args=(kegg_gs_collections,
+                                                self.genes, 
+                                                reference),
+                                          kwargs={"callback": 
+                                                  threading_queued_invoke(self,
+                                                  lambda value:pb.advance())}
+                                          )
+                
+                thread.start()
+                while thread.is_alive():
+                    thread.join(timeout=0.025)
+                    qApp.processEvents()
+            finally:
+                self.setEnabled(True)
+                
+            if "result" in result:
+                self.pathways = result["result"]
+            else:
+                raise Exception('Could not get enriched pathways')
+        else:
+            self.pathways = org.get_enriched_pathways(self.genes, reference,
+                                                      callback=lambda value: pb.advance())
+        
+        self.org = org
         if not self.pathways:
             self.warning(0, "No enriched pathways found.")
         else:
             self.warning(0)
-            
-#        self.progressBarFinished()
+        
         self.UpdateListView()
         pb.finish()
-##        print self.bestPValueItem
-        #self.bestPValueItem.setSelected(True)
-        #self.UpdatePathwayView()
+    
 
     def SelectObjects(self, objs):
         if (not self.selectedObjects or self.ctrlPressed) and not objs:
@@ -512,7 +676,6 @@ class OWKEGGPathwayBrowser(OWWidget):
             selectedGenes = reduce(set.union, [item.marked_objects for item in selectedItems], set())
             
             if self.useAttrNames:
-#                selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
                 selectedVars = [self.data.domain[self.uniqueGenesDict[gene]] for gene in selectedGenes]
                 newDomain = orange.Domain(selectedVars ,0)
                 data = orange.ExampleTable(newDomain, self.data)
@@ -521,7 +684,6 @@ class OWKEGGPathwayBrowser(OWWidget):
                 geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex, len(self.geneAttrCandidates)-1)]
                 selectedExamples = []
                 otherExamples = []
-#                selectedGenes = reduce(set.union, self.selectedObjects.values(), set())
                 for ex in self.data:
                     names = [self.revUniqueGenesDict.get(name, None) for name in split_and_strip(str(ex[geneAttr]), ",")]
                     if any(name and name in selectedGenes for name in names):
@@ -567,13 +729,71 @@ class OWKEGGPathwayBrowser(OWWidget):
         sizeDlg = OWChooseImageSizeDlg(self.pathwayView.scene(), parent=self)
         sizeDlg.exec_()
 
+    @pyqtSignature("queuedInvoke(PyQt_PyObject)")
+    def queuedInvoke(self, func):
+#        print "queued invoke of", func
+        func()
+        
+    def progressBarSet(self, value):
+#        print "Enter"
+        if not getattr(self, "_in_progress_update", False):
+            self._in_progress_update = True
+            try:
+                OWWidget.progressBarSet(self, value)
+            finally:
+                self._in_progress_update = False
+#        else:
+#            print "====="
+        
+#        print "Exit"
+    
+    def onDeleteWidget(self):
+        """ Called before the widget is removed from the canvas.
+        """
+        self.org = None
+        import gc
+        gc.collect() # Force collection
+        
+    def UpdateToLatestPathways(self):
+        pass        
+          
+import obiProb
+
+def pathway_enrichment(genesets, genes, reference, prob=None, callback=None):
+    result_sets = []
+    p_values = []
+    if prob is None:
+        prob = obiProb.Hypergeometric()
+        
+    for i, gs in enumerate(genesets):
+        cluster = gs.genes.intersection(genes)
+        ref = gs.genes.intersection(reference)
+        k = len(cluster)
+        N = len(reference)
+        m = len(ref)
+        n = len(genes)
+        if k:
+            p_val = prob.p_value(k, N, m, n)
+            result_sets.append((gs.id, cluster, ref))
+            p_values.append(p_val)
+        if callback is not None:
+            callback(100.0 * i / len(genes))
+    
+    # FDR correction
+    p_values = obiProb.FDR(p_values)
+    
+    return dict([(id, (genes, p_val, len(ref))) \
+                 for (id, genes, ref), p_val in zip(result_sets, p_values)]
+                )
+    
 if __name__=="__main__":
     app = QApplication(sys.argv)
-    data = orange.ExampleTable("../../../../orange/doc/datasets/brown-selected.tab")
+    data = orange.ExampleTable("brown-selected.tab")
     w = OWKEGGPathwayBrowser()
     w.UpdateOrganismComboBox()
 ##    app.setMainWidget(w)
     w.show()
-    w.SetData(data)
+    w.SetData(orange.ExampleTable(data[-20:]))
+    QTimer.singleShot(10, w.handleNewSignals)
     app.exec_()
     w.saveSettings()
