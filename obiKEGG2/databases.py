@@ -1,6 +1,9 @@
 """
 DBGET database
 """
+from __future__ import absolute_import
+
+import re
 
 from . import entry
 from .entry import fields
@@ -70,8 +73,7 @@ class DBDataBase(object):
         return iter(self.keys())
     
     def get_text(self, key):
-        if not key.startswith(self.DB + ":"):
-            key = self.DB + ":" + key 
+        key = self._add_db(key)
         return self.api.bget([key])
     
     def get_entry(self, key):
@@ -101,8 +103,8 @@ class DBDataBase(object):
         if keys is None:
             keys = self.keys()
             
+        keys = list(keys)
         start = 0
-        key_count = len(keys)
         while start < len(keys):
             batch = keys[start: start + batch_size]
             batch = map(self._add_db, batch)
@@ -114,8 +116,31 @@ class DBDataBase(object):
                 
             start += batch_size
             
+    def batch_get(self, keys):
+        """ Batch retrieve all entries for keys. This can be
+        significantly faster then getting each entry separately
+        especially if entries are not yet cached.
+        
+        """
+        entries = []
+        batch_size = 100
+        keys = list(keys)
+        start = 0
+        while start < len(keys):
+            batch = keys[start: start + batch_size]
+            batch = map(self._add_db, batch)
+            batch_entries = self.api.bget(batch)
+            if batch_entries is not None:
+                batch_entries = batch_entries.split("///\n")
+                # Remove possible empty last line  
+                batch_entries = [e for e in batch_entries if e.strip()] 
+                entries.extend(map(self.ENTRY_TYPE, batch_entries))
+            start += batch_size
+            
+        return entries
+            
     def _add_db(self, key):
-        """ Prefix the key with 'DB:' string if not already
+        """ Prefix the key with '%(DB)s:' string if not already
         prefixed. 
         """
         if not key.startswith(self.DB + ":"):
