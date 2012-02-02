@@ -9,6 +9,24 @@ from . import entry
 from .entry import fields
 from . import api
 
+def iter_take(source_iter, n):
+    source_iter = iter(source_iter)
+    return [item for _, item in zip(range(n), source_iter)]
+
+def batch_iter(source_iter, n):
+    source_iter = iter(source_iter)
+    while True:
+        batch = iter_take(source_iter, n)
+        if batch:
+            yield batch
+        else:
+            break
+        
+def chain_iter(chains_iter):
+    for iter in chains_iter:
+        for element in iter:
+            yield element
+
 class DBDataBase(object):
     """ A wrapper for DBGET database.
     """
@@ -36,16 +54,26 @@ class DBDataBase(object):
         return iter(self._keys)
     
     def items(self):
-        return [(key, self.__getitem__(key)) for key in self.keys()]
+        return list(zip(self.keys(), self.batch_get(self.keys())))
     
     def iteritems(self):
-        return ((key, self.__getitem__(key)) for key in self.iterkeys())
+        batch_size = 100
+        iterkeys = self.iterkeys()
+        return chain_iter(zip(batch, self.batch_get(batch))
+                          for batch in batch_iter(iterkeys, batch_size))
+        
+#        return ((key, self.__getitem__(key)) for key in self.iterkeys())
     
     def values(self):
-        return [self.__getitem__(key) for key in self.keys()]
+        return self.batch_get(self.keys())
     
     def itervalues(self):
-        return (self.__getitem__(key) for key in self.iterkeys())
+        batch_size = 100
+        iterkeys = self.iterkeys()
+        return chain_iter(self.batch_get(batch)
+                          for batch in batch_iter(iterkeys, batch_size))
+        
+#        return (self.__getitem__(key) for key in self.iterkeys())
     
     def get(self, key, default=None):
         if key in self:
