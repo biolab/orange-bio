@@ -58,7 +58,7 @@ class Sqlite3Store(Store, UserDict.DictMixin):
     def __setitem__(self, key, value):
         value = pickle.dumps(value)
         self.con.execute("""
-            INSERT INTO cache
+            INSERT OR REPLACE INTO cache
             VALUES (?, ?)
         """, (key, value))
         self.con.commit()
