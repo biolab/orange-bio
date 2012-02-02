@@ -76,9 +76,9 @@ class DBDataBase(object):
 #        return (self.__getitem__(key) for key in self.iterkeys())
     
     def get(self, key, default=None):
-        if key in self:
+        try:
             return self.__getitem__(key)
-        else:
+        except KeyError:
             return default
         
     def has_key(self, key):
@@ -161,7 +161,7 @@ class DBDataBase(object):
             if batch_entries is not None:
                 batch_entries = batch_entries.split("///\n")
                 # Remove possible empty last line  
-                batch_entries = [e for e in batch_entries if e.strip()] 
+                batch_entries = [e for e in batch_entries if e.strip()]
                 entries.extend(map(self.ENTRY_TYPE, batch_entries))
             start += batch_size
             
