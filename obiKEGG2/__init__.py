@@ -84,20 +84,30 @@ class Organism(object):
         raise NotImplementedError()
     
     def get_enriched_pathways(self, genes, reference=None, prob=obiProb.Binomial(), callback=None):
-        """Return a dictionary with enriched pathways ids as keys and (list_of_genes, p_value, num_of_reference_genes) tuples as items."""
+        """ Return a dictionary with enriched pathways ids as keys
+        and (list_of_genes, p_value, num_of_reference_genes) tuples 
+        as items.
+        
+        """
         allPathways = defaultdict(lambda :[[], 1.0, []])
         import orngMisc
         milestones = orngMisc.progressBarMilestones(len(genes), 100)
         pathways_db = KEGGPathways()
         
+        pathways_for_gene = []
         for i, gene in enumerate(genes):
-            pathways = self.pathways([gene])
-            pathways_db.pre_cache(pathways)
+            pathways_for_gene.append(self.pathways([gene]))
+            if callback and i in milestones:
+                callback(i*50.0/len(genes))
+                
+        # precache for speed 
+        pathways_db.pre_cache([pid for pfg in pathways_for_gene for pid in pfg]) 
+        for i, (gene, pathways) in enumerate(zip(genes, pathways_for_gene)):
             for pathway in pathways:
                 if pathways_db.get_entry(pathway).gene: 
                     allPathways[pathway][0].append(gene)
             if callback and i in milestones:
-                callback(i*50.0/len(genes))
+                callback(50.0 + i*50.0/len(genes))
         reference = set(reference if reference is not None else self.genes.keys())
         
         pItems = allPathways.items()
