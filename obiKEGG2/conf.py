@@ -9,16 +9,15 @@ import os
 import ConfigParser
 from StringIO import StringIO
 
-default = {"cache.path": "%HOME/.obiKEGG/",
-           "cache.store": "sqlite3",
-           "cache.kgml_invalidate": "always", #Can be session, always, release, never
-           }
 
 default = """
 [cache]
 path = %(home)s/.obiKEGG/
 store = sqlite3
 kegg_invalidate = always
+
+[service]
+transport = requests
 
 """
 
