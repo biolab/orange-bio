@@ -407,6 +407,8 @@ class CachedKeggApi(KeggApi):
                     uncached.append(id)
                 
         if uncached:
+            # in case there are duplicate ids
+            uncached = sorted(set(uncached))
             rval = KeggApi.bget(self, uncached)
             if rval is not None:
                 entrys = rval.split("///\n")
@@ -417,15 +419,23 @@ class CachedKeggApi(KeggApi):
                 # Delete the last newline if present
                 del entrys[-1]
             
-#            if len(entrys) != len(uncached):
-#                raise ValueError("Batch contains invalid ids")
-        
-            with closing(bget.cache_store()) as store:
-                for id, entry in zip(uncached, entrys):
-                    key = bget.key_from_args((id,))
-                    if entry is not None:
-                        entry = entry + "///\n"
-                    store[key] = cache_entry(entry, mtime=datetime.now())
+            if len(entrys) == len(uncached):
+                with closing(bget.cache_store()) as store:
+                    for id, entry in zip(uncached, entrys):
+                        key = bget.key_from_args((id,))
+                        if entry is not None:
+                            entry = entry + "///\n"
+                        store[key] = cache_entry(entry, mtime=datetime.now())
+                        
+            else:
+                # Try to bisect the uncached list
+                if len(uncached) > 1 and len(uncached) - len(entrys) < 4:
+                    split = len(uncached) / 2
+                    self._batch_bget(uncached[:split])
+                    self._batch_bget(uncached[split:])
+                else:
+                    import warnings
+                    warnings.warn("Batch contains invalid ids", UserWarning)
         
         # Finally join all the results, but drop all None objects
         entries = filter(lambda e: e is not None, map(bget, ids))
