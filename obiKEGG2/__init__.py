@@ -282,7 +282,7 @@ class MatcherAliasesKEGG(obiGene.MatcherAliasesPickled):
         files = set(serverfiles.listfiles(self.DOMAIN))
         ids_filename = "gene_matcher_kegg_ids_" + self.organism + ".pickle"
         if ids_filename in files:
-            version = serverfiles.info(self.DOMAIN, ids_filename)
+            version = serverfiles.info(self.DOMAIN, ids_filename)["datetime"]
         else:
             kegg_org = KEGGOrganism(self.organism)
             genes = kegg_org.genes
