@@ -174,13 +174,20 @@ def keggGeneSets(org):
     """
     Returns gene sets from KEGG pathways.
     """
+    import obiKEGG2 as obiKEGG
+    
     kegg = obiKEGG.KEGGOrganism(org)
 
     genesets = []
     for id in kegg.pathways():
         pway = obiKEGG.KEGGPathway(id)
-        hier = ("KEGG",)
-        gs = obiGeneSets.GeneSet(id=id, name=pway.title, genes=kegg.get_genes_by_pathway(id), hierarchy=hier, organism=org, link=pway.link)
+        hier = ("KEGG","pathways")
+        gs = obiGeneSets.GeneSet(id=id,
+                                 name=pway.title,
+                                 genes=kegg.get_genes_by_pathway(id),
+                                 hierarchy=hier,
+                                 organism=org,
+                                 link=pway.link)
         genesets.append(gs)
 
     return obiGeneSets.GeneSets(genesets)
@@ -203,9 +210,30 @@ def miRNAGeneSets(org):
     org_code = obiKEGG.from_taxid(org)
     link_fmt = "http://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=%s"
     mirnas = [(id, obimiRNA.get_info(id)) for id in obimiRNA.ids(org_code)]
-    genesets = [GeneSet(id=mirna.matACC, name=mirna.matID, genes=mirna.targets.split(","), hierarchy=("miRNA",),
+    genesets = [GeneSet(id=mirna.matACC, name=mirna.matID, genes=mirna.targets.split(","), hierarchy=("miRNA", "Targets"),
                         organism=org, link=link_fmt % mirna.matID) for id, mirna in mirnas]
     return GeneSets(genesets)
+
+def go_miRNASets(org, ontology=None, enrichment=True, pval=0.05, treshold=0.04):
+    import obimiRNA, obiGO
+    mirnas = obimiRNA.ids(int(org))
+    if ontology is None:
+        ontology = obiGO.Ontology()
+         
+    annotations = obiGO.Annotations(org, ontology=ontology)
+    
+    go_sets = obimiRNA.get_GO(mirnas, annotations, enrichment=enrichment, pval=pval, goSwitch=False)
+    print go_sets
+    
+    go_sets = obimiRNA.filter_GO(go_sets, annotations, treshold=treshold)
+    
+    import obiGeneSets as gs
+    link_fmt = "http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term=%s"
+    gsets = [gs.GeneSet(id=key, name=ontology[key].name, genes=value, hierarchy=("miRNA", "go_sets",),
+                        organism=org, link=link_fmt % key) for key, value in go_sets.items()]
+    gset = gs.GeneSets(gsets)
+    return gset
+
 
 def loadGMT(contents, name):
     """
