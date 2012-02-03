@@ -17,7 +17,8 @@ store = sqlite3
 kegg_invalidate = always
 
 [service]
-transport = requests
+transport = urllib2
+# transport = requests
 
 """
 
