@@ -189,6 +189,9 @@ class GenomeEntry(entry.DBEntry):
               ("TAXONOMY", fields.DBTaxonomyField),
               ("DATA_SOURCE", fields.DBSimpleField),
               ("ORIGINAL_DB", fields.DBSimpleField),
+              ("KEYWORDS", fields.DBSimpleField),
+              ("DISEASE", fields.DBSimpleField),
+              ("COMMENT", fields.DBSimpleField),
               ("CHROMOSOME", fields.DBFieldWithSubsections),
               ("STATISTICS", fields.DBSimpleField),
               ("REFERENCE", fields.DBReference)]
@@ -256,6 +259,8 @@ class Genome(DBDataBase):
         return ['ddi', 'dme', 'hsa', 'mmu', 'sce']
     
     def search(self, string, relevance=False):
+        """ Search the genome database for string using ``bfind``.
+        """
         if relevance:
             raise NotImplementedError("relevance is no longer supported")
         if string in self.TAXID_MAP:
@@ -269,6 +274,7 @@ class Genome(DBDataBase):
         res = [r.split(",", 1)[0] for r in res]
         res = [r.split(" ", 1)[1] for r in res]
         return res
+    
     
 @entry.entry_decorate
 class GeneEntry(entry.DBEntry):
@@ -338,7 +344,6 @@ class Compounds(DBDataBase):
         DBDataBase.__init__(self)
         self._keys = [] # All keys are not available
 
-KEGGCompounds = Compounds
 
 @entry.entry_decorate    
 class ReactionEntry(entry.DBEntry):
@@ -366,8 +371,30 @@ class Disease(DBDataBase):
 class Drug(DBDataBase):
     DB = "dr"
     
+@entry.entry_decorate
+class EnzymeEntry(entry.DBEntry):
+    FIELDS = [("ENTRY", fields.DBEntryField),
+              ("NAME", fields.DBNameField),
+              ("CLASS", fields.DBSimpleField),
+              ("SYSNAME", fields.DBSimpleField),
+              ("REACTION", fields.DBSimpleField),
+              ("ALL_REAC", fields.DBSimpleField),
+              ("SUBSTRATE", fields.DBSimpleField),
+              ("PRODUCT", fields.DBSimpleField),
+              ("COMMENT", fields.DBSimpleField),
+              ("REFERENCE", fields.DBReference),
+              ("PATHWAY", fields.DBPathway),
+              ("ORTHOLOGY", fields.DBSimpleField),
+              ("GENES", fields.DBSimpleField),
+              ("DBLINKS", fields.DBDBLinks)
+              ]
+    
+    MULTIPLE_FIELDS = ["REFERENCE"]
+    
 class Enzymes(DBDataBase):
     DB = "ec"
+    ENTRY_TYPE = EnzymeEntry
+    
     
 @entry.entry_decorate
 class OrthologyEntry(entry.DBEntry):
@@ -382,6 +409,7 @@ class Orthology(DBDataBase):
     DB = "ko"
     ENTRY_TYPE = OrthologyEntry
     
+    
 @entry.entry_decorate
 class PathwayEntry(entry.DBEntry):
     FIELDS = [("ENTRY", fields.DBEntryField),
@@ -394,8 +422,8 @@ class PathwayEntry(entry.DBEntry):
               ("DBLINKS", fields.DBDBLinks),
               ("ORGANISM", fields.DBSimpleField),
               ("GENE", fields.DBGeneField),
-              ("ENZYME", fields.DBSimpleField),
-              ("COMPOUND", fields.DBSimpleField),
+              ("ENZYME", fields.DBEnzymeField),
+              ("COMPOUND", fields.DBCompoundField),
               ("REFERENCE", fields.DBReference),
               ("REL_PATHWAY", fields.DBSimpleField),
               ("KO_PATHWAY", fields.DBSimpleField),

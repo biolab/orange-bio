@@ -141,7 +141,11 @@ class DBPathway(DBSimpleField):
     
     @property
     def pathways(self):
-        return [s.split(" ", 1)[0] for s in self.text.splitlines()]
+        return self._convert()
+    
+    def _convert(self):
+        text = DBSimpleField._convert(self)
+        return [line.split(" ", 1)[0] for line in text.splitlines()]
     
     
 class DBAASeq(DBSimpleField):
@@ -156,6 +160,11 @@ class DBAASeq(DBSimpleField):
     def sequence_lenght(self):
         return int(self.text.split("\n", 1)[0])
     
+    def _convert(self):
+        text = DBSimpleField._convert(self)
+        count, seq = text.split("\n", 1)
+        return seq.replace("\n", "")
+    
     
 class DBNTSeq(DBSimpleField):
     __SLOTS__ = ["text"]
@@ -168,6 +177,11 @@ class DBNTSeq(DBSimpleField):
     @property
     def sequence_lenght(self):
         return int(self.text.split("\n", 1)[0])
+    
+    def _convert(self):
+        text = DBSimpleField._convert(self)
+        count, seq = text.split("\n", 1)
+        return seq.replace("\n", "")
     
     
 class DBPathwayMapField(DBSimpleField):
@@ -185,6 +199,24 @@ class DBPathwayMapField(DBSimpleField):
 class DBGeneField(DBSimpleField):
     __SLOTS__ = ["text"]
     TITLE = "GENE"
+    
+    def _convert(self):
+        text = DBSimpleField._convert(self)
+        lines = text.splitlines()
+        return [line.split(" ", 1)[0] for line in lines]
+    
+class DBEnzymeField(DBSimpleField):
+    __SLOTS__ = ["text"]
+    TITLE = "ENZYME"
+    
+    def _convert(self):
+        text = DBSimpleField._convert(self)
+        lines = text.splitlines()
+        return lines
+    
+class DBCompoundField(DBSimpleField):
+    __SLOTS__ = ["text"]
+    TITLE = "COMPOUND"
     
     def _convert(self):
         text = DBSimpleField._convert(self)
