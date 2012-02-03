@@ -62,7 +62,11 @@ class KeggApi(object):
                          <dbget> <fasta> <blast>
                          
         """
-        return BInfo.from_text(str(self.service.binfo(db)))
+        result = self.service.binfo(db)
+        if result is not None:
+            return BInfo.from_text(str(result))
+        else:
+            return result
     
     def bfind(self, db, keywords):
         """ Search database 'db' for keywords
