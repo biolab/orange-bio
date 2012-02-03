@@ -17,7 +17,6 @@ from . import conf
 from . import caching
 
 from Orange.misc import deprecated_attribute
-
     
 def cached_method(func, cache_name="_cached_method_cache", store=None):
     def wrapper(self, *args, **kwargs):
@@ -55,7 +54,7 @@ class Pathway(object):
         import shelve
         caching.touch_dir(self.local_cache)
         return caching.Sqlite3Store(os.path.join(self.local_cache,
-                                                 "last-modified.sqlite3"))
+                                                 "last_modified.sqlite3"))
         
     def _get_kgml(self):
         """ Return an open kgml file for the pathway.
@@ -220,7 +219,7 @@ class Pathway(object):
         return reduce(list.__add__, [self.genes(), self.compounds(), self.enzmes(), self.reactions()], [])
     
     def _get_entries_by_type(self, type):
-        return reduce(set.union, [entry.name.split() for entry in self.entries() if entry.type == type], set())
+        return sorted(reduce(set.union, [entry.name.split() for entry in self.entries() if entry.type == type], set()))
     
     @cached_method
     def genes(self):
