@@ -22,6 +22,8 @@ def suds_service():
     return client.service
 
 def suds_service_with_requests():
+    import StringIO
+    
     from suds.client import Client
     from suds.transport import Transport, TransportError
     from suds.properties import Unskin
@@ -40,7 +42,6 @@ def suds_service_with_requests():
         def send(self, request):
             result = None
             url = request.url
-#            print "URL", url
             message = request.message
             headers = request.headers
             headers["Connection"] = "Keep-Alive"
@@ -54,9 +55,9 @@ def suds_service_with_requests():
                 
                 self.cookies.update(response.cookies)
                 result = RequestsResponse()
-                result.message = response.raw.read()
-                result.headers = response.headers
                 result.code = response.status_code
+                result.headers = response.headers
+                result.message = response.raw.read()
                 return result
                 
             except urllib2.HTTPError, e:
@@ -69,11 +70,11 @@ def suds_service_with_requests():
             url = request.url
             message = request.message
             try:
-                respose = requests.get(url)
+                response = requests.get(url)
                 self.proxy = self.options.proxy
                 
-                respose.raise_for_status()
-                return response.raw
+                response.raise_for_status()
+                return StringIO.StringIO(response.raw.read())
             except urllib2.HTTPError, e:
                 raise TransportError(str(e), e.code, e.fp)
             
@@ -96,6 +97,7 @@ if conf.params["service.transport"] == "requests":
     except ImportError:
         import warnings
         warnings.warn("requests package not installed.")
+        
 elif conf.params["service.transport"] == "urllib2":
     pass
 
