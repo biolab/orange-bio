@@ -118,7 +118,8 @@ class DBEntry(object):
             title = field.TITLE
             if title not in registered_fields:
                 import warnings
-                warnings.warn("Nonregisterd field %r" % title)
+                warnings.warn("Nonregisterd field %r in %r" % \
+                                (title, type(self)))
             title_lower = title.lower()
             if title in multiple_fields:
                 if not hasattr(self, title):
