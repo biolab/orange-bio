@@ -11,13 +11,10 @@ This is a python module for access to `KEGG`_ using its web services. To use thi
 """
 from __future__ import absolute_import
 
-import urllib2
 
 import os, sys
-from functools import wraps, partial
 from collections import defaultdict
 
-import re
 from datetime import datetime
 
 from Orange.misc import lru_cache, serverfiles
@@ -123,13 +120,13 @@ class Organism(object):
         return enzyme.genes.get(self.org_code, []) if enzyme.genes else []
     
     def get_genes_by_pathway(self, pathway_id):
-        return Pathway(pathway_id).genes()
+        return KEGGPathway(pathway_id).genes()
     
     def get_enzymes_by_pathway(self, pathway_id):
-        return Pathway(pathway_id).enzymes()
+        return KEGGPathway(pathway_id).enzymes()
     
     def get_compounds_by_pathway(self, pathway_id):
-        return Pathway(pathway_id).compounds()
+        return KEGGPathway(pathway_id).compounds()
     
     def get_pathways_by_genes(self, gene_ids):
         return self.api.get_pathways_by_genes(gene_ids)
@@ -234,9 +231,11 @@ def organisms():
 def from_taxid(taxid):
     genome = KEGGGenome()
     res = genome.search(taxid)
+    print taxid, res
     for r in res:
         e = genome[r]
-        if e.taxid == taxid:
+        
+        if e.taxid in [taxid,  genome.TAXID_MAP.get(taxid, taxid)]:
             return e.org_code()
         
     return None
@@ -258,12 +257,14 @@ from Orange.misc import ConsoleProgressBar
 
 class MatcherAliasesKEGG(obiGene.MatcherAliasesPickled):
     DOMAIN = "KEGG"
+    VERSION = "v3.0"
     def create_aliases(self):
-        files = set(serverfiles.listfiles(self.DOMAIN))
-        ids_filename = "gene_matcher_kegg_ids_" + self.organism + ".pickle"
+        import cPickle
+        files = set(serverfiles.ServerFiles().listfiles(self.DOMAIN))
+        ids_filename = "kegg_gene_id_aliases_" + self.organism + ".pickle"
         if ids_filename in files:
             filename = serverfiles.localpath_download(self.DOMAIN, ids_filename)
-            import cPickle
+            
             aliases = cPickle.load(open(filename, "rb"))
         else:
             pb = ConsoleProgressBar("Retriving KEGG ids:")
@@ -273,14 +274,21 @@ class MatcherAliasesKEGG(obiGene.MatcherAliasesPickled):
             aliases = []
             for key, entry in genes.iteritems():
                 aliases.append(set([key]) | set(entry.alt_names))
+            filename = serverfiles.localpath_download(self.DOMAIN, ids_filename)
+            cPickle.dump(aliases, open(filename, "wb"))
+            
         return aliases
     
     def filename(self):
         return "kegg3_" + self.organism
     
+    def aliases_path(self):
+        ids_filename = "kegg_gene_id_aliases_" + self.organism + ".pickle"
+        return serverfiles.localpath(self.DOMAIN, ids_filename)
+    
     def create_aliases_version(self):
         files = set(serverfiles.listfiles(self.DOMAIN))
-        ids_filename = "gene_matcher_kegg_ids_" + self.organism + ".pickle"
+        ids_filename = "kegg_gene_id_aliases_" + self.organism + ".pickle"
         if ids_filename in files:
             version = serverfiles.info(self.DOMAIN, ids_filename)["datetime"]
         else:
@@ -293,7 +301,7 @@ class MatcherAliasesKEGG(obiGene.MatcherAliasesPickled):
         self.organism = organism
         sf = serverfiles.ServerFiles()
         files = set(sf.listfiles(self.DOMAIN))
-        ids_filename = "gene_matcher_kegg_ids_" + self.organism + ".pickle"
+        ids_filename = "kegg_gene_id_aliases_" + self.organism + ".pickle"
         if ids_filename in files:
             serverfiles.update(self.DOMAIN, ids_filename)
             
