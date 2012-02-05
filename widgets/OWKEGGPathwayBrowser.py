@@ -413,6 +413,7 @@ class OWKEGGPathwayBrowser(OWWidget):
 #        self.progressBarFinished()
         items = []
         kegg_pathways = obiKEGG.KEGGPathways()
+        kegg_pathways.pre_cache(self.pathways.keys())
         
         if self.showOrthology:
             self.koOrthology = obiKEGG.KEGGBrite("ko00001")
@@ -601,7 +602,8 @@ class OWKEGGPathwayBrowser(OWWidget):
             taxid = r_tax_map[taxid]
             
         with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            kegg_gs_collections = list(obiGeneSets.collections((("KEGG",), taxid)))
+            orngServerFiles.update(obiGeneSets.sfdomain, "index.pck")
+            kegg_gs_collections = list(obiGeneSets.collections((("KEGG", "pathways"), taxid)))
         
         print self.genes
         print taxid
@@ -777,7 +779,7 @@ def pathway_enrichment(genesets, genes, reference, prob=None, callback=None):
             result_sets.append((gs.id, cluster, ref))
             p_values.append(p_val)
         if callback is not None:
-            callback(100.0 * i / len(genes))
+            callback(100.0 * i / len(genesets))
     
     # FDR correction
     p_values = obiProb.FDR(p_values)
@@ -793,7 +795,7 @@ if __name__=="__main__":
     w.UpdateOrganismComboBox()
 ##    app.setMainWidget(w)
     w.show()
-    w.SetData(orange.ExampleTable(data[-20:]))
+    w.SetData(orange.ExampleTable(data[:]))
     QTimer.singleShot(10, w.handleNewSignals)
     app.exec_()
     w.saveSettings()
