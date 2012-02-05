@@ -242,6 +242,9 @@ def from_taxid(taxid):
 
 def to_taxid(name):
     genome = KEGGGenome()
+    if name in genome:
+        return genome[name].taxid
+    
     keys = genome.search(name)
     if keys:
         return genome[keys[0]].taxid
