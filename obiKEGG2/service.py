@@ -7,6 +7,7 @@ from __future__ import absolute_import
 KEGG_WDSL = "http://soap.genome.jp/KEGG.wsdl"
 
 import urllib2
+
 def suds_service():
     """ Return an suds service object with kegg api service methods.
     
@@ -16,8 +17,6 @@ def suds_service():
 
     """
     from suds.client import Client
-    # TODO: extend suds.transport HttpTransport
-    # to support keep-alive 
     client = Client(KEGG_WDSL)
     return client.service
 
@@ -44,6 +43,8 @@ def suds_service_with_requests():
             url = request.url
             message = request.message
             headers = request.headers
+            # This does not seem to work, every request seems
+            # to open a new connection
             headers["Connection"] = "Keep-Alive"
             try:
                 response = requests.post(url, data=message, 
