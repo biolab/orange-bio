@@ -446,7 +446,7 @@ class OWGenotypeDistances(OWWidget):
 
         def get_attr(attr_index, i):
             if attr_index is None:
-                attr = Orange.data.variable.Continuous(missing_name_gen.next())
+                attr = Orange.feature.Continuous(missing_name_gen.next())
                 attr.attributes.update(relevant_items[i])
                 return attr
             else:
@@ -481,7 +481,7 @@ class OWGenotypeDistances(OWWidget):
         def for_print(rd):
             attrs = []
             for d in rd:
-                attr = Orange.data.variable.Continuous(inactive_name_gen.next())
+                attr = Orange.feature.Continuous(inactive_name_gen.next())
                 attr.attributes.update(d)
                 attrs.append(attr)
             return Orange.data.Domain(attrs, None)

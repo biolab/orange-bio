@@ -181,7 +181,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
         """ Populate the 'Gene Attribute' box
         """
         vars = data.domain.variables + data.domain.get_metas().values()
-        vars = [var for var in vars if isinstance(var, (Orange.data.variable.String))]
+        vars = [var for var in vars if isinstance(var, (Orange.feature.String))]
         self.candidate_vars = vars
         self.gene_attr_cb.addItems([var.name for var in vars])
         # See if any var name contains 'gene'

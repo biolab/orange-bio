@@ -829,17 +829,17 @@ def processed_matrix_to_orange(matrix_file):
          
     for header_name, quant, column in zip(header, quantification, matrix.T):
         if _is_continuous(column):
-            feature = Orange.data.variable.Continuous(header_name)
+            feature = Orange.feature.Continuous(header_name)
             column[numpy.where(1 - is_float(column))] = "?" # relace all non parsable floats with '?'
         else:
             values = set(column)
-            feature = Orange.data.variable.Discrete(header_name, values=sorted(values))
+            feature = Orange.feature.Discrete(header_name, values=sorted(values))
         feature.attributes["quantification"] = quant
         features.append(feature)
         
-    row_ref_feature = Orange.data.variable.String(row_ref)
+    row_ref_feature = Orange.feature.String(row_ref)
     domain = Orange.data.Domain(features, None)
-    domain.addmeta(Orange.data.new_meta_id(), row_ref_feature)
+    domain.addmeta(Orange.feature.Descriptor.new_meta_id(), row_ref_feature)
     
     table = Orange.data.Table(domain, [list(row) for row in matrix])
     
