@@ -24,20 +24,26 @@ from pprint import pprint
 DEBUG = False
 
 @contextmanager
-def control_disable(widget):
+def widget_disable(widget):
+    """A context to disable the widget (enabled property)  
+    """
     widget.setEnabled(False)
     yield
     widget.setEnabled(True)
     
 @contextmanager
 def disable_updates(widget):
+    """
+    A context that sets '_disable_updates' member to True, and
+    then restores it.
+    
+    """
     widget._disable_updates = True
     yield
     widget._disable_updates = False
 
 def group_label(splits, groups):
-    """
-    Return group label
+    """Return group label.
     """
     labels = ["{}={}".format(split, group) \
               for split, group in zip(splits, groups)]
@@ -45,8 +51,7 @@ def group_label(splits, groups):
 
 
 def sort_label(sort, attr):
-    """
-    Return within group sorted items label for attribute.
+    """Return within group sorted items label for attribute.
     """
     items = [(key, attr.attributes.get(key, "?")) \
              for key in sort]
@@ -54,6 +59,9 @@ def sort_label(sort, attr):
     return " | ".join(labels)
 
 def float_if_posible(val):
+    """Return val as float if possible otherwise return the value unchanged.
+    
+    """
     try:
         return float(val)
     except ValueError:
@@ -63,9 +71,12 @@ class OWQualityControl(OWWidget):
     contextHandlers = {"": SetContextHandler("")}
     settingsList = []
     
-    DISTANCE_FUNCTIONS = [("Distance from Pearson correlation", exp.dist_pcorr),
-                          ("Euclidean distance", exp.dist_eucl),
-                          ("Distance from Spearman correlation", exp.dist_spearman)]
+    DISTANCE_FUNCTIONS = [("Distance from Pearson correlation",
+                           exp.dist_pcorr),
+                          ("Euclidean distance", 
+                           exp.dist_eucl),
+                          ("Distance from Spearman correlation", 
+                           exp.dist_spearman)]
 
     def __init__(self, parent=None, signalManager=None,
                  title="Quality Control"):
@@ -177,8 +188,8 @@ class OWQualityControl(OWWidget):
             self.sort_by_model[:] = keys
         
     def get_suitable_keys(self, data):
-        """ Return suitable attr label keys from the data where the key has at least
-        two unique values in the data.
+        """ Return suitable attr label keys from the data where
+        the key has at least two unique values in the data.
         
         """
         attrs = [attr.attributes.items() for attr in data.domain.attributes]
@@ -212,6 +223,8 @@ class OWQualityControl(OWWidget):
         return self.DISTANCE_FUNCTIONS[self.selected_distance_index][1]
     
     def selected_base_index(self):
+        """Return the selected base index
+        """
         return self.base_index
 
     def on_new_data(self):
@@ -231,20 +244,21 @@ class OWQualityControl(OWWidget):
         
         ## Restore saved context
         context = self.currentContexts[""]
-        split_by_labels= getattr(context, "split_by_labels", set())
+        split_by_labels = getattr(context, "split_by_labels", set())
         sort_by_labels = getattr(context, "sort_by_labels", set())
         
         def select(model, selection_model, selected_items):
+            """Select items in a Qt item model view
+            """
             all_items = list(model)
             try:
                 indices = [all_items.index(item) for item in selected_items]
             except:
                 indices = []
             for ind in indices:
-                selection_model.select(model.index(ind), QItemSelectionModel.Select)
+                selection_model.select(model.index(ind), 
+                                       QItemSelectionModel.Select)
                 
-#        self._disable_updates = True
-#        try:
         with disable_updates(self):
             select(self.split_by_view.model(),
                    self.split_by_view.selectionModel(),
@@ -253,30 +267,36 @@ class OWQualityControl(OWWidget):
             select(self.sort_by_view.model(),
                    self.sort_by_view.selectionModel(),
                    sort_by_labels)
-#        finally:
-#            self._disable_updates = False
             
         self.split_and_update()
         
     def on_split_key_changed(self, *args):
-        with control_disable(self):
+        """Split key has changed
+        """
+        with widget_disable(self):
             if not self._disable_updates:
                 context = self.currentContexts[""]
                 context.split_by_labels = self.selected_split_by_labels()
                 self.split_and_update()
     
     def on_sort_key_changed(self, *args):
-        with control_disable(self):
+        """Sort key has changed
+        """
+        with widget_disable(self):
             if not self._disable_updates:
                 context = self.currentContexts[""]
                 context.sort_by_labels = self.selected_sort_by_labels()
                 self.split_and_update()
         
     def on_distance_measure_changed(self):
+        """Distance measure has changed
+        """
         self.update_distances()
         self.replot_experiments()
         
     def on_view_resize(self, size):
+        """The view with the quality plot has changed
+        """
         if self.main_widget:
             current = self.main_widget.size()
             self.main_widget.resize(size.width() - 2, 
@@ -285,6 +305,8 @@ class OWQualityControl(OWWidget):
             self.scene.setSceneRect(self.scene.itemsBoundingRect())
         
     def on_rug_item_clicked(self, item):
+        """An ``item`` in the quality plot has been clicked.
+        """
         base = item.index
         if base != self.base_index:
             self.base_index = base
@@ -481,6 +503,8 @@ class RugGraphicsWidget(QGraphicsWidget):
         self.update_rug_geometry()
         
     def update_rug_geometry(self):
+        """Recompute the rug items positions within this widget.
+        """
         size = self.size()
         height = size.height()
         width = size.width()
@@ -491,10 +515,14 @@ class RugGraphicsWidget(QGraphicsWidget):
             item.setLine(0., offset, 0., height - offset)
 
     def resizeEvent(self, event):
+        """Reimplemented from QGraphicsWidget
+        """
         QGraphicsWidget.resizeEvent(self, event)
         self.update_rug_geometry()
 
     def setGeometry(self, geom):
+        """Reimplemented from QGraphicsWidget
+        """
         QGraphicsWidget.setGeometry(self, geom)
 
 
