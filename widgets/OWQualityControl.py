@@ -1,5 +1,6 @@
 """
 <name>Quality Control</name>
+<description>Experiment quality control</description>
 
 """
 
@@ -9,7 +10,7 @@ import Orange
 
 from OWWidget import *
 from OWItemModels import PyListModel, safe_text
-from OWGraphics import GraphicsSimpleTextLayoutItem, GtI
+from OWGraphics import GraphicsSimpleTextLayoutItem
 import OWGUI
 
 from OWGenotypeDistances import SetContextHandler
@@ -68,6 +69,8 @@ def float_if_posible(val):
         return val
     
 def experiment_description(feature):
+    """Return experiment description from ``feature.attributes``. 
+    """
     text = ""
     if feature.attributes:
         items = feature.attributes.items()
@@ -379,9 +382,6 @@ class OWQualityControl(OWWidget):
         self.unique_pos = sorted(self.unique_pos.items(),
                                  key=lambda t: map(float_if_posible, t[0]))
         
-#        pprint(self.groups)
-#        pprint(self.unique_pos)
-        
         if self.groups:
             if sort_labels:
                 group_base = self.selected_base_group_index()
@@ -477,14 +477,7 @@ class OWQualityControl(OWWidget):
         """
         self.scene.clear()
         labels = []
-#        ## Base replicate=1 TODO: the index should be set
-#        if self.selected_sort_by_labels():
-#            base_indices = self.selected_base_indices()
-#        else:
-#            base_indices = self.selected_base_indices(\
-#                                self.selected_base_group_index()
-#                                )
-#            
+        
         max_dist = numpy.max(filter(None, self.distances))
         rug_widgets = []
         
@@ -512,8 +505,6 @@ class OWQualityControl(OWWidget):
                             rug_item = ClickableRugItem(dist_vec[i] / max_dist,
                                            1.0, self.on_rug_item_clicked)
                             rug_item.setPen(group_pen)
-#                            tooltip = sort_label(split_by, attr)
-#                            tooltip += "\n" + sort_label(sort_by, attr)
                             tooltip = experiment_description(attr)
                             rug_item.setToolTip(tooltip)
                             rug_item.group_index = indices.index(i)
@@ -521,8 +512,6 @@ class OWQualityControl(OWWidget):
                             rug_item = ClickableRugItem(dist_vec[i] / max_dist,
                                            0.85, self.on_rug_item_clicked)
                             rug_item.setPen(background_pen)
-#                            tooltip = sort_label(split_by, attr)
-#                            tooltip += "\n" + sort_label(sort_by, attr)
                             tooltip = experiment_description(attr)
                             rug_item.setToolTip(tooltip)
                             
@@ -538,8 +527,7 @@ class OWQualityControl(OWWidget):
                 rug_widgets.append(rug_widget)
                 
                 label = group_label(self.selected_split_by_labels(), group)
-#                label_item = QGraphicsSimpleTextItem(label)
-                label_item = GtI(label, main_widget)
+                label_item = QGraphicsSimpleTextItem(label, main_widget)
                 label_item = GraphicsSimpleTextLayoutItem(label_item)
                 label_item.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
                 labels.append(label_item)
