@@ -8,7 +8,7 @@ import sys
 import Orange
 
 from OWWidget import *
-from OWItemModels import PyListModel
+from OWItemModels import PyListModel, safe_text
 from OWGraphics import GraphicsSimpleTextLayoutItem, GtI
 import OWGUI
 
@@ -66,6 +66,16 @@ def float_if_posible(val):
         return float(val)
     except ValueError:
         return val
+    
+def experiment_description(feature):
+    text = ""
+    if feature.attributes:
+        items = feature.attributes.items()
+        items = [(safe_text(key), safe_text(value)) for key, value in items]
+        labels = map("%s = %s".__mod__, items)
+        text += "Experiment Labels:<br/>"
+        text += "<br/>".join(labels)
+    return text
 
 class OWQualityControl(OWWidget):
     contextHandlers = {"": SetContextHandler("")}
@@ -144,6 +154,8 @@ class OWQualityControl(OWWidget):
                      self.on_view_resize)
 
         self._disable_updates = False
+        self._cached_distances = {}
+        self._base_index_hints = {}
         self.main_widget = None
         
         self.resize(800, 600)
@@ -162,6 +174,7 @@ class OWQualityControl(OWWidget):
 
         self.scene.clear()
         self.info_box.setText("\n")
+        self._cached_distances = {}
 
     def set_data(self, data=None):
         """Set input experiment data.
@@ -222,10 +235,22 @@ class OWQualityControl(OWWidget):
         """
         return self.DISTANCE_FUNCTIONS[self.selected_distance_index][1]
     
-    def selected_base_index(self):
-        """Return the selected base index
+    def selected_base_group_index(self):
+        """Return the selected base group index
         """
         return self.base_index
+    
+    def selected_base_indices(self, base_group_index=None):
+        indices = []
+        for g, ind in self.groups:
+            if base_group_index is None:
+                label = group_label(self.selected_split_by_labels(), g)
+                ind = filter(None, ind)
+                i = self._base_index_hints.get(label, ind[0] if ind else None)
+            else:
+                i = ind[base_group_index]
+            indices.append(i)
+        return indices
 
     def on_new_data(self):
         """We have new data and need to recompute all.
@@ -284,6 +309,7 @@ class OWQualityControl(OWWidget):
         """
         with widget_disable(self):
             if not self._disable_updates:
+                self.base_index = 0
                 context = self.currentContexts[""]
                 context.sort_by_labels = self.selected_sort_by_labels()
                 self.split_and_update()
@@ -307,9 +333,31 @@ class OWQualityControl(OWWidget):
     def on_rug_item_clicked(self, item):
         """An ``item`` in the quality plot has been clicked.
         """
-        base = item.index
-        if base != self.base_index:
-            self.base_index = base
+        update = False
+        sort_by_labels = self.selected_sort_by_labels()
+        if sort_by_labels and item.in_group:
+            ## The item is part of the group
+            if item.group_index != self.base_index:
+                self.base_index = item.group_index
+                update = True
+            
+        else:
+            if sort_by_labels:
+                # If the user clicked on an background item it
+                # invalidates the sorted labels selection
+                with disable_updates(self):
+                    self.sort_by_view.selectionModel().clear()
+                    update = True
+                    
+            index = item.index
+            group = item.group
+            label = group_label(self.selected_split_by_labels(), group)
+            
+            if self._base_index_hints.get(label, 0) != index:
+                self._base_index_hints[label] = index
+                update = True
+            
+        if update:
             self.split_and_update()
         
     def split_and_update(self):
@@ -318,10 +366,11 @@ class OWQualityControl(OWWidget):
         and update the quality plot.
         
         """
+        split_labels = self.selected_split_by_labels()
+        sort_labels = self.selected_sort_by_labels()
         self.groups, self.unique_pos = \
-                exp.separate_by(self.data,
-                                self.selected_split_by_labels(),
-                                consider=self.selected_sort_by_labels(),
+                exp.separate_by(self.data, split_labels,
+                                consider=sort_labels,
                                 add_empty=True)
         
         
@@ -330,51 +379,113 @@ class OWQualityControl(OWWidget):
         self.unique_pos = sorted(self.unique_pos.items(),
                                  key=lambda t: map(float_if_posible, t[0]))
         
-        pprint(self.groups)
-        pprint(self.unique_pos)
+#        pprint(self.groups)
+#        pprint(self.unique_pos)
+        
         if self.groups:
-            # TODO: Check if the groups of base experiment have changed
-            self.update_distances()
+            if sort_labels:
+                group_base = self.selected_base_group_index()
+                base_indices = self.selected_base_indices(group_base)
+            else:
+                base_indices = self.selected_base_indices()
+            self.update_distances(base_indices)
             self.replot_experiments()
 
-    def update_distances(self):
+    def get_cached_distances(self, measure):
+        if measure not in self._cached_distances:
+            attrs = self.data.domain.attributes
+            mat = Orange.misc.SymMatrix(len(attrs))
+            self._cached_distances[measure] = \
+                (mat, set(zip(range(len(attrs)), range(len(attrs)))))
+            
+        return self._cached_distances[measure]
+            
+            
+    def get_cached_distance(self, measure, i, j):
+        matrix, computed = self.get_cached_distances(measure)
+        key = (i, j) if i < j else (j, i) 
+        if key in computed:
+            return matrix[i, j]
+        else:
+            return None
+        
+    def get_distance(self, measure, i, j):
+        d = self.get_cached_distance(measure, i, j)
+        if d is None:
+            vec_i = exp.linearize(self.data, [i])
+            vec_j = exp.linearize(self.data, [j])
+            d = distance(vec_i, vec_j)
+            mat, computed = self.get_cached_distances(measure)
+            mat[i, j] = d
+            key = key = (i, j) if i < j else (j, i)
+            computed.add(key)
+        return d
+    
+    def store_distance(self, measure, i, j, dist):
+        matrix, computed = self.get_cached_distances(measure)
+        key = key = (i, j) if i < j else (j, i)
+        matrix[i, j] = dist
+        computed.add(key)
+        
+            
+    def update_distances(self, base_indices=()):
         """Recompute the experiment distances.
         """
         distance = self.selected_distance()
-        base_index = self.base_index
+        if base_indices == ():
+            base_group_index = self.selected_base_group_index()
+            base_indices = [ind[base_group_index] \
+                            for _, ind in self.groups]
+        
+        assert(len(base_indices) == len(self.groups)) 
+        
         base_distances = []
+        attributes = self.data.domain.attributes
         pb = OWGUI.ProgressBar(self, len(self.groups) * \
-                               len(self.data.domain.attributes))
-        for group, indices in self.groups:
+                               len(attributes))
+        
+        cached_distances, filled_set = self.get_cached_distances(distance)
+        
+        for (group, indices), base_index in zip(self.groups, base_indices):
             # Base column of the group
-            if indices[base_index] is not None:
-                base_vec = exp.linearize(self.data, [indices[base_index]])
+            if base_index is not None:
+                base_vec = exp.linearize(self.data, [base_index])
                 distances = []
-                # Compute the distances between base replicate 
+                # Compute the distances between base column 
                 # and all the rest data columns.
-                for i in range(len(self.data.domain.attributes)):
-                    if i == indices[base_index]:
+                for i in range(len(attributes)):
+                    if i == base_index:
                         distances.append(0.0)
+                    elif self.get_cached_distance(distance, i, base_index) is not None:
+                        distances.append(self.get_cached_distance(distance, i, base_index))
                     else:
                         vec_i = exp.linearize(self.data, [i])
-                        distances.append(distance(base_vec, vec_i))
+                        dist = distance(base_vec, vec_i)
+                        self.store_distance(distance, i, base_index, dist)
+                        distances.append(dist)
                     pb.advance()
                     
                 base_distances.append(distances)
             else:
                 base_distances.append(None)
+                
         pb.finish()
         self.distances = base_distances
 
     def replot_experiments(self):
-        """Replot the whole quality plot
+        """Replot the whole quality plot.
         """
         self.scene.clear()
         labels = []
-        ## Base replicate=1 TODO: the index should be set
-        base_index = self.base_index
+#        ## Base replicate=1 TODO: the index should be set
+#        if self.selected_sort_by_labels():
+#            base_indices = self.selected_base_indices()
+#        else:
+#            base_indices = self.selected_base_indices(\
+#                                self.selected_base_group_index()
+#                                )
+#            
         max_dist = numpy.max(filter(None, self.distances))
-        print max_dist
         rug_widgets = []
         
         group_pen = QPen(QColor(0, 0, 0))
@@ -391,7 +502,6 @@ class OWQualityControl(OWWidget):
         attributes = self.data.domain.attributes
         if self.data:
             for (group, indices), dist_vec in zip(self.groups, self.distances):
-                base = indices[base_index]
                 indices_set = set(indices)
                 rug_items = []
                 if dist_vec is not None:
@@ -402,19 +512,24 @@ class OWQualityControl(OWWidget):
                             rug_item = ClickableRugItem(dist_vec[i] / max_dist,
                                            1.0, self.on_rug_item_clicked)
                             rug_item.setPen(group_pen)
-                            tooltip = sort_label(split_by, attr)
-                            tooltip += "\n" + sort_label(sort_by, attr)
+#                            tooltip = sort_label(split_by, attr)
+#                            tooltip += "\n" + sort_label(sort_by, attr)
+                            tooltip = experiment_description(attr)
                             rug_item.setToolTip(tooltip)
-                            rug_item.setToolTip(sort_label(sort_by, attr))
-                            rug_item.index = indices.index(i)
+                            rug_item.group_index = indices.index(i)
                         else:
-#                            rug_item = RugItem(dist_vec[i] / max_dist, 0.85)
                             rug_item = ClickableRugItem(dist_vec[i] / max_dist,
-                                           0.85, None)#self.on_rug_item_clicked)
-                            tooltip = sort_label(split_by, attr)
-                            tooltip += "\n" + sort_label(sort_by, attr)
-                            rug_item.setToolTip(tooltip)
+                                           0.85, self.on_rug_item_clicked)
                             rug_item.setPen(background_pen)
+#                            tooltip = sort_label(split_by, attr)
+#                            tooltip += "\n" + sort_label(sort_by, attr)
+                            tooltip = experiment_description(attr)
+                            rug_item.setToolTip(tooltip)
+                            
+                        rug_item.group = group
+                        rug_item.index = i
+                        rug_item.in_group = in_group
+                        
                         rug_items.append(rug_item)
                     
                 rug_widget = RugGraphicsWidget()
