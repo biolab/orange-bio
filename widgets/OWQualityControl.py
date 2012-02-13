@@ -76,7 +76,7 @@ def experiment_description(feature):
         items = feature.attributes.items()
         items = [(safe_text(key), safe_text(value)) for key, value in items]
         labels = map("%s = %s".__mod__, items)
-        text += "Experiment Labels:<br/>"
+        text += "<b>%s</b><br/>" % safe_text(feature.name)
         text += "<br/>".join(labels)
     return text
 
@@ -248,7 +248,7 @@ class OWQualityControl(OWWidget):
         for g, ind in self.groups:
             if base_group_index is None:
                 label = group_label(self.selected_split_by_labels(), g)
-                ind = filter(None, ind)
+                ind = [i for i in ind if i is not None]
                 i = self._base_index_hints.get(label, ind[0] if ind else None)
             else:
                 i = ind[base_group_index]
@@ -382,6 +382,9 @@ class OWQualityControl(OWWidget):
         self.unique_pos = sorted(self.unique_pos.items(),
                                  key=lambda t: map(float_if_posible, t[0]))
         
+#        pprint(self.groups)
+#        pprint(self.unique_pos)
+        
         if self.groups:
             if sort_labels:
                 group_base = self.selected_base_group_index()
@@ -427,7 +430,6 @@ class OWQualityControl(OWWidget):
         matrix[i, j] = dist
         computed.add(key)
         
-            
     def update_distances(self, base_indices=()):
         """Recompute the experiment distances.
         """
@@ -436,7 +438,7 @@ class OWQualityControl(OWWidget):
             base_group_index = self.selected_base_group_index()
             base_indices = [ind[base_group_index] \
                             for _, ind in self.groups]
-        
+            
         assert(len(base_indices) == len(self.groups)) 
         
         base_distances = []
