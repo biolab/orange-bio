@@ -182,6 +182,7 @@ class OWQualityControl(OWWidget):
     def set_data(self, data=None):
         """Set input experiment data.
         """
+        self.clear()
         self.data = data
 
     def handleNewSignals(self):
