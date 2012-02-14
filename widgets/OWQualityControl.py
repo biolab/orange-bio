@@ -24,6 +24,7 @@ from pprint import pprint
 
 DEBUG = False
 
+
 @contextmanager
 def widget_disable(widget):
     """A context to disable the widget (enabled property)  
@@ -31,6 +32,7 @@ def widget_disable(widget):
     widget.setEnabled(False)
     yield
     widget.setEnabled(True)
+    
     
 @contextmanager
 def disable_updates(widget):
@@ -42,6 +44,7 @@ def disable_updates(widget):
     widget._disable_updates = True
     yield
     widget._disable_updates = False
+
 
 def group_label(splits, groups):
     """Return group label.
@@ -59,6 +62,7 @@ def sort_label(sort, attr):
     labels = ["{}={}".format(*item) for item in items]
     return " | ".join(labels)
 
+
 def float_if_posible(val):
     """Return val as float if possible otherwise return the value unchanged.
     
@@ -67,6 +71,7 @@ def float_if_posible(val):
         return float(val)
     except ValueError:
         return val
+    
     
 def experiment_description(feature):
     """Return experiment description from ``feature.attributes``. 
@@ -79,6 +84,7 @@ def experiment_description(feature):
         text += "<b>%s</b><br/>" % safe_text(feature.name)
         text += "<br/>".join(labels)
     return text
+
 
 class OWQualityControl(OWWidget):
     contextHandlers = {"": SetContextHandler("")}
@@ -107,14 +113,14 @@ class OWQualityControl(OWWidget):
         self.distances = None
         self.groups = None
         self.unique_pos = None
-        self.base_index = 0
+        self.base_group_index = 0
 
         ## GUI
         box = OWGUI.widgetBox(self.controlArea, "Info")
         self.info_box = OWGUI.widgetLabel(box, "\n")
 
-        ## Split By box
-        box = OWGUI.widgetBox(self.controlArea, "Split By")
+        ## Separate By box
+        box = OWGUI.widgetBox(self.controlArea, "Separate By")
         self.split_by_model = PyListModel()
         self.split_by_view = QListView()
         self.split_by_view.setSelectionMode(QListView.ExtendedSelection)
@@ -183,6 +189,16 @@ class OWQualityControl(OWWidget):
         """Set input experiment data.
         """
         self.clear()
+        
+        self.error(0)
+        self.warning(0)
+        
+        if data is not None:
+            keys = self.get_suitable_keys(data)
+            if not keys:
+                self.error(0, "Data has no suitable feature labels.")
+                data = None
+                
         self.data = data
 
     def handleNewSignals(self):
@@ -242,7 +258,7 @@ class OWQualityControl(OWWidget):
     def selected_base_group_index(self):
         """Return the selected base group index
         """
-        return self.base_index
+        return self.base_group_index
     
     def selected_base_indices(self, base_group_index=None):
         indices = []
@@ -304,6 +320,7 @@ class OWQualityControl(OWWidget):
         """
         with widget_disable(self):
             if not self._disable_updates:
+                self.base_group_index = 0
                 context = self.currentContexts[""]
                 context.split_by_labels = self.selected_split_by_labels()
                 self.split_and_update()
@@ -313,7 +330,7 @@ class OWQualityControl(OWWidget):
         """
         with widget_disable(self):
             if not self._disable_updates:
-                self.base_index = 0
+                self.base_group_index = 0
                 context = self.currentContexts[""]
                 context.sort_by_labels = self.selected_sort_by_labels()
                 self.split_and_update()
@@ -341,8 +358,8 @@ class OWQualityControl(OWWidget):
         sort_by_labels = self.selected_sort_by_labels()
         if sort_by_labels and item.in_group:
             ## The item is part of the group
-            if item.group_index != self.base_index:
-                self.base_index = item.group_index
+            if item.group_index != self.base_group_index:
+                self.base_group_index = item.group_index
                 update = True
             
         else:
@@ -372,6 +389,11 @@ class OWQualityControl(OWWidget):
         """
         split_labels = self.selected_split_by_labels()
         sort_labels = self.selected_sort_by_labels()
+        
+        self.warning(0)
+        if not split_labels:
+            self.warning(0, "No separate by label selected.")
+            
         self.groups, self.unique_pos = \
                 exp.separate_by(self.data, split_labels,
                                 consider=sort_labels,
@@ -403,8 +425,7 @@ class OWQualityControl(OWWidget):
                 (mat, set(zip(range(len(attrs)), range(len(attrs)))))
             
         return self._cached_distances[measure]
-            
-            
+        
     def get_cached_distance(self, measure, i, j):
         matrix, computed = self.get_cached_distances(measure)
         key = (i, j) if i < j else (j, i) 
