@@ -30,8 +30,10 @@ def widget_disable(widget):
     """A context to disable the widget (enabled property)  
     """
     widget.setEnabled(False)
-    yield
-    widget.setEnabled(True)
+    try:
+        yield
+    finally:
+        widget.setEnabled(True)
     
     
 @contextmanager
@@ -42,8 +44,10 @@ def disable_updates(widget):
     
     """
     widget._disable_updates = True
-    yield
-    widget._disable_updates = False
+    try:
+        yield
+    finally:
+        widget._disable_updates = False
 
 
 def group_label(splits, groups):
@@ -88,7 +92,7 @@ def experiment_description(feature):
 
 class OWQualityControl(OWWidget):
     contextHandlers = {"": SetContextHandler("")}
-    settingsList = []
+    settingsList = ["selected_distance_index"]
     
     DISTANCE_FUNCTIONS = [("Distance from Pearson correlation",
                            exp.dist_pcorr),
@@ -106,7 +110,6 @@ class OWQualityControl(OWWidget):
 
         ## Settings
         self.selected_distance_index = 0
-        self.replicate_id = "replicate"
 
         ## Attributes
         self.data = None
@@ -284,6 +287,8 @@ class OWQualityControl(OWWidget):
                                 )
                               )
         
+        self.base_group_index = 0
+        
         keys = self.get_suitable_keys(self.data)
         self.openContext("", keys)
         
@@ -312,8 +317,9 @@ class OWQualityControl(OWWidget):
             select(self.sort_by_view.model(),
                    self.sort_by_view.selectionModel(),
                    sort_by_labels)
-            
-        self.split_and_update()
+        
+        with widget_disable(self):
+            self.split_and_update()
         
     def on_split_key_changed(self, *args):
         """Split key has changed
@@ -338,8 +344,9 @@ class OWQualityControl(OWWidget):
     def on_distance_measure_changed(self):
         """Distance measure has changed
         """
-        self.update_distances()
-        self.replot_experiments()
+        with widget_disable(self):
+            self.update_distances()
+            self.replot_experiments()
         
     def on_view_resize(self, size):
         """The view with the quality plot has changed
@@ -379,7 +386,8 @@ class OWQualityControl(OWWidget):
                 update = True
             
         if update:
-            self.split_and_update()
+            with widget_disable(self):
+                self.split_and_update()
         
     def split_and_update(self):
         """
