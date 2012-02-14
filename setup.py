@@ -10,7 +10,7 @@ for (dirp, dirns, n) in os.walk('doc'):
         dirn = dirn + '/'
     docFiles.extend( [dirn + n1r for n1r in nr if '.svn' not in dirp + '/' + n1r] )
 
-destDir="orange/add-ons/Bioinformatics"
+destDir="Orange/add-ons/Bioinformatics"
 
 if __name__ == "__main__":
     setup(name = "Orange-Bioinformatics",
@@ -18,10 +18,8 @@ if __name__ == "__main__":
           description = "Bioinformatics Add-On for Orange",
           author = "Bioinformatics Laboratory, FRI UL",
           author_email = "orange@fri.uni-lj.si",
-          maintainer = "Ales Erjavec",
-          maintainer_email = "ales.erjavec@fri.uni-lj.si",
-          url = "http://www.ailab.si/obi",
-          download_url = "http://orange.biolab.si/svn/orange/trunk/add-ons/Bioinformatics/",
+          url = "http://www.biolab.si/obi/",
+          download_url = "https://bitbucket.org/biolab/orange-addon-bioinformatics",
           packages = [ 'widgets', 'widgets.prototypes', 'doc', '.' ],
           package_data = {'widgets': ['icons/*.png'], 'doc': docFiles, '.':["addon.xml"] },
           extra_path=("orange-bioinformatics", destDir),
