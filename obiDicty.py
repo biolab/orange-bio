@@ -599,9 +599,9 @@ class PIPA(DBCommon):
         for a,legend in antss:
             yield a
 
-    def coverage(self, id_, genome, chromosome, reload=False, bufver="0"):
+    def coverage(self, id_, genome, chromosome, reload=False, bufver="0", raw=False):
         data = self.add_auth({"action": "coverage_strand", "chr_name": str(chromosome), 
-            "pixel_size": "1", "genome": genome, "sample_id": str(id_) })
+            "pixel_size": "1", "genome": genome, "sample_id": str(id_), "raw": str(raw).lower()})
 
         def comp():
 
