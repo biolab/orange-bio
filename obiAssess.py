@@ -11,6 +11,7 @@ dictionary of { name: score } for that example.
 import obiGsea
 import obiGeneSets
 import orange
+import Orange
 import stats
 import statc
 import numpy
@@ -629,7 +630,7 @@ def setSig_example(ldata, ex, genesets):
         return ttest(distances[0], distances[1])
            
     for name, gs in genesets.items(): #for each geneset
-
+        #for each gene set: take the attribute subset and work on the attribute subset only
         #only select the subset of genes from the learning data
         domain = orange.Domain([ldata.domain.attributes[ai] for ai in gs], ldata.domain.classVar)
         datao = orange.ExampleTable(domain, ldata)
@@ -657,31 +658,21 @@ class SetSigLearner(object):
         return SetSig(learndata=data, genesets=gsetsnum)
 
 if __name__ == "__main__":
-    
-    """
-    data = orange.ExampleTable("DLBCL.tab")
-    """
 
-    data = orange.ExampleTable("sterolTalkHepa.tab")
-    data = impute_missing(data)
-    choosen_cv = [ "LK935_48h", "Rif_12h"]
-    ncl = orange.EnumVariable("cl", values=choosen_cv)
-    ncl.getValueFrom = lambda ex,rw: orange.Value(ncl, ex[-1].value)
-    ndom = orange.Domain(data.domain.attributes, ncl)
-    data = orange.ExampleTable(ndom, [ ex for ex in data if ex[-1].value in choosen_cv ])
-    
-    choosen_cv = list(data.domain.classVar.values)
+    data = Orange.data.Table("iris")
+    gsets = obiGeneSets.collections({
+        "ALL": ['sepal length', 'sepal width', 'petal length', 'petal width'],
+        "f3": ['sepal length', 'sepal width', 'petal length'],
+        "l3": ['sepal width', 'petal length', 'petal width'],
+        })
 
-    fp = int(9*len(data)/10)
-
+    fp = 120
     ldata = orange.ExampleTable(data.domain, data[:fp])
     tdata = orange.ExampleTable(data.domain, data[fp:])
 
-    matcher = obiGene.GMKEGG("hsa")
+    matcher = obiGene.matcher([])
 
-    gsets = obiGeneSets.collections("steroltalk.gmt")
-    #gsets = obiGeneSets.collections("C2.CP.gmt", "C5.MF.gmt", "C5.BP.gmt")
-
+    choosen_cv = ["Iris-setosa", "Iris-versicolor"]
     #ass = AssessLearner()(data, matcher, gsets, rankingf=AT_loessLearner())
     #ass = MeanLearner()(data, matcher, gsets, default=False))
     ass = PLSLearner()(data, matcher, gsets, classValues=choosen_cv)
@@ -691,14 +682,10 @@ if __name__ == "__main__":
     #ass = GSALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
 
     ar = defaultdict(list)
-
-    print data.domain.classVar.values
-
-    for d in list(ldata) + list(tdata):
+    for d in (list(ldata) + list(tdata))[:5]:
         for a,b in ass(d).items():
             ar[a].append(b)
 
     ol =  sorted(ar.items())
-    #print ol
+    print '\n'.join([ a.id + ": " +str(b) for a,b in ol])
 
-    print '\n'.join([ str(a) + ": " +str(b) for a,b in ol])
