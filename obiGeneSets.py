@@ -98,11 +98,21 @@ class GeneSets(set):
         gs are genesets in new format
         """
         if input != None and len(input) > 0:
-            if hasattr(input, "items"):
-                for i,g in input.items():
+            self.update(input)
+
+    def update(self, input):
+        if isinstance(input, obiGeneSets.GeneSets):
+            super(GeneSets, self).update(input)
+        elif hasattr(input, "items"):
+            for i,g in input.items():
+                self.add(obiGeneSets.GeneSet(pair=(i,g)))
+        else:
+            for i in input:
+                if isinstance(i, obiGeneSets.GeneSet):
+                    self.add(i)
+                else:
+                    i,j = i
                     self.add(obiGeneSets.GeneSet(pair=(i,g)))
-            else:
-                self.update(input)
 
     def to_odict(self):
         """ Return gene sets in old dictionary format. """
@@ -463,17 +473,18 @@ def collections(*args):
     result = obiGeneSets.GeneSets()
 
     for collection in args:
-        if isinstance(collection, obiGeneSets.GeneSets):
+        try:
             result.update(collection)
-        elif issequencens(collection): #have a hierarchy, organism specification
-            new = load(*collection)
-            result.update(new)
-        else:
-            if collection.lower()[-4:] == ".gmt": #format from webpage
-                result.update(loadGMT(open(collection,"rt").read(), collection))
+        except ValueError:
+            if issequencens(collection): #have a hierarchy, organism specification
+                new = load(*collection)
+                result.update(new)
             else:
-                raise Exception("collection() accepts files in .gmt format only.")
- 
+                if collection.lower()[-4:] == ".gmt": #format from webpage
+                    result.update(loadGMT(open(collection,"rt").read(), collection))
+                else:
+                    raise Exception("collection() accepts files in .gmt format only.")
+
     return result
 
 def issequencens(x):
@@ -504,7 +515,12 @@ def upload_genesets(rsf):
                 print "Not successful"
 
 if __name__ == "__main__":
-    gs = keggGeneSets("9606")
+
+    #gs = keggGeneSets("9606")
+    akegg = collections((("KEGG",),"9606"))
+    a = collections({"PATH": ["g1","g2","g3"]}, "steroltalk.gmt", akegg)
+    for e in a:
+        print e
     #print len(collections(keggGeneSets("9606"),(("KEGG",),"9606"), "C5.BP.gmt"))
     #print len(collections((("KEGG",),"9606"), "C5.BP.gmt"))
     #print sorted(list_all())
