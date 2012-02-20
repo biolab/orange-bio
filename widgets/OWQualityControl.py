@@ -53,7 +53,7 @@ def disable_updates(widget):
 def group_label(splits, groups):
     """Return group label.
     """
-    labels = ["{}={}".format(split, group) \
+    labels = ["%s=%s" % (split, group) \
               for split, group in zip(splits, groups)]
     return " | ".join(labels)
 
@@ -63,7 +63,7 @@ def sort_label(sort, attr):
     """
     items = [(key, attr.attributes.get(key, "?")) \
              for key in sort]
-    labels = ["{}={}".format(*item) for item in items]
+    labels = ["%s=%s" % tuple(item) for item in items]
     return " | ".join(labels)
 
 
@@ -281,7 +281,7 @@ class OWQualityControl(OWWidget):
         self.closeContext("")
         
         self.update_label_candidates()
-        self.info_box.setText("{} genes \n{} experiments".format(
+        self.info_box.setText("%s genes \n%s experiments" % (
                                 len(self.data), 
                                 len(self.data.domain.attributes)
                                 )
