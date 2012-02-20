@@ -12,6 +12,7 @@ import OWGUI
 
 import math
 import orngServerFiles
+import orngEnviron
 
 from orngDataCaching import data_hints
 
@@ -53,6 +54,14 @@ class MyTreeWidgetItem(QTreeWidgetItem):
         lhs = _toPyObject(self.data(column, Qt.DisplayRole))
         rhs = _toPyObject(other.data(column, Qt.DisplayRole))
         return lhs < rhs
+    
+def name_or_none(id):
+    """Return organism name for ncbi taxid or None if not found.
+    """
+    try:
+        return obiTaxonomy.name(id)
+    except obiTaxonomy.UnknownSpeciesIdentifier:
+        return None
             
 class OWSetEnrichment(OWWidget):
     settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
@@ -196,6 +205,11 @@ class OWSetEnrichment(OWWidget):
                 all, local = obiGeneSets.list_all(), obiGeneSets.list_local()
                 organisms = set(obiTaxonomy.essential_taxids() + [t[1] for t in all])
             self.progressBarFinished()
+            
+            organism_names = map(name_or_none, organisms)
+            organisms = [taxid for taxid, name in zip(organisms, organism_names) \
+                         if name is not None]
+            
             self.taxid_list = list(organisms)
             self.speciesComboBox.clear()
             self.speciesComboBox.addItems([obiTaxonomy.name(id) for id in self.taxid_list])
