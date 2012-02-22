@@ -417,6 +417,12 @@ class Matcher(object):
     Gene matcher tries to match an input gene to some target.
     """
 
+    def copy(self):
+        return notImplemented()
+
+    def __call__(self, targets):
+        return self.set_targets(targets)
+
     def set_targets(self, targets):
         """
         Set input list of gene names as targets. 
@@ -517,16 +523,34 @@ class MatcherAliases(Matcher):
 
     def set_targets(self, targets):
         """
-        A reverse dictionary is made accordint to each target's membership
+        A reverse dictionary is made according to each target's membership
         in the sets of aliases.
         """
         d = defaultdict(list)
+        #d = id: [ targets ], where id is index of the set of aliases
         for target in targets:
             ids = self.to_ids(target)
             if ids != None:
                 for id in ids:
                     d[id].append(target)
-        self.to_targets = d
+        mo = MatchAliases(d, self)
+        self.matcho = mo #backward compatibility - default match object
+        return mo
+
+    #this two functions are solely for backward compatibility
+    def match(self, gene):
+        return self.matcho.match(gene)
+    def explain(self, gene):
+        return self.matcho.explain(gene)
+
+class Match(object):
+    pass
+ 
+class MatchAliases(Match):
+
+    def __init__(self, to_targets, parent):
+        self.to_targets = to_targets
+        self.parent = parent
 
     def match(self, gene):
         """
@@ -534,15 +558,15 @@ class MatcherAliases(Matcher):
         it. Target genes belonding to the same sets of aliases are returned
         as input's match.
         """
-        inputgeneids = self.to_ids(gene)
+        inputgeneids = self.parent.to_ids(gene)
         #return target genes with same ids
         return list(set( \
-            reduce(lambda x,y:x+y, 
+            reduce(lambda x,y: x+y, 
                 [ self.to_targets[igid] for igid in inputgeneids ], [])))
 
     def explain(self, gene):
-        inputgeneids = self.to_ids(gene)
-        return [ (self.to_targets[igid], self.aliases[igid]) for igid in inputgeneids ]
+        inputgeneids = self.parent.to_ids(gene)
+        return [ (self.to_targets[igid], self.parent.aliases[igid]) for igid in inputgeneids ]
 
 class MatcherAliasesPickled(MatcherAliases):
     """
@@ -579,7 +603,7 @@ class MatcherAliasesPickled(MatcherAliases):
     mdict = property(get_mdict, set_mdict)
 
     def set_targets(self, targets):
-        MatcherAliases.set_targets(self, targets)
+        return MatcherAliases.set_targets(self, targets)
 
     def filename(self):
         """ Returns file name for saving aliases. """
@@ -827,31 +851,44 @@ class MatcherAliasesPickledJoined(MatcherAliasesPickled):
         
 class MatcherSequence(Matcher):
     """
-    Chaining of gene matchers.
-    
-    User defines the order of gene matchers. Each gene is goes through
-    sequence of gene matchers until a match is found.
+    Each gene goes through sequence of gene matchers (in the same order
+    as in the matchers arguments) until a match is found.
     """
     
     def __init__(self, matchers):
         self.matchers = matchers
 
-    def match(self, gene):
+    def set_targets(self, targets):
+        ms = []
         for matcher in self.matchers:
-            m = matcher.match(gene)
+            ms.append(matcher.set_targets(targets))
+        om = MatchSequence(ms)
+        self.matcho = om
+        return om
+
+    #this two functions are solely for backward compatibility
+    def match(self, gene):
+        return self.matcho.match(gene)
+    def explain(self, gene):
+        return self.matcho.explain(gene)
+
+class MatchSequence(Match):
+
+    def __init__(self, ms):
+        self.ms = ms
+
+    def match(self, gene):
+        for match in self.ms:
+            m = match.match(gene)
             if m: 
                 return m
         return []
 
-    def set_targets(self, targets):
-        for matcher in self.matchers:
-            matcher.set_targets(targets)
-
     def explain(self, gene):
-        for matcher in self.matchers:
-            m = matcher.match(gene)
+        for match in self.ms:
+            m = match.match(gene)
             if m: 
-                return matcher.explain(gene)
+                return match.explain(gene)
         return []
 
 class MatcherDirect(Matcher):
@@ -865,11 +902,16 @@ class MatcherDirect(Matcher):
     def set_targets(self, targets):
         aliases = [ set([a]) for a in targets]
         self.am = MatcherAliases(aliases, ignore_case=self.ignore_case)
-        self.am.set_targets(targets)
+        self.matcho = self.am.set_targets(targets)
+        return self.matcho
 
+    #this two functions are solely for backward compatibility
     def match(self, gene):
-        return self.am.match(gene)
-                
+        return self.matcho.match(gene)
+    def explain(self, gene):
+        return self.matcho.explain(gene)
+
+               
 GMDirect = MatcherDirect
 GMKEGG = MatcherAliasesKEGG
 GMGO = MatcherAliasesGO

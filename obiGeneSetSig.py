@@ -1,7 +1,6 @@
 import Orange
 import obiAssess
 import Orange.misc
-import orange
 import obiGeneSets
 import obiGene
 import numpy
@@ -9,23 +8,33 @@ from collections import defaultdict
 import statc
 import stats
 
+def selectGenesetsData(data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+    """
+    Returns gene sets and data which falling under upper criteria.
+    """
+    gso = obiGsea.GSEA(data, matcher=matcher, classValues=classValues, atLeast=0)
+    gso.addGenesets(geneSets)
+    okgenesets = gso.selectGenesets(minSize=minSize, maxSize=maxSize, minPart=minPart).keys()
+    gsetsnum = gso.to_gsetsnum(okgenesets)
+    return gso.data, okgenesets, gsetsnum
+
 class SetSig(object):
 
     __new__ = Orange.misc._orange__new__(object)
 
-    def __init__(self, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
+    def __init__(self, matcher, gene_sets, min_size=3, max_size=1000, min_part=0.1, class_values=None):
         self.matcher = matcher
-        self.geneSets = geneSets
-        self.minSize = minSize
-        self.maxSize = maxSize
-        self.minPart = minPart
-        self.classValues = classValues
+        self.gene_sets = gene_sets
+        self.min_size = min_size
+        self.max_size = max_size
+        self.min_part = min_part
+        self.class_values = class_values
 
     def __call__(self, data, weight_id=None):
         data, oknames, gsetsnum = obiAssess.selectGenesetsData(data, 
-            self.matcher, self.geneSets,
-            minSize=self.minSize, maxSize=self.maxSize, 
-            minPart=self.minPart, classValues=self.classValues)
+            self.matcher, self.gene_sets,
+            minSize=self.min_size, maxSize=self.max_size, 
+            minPart=self.min_part, classValues=self.class_values)
 
         def setSig_example_geneset(ex, data):
             """ ex contains only selected genes """
@@ -67,9 +76,9 @@ class SetSig(object):
             at = Orange.feature.Continuous(name=name.id)
 
             def t(ex, w, gs=gs, ldata=data):
-                domain = orange.Domain([ldata.domain.attributes[ai] for ai in gs], ldata.domain.classVar)
-                datao = orange.ExampleTable(domain, ldata)
-                example = orange.Example(domain, ex) #domains need to be the same
+                domain = Orange.data.Domain([ldata.domain.attributes[ai] for ai in gs], ldata.domain.classVar)
+                datao = Orange.data.Table(domain, ldata)
+                example = Orange.data.Instance(domain, ex) #domains need to be the same
                 return setSig_example_geneset(example, datao)
          
             at.get_value_from = t
@@ -88,8 +97,8 @@ if __name__ == "__main__":
         })
 
     fp = 120
-    ldata = orange.ExampleTable(data.domain, data[:fp])
-    tdata = orange.ExampleTable(data.domain, data[fp:])
+    ldata = Orange.data.Table(data.domain, data[:fp])
+    tdata = Orange.data.Table(data.domain, data[fp:])
 
     matcher = obiGene.matcher([])
 
@@ -106,7 +115,7 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = SetSig(ldata, matcher=matcher, geneSets=gsets, classValues=choosen_cv, minPart=0.0)
+    ass = SetSig(ldata, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
     print ass.domain
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
