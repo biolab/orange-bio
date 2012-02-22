@@ -104,15 +104,15 @@ class GeneSets(set):
         if isinstance(input, obiGeneSets.GeneSets):
             super(GeneSets, self).update(input)
         elif hasattr(input, "items"):
-            for i,g in input.items():
-                self.add(obiGeneSets.GeneSet(pair=(i,g)))
+            for i, g in input.items():
+                self.add(obiGeneSets.GeneSet(pair=(i, g)))
         else:
             for i in input:
                 if isinstance(i, obiGeneSets.GeneSet):
                     self.add(i)
                 else:
-                    i,j = i
-                    self.add(obiGeneSets.GeneSet(pair=(i,g)))
+                    i, g = i
+                    self.add(obiGeneSets.GeneSet(pair=(i, g)))
 
     def to_odict(self):
         """ Return gene sets in old dictionary format. """
