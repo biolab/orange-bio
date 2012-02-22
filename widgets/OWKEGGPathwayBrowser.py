@@ -93,7 +93,7 @@ class GraphicsPathwayItem(QGraphicsPixmapItem):
         self.setPixmap(self._pixmap)
         
     def setMarkedObjects(self, objects, name_mapper={}):
-        for entry in self.pathway.entrys() if self.pathway else []:
+        for entry in self.pathway.entries() if self.pathway else []:
             if entry.type == "group":
                 continue
             graphics = entry.graphics
@@ -219,7 +219,7 @@ class OWKEGGPathwayBrowser(OWWidget):
                                 callback=self.OrganismSelectionCallback, 
                                 addSpace=True,
                                 debuggingEnabled=0)
-        OWGUI.button(box, self, "Update Pathways", callback=self.UpdateToLatestPathways)
+#        OWGUI.button(box, self, "Update Pathways", callback=self.UpdateToLatestPathways)
         
 #        cb.setMaximumWidth(200)
         
@@ -422,9 +422,9 @@ class OWKEGGPathwayBrowser(OWWidget):
             def _walkCollect(koEntry):
                 num = koEntry.title[:5] if koEntry.title else None
                 if num  in path_ids:
-                    return [koEntry] + reduce(lambda li,c:li+_walkCollect(c), [child for child in koEntry.entrys], [])
+                    return [koEntry] + reduce(lambda li,c:li+_walkCollect(c), [child for child in koEntry.entries], [])
                 else:
-                    c = reduce(lambda li,c:li+_walkCollect(c), [child for child in koEntry.entrys], [])
+                    c = reduce(lambda li,c:li+_walkCollect(c), [child for child in koEntry.entries], [])
                     return c + (c and [koEntry] or [])
             allClasses = reduce(lambda li1, li2: li1+li2, [_walkCollect(c) for c in self.koOrthology], [])
             def _walkCreate(koEntry, lvItem):
@@ -452,7 +452,7 @@ class OWKEGGPathwayBrowser(OWWidget):
                     else:
                         item.pathway_id = None
                 
-                for child in koEntry.entrys:
+                for child in koEntry.entries:
                     if child in allClasses:
                         _walkCreate(child, item)
             
@@ -605,8 +605,8 @@ class OWKEGGPathwayBrowser(OWWidget):
             orngServerFiles.update(obiGeneSets.sfdomain, "index.pck")
             kegg_gs_collections = list(obiGeneSets.collections((("KEGG", "pathways"), taxid)))
         
-        print self.genes
-        print taxid
+#        print self.genes
+#        print taxid
 #        print kegg_gs_collections
         if USE_THREADING:
             result = {}
