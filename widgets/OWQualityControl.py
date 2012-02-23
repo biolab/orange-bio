@@ -159,6 +159,7 @@ class OWQualityControl(OWWidget):
         self.scene = QGraphicsScene()
         self.scene_view = QualityGraphicsView(self.scene)
         self.scene_view.setRenderHints(QPainter.Antialiasing)
+        self.scene_view.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.mainArea.layout().addWidget(self.scene_view)
         
         self.connect(self.scene_view,
@@ -183,7 +184,8 @@ class OWQualityControl(OWWidget):
         with disable_updates(self):
             self.split_by_model[:] = []
             self.sort_by_model[:] = []
-
+        
+        self.main_widget = None
         self.scene.clear()
         self.info_box.setText("\n")
         self._cached_distances = {}
@@ -344,16 +346,17 @@ class OWQualityControl(OWWidget):
     def on_distance_measure_changed(self):
         """Distance measure has changed
         """
-        with widget_disable(self):
-            self.update_distances()
-            self.replot_experiments()
+        if self.data is not None:
+            with widget_disable(self):
+                self.update_distances()
+                self.replot_experiments()
         
     def on_view_resize(self, size):
         """The view with the quality plot has changed
         """
         if self.main_widget:
             current = self.main_widget.size()
-            self.main_widget.resize(size.width() - 2, 
+            self.main_widget.resize(size.width() - 6, 
                                     current.height())
             
             self.scene.setSceneRect(self.scene.itemsBoundingRect())
@@ -413,8 +416,6 @@ class OWQualityControl(OWWidget):
         self.unique_pos = sorted(self.unique_pos.items(),
                                  key=lambda t: map(float_if_posible, t[0]))
         
-#        pprint(self.groups)
-#        pprint(self.unique_pos)
         
         if self.groups:
             if sort_labels:
@@ -540,6 +541,7 @@ class OWQualityControl(OWWidget):
                             tooltip = experiment_description(attr)
                             rug_item.setToolTip(tooltip)
                             rug_item.group_index = indices.index(i)
+                            rug_item.setZValue(rug_item.zValue() + 1)
                         else:
                             rug_item = ClickableRugItem(dist_vec[i] / max_dist,
                                            0.85, self.on_rug_item_clicked)
