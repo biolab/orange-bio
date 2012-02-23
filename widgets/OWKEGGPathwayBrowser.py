@@ -501,9 +501,8 @@ class OWKEGGPathwayBrowser(OWWidget):
             result = {}
             def call(pathway_id):
                 result["pathway"] = p = obiKEGG.KEGGPathway(pathway_id)
-                p.title # makes sure the kgml file is downloaded
-                p.image
-                p.get_image() # makes sure the image is downloaded
+                p._get_kgml() # makes sure the kgml file is downloaded
+                p._get_image_filename() # makes sure the image is downloaded
                 
             self.setEnabled(False)
             try:
