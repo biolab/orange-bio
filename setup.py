@@ -45,7 +45,7 @@ NAME                = "Orange-Bioinformatics"
 DESCRIPTION         = DOCLINES[0]
 LONG_DESCRIPTION    = "\n".join(DOCLINES[3:])
 URL                 = "http://www.biolab.si/obi/"
-DOWNLOAD            = "https://bitbucket.org/biolab/orange-addon-bioinformatics/downloads"
+DOWNLOAD_URL        = "https://bitbucket.org/biolab/orange-addon-bioinformatics/downloads"
 LICENSE             = "GNU General Public License (GPL)"
 CLASSIFIERS         = filter(None, CLASSIFIERS.split("\n"))
 AUTHOR              = "Bioinformatics Laboratory, FRI UL"
@@ -94,16 +94,17 @@ if __name__ == "__main__":
     setup(name = NAME,
           version = VERSION,
           description = DESCRIPTION,
+          long_description = LONG_DESCRIPTION,
           author = AUTHOR,
           author_email = AUTHOR_EMAIL,
           url = URL,
-          download_url = DOWNLOAD,
+          download_url = DOWNLOAD_URL,
+          license = LICENSE,
+          keywords = KEYWORDS,
+          classifiers = CLASSIFIERS,
           package_dir = {"": "."},
           packages = PACKAGES,
           package_data = PACKAGE_DATA,
           extra_path=("orange-bioinformatics", DEST_DIR),
-          license = LICENSE,
-          keywords = KEYWORDS,
-          classifiers = CLASSIFIERS,
-          long_description = LONG_DESCRIPTION,
+          
           **setuptool_args)
