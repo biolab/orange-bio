@@ -7,6 +7,9 @@ import numpy
 from collections import defaultdict
 import stats
 import obiGsea
+import scipy.stats
+
+
 
 def setSig_example_geneset(ex, data):
     """ Gets learning data and example with the same domain, both
@@ -29,7 +32,7 @@ def setSig_example_geneset(ex, data):
         vals1 = [ v for v,c in zip(vals1, common) if c ]
         vals2 = [ v for v,c in zip(vals2, common) if c ]
 
-        return pearsonr(vals1, vals2)
+        return numpy.corrcoef([vals1, vals2])[0,1]
 
     def ttest(ex1, ex2):
         try:
@@ -76,23 +79,30 @@ class SetSig(object):
         self.max_size = max_size
         self.min_part = min_part
         self.class_values = class_values
+        self._cache = {}
+
+    def _mat_ni(self, data):
+        """ With cached gene matchers. """
+        if data.domain not in self._cache:
+            self._cache[data.domain] = mat_ni(data, self.matcher)
+        return self._cache[data.domain]
 
     def __call__(self, data, weight_id=None):
 
         data = obiGsea.takeClasses(data, classValues=self.class_values)
-        nm,_ =  mat_ni(data, matcher)
+        nm,_ =  self._mat_ni(data)
         gene_sets = select_genesets(nm, self.gene_sets, self.min_size, self.max_size, self.min_part)
 
         attributes = []
 
         for gs in gene_sets:
-            at = Orange.feature.Continuous(name=gs.id)
+            at = Orange.feature.Continuous(name=str(gs))
 
             def t(ex, w, gs=gs, data=data): #copy od the data
                 geneset = list(gs.genes)
 
-                nm, name_ind = mat_ni(data, matcher)
-                nm2, name_ind2 = mat_ni(ex, matcher)
+                nm, name_ind = self._mat_ni(data)
+                nm2, name_ind2 = self._mat_ni(ex)
 
                 genes = [ nm.umatch(gene) for gene in geneset ]
                 genes2 = [ nm2.umatch(gene) for gene in geneset ]
@@ -123,20 +133,23 @@ class SetSig(object):
 
 if __name__ == "__main__":
 
+
     data = Orange.data.Table("iris")
     gsets = obiGeneSets.collections({
         "ALL": ['sepal length', 'sepal width', 'petal length', 'petal width'],
         "f3": ['sepal length', 'sepal width', 'petal length'],
         "l3": ['sepal width', 'petal length', 'petal width'],
         })
-
-    fp = 120
-    ldata = Orange.data.Table(data.domain, data[:fp])
-    tdata = Orange.data.Table(data.domain, data[fp:])
-
     matcher = obiGene.matcher([])
-
     choosen_cv = ["Iris-setosa", "Iris-versicolor"]
+
+    """
+    data = Orange.data.Table("DLBCL_200a")
+    gsets = obiGeneSets.collections((("KEGG",),"9606"))
+    matcher = obiGene.matcher([obiGene.GMKEGG("hsa")])
+    choosen_cv = None
+    """
+
 
     def to_old_dic(d, data):
         ar = defaultdict(list)
