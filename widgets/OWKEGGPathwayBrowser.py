@@ -307,6 +307,17 @@ class OWKEGGPathwayBrowser(OWWidget):
         
         
     def UpdateOrganismComboBox(self):
+        # First try to import suds
+        try:
+            import suds
+        except ImportError:
+            QMessageBox.warning(self,
+                "'suds' library required.",
+                '<p>Please install \
+<a href="http://pypi.python.org/pypi/suds">suds</a> library \
+to use KEGG Pathways widget.</p>'
+                )
+            
         try:
             genome = obiKEGG.KEGGGenome()
             all_codes = list(genome)
@@ -501,9 +512,8 @@ class OWKEGGPathwayBrowser(OWWidget):
             result = {}
             def call(pathway_id):
                 result["pathway"] = p = obiKEGG.KEGGPathway(pathway_id)
-                p.title # makes sure the kgml file is downloaded
-                p.image
-                p.get_image() # makes sure the image is downloaded
+                p._get_kgml() # makes sure the kgml file is downloaded
+                p._get_image_filename() # makes sure the image is downloaded
                 
             self.setEnabled(False)
             try:
