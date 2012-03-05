@@ -1,5 +1,64 @@
-from distutils.core import setup
+#!/usr/bin/env python
+"""\
+Orange Bioinformatics
+=====================
+
+Orange Bioinformatics is an add-on for Orange data mining 
+software package. It extends Orange by providing common functionality
+for basic tasks in bioinformatics.
+"""
+
+DOCLINES = __doc__.split("\n")
+
+try:
+    from setuptools import setup
+    have_setuptools = True
+except ImportError:
+    from distutils.core import setup
+    have_setuptools = False
+
 import os, glob
+
+CLASSIFIERS = """\
+Development Status :: 4 - Beta
+Programming Language :: Python
+License :: OSI Approved :: GNU General Public License (GPL)
+Operating System :: POSIX
+Operating System :: Microsoft :: Windows
+Topic :: Scientific/Engineering :: Visualization
+Topic :: Scientific/Engineering :: Bio-Informatics
+Intended Audience :: Education
+Intended Audience :: Science/Research
+"""
+
+KEYWORDS = """\
+data mining 
+machine learning,
+artificial intelligence
+bioinformatics,
+gene ontology
+KEGG
+expression profiles
+"""                      
+
+NAME                = "Orange-Bioinformatics"
+DESCRIPTION         = DOCLINES[0]
+LONG_DESCRIPTION    = "\n".join(DOCLINES[3:])
+URL                 = "http://www.biolab.si/obi/"
+DOWNLOAD            = "https://bitbucket.org/biolab/orange-addon-bioinformatics/downloads"
+LICENSE             = "GNU General Public License (GPL)"
+CLASSIFIERS         = filter(None, CLASSIFIERS.split("\n"))
+AUTHOR              = "Bioinformatics Laboratory, FRI UL"
+AUTHOR_EMAIL        = "orange@fri.uni-lj.si"
+KEYWORDS            = filter(None, KEYWORDS.split('\n'))
+
+MAYOR = 1
+MINOR = 1
+MICRO = 0
+ISRELEASED = False
+
+VERSION = "{0}.{1}a.{2}".format(MAYOR,MINOR, MICRO)
+
 
 # list all documentation files that need to be included
 docFiles = []
@@ -10,42 +69,39 @@ for (dirp, dirns, n) in os.walk('doc'):
         dirn = dirn + '/'
     docFiles.extend( [dirn + n1r for n1r in nr if '.svn' not in dirp + '/' + n1r] )
 
-destDir="Orange/add-ons/Bioinformatics"
+DEST_DIR="Orange/add-ons/Bioinformatics"
 
+
+if os.path.exists("VERSION.txt"):
+    VERSION = open("VERSION.txt", "rb").read()
+
+if have_setuptools:
+    setuptool_args = {"install_requires": ["Orange", "suds"],
+                      "zip_safe": False,
+                     }
+else:
+    setuptool_args = {}
+    
+PACKAGES = [ 'widgets', 'widgets.prototypes', 'doc', '.',
+             'obiKEGG2', 'obiKEGG2.entry' ]
+    
+PACKAGE_DATA = {'widgets': ['icons/*.png'],
+                'doc': docFiles,
+                '.':["addon.xml"] }
+                          
 if __name__ == "__main__":
-    setup(name = "Orange-Bioinformatics",
-          version = "1.0.0b",
-          description = "Bioinformatics Add-On for Orange",
-          author = "Bioinformatics Laboratory, FRI UL",
-          author_email = "orange@fri.uni-lj.si",
-          url = "http://www.biolab.si/obi/",
-          download_url = "https://bitbucket.org/biolab/orange-addon-bioinformatics",
-          packages = [ 'widgets', 'widgets.prototypes', 'doc', '.',
-                      'obiKEGG2', 'obiKEGG2.entry' ],
-          package_data = {'widgets': ['icons/*.png'],
-                          'doc': docFiles,
-                          '.':["addon.xml"] },
-          extra_path=("orange-bioinformatics", destDir),
-          license = "GNU General Public License (GPL)",
-          keywords = ["data mining", "machine learning",
-                      "artificial intelligence", "bioinformatics",
-                      "gene ontology", "KEGG", "expression profiles"],
-          classifiers = ["Development Status :: 4 - Beta",
-                     "Programming Language :: Python",
-                     "License :: OSI Approved :: GNU General Public License (GPL)",
-                     "Operating System :: POSIX",
-                     "Operating System :: Microsoft :: Windows",
-                     "Topic :: Scientific/Engineering :: Visualization",
-                     "Topic :: Scientific/Engineering :: Bio-Informatics",
-                     "Intended Audience :: Education",
-                     "Intended Audience :: Science/Research"
-                     ],
-          long_description="""\
-Orange Bioinformatics
-=====================
-
-Orange Bioinformatics is an add-on for Orange data mining 
-software package. It extends Orange by providing common functionality
-for basic tasks in bioinformatics.
-
-""")
+    setup(name = NAME,
+          version = VERSION,
+          description = DESCRIPTION,
+          author = AUTHOR,
+          author_email = AUTHOR_EMAIL,
+          url = URL,
+          download_url = DOWNLOAD,
+          packages = PACKAGES,
+          package_data = PACKAGE_DATA,
+          extra_path=("orange-bioinformatics", DEST_DIR),
+          license = LICENSE,
+          keywords = KEYWORDS,
+          classifiers = CLASSIFIERS,
+          long_description = LONG_DESCRIPTION,
+          **setuptool_args)
