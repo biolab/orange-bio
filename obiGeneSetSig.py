@@ -5,18 +5,65 @@ import obiGeneSets
 import obiGene
 import numpy
 from collections import defaultdict
-import statc
 import stats
+import obiGsea
 
-def selectGenesetsData(data, matcher, geneSets, minSize=3, maxSize=1000, minPart=0.1, classValues=None):
-    """
-    Returns gene sets and data which falling under upper criteria.
-    """
-    gso = obiGsea.GSEA(data, matcher=matcher, classValues=classValues, atLeast=0)
-    gso.addGenesets(geneSets)
-    okgenesets = gso.selectGenesets(minSize=minSize, maxSize=maxSize, minPart=minPart).keys()
-    gsetsnum = gso.to_gsetsnum(okgenesets)
-    return gso.data, okgenesets, gsetsnum
+def setSig_example_geneset(ex, data):
+    """ Gets learning data and example with the same domain, both
+    containing only genes from the gene set. """
+
+    distances = [ [], [] ]    
+
+    def pearsonr(v1, v2):
+        return numpy.corrcoef([v1, v2])[0,1]
+
+    def pearson(ex1, ex2):
+        #leaves undefined elements out
+
+        attrs = range(len(ex1.domain.attributes))
+        vals1 = [ ex1[i].value for i in attrs ]
+        vals2 = [ ex2[i].value for i in attrs ]
+
+        common = [ True if v1 != "?" and v2 != "?" else False \
+            for v1,v2 in zip(vals1,vals2) ]
+        vals1 = [ v for v,c in zip(vals1, common) if c ]
+        vals2 = [ v for v,c in zip(vals2, common) if c ]
+
+        return pearsonr(vals1, vals2)
+
+    def ttest(ex1, ex2):
+        try:
+            return stats.lttest_ind(ex1, ex2)[0]
+        except:
+            return 0.0
+    
+    #maps class value to its index
+    classValueMap = dict( [ (val,i) for i,val in enumerate(data.domain.class_var.values) ])
+ 
+    #create distances to all learning data - save or other class
+    for c in data:
+        distances[classValueMap[c[-1].value]].append(pearson(c, ex))
+
+    return ttest(distances[0], distances[1])
+
+def mat_ni(data, matcher):
+    nm = matcher([at.name for at in data.domain.attributes])
+    name_ind = dict((n.name,i) for i,n in enumerate(data.domain.attributes))
+    return nm, name_ind
+
+def select_genesets(nm, gene_sets, min_size=3, max_size=1000, min_part=0.1):
+    """ Returns a list of gene sets that have sizes in limits """
+
+    def ok_sizes(gs):
+        """compares sizes of genesets to limitations"""
+        transl = filter(lambda x: x != None, [ nm.umatch(gene) for gene in gs.genes ])
+        if len(transl) >= min_size \
+            and len(transl) <= max_size \
+            and float(len(transl))/len(gs.genes) >= min_part:
+            return True
+        return False
+
+    return filter(ok_sizes, gene_sets) 
 
 class SetSig(object):
 
@@ -31,55 +78,42 @@ class SetSig(object):
         self.class_values = class_values
 
     def __call__(self, data, weight_id=None):
-        data, oknames, gsetsnum = obiAssess.selectGenesetsData(data, 
-            self.matcher, self.gene_sets,
-            minSize=self.min_size, maxSize=self.max_size, 
-            minPart=self.min_part, classValues=self.class_values)
 
-        def setSig_example_geneset(ex, data):
-            """ ex contains only selected genes """
-
-            distances = [ [], [] ]    
-
-            def pearsonr(v1, v2):
-                try:
-                    return statc.pearsonr(v1, v2)[0]
-                except:
-                    return numpy.corrcoef([v1, v2])[0,1]
-
-            def pearson(ex1, ex2):
-                attrs = range(len(ex1.domain.attributes))
-                vals1 = [ ex1[i].value for i in attrs ]
-                vals2 = [ ex2[i].value for i in attrs ]
-                return pearsonr(vals1, vals2)
-
-            def ttest(ex1, ex2):
-                try:
-                    return stats.lttest_ind(ex1, ex2)[0]
-                except:
-                    return 0.0
-            
-            #maps class value to its index
-            classValueMap = dict( [ (val,i) for i,val in enumerate(data.domain.classVar.values) ])
-         
-            #create distances to all learning data - save or other class
-            for c in data:
-                distances[classValueMap[c[-1].value]].append(pearson(c, ex))
-
-            return ttest(distances[0], distances[1])
+        data = obiGsea.takeClasses(data, classValues=self.class_values)
+        nm,_ =  mat_ni(data, matcher)
+        gene_sets = select_genesets(nm, self.gene_sets, self.min_size, self.max_size, self.min_part)
 
         attributes = []
 
-        for name, gs in gsetsnum.items(): #for each geneset
-            #for each gene set: take the attribute subset and work on the attribute subset only
-            #only select the subset of genes from the learning data
-            at = Orange.feature.Continuous(name=name.id)
+        for gs in gene_sets:
+            at = Orange.feature.Continuous(name=gs.id)
 
-            def t(ex, w, gs=gs, ldata=data):
-                domain = Orange.data.Domain([ldata.domain.attributes[ai] for ai in gs], ldata.domain.classVar)
-                datao = Orange.data.Table(domain, ldata)
-                example = Orange.data.Instance(domain, ex) #domains need to be the same
-                return setSig_example_geneset(example, datao)
+            def t(ex, w, gs=gs, data=data): #copy od the data
+                geneset = list(gs.genes)
+
+                nm, name_ind = mat_ni(data, matcher)
+                nm2, name_ind2 = mat_ni(ex, matcher)
+
+                genes = [ nm.umatch(gene) for gene in geneset ]
+                genes2 = [ nm2.umatch(gene) for gene in geneset ]
+
+                genes, genes2 = zip(*[ (g,g2) for g,g2 in zip(genes, genes2) if g != None])
+
+                domain = Orange.data.Domain([data.domain.attributes[name_ind[gene]] for gene in genes], data.domain.class_var)
+                datao = Orange.data.Table(domain, data)
+
+                def vou(ex, gn, indices):
+                    """ returns the value or unknown for the given gene name"""
+                    if gn not in indices:
+                        return "?"
+                    else:
+                        return ex[indices[gn]].value
+                
+                #convert the example to the same domain
+                exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
+                example = Orange.data.Instance(domain, exvalues)
+
+                return setSig_example_geneset(example, datao) #only this one is setsig specific
          
             at.get_value_from = t
             attributes.append(at)
@@ -103,6 +137,7 @@ if __name__ == "__main__":
     matcher = obiGene.matcher([])
 
     choosen_cv = ["Iris-setosa", "Iris-versicolor"]
+
     def to_old_dic(d, data):
         ar = defaultdict(list)
         for ex1 in data:
@@ -115,7 +150,7 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = SetSig(ldata, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
-    print ass.domain
+    ass = SetSig(matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
+    ass = ass(data)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)

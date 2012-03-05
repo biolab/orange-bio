@@ -544,7 +544,11 @@ class MatcherAliases(Matcher):
         return self.matcho.explain(gene)
 
 class Match(object):
-    pass
+
+    def umatch(self, gene):
+        """Returns an unique (only one matching target) target or None"""
+        mat = self.match(gene)
+        return mat[0] if len(mat) == 1 else None
  
 class MatchAliases(Match):
 
