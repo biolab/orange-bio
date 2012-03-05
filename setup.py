@@ -82,12 +82,13 @@ if have_setuptools:
 else:
     setuptool_args = {}
     
-PACKAGES = [ 'widgets', 'widgets.prototypes', 'doc', '.',
+PACKAGES = [ 'widgets', 'widgets.prototypes', 'doc', '',
              'obiKEGG2', 'obiKEGG2.entry' ]
     
 PACKAGE_DATA = {'widgets': ['icons/*.png'],
                 'doc': docFiles,
-                '.':["addon.xml"] }
+                '':["addon.xml"]
+                }
                           
 if __name__ == "__main__":
     setup(name = NAME,
@@ -97,6 +98,7 @@ if __name__ == "__main__":
           author_email = AUTHOR_EMAIL,
           url = URL,
           download_url = DOWNLOAD,
+          package_dir = {"": "."},
           packages = PACKAGES,
           package_data = PACKAGE_DATA,
           extra_path=("orange-bioinformatics", DEST_DIR),
