@@ -6,7 +6,7 @@ import numpy
 from collections import defaultdict
 import stats
 from obiGsea import takeClasses
-from obiAssess import pca
+from obiAssess import pca, PLSCall
 
 def setSig_example_geneset(ex, data):
     """ Gets learning data and example with the same domain, both
@@ -138,6 +138,57 @@ class SetSig(GeneSetTrans):
         at.get_value_from = t
         return at
 
+class PLS(GeneSetTrans):
+
+    def build_feature(self, data, gs):
+
+        at = Orange.feature.Continuous(name=str(gs))
+
+        geneset = list(gs.genes)
+
+        nm, name_ind = self._mat_ni(data)
+        genes = [ nm.umatch(gene) for gene in geneset ]
+        takegenes = [ i for i,a in enumerate(genes) if a != None ]
+        genes = [ genes[i] for i in takegenes ]
+
+        domain = Orange.data.Domain([data.domain.attributes[name_ind[gene]] for gene in genes], data.domain.class_var)
+
+        datao = Orange.data.Table(domain, data)
+
+        xmean, W, P, T = PLSCall(datao, nc=1, y=[datao.domain.class_var])
+        constructt = xmean, W, P
+
+        def t(ex, w, geneset=geneset, constructt=constructt, takegenes=takegenes, domain=domain):
+
+            nm2, name_ind2 = self._mat_ni(ex)
+            genes2 = [ nm2.umatch(gene) for gene in geneset ]
+            genes2 = [ genes2[i] for i in takegenes ]
+          
+            #convert the example to the same domain
+            exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
+            
+            ex = numpy.array(exvalues[:-1])
+
+            xmean, W, P = constructt
+            ex = ex - xmean # same input transformation
+
+            nc = W.shape[1]
+
+            TR = numpy.empty((1, nc))
+            XR = ex
+
+            dot = numpy.dot
+
+            for i in range(nc):
+               t = dot(XR, W[:,i].T)
+               XR = XR - t*numpy.array([P[:,i]])
+               TR[:,i] = t
+
+            return TR[0][0]
+
+        at.get_value_from = t
+        return at
+
 class PCA(GeneSetTrans):
 
     def build_feature(self, data, gs):
@@ -241,6 +292,6 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = Mean(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
+    ass = PLS(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
