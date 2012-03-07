@@ -481,14 +481,12 @@ def pca_transform(example, constt):
 
     ev0 = evect[0] #this is a row in a matrix - do a dot product
     a = numpy.dot(arr, ev0)
-
     return a
 
 def pca(data, snapshot=0):
     "Perform PCA on M, return eigenvectors and eigenvalues, sorted."
     M = data.toNumpy("a")[0]
     XMean = numpy.mean(M, axis = 0)
-    print XMean.shape, M.shape
     M = M - XMean
 
     T, N = numpy.shape(M)
@@ -675,10 +673,10 @@ if __name__ == "__main__":
     choosen_cv = ["Iris-setosa", "Iris-versicolor"]
     #ass = AssessLearner()(data, matcher, gsets, rankingf=AT_loessLearner())
     #ass = MeanLearner()(data, matcher, gsets, default=False)
-    ass = MedianLearner()(data, matcher, gsets)
+    #ass = MedianLearner()(data, matcher, gsets)
     #ass = PLSLearner()(data, matcher, gsets, classValues=choosen_cv)
     #ass = SetSigLearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
-    #ass = PCALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
+    ass = PCALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
     #ass = GSALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
 
     ar = defaultdict(list)
