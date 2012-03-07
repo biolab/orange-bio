@@ -7,9 +7,6 @@ import numpy
 from collections import defaultdict
 import stats
 import obiGsea
-import scipy.stats
-
-
 
 def setSig_example_geneset(ex, data):
     """ Gets learning data and example with the same domain, both
@@ -68,11 +65,17 @@ def select_genesets(nm, gene_sets, min_size=3, max_size=1000, min_part=0.1):
 
     return filter(ok_sizes, gene_sets) 
 
-class SetSig(object):
+class GeneSetTrans(object):
 
     __new__ = Orange.misc._orange__new__(object)
 
-    def __init__(self, matcher, gene_sets, min_size=3, max_size=1000, min_part=0.1, class_values=None):
+    def _mat_ni(self, data):
+        """ With cached gene matchers. """
+        if data.domain not in self._cache:
+            self._cache[data.domain] = mat_ni(data, self.matcher)
+        return self._cache[data.domain]
+
+    def __init__(self, matcher=None, gene_sets=None, min_size=3, max_size=1000, min_part=0.1, class_values=None):
         self.matcher = matcher
         self.gene_sets = gene_sets
         self.min_size = min_size
@@ -81,17 +84,28 @@ class SetSig(object):
         self.class_values = class_values
         self._cache = {}
 
-    def _mat_ni(self, data):
-        """ With cached gene matchers. """
-        if data.domain not in self._cache:
-            self._cache[data.domain] = mat_ni(data, self.matcher)
-        return self._cache[data.domain]
-
     def __call__(self, data, weight_id=None):
 
+        #selection of classes and gene sets
         data = obiGsea.takeClasses(data, classValues=self.class_values)
         nm,_ =  self._mat_ni(data)
         gene_sets = select_genesets(nm, self.gene_sets, self.min_size, self.max_size, self.min_part)
+
+        #build a new domain
+        newfeatures = self.build_features(data, gene_sets)
+        newdomain = Orange.data.Domain(newfeatures, data.domain.class_var)
+        return Orange.data.Table(newdomain, data)
+
+def vou(ex, gn, indices):
+    """ returns the value or "?" for the given gene name gn"""
+    if gn not in indices:
+        return "?"
+    else:
+        return ex[indices[gn]].value
+
+class SetSig(GeneSetTrans):
+
+    def build_features(self, data, gene_sets):
 
         attributes = []
 
@@ -111,14 +125,7 @@ class SetSig(object):
 
                 domain = Orange.data.Domain([data.domain.attributes[name_ind[gene]] for gene in genes], data.domain.class_var)
                 datao = Orange.data.Table(domain, data)
-
-                def vou(ex, gn, indices):
-                    """ returns the value or unknown for the given gene name"""
-                    if gn not in indices:
-                        return "?"
-                    else:
-                        return ex[indices[gn]].value
-                
+               
                 #convert the example to the same domain
                 exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
                 example = Orange.data.Instance(domain, exvalues)
@@ -127,12 +134,46 @@ class SetSig(object):
          
             at.get_value_from = t
             attributes.append(at)
-       
-        newdomain = Orange.data.Domain(attributes, data.domain.class_var)
-        return Orange.data.Table(newdomain, data)
+
+        return attributes 
+
+class SimpleFun(GeneSetTrans):
+
+    def build_features(self, data, gene_sets):
+
+        attributes = []
+
+        for gs in gene_sets:
+            at = Orange.feature.Continuous(name=str(gs))
+
+            def t(ex, w, gs=gs):
+                geneset = list(gs.genes)
+                nm2, name_ind2 = self._mat_ni(ex)
+                genes2 = [ nm2.umatch(gene) for gene in geneset ]
+               
+                exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
+                exvalues = filter(lambda x: x != "?", exvalues)
+
+                return self.fn(exvalues)
+         
+            at.get_value_from = t
+            attributes.append(at)
+
+        return attributes 
+
+class Mean(SimpleFun):
+
+    def __init__(self, **kwargs):
+       self.fn = numpy.mean
+       super(Mean, self).__init__(**kwargs)
+
+class Median(SimpleFun):
+
+    def __init__(self, **kwargs):
+       self.fn = numpy.median
+       super(Median, self).__init__(**kwargs)
 
 if __name__ == "__main__":
-
 
     data = Orange.data.Table("iris")
     gsets = obiGeneSets.collections({
@@ -150,7 +191,6 @@ if __name__ == "__main__":
     choosen_cv = None
     """
 
-
     def to_old_dic(d, data):
         ar = defaultdict(list)
         for ex1 in data:
@@ -163,7 +203,6 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = SetSig(matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
-    ass = ass(data)
+    ass = Median(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
