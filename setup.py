@@ -57,7 +57,7 @@ MINOR = 1
 MICRO = 0
 ISRELEASED = False
 
-VERSION = "{0}.{1}a.{2}".format(MAYOR,MINOR, MICRO)
+VERSION = "%i.%ia.%i" % (MAYOR, MINOR, MICRO)
 
 
 # list all documentation files that need to be included
