@@ -659,7 +659,7 @@ if __name__ == "__main__":
 
     data = Orange.data.Table("iris")
     gsets = obiGeneSets.collections({
-        "ALL": ['sepal length', 'sepal width', 'petal length', 'petal width'],
+        #"ALL": ['sepal length', 'sepal width', 'petal length', 'petal width'],
         "f3": ['sepal length', 'sepal width', 'petal length'],
         "l3": ['sepal width', 'petal length', 'petal width'],
         })
@@ -672,12 +672,13 @@ if __name__ == "__main__":
 
     choosen_cv = ["Iris-setosa", "Iris-versicolor"]
     #ass = AssessLearner()(data, matcher, gsets, rankingf=AT_loessLearner())
+    #ass = AssessLearner()(data, matcher, gsets, minPart=0.0)
     #ass = MeanLearner()(data, matcher, gsets, default=False)
     #ass = MedianLearner()(data, matcher, gsets)
-    ass = PLSLearner()(data, matcher, gsets, classValues=choosen_cv, minPart=0.0)
+    #ass = PLSLearner()(data, matcher, gsets, classValues=choosen_cv, minPart=0.0)
     #ass = SetSigLearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
     #ass = PCALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
-    #ass = GSALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
+    ass = GSALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
 
     ar = defaultdict(list)
     for d in (list(ldata) + list(tdata))[:5]:

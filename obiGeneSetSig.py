@@ -7,6 +7,10 @@ from collections import defaultdict
 import stats
 from obiGsea import takeClasses
 from obiAssess import pca, PLSCall
+import obiExpression
+import scipy.stats
+
+#STILL MISSING: Assess, CORGs
 
 def setSig_example_geneset(ex, data):
     """ Gets learning data and example with the same domain, both
@@ -262,11 +266,71 @@ class Median(SimpleFun):
        self.fn = numpy.median
        super(Median, self).__init__(**kwargs)
 
+class GSA(GeneSetTrans):
+
+    def build_features(self, data, gene_sets):
+
+        attributes = []
+
+        def tscorec(data, at, cache=None):
+            ma = obiExpression.MA_t_test()(at,data)
+            return ma
+
+        tscores = [ tscorec(data, at) for at in data.domain.attributes ]
+
+        def to_z_score(t):
+            return float(scipy.stats.norm.ppf(scipy.stats.t.cdf(t, len(data)-2)))
+
+        zscores = map(to_z_score, tscores)
+
+        nm, name_ind = self._mat_ni(data)
+
+        for gs in gene_sets:
+
+            at = Orange.feature.Continuous(name=str(gs))
+
+            geneset = list(gs.genes)
+
+            genes = [ nm.umatch(gene) for gene in geneset ]
+
+            to_geneset = dict(zip(genes, geneset))
+
+            takegenes = [ i for i,a in enumerate(genes) if a != None ]
+            genes = [ genes[i] for i in takegenes ]
+
+            #take each gene only once
+            genes = set(genes)
+
+            D = numpy.mean([max(zscores[name_ind[g]],0) for g in genes]) \
+                + numpy.mean([min(zscores[name_ind[g]],0) for g in genes])
+
+            if D >= 0:
+                consider_genes = [ to_geneset[g] for g in genes if zscores[name_ind[g]] > 0.0 ]
+            else:
+                consider_genes = [ to_geneset[g] for g in genes if zscores[name_ind[g]] < 0.0 ]
+
+            def t(ex, w, consider_genes=consider_genes):
+                #consider_genes included genes from the gene set that
+                #should be combined
+                nm2, name_ind2 = self._mat_ni(ex)
+                genes2 = [ nm2.umatch(gene) for gene in consider_genes ]
+              
+                #convert the example to the same domain
+                exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
+                exvalues = filter(lambda x: x != "?", exvalues)
+              
+                return numpy.mean(exvalues)
+
+            at.get_value_from = t
+            attributes.append(at)
+
+        return attributes
+
 if __name__ == "__main__":
 
     data = Orange.data.Table("iris")
     gsets = obiGeneSets.collections({
-        "ALL": ['sepal length', 'sepal width', 'petal length', 'petal width'],
+        #"ALL": ['sepal length', 'sepal width', 'petal length', 'petal width'],
         "f3": ['sepal length', 'sepal width', 'petal length'],
         "l3": ['sepal width', 'petal length', 'petal width'],
         })
@@ -292,6 +356,6 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = PLS(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
+    ass = GSA(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
