@@ -79,6 +79,25 @@ class GeneSetTrans(object):
             self._cache[data.domain] = mat_ni(data, self.matcher)
         return self._cache[data.domain]
 
+    def _match_instance(self, instance, geneset, takegenes=None):
+        nm, name_ind = self._mat_ni(instance)
+        genes = [ nm.umatch(gene) for gene in geneset ]
+        if takegenes:
+            genes = [ genes[i] for i in takegenes ]
+        return nm, name_ind, genes
+
+    def _match_data(self, data, geneset, odic=False):
+        nm, name_ind = self._mat_ni(data)
+        genes = [ nm.umatch(gene) for gene in geneset ]
+        if odic:
+            to_geneset = dict(zip(genes, geneset))
+        takegenes = [ i for i,a in enumerate(genes) if a != None ]
+        genes = [ genes[i] for i in takegenes ]
+        if odic:
+            return nm, name_ind, genes, takegenes, to_geneset
+        else:
+            return nm, name_ind, genes, takegenes
+
     def __init__(self, matcher=None, gene_sets=None, min_size=3, max_size=1000, min_part=0.1, class_values=None):
         self.matcher = matcher
         self.gene_sets = gene_sets
@@ -119,16 +138,8 @@ class SetSig(GeneSetTrans):
         def t(ex, w, gs=gs, data=data): #copy od the data
             geneset = list(gs.genes)
 
-            nm, name_ind = self._mat_ni(data)
-            nm2, name_ind2 = self._mat_ni(ex)
-
-            genes = [ nm.umatch(gene) for gene in geneset ]
-            genes2 = [ nm2.umatch(gene) for gene in geneset ]
-
-            takegenes = [ i for i,a in enumerate(genes) if a != None ]
-
-            genes = [ genes[i] for i in takegenes ]
-            genes2 = [ genes2[i] for i in takegenes ]
+            nm, name_ind, genes, takegenes = self._match_data(data, geneset)
+            nm2, name_ind2, genes2 = self._match_instance(ex, geneset, takegenes)
 
             domain = Orange.data.Domain([data.domain.attributes[name_ind[gene]] for gene in genes], data.domain.class_var)
             datao = Orange.data.Table(domain, data)
@@ -149,31 +160,20 @@ class PLS(GeneSetTrans):
         at = Orange.feature.Continuous(name=str(gs))
 
         geneset = list(gs.genes)
-
-        nm, name_ind = self._mat_ni(data)
-        genes = [ nm.umatch(gene) for gene in geneset ]
-        takegenes = [ i for i,a in enumerate(genes) if a != None ]
-        genes = [ genes[i] for i in takegenes ]
-
+        nm, name_ind, genes, takegenes = self._match_data(data, geneset)
         domain = Orange.data.Domain([data.domain.attributes[name_ind[gene]] for gene in genes], data.domain.class_var)
-
         datao = Orange.data.Table(domain, data)
 
-        xmean, W, P, T = PLSCall(datao, nc=1, y=[datao.domain.class_var])
-        constructt = xmean, W, P
+        constructt = PLSCall(datao, nc=1, y=[datao.domain.class_var])
 
         def t(ex, w, geneset=geneset, constructt=constructt, takegenes=takegenes, domain=domain):
-
-            nm2, name_ind2 = self._mat_ni(ex)
-            genes2 = [ nm2.umatch(gene) for gene in geneset ]
-            genes2 = [ genes2[i] for i in takegenes ]
+            nm2, name_ind2, genes2 = self._match_instance(ex, geneset, takegenes)
           
             #convert the example to the same domain
             exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
-            
             ex = numpy.array(exvalues[:-1])
 
-            xmean, W, P = constructt
+            xmean, W, P, _ = constructt
             ex = ex - xmean # same input transformation
 
             nc = W.shape[1]
@@ -200,24 +200,14 @@ class PCA(GeneSetTrans):
         at = Orange.feature.Continuous(name=str(gs))
 
         geneset = list(gs.genes)
-
-        nm, name_ind = self._mat_ni(data)
-        genes = [ nm.umatch(gene) for gene in geneset ]
-        takegenes = [ i for i,a in enumerate(genes) if a != None ]
-        genes = [ genes[i] for i in takegenes ]
-
+        nm, name_ind, genes, takegenes = self._match_data(data, geneset)
         domain = Orange.data.Domain([data.domain.attributes[name_ind[gene]] for gene in genes], data.domain.class_var)
-
         datao = Orange.data.Table(domain, data)
 
-        evals, evect, xmean = pca(datao)
-        constructt = evals, evect, xmean
+        constructt = pca(datao)
 
         def t(ex, w, geneset=geneset, constructt=constructt, takegenes=takegenes, domain=domain):
-
-            nm2, name_ind2 = self._mat_ni(ex)
-            genes2 = [ nm2.umatch(gene) for gene in geneset ]
-            genes2 = [ genes2[i] for i in takegenes ]
+            nm2, name_ind2, genes2 = self._match_instance(ex, geneset, takegenes)
           
             #convert the example to the same domain
             exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
@@ -243,8 +233,7 @@ class SimpleFun(GeneSetTrans):
 
         def t(ex, w, gs=gs):
             geneset = list(gs.genes)
-            nm2, name_ind2 = self._mat_ni(ex)
-            genes2 = [ nm2.umatch(gene) for gene in geneset ]
+            nm2, name_ind2, genes2 = self._match_instance(ex, geneset)
            
             exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
             exvalues = filter(lambda x: x != "?", exvalues)
@@ -283,21 +272,12 @@ class GSA(GeneSetTrans):
 
         zscores = map(to_z_score, tscores)
 
-        nm, name_ind = self._mat_ni(data)
-
         for gs in gene_sets:
 
             at = Orange.feature.Continuous(name=str(gs))
 
             geneset = list(gs.genes)
-
-            genes = [ nm.umatch(gene) for gene in geneset ]
-
-            to_geneset = dict(zip(genes, geneset))
-
-            takegenes = [ i for i,a in enumerate(genes) if a != None ]
-            genes = [ genes[i] for i in takegenes ]
-
+            nm, name_ind, genes, takegenes, to_geneset = self._match_data(data, geneset, odic=True)
             #take each gene only once
             genes = set(genes)
 
@@ -310,10 +290,7 @@ class GSA(GeneSetTrans):
                 consider_genes = [ to_geneset[g] for g in genes if zscores[name_ind[g]] < 0.0 ]
 
             def t(ex, w, consider_genes=consider_genes):
-                #consider_genes included genes from the gene set that
-                #should be combined
-                nm2, name_ind2 = self._mat_ni(ex)
-                genes2 = [ nm2.umatch(gene) for gene in consider_genes ]
+                nm2, name_ind2, genes2 = self._match_instance(ex, consider_genes)
               
                 #convert the example to the same domain
                 exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
