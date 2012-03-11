@@ -677,8 +677,8 @@ if __name__ == "__main__":
     #ass = MedianLearner()(data, matcher, gsets)
     #ass = PLSLearner()(data, matcher, gsets, classValues=choosen_cv, minPart=0.0)
     #ass = SetSigLearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
-    #ass = PCALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
-    ass = GSALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
+    ass = PCALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
+    #ass = GSALearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)
 
     ar = defaultdict(list)
     for d in (list(ldata) + list(tdata))[:5]:

@@ -153,8 +153,14 @@ class SetSig(GeneSetTrans):
         at.get_value_from = t
         return at
 
-class PLS(GeneSetTrans):
+class ParametrizedTransformation(GeneSetTrans):
 
+    def _get_par(self, datao):
+        pass
+        
+    def _use_par(self, ex, constructt):
+        pass
+    
     def build_feature(self, data, gs):
 
         at = Orange.feature.Continuous(name=str(gs))
@@ -164,7 +170,7 @@ class PLS(GeneSetTrans):
         domain = Orange.data.Domain([data.domain.attributes[name_ind[gene]] for gene in genes], data.domain.class_var)
         datao = Orange.data.Table(domain, data)
 
-        constructt = PLSCall(datao, nc=1, y=[datao.domain.class_var])
+        constructt = self._get_par(datao)
 
         def t(ex, w, geneset=geneset, constructt=constructt, takegenes=takegenes, domain=domain):
             nm2, name_ind2, genes2 = self._match_instance(ex, geneset, takegenes)
@@ -173,57 +179,47 @@ class PLS(GeneSetTrans):
             exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
             ex = numpy.array(exvalues[:-1])
 
-            xmean, W, P, _ = constructt
-            ex = ex - xmean # same input transformation
-
-            nc = W.shape[1]
-
-            TR = numpy.empty((1, nc))
-            XR = ex
-
-            dot = numpy.dot
-
-            for i in range(nc):
-               t = dot(XR, W[:,i].T)
-               XR = XR - t*numpy.array([P[:,i]])
-               TR[:,i] = t
-
-            return TR[0][0]
-
+            return self._use_par(ex, constructt)
+            
         at.get_value_from = t
         return at
 
-class PCA(GeneSetTrans):
+class PLS(ParametrizedTransformation):
 
-    def build_feature(self, data, gs):
+    def _get_par(self, datao):
+        return PLSCall(datao, nc=1, y=[datao.domain.class_var])
+        
+    def _use_par(self, ex, constructt):
+        xmean, W, P, _ = constructt
+        ex = ex - xmean # same input transformation
 
-        at = Orange.feature.Continuous(name=str(gs))
+        nc = W.shape[1]
 
-        geneset = list(gs.genes)
-        nm, name_ind, genes, takegenes = self._match_data(data, geneset)
-        domain = Orange.data.Domain([data.domain.attributes[name_ind[gene]] for gene in genes], data.domain.class_var)
-        datao = Orange.data.Table(domain, data)
+        TR = numpy.empty((1, nc))
+        XR = ex
 
-        constructt = pca(datao)
+        dot = numpy.dot
 
-        def t(ex, w, geneset=geneset, constructt=constructt, takegenes=takegenes, domain=domain):
-            nm2, name_ind2, genes2 = self._match_instance(ex, geneset, takegenes)
-          
-            #convert the example to the same domain
-            exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
-            
-            arr = numpy.array(exvalues[:-1])
-            
-            evals, evect, xmean = constructt
+        for i in range(nc):
+           t = dot(XR, W[:,i].T)
+           XR = XR - t*numpy.array([P[:,i]])
+           TR[:,i] = t
 
-            arr = arr - xmean # same input transformation - a row in a matrix
-            ev0 = evect[0] #this is a row in a matrix - do a dot product
-            a = numpy.dot(arr, ev0)
+        return TR[0][0]
+        
+class PCA(ParametrizedTransformation):
 
-            return a
-                 
-        at.get_value_from = t
-        return at
+    def _get_par(self, datao):
+        return pca(datao)
+
+    def _use_par(self, arr, constructt):
+        evals, evect, xmean = constructt
+
+        arr = arr - xmean # same input transformation - a row in a matrix
+        ev0 = evect[0] #this is a row in a matrix - do a dot product
+        a = numpy.dot(arr, ev0)
+
+        return a
 
 class SimpleFun(GeneSetTrans):
 
@@ -333,6 +329,6 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = GSA(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
+    ass = PCA(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
