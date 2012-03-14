@@ -6,11 +6,11 @@ import numpy
 from collections import defaultdict
 import stats
 from obiGsea import takeClasses
-from obiAssess import pca, PLSCall
+from obiAssess import pca, PLSCall, corgs_activity_score
 import obiExpression
 import scipy.stats
 
-#STILL MISSING: Assess, CORGs
+#STILL MISSING: Assess
 
 def setSig_example_geneset(ex, data):
     """ Gets learning data and example with the same domain, both
@@ -299,6 +299,79 @@ class GSA(GeneSetTrans):
 
         return attributes
 
+def tscorec(data, at, cache=None):
+    """ Cached attribute  tscore calculation """
+    if cache != None and at in cache: return cache[at]
+    ma = obiExpression.MA_t_test()(at,data)
+    if cache != None: cache[at] = ma
+    return ma
+
+def nth(l, n):
+    return [a[n] for a in l]
+
+def compute_corg(data, inds, tscorecache):
+    """
+    Compute CORG for this geneset specified with gene inds
+    in the example table. Output is the list of gene inds
+    in CORG.
+
+    """
+    #order member genes by their t-scores: decreasing, if av(t-score) >= 0,
+    #else increasing
+    tscores = [ tscorec(data, at, tscorecache) for at in inds ]
+    sortedinds = nth(sorted(zip(inds,tscores), key=lambda x: x[1], \
+        reverse=numpy.mean(tscores) >= 0), 0)
+
+    def S(corg):
+        """ Activity score separation - S(G) in 
+        the article """
+        asv = Orange.feature.Continuous(name='AS')
+        asv.getValueFrom = lambda ex,rw: Orange.data.Value(asv, corgs_activity_score(ex, corg))
+        data2 = Orange.data.Table(Orange.data.Domain([asv], data.domain.classVar), data)
+        return abs(tscorec(data2, 0)) #FIXME absolute - nothing in the article abs()
+            
+    #greedily find CORGS procing the best separation
+    g = S(sortedinds[:1])
+    bg = 1
+    for a in range(2, len(sortedinds)+1):
+        tg = S(sortedinds[:a])
+        if tg > g:
+            g = tg
+            bg = a
+        else:
+            break
+        
+    return sortedinds[:a]
+
+class CORGs(ParametrizedTransformation):
+    """
+    WARNING: input has to be z_ij table! each gene needs to be normalized
+    (mean=0, stdev=1) for all samples.
+    """
+
+    def __call__(self, *args, **kwargs):
+        self.tscorecache = {} #reset a cache
+        return super(CORGs, self).__call__(*args, **kwargs)
+
+    def build_feature(self, data, gs):
+
+        at = Orange.feature.Continuous(name=str(gs))
+        geneset = list(gs.genes)
+
+        nm, name_ind, genes, takegenes, to_geneset = self._match_data(data, geneset, odic=True)
+        indices = compute_corg(data, [ name_ind[g] for g in genes ], self.tscorecache)
+
+        ind_names = dict( (a,b) for b,a in name_ind.items() )
+        selected_genes = sorted(set([to_geneset[ind_names[i]] for i in indices]))
+            
+        def t(ex, w, corg=selected_genes): #copy od the data
+            nm2, name_ind2, genes2 = self._match_instance(ex, corg, None)
+            exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ]
+            return sum(v if v != '?' else 0.0 for v in exvalues)/len(corg)**0.5
+     
+        at.get_value_from = t
+        return at
+
 if __name__ == "__main__":
 
     data = Orange.data.Table("iris")
@@ -329,6 +402,6 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = PCA(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
+    ass = CORGs(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
