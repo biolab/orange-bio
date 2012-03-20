@@ -19,7 +19,7 @@ gene expression experiments in Array Express Archive.
 import os, sys
 from collections import defaultdict, namedtuple
 
-from Orange.misc import serverfiles
+from Orange.utils import serverfiles
 
 GeneResults = namedtuple("GeneResults", "id name synonyms expressions")
 ExpressionResults = namedtuple("ExpressionResults", "ef efv up down experiments")
@@ -133,7 +133,7 @@ def default_gene_matcher(organism):
     matcher.set_targets(obiGene.EnsembleGeneInfo(taxid).keys())
     return matcher
 
-from Orange.misc import lru_cache
+from Orange.utils import lru_cache
 
 @lru_cache(maxsize=3)
 def _cached_default_gene_matcher(organism): 

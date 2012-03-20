@@ -1,5 +1,5 @@
 import Orange
-import Orange.misc
+import Orange.utils
 import obiGeneSets
 import obiGene
 import numpy
@@ -71,7 +71,7 @@ def select_genesets(nm, gene_sets, min_size=3, max_size=1000, min_part=0.1):
 
 class GeneSetTrans(object):
 
-    __new__ = Orange.misc._orange__new__(object)
+    __new__ = Orange.utils._orange__new__(object)
 
     def _mat_ni(self, data):
         """ With cached gene matchers. """

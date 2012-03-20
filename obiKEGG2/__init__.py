@@ -17,7 +17,7 @@ from collections import defaultdict
 
 from datetime import datetime
 
-from Orange.misc import lru_cache, serverfiles
+from Orange.utils import lru_cache, serverfiles
 
 from . import databases
 from . import entry
@@ -43,7 +43,7 @@ DEFAULT_CACHE_DIR = conf.params["cache.path"]
 
 
 import obiProb
-from Orange.misc import deprecated_keywords, deprecated_attribute
+from Orange.utils import deprecated_keywords, deprecated_attribute
 
 class Organism(object):
     def __init__(self, org, genematcher=None):
@@ -255,8 +255,7 @@ def create_gene_sets():
     pass
 
 import obiGene
-from Orange.misc import serverfiles
-from Orange.misc import ConsoleProgressBar
+from Orange.utils import ConsoleProgressBar
 
 class MatcherAliasesKEGG(obiGene.MatcherAliasesPickled):
     DOMAIN = "KEGG"

@@ -332,7 +332,7 @@ try:
 except ImportError:
     # TODO: move a copy of lru_cache in .caching if distributing this as a
     # standalone package
-    from Orange.misc import lru_cache
+    from Orange.utils import lru_cache
 
     
 class CachedKeggApi(KeggApi):

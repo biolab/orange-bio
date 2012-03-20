@@ -78,7 +78,7 @@ class TreeModel(QAbstractItemModel):
     def setHeaderData(self, section, orientation, value, role=Qt.EditRole):
         self._header[orientation][section][role] = value
         
-from Orange.misc import lru_cache
+from Orange.utils import lru_cache
 
 class MySortFilterProxyModel(QSortFilterProxyModel):    
     def __init__(self, parent=None):

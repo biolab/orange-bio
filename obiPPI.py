@@ -20,7 +20,8 @@ from operator import itemgetter
 import obiTaxonomy
 from obiTaxonomy import pickled_cache
 
-from Orange.misc import lru_cache, ConsoleProgressBar
+from Orange.utils import lru_cache
+from Orange.utils import ConsoleProgressBar
 
 import sqlite3
 import urllib2

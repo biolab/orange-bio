@@ -8,7 +8,7 @@ mostly just caching settings
 import os
 import ConfigParser
 from StringIO import StringIO
-from Orange.misc import serverfiles
+from Orange.utils import serverfiles
 kegg_dir = serverfiles.localpath("KEGG2")
 
 default = """

@@ -8,7 +8,7 @@ import os
 import re
 import urllib2
 
-from Orange.misc import deprecated_attribute
+from Orange.utils import deprecated_attribute
 
 from . import conf
 class BriteEntry(object):

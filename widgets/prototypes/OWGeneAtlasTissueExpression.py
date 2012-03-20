@@ -10,7 +10,7 @@ import OWGUI
 from OWWidget import *
 
 from collections import defaultdict
-from Orange.misc import lru_cache
+from Orange.utils import lru_cache
 
 import orngDataCaching
 import orngServerFiles

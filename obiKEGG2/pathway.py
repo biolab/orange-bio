@@ -16,7 +16,7 @@ from contextlib import closing
 from . import conf
 from . import caching
 
-from Orange.misc import deprecated_attribute
+from Orange.utils import deprecated_attribute
     
 def cached_method(func, cache_name="_cached_method_cache", store=None):
     def wrapper(self, *args, **kwargs):
