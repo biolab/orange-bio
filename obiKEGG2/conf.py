@@ -25,6 +25,7 @@ transport = urllib2
 """
 
 # Orange kegg files dir
+
 env = dict(os.environ)
 env["kegg_dir"] = kegg_dir
 
@@ -38,7 +39,13 @@ parser.read([os.path.expanduser("~/.obiKEGG/rc.cfg")])
 
 params = {}
 
-
-for section in parser.sections():
-    for option in parser.options(section):
-        params[section + "." + option] = parser.get(section, option)
+_ALL_PARAMS = \
+    ["cache.path",
+     "cache.store",
+     "cache.kegg_invalidate",
+     "service.transport"
+     ]
+for p in _ALL_PARAMS:
+    section, option = p.split(".")
+    params[p] = parser.get(section, option)
+    
