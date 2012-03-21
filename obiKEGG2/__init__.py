@@ -8,6 +8,8 @@ This is a python module for access to `KEGG`_ using its web services. To use thi
 
 .. _`KEGG`: http://www.genome.jp/kegg/
 
+.. _`SUDS`: http://pypi.python.org/pypi/suds/
+
 """
 from __future__ import absolute_import
 

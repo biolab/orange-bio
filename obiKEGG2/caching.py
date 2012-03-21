@@ -7,8 +7,8 @@ import UserDict
 import sqlite3
 import cPickle as pickle
 
-from datetime import datetime
-
+from datetime import datetime, date, timedelta
+from . import conf
 
 class Store(object):
     def __init__(self):
@@ -23,12 +23,6 @@ class Store(object):
     def __exit__(self, *args):
         pass
     
-    
-class ShelveStore(Store):
-    def __init__(self):
-        import shelve
-        self.fname = shelve.open
-
 
 class Sqlite3Store(Store, UserDict.DictMixin):
     def __init__(self, filename):
@@ -99,6 +93,7 @@ class cache_entry(object):
         self.mtime = mtime
         self.expires = expires
         
+_SESSION_START = datetime.now()
 
 class cached_wrapper(object):
     """ TODO: needs documentation
@@ -157,7 +152,6 @@ class cached_wrapper(object):
                 
                 if not self.is_entry_valid(entry, args):
                     valid = False
-                    
             if not valid:
                 rval = self.function(self.instance, *args)
                 store[key] = cache_entry(rval, datetime.now(), None)
@@ -169,7 +163,43 @@ class cached_wrapper(object):
         return datetime.fromtimestamp(0)
     
     def is_entry_valid(self, entry, args):
-        return self.min_timestamp(args) < entry.mtime 
+        # Need to check datetime first (it subclasses date)
+        if isinstance(entry.mtime, datetime):
+            mtime = entry.mtime
+        elif isinstance(entry.mtime, date):
+            mtime = datetime(entry.mtime.year, entry.mtime.month,
+                             entry.mtime.day, 1, 1, 1)
+        else:
+            return False
+        
+        if self.min_timestamp(args) > mtime:
+            return False
+        
+        last_modified = self.last_modified_from_args(args)
+        
+        if isinstance(last_modified, date):
+            last_modified = datetime(last_modified.year, last_modified.month,
+                                     last_modified.day, 1, 1, 1)
+        elif isinstance(last_modified, basestring):
+            # Could have settable format
+            mtime = mtime.strftime("%Y %m %d %H %M %S") 
+        
+        elif last_modified is None:
+            if conf.params["cache.invalidate"] == "always":
+                return False
+            elif conf.params["cache.invalidate"] == "session":
+                last_modified = _SESSION_START
+            elif conf.params["cache.invalidate"] == "daily":
+                last_modified = datetime.now().replace(hour=0, minute=0,
+                                                       second=0, microsecond=0)
+            elif conf.params["cache.invalidate"] == "weekly":
+                last_modified = datetime.now() - timedelta(7)
+            else: # ???
+                pass
+        if last_modified > mtime:
+            return False
+        
+        return self.min_timestamp(args) < entry.mtime
     
         
 class cached_method(object):

@@ -16,7 +16,7 @@ default = """
 # path = %(home)s/.obiKEGG/
 path = %(kegg_dir)s/
 store = sqlite3
-kegg_invalidate = always
+invalidate = weekly
 
 [service]
 transport = urllib2
@@ -42,7 +42,7 @@ params = {}
 _ALL_PARAMS = \
     ["cache.path",
      "cache.store",
-     "cache.kegg_invalidate",
+     "cache.invalidate",
      "service.transport"
      ]
 for p in _ALL_PARAMS:

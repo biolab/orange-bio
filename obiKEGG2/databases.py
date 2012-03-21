@@ -281,6 +281,7 @@ class GeneEntry(entry.DBEntry):
     FIELDS = [("ENTRY", fields.DBEntryField),
               ("NAME", fields.DBNameField),
               ("DEFINITION", fields.DBDefinitionField),
+              ("ORGANISM", fields.DBSimpleField),
               ("ORTHOLOGY", fields.DBSimpleField),
               ("DRUG_TARGET", fields.DBSimpleField),
               ("PATHWAY", fields.DBPathway),
