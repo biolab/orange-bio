@@ -31,10 +31,6 @@ def cached_method(func, cache_name="_cached_method_cache", store=None):
 class Pathway(object):
     KGML_URL_FORMAT = "http://www.genome.jp/kegg-bin/download?entry={pathway_id}&format=kgml"
     
-    """
-    TODO: Caching should be done using a Store interface.
-    
-    """
     def __init__(self, pathway_id, local_cache=None, connection=None):
         if pathway_id.startswith("path:"):
             _, pathway_id = pathway_id.split(":", 1)
@@ -59,12 +55,29 @@ class Pathway(object):
     def _get_kgml(self):
         """ Return an open kgml file for the pathway.
         """
+        from datetime import datetime, timedelta
+        valid = False
         local_filename = os.path.join(self.local_cache, self.pathway_id + ".xml")
+        if os.path.exists(local_filename):
+            mtime = os.stat(local_filename).st_mtime
+            mtime = datetime.fromtimestamp(mtime)
+            now = datetime.now()
+            if conf.params["cache.invalidate"] == "always":
+                valid = False
+            elif conf.params["cache.invalidate"] == "session":
+                valid = (now - mtime) < (now - caching._SESSION_START)
+            elif conf.params["cache.invalidate"] == "daily":
+                valid = (now - mtime) < timedelta(1)
+            elif conf.params["cache.invalidate"] == "weekly":
+                valid = (now - mtime) < timedelta(7)
+            else:
+                valid = False
         
-        if not os.path.exists(local_filename):
+        if not valid:
             url = self.KGML_URL_FORMAT.format(pathway_id=self.pathway_id)
             s = urllib2.urlopen(url)
             contents = s.read()
+            
             with open(local_filename, "wb") as f:
                 f.write(contents)
                 
