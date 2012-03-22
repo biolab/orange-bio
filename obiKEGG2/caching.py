@@ -34,6 +34,10 @@ class Sqlite3Store(Store, UserDict.DictMixin):
              value TEXT
             )
         """)
+        self.con.execute("""
+        CREATE INDEX IF NOT EXISTS cache_index
+        ON cache (key)
+        """)
         self.con.commit()
         
     def __getitem__(self, key):
@@ -181,7 +185,7 @@ class cached_wrapper(object):
             last_modified = datetime(last_modified.year, last_modified.month,
                                      last_modified.day, 1, 1, 1)
         elif isinstance(last_modified, basestring):
-            # Could have settable format
+            # Could have different format
             mtime = mtime.strftime("%Y %m %d %H %M %S") 
         
         elif last_modified is None:
@@ -196,11 +200,7 @@ class cached_wrapper(object):
                 last_modified = datetime.now() - timedelta(7)
             else: # ???
                 pass
-        if last_modified > mtime:
-            return False
-        
-        return self.min_timestamp(args) < entry.mtime
-    
+        return last_modified <= mtime
         
 class cached_method(object):
     def __init__(self, function):
@@ -236,4 +236,24 @@ def touch_dir(path):
     path = os.path.expanduser(path)
     if not os.path.exists(path):
         os.makedirs(path)
+    
+def clear_cache():
+    """Clear all locally cached KEGG data.
+    """
+    import glob
+    path = conf.params["cache.path"]
+    if os.path.realpath(path) != os.path.realpath(conf.kegg_dir):
+        raise Exception("Non default cache path. Please remove the contents of %r manually." % path)
+    
+    for cache_filename in glob.glob(os.path.join(path, "*.sqlite3")):
+        os.remove(cache_filename)
+        
+    for ko_filename in glob.glob(os.path.join(path, "*.keg")):
+        os.remove(ko_filename)
+        
+    for kgml_filename in glob.glob(os.path.join(path, "*.xml")):
+        os.remove(kgml_filename)
+        
+    for png_filename in glob.glob(os.path.join(path, "*.png")):
+        os.remove(png_filename)
     
