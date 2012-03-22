@@ -219,9 +219,6 @@ class OWKEGGPathwayBrowser(OWWidget):
                                 callback=self.OrganismSelectionCallback, 
                                 addSpace=True,
                                 debuggingEnabled=0)
-#        OWGUI.button(box, self, "Update Pathways", callback=self.UpdateToLatestPathways)
-        
-#        cb.setMaximumWidth(200)
         
         self.signalManager.freeze(self).push()
         
@@ -254,6 +251,12 @@ class OWKEGGPathwayBrowser(OWWidget):
                        "Resize to fit",
                        box="Image",
                        callback=self.UpdatePathwayViewTransform)
+        
+        box = OWGUI.widgetBox(self.controlArea, "Cache Control")
+        
+        OWGUI.button(box, self, "Clear cache", 
+                     callback=self.ClearCache,
+                     tooltip="Clear all locally cached KEGG data.")
         
         OWGUI.separator(self.controlArea)
 
@@ -423,9 +426,11 @@ to use KEGG Pathways widget.</p>'
         allRefPathways = obiKEGG.pathways("map")
 #        self.progressBarFinished()
         items = []
+        self.progressBarInit()
         kegg_pathways = obiKEGG.KEGGPathways()
-        kegg_pathways.pre_cache(self.pathways.keys())
-        
+        kegg_pathways.pre_cache(self.pathways.keys(),
+                                progress_callback=self.progressBarSet)
+        self.progressBarFinished()
         if self.showOrthology:
             self.koOrthology = obiKEGG.KEGGBrite("ko00001")
             self.listView.setRootIsDecorated(True)
@@ -615,9 +620,6 @@ to use KEGG Pathways widget.</p>'
             orngServerFiles.update(obiGeneSets.sfdomain, "index.pck")
             kegg_gs_collections = list(obiGeneSets.collections((("KEGG", "pathways"), taxid)))
         
-#        print self.genes
-#        print taxid
-#        print kegg_gs_collections
         if USE_THREADING:
             result = {}
             def callable(*args, **kwargs):
@@ -633,7 +635,7 @@ to use KEGG Pathways widget.</p>'
                                                 reference),
                                           kwargs={"callback": 
                                                   threading_queued_invoke(self,
-                                                  lambda value:pb.advance())}
+                                                  lambda value:self.progressBarSet(value))}
                                           )
                 
                 thread.start()
@@ -647,9 +649,11 @@ to use KEGG Pathways widget.</p>'
                 self.pathways = result["result"]
             else:
                 raise Exception('Could not get enriched pathways')
+            
+            
         else:
             self.pathways = org.get_enriched_pathways(self.genes, reference,
-                                                      callback=lambda value: pb.advance())
+                                                      callback=lambda value: self.progressBarSet(value))
         
         self.org = org
         if not self.pathways:
@@ -719,6 +723,15 @@ to use KEGG Pathways widget.</p>'
             self.send("Selected Examples", None)
             self.send("Unselected Examples", None)
         
+    def ClearCache(self):
+        from obiKEGG2 import caching
+        try:
+            caching.clear_cache()
+        except Exception, ex:
+            QMessageBox.warning(self, "Cache clear", 
+                ex.args[0])
+            
+        
     def keyPressEvent(self, key):
         if key.key()==Qt.Key_Control:
             self.ctrlPressed=True
@@ -743,7 +756,6 @@ to use KEGG Pathways widget.</p>'
 
     @pyqtSignature("queuedInvoke(PyQt_PyObject)")
     def queuedInvoke(self, func):
-#        print "queued invoke of", func
         func()
         
     def progressBarSet(self, value):
