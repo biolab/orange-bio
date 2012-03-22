@@ -5,6 +5,7 @@
 from urllib import urlretrieve
 from gzip import GzipFile
 import tarfile
+import gzip
 import shutil
 import sys, os
 import re, cPickle
@@ -19,6 +20,8 @@ try:
     default_database_path = os.path.join(orngServerFiles.localpath(), "GO")
 except Exception:
     default_database_path = os.curdir
+
+_CVS_REVISION_RE = re.compile(r"^(rev)?\d+\.\d+$")
 
 evidenceTypes = {
 ##Experimental
@@ -249,7 +252,7 @@ class Ontology(object):
         
     """
     version = 1
-    def __init__(self, file=None, progressCallback=None):
+    def __init__(self, file=None, progressCallback=None, rev=None):
         """ Initialize the ontology from file (if `None` the default gene
         ontology will be loaded). The optional `progressCallback` will be
         called with a single argument to report on the progress.
@@ -259,8 +262,21 @@ class Ontology(object):
         self.typedefs = {}
         self.instances = {}
         self.slimsSubset = set()
-        if file and os.path.exists(file):
+        if isinstance(file, basestring):
             self.ParseFile(file, progressCallback)
+            
+        elif rev is not None:
+            if not _CVS_REVISION_RE.match(rev):
+                raise ValueError("Invalid revision format.")
+            if rev.startswith("rev"):
+                rev = rev[3:]
+            pc = lambda v: progressCallback(v/2.0) \
+                 if progressCallback else None
+            filename = os.path.join(default_database_path, "gene_ontology_edit@rev%s.obo" % rev)
+            if not os.path.exists(filename):
+                self.DownloadOntologyAtRev(rev, filename, pc)
+            self.ParseFile(filename, lambda v: progressCallback(v/2.0 + 50) \
+                                     if progressCallback else None)
         else:
             fool = self.Load(progressCallback)
             self.__dict__ = fool.__dict__ ## A fool and his attributes are soon parted
@@ -415,7 +431,7 @@ class Ontology(object):
 
     @staticmethod
     def DownloadOntology(file, progressCallback=None):
-        tFile = tarfile.open(file, "w:gz") if type(file) == str else file
+        tFile = tarfile.open(file, "w:gz") if isinstance(file, basestring) else file
         tmpDir = os.path.join(orngEnviron.bufferDir, "tmp_go/")
         try:
             os.mkdir(tmpDir)
@@ -429,6 +445,18 @@ class Ontology(object):
         tFile.close()
         os.remove(os.path.join(tmpDir, "gene_ontology_edit.obo"))
 
+    @staticmethod
+    def DownloadOntologyAtRev(rev, filename=None, progressCallback=None):
+        import shutil
+        import urllib2
+        url = "http://cvsweb.geneontology.org/cgi-bin/cvsweb.cgi/~checkout~/go/ontology/gene_ontology_edit.obo?rev=%s" % rev
+        url += ";content-type=text%2Fplain"
+        if filename is None:
+            filename = os.path.join(default_database_path, "gene_ontology_edit@rev%s.obo" % rev)
+        r = urllib2.urlopen(url)
+        shutil.copyfileobj(r, open(filename, "wb"))
+        
+        
 _re_obj_name_ = re.compile("([a-zA-z0-9-_]+)")
 
 class AnnotationRecord(object):
@@ -473,7 +501,7 @@ class Annotations(object):
     """Annotations object holds the annotations.
     """
     version = 2
-    def __init__(self, file=None, ontology=None, genematcher=None, progressCallback=None):
+    def __init__(self, file=None, ontology=None, genematcher=None, progressCallback=None, rev=None):
         """Initialize the annotations from file by calling ParseFile on it.
         The ontology must be an instance of Ontology class.
         The optional progressCallback will be called with a single argument
@@ -498,16 +526,35 @@ class Annotations(object):
                 self.AddAnnotation(ann)
             if type(file, Annotations):
                 taxid = file.taxid
-        elif file and os.path.exists(file):
+        elif isinstance(file, basestring) and os.path.exists(file):
             self.ParseFile(file, progressCallback)
             try:
                 self.taxid = to_taxid(os.path.basename(file).split(".")[1]).pop()
             except IOError:
                 pass
-        elif file:
-            a = self.Load(file, ontology, genematcher, progressCallback)
-            self.__dict__ = a.__dict__
-            self.taxid = to_taxid(organism_name_search(file)).pop()
+        elif file is not None:
+            # Organism code
+            if rev is not None:
+                if not _CVS_REVISION_RE.match(rev):
+                    raise ValueError("Invalid revision format")
+                
+                if rev.startswith("rev"):
+                    rev = rev[3:]
+                code = self.organism_name_search(file)
+                filename = os.path.join(default_database_path,
+                                        "gene_association.%s@rev%s.tar.gz" % (code, rev))
+                
+                if not os.path.exists(filename):
+                    self.DownloadAnnotationsAtRev(code, rev, filename,
+                                                  progressCallback
+                                                  )
+                    
+                self.ParseFile(filename, progressCallback)
+                self.taxid = to_taxid(code).pop()
+            else:
+                a = self.Load(file, ontology, genematcher, progressCallback)
+                self.__dict__ = a.__dict__
+                self.taxid = to_taxid(organism_name_search(file)).pop()
         if not self.genematcher and self.taxid:
             import obiGene
             self.genematcher = obiGene.matcher([obiGene.GMGO(self.taxid)] + \
@@ -585,6 +632,8 @@ class Annotations(object):
         if type(file) == str:
             if os.path.isfile(file) and tarfile.is_tarfile(file):
                 f = tarfile.open(file).extractfile("gene_association")
+            elif os.path.isfile(file) and file.endswith(".gz"):
+                f = gzip.open(file) 
             elif os.path.isfile(file):
                 f = open(file)
             else:
@@ -910,6 +959,18 @@ class Annotations(object):
         tFile.close()
         os.remove(os.path.join(tmpDir, "gene_association." + org))
         os.remove(os.path.join(tmpDir, "gene_names.pickle"))
+        
+    @staticmethod
+    def DownloadAnnotationsAtRev(org, rev, filename=None, progressCallback=None):
+        import urllib2
+        import shutil
+        if filename is None:
+            filename = os.path.join(default_database_path,
+                                    "gene_association.%s@rev%s.tar.gz" % (code, rev))
+        url = "http://cvsweb.geneontology.org/cgi-bin/cvsweb.cgi/~checkout~/go/gene-associations/gene_association.%s.gz?rev=%s" % (org, rev)
+        url += ";content-type=application%2Fx-gzip"
+        r = urllib2.urlopen(url)
+        shutil.copyfileobj(r, open(filename, "wb"))
 
 from obiTaxonomy import pickled_cache
 
