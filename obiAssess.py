@@ -672,9 +672,9 @@ if __name__ == "__main__":
 
     choosen_cv = ["Iris-setosa", "Iris-versicolor"]
     #ass = AssessLearner()(data, matcher, gsets, rankingf=AT_loessLearner())
-    #ass = AssessLearner()(data, matcher, gsets, minPart=0.0)
+    ass = AssessLearner()(data, matcher, gsets, minPart=0.0)
     #ass = MeanLearner()(data, matcher, gsets, default=False)
-    ass = CORGsLearner()(data, matcher, gsets)
+    #ass = CORGsLearner()(data, matcher, gsets)
     #ass = MedianLearner()(data, matcher, gsets)
     #ass = PLSLearner()(data, matcher, gsets, classValues=choosen_cv, minPart=0.0)
     #ass = SetSigLearner()(ldata, matcher, gsets, classValues=choosen_cv, minPart=0.0)

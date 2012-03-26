@@ -1,4 +1,5 @@
 import Orange
+import obiGsea
 import Orange.utils
 import obiGeneSets
 import obiGene
@@ -9,9 +10,236 @@ from obiGsea import takeClasses
 from obiAssess import pca, PLSCall, corgs_activity_score
 import obiExpression
 import scipy.stats
+import math
+import statc
 
-#STILL MISSING: Assess
+class GeneSetTrans(object):
 
+    __new__ = Orange.utils._orange__new__(object)
+
+    def _mat_ni(self, data):
+        """ With cached gene matchers. """
+        if data.domain not in self._cache:
+            self._cache[data.domain] = mat_ni(data, self.matcher)
+        return self._cache[data.domain]
+
+    def _match_instance(self, instance, geneset, takegenes=None):
+        nm, name_ind = self._mat_ni(instance)
+        genes = [ nm.umatch(gene) for gene in geneset ]
+        if takegenes:
+            genes = [ genes[i] for i in takegenes ]
+        return nm, name_ind, genes
+
+    def _match_data(self, data, geneset, odic=False):
+        nm, name_ind = self._mat_ni(data)
+        genes = [ nm.umatch(gene) for gene in geneset ]
+        if odic:
+            to_geneset = dict(zip(genes, geneset))
+        takegenes = [ i for i,a in enumerate(genes) if a != None ]
+        genes = [ genes[i] for i in takegenes ]
+        if odic:
+            return nm, name_ind, genes, takegenes, to_geneset
+        else:
+            return nm, name_ind, genes, takegenes
+
+    def __init__(self, matcher=None, gene_sets=None, min_size=3, max_size=1000, min_part=0.1, class_values=None):
+        self.matcher = matcher
+        self.gene_sets = gene_sets
+        self.min_size = min_size
+        self.max_size = max_size
+        self.min_part = min_part
+        self.class_values = class_values
+        self._cache = {}
+
+    def __call__(self, data, weight_id=None):
+
+        #selection of classes and gene sets
+        data = takeClasses(data, classValues=self.class_values)
+        nm,_ =  self._mat_ni(data)
+        gene_sets = select_genesets(nm, self.gene_sets, self.min_size, self.max_size, self.min_part)
+
+        #build a new domain
+        newfeatures = self.build_features(data, gene_sets)
+        newdomain = Orange.data.Domain(newfeatures, data.domain.class_var)
+        return Orange.data.Table(newdomain, data)
+
+    def build_features(self, data, gene_sets):
+        return [ self.build_feature(data, gs) for gs in gene_sets ]
+
+
+def normcdf(x, mi, st):
+    return 0.5*(2. - stats.erfcc((x - mi)/(st*math.sqrt(2))))
+
+class AT_edelmanParametric(object):
+
+    def __init__(self, **kwargs):
+        for a,b in kwargs.items():
+            setattr(self, a, b)
+
+    def __call__(self, nval):
+
+        if self.mi1 == None or self.mi2 == None or self.st1 == None or self.st2 == None:
+            return 0.0 
+
+        val = nval
+
+        try:
+            if val >= self.mi1:
+                p1 = 1 - normcdf(val, self.mi1, self.st1)
+            else:
+                p1 = normcdf(val, self.mi1, self.st1)
+
+            if val >= self.mi2:
+                p2 = 1 - normcdf(val, self.mi2, self.st2)
+            else:
+                p2 = normcdf(val, self.mi2, self.st2)
+
+            #print p1, p2
+            return math.log(p1/p2)
+        except:
+            #print p1, p2, "exception"
+            return 0
+
+class AT_edelmanParametricLearner(object):
+    """
+    Returns attribute transfromer for Edelman parametric measure for a
+    given attribute in the dataset.  Edelman et al, 06. Modified a bit.
+    """
+
+    def __init__(self, a=None, b=None):
+        """
+        a and b are choosen class values.
+        """
+        self.a = a
+        self.b = b
+
+    def __call__(self, i, data):
+        cv = data.domain.classVar
+        #print data.domain
+
+        if self.a == None: self.a = cv.values[0]
+        if self.b == None: self.b = cv.values[1]
+
+        def avWCVal(value):
+            return [ex[i].value for ex in data if ex[-1].value == value and not ex[i].isSpecial() ]
+
+        list1 = avWCVal(self.a)
+        list2 = avWCVal(self.b)
+
+        mi1 = mi2 = st1 = st2 = None
+
+        try:
+            mi1 = statc.mean(list1)
+            st1 = statc.std(list1)
+        except:
+            pass
+    
+        try:
+            mi2 = statc.mean(list2)
+            st2 = statc.std(list2)
+        except:
+            pass
+
+        return AT_edelmanParametric(mi1=mi1, mi2=mi2, st1=st1, st2=st2)
+
+class AT_loess(object):
+
+    def __init__(self, **kwargs):
+        for a,b in kwargs.items():
+            setattr(self, a, b)
+
+    def __call__(self, nval):
+
+        val = nval
+
+        def saveplog(a,b):
+            try:
+                return math.log(a/b)
+            except:
+                if a < b:
+                    return -10
+                else:
+                    return +10
+
+        try:
+            ocene = self.condprob(val)
+            if sum(ocene) < 0.01:
+                return 0.0
+            return saveplog(ocene[0], ocene[1])
+
+        except:
+            return 0.0
+
+class AT_loessLearner(object):
+
+    def __call__(self, i, data):
+        try:
+            ca = Orange.statistics.contingency.VarClass(data.domain.attributes[i], data)
+            a =  Orange.statistics.estimate.ConditionalLoess(ca, nPoints=5)
+            return AT_loess(condprob=a)
+        except:
+            return AT_loess(condprob=None)
+
+def nth(l, n):
+    return [a[n] for a in l]
+
+class Assess(GeneSetTrans):
+    """
+    Uses the underlying GSEA code to select genes.
+    Takes data and creates attribute transformations.
+    """
+
+    def __init__(self, rankingf=None, **kwargs):
+        self.rankingf = rankingf
+        if self.rankingf == None:
+            self.rankingf = AT_edelmanParametricLearner()
+        super(Assess, self).__init__(**kwargs)
+
+    def build_features(self, data, gene_sets):
+
+        attributes = []
+
+        #attrans: { i_orig: ranking_function }
+        attrans = [ self.rankingf(iat, data) for iat, at in enumerate(data.domain.attributes) ]
+
+        nm_all, _ =  self._mat_ni(data)
+
+        for gs in gene_sets:
+
+            at = Orange.feature.Continuous(name=str(gs))
+
+            geneset = list(gs.genes)
+            nm, name_ind, genes, takegenes, to_geneset = self._match_data(data, geneset, odic=True)
+            genes = set(genes)
+            
+            def t(ex, w, geneset=geneset, takegenes=takegenes, nm=nm, attrans=attrans):
+
+                nm2, name_ind2, genes2 = self._match_instance(ex, geneset, takegenes)
+
+                ex_atts = [ at.name for at in ex.domain.attributes ]
+                new_atts = [ name_ind[nm.umatch(an)] if nm.umatch(an) != None else None
+                    for an in ex_atts ]
+                #new_atts: indices of genes in original data for that sample 
+                #POSSIBLE REVERSE IMPLEMENTATION (slightly different
+                #for data from different chips):
+                #save pairs together and sort (or equiv. dictionary transformation)
+
+                indexes = filter(lambda x: x[0] != None, zip(new_atts, range(len(ex_atts))))
+
+                lcor = [ attrans[index_in_data](ex[index_in_ex].value) 
+                    for index_in_data, index_in_ex in indexes if
+                    ex[index_in_ex].value != '?' ]
+                #indexes in original lcor, sorted from higher to lower values
+                ordered = obiGsea.orderedPointersCorr(lcor) 
+                #subset = list of indices, lcor = correlations, ordered = order
+                subset = [ name_ind2[g] for g in genes2 ]
+                return obiGsea.enrichmentScoreRanked(subset, lcor, ordered)[0] 
+
+            at.get_value_from = t
+            attributes.append(at)
+
+        return attributes
+   
 def setSig_example_geneset(ex, data):
     """ Gets learning data and example with the same domain, both
     containing only genes from the gene set. """
@@ -68,59 +296,6 @@ def select_genesets(nm, gene_sets, min_size=3, max_size=1000, min_part=0.1):
         return False
 
     return filter(ok_sizes, gene_sets) 
-
-class GeneSetTrans(object):
-
-    __new__ = Orange.utils._orange__new__(object)
-
-    def _mat_ni(self, data):
-        """ With cached gene matchers. """
-        if data.domain not in self._cache:
-            self._cache[data.domain] = mat_ni(data, self.matcher)
-        return self._cache[data.domain]
-
-    def _match_instance(self, instance, geneset, takegenes=None):
-        nm, name_ind = self._mat_ni(instance)
-        genes = [ nm.umatch(gene) for gene in geneset ]
-        if takegenes:
-            genes = [ genes[i] for i in takegenes ]
-        return nm, name_ind, genes
-
-    def _match_data(self, data, geneset, odic=False):
-        nm, name_ind = self._mat_ni(data)
-        genes = [ nm.umatch(gene) for gene in geneset ]
-        if odic:
-            to_geneset = dict(zip(genes, geneset))
-        takegenes = [ i for i,a in enumerate(genes) if a != None ]
-        genes = [ genes[i] for i in takegenes ]
-        if odic:
-            return nm, name_ind, genes, takegenes, to_geneset
-        else:
-            return nm, name_ind, genes, takegenes
-
-    def __init__(self, matcher=None, gene_sets=None, min_size=3, max_size=1000, min_part=0.1, class_values=None):
-        self.matcher = matcher
-        self.gene_sets = gene_sets
-        self.min_size = min_size
-        self.max_size = max_size
-        self.min_part = min_part
-        self.class_values = class_values
-        self._cache = {}
-
-    def __call__(self, data, weight_id=None):
-
-        #selection of classes and gene sets
-        data = takeClasses(data, classValues=self.class_values)
-        nm,_ =  self._mat_ni(data)
-        gene_sets = select_genesets(nm, self.gene_sets, self.min_size, self.max_size, self.min_part)
-
-        #build a new domain
-        newfeatures = self.build_features(data, gene_sets)
-        newdomain = Orange.data.Domain(newfeatures, data.domain.class_var)
-        return Orange.data.Table(newdomain, data)
-
-    def build_features(self, data, gene_sets):
-        return [ self.build_feature(data, gs) for gs in gene_sets ]
 
 def vou(ex, gn, indices):
     """ returns the value or "?" for the given gene name gn"""
@@ -402,6 +577,6 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = CORGs(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
+    ass = Assess(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
