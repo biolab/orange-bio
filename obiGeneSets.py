@@ -248,23 +248,22 @@ def go_miRNASets(org, ontology=None, enrichment=True, pval=0.05, treshold=0.04):
 def loadGMT(contents, name):
     """
     Eech line consists of tab separated elements. First is
-    the geneset name, next is it's description. 
+    the geneset name, next is it's description.
     
     For now the description is skipped.
     """
     def hline(s):
-        tabs = [ tab.strip() for tab in s.split("\t") ]
-        return  obiGeneSets.GeneSet(id=tabs[0], description=tabs[1], hierarchy=(name,), genes=tabs[2:])
+        tabs = [tab.strip() for tab in s.split("\t")]
+        return obiGeneSets.GeneSet(id=tabs[0], description=tabs[1],
+                                   hierarchy=(name,), genes=tabs[2:])
 
     def handleNELines(s, fn):
         """
         Run function on nonempty lines of a string.
         Return a list of results for each line.
         """
-        lines = s.split("\n")
-        lines = [ l.strip() for l in lines ]
-        lines = filter(lambda x: x != "", lines)
-        return [ fn(l) for l in lines ]
+        lines = (l.strip() for l in s.splitlines())
+        return [fn(l) for l in lines if l]
 
     return obiGeneSets.GeneSets(handleNELines(contents, hline))
 
