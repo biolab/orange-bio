@@ -454,7 +454,11 @@ class Ontology(object):
         if filename is None:
             filename = os.path.join(default_database_path, "gene_ontology_edit@rev%s.obo" % rev)
         r = urllib2.urlopen(url)
-        shutil.copyfileobj(r, open(filename, "wb"))
+        
+        with open(filename + ".part", "wb") as f:
+            shutil.copyfileobj(r, f)
+            
+        os.rename(filename + ".part", filename)
         
         
 _re_obj_name_ = re.compile("([a-zA-z0-9-_]+)")
@@ -970,7 +974,11 @@ class Annotations(object):
         url = "http://cvsweb.geneontology.org/cgi-bin/cvsweb.cgi/~checkout~/go/gene-associations/gene_association.%s.gz?rev=%s" % (org, rev)
         url += ";content-type=application%2Fx-gzip"
         r = urllib2.urlopen(url)
-        shutil.copyfileobj(r, open(filename, "wb"))
+        
+        with open(filename + ".part", "wb") as f:
+            shutil.copyfileobj(r, f)
+        
+        os.rename(filename + ".part", filename)
 
 from obiTaxonomy import pickled_cache
 
