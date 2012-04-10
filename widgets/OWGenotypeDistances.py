@@ -444,9 +444,9 @@ class OWGenotypeDistances(OWWidget):
             matrix = Orange.core.SymMatrix(len(partitions))
             profiles = [linearize(data, indices) for _, indices in partitions]
             dist_func = self.DISTANCE_FUNCTIONS[self.distance_measure][1]
-            from Orange.misc import progressBarMilestones
+            from Orange.utils import progress_bar_milestones
             count = (len(profiles) * len(profiles) - 1) / 2
-            milestones = progressBarMilestones(count)
+            milestones = progress_bar_milestones(count)
             iter_count = 0
             for i in range(len(profiles)):
                 for j in range(i + 1, len(profiles)):
