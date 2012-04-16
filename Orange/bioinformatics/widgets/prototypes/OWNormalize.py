@@ -12,23 +12,24 @@
 TODO: settingsList
 """
 
+from __future__ import absolute_import
+
 import string, math
+import types
+
 import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
 import numpy.oldnumeric.mlab as MLab
 import numpy.oldnumeric.linear_algebra as LinearAlgebra
 import numpyExtn
+
 import orange
-#from qttable import *
-from OWWidget import *
-import OWGUI, OWToolbars
-from OWGraph import *
-from OWGraphTools import *      # color palletes, user defined curves, ...
-import ColorPalette             # ColorButton
-import types
+from Orange.OrangeWidgets import ColorPalette             # ColorButton
+from Orange.OrangeWidgets import OWGUI, OWToolbars
+from Orange.OrangeWidgets.OWGraph import *
+from Orange.OrangeWidgets.OWGraphTools import *      # color palletes, user defined curves, ...
+from Orange.OrangeWidgets.OWWidget import *
 
-import chipstat
-
-
+from .. import chipstat
 
 # global debugging variables
 D1 = False
@@ -3726,7 +3727,8 @@ if __name__=="__main__":
 
 
     def test_widget():        
-        import OWDataTable, orngSignalManager
+        from Orange.orng import orngSignalManager
+        from Orange.OrangeWidgets.Data import OWDataTable
         signalManager = orngSignalManager.SignalManager(0)
         a=QApplication(sys.argv)
         ow=OWNormalize(signalManager = signalManager)

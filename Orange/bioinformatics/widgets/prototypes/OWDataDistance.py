@@ -8,13 +8,18 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
-import statc
-import orange, OWGUI
+from __future__ import absolute_import
+
 from qt import *
 from qtcanvas import *
-from OWWidget import *
-from OWDataFiles import DataFiles
+
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
+
+import orange, statc
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .OWDataFiles import DataFiles
 
 import warnings
 warnings.filterwarnings("ignore", "'strain'", orange.AttributeWarning)
@@ -277,7 +282,8 @@ def _distSpearmanW_MA(x,y,w):
 ###########################################################################
 
 if __name__=="__main__":
-    import OWDataFiles, orngSignalManager
+    from . import OWDataFiles
+    from Orange.orng import orngSignalManager
     signalManager = orngSignalManager.SignalManager(0)
     a=QApplication(sys.argv)
     ow=OWDataDistance(signalManager = signalManager)

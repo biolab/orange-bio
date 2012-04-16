@@ -5,15 +5,13 @@
 <icon>icons\GenomeMap.png</icon>
 """
 
-import orange
-from OWTools import *
-from OWWidget import *
-from OWGraph import *
-import OWGUI
-
-from OWGraph import ColorPaletteHSV
-
 from collections import defaultdict
+
+import orange
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWGraph import *
+from Orange.OrangeWidgets.OWTools import *
+from Orange.OrangeWidgets.OWWidget import *
 
 class subBarQwtPlotCurve(QwtPlotCurve):
     def __init__(self, text = None):

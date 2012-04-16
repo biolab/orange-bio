@@ -6,14 +6,13 @@
 <priority>200</priority>
 """
 
-import orange, OWGUI, math, glob
+import math, glob
 import os.path # to find out where the local files are
-from OWWidget import *
-#from qtcanvas import *
 
-from OWGraph import ColorPaletteHSV
-
-localdir = os.path.dirname(__file__) or "."
+import orange
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWGraph import ColorPaletteHSV
+from Orange.OrangeWidgets.OWWidget import *
 
 DEBUG = 0
 

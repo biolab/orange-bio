@@ -6,11 +6,14 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-from OWWidget import *
-import OWGUI
-import os, orange
-from OWDataFiles import DataFiles
+from __future__ import absolute_import
 
+import os, orange
+
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .OWDataFiles import DataFiles
 
 class OWDataFilesSave(OWWidget):
     settingsList  = ["recentDirs", "selectedDirName"]

@@ -8,14 +8,16 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
+from __future__ import absolute_import
+
 import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
-from OWWidget import *
-import OWGUI
-#import qt, qwt
+import scipy.stats
 
-from OWDataFiles import DataFiles, ExampleSelection
-import Anova, scipy.stats
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
 
+from .. import Anova
+from .OWDataFiles import DataFiles, ExampleSelection
 
 class OWANOVA(OWWidget):
     settingsList  = ["anovaType", "compareToValue", "_interaction", "selectorA", "selectorB", "selectorI", "alphaA", "alphaB", "alphaI", "autoUpdateSelName", "sendNotSelectedData", "sendProbabilities", "commitOnChange"]
@@ -619,7 +621,9 @@ class OWANOVA(OWWidget):
 
 
 if __name__=="__main__":
-    import OWDataFiles, OWDataFilesSelector, OWDataTable, orngSignalManager
+    from . import OWDataFiles, OWDataFilesSelector
+    from Orange.orng import orngSignalManager
+    from Orange.OrangeWidgets.Data import OWDataTable
 
     signalManager = orngSignalManager.SignalManager(0)
     a=QApplication(sys.argv)

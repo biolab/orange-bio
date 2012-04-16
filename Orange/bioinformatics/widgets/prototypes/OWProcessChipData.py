@@ -6,10 +6,13 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-from OWWidget import *
-import OWGUI
-from OWDataFiles import DataFiles
-import chipstat
+from __future__ import absolute_import
+
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import chipstat
+from .OWDataFiles import DataFiles
 
 class OWProcessChipData(OWWidget):
     settingsList  = ["preStdMethod", "postStdMethod", "preStdRob", "postStdRob", "mergeType", "commitOnChange"]

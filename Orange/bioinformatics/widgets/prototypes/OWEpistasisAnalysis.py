@@ -5,11 +5,15 @@
 <priority>1200</priority>
 """
 
-import orange, OWGUI, statc, math
-#from qt import *
-#from qtcanvas import *
-from OWWidget import *
-from OWDataFiles import DataFiles, ExampleSelection
+from __future__ import absolute_import
+
+import math
+
+import orange, statc
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .OWDataFiles import DataFiles, ExampleSelection
 
 ##############################################################################
 # parameters that determine the canvas layout

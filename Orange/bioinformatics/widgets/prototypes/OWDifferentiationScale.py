@@ -2,17 +2,20 @@
 <description></description>
 """
 
+from __future__ import absolute_import
+
 import os, sys
-import numpy
 import random
-
-import obiDifscale
-import Orange
-from operator import itemgetter, add
 from collections import defaultdict
+from operator import itemgetter, add
 
-from OWWidget import *
-import OWGUI
+import numpy
+
+import Orange
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from ... import obiDifscale
 
 class OWDifferentiationScale(OWWidget):
     def __init__(self, parent=None, signalManager=None, title="Differentiation Scale"):
@@ -348,7 +351,7 @@ and  {1} samples on input.""".format(len(self.additional_data),
         self.selection_changed_flag = False
         
     def save_graph(self):
-        from OWDlgs import OWChooseImageSizeDlg
+        from Orange.OrangeWidgets.OWDlgs import OWChooseImageSizeDlg
         dlg = OWChooseImageSizeDlg(self.scene, parent=self)
         dlg.exec_()
     

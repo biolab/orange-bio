@@ -8,13 +8,19 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
-from OWWidget import *
-import OWGUI
-import qt, qwt
-from OWDataFiles import DataFiles, ExampleSelection
-import Anova, scipy.stats
+from __future__ import absolute_import
 
+import qt, qwt
+
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
+
+import scipy.stats
+
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import Anova
+from .OWDataFiles import DataFiles, ExampleSelection
 
 class OWHypTest(OWWidget):
     settingsList  = ["anovaType", "popMean", "_interaction", "selectorA", "selectorB", "selectorI", "alphaA", "alphaB", "alphaI", "autoUpdateSelName", "sendNotSelectedData", "sendProbabilities", "commitOnChange"]
@@ -774,7 +780,8 @@ class OWHypTest(OWWidget):
 
 
 if __name__=="__main__":
-    import OWDataFiles, orngSignalManager
+    from . import OWDataFiles
+    from Orange.orng import orngSignalManager
     signalManager = orngSignalManager.SignalManager(0)
     a=QApplication(sys.argv)
     ow=OWHypTest(signalManager = signalManager)

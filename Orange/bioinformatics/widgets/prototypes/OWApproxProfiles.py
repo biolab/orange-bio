@@ -8,13 +8,15 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-from OWWidget import *
-import OWGUI
-from OWDataFiles import DataFiles
-import numpy.oldnumeric as Numeric
-import chipstat
-import chipappx
+from __future__ import absolute_import
 
+import numpy.oldnumeric as Numeric
+
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import chipappx, chipstat
+from .OWDataFiles import DataFiles
 
 class OWApproxProfiles(OWWidget):
     settingsList  = ['kernel', 'kernelSize', 'useSignificance', 'alpha', 'commitOnChange']

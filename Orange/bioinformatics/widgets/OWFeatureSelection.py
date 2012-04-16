@@ -82,6 +82,7 @@ def disable_controls(method):
     return f
 
 from Orange.orng.orngDataCaching import data_hints
+
 from .OWGenotypeDistances import SetContextHandler
 from .OWVulcanoPlot import LabelSelectionWidget
 

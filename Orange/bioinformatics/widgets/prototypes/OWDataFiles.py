@@ -6,9 +6,11 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-from OWWidget import *
-import OWGUI
-import os, os.path, orange
+import os, os.path
+
+import orange
+from Orange.OrangeWidgets.OWWidget import *
+from Orange.OrangeWidgets import OWGUI
 
 import warnings
 warnings.filterwarnings("ignore", "'strain'", orange.AttributeWarning)

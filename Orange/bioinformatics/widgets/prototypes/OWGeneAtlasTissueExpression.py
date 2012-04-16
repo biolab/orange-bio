@@ -1,22 +1,22 @@
-"""<name>Gene Atlas Tissue Expression</name>
+"""
+<name>Gene Atlas Tissue Expression</name>
 <description></description>
 """
+
+from __future__ import absolute_import
+
 import os, sys
-import obiArrayExpress
-import obiGeneAtlas
-import Orange
-
-import OWGUI
-from OWWidget import *
-
 from collections import defaultdict
-from Orange.utils import lru_cache
-
-import orngDataCaching
-import orngServerFiles
-import obiGene
-
 import shelve
+
+import Orange
+from Orange.utils import lru_cache
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from Orange.orng import orngDataCaching, orngServerFiles
+
+from ... import obiArrayExpress, obiGene, obiGeneAtlas
 
 TAXID_TO_ORG = obiGeneAtlas.TAXID_TO_ORG
 

@@ -9,13 +9,14 @@
 """
 
 import math
-import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
-from OWWidget import *
-import OWGUI
-from OWDataFiles import DataFiles
-import chipstat
-import chipimpute
 
+import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
+
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import chipimpute, chipstat
+from .OWDataFiles import DataFiles
 
 class OWImputeProfiles(OWWidget):
     settingsList  = ['impute', 'imputeK', 'smooth', 'windowSize', 'commitOnChange']
@@ -274,7 +275,8 @@ if __name__=="__main__":
     a.exec_loop()
     ow.saveSettings()
 
-##    import OWDataFiles, orngSignalManager
+##    from . import OWDataFiles
+##    from Orange.orng import orngSignalManager
 ##    signalManager = orngSignalManager.SignalManager(0)
 ##    a=QApplication(sys.argv)
 ##    ow=OWImputeProfiles(signalManager = signalManager)

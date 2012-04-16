@@ -6,11 +6,15 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-from OWWidget import *
+from __future__ import absolute_import
+
 from qttable import *
-import OWGUI
-from OWDataFiles import DataFiles, ExampleSelection
-import chipstat
+
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import chipstat
+from .OWDataFiles import DataFiles, ExampleSelection
 
 class OWExampleSelector(OWWidget):
     settingsList  = ['negate', 'commitOnChange', 'sendNotSelectedData']

@@ -1,13 +1,17 @@
-"""<name>Normalization</name>
+"""
+<name>Normalization</name>
 <description>Gene Expression data normalization</description>
 """
+
+from __future__ import absolute_import
+
 import os, sys
-from OWWidget import *
-import OWGUI
 
 import Orange
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
 
-import obiDifscale
+from ... import obiDifscale
 
 class OWNormalization(OWWidget):
     settingsList = []

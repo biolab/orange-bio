@@ -6,10 +6,12 @@
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
 """
 
-from OWWidget import *
-import OWGUI
-from OWDataFiles import DataFiles, ExampleSelection
+from __future__ import absolute_import
 
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .OWDataFiles import DataFiles, ExampleSelection
 
 class OWDataFilesSelector(OWWidget):
     settingsList  = ["applyOnChange"]
