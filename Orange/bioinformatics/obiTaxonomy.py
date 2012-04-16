@@ -1,15 +1,11 @@
-import urllib2
-import os, sys, shutil
-import cPickle
-import tarfile
-import StringIO
-import obiGenomicsUpdate
-import obiData
-import orngEnviron
-import orngServerFiles
+from __future__ import absolute_import, division
 
-from urllib2 import urlopen
 from collections import defaultdict
+import cPickle, os, shutil, sys, StringIO, tarfile, urllib2
+
+from Orange.orng import orngEnviron, orngServerFiles
+
+from . import obiData, obiGenomicsUpdate
 
 # list of common organisms from http://www.ncbi.nlm.nih.gov/Taxonomy
 def common_taxids():
@@ -197,7 +193,7 @@ class Taxonomy(object):
         except Exception, ex:
             pass
         try:
-            import orngServerFiles as sf
+            from . import orngServerFiles as sf
             sf.download("Taxonomy", "ncbi_taxonomy.tar.gz")
             self._text = TextDB(os.path.join(default_database_path, "ncbi_taxonomy.tar.gz", "ncbi_taxonomy.db"))
             self._info = TextDB(os.path.join(default_database_path, "ncbi_taxonomy.tar.gz", "ncbi_taxonomy_inf.db"))
@@ -254,7 +250,7 @@ class Taxonomy(object):
     def ParseTaxdumpFile(file=None, outputdir=None, callback=None):
         from cStringIO import StringIO
         if file == None:
-            file = tarfile.open(None, "r:gz", StringIO(urlopen("ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz").read()))
+            file = tarfile.open(None, "r:gz", StringIO(urllib2.urlopen("ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz").read()))
         if type(file) == str:
             file = tarfile.open(file)
         names = file.extractfile("names.dmp").readlines()
@@ -337,7 +333,7 @@ def lineage(taxid):
 def to_taxid(code, mapTo=None):
     """ See if the code is a valid code in any database and return a set of its taxids.
     """
-    import obiKEGG, obiGO
+    from . import obiKEGG, obiGO
     results = set()
     for test in [obiKEGG.to_taxid, obiGO.to_taxid]:
         try:
@@ -362,7 +358,7 @@ def to_taxid(code, mapTo=None):
 def taxids():
     return Taxonomy().taxids()
 
-import obiGenomicsUpdate
+from . import obiGenomicsUpdate
 
 class Update(obiGenomicsUpdate.Update):
     def GetDownloadable(self):
@@ -370,7 +366,7 @@ class Update(obiGenomicsUpdate.Update):
     
     def IsUpdatable(self, func, args):
         from datetime import datetime
-        import obiData
+        from . import obiData
         if func == Update.UpdateTaxonomy:
 ##            stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz")
 ##            date = datetime.strptime(stream.headers.get("Last-Modified"), "%a, %d %b %Y %H:%M:%S %Z")

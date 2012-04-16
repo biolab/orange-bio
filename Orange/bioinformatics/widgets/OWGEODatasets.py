@@ -5,18 +5,18 @@
 <icon>icons/GEODataSets.png</icon>
 """
 
-from __future__ import with_statement
-
-import sys, os, glob
-from OWWidget import *
-import OWGUI, OWGUIEx
-import obiGEO
-import orngServerFiles
-
-from orngDataCaching import data_hints
+from __future__ import absolute_import, with_statement
 
 from collections import defaultdict
 from functools import partial 
+import sys, os, glob
+
+from Orange.orng import orngServerFiles
+from Orange.orng.orngDataCaching import data_hints
+from Orange.OrangeWidgets import OWGUI, OWGUIEx
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import obiGEO
 
 LOCAL_GDS_COLOR = Qt.darkGreen
 
@@ -184,7 +184,7 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
                 pass
         return QSortFilterProxyModel.lessThan(self, left, right)
     
-from OWGUI import LinkStyledItemDelegate, LinkRole
+from Orange.OrangeWidgets.OWGUI import LinkStyledItemDelegate, LinkRole
 
 def childiter(item):
     """ Iterate over the children of an QTreeWidgetItem instance.

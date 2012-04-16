@@ -7,9 +7,9 @@ if len(sys.argv) <= 1 or len(sys.argv) > 1 and "remove" not in sys.argv[1]:
     try:
         print "Downloading essential genomics databases"
         if sys.platform == "win32":
-            os.system("start " + sys.prefix+"""\\python.exe -c "import orngServerFiles; orngServerFiles.update_by_tags(tags=['essential'])" """)
+            os.system("start " + sys.prefix+"""\\python.exe -c "from Orange.orng import orngServerFiles; orngServerFiles.update_by_tags(tags=['essential'])" """)
         else:
-            import orngServerFiles
+            from Orange.orng import orngServerFiles
             orngServerFiles.update_by_tags(tags=["essential"])
     except Exception, ex:
         print ex
@@ -19,6 +19,6 @@ if len(sys.argv) <= 1 or len(sys.argv) > 1 and "remove" not in sys.argv[1]:
     print "Bioinformatics please use the \"Update Genomics Databases\""
     print "widget in Orange Canvas or use the orngServerFiles module:"
     print
-    print "    import orngServerFiles"
+    print "    from Orange.orng import orngServerFiles"
     print "    orgnServerFiles.consoleupdate()"
     print

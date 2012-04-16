@@ -7,9 +7,9 @@ Example::
     >>> net.save("graph.net")
     >>> net.retrieve(org="3702", genes=["CIP1"], m="bp", r=100).save("CIP1.net")
 
-    
-
 """
+
+from __future__ import absolute_import
 
 import urllib2
 import urllib
@@ -486,10 +486,10 @@ def wget(url, directory=".", dst_obj=None, progress=None):
         copyfileobj(stream, dst_obj, buffer=2**10, content_len=length,
                     progress=progress)
     
-import obiPPI
-import orngServerFiles
+from . import obiPPI
+from Orange.orng import orngServerFiles
 
-import obiTaxonomy
+from . import obiTaxonomy
 from collections import namedtuple
 from operator import itemgetter
 from Orange.utils import lru_cache

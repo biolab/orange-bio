@@ -31,7 +31,7 @@ Example ::
 
 Low level Array Express query using REST services::
 
-    >>> import obiArrayExpress
+    >>> from Orange.bioinformatics import obiArrayExpress
     >>> obiArrayExpress.query_experiments(accession='E-MEXP-31')
     {u'experiments': ...
     
@@ -48,10 +48,12 @@ Low level Array Express query using REST services::
 
 """
 
+from __future__ import absolute_import
+
 import os, sys
 import urllib2
 
-import orngServerFiles
+from Orange.orng import orngServerFiles
 import warnings
 import posixpath
 import shelve
@@ -1351,9 +1353,9 @@ ATLAS_ORGANISMS = \
 def ef_ontology():
     """ Return the `EF <http://www.ebi.ac.uk/efo/>`_ (Experimental Factor) ontology
     """
-    import obiOntology
+    from . import obiOntology
 #    return obiOntology.OBOOntology(urllib2.urlopen("http://efo.svn.sourceforge.net/svnroot/efo/trunk/src/efoinobo/efo.obo"))
-    import orngServerFiles
+    from Orange.orng import orngServerFiles
     # Should this be in the OBOFoundry (Ontology) domain
     try:
         file = open(orngServerFiles.localpath_download("ArrayExpress", "efo.obo"), "rb")

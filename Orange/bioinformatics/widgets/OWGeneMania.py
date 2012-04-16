@@ -2,14 +2,17 @@
 <icon>icons/GeneMANIA.png</icon>
 """
 
-from OWWidget import *
-import OWGUI
-import obiGeneMania
-import Orange
+from __future__ import absolute_import
 
 import os, sys
 import multiprocessing
 import random
+
+import Orange
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import obiGeneMania
 
 class BarItemDelegate(QStyledItemDelegate):
     BarRole = OWGUI.OrangeUserRole.next() 

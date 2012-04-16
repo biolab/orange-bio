@@ -1,10 +1,15 @@
-import orange
-import numpy
+from __future__ import absolute_import
+
+from collections import defaultdict
 import random
 import time
-from obiExpression import *
-import obiGeneSets
-from collections import defaultdict
+
+import numpy
+
+import orange
+
+from . import obiGeneSets
+from .obiExpression import *
 
 """
 Gene set enrichment analysis.
@@ -467,7 +472,7 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
 
     return zip(enrichmentScores, nEnrichmentScores, enrichmentPVals, fdrs)
 
-import obiGene
+from . import obiGene
 
 def nth(l,n): return [ a[n] for a in l ]
 

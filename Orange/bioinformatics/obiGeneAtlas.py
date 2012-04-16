@@ -16,10 +16,16 @@ gene expression experiments in Array Express Archive.
 
 """
 
-import os, sys
-from collections import defaultdict, namedtuple
+from __future__ import absolute_import
 
+import os, shelve, sys
+from collections import defaultdict, namedtuple
+from contextlib import closing
+
+from Orange.orng import orngServerFiles
 from Orange.utils import serverfiles
+
+from . import obiGene
 
 GeneResults = namedtuple("GeneResults", "id name synonyms expressions")
 ExpressionResults = namedtuple("ExpressionResults", "ef efv up down experiments")
@@ -30,10 +36,6 @@ GeneAtlasResult = GeneResults
 AtlasExpressions = ExpressionResults
 AtlasExperiment = ExperimentExpression
 ##
-import shelve
-import orngServerFiles
-import obiGene
-from contextlib import closing
 
 def _cache(name="AtlasGeneResult.shelve"):
     """ Return a open cache instance (a shelve object).
@@ -216,7 +218,7 @@ def construct_atlas_gene_sets(genes, organism, factors=["organism_part",
                 sets[exp.ef, exp.efv].append(res.id)
 
     organism = "+".join(organism.lower().split())
-    from obiGeneSets import GeneSets, GeneSet
+    from .obiGeneSets import GeneSets, GeneSet
     
     def display_string(name):
         return name.capitalize().replace("_", " ")
@@ -257,7 +259,7 @@ def to_taxid(name):
     if name in dd:
         return dd[name]
     else:
-        import obiTaxonomy as tax
+        import .obiTaxonomy as tax
         ids = tax.to_taxid(name, mapTo=TAXID_TO_ORG.keys())
         if ids:
             return ids.pop()
@@ -445,8 +447,8 @@ ATLAS_ORGANISMS = \
 def ef_ontology():
     """ Return the `EF <http://www.ebi.ac.uk/efo/>`_ (Experimental Factor) ontology
     """
-    import obiOntology
-    import orngServerFiles
+    from . import obiOntology
+    from . import orngServerFiles
     # Should this be in the OBOFoundry (Ontology) domain
     try:
         file = open(orngServerFiles.localpath_download("ArrayExpress", "efo.obo"), "rb")

@@ -6,11 +6,15 @@
 <priority>2040</priority>
 """
 
-from OWWidget import *
+from __future__ import absolute_import
+
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
-from obiMeSH import *
-import OWGUI
+
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from ..obiMeSH import *
 
 class MyQTableWidgetItem(QTableWidgetItem):
 	""" Our implementation of QTable item allowing numerical sorting.  """

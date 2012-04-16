@@ -1,11 +1,13 @@
-from __future__ import with_statement
+from __future__ import absolute_import, with_statement
+
 import os
 import shelve
 import datetime
 import tarfile
 import pickle
-import orngServerFiles
 from UserDict import DictMixin
+
+from Orange.orng import orngServerFiles
 
 class UpdateShelve(DictMixin):
     def __init__(self, path):
@@ -110,7 +112,7 @@ class Update(object):
         self.shelve[callable, args] = date if date else datetime.now()
         self.shelve.sync()
 
-import orngServerFiles
+from Orange.orng import orngServerFiles
 
 class PKGUpdate(Update):
     def __init__(self, domain, wrappedUpdater, *args, **kwargs):
@@ -184,7 +186,7 @@ class PKGUpdate(Update):
             raise AttributeError(name)
 
 def firstUpdateConsole():
-    import obiKEGG, obiGO, obiGenomicsUpdate
+    from . import obiKEGG, obiGO, obiGenomicsUpdate
 
     pkgUpdate = obiGenomicsUpdate.PKGUpdate("go", obiGO.Update())
 

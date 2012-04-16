@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import random
 from math import log
 from operator import itemgetter
@@ -5,9 +7,9 @@ from operator import itemgetter
 import numpy
 
 import Orange
-import obiGEO
-from obiExpression import ExpressionSignificance_Test
 
+from . import obiGEO
+from .obiExpression import ExpressionSignificance_Test
 
 # Utility functiions
 
@@ -294,7 +296,7 @@ def get_projections(data1, data2=None):
 ############
 
 if False and __name__ == '__main__':
-    import obiGEO
+    from . import obiGEO
     # Data set 1
     data1 = obiGEO.GDS('GDS2666').getdata(report_genes=True, transpose=False)
     labels1 = list(a.attributes['time'] for a in data1.domain.attributes)

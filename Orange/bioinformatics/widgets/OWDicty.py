@@ -5,14 +5,16 @@
 <priority>40</priority>
 """
 
-from OWWidget import *
-import obiDicty
-import OWGUI
-import orngEnviron
-import sys
+from __future__ import absolute_import
 
 from collections import defaultdict
+import sys
 
+from Orange.orng import orngEnviron
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import obiDicty
 
 class MyTreeWidgetItem(QTreeWidgetItem):
     def __contains__(self, text):
@@ -191,7 +193,7 @@ class OWDicty(OWWidget):
 #        table.taxid = "352472"
 #        table.genesinrows = False
         
-        from orngDataCaching import data_hints
+        from Orange.orng.orngDataCaching import data_hints
         data_hints.set_hint(table, "taxid", "352472", 10.0)
         data_hints.set_hint(table, "genesinrows", False, 10.0)
         

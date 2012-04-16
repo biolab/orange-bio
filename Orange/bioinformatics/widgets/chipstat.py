@@ -1,12 +1,17 @@
 ## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
 
+from __future__ import absolute_import
+
 import math
+import os, os.path
+
 import numpy
 import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
 import numpy.oldnumeric.linear_algebra as LinearAlgebra
-import numpyExtn
-import os, os.path
+
 import orange
+
+from . import numpyExtn
 
 #########################################################################
 ## standardization of profiles / arrays

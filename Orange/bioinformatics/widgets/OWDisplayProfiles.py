@@ -6,14 +6,11 @@
 <priority>1030</priority>
 """
 
-from OWTools import *
-from OWWidget import *
-from OWGraph import *
-from OWToolbars import ZoomSelectToolbar
-import OWGUI
-
-from OWGraph import ColorPaletteGenerator
-
+from Orange.OrangeWidgets.OWGUI
+from Orange.OrangeWidgets.OWGraph import *
+from Orange.OrangeWidgets.OWToolbars import ZoomSelectToolbar
+from Orange.OrangeWidgets.OWTools import *
+from Orange.OrangeWidgets.OWWidget import *
 import statc
 
 ## format of data:

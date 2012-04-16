@@ -1,8 +1,6 @@
 """
 Module for browsing any analyzing sets annotated with MeSH ontology.
 """
-import orange
-import orngServerFiles
 
 from xml.sax import make_parser
 from xml.dom import minidom
@@ -11,6 +9,9 @@ from math import log,exp
 from urllib import urlopen
 from sgmllib import SGMLParser
 import os.path
+
+import orange
+from Orange.orng import orngServerFiles
 
 FUZZYMETAID = -12
 

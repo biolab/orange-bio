@@ -34,7 +34,7 @@ import warnings
 
 from functools import partial
 
-import orngEnviron
+from Orange.orng import orngEnviron
 
 class BioMartError(Exception):
     pass

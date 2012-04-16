@@ -6,23 +6,20 @@
 <priority>2020</priority>
 """
 
-from __future__ import with_statement
+from __future__ import absolute_import, with_statement
 
-import obiGO
-import obiProb
-import obiTaxonomy
-import obiGene
-import sys, os, tarfile, math
-import gc
-import OWGUI
-import orngServerFiles
-
-from os.path import join as p_join
-from OWWidget import *
 from collections import defaultdict
 from functools import partial
+import gc
+import sys, os, tarfile, math
+from os.path import join as p_join
 
-from orngDataCaching import data_hints
+from Orange.orng import orngServerFiles
+from Orange.orng.orngDataCaching import data_hints
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import obiGene, obiGO, obiProb, obiTaxonomy
 
 dataDir = orngServerFiles.localpath("GO")
 
@@ -47,7 +44,7 @@ class _disablegc(object):
         gc.enable()
 
 def getOrgFileName(org):
-    import orngServerFiles
+    from Orange.orng import orngServerFiles
     files = orngServerFiles.listfiles("go")
     return [f for f in files if org in f].pop()
 
@@ -311,7 +308,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.SetGraph(graph)
 
     def UpdateGOAndAnnotation(self, tags=[]):
-        from OWUpdateGenomicsDatabases import OWUpdateGenomicsDatabases
+        from .OWUpdateGenomicsDatabases import OWUpdateGenomicsDatabases
         w = OWUpdateGenomicsDatabases(parent = self, searchString=" ".join(tags))
         w.setModal(True)
         w.show()

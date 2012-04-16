@@ -1,25 +1,19 @@
 """<name>Gene Set Enrichment</name>
 """
-from __future__ import with_statement
 
-from OWWidget import *
-
-import obiGeneSets
-import obiGene
-import obiTaxonomy
-import obiProb
-import OWGUI
+from __future__ import absolute_import, with_statement
 
 import math
-import orngServerFiles
-import orngEnviron
-
-from orngDataCaching import data_hints
-
 from collections import defaultdict
 
-from OWGUI import LinkStyledItemDelegate, LinkRole
-from OWGUI import BarItemDelegate
+from Orange.orng import orngEnviron, orngServerFiles
+from Orange.orng.orngDataCaching import data_hints
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWGUI import LinkStyledItemDelegate, LinkRole
+from Orange.OrangeWidgets.OWGUI import BarItemDelegate
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import obiGene, obiGeneSets, obiProb, obiTaxonomy
 
 def _toPyObject(variant):
     val = variant.toPyObject()
@@ -147,7 +141,7 @@ class OWSetEnrichment(OWWidget):
                         checked="useMaxPValFilter",
                         checkCallback=self.filterAnnotationsChartView)
         
-        import OWGUIEx
+        from Orange.OrangeWidgets import OWGUIEx
         self.filterLineEdit = OWGUIEx.QLineEditWithActions(self)
         self.filterLineEdit.setPlaceholderText("Filter ...")
         action = QAction(QIcon(os.path.join(orngEnviron.canvasDir,
@@ -318,7 +312,7 @@ class OWSetEnrichment(OWWidget):
             self.filterAnnotationsChartView()
         
     def updateGeneMatcherSettings(self):
-        from OWGOEnrichmentAnalysis import GeneMatcherDialog
+        from .OWGOEnrichmentAnalysis import GeneMatcherDialog
         dialog = GeneMatcherDialog(self, defaults=self.geneMatcherSettings, enabled=[True] * 4, modal=True)
         if dialog.exec_():
             self.geneMatcherSettings = [getattr(dialog, item[0]) for item in dialog.items]
@@ -427,7 +421,7 @@ class OWSetEnrichment(OWWidget):
         self.infoBox.setText(infoText)
         
         results = []
-        from orngMisc import progressBarMilestones
+        from Orange.orng.orngMisc import progressBarMilestones
         
         milestones = progressBarMilestones(len(collections), 100)
         for i, geneset in enumerate(collections):

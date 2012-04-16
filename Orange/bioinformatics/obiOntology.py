@@ -699,7 +699,8 @@ class OBOOntology(object):
         """
         edge_types = self.edge_types()
         terms = self.terms()
-        import orngNetwork, orange
+        from Orange.orng import orngNetwork
+        import orange
         
         network = orngNetwork.Network(len(terms), True, len(edge_types))
         network.objects = dict([(term.id, i) for i, term in enumerate(terms)])

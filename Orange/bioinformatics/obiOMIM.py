@@ -1,10 +1,11 @@
-import orngServerFiles
 import sys, os
 import urllib2
 import shutil
 import re
 
 from collections import defaultdict
+
+from Orange.orng import orngServerFiles
 
 class disease(object):
     """ A class representing a disease in the OMIM database

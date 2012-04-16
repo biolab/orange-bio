@@ -4,26 +4,26 @@
 
 """
 
+from __future__ import absolute_import, with_statement
+
 import sys
-
-import Orange
-
-from OWWidget import *
-from OWItemModels import PyListModel, safe_text
-from OWGraphics import GraphicsSimpleTextLayoutItem
-import OWGUI
-
-from OWGenotypeDistances import SetContextHandler
-
-import obiExperiments as exp
-import numpy
-
 from collections import defaultdict
 from contextlib import contextmanager
 from pprint import pprint
 
-DEBUG = False
+import numpy
 
+import Orange
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+from Orange.OrangeWidgets.OWItemModels import PyListModel, safe_text
+from Orange.OrangeWidgets.OWGraphics import GraphicsSimpleTextLayoutItem
+
+from .. import obiExperiments as exp
+
+from .OWGenotypeDistances import SetContextHandler
+
+DEBUG = False
 
 @contextmanager
 def widget_disable(widget):
@@ -580,7 +580,7 @@ class OWQualityControl(OWWidget):
         self.on_view_resize(self.scene_view.size())
         
     def save_graph(self):
-        from OWDlgs import OWChooseImageSizeDlg
+        from Orange.OrangeWidgets.OWDlgs import OWChooseImageSizeDlg
         dlg = OWChooseImageSizeDlg(self.scene, parent=self)
         dlg.exec_()
 

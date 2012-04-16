@@ -1,8 +1,9 @@
-import orngServerFiles
 import sys, os
 import urllib2
 
 from collections import defaultdict
+
+from Orange.orng import orngServerFiles
 
 class _homolog(object):
     __slots__ = ["group_id", "taxonomy_id", "gene_id", "gene_symbol"]

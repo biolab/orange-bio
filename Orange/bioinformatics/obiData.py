@@ -1,4 +1,5 @@
-from __future__ import with_statement
+from __future__ import absolute_import, with_statement
+
 import ftplib
 import urllib, urllib2
 import threading
@@ -9,7 +10,8 @@ from Queue import Queue
 from StringIO import StringIO
 from datetime import datetime
 from threading import RLock
-from obiGenomicsUpdate import synchronized
+
+from .obiGenomicsUpdate import synchronized
 
 class FileNotFoundError(IOError):
     pass

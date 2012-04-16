@@ -3,19 +3,16 @@ Getting genesets from KEGG and GO.
 
 Maintainer: Marko Toplak
 """
-from __future__ import with_statement
 
-import obiKEGG, orange
-import os
-import obiGO
-import cPickle as pickle
-#import pickle
-import orngServerFiles
-import obiTaxonomy
-import tempfile
-import obiGeneSets
-import sys
+from __future__ import absolute_import, with_statement
+
+import cPickle as pickle, os, tempfile, sys
 from collections import defaultdict
+
+import orange
+from Orange.orng import orngServerFiles
+
+from . import obiGeneSets, obiGO, obiKEGG, obiTaxonomy
 
 sfdomain = "gene_sets"
 
@@ -184,7 +181,7 @@ def keggGeneSets(org):
     """
     Returns gene sets from KEGG pathways.
     """
-    import obiKEGG2 as obiKEGG
+    from . import obiKEGG2 as obiKEGG
     
     kegg = obiKEGG.KEGGOrganism(org)
 
@@ -206,7 +203,7 @@ def omimGeneSets():
     """
     Return gene sets from OMIM (Online Mendelian Inheritance in Man) diseses
     """
-    import obiOMIM
+    from . import obiOMIM
     genesets = [GeneSet(id=disease.id, name=disease.name, genes=obiOMIM.disease_genes(disease), hierarchy=("OMIM",), organism="9606",
                     link=("http://www.ncbi.nlm.nih.gov/entrez/dispomim.cgi?id=" % disease.id if disease.id else None)) \
                     for disease in obiOMIM.diseases()]
@@ -216,7 +213,7 @@ def miRNAGeneSets(org):
     """
     Return gene sets from miRNA targets
     """
-    import obimiRNA, obiKEGG
+    from . import obimiRNA, obiKEGG
     org_code = obiKEGG.from_taxid(org)
     link_fmt = "http://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=%s"
     mirnas = [(id, obimiRNA.get_info(id)) for id in obimiRNA.ids(org_code)]
@@ -225,7 +222,7 @@ def miRNAGeneSets(org):
     return GeneSets(genesets)
 
 def go_miRNASets(org, ontology=None, enrichment=True, pval=0.05, treshold=0.04):
-    import obimiRNA, obiGO
+    from . import obimiRNA, obiGO
     mirnas = obimiRNA.ids(int(org))
     if ontology is None:
         ontology = obiGO.Ontology()
@@ -237,7 +234,7 @@ def go_miRNASets(org, ontology=None, enrichment=True, pval=0.05, treshold=0.04):
     
     go_sets = obimiRNA.filter_GO(go_sets, annotations, treshold=treshold)
     
-    import obiGeneSets as gs
+    from . import obiGeneSets as gs
     link_fmt = "http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term=%s"
     gsets = [gs.GeneSet(id=key, name=ontology[key].name, genes=value, hierarchy=("miRNA", "go_sets",),
                         organism=org, link=link_fmt % key) for key, value in go_sets.items()]
@@ -284,7 +281,7 @@ def omakedirs(dir):
 def local_path():
     """ Returns local path for gene sets. Creates it if it does not exists
     yet. """
-    import orngEnviron
+    from Orange.orng import orngEnviron
     pth = os.path.join(orngEnviron.directoryNames["bufferDir"], "gene_sets_local")
     omakedirs(pth)
     return pth

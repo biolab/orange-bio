@@ -5,27 +5,27 @@
 <icon>icons/FeatureSelection.png</icon>
 """
 
-from __future__ import with_statement
-import orange
+from __future__ import absolute_import, with_statement
 
-from obiExpression import *
-from obiDifscale import ExpressionSignificance_AREA, ExpressionSignificance_FCts
-
-from OWGraph import *
-from OWGraphTools import PolygonCurve
-from OWWidget import *
-from OWHist import OWInteractiveHist
-from OWToolbars import ZoomSelectToolbar
-
-from obiGEO import transpose
 from collections import defaultdict
 from functools import wraps
 from operator import add
+
 import numpy as np
 import numpy.ma as ma
 
-import OWGUI
-        
+import orange
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWGraph import *
+from Orange.OrangeWidgets.OWGraphTools import PolygonCurve
+from Orange.OrangeWidgets.OWHist import OWInteractiveHist
+from Orange.OrangeWidgets.OWToolbars import ZoomSelectToolbar
+from Orange.OrangeWidgets.OWWidget import *
+
+from ..obiDifscale import ExpressionSignificance_AREA, ExpressionSignificance_FCts
+from ..obiExpression import *
+from ..obiGEO import transpose
+
 class ExpressionSignificance_TTest_PValue(ExpressionSignificance_TTest):
     def __call__(self, *args, **kwargs):
         return [(key, pval) for key, (t, pval) in \
@@ -81,9 +81,9 @@ def disable_controls(method):
             self.controlArea.setDisabled(False)
     return f
 
-from orngDataCaching import data_hints
-from OWGenotypeDistances import SetContextHandler
-from OWVulcanoPlot import LabelSelectionWidget
+from Orange.orng.orngDataCaching import data_hints
+from .OWGenotypeDistances import SetContextHandler
+from .OWVulcanoPlot import LabelSelectionWidget
 
 class OWFeatureSelection(OWWidget):
     settingsList = ["method_index", "dataLabelIndex", "compute_null",

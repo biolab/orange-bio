@@ -44,7 +44,7 @@ KEGGPathway = pathway.Pathway
 DEFAULT_CACHE_DIR = conf.params["cache.path"]
 
 
-import obiProb
+from .. import obiProb
 from Orange.utils import deprecated_keywords, deprecated_attribute
 
 class Organism(object):
@@ -89,7 +89,7 @@ class Organism(object):
         
         """
         allPathways = defaultdict(lambda :[[], 1.0, []])
-        import orngMisc
+        from Orange.orng import orngMisc
         milestones = orngMisc.progressBarMilestones(len(genes), 100)
         pathways_db = KEGGPathways()
         
@@ -184,7 +184,7 @@ class Organism(object):
         if name not in genome:
             ids = genome.search(name)
             if not ids:
-                import obiTaxonomy
+                from .. import obiTaxonomy
                 ids = obiTaxonomy.search(name)
                 ids = [id for id in ids if genome.search(id)]
             name = ids.pop(0) if ids else name
@@ -208,7 +208,7 @@ class Organism(object):
         
     def _get_genematcher(self):
         if getattr(self, "_genematcher", None) == None:
-            import obiGene
+            from .. import obiGene
             if self.org_code == "ddi":
                 self._genematcher = obiGene.matcher([obiGene.GMKEGG(self.org_code), obiGene.GMDicty(),
                                                      [obiGene.GMKEGG(self.org_code), obiGene.GMDicty()]])
@@ -256,7 +256,7 @@ def to_taxid(name):
 def create_gene_sets():
     pass
 
-import obiGene
+from .. import obiGene
 from Orange.utils import ConsoleProgressBar
 
 class MatcherAliasesKEGG(obiGene.MatcherAliasesPickled):

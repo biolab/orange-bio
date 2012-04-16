@@ -5,27 +5,25 @@
 <icon>icons/BioMart.png</icon>
 """
 
-from OWWidget import *
-import obiBioMart
-
-from obiBioMart import *
+from __future__ import absolute_import
 
 import sys, os
 import traceback
 import warnings
-
 import socket
-socket.setdefaulttimeout(60)
-
 from collections import defaultdict
 import itertools
-    
-import OWConcurrent
 
+from Orange.OrangeWidgets import OWConcurrent
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import obiBioMart
+from ..obiBioMart import *
+
+socket.setdefaulttimeout(60)
                 
 def is_hidden(tree):
     return getattr(tree, "hidden", "false") != "false" or getattr(tree, "hideDisplay", "false") != "false"
-
 
 class Control(object):
     """ Base mixin class for query GUI widgets 

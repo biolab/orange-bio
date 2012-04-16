@@ -1,12 +1,11 @@
+from __future__ import absolute_import
+
+import cPickle, gzip, os.path, re
+
 import orange
-import re
-import gzip
-import os.path
-import orngServerFiles
-import obiData
-import orngMisc
-import obiTaxonomy
-import cPickle
+from Orange.orng import orngMisc, orngServerFiles
+
+from . import obiData, obiTaxonomy
 
 def spots_mean(x):
     vs = [v for v in x if v and v<>"?"]

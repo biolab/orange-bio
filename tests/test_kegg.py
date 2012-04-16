@@ -1,5 +1,6 @@
 import unittest
-import obiKEGG2 as kegg
+
+from Orange.bioinformatics import obiKEGG2 as kegg
 
 #from obiKEGGservices import 
 #from 

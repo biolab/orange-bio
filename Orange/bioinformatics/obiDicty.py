@@ -2,12 +2,13 @@ import sys, pprint, time, re
 from itertools import *
 import urllib
 import urllib2
-import orange
 import socket
 import os
 from collections import defaultdict
-import orngServerFiles
 import pickle
+
+import orange
+from Orange.orng import orngServerFiles
 
 defaddress = "http://bcm.fri.uni-lj.si/microarray/api/index.php?"
 #defaddresspipa = "https://pipa.fri.uni-lj.si/pipa/script/api/orange.py?action="

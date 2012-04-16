@@ -5,22 +5,22 @@
 <priority>2050</priority>
 """
 
-from __future__ import with_statement
+from __future__ import absolute_import, with_statement
 
-import orange
-from OWWidget import *
-from PyQt4.QtSvg import *
-
-import OWGUI
 import sys, os, urllib2, urllib
 import warnings
-
 import shelve
 from cStringIO import StringIO
-
 import pickle
-import obiChem
-import orngEnviron
+
+from PyQt4.QtSvg import *
+
+import orange
+from Orange.orng import orngEnviron
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import obiChem
 
 class dummy_module(object):
 	def __init__(self, name):

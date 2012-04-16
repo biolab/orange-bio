@@ -5,14 +5,17 @@
 <priority>30</priority>
 """
 
-from OWWidget import *
-import obiDicty
-import OWGUI
-import orngEnviron
+from __future__ import absolute_import
+
 import sys, os
 from collections import defaultdict
 import math
 
+from Orange.orng import orngEnviron
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import obiDicty
 
 #def pyqtConfigure(object, **kwargs):
 #    if hasattr(object, "pyqtConfigure"):
@@ -693,7 +696,7 @@ class OWPIPA(OWWidget):
             domain.addmetas(table.domain.getmetas())
             table = orange.ExampleTable(domain, table)
             
-            from orngDataCaching import data_hints
+            from Orange.orng.orngDataCaching import data_hints
             data_hints.set_hint(table, "taxid", "352472") 
             data_hints.set_hint(table, "genesinrows", False)
             

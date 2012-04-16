@@ -1,17 +1,17 @@
-import Orange
-import obiGsea
-import Orange.utils
-import obiGeneSets
-import obiGene
-import numpy
-from collections import defaultdict
-import stats
-from obiGsea import takeClasses
-from obiAssess import pca, PLSCall, corgs_activity_score
-import obiExpression
-import scipy.stats
+from __future__ import absolute_import
+
 import math
-import statc
+from collections import defaultdict
+
+import scipy.stats
+
+import numpy
+
+import Orange, Orange.utils, statc
+
+from .obiGsea import takeClasses
+from .obiAssess import pca, PLSCall, corgs_activity_score
+from . import obiExpression, obiGene, obiGeneSets, obiGsea, stats
 
 class GeneSetTrans(object):
 

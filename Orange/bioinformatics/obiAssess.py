@@ -8,17 +8,16 @@ The other classes just take example and return a
 dictionary of { name: score } for that example.
 """
 
-import obiGsea
-import obiGeneSets
-import orange
-import Orange
-import stats
-import statc
-import numpy
-import math
-import obiExpression
-import obiGene
+from __future__ import absolute_import
+
 from collections import defaultdict
+import math
+
+import numpy
+
+import orange, Orange, statc
+
+from . import obiExpression, obiGene, obiGsea, obiGeneSets, stats
 
 def normcdf(x, mi, st):
     return 0.5*(2. - stats.erfcc((x - mi)/(st*math.sqrt(2))))
@@ -115,8 +114,6 @@ class AT_loess(object):
         if nval.isSpecial():
             return 0.0 #middle value
         #return first class probablity
-
-        import math
 
         def saveplog(a,b):
             try:
@@ -577,7 +574,7 @@ def impute_missing(data):
     data = orange.ExampleTable(dom2, data)
 
     #impute
-    import orngTree 
+    from Orange.orng import orngTree 
     imputer = orange.ImputerConstructor_model() 
     imputer.learnerContinuous = imputer.learnerDiscrete = orange.MajorityLearner()
     imputer = imputer(data)

@@ -11,6 +11,9 @@ Example ::
     >>> genes = KEGGOrganism("human")
     >>> genes
 """
+
+from __future__ import absolute_import
+
 try:
     import Image, ImageDraw, ImageMath
 except:
@@ -22,21 +25,18 @@ import time
 import os, sys, tarfile
 import re
 
-import obiData
-import obiProb
-import orngServerFiles
-
 from cPickle import load, loads, dump
 from collections import defaultdict
-
 
 import xml.dom.minidom as minidom
 
 from functools import partial, wraps
-import obiTaxonomy
-import orngEnviron
 import urllib2
 import cPickle
+
+from Orange.orng import orngEnviron, orngServerFiles
+
+from . import obiData, obiProb, obiTaxonomy
 
 DEFAULT_DATABASE_PATH = orngServerFiles.localpath("KEGG")
 KEGG_FTP_PATH = "ftp://ftp.genome.jp/pub/kegg/"
@@ -206,9 +206,8 @@ def downloader(func):
             download(src, dst)
     return wrapper
 
-from orngMisc import with_gc_disabled
-    
-            
+from Orange.orng.orngMisc import with_gc_disabled
+
 SLINE, MLINE, LINELIST = range(1, 4)
 
 class _field_mutators(object):
@@ -690,7 +689,7 @@ class KEGGOrganism(object):
     def get_enriched_pathways(self, genes, reference=None, prob=obiProb.Binomial(), callback=None):
         """Return a dictionary with enriched pathways ids as keys and (list_of_genes, p_value, num_of_reference_genes) tuples as items."""
         allPathways = defaultdict(lambda :[[], 1.0, []])
-        import orngMisc
+        from Orange.orng import orngMisc
         milestones = orngMisc.progressBarMilestones(len(genes), 100)
         for i, gene in enumerate(genes):
             pathways = self.pathways([gene])
@@ -773,7 +772,7 @@ class KEGGOrganism(object):
         
     def _get_genematcher(self):
         if getattr(self, "_genematcher", None) == None:
-            import obiGene
+            from . import obiGene
             if self.org_code == "ddi":
                 self._genematcher = obiGene.matcher([obiGene.GMKEGG(self.org_code), obiGene.GMDicty(),
                                                      [obiGene.GMKEGG(self.org_code), obiGene.GMDicty()]])
@@ -792,7 +791,7 @@ class KEGGOrganism(object):
         if name not in genome:
             ids = genome.search(name)
             if not ids:
-                import obiTaxonomy
+                from . import obiTaxonomy
                 ids = obiTaxonomy.search(name)
                 ids = [id for id in ids if genome.search(id)]
             name = ids.pop(0) if ids else name
@@ -1025,7 +1024,7 @@ class KEGGPathway(object):
         xml_path = cls.directory_kgml(org, path=None).replace("%(path)s/", "")
         data = urllib2.urlopen("ftp://ftp.genome.jp/pub/kegg/" + png_path + org + ".list").read()
         pathways = sorted(set([line.split()[0][5:] for line in data.splitlines() if line]))
-        from obiData import FtpDownloader
+        from .obiData import FtpDownloader
         ftp = FtpDownloader("ftp.genome.jp", _join(), "pub/kegg/", numOfThreads=15)
         ftp.massRetrieve([png_path + pathway + ".png" for pathway in pathways])
             

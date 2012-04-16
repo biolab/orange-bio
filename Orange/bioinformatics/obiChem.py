@@ -812,7 +812,7 @@ class Fragmenter(object):
         count.sort(lambda a,b:cmp(a[1], b[1]))
         return count[-1][0]
             
-import orngSVM
+from Orange.orng import orngSVM
 class FragmentBasedLearner(orange.Learner):
     """A learner wrapper class that first runs the molecular fragmentation on the data.
     Attributes:

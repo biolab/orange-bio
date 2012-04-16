@@ -5,20 +5,19 @@
 <priority>2025</priority>
 <icon>icons/GSEA.png</icon>
 """
-from __future__ import with_statement
 
-from OWWidget import *
-import OWGUI
-import obiGsea
-import obiGeneSets
+from __future__ import absolute_import, with_statement
+
 from exceptions import Exception
 import cPickle as pickle
 from collections import defaultdict
-import obiKEGG
-import orngServerFiles
-import obiGene
 
-from orngDataCaching import data_hints
+from Orange.orng import orngServerFiles
+from Orange.orng.orngDataCaching import data_hints
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import obiGene, obiGeneSets, obiGsea, obiKEGG
 
 def nth(l, n):
     return [ a[n] for a in l ]

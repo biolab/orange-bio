@@ -5,19 +5,19 @@
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si)</contact>
 <icon>icons/GeneInfo.png</icon>
 """
-from __future__ import with_statement
 
-import obiGene, obiTaxonomy
-import orange
-import orngServerFiles
-
-from OWWidget import *
-import OWGUI
-
-from orngDataCaching import data_hints
+from __future__ import absolute_import, with_statement
 
 from collections import defaultdict
 from functools import partial
+
+import orange
+from Orange.orng import orngServerFiles
+from Orange.orng.orngDataCaching import data_hints
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+
+from .. import obiGene, obiTaxonomy
 
 class TreeModel(QAbstractItemModel):
     def __init__(self, data, header, parent):
@@ -64,7 +64,7 @@ class TreeModel(QAbstractItemModel):
             return QVariant(self._header[section])
         return QVariant()
 
-from OWGUI import LinkStyledItemDelegate, LinkRole
+from Orange.OrangeWidgets.OWGUI import LinkStyledItemDelegate, LinkRole
 
 def lru_cache(maxsize=100):
     """ A least recently used cache function decorator.
@@ -147,7 +147,7 @@ def ncbi_info(taxid, genes):
     return schema, ret
     
 def dicty_info(taxid, genes):
-    import obiDicty 
+    from .. import obiDicty 
     info = obiDicty.DictyBase()
     name_matcher = obiGene.GMDicty()
     name_matcher.set_targets(info.info.keys())
@@ -462,7 +462,7 @@ class OWGeneInfo(OWWidget):
         self.treeWidget.selectionModel().select(itemSelection, QItemSelectionModel.Select | QItemSelectionModel.Rows)
         
     def sendReport(self):
-        import OWReport
+        from Orange.OrangeWidgets import OWReport
         genes, matched = self.matchedInfo
         info, org = self.currentLoaded
         self.reportRaw("<p>Input: %i genes of which %i (%.1f%%) matched NCBI synonyms<br>Organism: %s<br>Filter: %s</p>" % (genes, matched, 100.0 * matched / genes, obiTaxonomy.name(org), self.searchString))

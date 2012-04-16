@@ -1,16 +1,19 @@
 ## Automatically adapted for numpy.oldnumeric Oct 03, 2007 by 
 
+from __future__ import absolute_import
+
 import math
+
 import numpy.oldnumeric as Numeric, numpy.oldnumeric.ma as MA
 import numpy.oldnumeric.linear_algebra as LinearAlgebra
-import scipy.stats
-import numpyExtn
 
+import scipy.stats
+
+from . import numpyExtn
 
 #######################################################################################
 ## ANOVA based on Multivariate Linear Regression
 #######################################################################################
-
 
 class AnovaLRBase:
     """Base class for all ANOVA types based on multivariate linear regression: manipulation with dummy variables.

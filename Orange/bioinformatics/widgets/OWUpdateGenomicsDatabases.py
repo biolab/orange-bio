@@ -6,7 +6,7 @@
 <icon>icons/UpdateDatabases.png</icon>
 """
 
-from OWDatabasesUpdate import *
+from Orange.OrangeWidgets.OWDatabasesUpdate import *
 
 class OWUpdateGenomicsDatabases(OWDatabasesUpdate): 
     def __init__(self, parent=None, signalManager=None, name="Databases", **kwds):

@@ -3,16 +3,18 @@
 <icon>icons/Normalize.png</icons>
 """
 
-from OWWidget import *
-from OWGraph import *
-import OWGUI
-import numpy
-
-import obiExpression
-        
-import OWConcurrent
+from __future__ import absolute_import
 
 from functools import partial
+
+import numpy
+        
+from Orange.OrangeWidgets import OWConcurrent
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
+from Orange.OrangeWidgets.OWGraph import *
+
+from .. import obiExpression
 
 class ProgressBarDiscard(QObject):
     def __init__(self, parent, redirect):
@@ -431,7 +433,7 @@ class OWMAPlot(OWWidget):
         
         
     def saveGraph(self):
-        from OWDlgs import OWChooseImageSizeDlg
+        from Orange.OrangeWidgets.OWDlgs import OWChooseImageSizeDlg
         dlg = OWChooseImageSizeDlg(self.graph, parent=self)
         dlg.exec_()
         

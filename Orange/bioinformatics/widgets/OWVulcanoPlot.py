@@ -6,22 +6,26 @@
 <icon>icons/VulcanoPlot.png</icon>
 """
 
-from OWWidget import *
-from OWGraph import *
-import OWGUI
-import orange
+from __future__ import absolute_import
+
 import itertools
 from operator import add
 from collections import defaultdict
 from math import log
-from statc import mean, ttest_ind
-from obiGEO import transpose
-import obiExpression
+
 import numpy
 
-from orngDataCaching import data_hints
+import orange
+from statc import mean, ttest_ind
 
-from OWToolbars import ZoomSelectToolbar
+from Orange.orng.orngDataCaching import data_hints
+from Orange.OrangeWidgets.OWToolbars import ZoomSelectToolbar
+from Orange.OrangeWidgets.OWWidget import *
+from Orange.OrangeWidgets.OWGraph import *
+from Orange.OrangeWidgets import OWGUI
+
+from .. import obiExpression
+from ..obiGEO import transpose
 
 class GraphSelections(QObject):
     """ Selection manager using a union of rectangle areas 
@@ -131,7 +135,7 @@ class SymetricSelections(GraphSelections):
         cutoffY = self.selection[1][1].y()
         return (numpy.abs(data[:, 0]) >= cutoffX) & (data[:, 1] >= cutoffY)
     
-from OWItemModels import PyListModel
+from Orange.OrangeWidgets.OWItemModels import PyListModel
 
 def item_selection(indices, model, selection=None, column=0):
     """ Create an QItemSelection for indices in model.
@@ -421,8 +425,8 @@ class VulcanoGraph(OWGraph):
         setSize(self.unselectedCurve, self.symbolSize)
         self.replot()
         
-from OWGenotypeDistances import SetContextHandler
-from OWFeatureSelection import disable_controls
+from .OWGenotypeDistances import SetContextHandler
+from .OWFeatureSelection import disable_controls
 
 class OWVulcanoPlot(OWWidget):
     settingsList = ["graph.cutoffX", "graph.cutoffY", "graph.symbolSize", "graph.symetricSelections", "showXTitle", "showYTitle"]

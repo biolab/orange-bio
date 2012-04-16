@@ -6,18 +6,21 @@
 <priority>1040</priority>
 """
 
-import orange, math
-import orangene
-import OWGUI
-from OWWidget import *
-from OWDlgs import OWChooseImageSizeDlg
-from ColorPalette import signedPalette
-from OWClustering import HierarchicalClusterItem, DendrogramWidget, DendrogramItem
-import OWColorPalette
+from __future__ import absolute_import
 
 from collections import defaultdict
 import itertools
-import orngClustering
+import math
+
+import orange
+import orangene
+from Orange.orng import orngClustering
+from Orange.OrangeWidgets import OWColorPalette
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.ColorPalette import signedPalette
+from Orange.OrangeWidgets.OWClustering import HierarchicalClusterItem, DendrogramWidget, DendrogramItem
+from Orange.OrangeWidgets.OWDlgs import OWChooseImageSizeDlg
+from Orange.OrangeWidgets.OWWidget import *
 
 DEBUG = False
 
@@ -140,7 +143,7 @@ class ExampleTableContextHandler(ContextHandler):
         context.checksum = examples.checksum()
         return context, isNew
     
-from OWGenotypeDistances import SetContextHandler
+from .OWGenotypeDistances import SetContextHandler
 
 class OWHeatMap(OWWidget):
     contextHandlers = {"": DomainContextHandler("", ["CellWidth", "CellHeight"]),

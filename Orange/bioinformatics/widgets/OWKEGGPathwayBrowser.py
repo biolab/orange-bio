@@ -4,24 +4,23 @@
 <priority>2030</priority>
 <icon>icons/KEGG.png</icon>
 """
-from __future__ import with_statement 
+
+from __future__ import absolute_import, with_statement 
 
 import sys
-import orange
-import obiKEGG, orngServerFiles
-import obiTaxonomy
-
-import obiKEGG2 as obiKEGG
-import obiGeneSets
-import orngMisc
-
+from collections import defaultdict
 import webbrowser
 
-from OWWidget import *
-import OWGUI
-from collections import defaultdict
+import orange
+from Orange.orng import orngMisc
+from Orange.orng.orngDataCaching import data_hints
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWWidget import *
 
-from orngDataCaching import data_hints
+from .. import obiKEGG, orngServerFiles
+from .. import obiTaxonomy
+from .. import obiKEGG2 as obiKEGG
+from .. import obiGeneSets
 
 USE_THREADING = True
 
@@ -724,7 +723,7 @@ to use KEGG Pathways widget.</p>'
             self.send("Unselected Examples", None)
         
     def ClearCache(self):
-        from obiKEGG2 import caching
+        from ..obiKEGG2 import caching
         try:
             caching.clear_cache()
         except Exception, ex:
@@ -750,7 +749,7 @@ to use KEGG Pathways widget.</p>'
             self.pathwayView.viewport().update()
             
     def saveGraph(self):
-        from OWDlgs import OWChooseImageSizeDlg
+        from Orange.OrangeWidgets.OWDlgs import OWChooseImageSizeDlg
         sizeDlg = OWChooseImageSizeDlg(self.pathwayView.scene(), parent=self)
         sizeDlg.exec_()
 
@@ -781,7 +780,7 @@ to use KEGG Pathways widget.</p>'
     def UpdateToLatestPathways(self):
         pass        
           
-import obiProb
+from .. import obiProb
 
 def pathway_enrichment(genesets, genes, reference, prob=None, callback=None):
     result_sets = []

@@ -1,4 +1,10 @@
-import stats, orange, numpy, statc
+from __future__ import absolute_import
+
+import numpy
+
+import orange, statc
+
+from . import stats
 
 def mean(l):
     return float(sum(l))/len(l)
@@ -409,7 +415,7 @@ Example::
     
 """
 
-import orngMisc
+from Orange.orng import orngMisc
 from numpy import median
 def lowess(x, y, f=2./3., iter=3, progressCallback=None):
     """ Lowess taken from Bio.Statistics.lowess, modified to compute pairwise 

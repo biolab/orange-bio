@@ -2,6 +2,8 @@
 
 """
 
+from __future__ import absolute_import
+
 from urllib import urlretrieve
 from gzip import GzipFile
 import tarfile
@@ -12,11 +14,12 @@ import re, cPickle
 from datetime import datetime
 from collections import defaultdict
 
-import obiProb, obiGene
-import orngEnviron
+from Orange.orng import orngEnviron
+
+from . import obiProb, obiGene
 
 try:
-    import orngServerFiles
+    from Orange.orng import orngServerFiles
     default_database_path = os.path.join(orngServerFiles.localpath(), "GO")
 except Exception:
     default_database_path = os.curdir
@@ -289,7 +292,7 @@ class Ontology(object):
         """
         filename = os.path.join(default_database_path, "gene_ontology_edit.obo.tar.gz")
         if not os.path.isfile(filename) and not os.path.isdir(filename):
-            import orngServerFiles
+            from Orange.orng import orngServerFiles
             orngServerFiles.download("GO", "gene_ontology_edit.obo.tar.gz")
         try:
             return cls(filename, progressCallback=progressCallback)
@@ -318,7 +321,7 @@ class Ontology(object):
         c=re.compile("\[.+?\].*?\n\n", re.DOTALL)
         data=c.findall(data)
 
-        import orngMisc
+        from Orange.orng import orngMisc
         milestones = orngMisc.progressBarMilestones(len(data), 90)
         for i, block in enumerate(builtinOBOObjects + data):
             if block.startswith("[Term]"):
@@ -560,7 +563,7 @@ class Annotations(object):
                 self.__dict__ = a.__dict__
                 self.taxid = to_taxid(organism_name_search(file)).pop()
         if not self.genematcher and self.taxid:
-            import obiGene
+            from . import obiGene
             self.genematcher = obiGene.matcher([obiGene.GMGO(self.taxid)] + \
                                                ([obiGene.GMDicty(), [obiGene.GMGO(self.taxid),
                                                                      obiGene.GMDicty()]] \
@@ -571,7 +574,7 @@ class Annotations(object):
     @classmethod
     def organism_name_search(cls, org):
         ids = to_taxid(org) 
-        import obiTaxonomy as tax
+        from . import obiTaxonomy as tax
         if not ids:
             ids = [org] if org in Taxonomy().common_org_map.keys() + Taxonomy().code_map.keys() else []
         if not ids:
@@ -614,7 +617,7 @@ class Annotations(object):
         """A class method that tries to load the association file for the
         given organism from default_database_path.
         """
-        import orngServerFiles
+        from Orange.orng import orngServerFiles
         code = organism_name_search(org)
         
         file = "gene_association.%s.tar.gz" % code
@@ -645,7 +648,7 @@ class Annotations(object):
         else:
             f = file
         lines = [line for line in f.read().split("\n") if line.strip()]
-        import orngMisc
+        from Orange.orng import orngMisc
         milestones = orngMisc.progressBarMilestones(len(lines), 100)
         for i,line in enumerate(lines):
             if line.startswith("!"):
@@ -812,7 +815,7 @@ class Annotations(object):
             
         terms = self.ontology.ExtractSuperGraph(annotationsDict.keys())
         res = {}
-        import orngMisc
+        from Orange.orng import orngMisc
         milestones = orngMisc.progressBarMilestones(len(terms), 100)
         for i, term in enumerate(terms):
             if slimsOnly and term not in self.ontology.slimsSubset:
@@ -980,7 +983,7 @@ class Annotations(object):
         
         os.rename(filename + ".part", filename)
 
-from obiTaxonomy import pickled_cache
+from . from obiTaxonomy import pickled_cache
 
 @pickled_cache(None, [("GO", "taxonomy.pickle"), ("Taxonomy", "ncbi_taxonomy.tar.gz")])
 def organism_name_search(name):
@@ -1237,9 +1240,9 @@ def drawEnrichmentGraphPylab_tostream(termsList, headers, fh, width=None, height
             plt.plot([connectAt.get(parent)]*2, [len(termsList) - i, len(termsList) - parent], color="black")
         cellText.append((str(n), str(m), p_val, fdr_val, name, genes))
 
-##    from orngClustering import TableTextLayout
+##    from Orange.orng.orngClustering import TableTextLayout
 ##    text = TableTextLayout((maxFoldEnrichment*1.1, len(termsList)), cellText)
-    from orngClustering import TablePlot
+    from Orange.orng.orngClustering import TablePlot
     if True:
         axes2 = plt.axes([0.3, 0.1, 0.6, 0.8], sharey=axes1)
         axes2.set_axis_off()
@@ -1298,7 +1301,7 @@ class Taxonomy(object):
     def __init__(self):
         self.__dict__ = self.__shared_state
         if not self.tax:
-            import orngServerFiles
+            from Orange.orng import orngServerFiles
             path = orngServerFiles.localpath_download("GO", "taxonomy.pickle")
             if os.path.isfile(path):
                 self.tax = cPickle.load(open(path, "rb"))
@@ -1345,7 +1348,7 @@ class __progressCallbackWrapper:
         fSize = 10000000 if fSize == -1 else fSize
         self.callback(100*bCount*bSize/fSize)
         
-from obiGenomicsUpdate import Update as UpdateBase
+from .obiGenomicsUpdate import Update as UpdateBase
 
 import urllib2
 

@@ -5,29 +5,18 @@ Protein-protein interactions
 This is python module for accessing PPI data.  
 """
 
-import os, sys
-import xml.dom.minidom as minidom
-import warnings
-import collections
+from __future__ import absolute_import
 
-import orngServerFiles
-
-from obiKEGG import downloader
-
+import collections, gzip, posixpath, os, shutil, sqlite3, sys, urllib2, warnings, xml.dom.minidom as minidom
 from collections import defaultdict
 from operator import itemgetter
 
-import obiTaxonomy
-from obiTaxonomy import pickled_cache
+from Orange.orng import orngServerFiles
+from Orange.utils import ConsoleProgressBar, lru_cache
 
-from Orange.utils import lru_cache
-from Orange.utils import ConsoleProgressBar
-
-import sqlite3
-import urllib2
-import posixpath
-import shutil
-import gzip
+from . import obiTaxonomy
+from .obiKEGG import downloader
+from .obiTaxonomy import pickled_cache
 
 class PPIDatabase(object):
     """ A general interface for protein-protein interaction database access.
@@ -456,7 +445,7 @@ class BioGRID(PPIDatabase):
 from collections import namedtuple
 from functools import partial
 
-from obiGeneMania import wget, copyfileobj
+from .obiGeneMania import wget, copyfileobj
 
 def chainiter(iterable):
     for sub_iter in iterable:

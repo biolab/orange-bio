@@ -5,17 +5,20 @@
 <contact>Ales Erjavec (ales.erjavec(@at@).fri.uni-lj.si)</contact>
 """
 
-from OWWidget import *
-import OWGUI
-from OWItemModels import PyListModel
-import Orange
+from __future__ import absolute_import
 
 from collections import defaultdict
 from operator import add
-import numpy
 import math
 
-from obiExperiments import separate_by, data_type, linearize, dist_pcorr, dist_eucl, dist_spearman
+import numpy
+
+import Orange
+from Orange.OrangeWidgets import OWGUI
+from Orange.OrangeWidgets.OWItemModels import PyListModel
+from Orange.OrangeWidgets.OWWidget import *
+
+from ..obiExperiments import separate_by, data_type, linearize, dist_pcorr, dist_eucl, dist_spearman
 
 def clone_attr(attr):
     newattr = attr.clone()
