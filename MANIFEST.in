@@ -1,3 +1,6 @@
-include *.py *.txt addon.xml
-recursive-include widgets *
-recursive-include doc *
+recursive-include Orange *.png
+recursive-include scripts *
+recursive-include tests *
+include COPYING
+include LICENSE
+include *.py *.txt *.rst

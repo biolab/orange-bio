@@ -1,110 +1,106 @@
 #!/usr/bin/env python
-"""\
-Orange Bioinformatics
-=====================
 
-Orange Bioinformatics is an add-on for Orange data mining 
-software package. It extends Orange by providing common functionality
-for basic tasks in bioinformatics.
-"""
+import os
 
-DOCLINES = __doc__.split("\n")
+from setuptools import setup, find_packages
 
-try:
-    from setuptools import setup
-    have_setuptools = True
-except ImportError:
-    from distutils.core import setup
-    have_setuptools = False
+NAME = 'Orange-Bioinformatics'
 
-import os, glob
+VERSION = '1.1a'
 
-CLASSIFIERS = """\
-Development Status :: 4 - Beta
-Programming Language :: Python
-License :: OSI Approved :: GNU General Public License (GPL)
-Operating System :: POSIX
-Operating System :: Microsoft :: Windows
-Topic :: Scientific/Engineering :: Visualization
-Topic :: Scientific/Engineering :: Bio-Informatics
-Intended Audience :: Education
-Intended Audience :: Science/Research
-"""
+DESCRIPTION = 'Orange Bioinformatics is an add-on for Orange data mining software package.'
+LONG_DESCRIPTION = open(os.path.join(os.path.dirname(__file__), 'README.rst')).read()
+AUTHOR = 'Bioinformatics Laboratory, FRI UL'
+AUTHOR_EMAIL = 'contact@orange.biolab.si'
+URL = 'http://orange.biolab.si/addons/'
+DOWNLOAD_URL = 'https://bitbucket.org/biolab/orange-bioinformatics/downloads'
+LICENSE = 'GPLv3'
 
-KEYWORDS = """\
-data mining 
-machine learning,
-artificial intelligence
-bioinformatics,
-gene ontology
-KEGG
-expression profiles
-"""                      
+KEYWORDS = (
+    'data mining',
+    'machine learning',
+    'artificial intelligence',
+    'bioinformatics',
+    'gene ontology',
+    'KEGG',
+    'expression profiles',
+)
 
-NAME                = "Orange-Bioinformatics"
-DESCRIPTION         = DOCLINES[0]
-LONG_DESCRIPTION    = "\n".join(DOCLINES[3:])
-URL                 = "http://www.biolab.si/obi/"
-DOWNLOAD_URL        = "https://bitbucket.org/biolab/orange-addon-bioinformatics/downloads"
-LICENSE             = "GNU General Public License (GPL)"
-CLASSIFIERS         = filter(None, CLASSIFIERS.split("\n"))
-AUTHOR              = "Bioinformatics Laboratory, FRI UL"
-AUTHOR_EMAIL        = "orange@fri.uni-lj.si"
-KEYWORDS            = filter(None, KEYWORDS.split('\n'))
+CLASSIFIERS = (
+    'Development Status :: 4 - Beta',
+    'Environment :: X11 Applications :: Qt',
+    'Environment :: Console',
+    'Environment :: Plugins',
+    'Programming Language :: Python',
+    'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
+    'Operating System :: OS Independent',
+    'Topic :: Scientific/Engineering :: Artificial Intelligence',
+    'Topic :: Scientific/Engineering :: Visualization',
+    'Topic :: Scientific/Engineering :: Bio-Informatics',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+    'Intended Audience :: Education',
+    'Intended Audience :: Science/Research',
+    'Intended Audience :: Developers',
+)
 
-MAYOR = 1
-MINOR = 1
-MICRO = 0
-ISRELEASED = False
+PACKAGES = find_packages(
+    exclude = ('*.tests', '*.tests.*', 'tests.*', 'tests'),
+)
+ 
+PACKAGE_DATA = {
+}
 
-VERSION = "%i.%ia.%i" % (MAYOR, MINOR, MICRO)
+INSTALL_REQUIRES = (
+    'Orange',
+    'suds',
+    'numpy',
+    'requests',
+    'scipy',
+    'oasa',
+    'bkchem',
+    'matplotlib',
+    'PIL',
+    'sqlite3',
+    'networkx',
+    'pygraphviz',
+    'PyQt4',
+    'openbabel',
+),
 
+DEPENDENCY_LINKS = (
+    'http://bkchem.zirael.org/download/bkchem-0.13.0.tar.gz',
+    'http://bkchem.zirael.org/download/oasa-0.13.1.tar.gz',
+)
 
-# list all documentation files that need to be included
-docFiles = []
-for (dirp, dirns, n) in os.walk('doc'):
-    nr = [n1.replace('\\', '/') for n1 in n]
-    dirn = dirp.replace('\\', '/')[4:]
-    if len(dirn):
-        dirn = dirn + '/'
-    docFiles.extend( [dirn + n1r for n1r in nr if '.svn' not in dirp + '/' + n1r] )
+ENTRY_POINTS = {
+    'orange.widgets': (
+        'bioinformatics = Orange.bioinformatics.widgets',
+    ),
+}
 
-DEST_DIR="Orange/add-ons/Bioinformatics"
+NAMESPACE_PACKAGES = (
+    'Orange',
+)
 
-
-if os.path.exists("VERSION.txt"):
-    VERSION = open("VERSION.txt", "rb").read()
-
-if have_setuptools:
-    setuptool_args = {"install_requires": ["Orange", "suds"],
-                      "zip_safe": False,
-                     }
-else:
-    setuptool_args = {}
-    
-PACKAGES = [ 'widgets', 'widgets.prototypes', 'doc', '',
-             'obiKEGG2', 'obiKEGG2.entry' ]
-    
-PACKAGE_DATA = {'widgets': ['icons/*.png'],
-                'doc': docFiles,
-                '':["addon.xml"]
-                }
-                          
-if __name__ == "__main__":
-    setup(name = NAME,
-          version = VERSION,
-          description = DESCRIPTION,
-          long_description = LONG_DESCRIPTION,
-          author = AUTHOR,
-          author_email = AUTHOR_EMAIL,
-          url = URL,
-          download_url = DOWNLOAD_URL,
-          license = LICENSE,
-          keywords = KEYWORDS,
-          classifiers = CLASSIFIERS,
-          package_dir = {"": "."},
-          packages = PACKAGES,
-          package_data = PACKAGE_DATA,
-          extra_path=("orange-bioinformatics", DEST_DIR),
-          
-          **setuptool_args)
+if __name__ == '__main__':
+    setup(
+        name = NAME,
+        version = VERSION,
+        description = DESCRIPTION,
+        long_description = LONG_DESCRIPTION,
+        author = AUTHOR,
+        author_email = AUTHOR_EMAIL,
+        url = URL,
+        download_url = DOWNLOAD_URL,
+        license = LICENSE,
+        keywords = KEYWORDS,
+        classifiers = CLASSIFIERS,
+        packages = PACKAGES,
+        package_data = PACKAGE_DATA,
+        install_requires = INSTALL_REQUIRES,
+        dependency_links = DEPENDENCY_LINKS,
+        entry_points = ENTRY_POINTS,
+        namespace_packages = NAMESPACE_PACKAGES,
+        include_package_data = True,
+        zip_safe = False,
+    )
