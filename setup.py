@@ -77,6 +77,9 @@ INSTALL_REQUIRES = (
     #'matplotlib', # Requires that numpy is installed first
 ),
 
+EXTRAS_REQUIRE = {
+}
+
 DEPENDENCY_LINKS = (
     'http://bkchem.zirael.org/download/bkchem-0.13.0.tar.gz',
     'http://bkchem.zirael.org/download/oasa-0.13.1.tar.gz',
@@ -108,6 +111,7 @@ if __name__ == '__main__':
         package_data = PACKAGE_DATA,
         setup_requires = SETUP_REQUIRES,
         install_requires = INSTALL_REQUIRES,
+        extras_require = EXTRAS_REQUIRE,
         dependency_links = DEPENDENCY_LINKS,
         entry_points = ENTRY_POINTS,
         include_package_data = True,
