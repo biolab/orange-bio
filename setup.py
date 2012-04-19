@@ -32,6 +32,7 @@ CLASSIFIERS = (
     'Environment :: Console',
     'Environment :: Plugins',
     'Programming Language :: Python',
+    'Framework :: Orange',
     'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
     'Operating System :: OS Independent',
     'Topic :: Scientific/Engineering :: Artificial Intelligence',
@@ -50,21 +51,24 @@ PACKAGES = find_packages(
 PACKAGE_DATA = {
 }
 
+SETUP_REQUIRES = (
+)
+
 INSTALL_REQUIRES = (
     'Orange',
     'suds',
     'numpy',
     'requests',
-    'scipy',
     'oasa',
     'bkchem',
-    'matplotlib',
     'PIL',
-    'sqlite3',
     'networkx',
     'pygraphviz',
-    'PyQt4',
-    'openbabel',
+    # Dependencies which are problematic to install automatically
+    #'PyQt', # No setup.py
+    #'openbabel-python', # You get bindings together with the openbabel library and not stand-alone
+    #'scipy', # Requires Fortran compiler
+    #'matplotlib', # Requires that numpy is installed first
 ),
 
 DEPENDENCY_LINKS = (
@@ -73,14 +77,13 @@ DEPENDENCY_LINKS = (
 )
 
 ENTRY_POINTS = {
+    'orange.addons': (
+        'bioinformatics = _bioinformatics',
+    ),
     'orange.widgets': (
-        'bioinformatics = Orange.bioinformatics.widgets',
+        'bioinformatics = _bioinformatics.widgets',
     ),
 }
-
-NAMESPACE_PACKAGES = (
-    'Orange',
-)
 
 if __name__ == '__main__':
     setup(
@@ -97,10 +100,10 @@ if __name__ == '__main__':
         classifiers = CLASSIFIERS,
         packages = PACKAGES,
         package_data = PACKAGE_DATA,
+        setup_requires = SETUP_REQUIRES,
         install_requires = INSTALL_REQUIRES,
         dependency_links = DEPENDENCY_LINKS,
         entry_points = ENTRY_POINTS,
-        namespace_packages = NAMESPACE_PACKAGES,
         include_package_data = True,
         zip_safe = False,
     )
