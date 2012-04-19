@@ -146,6 +146,7 @@ class obiMeSH(object):
 					
 					#if len(l)>0:
 					#	# if we found something lets save it to a file
+					#   TODO: Never use __file__ to access data, but pkg_resources so that it works also in eggs
 					#	__dataPath = os.path.join(os.path.dirname(__file__), self.path)
 					#	fileHandle = open(os.path.join(__dataPath,'cid-annotation.dat'), 'a')
 					#	for s in l:

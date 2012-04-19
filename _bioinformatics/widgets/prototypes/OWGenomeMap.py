@@ -57,12 +57,6 @@ class OWGenomeMap(OWWidget):
         # check if genome maps exist and remove those that don't
         # check that all files in directories "Genome Map" are included in the list
         self.RecentGenomeMaps = filter(os.path.exists, self.RecentGenomeMaps)
-        widgetDir = os.path.dirname(os.path.abspath(__file__)) + "/"
-        gmapList = glob.glob(widgetDir + 'Genome Map/*.tab')
-        for f in gmapList:
-            f = os.path.abspath(f)
-            if f not in self.RecentGenomeMaps:
-                self.RecentGenomeMaps.append( f)
         genesInRecentGenomeMapFile = {}
         #
 
