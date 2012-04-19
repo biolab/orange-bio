@@ -24,6 +24,8 @@ KEYWORDS = (
     'gene ontology',
     'KEGG',
     'expression profiles',
+    'microarray',
+    'genomics',
 )
 
 CLASSIFIERS = (
