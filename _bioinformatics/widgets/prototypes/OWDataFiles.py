@@ -4,6 +4,7 @@
 <icon>icons/ChipDataFiles.png</icon>
 <priority>1050</priority>
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
+<prototype>1</prototype>
 """
 
 import os, os.path

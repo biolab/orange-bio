@@ -6,6 +6,7 @@
 <icon>icons/ApproximateProfiles.png</icon>
 <priority>310</priority>
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
+<prototype>1</prototype>
 """
 
 from __future__ import absolute_import

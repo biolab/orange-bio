@@ -1,6 +1,7 @@
 """
 <name>Normalization</name>
 <description>Gene Expression data normalization</description>
+<prototype>1</prototype>
 """
 
 from __future__ import absolute_import

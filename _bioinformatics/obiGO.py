@@ -983,7 +983,7 @@ class Annotations(object):
         
         os.rename(filename + ".part", filename)
 
-from . from obiTaxonomy import pickled_cache
+from .obiTaxonomy import pickled_cache
 
 @pickled_cache(None, [("GO", "taxonomy.pickle"), ("Taxonomy", "ncbi_taxonomy.tar.gz")])
 def organism_name_search(name):

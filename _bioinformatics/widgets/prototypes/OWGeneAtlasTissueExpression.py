@@ -1,6 +1,7 @@
 """
 <name>Gene Atlas Tissue Expression</name>
 <description></description>
+<prototype>1</prototype>
 """
 
 from __future__ import absolute_import

@@ -3,6 +3,7 @@
 <description>Epistasis analysis on microaray data</description>
 <icon>icons/EpistasisAnalysis.png</icon>
 <priority>1200</priority>
+<prototype>1</prototype>
 """
 
 from __future__ import absolute_import

@@ -90,7 +90,10 @@ ENTRY_POINTS = {
         'bioinformatics = _bioinformatics',
     ),
     'orange.widgets': (
-        'bioinformatics = _bioinformatics.widgets',
+        'Bioinformatics = _bioinformatics.widgets',
+        # This should be unneeded, because module given should load (register)
+        # all wanted widgets and prototypes should just have a flag, but for now ...
+        'Prototypes = _bioinformatics.widgets.prototypes',
     ),
 }
 

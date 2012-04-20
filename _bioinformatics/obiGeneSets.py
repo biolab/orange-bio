@@ -12,7 +12,7 @@ from collections import defaultdict
 import orange
 from Orange.orng import orngServerFiles
 
-from . import obiGeneSets, obiGO, obiKEGG, obiTaxonomy
+from . import obiGO, obiKEGG, obiTaxonomy
 
 sfdomain = "gene_sets"
 
@@ -98,6 +98,7 @@ class GeneSets(set):
             self.update(input)
 
     def update(self, input):
+        from . import obiGeneSets
         if isinstance(input, obiGeneSets.GeneSets):
             super(GeneSets, self).update(input)
         elif hasattr(input, "items"):
@@ -155,6 +156,7 @@ class GeneSets(set):
 
     def split_by_hierarchy(self):
         """ Splits gene sets by hierarchies. """
+        from . import obiGeneSets
         hd = dict((h,obiGeneSets.GeneSets()) for h in  self.hierarchies())
         for gs in self:
             hd[gs.hierarchy].add(gs)
@@ -162,6 +164,7 @@ class GeneSets(set):
 
 def goGeneSets(org):
     """Returns gene sets from GO."""
+    from . import obiGeneSets
 
     ontology = obiGO.Ontology()
     annotations = obiGO.Annotations(org, ontology=ontology)
@@ -181,7 +184,7 @@ def keggGeneSets(org):
     """
     Returns gene sets from KEGG pathways.
     """
-    from . import obiKEGG2 as obiKEGG
+    from . import obiKEGG2 as obiKEGG, obiGeneSets
     
     kegg = obiKEGG.KEGGOrganism(org)
 
@@ -249,6 +252,9 @@ def loadGMT(contents, name):
     
     For now the description is skipped.
     """
+
+    from . import obiGeneSets
+
     def hline(s):
         tabs = [tab.strip() for tab in s.split("\t")]
         return obiGeneSets.GeneSet(id=tabs[0], description=tabs[1],
@@ -466,6 +472,7 @@ def collections(*args):
     Collection can either be a tuple (hierarchy, orgranism), where
     hierarchy is a tuple also.
     """
+    from . import obiGeneSets
     result = obiGeneSets.GeneSets()
 
     for collection in args:

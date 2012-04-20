@@ -6,7 +6,7 @@
 <priority>1030</priority>
 """
 
-from Orange.OrangeWidgets.OWGUI
+from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWGraph import *
 from Orange.OrangeWidgets.OWToolbars import ZoomSelectToolbar
 from Orange.OrangeWidgets.OWTools import *

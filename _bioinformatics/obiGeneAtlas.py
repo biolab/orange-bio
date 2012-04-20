@@ -259,7 +259,7 @@ def to_taxid(name):
     if name in dd:
         return dd[name]
     else:
-        import .obiTaxonomy as tax
+        from . import obiTaxonomy as tax
         ids = tax.to_taxid(name, mapTo=TAXID_TO_ORG.keys())
         if ids:
             return ids.pop()

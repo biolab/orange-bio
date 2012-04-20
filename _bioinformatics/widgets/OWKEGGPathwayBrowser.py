@@ -12,12 +12,12 @@ from collections import defaultdict
 import webbrowser
 
 import orange
-from Orange.orng import orngMisc
+from Orange.orng import orngMisc, orngServerFiles
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
 
-from .. import obiKEGG, orngServerFiles
+from .. import obiKEGG
 from .. import obiTaxonomy
 from .. import obiKEGG2 as obiKEGG
 from .. import obiGeneSets

@@ -1,18 +1,17 @@
-## Automatically adapted for numpy.oldnumeric Oct 04, 2007 by 
-
 """
 <name>Normalize Expression Array Data</name>
 <description>Normalization of expression array data.</description>
 <icon>icons/Normalize.png</icon>
 <priority>1150</priority>
 <author>Peter Juvan (peter.juvan@fri.uni-lj.si)</author>
+<prototype>1</prototype>
 """
+
+from __future__ import absolute_import
 
 """
 TODO: settingsList
 """
-
-from __future__ import absolute_import
 
 import string, math
 import types

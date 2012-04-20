@@ -4,6 +4,7 @@
 <icon>icons/DataFilesSave.png</icon>
 <priority>1055</priority>
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
+<prototype>1</prototype>
 """
 
 from __future__ import absolute_import

@@ -6,6 +6,7 @@
 <icon>icons/ImputeProfiles.png</icon>
 <priority>1065</priority>
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
+<prototype>1</prototype>
 """
 
 import math

@@ -3,6 +3,7 @@
 <description>None.</description>
 <contact>Tomaz Curk</contact>
 <icon>icons\GenomeMap.png</icon>
+<prototype>1</prototype>
 """
 
 from collections import defaultdict

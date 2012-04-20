@@ -6,6 +6,7 @@
 <icon>icons/ChipANOVA.png</icon>
 <priority>1070</priority>
 <contact>Peter Juvan (peter.juvan@fri.uni-lj.si)</contact>
+<prototype>1</prototype>
 """
 
 from __future__ import absolute_import
