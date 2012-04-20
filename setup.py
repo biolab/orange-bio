@@ -65,8 +65,8 @@ INSTALL_REQUIRES = (
     'suds',
     'numpy',
     'requests',
-    'oasa',
-    'bkchem',
+    #'oasa',
+    #'bkchem',
     'PIL',
     'networkx',
     'pygraphviz',
@@ -81,8 +81,8 @@ EXTRAS_REQUIRE = {
 }
 
 DEPENDENCY_LINKS = (
-    'http://bkchem.zirael.org/download/bkchem-0.13.0.tar.gz',
-    'http://bkchem.zirael.org/download/oasa-0.13.1.tar.gz',
+    #'http://bkchem.zirael.org/download/bkchem-0.13.0.tar.gz',
+    #'http://bkchem.zirael.org/download/oasa-0.13.1.tar.gz',
 )
 
 ENTRY_POINTS = {

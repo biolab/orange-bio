@@ -10,6 +10,7 @@ needs.
 
 .. _Orange: http://orange.biolab.si/
 
+
 Installing
 ----------
 
@@ -20,3 +21,11 @@ To install Bioinformatics add-on for Orange run::
 To build Python egg run::
 
     python setup.py bdist_egg
+
+
+Install for Developers
+----------------------
+
+To register extension from current folder run::
+
+    python setup.py develop
