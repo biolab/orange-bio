@@ -10,7 +10,6 @@ needs.
 
 .. _Orange: http://orange.biolab.si/
 
-
 Installing
 ----------
 
@@ -22,10 +21,11 @@ To build Python egg run::
 
     python setup.py bdist_egg
 
+Installation for Developers
+---------------------------
 
-Install for Developers
-----------------------
-
-To register extension from current folder run::
+To install add-on in `development mode`_ run::
 
     python setup.py develop
+
+.. _development mode: http://packages.python.org/distribute/setuptools.html#development-mode
