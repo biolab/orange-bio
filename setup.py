@@ -11,7 +11,7 @@ NAME = 'Orange-Bioinformatics'
 
 VERSION = '1.1a'
 
-DESCRIPTION = 'Orange Bioinformatics is an add-on for Orange data mining software package.'
+DESCRIPTION = 'Orange Bioinformatics add-on for Orange data mining software package.'
 LONG_DESCRIPTION = open(os.path.join(os.path.dirname(__file__), 'README.rst')).read()
 AUTHOR = 'Bioinformatics Laboratory, FRI UL'
 AUTHOR_EMAIL = 'contact@orange.biolab.si'
