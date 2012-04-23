@@ -57,10 +57,12 @@ PACKAGE_DATA = {
 }
 
 SETUP_REQUIRES = (
+    'distribute',
 )
 
 INSTALL_REQUIRES = (
     'Orange',
+    'distribute',
     'suds',
     'numpy',
     'requests',
