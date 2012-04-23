@@ -72,13 +72,16 @@ INSTALL_REQUIRES = (
     'networkx',
     'pygraphviz',
     # Dependencies which are problematic to install automatically
-    #'PyQt', # No setup.py
     #'openbabel-python', # You get bindings together with the openbabel library and not stand-alone
     #'scipy', # Requires Fortran compiler
     #'matplotlib', # Requires that numpy is installed first
 ),
 
 EXTRAS_REQUIRE = {
+    'GUI': (
+        # Dependencies which are problematic to install automatically
+        #'PyQt', # No setup.py
+    ),
 }
 
 DEPENDENCY_LINKS = (
