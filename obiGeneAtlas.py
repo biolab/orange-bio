@@ -35,6 +35,9 @@ import orngServerFiles
 import obiGene
 from contextlib import closing
 
+CACHE_VERSION = 1
+
+
 def _cache(name="AtlasGeneResult.shelve"):
     """ Return a open cache instance (a shelve object).
     """
@@ -43,7 +46,14 @@ def _cache(name="AtlasGeneResult.shelve"):
             os.makedirs(orngServerFiles.localpath("GeneAtlas"))
         except OSError:
             pass
-    return shelve.open(orngServerFiles.localpath("GeneAtlas", name))
+    cache = shelve.open(orngServerFiles.localpath("GeneAtlas", name))
+    if cache.get(name + "__CACHE_VERSION__", None) == CACHE_VERSION:
+        return cache
+    else:
+        cache = shelve.open(orngServerFiles.localpath("GeneAtlas", name), "n")
+        cache[name + "__CACHE_VERSION__"] = CACHE_VERSION
+        return cache
+
 
 SLEEP_TIME_MULTIPLIER = 3.0
 
@@ -113,8 +123,18 @@ def batch_gene_atlas_expression(genes):
             experiments = expression["experiments"]
             result_experiment = []
             for exp in experiments:
-                exp_accession = exp["accession"]
-                updown = exp["expression"]
+                if "accession" in exp:
+                    exp_accession = exp["accession"]
+                elif "experimentAccession" in exp:
+                    exp_accession = exp["experimentAccession"]
+                else:
+                    raise KeyError()
+                if "expression" in exp:
+                    updown = exp["expression"]
+                elif "updn" in exp:
+                    updown = exp["updn"]
+                else:
+                    raise KeyError
                 pval = exp["pvalue"]
                 result_experiment.append(ExperimentExpression(exp_accession, updown, pval))
             result_expressions.append(ExpressionResults(ef, efv, up, down, result_experiment))
