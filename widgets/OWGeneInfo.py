@@ -7,6 +7,8 @@
 """
 from __future__ import with_statement
 
+import Orange
+
 import obiGene, obiTaxonomy
 import orange
 import orngServerFiles
@@ -40,7 +42,7 @@ class TreeModel(QAbstractItemModel):
     def setRoleData(self, role, row, col, data):
         self._roleData[role][row][col] = data
         
-    def data(self, index, role):
+    def data(self, index, role=Qt.DisplayRole):
         row, col = index.row(), index.column()
         return self._roleData[role][row][col]
         
@@ -50,16 +52,16 @@ class TreeModel(QAbstractItemModel):
     def parent(self, index):
         return QModelIndex()
     
-    def rowCount(self, index):
+    def rowCount(self, index=QModelIndex()):
         if index.isValid():
             return 0
         else:
             return len(self._data)
         
-    def columnCount(self, index):
+    def columnCount(self, index=QModelIndex()):
         return len(self._header)
 
-    def headerData(self, section, orientation, role):
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
         if role==Qt.DisplayRole:
             return QVariant(self._header[section])
         return QVariant()
@@ -403,15 +405,18 @@ class OWGeneInfo(OWWidget):
     def commit(self):
         if not self.data:
             return
-        
-        mapToSource = self.treeWidget.model().mapToSource
+        model = self.treeWidget.model()
+        mapToSource = model.mapToSource
         selectedIds = [self.cells[mapToSource(index).row()][0] for index in self.treeWidget.selectedIndexes()]
         selectedRows = self.treeWidget.selectedIndexes()
         selectedRows = [mapToSource(index).row() for index in selectedRows]
+        model = model.sourceModel()
         
         selectedGeneids = [self.row2geneinfo[row] for row in selectedRows]
         selectedIds = [self.geneinfo[i][0] for i in selectedGeneids]
         selectedIds = set(selectedIds)
+        gene2row = dict((self.geneinfo[self.row2geneinfo[row]][0], row) \
+                        for row in selectedRows)
         
         if self.useAttr:
             def is_selected(attr):
@@ -425,6 +430,22 @@ class OWGeneInfo(OWWidget):
             attr = self.attributes[self.geneAttr]
             geneinfo = dict(self.geneinfo)
             examples = [ex for ex in self.data if str(ex[attr]) in selectedIds]
+            if True:  # Add gene info
+                domain = orange.Domain(self.data.domain, self.data.domain.classVar)
+                domain.addmetas(self.data.domain.getmetas())
+                n_columns = model.columnCount()
+
+                headers = [str(model.headerData(i, Qt.Horizontal, Qt.DisplayRole).toString()) \
+                           for i in range(n_columns)]
+                new_meta_attrs = [(orange.newmetaid(), orange.StringVariable(name)) \
+                                  for name in headers]
+                domain.addmetas(dict(new_meta_attrs))
+                examples = [orange.Example(domain, ex) for ex in examples]
+                for ex in examples:
+                    for i, (_, meta) in enumerate(new_meta_attrs):
+                        row = gene2row[str(ex[attr])]
+                        ex[meta] = str(model.data(model.index(row, i), Qt.DisplayRole).toString())
+
             if examples:
                 newdata = orange.ExampleTable(examples)
             else:
@@ -514,7 +535,7 @@ def reportItemModel(view, model, index=QModelIndex()):
         
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    data = orange.ExampleTable("../../orange/doc/datasets/brown-selected.tab")
+    data = orange.ExampleTable("brown-selected.tab")
     w = OWGeneInfo()
     w.show()
     w.setData(data)
