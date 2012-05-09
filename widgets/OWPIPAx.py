@@ -17,8 +17,7 @@ import math
 from datetime import date
 
 from OWPIPA import (MyTreeWidgetItem, ListItemDelegate,
-                    SelectionSetsWidget, SortedListWidget,
-                    SelectionByKey)
+                    SelectionSetsWidget, SortedListWidget)
 
 try:
     from ast import literal_eval
@@ -61,6 +60,51 @@ except:
     pass
 
 bufferfile = os.path.join(bufferpath, "database.sq3")
+
+
+class SelectionByKey(object):
+    """An object stores item selection by unique key values
+    (works only for row selections in list and table models)
+    Example::
+
+        ## Save selection by unique tuple pairs (DisplayRole of column 1 and 2)
+        selection = SelectionsByKey(itemView.selectionModel().selection(),
+                                    key = (1,2))
+        ## restore selection (Possibly omitting rows not present in the model)
+        selection.select(itemView.selectionModel())
+
+    """
+
+    def __init__(self, itemSelection, name="", key=(0,)):
+        self._key = key
+        self.name = name
+        self._selected_keys = []
+        if itemSelection:
+            self.setSelection(itemSelection)
+
+    def _row_key(self, model, row):
+        def key(row, col):
+            return str(model.data(model.index(row, col),
+                                  Qt.DisplayRole).toString())
+
+        return tuple(key(row, col) for col in self._key)
+
+    def setSelection(self, itemSelection):
+        self._selected_keys = [self._row_key(ind.model(), ind.row()) \
+                               for ind in itemSelection.indexes() \
+                               if ind.column() == 0]
+
+    def select(self, selectionModel):
+        model = selectionModel.model()
+        selectionModel.clear()
+        for i in range(model.rowCount()):
+            if self._row_key(model, i) in self._selected_keys:
+                selectionModel.select(model.index(i, 0),
+                    QItemSelectionModel.Select | QItemSelectionModel.Rows)
+
+    def __len__(self):
+        return len(self._selected_keys)
+
 
 # Mapping from PIPAx.results_list annotation keys to Header names.
 HEADER = [("_cached", ""),
