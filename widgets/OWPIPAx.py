@@ -420,7 +420,7 @@ class OWPIPAx(OWWidget):
                                 time_dict["monthUTC"] + 1,  # Why is month 0 based?
                                 time_dict["dateUTC"])
 
-                row_items[DATE_INDEX] = date_rna.strftime("%D")
+                row_items[DATE_INDEX] = date_rna.strftime("%x")
 
             row_items[ID_INDEX] = mapping_unique_id(r_annot)
             elements.append(row_items)
