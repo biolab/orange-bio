@@ -708,6 +708,16 @@ class PIPA(DBCommon):
 
         return et
 
+def bufferkeypipax(command, data):
+    """ Do not save password to the buffer! """
+    command = command + " v6" #add version
+    if data != None:
+        data = data.copy()
+        if pipaparpass in data:
+            data.pop(pipaparpass)
+        return command + " " +  urllib.urlencode(sorted(data.items()))
+    else:
+        return command
 
 class PIPAx(PIPA):
     """`PIPAx <http://pipa.biolab.si/?page_id=23>` api interface.
@@ -745,7 +755,7 @@ class PIPAx(PIPA):
         """
         data = self.add_auth({"action": "mappings"})
         res, legend = self.sq("", data=data, reload=reload,
-                              bufferkey=bufferkeypipa,
+                              bufferkey=bufferkeypipax,
                               bufver=bufver)
 
         return dict((sa[0], dict(zip(legend[1:], sa[1:]))) for sa in res)
@@ -766,7 +776,7 @@ class PIPAx(PIPA):
                 "results_templates_id": rtype}
         data = self.add_auth(data)
         res, legend = self.sq("", data=data, reload=reload,
-                              bufferkey=bufferkeypipa,
+                              bufferkey=bufferkeypipax,
                               bufver=bufver)
         # index by unique_id (last column)
         res = splitTableOnColumn(res, -1)
@@ -778,7 +788,7 @@ class PIPAx(PIPA):
                               "ids": "$MULTI$"}
                                 )
         keynamingfn, _ = self.downloadMulti_bufcommand_replace_multi("",
-                         data=data, chunk=100, bufferkey=bufferkeypipa,
+                         data=data, chunk=100, bufferkey=bufferkeypipax,
                          transformfn=None)
         return keynamingfn
 
@@ -888,7 +898,7 @@ Can only retrieve a single result_template_type at a time"""
         data = {"action": "download", "ids": "$MULTI$"}
         data = self.add_auth(data)
         antss = self.downloadMulti("", result_ids, data=data, chunk=10,
-                                   bufferkey=bufferkeypipa, bufreload=reload,
+                                   bufferkey=bufferkeypipax, bufreload=reload,
                                    bufver=bufver)
         for a, legend in antss:
             yield a
@@ -943,7 +953,7 @@ Can only retrieve a single result_template_type at a time"""
                 legend = self.fromBuffer(bufcommand(buffered[0]))[0]
 
             legend = ["gene_id", "value"]
-            genes = nth(res, 0)[1:]
+            genes = nth(res, 0)
 
             antss = {}
             for i, cid in enumerate(unbuffered):
