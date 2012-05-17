@@ -193,7 +193,6 @@ class LabelSelectionWidget(QWidget):
         
     def clear(self):
         self.labels_combo.clear()
-#        self.values_view.clear()
         self._values_model[:] = []
         self.labels = []
         
@@ -269,6 +268,11 @@ class LabelSelectionWidget(QWidget):
         """ Return the current label and selected values.
         """
         i = self.labels_combo.currentIndex()
+
+        if i == -1:
+            # When clearing the labels model / combobox
+            return None, None
+
         label, all_values = self.labels[i]
         values = [all_values[i] for i in self.selection_indexes()]
         return label, values
