@@ -241,7 +241,9 @@ class OWGeneInfo(OWWidget):
         ## A label for dictyExpress link
         self.dictyExpressBox = OWGUI.widgetBox(self.controlArea, "Dicty Express")
         self.linkLabel = OWGUI.widgetLabel(self.dictyExpressBox, "")
-        self.linkLabel.setOpenExternalLinks(True)
+        self.linkLabel.setOpenExternalLinks(False)
+        self.connect(self.linkLabel, SIGNAL("linkActivated(QString)"),
+                     self.onDictyExpressLink)
         self.dictyExpressBox.hide()
         
         OWGUI.rubber(self.controlArea)
@@ -499,8 +501,8 @@ class OWGeneInfo(OWWidget):
             return None 
         if show:
             genes = [fix(gene) for gene in genes if fix(gene)]
-            link1 = '<a href="http://www.ailab.si/dictyexpress/run/index.php?gene=%s">Microarray profile</a>' % (" ".join(genes))
-            link2 = '<a href="http://www.ailab.si/dictyexpress/run/index.php?gene=%s&db=rnaseq">RNA-Seq profile</a>' % (" ".join(genes))
+            link1 = '<a href="http://dictyexpress.biolab.si/run/index.php?gene=%s">Microarray profile</a>'
+            link2 = '<a href="http://dictyexpress.biolab.si/run/index.php?gene=%s&db=rnaseq">RNA-Seq profile</a>'
             self.linkLabel.setText(link1 + "<br/>" + link2)
             
             show = any(genes)
@@ -509,6 +511,36 @@ class OWGeneInfo(OWWidget):
             self.dictyExpressBox.show()
         else:
             self.dictyExpressBox.hide()
+
+    def onDictyExpressLink(self, link):
+        if not self.data:
+            return
+
+        selectedIndexes = self.treeWidget.selectedIndexes()
+        if not len(selectedIndexes):
+            QMessageBox.information(self, "No gene ids selected", "Please select some genes and try again.")
+            return
+        model = self.treeWidget.model()
+        mapToSource = model.mapToSource
+        selectedIds = [self.cells[mapToSource(index).row()][0] for index in selectedIndexes]
+        selectedRows = self.treeWidget.selectedIndexes()
+        selectedRows = [mapToSource(index).row() for index in selectedRows]
+        model = model.sourceModel()
+
+        selectedGeneids = [self.row2geneinfo[row] for row in selectedRows]
+        selectedIds = [self.geneinfo[i][0] for i in selectedGeneids]
+        selectedIds = set(selectedIds)
+
+        def fix(ddb):
+            if ddb.startswith("DDB"):
+                if not ddb.startswith("DDB_G"):
+                    ddb = ddb.replace("DDB", "DDB_G")
+                return ddb
+            return None
+
+        genes = [fix(gene) for gene in selectedIds if fix(gene)]
+        url = str(link) % " ".join(genes)
+        QDesktopServices.openUrl(QUrl(url))
             
     def onAltSourceChange(self):
         self.setItems()
