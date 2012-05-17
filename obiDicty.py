@@ -710,7 +710,7 @@ class PIPA(DBCommon):
 
 def bufferkeypipax(command, data):
     """ Do not save password to the buffer! """
-    command = command + " v6" #add version
+    command = command + " v7" #add version
     if data != None:
         data = data.copy()
         if pipaparpass in data:
@@ -718,6 +718,7 @@ def bufferkeypipax(command, data):
         return command + " " +  urllib.urlencode(sorted(data.items()))
     else:
         return command
+
 
 class PIPAx(PIPA):
     """`PIPAx <http://pipa.biolab.si/?page_id=23>` api interface.
@@ -827,9 +828,14 @@ class PIPAx(PIPA):
             if callback:
                 callback()
 
+        def argsort(a):
+            sort = sorted([(map(int, item), i) for i, item in enumerate(a)])
+            return [i for _, i in sort]
+
         cbc = CallBack(len(ids), optcb, callbacks=10)
 
         if result_type is not None:
+            ids_sort = argsort(ids)
             res_list = self.results_list(result_type, reload=reload,
                                          bufver=bufver)
             # Map (data_id, mapping_id) to unique_id
@@ -860,6 +866,13 @@ Can only retrieve a single result_template_type at a time"""
             result_type = result_type_set.pop()
             res_list = self.results_list(result_type, reload=reload,
                                          bufver=bufver)
+            sort_keys = [(int(res_list[id]["data_id"]),
+                          int(res_list[id]["mappings_id"]))\
+                         for id in ids]
+            ids_sort = argsort(sort_keys)
+
+        # Sort the ids for use by pipax api
+        ids_sorted = [ids[i] for i in ids_sort]
 
         read = {}
         for a, b in res_list.items():
@@ -870,13 +883,19 @@ Can only retrieve a single result_template_type at a time"""
         download_func = lambda x: self.download(x, reload=reload,
                                                 bufver=bufver)
 
-        cbc = CallBack(len(ids) + 3, optcb,
+        cbc = CallBack(len(ids_sorted) + 3, optcb,
                        callbacks=99 - 20)
-        et = self.exampleTables(ids, spotmap={}, callback=cbc, annots=read,
+        et = self.exampleTables(ids_sorted, spotmap={}, callback=cbc,
+                            annots=read,
                             exclude_constant_labels=exclude_constant_labels,
                             chipfn=download_func,
                             allowed_labels=allowed_labels)
         cbc.end()
+
+        # Restore input ids order.
+        domain = orange.Domain([et.domain[id] for id in ids], None)
+        domain.addmetas(et.domain.getmetas())
+        et = orange.ExampleTable(domain, et)
 
         cbc = CallBack(2, optcb, callbacks=10)
 
@@ -895,6 +914,8 @@ Can only retrieve a single result_template_type at a time"""
         return et
 
     def download(self, result_ids, reload=False, bufver="0"):
+        """result_ids must be sorted (by `(data_id, mappings_id)`)
+        """
         data = {"action": "download", "ids": "$MULTI$"}
         data = self.add_auth(data)
         antss = self.downloadMulti("", result_ids, data=data, chunk=10,
