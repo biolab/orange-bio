@@ -10,14 +10,16 @@ needs.
 
 .. _Orange: http://orange.biolab.si/
 
-Widgets:
+Widgets
+-------
 
 .. toctree::
    :maxdepth: 1
  
    PIPA.rst
 
-Scripting reference:   
+Scripting Reference
+-------------------
    
 .. toctree::
    :maxdepth: 1
@@ -34,4 +36,5 @@ Indices and tables
 ==================
 
 * :ref:`genindex`
+* :ref:`modindex`
 * :ref:`search`

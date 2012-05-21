@@ -1,7 +1,7 @@
 PIPA
 ====
 
-.. image:: ../../../_bioinformatics/widgets/icons/PIPA.png
+.. image:: ../../_bioinformatics/widgets/icons/PIPA.png
    :alt: Widget icon
    
 Signals
