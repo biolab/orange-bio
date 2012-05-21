@@ -16,7 +16,7 @@ VERSION = module_setup.VERSION
 AUTHOR = module_setup.AUTHOR
 NAME = module_setup.NAME
 
-DOCUMENTATION_TYPE = "Widgets"
+DOCUMENTATION_TYPE = "Scripting Reference"
 
 TITLE = "%s %s v%s documentation" % (NAME, DOCUMENTATION_TYPE, VERSION)
 

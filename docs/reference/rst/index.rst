@@ -1,5 +1,5 @@
-Orange-Bioinformatics Widgets documentation
-===========================================
+Orange-Bioinformatics Scripting Reference documentation
+=======================================================
 
 Orange Bioinformatics is an add-on for Orange_ data mining software package. It
 extends Orange by providing common functionality for basic tasks in
@@ -10,13 +10,11 @@ needs.
 
 .. _Orange: http://orange.biolab.si/
 
-Widgets:
+Contents:
 
 .. toctree::
    :maxdepth: 1
  
-   PIPA.rst
-
 Source Code and Issue Tracker
 -----------------------------
 

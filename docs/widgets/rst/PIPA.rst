@@ -1,8 +1,8 @@
 PIPA
 ====
 
-.. image:: ../../../widgets/icons/PIPA.png
-   :alt: widget icon
+.. image:: ../../../_bioinformatics/widgets/icons/PIPA.png
+   :alt: Widget icon
    
 Signals
 -------
@@ -17,7 +17,7 @@ Outputs:
 Description
 -----------
 
-.. image:: PIPA.*
+.. image:: images/PIPA.*
    :alt: PIPA widget
 
 The PIPA widget lists accessible experiments, which can be filtered with the "Search" box at the top. The selected experiments will appear on the output when the "Commit" button is clicked. You can connect the output of the PIPA widget to any Orange widget which accepts ExampleTable as input. The widget will automatically save (cache) downloaded data and you will therefore be able to analyse them offline.
@@ -31,16 +31,15 @@ Examples
 
 In the schema below we connected PIPA to Data Table, GO Enrichment Analysis, and Distance Map (through Attribute Distance) widgets.
 
-.. image:: PIPA_schema.*
+.. image:: images/PIPA_schema.*
    :alt: Example schema with PIPA widget
 
 The Data Table widget below contains the output from the PIPA widget. Each column contains gene expressions of a single experiment. The labels are shown in the table header.
   
-.. image:: PIPA_datatable.*
+.. image:: images/PIPA_datatable.*
    :alt: Output of PIPA in a data table.
 
 The Distance Map widget shows distances between experiments. The distances are measured with Attribute Distance widget, which was set to compute Pearson distances (as (1-PearsonCorrelation)/2).
 
-.. image:: PIPA_distance.*
+.. image:: images/PIPA_distance.*
    :alt: Distances between experiments.
- 
