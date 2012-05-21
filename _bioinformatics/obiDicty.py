@@ -709,6 +709,296 @@ class PIPA(DBCommon):
 
         return et
 
+def bufferkeypipax(command, data):
+    """ Do not save password to the buffer! """
+    command = command + " v7" #add version
+    if data != None:
+        data = data.copy()
+        if pipaparpass in data:
+            data.pop(pipaparpass)
+        return command + " " +  urllib.urlencode(sorted(data.items()))
+    else:
+        return command
+
+
+class PIPAx(PIPA):
+    """`PIPAx <http://pipa.biolab.si/?page_id=23>` api interface.
+    """
+
+    API_ADDRESS = "https://pipa.biolab.si/pipax/api.py"
+
+    def __init__(self, address=API_ADDRESS, buffer=None,
+                 username=None, password=None):
+        self.address = address
+        self.db = DBInterface(address)
+        self.buffer = buffer
+        self.username = username
+        self.password = password
+
+    def genomes(self, reload=False, bufver="0"):
+        """Return a list of available genomes as a list of
+        (genome_id, genome_name) tuples.
+
+        >>> pipax.genomes()
+        [('dd', 'Dictyostelium discoideum'), ('dp', 'Dictyostelium purpureum')]
+
+        """
+        data = {"action": "genomes"}
+        res, _ = self.sq("", data=data, reload=reload, bufver=bufver)
+        return [tuple(r) for r in res]
+
+    def mappings(self, reload=False, bufver="0"):
+        """Return a dictionary of {unique_id: dictionary_of_annotations}
+        where the keys for dictionary_of_annotations are
+        ["id", data_id", "data_name", "genomes_id"]
+
+        >>> mappings = pipax.mappings()
+
+        """
+        data = self.add_auth({"action": "mappings"})
+        res, legend = self.sq("", data=data, reload=reload,
+                              bufferkey=bufferkeypipax,
+                              bufver=bufver)
+
+        return dict((sa[0], dict(zip(legend[1:], sa[1:]))) for sa in res)
+
+    def result_types(self, reload=False, bufver="0"):
+        """Return a list of available result type templates.
+        """
+        data = {"action": "results_templates"}
+        res, _ = self.sq("", data=data, reload=reload, bufver=bufver)
+        return sorted(tuple(a) for a in res)
+
+    def results_list(self, rtype, reload=False, bufver="0"):
+        """Return a list of available results for a result type template
+        `rtype` (a key from the `result_types` return value).
+
+        """
+        data = {"action": "results",
+                "results_templates_id": rtype}
+        data = self.add_auth(data)
+        res, legend = self.sq("", data=data, reload=reload,
+                              bufferkey=bufferkeypipax,
+                              bufver=bufver)
+        # index by unique_id (last column)
+        res = splitTableOnColumn(res, -1)
+        return dict((id, dict(zip(legend, line[0]))) \
+                    for id, line in res.items())
+
+    def download_key_function(self):
+        data = self.add_auth({"action": "download",
+                              "ids": "$MULTI$"}
+                                )
+        keynamingfn, _ = self.downloadMulti_bufcommand_replace_multi("",
+                         data=data, chunk=100, bufferkey=bufferkeypipax,
+                         transformfn=None)
+        return keynamingfn
+
+    def get_data(self, ids=None, result_type=None,
+                 exclude_constant_labels=False, average=median,
+                 callback=None, bufver="0", transform=None,
+                 allowed_labels=None):
+        """
+        Get data in a single example table with labels of individual
+        attributes set to annotations for query and post-processing
+        instructions.
+
+        :param ids: If `result_type` is specified then this must
+            be a list of  `unique_id`s or (id, data_id) tuples as
+            returned by `mappings`. Else the `ids` must be a list
+            of `unique_id`s as returned by `results_list`.
+        :type ids: list
+
+        :param result_type: Result template type id as returned by
+             `result_types`. Not specified by default (see `ids`.)
+        :type result_type: str
+
+        :param exclude_constant_labels: If a label has the same value
+            in whole example table, remove it.
+        :type exclude_constant_labels: bool
+
+        :param average: Function used for combining multiple reading of
+            the same spot on a chip. If None, no averaging is done.
+            Function should take a list of floats and return an "averaged"
+            float (default `median`).
+        :type average: function
+
+        """
+
+        def optcb():
+            if callback:
+                callback()
+
+        def argsort(a):
+            sort = sorted([(map(int, item), i) for i, item in enumerate(a)])
+            return [i for _, i in sort]
+
+        cbc = CallBack(len(ids), optcb, callbacks=10)
+
+        if result_type is not None:
+            ids_sort = argsort(ids)
+            res_list = self.results_list(result_type, reload=reload,
+                                         bufver=bufver)
+            # Map (data_id, mapping_id) to unique_id
+            res_types_to_unique_id = \
+                dict(((annot["data_id"], annot["mappings_id"]),
+                      annot["unique_id"]) \
+                     for annot in res_list.values())
+
+            mappings = self.mappings(reload=reload, bufver=bufver)
+
+            def id_map(mappings_unique_id):
+                cbc()
+                if isinstance(mappings_unique_id, tuple):
+                    data_id, mappings_id = mappings_unique_id
+                else:
+                    annot = mappings[mappings_unique_id]
+                    data_id = annot["data_id"]
+                    mappings_id = annot["id"]
+                return res_types_to_unique_id[data_id, mappings_id]
+
+            ids = map(id_map, ids)
+        else:
+            result_type_set = set(id.rsplit("_", 1)[-1] for id in ids)
+            if len(result_type_set) != 1:
+                raise ValueError("""\
+Can only retrieve a single result_template_type at a time"""
+)
+            result_type = result_type_set.pop()
+            res_list = self.results_list(result_type, reload=reload,
+                                         bufver=bufver)
+            sort_keys = [(int(res_list[id]["data_id"]),
+                          int(res_list[id]["mappings_id"]))\
+                         for id in ids]
+            ids_sort = argsort(sort_keys)
+
+        # Sort the ids for use by pipax api
+        ids_sorted = [ids[i] for i in ids_sort]
+
+        read = {}
+        for a, b in res_list.items():
+            read[a] = b.items()
+
+        cbc.end()
+
+        download_func = lambda x: self.download(x, reload=reload,
+                                                bufver=bufver)
+
+        cbc = CallBack(len(ids_sorted) + 3, optcb,
+                       callbacks=99 - 20)
+        et = self.exampleTables(ids_sorted, spotmap={}, callback=cbc,
+                            annots=read,
+                            exclude_constant_labels=exclude_constant_labels,
+                            chipfn=download_func,
+                            allowed_labels=allowed_labels)
+        cbc.end()
+
+        # Restore input ids order.
+        domain = orange.Domain([et.domain[id] for id in ids], None)
+        domain.addmetas(et.domain.getmetas())
+        et = orange.ExampleTable(domain, et)
+
+        cbc = CallBack(2, optcb, callbacks=10)
+
+        #transformation is performed prior to averaging
+        if transform != None:
+            transformValues(et, fn=transform)  # in place transform
+            cbc()
+
+        #if average function is given, use it to join same spotids
+        if average != None:
+            et = averageAttributes(et, fn=average)
+            cbc()
+
+        cbc.end()
+
+        return et
+
+    def download(self, result_ids, reload=False, bufver="0"):
+        """result_ids must be sorted (by `(data_id, mappings_id)`)
+        """
+        data = {"action": "download", "ids": "$MULTI$"}
+        data = self.add_auth(data)
+        antss = self.downloadMulti("", result_ids, data=data, chunk=10,
+                                   bufferkey=bufferkeypipax, bufreload=reload,
+                                   bufver=bufver)
+        for a, legend in antss:
+            yield a
+
+    def downloadMulti(self, command, ids, data=None, chunk=100,
+                      transformfn=None, bufferkey=None, separatefn=None,
+                      bufreload=False, bufver="0"):
+        """
+        Downloads multiple results at once.
+        Results in the same order as in ids.
+
+        Bufferkey transforms command and data into buffer key.
+        bufver is a function returning buffer version for a given id. if
+            a string is given, use it for all ids
+        """
+
+        sids = split(ids, chunk)
+
+        bufverfn = None
+        if isinstance(bufver, basestring):
+            bufverfn = lambda x: bufver
+        else:
+            bufverfn = bufver
+
+        bufcommand, replace_multi = \
+                self.downloadMulti_bufcommand_replace_multi(command,
+                                data=data, chunk=chunk, bufferkey=bufferkey,
+                                transformfn=transformfn
+                                )
+
+        for i, sidp in enumerate(sids):
+
+            buffered = []
+            unbuffered = []
+
+            for a in sidp:
+                if self.inBuffer(bufcommand(a)) == bufverfn(a) and \
+                        bufreload == False:
+                    buffered.append(a)
+                else:
+                    unbuffered.append(a)
+
+            res = []
+            legend = []
+
+            if len(unbuffered) > 0:
+                com1, d1 = replace_multi(command, data, ",".join(unbuffered))
+                # get unbuffered part
+                res, legend = self.sq(com1, data=d1, buffer=False)
+            else:
+                # get legend from buffer also
+                legend = self.fromBuffer(bufcommand(buffered[0]))[0]
+
+            legend = ["gene_id", "value"]
+            genes = nth(res, 0)
+
+            antss = {}
+            for i, cid in enumerate(unbuffered):
+                col = i + 1
+                vals = nth(res, col)
+                antss[cid] = [[a, b] for a, b in zip(genes, vals) if b != "?"]
+
+            #here save buffer
+            for a, b in antss.items():
+                self.toBuffer(bufcommand(a), [legend] + b, bufverfn(a),
+                              autocommit=False)
+            self.bufferCommit()
+
+            #get buffered from the buffer
+            antssb = dict([(b, self.fromBuffer(bufcommand(b))[1:]) \
+                           for b in buffered])
+            antss.update(antssb)
+
+            #put results in order
+            for ci in sidp:
+                yield antss[ci], legend
+
+
 class DictyExpress(DBCommon):
     """
     Type is object id

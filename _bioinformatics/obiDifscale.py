@@ -235,7 +235,7 @@ def spearmanr_filter(data, limit=1000):
 
 
 def signed_PCA(data):
-    pca = Orange.projection.pca.Pca(data, standardize=False, max_components=1)
+    pca = Orange.projection.linear.PCA(data, standardize=False, max_components=1)
     classifier = lambda X: [x[0].value for x in pca(X)]
     predictions = classifier(data)
     classes = [ex.getclass().value for ex in data]
