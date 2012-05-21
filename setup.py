@@ -35,6 +35,8 @@ KEYWORDS = (
     'expression profiles',
     'microarray',
     'genomics',
+    'orange',
+    'orange add-on',
 )
 
 CLASSIFIERS = (
@@ -43,7 +45,6 @@ CLASSIFIERS = (
     'Environment :: Console',
     'Environment :: Plugins',
     'Programming Language :: Python',
-    'Framework :: Orange',
     'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
     'Operating System :: OS Independent',
     'Topic :: Scientific/Engineering :: Artificial Intelligence',
