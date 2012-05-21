@@ -13,7 +13,7 @@ import math
 from datetime import date
 
 from Orange.orng import orngEnviron
-from Orange.OrangeWidgetsimport OWGUI
+from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiDicty
