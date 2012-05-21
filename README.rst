@@ -10,6 +10,10 @@ needs.
 
 .. _Orange: http://orange.biolab.si/
 
+Documentation is found at:
+
+http://orange-bioinformatics.readthedocs.org/
+
 Installing
 ----------
 

@@ -13,6 +13,7 @@ import os
 from setuptools import setup, find_packages
 
 NAME = 'Orange-Bioinformatics'
+DOCUMENTATION_NAME = 'Orange Bioinformatics'
 
 VERSION = '2.5a1'
 

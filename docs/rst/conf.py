@@ -14,9 +14,9 @@ import imp
 module_setup = imp.load_source('module_setup', os.path.join(os.path.dirname(__file__), '..', '..', 'setup.py'))
 VERSION = module_setup.VERSION
 AUTHOR = module_setup.AUTHOR
-NAME = module_setup.NAME
+DOCUMENTATION_NAME = module_setup.DOCUMENTATION_NAME
 
-TITLE = "%s v%s documentation" % (NAME, VERSION)
+TITLE = "%s v%s documentation" % (DOCUMENTATION_NAME, VERSION)
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -42,7 +42,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = NAME
+project = DOCUMENTATION_NAME
 copyright = AUTHOR
 
 # The version info for the project you're documenting, acts as replacement for
