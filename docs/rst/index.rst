@@ -1,4 +1,4 @@
-Orange-Bioinformatics documentation
+Orange Bioinformatics documentation
 ===================================
 
 Orange Bioinformatics is an add-on for Orange_ data mining software package. It
