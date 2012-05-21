@@ -62,20 +62,13 @@ PACKAGE_DATA = {
 }
 
 SETUP_REQUIRES = (
-    'distribute',
+    'setuptools',
 )
 
 INSTALL_REQUIRES = (
     'Orange',
-    'distribute',
-    'suds',
+    'setuptools',
     'numpy',
-    'requests',
-    'oasa',
-    'bkchem',
-    'PIL',
-    'networkx',
-    'pygraphviz',
     # Dependencies which are problematic to install automatically
     #'openbabel-python', # You get bindings together with the openbabel library and not stand-alone
     #'scipy', # Requires Fortran compiler
@@ -87,11 +80,21 @@ EXTRAS_REQUIRE = {
         # Dependencies which are problematic to install automatically
         #'PyQt', # No setup.py
     ),
+    'MOL_DEPICT': (
+        'oasa'
+    ),
+    'NETWORK': (
+        'Orange[NETWORK]'
+    ),
+    'KEGG': (
+        'suds'
+    )
+
 }
 
 DEPENDENCY_LINKS = (
-    'http://bkchem.zirael.org/download/bkchem-0.13.0.tar.gz',
-    'http://orange.biolab.si/download/bkchem-0.13.0.tar.gz',
+#    'http://bkchem.zirael.org/download/bkchem-0.13.0.tar.gz',
+#    'http://orange.biolab.si/download/bkchem-0.13.0.tar.gz',
     'http://bkchem.zirael.org/download/oasa-0.13.1.tar.gz',
     'http://orange.biolab.si/download/oasa-0.13.1.tar.gz',
 )
