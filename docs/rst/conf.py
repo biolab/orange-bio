@@ -11,14 +11,12 @@
 import sys, os
 
 import imp
-module_setup = imp.load_source('module_setup', os.path.join(os.path.dirname(__file__), '..', '..', '..', 'setup.py'))
+module_setup = imp.load_source('module_setup', os.path.join(os.path.dirname(__file__), '..', '..', 'setup.py'))
 VERSION = module_setup.VERSION
 AUTHOR = module_setup.AUTHOR
 NAME = module_setup.NAME
 
-DOCUMENTATION_TYPE = "Widgets"
-
-TITLE = "%s %s v%s documentation" % (NAME, DOCUMENTATION_TYPE, VERSION)
+TITLE = "%s v%s documentation" % (NAME, VERSION)
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -171,7 +169,7 @@ html_show_copyright = False
 #html_file_suffix = ''
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = DOCUMENTATION_TYPE.lower().replace(' ', '')
+htmlhelp_basename = 'addon'
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -185,7 +183,7 @@ htmlhelp_basename = DOCUMENTATION_TYPE.lower().replace(' ', '')
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', '%s.tex' % (DOCUMENTATION_TYPE.lower().replace(' ', ''),), html_title,
+  ('index', 'addon.tex', html_title,
    copyright, 'manual'),
 ]
 
@@ -217,7 +215,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', DOCUMENTATION_TYPE.lower().replace(' ', ''), TITLE,
+    ('index', 'addon', TITLE,
      [AUTHOR], 1)
 ]
 
