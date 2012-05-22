@@ -23,7 +23,29 @@ Scripting Reference
    
 .. toctree::
    :maxdepth: 1
- 
+
+Installation
+------------
+
+To install Bioinformatics add-on for Orange from PyPi_ run::
+
+    pip install Orange-Bioinformatics
+
+To install it from source code run::
+
+    python setup.py install
+
+To build Python egg run::
+
+    python setup.py bdist_egg
+
+To install add-on in `development mode`_ run::
+
+    python setup.py develop
+
+.. _development mode: http://packages.python.org/distribute/setuptools.html#development-mode
+.. _PyPi: http://pypi.python.org/pypi
+
 Source Code and Issue Tracker
 -----------------------------
 

@@ -15,7 +15,7 @@ from setuptools import setup, find_packages
 NAME = 'Orange-Bioinformatics'
 DOCUMENTATION_NAME = 'Orange Bioinformatics'
 
-VERSION = '2.5a3'
+VERSION = '2.5a4'
 
 DESCRIPTION = 'Orange Bioinformatics add-on for Orange data mining software package.'
 LONG_DESCRIPTION = open(os.path.join(os.path.dirname(__file__), 'README.rst')).read()
@@ -23,6 +23,7 @@ AUTHOR = 'Bioinformatics Laboratory, FRI UL'
 AUTHOR_EMAIL = 'contact@orange.biolab.si'
 URL = 'http://orange.biolab.si/addons/'
 DOWNLOAD_URL = 'https://bitbucket.org/biolab/orange-bioinformatics/downloads'
+DOCS_URL = 'http://orange-bioinformatics.readthedocs.org/'
 LICENSE = 'GPLv3'
 
 KEYWORDS = (
@@ -123,6 +124,7 @@ if __name__ == '__main__':
         author_email = AUTHOR_EMAIL,
         url = URL,
         download_url = DOWNLOAD_URL,
+        docs_url = DOCS_URL,
         license = LICENSE,
         keywords = KEYWORDS,
         classifiers = CLASSIFIERS,

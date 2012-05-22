@@ -13,23 +13,3 @@ needs.
 Documentation is found at:
 
 http://orange-bioinformatics.readthedocs.org/
-
-Installing
-----------
-
-To install Bioinformatics add-on for Orange run::
-
-    python setup.py install
-
-To build Python egg run::
-
-    python setup.py bdist_egg
-
-Installation for Developers
----------------------------
-
-To install add-on in `development mode`_ run::
-
-    python setup.py develop
-
-.. _development mode: http://packages.python.org/distribute/setuptools.html#development-mode
