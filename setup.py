@@ -23,7 +23,6 @@ AUTHOR = 'Bioinformatics Laboratory, FRI UL'
 AUTHOR_EMAIL = 'contact@orange.biolab.si'
 URL = 'http://orange.biolab.si/addons/'
 DOWNLOAD_URL = 'https://bitbucket.org/biolab/orange-bioinformatics/downloads'
-DOCS_URL = 'http://orange-bioinformatics.readthedocs.org/'
 LICENSE = 'GPLv3'
 
 KEYWORDS = (
@@ -124,7 +123,6 @@ if __name__ == '__main__':
         author_email = AUTHOR_EMAIL,
         url = URL,
         download_url = DOWNLOAD_URL,
-        docs_url = DOCS_URL,
         license = LICENSE,
         keywords = KEYWORDS,
         classifiers = CLASSIFIERS,
