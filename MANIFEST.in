@@ -1,6 +1,8 @@
 recursive-include _bioinformatics *.png
 recursive-include scripts *
 recursive-include tests *
+recursive-include docs/rst *
+include docs/Makefile
 include COPYING
 include LICENSE
 include *.py *.txt *.rst
