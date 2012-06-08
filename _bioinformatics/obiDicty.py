@@ -797,7 +797,7 @@ class PIPAx(PIPA):
     def get_data(self, ids=None, result_type=None,
                  exclude_constant_labels=False, average=median,
                  callback=None, bufver="0", transform=None,
-                 allowed_labels=None):
+                 allowed_labels=None, reload=False):
         """
         Get data in a single example table with labels of individual
         attributes set to annotations for query and post-processing
@@ -837,14 +837,15 @@ class PIPAx(PIPA):
 
         if result_type is not None:
             ids_sort = argsort(ids)
-            res_list = self.results_list(result_type, bufver=bufver)
+            res_list = self.results_list(result_type, reload=reload,
+                                         bufver=bufver)
             # Map (data_id, mapping_id) to unique_id
             res_types_to_unique_id = \
                 dict(((annot["data_id"], annot["mappings_id"]),
                       annot["unique_id"]) \
                      for annot in res_list.values())
 
-            mappings = self.mappings(bufver=bufver)
+            mappings = self.mappings(reload=reload, bufver=bufver)
 
             def id_map(mappings_unique_id):
                 cbc()
@@ -864,7 +865,8 @@ class PIPAx(PIPA):
 Can only retrieve a single result_template_type at a time"""
 )
             result_type = result_type_set.pop()
-            res_list = self.results_list(result_type, bufver=bufver)
+            res_list = self.results_list(result_type, reload=reload,
+                                         bufver=bufver)
             sort_keys = [(int(res_list[id]["data_id"]),
                           int(res_list[id]["mappings_id"]))\
                          for id in ids]
@@ -879,8 +881,8 @@ Can only retrieve a single result_template_type at a time"""
 
         cbc.end()
 
-        #newer reload chip results
-        download_func = lambda x: self.download(x, bufver=bufver)
+        download_func = lambda x: self.download(x, reload=reload,
+                                                bufver=bufver)
 
         cbc = CallBack(len(ids_sorted) + 3, optcb,
                        callbacks=99 - 20)
