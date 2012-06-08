@@ -837,15 +837,14 @@ class PIPAx(PIPA):
 
         if result_type is not None:
             ids_sort = argsort(ids)
-            res_list = self.results_list(result_type, reload=reload,
-                                         bufver=bufver)
+            res_list = self.results_list(result_type, bufver=bufver)
             # Map (data_id, mapping_id) to unique_id
             res_types_to_unique_id = \
                 dict(((annot["data_id"], annot["mappings_id"]),
                       annot["unique_id"]) \
                      for annot in res_list.values())
 
-            mappings = self.mappings(reload=reload, bufver=bufver)
+            mappings = self.mappings(bufver=bufver)
 
             def id_map(mappings_unique_id):
                 cbc()
@@ -865,8 +864,7 @@ class PIPAx(PIPA):
 Can only retrieve a single result_template_type at a time"""
 )
             result_type = result_type_set.pop()
-            res_list = self.results_list(result_type, reload=reload,
-                                         bufver=bufver)
+            res_list = self.results_list(result_type, bufver=bufver)
             sort_keys = [(int(res_list[id]["data_id"]),
                           int(res_list[id]["mappings_id"]))\
                          for id in ids]
@@ -881,8 +879,8 @@ Can only retrieve a single result_template_type at a time"""
 
         cbc.end()
 
-        download_func = lambda x: self.download(x, reload=reload,
-                                                bufver=bufver)
+        #newer reload chip results
+        download_func = lambda x: self.download(x, bufver=bufver)
 
         cbc = CallBack(len(ids_sorted) + 3, optcb,
                        callbacks=99 - 20)
