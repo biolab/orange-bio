@@ -145,7 +145,7 @@ class OWPIPAx(OWWidget):
     settingsList = ["server", "excludeconstant", "username", "password",
                     "joinreplicates", "selectionSetsWidget.selections",
                     "columnsSortingWidget.sortingOrder", "currentSelection",
-                    "log2", "experimentsHeaderState", "rtypei"]
+                    "log2", "experimentsHeaderState", "rtypei" ]
 
     def __init__(self, parent=None, signalManager=None, name="PIPAx"):
         OWWidget.__init__(self, parent, signalManager, name)
@@ -154,7 +154,7 @@ class OWPIPAx(OWWidget):
         self.username = ""
         self.password = ""
         self.log2 = False
-        self.rtypei = 0
+        self.rtypei = 5 #hardcoded rpkm mapability polya
 
         self.selectedExperiments = []
         self.buffer = obiDicty.BufferSQLite(bufferfile)
