@@ -65,7 +65,7 @@ class HomoloGene(_Homologs):
     
     def load(self):
         path = orngServerFiles.localpath_download(self.DOMAIN, self.FILENAME)
-        lines = open(path, "rb").read().split("\n")[:-1]
+        lines = open(path, "rb").read().splitlines()[:-1]
         self._homologs = {} 
         self._homologs = dict([((h.taxonomy_id, h.gene_symbol), h) for h in [_homolog(line) for line in lines]])
         self._homologs_by_group = reduce(lambda dict, h: dict[h.group_id].append(h) or dict, self._homologs.values(), defaultdict(list))

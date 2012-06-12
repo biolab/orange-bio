@@ -176,7 +176,7 @@ class OBOObject(object):
 
     def ParseStanza(self, stanza):
         intern_tags = set(self._INTERN_TAGS)
-        for line in stanza.split("\n"):
+        for line in stanza.splitlines():
             if ":" not in line:
                 continue
             tag, rest = line.split(":", 1)
@@ -353,7 +353,7 @@ class Ontology(object):
     def GetDefinedSlimsSubsets(self):
         """ Return a list of defined subsets.
         """
-        return [line.split()[1] for line in self.header.split("\n") if line.startswith("subsetdef:")]
+        return [line.split()[1] for line in self.header.splitlines() if line.startswith("subsetdef:")]
 
     def SetSlimsSubset(self, subset):
         """ Set the slims term subset to subset. If subset is a string it
@@ -647,7 +647,7 @@ class Annotations(object):
                 f = open(os.path.join(file, "gene_association"))
         else:
             f = file
-        lines = [line for line in f.read().split("\n") if line.strip()]
+        lines = [line for line in f.read().splitlines() if line.strip()]
         from Orange.orng import orngMisc
         milestones = orngMisc.progressBarMilestones(len(lines), 100)
         for i,line in enumerate(lines):

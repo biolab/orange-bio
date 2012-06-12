@@ -73,7 +73,7 @@ class NCBIGeneInfo(dict):
 
         fname = orngServerFiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)
         file = open(fname, "rb")
-        self.update(dict([(line.split("\t", 3)[1], line) for line in file.read().split("\n") if line.strip() and not line.startswith("#")]))
+        self.update(dict([(line.split("\t", 3)[1], line) for line in file.read().splitlines() if line.strip() and not line.startswith("#")]))
 
         # NOTE orig init time for gene matcher: 2.5s, new 4s: investigate the slowdown
         # NOTE matches are not the same because aliases are build a bit
@@ -93,7 +93,7 @@ class NCBIGeneInfo(dict):
         if getattr(self, "_history", None) is None:
             fname = orngServerFiles.localpath_download("NCBI_geneinfo", "gene_history.%s.db" % self.taxid)
             try:
-                self._history = dict([(line.split("\t")[2], GeneHistory(line)) for line in open(fname, "rb").read().split("\n")])
+                self._history = dict([(line.split("\t")[2], GeneHistory(line)) for line in open(fname, "rb").read().splitlines()])
                 
             except Exception, ex:
                 print >> sys.srderr, "Loading NCBI gene history failed.", ex
@@ -126,7 +126,7 @@ class NCBIGeneInfo(dict):
         """
         if type(file) in [str, unicode]:
             file = open(file, "rb")
-        return cls((line.split("\t", 3)[1], line) for line in file.read().split("\n") if line.strip() and not line.startswith("#"))
+        return cls((line.split("\t", 3)[1], line) for line in file.read().splitlines() if line.strip() and not line.startswith("#"))
         
     def get_info(self, gene_id, def_=None):
         """ Search and return the GeneInfo object for gene_id

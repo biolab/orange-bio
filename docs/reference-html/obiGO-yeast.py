@@ -144,7 +144,7 @@ GOTERM_MF_ALL	GO:0022857~transmembrane transporter activity	13	92.86%	6.05182729
 """
 
 def proces_david(dav):
-    lines = [line.split("\t") for line in dav.split("\n") if line]
+    lines = [line.split("\t") for line in dav.splitlines() if line]
     keys = lines[0]
     return dict([(line[1].split("~")[0], dict(zip(keys, line))) for line in lines])
 

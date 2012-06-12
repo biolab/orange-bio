@@ -128,7 +128,7 @@ class DBDBLinks(DBSimpleField):
         
     def _convert(self):
         # Some dblinks can span multiple lines but are always 'indented' 
-        links = DBSimpleField._convert(self).replace("\n ", "").split("\n")
+        links = DBSimpleField._convert(self).replace("\n ", "").splitlines()
         links = [tuple(link.split(": ", 1)) for link in links]
         links = [(key, [v for v in values.split(" ") if v]) \
                  for key, values in links]

@@ -227,14 +227,14 @@ class _field_mutators(object):
     @classmethod
     def to_dict(cls, text, field):
         text = cls.deindent(text, field).replace("\n ", " ")
-        lines = [t.split(": ",1) for t in text.split("\n")]
+        lines = [t.split(": ",1) for t in text.splitlines()]
         return dict([(key, [t.strip() for t in value.split(" ") if t]) for key, value in lines])
     
     @classmethod
     def to_ids(cls, text, field):
-        lines = [line.split(" ", 2)[:2] for line in cls.deindent(text, field).split("\n") if ":" in line.split(" ", 1)[0]]
+        lines = [line.split(" ", 2)[:2] for line in cls.deindent(text, field).splitlines() if ":" in line.split(" ", 1)[0]]
         return [db.lower() + id for db, id in lines] 
-#        ids = reduce(lambda col, line:1, text.split("\n"), [])
+#        ids = reduce(lambda col, line:1, text.splitlines(), [])
         return ids
     default = deindent
 #    entry = classmethod(lambda cls, text, field: cls.deindent(text, field).split()[0])
@@ -304,7 +304,7 @@ class KEGGDBEntry(object):
     def __init__(self, entrytext, index=None):
         self.entrytext = entrytext
         if not self.FIELDS:
-            self.FIELDS = set([line.split()[0] for line in entrytext.split("\n") if line.strip() and not line.startswith(" ")])
+            self.FIELDS = set([line.split()[0] for line in entrytext.splitlines() if line.strip() and not line.startswith(" ")])
         self._index(index)
         
     def _indices(self, field):

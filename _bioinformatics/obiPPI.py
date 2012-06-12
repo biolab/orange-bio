@@ -1156,7 +1156,7 @@ class _BioGRID_Old(object):
     def load(self):
         text = open(orngServerFiles.localpath_download("PPI", "BIOGRID-ALL.tab"), "rb").read()
         text = text.split("SOURCE\tPUBMED_ID\tORGANISM_A_ID\tORGANISM_B_ID\n", 1)[-1]
-        self.interactions = [BioGRIDInteraction(line) for line in text.split("\n") if line.strip()]
+        self.interactions = [BioGRIDInteraction(line) for line in text.splitlines() if line.strip()]
         
         self.protein_interactions = defaultdict(set)
         self.protein_names = {}

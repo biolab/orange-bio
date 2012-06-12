@@ -164,7 +164,7 @@ def parseXML(stream, parser=None):
     
 
 def de_tab(text, sep="\t"):
-    return [line.split(sep) for line in text.split("\n") if line.strip()]
+    return [line.split(sep) for line in text.splitlines() if line.strip()]
 
 
 def cached(func):

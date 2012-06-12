@@ -61,7 +61,7 @@ class OMIM(object):
     
     def load(self, filename):
         file = open(filename, "rb")
-        lines = file.read().split("\n")
+        lines = file.read().splitlines()
         self._disease_dict = dict([(disease(line), line) for line in lines if line])
         
     def diseases(self):
