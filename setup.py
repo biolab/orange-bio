@@ -103,7 +103,7 @@ DEPENDENCY_LINKS = (
 
 ENTRY_POINTS = {
     'orange.addons': (
-        'bioinformatics = _bioinformatics',
+        'bio = _bioinformatics',
     ),
     'orange.widgets': (
         'Bioinformatics = _bioinformatics.widgets',
