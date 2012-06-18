@@ -711,7 +711,7 @@ class PIPA(DBCommon):
 
 def bufferkeypipax(command, data):
     """ Do not save password to the buffer! """
-    command = command + " v7" #add version
+    command = command + " v8" #add version
     if data != None:
         data = data.copy()
         if pipaparpass in data:
