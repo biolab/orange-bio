@@ -5,28 +5,28 @@ obiArrayExpress
 
 A python module for accessing the ArrayExpress web services and database.
 
-`Array Express Archive <http://www.ebi.ac.uk/arrayexpress/>`_ is a database of gene expression experiments that you
-can query and download.
+`Array Express Archive <http://www.ebi.ac.uk/arrayexpress/>`_ is a
+database of gene expression experiments that you can query and download.
 
 Example ::
 
-    >>> # Retrieve the object representing experiment with accession E-TABM-25 
+    >>> # Retrieve the object representing experiment with accession E-TABM-25
     >>> experiment = ArrayExpressExperiment("E-TABM-25")
     >>> print experiment.accession
     E-TABM-25
-    
+
     >>> print experiment.name
     Transcription profiling of aging in the primate brain
-    
+
     >>> print experiment.species
     ['Pan troglodytes']
-    
+
     >>> print experiment.files
     [{'kind': ...
-    
+
     >>> # Retrieve the data matrix for experiment 'E-MEXP-2917'
     >>> experiment = ArrayExpressExperiment("E-MEXP-2917")
-    >>> table = experiment.fgem_to_table() 
+    >>> table = experiment.fgem_to_table()
 
 
 Low level Array Express query using REST services::
@@ -34,13 +34,13 @@ Low level Array Express query using REST services::
     >>> from Orange.bioinformatics import obiArrayExpress
     >>> obiArrayExpress.query_experiments(accession='E-MEXP-31')
     {u'experiments': ...
-    
+
     >>> obiArrayExpress.query_experiments(keywords='gliobastoma')
     {u'experiments': ...
-    
+
     >>> obiArrayExpress.query_files(accession='E-MEXP-32', format="xml")
     <xml.etree.ElementTree.ElementTree object ...
-   
+
 .. note:: Currently querying ArrayExpress files only works with the xml format.
 
 .. note:: See the documentation of `query_experiments` for a full set of
@@ -50,12 +50,14 @@ Low level Array Express query using REST services::
 
 from __future__ import absolute_import
 
-import os, sys
+import os
+import sys
 import urllib2
+import re
 
 from Orange.orng import orngServerFiles
+
 import warnings
-import posixpath
 import shelve
 import shutil
 import posixpath
@@ -69,10 +71,12 @@ from contextlib import closing
 
 parse_json = json.load
 
+
 def parse_xml(stream):
-    """ Parse an xml stream into an instance of xml.etree.ElementTree.ElementTree.
+    """ Parse an xml stream into an instance of
+    `xml.etree.ElementTree.ElementTree`.
     """
-    return ElementTree(file=stream) 
+    return ElementTree(file=stream)
 
 # All searchable fields of ArrayExpress (see query_experiments docstring
 # for a description of the fields)
@@ -100,31 +104,32 @@ ARRAYEXPRESS_FIELDS = \
      "date",
      "wholewords",
     ]
-    
+
 
 class ArrayExpressConnection(object):
     """ A connection to the ArrayExpress. Used to construct a REST query
     and run it.
-    
+
     .. todo:: Implement user login.
-    
+
     """
-    
+
     DEFAULT_ADDRESS = "http://www.ebi.ac.uk/arrayexpress/{format}/v2/"
     DEFAULT_FORMAT = "json"
-    DEFAULT_CACHE = orngServerFiles.localpath("ArrayExpress", "ArrayExpressCache.shelve")
+    DEFAULT_CACHE = orngServerFiles.localpath("ArrayExpress",
+                                              "ArrayExpressCache.shelve")
     # Order of arguments in the query
     _ARGS_ORDER = ["keywords", "species", "array"]
-    
+
     def __init__(self, address=None, timeout=30, cache=None,
                  username=None, password=None):
         """ Initialize the connection object.
-        
+
         :param address: Address of the ArrayExpress API
         :param timeout: Timeout for the socket connection
-        
+
         .. todo:: Implement user login (see Accessing Private Data in API docs)
-        
+
         """
         self.address = address if address is not None else self.DEFAULT_ADDRESS
         self.timeout = timeout
@@ -469,7 +474,7 @@ def parse_data_matrix(file):
     """ Parse the MAGE-TAB processed data matrix. Return a tuple where the
     elements are:
         - a (header REF, header values) tuple (e.g. ("Hybridization REF", ["Stage1", "Stage2", ...]) )
-        - a list of quantitations for header values (e.g. ["log2 ratio", "log2 ratio", ...])
+        - a list of quantitation type for header values (e.g. ["log2 ratio", "log2 ratio", ...])
         - a (row REF, row names list) tuple ("e.g. ("Reporter REF", ["Probe 1", "Probe 2", ...]) )
         - a list of list matrix with values (as strings)
         
@@ -482,7 +487,7 @@ def parse_data_matrix(file):
     header = lines[0]
     header_ref, header = header[0], header[1:]
     line2 = lines[1]
-    row_ref, quanifications = line2[0], line2[1:]
+    row_ref, quant_type = line2[0], line2[1:]
     row_names, rows = [], []
     for line in lines[2:]:
         r_name, row = line[0], line[1:]
@@ -490,7 +495,7 @@ def parse_data_matrix(file):
         rows.append(row)
         
     return ((header_ref, header),
-            quanifications,
+            quant_type,
             (row_ref, row_names),
             rows) 
     
@@ -555,16 +560,16 @@ class SampleDataRelationship(object):
     Example ::
     
         >>> sdr = SampleDataRelationship("foobar.sdrf")
-        >>> sdr.source_name
+        >>> sdr.source_name()
         ['foo', ...
         
-        >>> sdr.sample_name
+        >>> sdr.sample_name()
         ['sampled foo', ...
         
-        >>> sdr.extract_protocol_ref
+        >>> sdr.extract_protocol_ref()
         ['bar the foo', ...
         
-        >>> sdr.derived_array_data_matrix_file
+        >>> sdr.derived_array_data_matrix_file()
         ['foobar.data.txt', ...
         
         >>>
@@ -649,7 +654,10 @@ class SampleDataRelationship(object):
     def _column(self, name):
         """ Return the named column.
         """
-        index = self.header.index(name)
+        if isinstance(name, basestring):
+            index = self.header.index(name)
+        else:
+            index = name
         return [r[index] for r in self.rows]
         
     def source(self):
@@ -693,14 +701,14 @@ class SampleDataRelationship(object):
         return self._column("Labeled Extract Name")
         
     def hybridization(self):
-        """ Return the Hibridization subsection.
+        """ Return the Hybridization subsection.
         """
-        return self._subsection("Hibridization Name")
+        return self._subsection("Hybridization Name")
         
     def hybridization_name(self):
         """ Return the Hibridization Name subsection.
         """
-        return self._column("Hibridization Name")
+        return self._column("Hybridization Name")
         
     def assay(self):
         """ Return the Assay subsection
@@ -808,7 +816,7 @@ def _is_continuous(items, check_count=100):
             break
     return count >= i * 0.5
     
-def processed_matrix_to_orange(matrix_file):
+def processed_matrix_to_orange(matrix_file, sdrf=None):
     """ Load a single processed matrix file in to an Orange.data.Table
     instance. 
     """
@@ -817,9 +825,8 @@ def processed_matrix_to_orange(matrix_file):
     
     if isinstance(matrix_file, basestring):
         matrix_file = open(matrix_file, "rb")
-        
-#    data_matrix = matrix_file.read()
-    header, quantification, rows, matrix = parse_data_matrix(matrix_file)
+
+    header, quant_type, rows, matrix = parse_data_matrix(matrix_file)
     header_ref, header = header
     row_ref, rows = rows
     
@@ -829,14 +836,14 @@ def processed_matrix_to_orange(matrix_file):
     features = []
     is_float = numpy.frompyfunc(_is_float, 1, 1) # an numpy ufunc
          
-    for header_name, quant, column in zip(header, quantification, matrix.T):
+    for header_name, quant, column in zip(header, quant_type, matrix.T):
         if _is_continuous(column):
             feature = Orange.feature.Continuous(header_name)
             column[numpy.where(1 - is_float(column))] = "?" # relace all non parsable floats with '?'
         else:
             values = set(column)
             feature = Orange.feature.Discrete(header_name, values=sorted(values))
-        feature.attributes["quantification"] = quant
+        feature.attributes["quantitation type"] = quant
         features.append(feature)
         
     row_ref_feature = Orange.feature.String(row_ref)
@@ -844,23 +851,43 @@ def processed_matrix_to_orange(matrix_file):
     domain.addmeta(Orange.feature.Descriptor.new_meta_id(), row_ref_feature)
     
     table = Orange.data.Table(domain, [list(row) for row in matrix])
-    
+    table.setattr("header_ref", header_ref)
     # Add row identifiers
     for instance, row in zip(table, rows):
         instance[row_ref_feature] = row
-    
+
+    if sdrf is not None:
+        pattern = re.compile(r"((Characteristics)|(Factor Value)|(Parameter Value)) \[(?P<name>.*?)\].*")
+        # Row name in sdrf
+        row_name = header_ref[:header_ref.find(" REF")] + " Name"
+        # feature names as listed in sdrf
+        feature_names = sdrf._column(row_name)
+        annotations = defaultdict(partial(defaultdict, set))
+        for i, header in enumerate(sdrf.header):
+            match = pattern.match(header)
+            if match:
+                name = match.group("name")
+                for val, feature_name in zip(sdrf._column(i), feature_names):
+                    annotations[feature_name][name].add(val)
+
+        def to_str(values):
+            if len(values) > 1:
+                return str(list(values))
+            else:
+                return str(list(values)[0])
+
+        for feature in table.domain.features:
+            feature.attributes.update([(key, to_str(value)) for key, value in \
+                                       annotations[feature.name].items()])
     return table
-    
+
 
 def mage_tab_to_orange(idf_filename):
-    """ Convert an MAGE-TAB annotated experiment into an Orange.data.Table
+    """Convert an MAGE-TAB annotated experiment into an Orange.data.Table
     instance (assumes all the associated MAGE-TAB files are in the same
     directory.
-    
-    .. todo:: Add Characteristics, Factor Values ... to the feature.attributes dict
-    
+
     """
-    import Orange
     dirname = os.path.dirname(idf_filename)
     idf = InvestigationDesign(idf_filename)
     
@@ -873,11 +900,13 @@ def mage_tab_to_orange(idf_filename):
     tables = []
     for filename in data_matrices:
         matrix_file = os.path.join(dirname, filename)
-        table = processed_matrix_to_orange(matrix_file)
+        table = processed_matrix_to_orange(matrix_file, sdrf)
         tables.append(table)
-        
-    return hstack_tables(tables)
-    
+    table = hstack_tables(tables)
+
+    return table
+
+
 def hstack_tables(tables):
     """ Stack the tables horizontaly.
     """
@@ -926,7 +955,7 @@ def _dictify(element):
     return dict
     
 class SearchableList(list):
-    """ A list with a `search` method
+    """ A list with an advanced `search` method
     """
     def search(self, **kwargs):
         """ Search the list for elements with members that correspond the
@@ -936,7 +965,7 @@ class SearchableList(list):
             >>> list = SearchableList([foo, bar])
             >>> list.search(bar="foo") # Search for objects which have a member named "bar" and that member equals "foo"
             [<__main__.foo object ...
-            
+
         """
         ret = []
         for obj in self:
@@ -1561,7 +1590,6 @@ def query_atlas_simple(genes=None, regulation=None, organism=None,
         {u'...
         
     """
-    import warnings
     warnings.warn("Use 'obiGeneAtlas.run_simple_query' instead.", DeprecationWarning)
     conditions = AtlasConditionList()
     if genes:
@@ -1598,7 +1626,6 @@ def query_atlas(condition, format="json", start=None, rows=None, indent=False, c
         {u'...
         
     """
-    import warnings
     warnings.warn("Use 'obiGeneAtlas.run_query' instead.", DeprecationWarning)
     if connection is None:
         connection = GeneExpressionAtlasConenction()
@@ -1630,7 +1657,6 @@ def get_atlas_summary(genes, organism, connection=None):
         ({u'RUNX1': ...
         
     """
-    import warnings
     warnings.warn("Use 'obiGeneAtlas.get_atlas_summary' instead.", DeprecationWarning)
     genes_condition = AtlasConditionGeneProperty("Gene", "Is", genes)
     org_condition = AtlasConditionOrganism(organism)
@@ -1666,8 +1692,8 @@ def collect_ef_summary(info, ef, summary=None):
                     summary[gene["name"]][efv] = updown
     
     return summary
-    
-    
+
+
 def test():    
     conn = ArrayExpressConnection()
     import doctest
