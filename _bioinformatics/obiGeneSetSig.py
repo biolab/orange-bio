@@ -331,6 +331,7 @@ class SetSig(GeneSetTrans):
 class ParametrizedTransformation(GeneSetTrans):
 
     def _get_par(self, datao):
+        """ Get parameters for a subset of data, that comprises only the gene set """
         pass
         
     def _use_par(self, ex, constructt):
@@ -352,7 +353,7 @@ class ParametrizedTransformation(GeneSetTrans):
           
             #convert the example to the same domain
             exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
-            ex = numpy.array(exvalues[:-1])
+            ex = Orange.data.Instance(domain, exvalues)
 
             return self._use_par(ex, constructt)
             
@@ -365,6 +366,7 @@ class PLS(ParametrizedTransformation):
         return PLSCall(datao, nc=1, y=[datao.domain.class_var])
         
     def _use_par(self, ex, constructt):
+        ex = [ ex[i].value for i in range(len(ex.domain.attributes)) ]
         xmean, W, P, _ = constructt
         ex = ex - xmean # same input transformation
 
@@ -388,6 +390,7 @@ class PCA(ParametrizedTransformation):
         return pca(datao)
 
     def _use_par(self, arr, constructt):
+        arr = [ arr[i].value for i in range(len(arr.domain.attributes)) ]
         evals, evect, xmean = constructt
 
         arr = arr - xmean # same input transformation - a row in a matrix
