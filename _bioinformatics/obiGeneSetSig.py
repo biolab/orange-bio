@@ -13,6 +13,7 @@ from .obiGsea import takeClasses
 from .obiAssess import pca, PLSCall, corgs_activity_score
 from . import obiExpression, obiGene, obiGeneSets, obiGsea, stats
 
+
 class GeneSetTrans(object):
 
     __new__ = Orange.utils._orange__new__(object)
@@ -42,7 +43,7 @@ class GeneSetTrans(object):
         else:
             return nm, name_ind, genes, takegenes
 
-    def __init__(self, matcher=None, gene_sets=None, min_size=3, max_size=1000, min_part=0.1, class_values=None):
+    def __init__(self, matcher=None, gene_sets=None, min_size=3, max_size=1000, min_part=0.1, class_values=None, cv=False):
         self.matcher = matcher
         self.gene_sets = gene_sets
         self.min_size = min_size
@@ -50,6 +51,7 @@ class GeneSetTrans(object):
         self.min_part = min_part
         self.class_values = class_values
         self._cache = {}
+        self.cv = cv
 
     def __call__(self, data, weight_id=None):
 
@@ -61,11 +63,30 @@ class GeneSetTrans(object):
         #build a new domain
         newfeatures = self.build_features(data, gene_sets)
         newdomain = Orange.data.Domain(newfeatures, data.domain.class_var)
-        return Orange.data.Table(newdomain, data)
+
+        #build a data set with cross validation
+        if self.cv == False:
+            return Orange.data.Table(newdomain, data)
+        else:
+            # The domain has the transformer that is build on all samples,
+            # while the transformed data table uses cross-validation
+            # internally
+            folds = 5
+            cvi = Orange.data.sample.SubsetIndicesCV(data, folds)
+            data_cv = [ [] for _ in range(len(data)) ]
+            for f in range(folds):
+                learn = data.select(cvi, f, negate=True)
+                test = data.select(cvi, f)
+                lf = self.build_features(learn, gene_sets)
+                transd = Orange.data.Domain(lf, data.domain.class_var)
+                trans_test = Orange.data.Table(transd, test)
+                for ex, pos in \
+                    zip(trans_test, [ i for i,n in enumerate(cvi) if n == f ]):
+                    data_cv[pos] = ex.native(0)
+            return Orange.data.Table(newdomain, data_cv)
 
     def build_features(self, data, gene_sets):
         return [ self.build_feature(data, gs) for gs in gene_sets ]
-
 
 def normcdf(x, mi, st):
     return 0.5*(2. - stats.erfcc((x - mi)/(st*math.sqrt(2))))
