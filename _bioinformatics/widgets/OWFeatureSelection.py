@@ -286,7 +286,7 @@ class OWFeatureSelection(OWWidget):
         self.label_selection_widget.clear()
         self.label_selection_widget.set_labels(targets)
         self.data_labels = targets
-        
+
     def set_data(self, data):
         self.closeContext("Data")
         self.closeContext("TargetSelection")
@@ -296,32 +296,35 @@ class OWFeatureSelection(OWWidget):
         self.genes_in_columns_check.setEnabled(True)
         self.data = data
         self.init_from_data(data)
-        
+
         if self.data:
             self.genes_in_columns = not data_hints.get_hint(data, "genesinrows", False)
             self.openContext("Data", data)
-            
-            # If only attr. labels or only class values then disable the 'Genes in columns' control
+
+            # If only attr. labels or only class values then disable
+            # the 'Genes in columns' control
             if not self.attribute_targets or not self.class_targets:
                 self.genes_in_columns_check.setEnabled(False)
                 self.genes_in_columns = bool(self.attribute_targets)
-        
+
         self.update_targets_widget()
-        
-        # If both attr. labels and classes are missing, show an error
-        if not (self.attribute_targets or self.class_targets):
-#        if self.data and not self.data_labels:
-            self.error(1, "Cannot compute gene scores! Gene Selection widget requires a data-set with a discrete class variable or attribute labels!")
+
+        if self.data is not None  and \
+                not (self.attribute_targets or self.class_targets):
+            # If both attr. labels and classes are missing, show an error
+            self.error(1, "Cannot compute gene scores! Gene Selection widget "
+                          "requires a data-set with a discrete class variable "
+                          "or attribute labels!")
             self.data = None
-        
+
         if self.data:
             # Load context selection
             items = [(label, v) for label, values in self.data_labels for v in values]
-            
+
             self.target_selections = [values[:1] for _, values in self.data_labels]
             label, values = self.data_labels[0]
             self.current_target_selection = label, values[:1] # Default selections
-            
+
             self.openContext("TargetSelection", set(items)) # Load selections from context
             self.label_selection_widget.set_selection(*self.current_target_selection)
 
@@ -329,7 +332,7 @@ class OWFeatureSelection(OWWidget):
             self.send("Example table with selected genes", None)
             self.send("Example table with remaining genes", None)
             self.send("Selected genes", None)
-            
+
     def set_targets(self, targets):
         """ Set the target groups for score computation.
         """
@@ -616,13 +619,18 @@ class OWFeatureSelection(OWWidget):
             self.send("Example table with remaining genes", None)
             self.send("Selected genes", None)
         self.data_changed_flag = False
-        
+
     def on_target_changed(self):
-        label, values  = self.label_selection_widget.current_selection()
+        label, values = self.label_selection_widget.current_selection()
+
+        if values is None:
+            values = []
+
         if self.genes_in_columns:
             targets = [(label, t) for t in values]
         else:
             targets = values
+
         self.targets = targets
         self.current_target_selection = label, values
         # Save target label selection
@@ -630,8 +638,8 @@ class OWFeatureSelection(OWWidget):
         if label in labels:
             label_index = labels.index(label)
             self.target_selections[label_index] = values
-        self.set_targets(targets) 
-    
+        self.set_targets(targets)
+
     def on_label_activated(self, index):
         selection = self.target_selections[index]
         if not selection:
