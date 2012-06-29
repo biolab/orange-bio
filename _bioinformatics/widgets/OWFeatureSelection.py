@@ -359,11 +359,10 @@ class OWFeatureSelection(OWWidget):
         """
         self.clear_plot()
         self.error(0)
-        if not self.data:
+        label, values = self.current_target_selection
+        if not self.data or label is None:
             return
         _, score_func, _, two_sample_test = self.score_methods[self.method_index]
-        
-        target_label, target_values = self.current_target_selection
         if two_sample_test:
             target = self.targets
             score_target = set(target)
@@ -373,7 +372,6 @@ class OWFeatureSelection(OWWidget):
                 return
             
         else: # ANOVA should use all labels. 
-            label, values = self.current_target_selection
             target = dict(self.data_labels)[label]
             if self.genes_in_columns:
                 target = [(label, t) for t in target]
