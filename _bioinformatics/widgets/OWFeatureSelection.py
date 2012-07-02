@@ -26,48 +26,57 @@ from ..obiDifscale import ExpressionSignificance_AREA, ExpressionSignificance_FC
 from ..obiExpression import *
 from ..obiGEO import transpose
 
+
 class ExpressionSignificance_TTest_PValue(ExpressionSignificance_TTest):
     def __call__(self, *args, **kwargs):
         return [(key, pval) for key, (t, pval) in \
                 ExpressionSignificance_TTest.__call__(self, *args, **kwargs)]
-    
+
+
 class ExpressionSignificance_TTest_T(ExpressionSignificance_TTest):
     def __call__(self, *args, **kwargs):
         return [(key, t) for key, (t, pval) in \
                 ExpressionSignificance_TTest.__call__(self, *args, **kwargs)]
-    
+
+
 class ExpressionSignificance_ANOVA_PValue(ExpressionSignificance_ANOVA):
     def __call__(self, *args, **kwargs):
         return [(key, pval) for key, (t, pval) in \
                 ExpressionSignificance_ANOVA.__call__(self, *args, **kwargs)]
-    
+
+
 class ExpressionSignificance_ANOVA_F(ExpressionSignificance_ANOVA):
     def __call__(self, *args, **kwargs):
         return [(key, f) for key, (f, pval) in \
                 ExpressionSignificance_ANOVA.__call__(self, *args, **kwargs)]
-    
+
+
 class ExpressionSignificance_Log2FoldChange(ExpressionSignificance_FoldChange):
     def __call__(self, *args, **kwargs):
         return [(key, math.log(fold, 2.0) if fold > 1e-300 and fold < 1e300 else 0.0) \
                 for key, fold in ExpressionSignificance_FoldChange.__call__(self, *args, **kwargs)]
-    
+
+
 class ExpressionSignigicance_MannWhitneyu_U(ExpressionSignificance_MannWhitneyu):
     def __call__(self, *args, **kwargs):
         return [(key, u) for key, (u, p_val) in \
-                ExpressionSignificance_MannWhitneyu.__call__(self, *args, **kwargs)]    
-    
+                ExpressionSignificance_MannWhitneyu.__call__(self, *args, **kwargs)]
+
+
 class ScoreHist(OWInteractiveHist):
     def __init__(self, master, parent=None, type="hiTail"):
         OWInteractiveHist.__init__(self, parent, type=type)
         self.master = master
         self.setAxisTitle(QwtPlot.xBottom, "Score")
         self.setAxisTitle(QwtPlot.yLeft, "Frequency")
-        
+        self.activateSelection()
+
     def setBoundary(self, low, hi):
         OWInteractiveHist.setBoundary(self, low, hi)
         self.master.update_selected_info_label(low, hi)
         self.master.commit_if()
-            
+
+
 def disable_controls(method):
     """ Disable the widget's control area during the duration of this call.
     """
