@@ -193,8 +193,7 @@ class Taxonomy(object):
         except Exception, ex:
             pass
         try:
-            from . import orngServerFiles as sf
-            sf.download("Taxonomy", "ncbi_taxonomy.tar.gz")
+            orngServerFiles.download("Taxonomy", "ncbi_taxonomy.tar.gz")
             self._text = TextDB(os.path.join(default_database_path, "ncbi_taxonomy.tar.gz", "ncbi_taxonomy.db"))
             self._info = TextDB(os.path.join(default_database_path, "ncbi_taxonomy.tar.gz", "ncbi_taxonomy_inf.db"))
             return
