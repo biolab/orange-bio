@@ -52,6 +52,7 @@ def _cache(name="AtlasGeneResult.shelve"):
     if cache.get(name + "__CACHE_VERSION__", None) == CACHE_VERSION:
         return cache
     else:
+        cache.close()
         cache = shelve.open(orngServerFiles.localpath("GeneAtlas", name), "n")
         cache[name + "__CACHE_VERSION__"] = CACHE_VERSION
         return cache
