@@ -17,7 +17,7 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from Orange.orng import orngDataCaching, orngServerFiles
 
-from ... import obiArrayExpress, obiGene, obiGeneAtlas
+from .. import obiArrayExpress, obiGene, obiGeneAtlas
 
 TAXID_TO_ORG = obiGeneAtlas.TAXID_TO_ORG
 
