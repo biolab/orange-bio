@@ -27,7 +27,7 @@ class OWGeneAtlasTissueExpression(OWWidget):
                                                      "genes_in_columns",
                                                      "selected_ef",
                                                      "selected_ef_value"])}
-    settingsList = []
+    settingsList = ["selected_organism", "selected_ef", "selected_ef_value"]
     
     ORGANISMS = obiArrayExpress.ATLAS_ORGANISMS
     FACTORS = ["Organism part", "Disease state", "Cell type"]
