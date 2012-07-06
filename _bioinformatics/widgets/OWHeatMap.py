@@ -2,7 +2,7 @@
 <name>Heat Map</name>
 <description>Heatmap visualization.</description>
 <contact>Ales Erjavec, Blaz Zupan, Janez Demsar</contact>
-<icon>icons/HeatMap.png</icon>
+<icon>icons/Heatmap.svg</icon>
 <priority>1040</priority>
 """
 

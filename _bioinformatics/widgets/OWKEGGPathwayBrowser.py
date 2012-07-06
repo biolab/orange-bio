@@ -2,7 +2,7 @@
 <name>KEGG Pathways</name>
 <description>Browse KEGG pathways that include an input set of genes.</description>
 <priority>2030</priority>
-<icon>icons/KEGG.png</icon>
+<icon>icons/KEGG Pathways.svg</icon>
 """
 
 from __future__ import absolute_import, with_statement 

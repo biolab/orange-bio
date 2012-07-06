@@ -3,7 +3,7 @@
 <description>Displays gene information from NCBI and other sources.</description>
 <priority>2010</priority>
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si)</contact>
-<icon>icons/GeneInfo.png</icon>
+<icon>icons/Gene Info.svg</icon>
 """
 
 from __future__ import absolute_import, with_statement
