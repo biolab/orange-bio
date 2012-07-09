@@ -1,4 +1,4 @@
-recursive-include _bioinformatics *.png
+recursive-include _bioinformatics *.png *.svg
 recursive-include scripts *
 recursive-include tests *
 recursive-include docs/rst *
