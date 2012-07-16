@@ -866,6 +866,8 @@ class MatcherSequence(Matcher):
 
     def set_targets(self, targets):
         ms = []
+        targets = list(targets) #copy targets as multiple use would
+                                #be problematic if a generator was passed
         for matcher in self.matchers:
             ms.append(matcher.set_targets(targets))
         om = MatchSequence(ms)
@@ -875,6 +877,7 @@ class MatcherSequence(Matcher):
     #this two functions are solely for backward compatibility
     def match(self, gene):
         return self.matcho.match(gene)
+
     def explain(self, gene):
         return self.matcho.explain(gene)
 
@@ -906,6 +909,8 @@ class MatcherDirect(Matcher):
         self.ignore_case = ignore_case
 
     def set_targets(self, targets):
+        targets = list(targets) #would be problematic if generator was passed
+                                #as it is used twice
         aliases = [ set([a]) for a in targets]
         self.am = MatcherAliases(aliases, ignore_case=self.ignore_case)
         self.matcho = self.am.set_targets(targets)
