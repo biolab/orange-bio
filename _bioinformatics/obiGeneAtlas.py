@@ -469,10 +469,10 @@ def ef_ontology():
     """ Return the `EF <http://www.ebi.ac.uk/efo/>`_ (Experimental Factor) ontology
     """
     from . import obiOntology
-    from . import orngServerFiles
+    from Orange.utils import serverfiles
     # Should this be in the OBOFoundry (Ontology) domain
     try:
-        file = open(orngServerFiles.localpath_download("ArrayExpress", "efo.obo"), "rb")
+        file = open(serverfiles.localpath_download("ArrayExpress", "efo.obo"), "rb")
     except urllib2.HTTPError:
         file = urllib2.urlopen("http://efo.svn.sourceforge.net/svnroot/efo/trunk/src/efoinobo/efo.obo")
     return obiOntology.OBOOntology(file)
