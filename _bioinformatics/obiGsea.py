@@ -7,6 +7,7 @@ import time
 import numpy
 
 import orange
+import Orange
 
 from . import obiGeneSets
 from .obiExpression import *
@@ -538,21 +539,26 @@ def takeClasses(datai, classValues=None):
 
         #take only examples with classValues classes
         nclass = orange.EnumVariable(cv.name, values=nclassvalues)
-        ndom = orange.Domain(itOrFirst(datai).domain.attributes, nclass)
 
-        def removeAndTransformClasses(data):
+        def transform_class(ex,cv,mapval,classValues):
             """
             Removes unnecessary class values and joins them according
             to function input.
             """
-            examples = []
-            for ex in data:
-                if ex[cv] in classValues:
-                    nex = orange.Example(ndom, ex)
-                    nex[-1] = mapval[str(ex[cv].value)]
-                    examples.append(nex)
+            if ex[cv] in classValues:
+                nex = orange.Example(ndom, ex)
+                return nclass(mapval[str(ex[cv].value)])
+            else:
+                return "?"
 
-            return orange.ExampleTable(ndom, examples)
+        nclass.get_value_from = lambda ex,_: transform_class(ex,cv=cv,mapval=mapval,classValues=classValues)
+
+        ndom = orange.Domain(itOrFirst(datai).domain.attributes, nclass)
+
+        def removeAndTransformClasses(data):
+            ndata = Orange.data.Table(ndom, data)
+            ndata = Orange.data.Table(ndom, [ex for ex in ndata if ex[-1].value != "?"])
+            return ndata
 
         if iset(datai):
             datai = removeAndTransformClasses(datai)

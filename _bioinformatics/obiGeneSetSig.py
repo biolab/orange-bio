@@ -13,7 +13,6 @@ from .obiGsea import takeClasses
 from .obiAssess import pca, PLSCall, corgs_activity_score
 from . import obiExpression, obiGene, obiGeneSets, obiGsea, stats
 
-
 class GeneSetTrans(object):
 
     __new__ = Orange.utils._orange__new__(object)
