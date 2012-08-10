@@ -492,6 +492,24 @@ def wrap_in_list(data):
     else:
         return data
 
+class transform_class(object):
+    
+    def __init__(self, cv, mapval, class_values, nclass):
+        self.cv = cv
+        self.mapval = mapval
+        self.class_values = class_values
+        self.nclass = nclass
+    
+    def __call__(self, ex, *args, **kwargs):
+        """
+        Removes unnecessary class values and joins them according
+        to function input.
+        """
+        if ex[self.cv] in self.class_values:
+            return self.nclass(self.mapval[str(ex[self.cv].value)])
+        else:
+            return "?"
+
 def takeClasses(datai, classValues=None):
     """
     Function joins class groups specified in an input pair
@@ -540,18 +558,9 @@ def takeClasses(datai, classValues=None):
         #take only examples with classValues classes
         nclass = orange.EnumVariable(cv.name, values=nclassvalues)
 
-        def transform_class(ex,cv,mapval,classValues):
-            """
-            Removes unnecessary class values and joins them according
-            to function input.
-            """
-            if ex[cv] in classValues:
-                nex = orange.Example(ndom, ex)
-                return nclass(mapval[str(ex[cv].value)])
-            else:
-                return "?"
+        tco = transform_class(cv=cv,mapval=mapval,class_values=classValues, nclass=nclass)
 
-        nclass.get_value_from = lambda ex,_: transform_class(ex,cv=cv,mapval=mapval,classValues=classValues)
+        nclass.get_value_from = tco
 
         ndom = orange.Domain(itOrFirst(datai).domain.attributes, nclass)
 
