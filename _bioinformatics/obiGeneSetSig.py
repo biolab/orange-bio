@@ -369,11 +369,12 @@ class ParametrizedTransformation(GeneSetTrans):
         nm, name_ind, genes, takegenes = self._match_data(data, geneset)
         domain = Orange.data.Domain([data.domain.attributes[name_ind[gene]] for gene in genes], data.domain.class_var)
         datao = Orange.data.Table(domain, data)
+        takegenes = [ geneset[i] for i in takegenes ]
 
         constructt = self._get_par(datao)
 
-        def t(ex, w, geneset=geneset, constructt=constructt, takegenes=takegenes, domain=domain):
-            nm2, name_ind2, genes2 = self._match_instance(ex, geneset, takegenes)
+        def t(ex, w, constructt=constructt, takegenes=takegenes, domain=domain):
+            nm2, name_ind2, genes2 = self._match_instance(ex, takegenes)
           
             #convert the example to the same domain
             exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
