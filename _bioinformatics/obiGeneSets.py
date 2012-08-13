@@ -6,10 +6,13 @@ Maintainer: Marko Toplak
 
 from __future__ import absolute_import, with_statement
 
+if __name__ == "__main__":
+    __package__ = "Orange.bio"
+
 import cPickle as pickle, os, tempfile, sys
 from collections import defaultdict
 
-import orange
+import Orange.core as orange
 from Orange.orng import orngServerFiles
 
 from . import obiGO, obiKEGG, obiTaxonomy
@@ -518,20 +521,5 @@ def upload_genesets(rsf):
                 print "Not successful"
 
 if __name__ == "__main__":
-
-    #gs = keggGeneSets("9606")
-    akegg = collections((("KEGG",),"9606"))
-    a = collections({"PATH": ["g1","g2","g3"]}, "steroltalk.gmt", akegg)
-    for e in a:
-        print e
-    #print len(collections(keggGeneSets("9606"),(("KEGG",),"9606"), "C5.BP.gmt"))
-    #print len(collections((("KEGG",),"9606"), "C5.BP.gmt"))
-    #print sorted(list_all())
-    #print len(collections((("KEGG",),"9606"), (("GO",), "9606"), "C5.BP.gmt"))
-    #register_local(keggGeneSets("9606"))
-    #register_local(goGeneSets("9606"))
-    #register_serverfiles(gs, rsf)
-    #print list_serverfiles_conn()
-    #print "Server list from index", list_serverfiles()
     rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
     upload_genesets(rsf)

@@ -9,6 +9,9 @@ import numpy
 
 import Orange, Orange.utils, statc
 
+if __name__ == "__main__":
+    __package__ = "Orange.bio"
+
 from .obiGsea import takeClasses
 from .obiAssess import pca, PLSCall, corgs_activity_score
 from . import obiExpression, obiGene, obiGeneSets, obiGsea, stats
@@ -260,26 +263,22 @@ class Assess(GeneSetTrans):
 
         return attributes
    
-def setSig_example_geneset(ex, data):
+def setSig_example_geneset(ex, data, no_unknowns):
     """ Gets learning data and example with the same domain, both
     containing only genes from the gene set. """
 
     distances = [ [], [] ]    
 
-    def pearsonr(v1, v2):
-        return numpy.corrcoef([v1, v2])[0,1]
-
     def pearson(ex1, ex2):
+        vals1 = ex1.native(0)[:-1]
+        vals2 = ex2.native(0)[:-1]
+
         #leaves undefined elements out
-
-        attrs = range(len(ex1.domain.attributes))
-        vals1 = [ ex1[i].value for i in attrs ]
-        vals2 = [ ex2[i].value for i in attrs ]
-
-        common = [ True if v1 != "?" and v2 != "?" else False \
-            for v1,v2 in zip(vals1,vals2) ]
-        vals1 = [ v for v,c in zip(vals1, common) if c ]
-        vals2 = [ v for v,c in zip(vals2, common) if c ]
+        if not no_unknowns:
+            common = [ True if v1 != "?" and v2 != "?" else False \
+                for v1,v2 in zip(vals1,vals2) ]
+            vals1 = [ v for v,c in zip(vals1, common) if c ]
+            vals2 = [ v for v,c in zip(vals2, common) if c ]
 
         return numpy.corrcoef([vals1, vals2])[0,1]
 
@@ -326,24 +325,28 @@ def vou(ex, gn, indices):
 
 class SetSig(GeneSetTrans):
 
+    def __init__(self, **kwargs):
+        self.no_unknowns = kwargs.pop("no_unknowns", False)
+        super(SetSig, self).__init__(**kwargs)
+
     def build_feature(self, data, gs):
 
         at = Orange.feature.Continuous(name=str(gs))
+        geneset = list(gs.genes)
+        nm, name_ind, genes, takegenes = self._match_data(data, geneset)
+        indices = [ name_ind[gene] for gene in genes ]
 
-        def t(ex, w, gs=gs, data=data): #copy od the data
-            geneset = list(gs.genes)
-
-            nm, name_ind, genes, takegenes = self._match_data(data, geneset)
+        def t(ex, w, gs=gs, data=data, indices=indices, takegenes=takegenes, geneset=geneset):
             nm2, name_ind2, genes2 = self._match_instance(ex, geneset, takegenes)
 
-            domain = Orange.data.Domain([data.domain.attributes[name_ind[gene]] for gene in genes], data.domain.class_var)
+            domain = Orange.data.Domain([data.domain.attributes[i] for i in indices], data.domain.class_var)
             datao = Orange.data.Table(domain, data)
            
             #convert the example to the same domain
             exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
             example = Orange.data.Instance(domain, exvalues)
 
-            return setSig_example_geneset(example, datao) #only this one is setsig specific
+            return setSig_example_geneset(example, datao, self.no_unknowns) #only this one is setsig specific
      
         at.get_value_from = t
         return at
