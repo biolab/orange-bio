@@ -335,9 +335,10 @@ class SetSig(GeneSetTrans):
         geneset = list(gs.genes)
         nm, name_ind, genes, takegenes = self._match_data(data, geneset)
         indices = [ name_ind[gene] for gene in genes ]
+        takegenes = [ geneset[i] for i in takegenes ]
 
-        def t(ex, w, gs=gs, data=data, indices=indices, takegenes=takegenes, geneset=geneset):
-            nm2, name_ind2, genes2 = self._match_instance(ex, geneset, takegenes)
+        def t(ex, w, gs=gs, data=data, indices=indices, takegenes=takegenes):
+            nm2, name_ind2, genes2 = self._match_instance(ex, takegenes)
 
             domain = Orange.data.Domain([data.domain.attributes[i] for i in indices], data.domain.class_var)
             datao = Orange.data.Table(domain, data)
