@@ -216,7 +216,34 @@ class Assess(GeneSetTrans):
         self.rankingf = rankingf
         if self.rankingf == None:
             self.rankingf = AT_edelmanParametricLearner()
+        self.example_buffer = {}
+        self.attransv = 0
         super(Assess, self).__init__(**kwargs)
+
+    def _ordered_and_lcor(self, ex, nm, name_ind, attrans, attransv):
+        """ Buffered! It should be computed only once per example. """ 
+        #name_ind and nm are always co-created, so I need to have only one as a key
+        key = (ex, nm, attransv)
+        if key not in self.example_buffer:
+            ex_atts = [ at.name for at in ex.domain.attributes ]
+            new_atts = [ name_ind[nm.umatch(an)] if nm.umatch(an) != None else None
+                for an in ex_atts ]
+
+            #new_atts: indices of genes in original data for that sample 
+            #POSSIBLE REVERSE IMPLEMENTATION (slightly different
+            #for data from different chips):
+            #save pairs together and sort (or equiv. dictionary transformation)
+
+            indexes = filter(lambda x: x[0] != None, zip(new_atts, range(len(ex_atts))))
+
+            lcor = [ attrans[index_in_data](ex[index_in_ex].value) 
+                for index_in_data, index_in_ex in indexes if
+                ex[index_in_ex].value != '?' ]
+            #indexes in original lcor, sorted from higher to lower values
+            ordered = obiGsea.orderedPointersCorr(lcor)
+            rev2 = numpy.argsort(ordered)
+            self.example_buffer[key] = lcor,ordered,rev2
+        return self.example_buffer[key]
 
     def build_features(self, data, gene_sets):
 
@@ -224,6 +251,8 @@ class Assess(GeneSetTrans):
 
         #attrans: { i_orig: ranking_function }
         attrans = [ self.rankingf(iat, data) for iat, at in enumerate(data.domain.attributes) ]
+        attransv = self.attransv
+        self.attransv += 1
 
         nm_all, _ =  self._mat_ni(data)
 
@@ -233,30 +262,17 @@ class Assess(GeneSetTrans):
 
             geneset = list(gs.genes)
             nm, name_ind, genes, takegenes, to_geneset = self._match_data(data, geneset, odic=True)
+            takegenes = [ geneset[i] for i in takegenes ]
             genes = set(genes)
-            
-            def t(ex, w, geneset=geneset, takegenes=takegenes, nm=nm, attrans=attrans):
 
-                nm2, name_ind2, genes2 = self._match_instance(ex, geneset, takegenes)
+            def t(ex, w, takegenes=takegenes, nm=nm, attrans=attrans, attransv=attransv):
 
-                ex_atts = [ at.name for at in ex.domain.attributes ]
-                new_atts = [ name_ind[nm.umatch(an)] if nm.umatch(an) != None else None
-                    for an in ex_atts ]
-                #new_atts: indices of genes in original data for that sample 
-                #POSSIBLE REVERSE IMPLEMENTATION (slightly different
-                #for data from different chips):
-                #save pairs together and sort (or equiv. dictionary transformation)
+                nm2, name_ind2, genes2 = self._match_instance(ex, takegenes)
+                lcor, ordered, rev2 = self._ordered_and_lcor(ex, nm, name_ind, attrans, attransv)
 
-                indexes = filter(lambda x: x[0] != None, zip(new_atts, range(len(ex_atts))))
-
-                lcor = [ attrans[index_in_data](ex[index_in_ex].value) 
-                    for index_in_data, index_in_ex in indexes if
-                    ex[index_in_ex].value != '?' ]
-                #indexes in original lcor, sorted from higher to lower values
-                ordered = obiGsea.orderedPointersCorr(lcor) 
                 #subset = list of indices, lcor = correlations, ordered = order
                 subset = [ name_ind2[g] for g in genes2 ]
-                return obiGsea.enrichmentScoreRanked(subset, lcor, ordered)[0] 
+                return obiGsea.enrichmentScoreRanked(subset, lcor, ordered, rev2=rev2)[0] 
 
             at.get_value_from = t
             attributes.append(at)

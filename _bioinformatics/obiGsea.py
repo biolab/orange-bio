@@ -46,7 +46,7 @@ def orderedPointersCorr(lcor):
     their lcor[i] value. Higher correlations first.
     """
     ordered = [ (i,a) for i,a in enumerate(lcor) ] #original pos + correlation
-    ordered.sort(lambda x,y: cmp(y[1],x[1])) #sort by correlation, descending
+    ordered.sort(key=lambda x: -x[1]) #sort by correlation, descending
     ordered = nth(ordered, 0) #contains positions in the original list
     return ordered
 
@@ -76,7 +76,8 @@ def enrichmentScoreRanked(subset, lcor, ordered, p=1.0, rev2=None):
     #add if gene is not in the subset
     notInA = -(1. / (len(lcor)-len(subset)))
     #base for addition if gene is in the subset
-    cors = [ abs(lcor[i])**p for i in subset ]
+
+    cors = [ abs(lcor[i])**p for i in subset ] #belowe in numpy
     sumcors = sum(cors)
 
     #this should not happen
