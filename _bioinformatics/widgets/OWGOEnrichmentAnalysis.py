@@ -80,19 +80,39 @@ class GOTreeWidget(QTreeWidget):
             painter.drawText(self.viewport().geometry(), Qt.AlignCenter, self._userMessage)
             painter.end()
 
+
 class OWGOEnrichmentAnalysis(OWWidget):
-    settingsList=["annotationIndex", "useReferenceDataset", "aspectIndex", "geneAttrIndex", "geneMatcherSettings",
-                    "filterByNumOfInstances", "minNumOfInstances", "filterByPValue", "maxPValue", "selectionDirectAnnotation", "selectionDisjoint", "selectionType",
-                    "selectionAddTermAsClass", "useAttrNames", "probFunc", "useFDR"]
-    contextHandlers = {"": DomainContextHandler("", ["geneAttrIndex", "useAttrNames", "annotationIndex", "geneMatcherSettings"], matchValues=1)}
+    settingsList = ["annotationIndex", "useReferenceDataset", "aspectIndex",
+                    "geneAttrIndex", "geneMatcherSettings",
+                    "filterByNumOfInstances", "minNumOfInstances",
+                    "filterByPValue", "maxPValue", "selectionDirectAnnotation",
+                    "selectionDisjoint", "selectionType",
+                    "selectionAddTermAsClass", "useAttrNames", "probFunc",
+                    "useFDR"
+                    ]
+
+    contextHandlers = {"": DomainContextHandler(
+                                "",
+                                ["geneAttrIndex", "useAttrNames",
+                                 "annotationIndex", "geneMatcherSettings"],
+                                matchValues=1)
+                       }
+
     def __init__(self, parent=None, signalManager=None, name="GO Browser"):
         OWWidget.__init__(self, parent, signalManager, name)
-        self.inputs = [("Cluster Examples", ExampleTable, self.SetClusterDataset, Default), ("Reference Examples", ExampleTable, self.SetReferenceDataset, Single + NonDefault)] #, ("Structured Data", DataFiles, self.chipdata, Single + NonDefault)]
-        self.outputs = [("Selected Examples", ExampleTable, Default), ("Unselected Examples", ExampleTable, Default), ("Example With Unknown Genes", ExampleTable, Default)] #, ("Selected Structured Data", DataFiles, Single + NonDefault)]
+        self.inputs = [("Cluster Examples", ExampleTable,
+                        self.SetClusterDataset, Default),
+                       ("Reference Examples", ExampleTable,
+                        self.SetReferenceDataset, Single + NonDefault)]
+
+        self.outputs = [("Selected Examples", ExampleTable, Default),
+                        ("Unselected Examples", ExampleTable, Default),
+                        ("Example With Unknown Genes", ExampleTable, Default),
+                        ("Enrichment Report", ExampleTable)]
 
         self.annotationIndex = 0
         self.autoFindBestOrg = False
-        self.useReferenceDataset  = 0
+        self.useReferenceDataset = 0
         self.aspectIndex = 0
         self.geneAttrIndex = 0
         self.useAttrNames = False
@@ -384,7 +404,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         else:
             self.useAttrNames = False
             self.geneAttrIndex = candidateGeneAttrs.index(bestAttr)
-    
+
     def SetClusterDataset(self, data=None):
         if not self.annotationCodes:
             QTimer.singleShot(200, lambda: self.SetClusterDataset(data))
@@ -399,11 +419,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 code = obiGO.from_taxid(taxid)
                 filename = "gene_association.%s.tar.gz" % code
                 if filename in self.annotationFiles.values():
-                    self.annotationIndex = [i for i, name in enumerate(self.annotationCodes) \
-                                            if self.annotationFiles[name] ==  filename].pop()
+                    self.annotationIndex = \
+                            [i for i, name in enumerate(self.annotationCodes) \
+                             if self.annotationFiles[name] == filename].pop()
             except Exception:
                 pass
-            self.useAttrNames = data_hints.get_hint(data, "genesinrows", self.useAttrNames)
+            self.useAttrNames = data_hints.get_hint(data, "genesinrows",
+                                                    self.useAttrNames)
             self.openContext("", data)
             self.Update()
         else:
@@ -415,9 +437,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.send("Selected Examples", None)
             self.send("Unselected Examples", None)
             self.send("Example With Unknown Genes", None)
+            self.send("Enrichment Report", None)
 
     def SetReferenceDataset(self, data=None):
-        self.referenceDataset=data
+        self.referenceDataset = data
         self.referenceRadioBox.buttons[1].setDisabled(not bool(data))
         self.referenceRadioBox.buttons[1].setText("Reference set")
         if self.clusterDataset and self.useReferenceDataset:
@@ -426,7 +449,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.SetGraph(graph)
         elif self.clusterDataset:
             self.UpdateReferenceSetButton()
-            
+
     def UpdateReferenceSetButton(self):
         allgenes, refgenes = None, None
         if self.referenceDataset:
@@ -669,9 +692,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
     def DisplayGraph(self):
         fromParentDict = {}
         self.termListViewItemDict = {}
-        self.listViewItems=[]
+        self.listViewItems = []
         enrichment = lambda t:float(len(t[0])) / t[2] * (float(len(self.referenceGenes))/len(self.clusterGenes))
         maxFoldEnrichment = max([enrichment(term) for term in self.graph.values()] or [1])
+
         def addNode(term, parent, parentDisplayNode):
             if (parent, term) in fromParentDict:
                 return
@@ -687,24 +711,27 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 parent = term
             else:
                 displayNode = parentDisplayNode
-            
+
             for c in self.treeStructDict[term].children:
                 addNode(c, parent, displayNode)
-                
+
         if self.treeStructDict:
             addNode(self.treeStructRootKey, None, self.listView)
 
         terms = self.graph.items()
         terms = sorted(terms, key=lambda item: item[1][1])
         self.sigTableTermsSorted = [t[0] for t in terms]
-        
+
         self.sigTerms.clear()
-        for i, (id, (genes, p_value, refCount)) in enumerate(terms):
-            text = [self.ontology[id].name, str(len(genes)), str(refCount), "%.4f" % p_value, " ,".join(genes), "%.2f" % enrichment((genes, p_value, refCount))]
-            item = GOTreeWidgetItem(self.ontology[id], (genes, p_value, refCount), len(self.clusterGenes),
-                                    len(self.referenceGenes), maxFoldEnrichment, self.sigTerms)
-            item.goId = id
-                
+        for i, (t_id, (genes, p_value, refCount)) in enumerate(terms):
+            item = GOTreeWidgetItem(self.ontology[t_id],
+                                    (genes, p_value, refCount),
+                                    len(self.clusterGenes),
+                                    len(self.referenceGenes),
+                                    maxFoldEnrichment,
+                                    self.sigTerms)
+            item.goId = t_id
+
         self.listView.expandAll()
         for i in range(4):
             self.listView.resizeColumnToContents(i)
@@ -713,19 +740,46 @@ class OWGOEnrichmentAnalysis(OWWidget):
         width = min(self.listView.columnWidth(0), 350)
         self.listView.setColumnWidth(0, width)
         self.sigTerms.setColumnWidth(0, width)
-        
+
+        # Create and send the enrichemnt report table.
+        termsDomain = orange.Domain(
+            [orange.StringVariable("GO Term Id"),
+             orange.StringVariable("GO Term Name"),
+             orange.FloatVariable("Cluster Frequency"),
+             orange.FloatVariable("Reference Frequency"),
+             orange.FloatVariable("P-value"),
+             orange.FloatVariable("Enrichment"),
+             orange.StringVariable("Genes")
+             ], None)
+
+        terms = [[t_id,
+                  self.ontology[t_id].name,
+                  float(len(genes)) / len(self.clusterGenes),
+                  float(r_count) / len(self.referenceGenes),
+                  p_value,
+                  float(len(genes)) / len(self.clusterGenes) * \
+                  float(len(self.referenceGenes)) / r_count,
+                  ",".join(genes)
+                  ]
+                 for t_id, (genes, p_value, r_count) in terms]
+
+        if terms:
+            termsTable = orange.ExampleTable(termsDomain, terms)
+        else:
+            termsTable = orange.ExampleTable(termsDomain)
+        self.send("Enrichment Report", termsTable)
+
     def ViewSelectionChanged(self):
         if self.selectionChanging:
             return
-        
+
         self.selectionChanging = 1
         self.selectedTerms = []
         selected = self.listView.selectedItems()
         self.selectedTerms = list(set([lvi.term.id for lvi in selected]))
         self.ExampleSelection()
         self.selectionChanging = 0
-        
-        
+
     def TableSelectionChanged(self):
         if self.selectionChanging:
             return
@@ -823,7 +877,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 unselectedExamples = orange.ExampleTable(unselectedExamples)
             else:
                 unselectedExamples = None
-            
+
             self.send("Selected Examples", selectedExamples)
             self.send("Unselected Examples", unselectedExamples)
 
