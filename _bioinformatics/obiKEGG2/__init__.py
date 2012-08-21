@@ -235,7 +235,6 @@ def organisms():
 def from_taxid(taxid):
     genome = KEGGGenome()
     res = genome.search(taxid)
-    print taxid, res
     for r in res:
         e = genome[r]
         

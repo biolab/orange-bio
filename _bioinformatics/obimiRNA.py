@@ -187,9 +187,8 @@ def ids(taxid=None):
             return [e for e in IDs if e.split('-')[0]==taxid]
                 
         else:
-            raise miRNAException("ids() Error: Check the input value.")
-
-            
+            from . import obiKEGG2
+            raise obiKEGG2.OrganismNotFoundError(taxid)
         
 class mat_miRNA:
     pass

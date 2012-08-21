@@ -77,8 +77,8 @@ def miRNAGeneSets(org):
     """
     Return gene sets from miRNA targets
     """
-    from . import obimiRNA, obiKEGG
-    org_code = obiKEGG.from_taxid(org)
+    from . import obimiRNA, obiKEGG2
+    org_code = obiKEGG2.from_taxid(org)
     link_fmt = "http://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=%s"
     mirnas = [(id, obimiRNA.get_info(id)) for id in obimiRNA.ids(org_code)]
     genesets = [GeneSet(id=mirna.matACC, name=mirna.matID, genes=mirna.targets.split(","), hierarchy=("miRNA", "Targets"),
@@ -326,7 +326,7 @@ def collections(*args):
     for collection in args:
         try:
             result.update(collection)
-        except ValueError:
+        except (ValueError, TypeError):
             if issequencens(collection): #have a hierarchy, organism specification
                 new = load(*collection)
                 result.update(new)
@@ -352,8 +352,7 @@ def upload_genesets(rsf):
 
     from . import obiKEGG2 as obiKEGG
 
-    #genesetsfn = [ keggGeneSets, goGeneSets, miRNAGeneSets]
-    genesetsfn = [ goGeneSets, miRNAGeneSets]
+    genesetsfn = [ keggGeneSets, goGeneSets, miRNAGeneSets]
     organisms = obiTaxonomy.common_taxids()
     for fn in genesetsfn:
         for org in organisms:
@@ -362,12 +361,11 @@ def upload_genesets(rsf):
                 genesets = fn(org).split_by_hierarchy()
                 for gs in genesets:
                     print "registering", gs.common_hierarchy()
-                    #register(gs, rsf) #server files
-                    register(gs)
+                    register(gs, rsf) #server files
+                    #register(gs)
                     print "successful", gs.common_hierarchy()
             except (obiKEGG.OrganismNotFoundError, GenesetRegException):
                 print "organism not found", org
-
 
 if __name__ == "__main__":
     rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
