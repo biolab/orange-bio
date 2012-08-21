@@ -623,8 +623,15 @@ class Annotations(object):
         file = "gene_association.%s.tar.gz" % code
 
         path = os.path.join(orngServerFiles.localpath("GO"), file)
+
         if not os.path.exists(path):
+            sf = orngServerFiles.ServerFiles()
+            available = sf.listfiles("GO")
+            if file not in available:
+                from . import obiKEGG2
+                raise obiKEGG2.OrganismNotFoundError(org + str(code))
             orngServerFiles.download("GO", file)
+
         return cls(path, ontology=ontology, genematcher=genematcher, progressCallback=progressCallback)
     
     def ParseFile(self, file, progressCallback=None):

@@ -22,12 +22,12 @@ class Store(object):
     
     def __exit__(self, *args):
         pass
-    
 
 class Sqlite3Store(Store, UserDict.DictMixin):
     def __init__(self, filename):
         self.filename = filename
         self.con = sqlite3.connect(filename)
+        #self.con = sqlite3.connect(":memory:")
         self.con.execute("""
         CREATE TABLE IF NOT EXISTS cache 
             (key TEXT UNIQUE,

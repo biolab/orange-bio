@@ -22,153 +22,10 @@ sfdomain = "gene_sets"
 def nth(l,n):
     return [ a[n] for a in l]
 
-class GeneSet(object):
-
-    def __init__(self, genes=None, name=None, id=None, \
-        description=None, link=None, organism=None, hierarchy=None, pair=None):
-        """
-        pair can be (id, listofgenes) - it is used before anything else.
-        """
-        if genes == None:
-            genes = []
-
-        self.hierarchy = hierarchy
-        self.genes = set(genes)
-        self.name = name
-        self.id = id
-        self.description = description
-        self.link = link
-        self.organism = organism
-
-        if pair:
-            self.id, self.genes = pair[0], set(pair[1])
-
-    """
-    the following functions are needed for sets of gene sets to be able
-    to assess equality
-    """
-
-    def __hash__(self):
-        return self.id.__hash__() + self.name.__hash__()
-
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self.__dict__ == other.__dict__
-        else:
-            return False
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def size(self):
-        return len(self.genes)
-
-    def cname(self, source=True, name=True):
-        """ Constructs a gene set name with the hierarchy. """
-        oname = self.id
-        if source and self.hierarchy:
-            oname = "[ " + ", ".join(self.hierarchy) + " ] " + oname
-        if name and self.name:
-            oname = oname + " " + self.name
-        return oname
-
-    def to_odict(self, source=True, name=True):
-        """
-        Returns a pair (id, listofgenes), like in old format.
-        """
-        return self.cname(source=source, name=name), self.genes
-
-    def __repr__(self):
-        return "GeneSet(" + ", ".join( [ 
-            "id=" + str(self.id),
-            "genes=" + str(self.genes),
-            "name=" + str(self.name),
-            "link=" + str(self.link),
-            "hierarchy=" + str(self.hierarchy)
-        ]) + ")"
-
-class GeneSetIDException(Exception):
-    pass
-
-class GeneSets(set):
-    
-    def __init__(self, input=None):
-        """
-        odict are genesets in old dict format.
-        gs are genesets in new format
-        """
-        if input != None and len(input) > 0:
-            self.update(input)
-
-    def update(self, input):
-        from . import obiGeneSets
-        if isinstance(input, obiGeneSets.GeneSets):
-            super(GeneSets, self).update(input)
-        elif hasattr(input, "items"):
-            for i, g in input.items():
-                self.add(obiGeneSets.GeneSet(pair=(i, g)))
-        else:
-            for i in input:
-                if isinstance(i, obiGeneSets.GeneSet):
-                    self.add(i)
-                else:
-                    i, g = i
-                    self.add(obiGeneSets.GeneSet(pair=(i, g)))
-
-    def to_odict(self):
-        """ Return gene sets in old dictionary format. """
-        return dict(gs.to_odict() for gs in self)
-
-    def set_hierarchy(self, hierarchy):
-        """ Sets hierarchy for all gene sets """
-        for gs in self:
-            gs.hierarchy = hierarchy
-
-    def __repr__(self):
-        return "GeneSets(" + set.__repr__(self) + ")"
-
-    def common_org(self):
-        """ Returns the common organism. """
-        if len(self) == 0:
-            raise GenesetRegException("Empty gene sets.")
-
-        organisms = set(a.organism for a in self)
-
-        try:
-            return only_option(organisms)
-        except:
-            raise GenesetRegException("multiple organisms: " + str(organisms))
-
-    def hierarchies(self):
-        """ Returns all hierachies """
-        if len(self) == 0:
-            raise GenesetRegException("Empty gene sets.")
-        return set(a.hierarchy for a in self)
-
-    def common_hierarchy(self):
-        hierarchies = self.hierarchies()
-
-        def common_hierarchy1(hierarchies):
-            def hier(l): return set(map(lambda x: x[:currentl], hierarchies))
-            currentl = max(map(len, hierarchies))
-            while len(hier(currentl)) > 1:
-                currentl -= 1
-            return only_option(hier(currentl))
-
-        return common_hierarchy1(hierarchies)
-
-    def split_by_hierarchy(self):
-        """ Splits gene sets by hierarchies. """
-        from . import obiGeneSets
-        hd = dict((h,obiGeneSets.GeneSets()) for h in  self.hierarchies())
-        for gs in self:
-            hd[gs.hierarchy].add(gs)
-        return hd.values()
+from Orange.bio.geneset import GeneSet, GeneSets, GenesetRegException
 
 def goGeneSets(org):
     """Returns gene sets from GO."""
-    from . import obiGeneSets
-
     ontology = obiGO.Ontology()
     annotations = obiGO.Annotations(org, ontology=ontology)
 
@@ -178,24 +35,25 @@ def goGeneSets(org):
         genes = annotations.GetAllGenes(termn)
         hier = ("GO", term.namespace)
         if len(genes) > 0:
-            gs = obiGeneSets.GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org, link=link_fmt % termn) 
+            gs = GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org, link=link_fmt % termn) 
             genesets.append(gs)
 
-    return obiGeneSets.GeneSets(genesets)
+    return GeneSets(genesets)
 
 def keggGeneSets(org):
     """
     Returns gene sets from KEGG pathways.
     """
-    from . import obiKEGG2 as obiKEGG, obiGeneSets
+    from . import obiKEGG2 as obiKEGG
     
     kegg = obiKEGG.KEGGOrganism(org)
 
     genesets = []
     for id in kegg.pathways():
+        print id
         pway = obiKEGG.KEGGPathway(id)
         hier = ("KEGG","pathways")
-        gs = obiGeneSets.GeneSet(id=id,
+        gs = GeneSet(id=id,
                                  name=pway.title,
                                  genes=kegg.get_genes_by_pathway(id),
                                  hierarchy=hier,
@@ -203,7 +61,7 @@ def keggGeneSets(org):
                                  link=pway.link)
         genesets.append(gs)
 
-    return obiGeneSets.GeneSets(genesets)
+    return GeneSets(genesets)
 
 def omimGeneSets():
     """
@@ -240,11 +98,10 @@ def go_miRNASets(org, ontology=None, enrichment=True, pval=0.05, treshold=0.04):
     
     go_sets = obimiRNA.filter_GO(go_sets, annotations, treshold=treshold)
     
-    from . import obiGeneSets as gs
     link_fmt = "http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term=%s"
-    gsets = [gs.GeneSet(id=key, name=ontology[key].name, genes=value, hierarchy=("miRNA", "go_sets",),
+    gsets = [GeneSet(id=key, name=ontology[key].name, genes=value, hierarchy=("miRNA", "go_sets",),
                         organism=org, link=link_fmt % key) for key, value in go_sets.items()]
-    gset = gs.GeneSets(gsets)
+    gset = GeneSets(gsets)
     return gset
 
 
@@ -256,11 +113,9 @@ def loadGMT(contents, name):
     For now the description is skipped.
     """
 
-    from . import obiGeneSets
-
     def hline(s):
         tabs = [tab.strip() for tab in s.split("\t")]
-        return obiGeneSets.GeneSet(id=tabs[0], description=tabs[1],
+        return GeneSet(id=tabs[0], description=tabs[1],
                                    hierarchy=(name,), genes=tabs[2:])
 
     def handleNELines(s, fn):
@@ -271,7 +126,7 @@ def loadGMT(contents, name):
         lines = (l.strip() for l in s.splitlines())
         return [fn(l) for l in lines if l]
 
-    return obiGeneSets.GeneSets(handleNELines(contents, hline))
+    return GeneSets(handleNELines(contents, hline))
 
 """
 We have multiple paths for gene set data:
@@ -298,14 +153,6 @@ def local_path():
 def build_index(dir):
     """ Returns gene set availability index for some folder. """
     pass
-
-class GenesetRegException(Exception): pass
-
-def only_option(a):
-    if len(a) == 1:
-        return list(a)[0]
-    else:
-        raise Exception()
 
 def filename(hierarchy, organism):
     """ Obtain a filename for given hierarchy and organism. """
@@ -379,7 +226,7 @@ def update_server_list(serverfiles_upload, serverfiles_list=None):
     finally:
         os.remove(tfname)
 
-def register_local(genesets):
+def _register_local(genesets):
     """ Registers using the common hierarchy and organism. """
     pth = local_path()
 
@@ -393,7 +240,7 @@ def register_local(genesets):
     return fn
 
 def pickle_temp(obj):
-    """ Pickle a file to a temporary file returns its name """
+    """ Pickle a file to a temporary file and returns its name """
     fd,tfname = tempfile.mkstemp()
     os.close(fd)
     f = open(tfname, 'wb')
@@ -401,7 +248,7 @@ def pickle_temp(obj):
     f.close()
     return tfname
 
-def register_serverfiles(genesets, serverFiles):
+def _register_serverfiles(genesets, serverFiles):
     """ Registers using the common hierarchy and organism. """
     org = genesets.common_org()
     hierarchy = genesets.common_hierarchy()
@@ -428,9 +275,9 @@ def register(genesets, serverFiles=None):
     Hierarchy is induced from the gene set names.
     """
     if serverFiles == None:
-        register_local(genesets)
+        _register_local(genesets)
     else:
-        register_serverfiles(genesets, serverFiles)
+        _register_serverfiles(genesets, serverFiles)
 
 def build_hierarchy_dict(files):
     hierd = defaultdict(list)
@@ -442,7 +289,6 @@ def build_hierarchy_dict(files):
 
 def load_local(hierarchy, organism):
     files = map(lambda x: x[:2], list_local())
-
     hierd = build_hierarchy_dict(files)
 
     out = GeneSets()
@@ -454,7 +300,6 @@ def load_local(hierarchy, organism):
 def load_serverfiles(hierarchy, organism):
     files = map(lambda x: x[:2], list_serverfiles())
     hierd = build_hierarchy_dict(files)
-
     out = GeneSets()
     for (h, o) in [ files[i] for i in hierd[(hierarchy, organism)]]:
         fname = orngServerFiles.localpath_download(sfdomain, 
@@ -463,10 +308,11 @@ def load_serverfiles(hierarchy, organism):
     return out
 
 def load(hierarchy, organism):
-    """ First try to load from the local registred folder, then
-    from the server files. """
+    """ First try to load from the local registred folder. If the file
+    is not available, load it from the server files. """
     ret = load_local(hierarchy, organism)
-    ret.update(load_serverfiles(hierarchy, organism))
+    if len(ret) == 0:
+        ret.update(load_serverfiles(hierarchy, organism))
     return ret
 
 def collections(*args):
@@ -475,8 +321,7 @@ def collections(*args):
     Collection can either be a tuple (hierarchy, orgranism), where
     hierarchy is a tuple also.
     """
-    from . import obiGeneSets
-    result = obiGeneSets.GeneSets()
+    result = GeneSets()
 
     for collection in args:
         try:
@@ -505,21 +350,26 @@ def upload_genesets(rsf):
     """
     orngServerFiles.update_local_files()
 
-    genesetsfn = [ keggGeneSets, goGeneSets, miRNAGeneSets]
+    from . import obiKEGG2 as obiKEGG
+
+    #genesetsfn = [ keggGeneSets, goGeneSets, miRNAGeneSets]
+    genesetsfn = [ goGeneSets, miRNAGeneSets]
     organisms = obiTaxonomy.common_taxids()
     for fn in genesetsfn:
         for org in organisms:
-        #for org in [ "9606" ]:
-            print "Uploading ORG", org, fn
             try:
+                print "Uploading ORG", org, fn
                 genesets = fn(org).split_by_hierarchy()
                 for gs in genesets:
                     print "registering", gs.common_hierarchy()
-                    register_serverfiles(gs, rsf)
+                    #register(gs, rsf) #server files
+                    register(gs)
                     print "successful", gs.common_hierarchy()
-            except Exception, e:
-                print "Not successful"
+            except (obiKEGG.OrganismNotFoundError, GenesetRegException):
+                print "organism not found", org
+
 
 if __name__ == "__main__":
     rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
     upload_genesets(rsf)
+    pass

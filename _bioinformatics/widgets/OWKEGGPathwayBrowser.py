@@ -7,10 +7,14 @@
 
 from __future__ import absolute_import, with_statement 
 
+if __name__ == "__main__": 
+    __package__ = "Orange.bio.widgets"
+
 import sys
 from collections import defaultdict
 import webbrowser
 
+import Orange
 import orange
 from Orange.orng import orngMisc, orngServerFiles
 from Orange.orng.orngDataCaching import data_hints

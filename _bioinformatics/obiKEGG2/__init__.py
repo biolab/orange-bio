@@ -47,6 +47,8 @@ DEFAULT_CACHE_DIR = conf.params["cache.path"]
 from .. import obiProb
 from Orange.utils import deprecated_keywords, deprecated_attribute
 
+class OrganismNotFoundError(Exception): pass
+
 class Organism(object):
     def __init__(self, org, genematcher=None):
         self.org_code = self.organism_name_search(org)
@@ -192,7 +194,7 @@ class Organism(object):
         try:
             return genome[name].entry_key
         except KeyError:
-            raise ValueError("Organism with name='%s' not found in KEGG." % name)
+            raise OrganismNotFoundError(name)
         
     @classmethod
     def organism_version(cls, name):
