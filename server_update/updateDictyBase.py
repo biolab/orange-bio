@@ -1,10 +1,10 @@
 ##interval:7
-import orngServerFiles, orngEnviron
+import Orange.utils.serverfiles
 import sys, os
 from gzip import GzipFile
 from getopt import getopt
 import tempfile
-from obiDicty import DictyBase
+from Orange.bio.obiDicty import DictyBase
 import shutil
 
 opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
@@ -26,7 +26,7 @@ f.close()
 dom = DictyBase.domain
 fn = DictyBase.filename
 
-sf = orngServerFiles.ServerFiles(username, password)
+sf = Orange.utils.serverfiles.ServerFiles(username, password)
 
 try:
     sf.create_domain('dictybase')

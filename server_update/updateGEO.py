@@ -1,16 +1,15 @@
 ##!interval=7
 ##!contact=blaz.zupan@fri.uni-lj.si
 
-import obiTaxonomy
+from Orange.bio import obiTaxonomy, obiGEO
 import sys
-import orngServerFiles
+import Orange.utils.serverfiles as orngServerFiles
 from getopt import getopt
 import cPickle
 import re
 import ftplib
 import time
 from datetime import datetime
-import obiGEO
 import os
 
 DOMAIN = "GEO"
@@ -78,7 +77,7 @@ gds_info = dict([(id, info) for id, info in gds_info.items()
 # get the list of GDS files from NCBI directory
 
 
-print "Retreiving ftp directory ..."
+print "Retrieving ftp directory ..."
 ftp = ftplib.FTP(FTP_NCBI)
 ftp.login()
 ftp.cwd(NCBI_DIR)
