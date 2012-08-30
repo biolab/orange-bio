@@ -6,7 +6,7 @@ import math, os, random, re, urllib
 from Orange.orng import orngServerFiles as osf
 import statc
 
-from . import obiGene as ge, obiGO as go, obiKEGG as kg, obiProb as op, obiTaxonomy
+from . import obiGene as ge, obiGO as go, obiKEGG2 as kg, obiProb as op, obiTaxonomy
 
 mirnafile = osf.localpath_download('miRNA','miRNA.txt')
 premirnafile = osf.localpath_download('miRNA','premiRNA.txt')
@@ -406,7 +406,7 @@ def get_pathways(mirna_list, organism='hsa', enrichment=False, pVal=0.1, pathSwi
     for m in mirna_list:
         kegg_genes = [keggNames[g] for g in get_info(m).targets.split(',') if g in keggNames]
         if enrichment:
-            mirnaPathways[m] = [path_id for path_id,(geneList,p,geneNum) in org.get_enriched_pathways_by_genes(kegg_genes).items() if p < pVal]
+            mirnaPathways[m] = [path_id for path_id,(geneList,p,geneNum) in org.get_enriched_pathways(kegg_genes).items() if p < pVal]
         else:
             paths = filter(None,[list(org.get_pathways_by_genes([k])) for k in kegg_genes])                   
             if paths:

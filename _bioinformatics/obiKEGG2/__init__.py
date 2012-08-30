@@ -13,7 +13,7 @@ This is a python module for access to `KEGG`_ using its web services. To use thi
 """
 from __future__ import absolute_import
 
-
+import urllib2
 import os, sys
 from collections import defaultdict
 
@@ -84,6 +84,26 @@ class Organism(object):
     def enzymes(self, genes=None):
         raise NotImplementedError()
     
+    def _gm_gene_aliases(self):
+        """
+        Return a list of sets of equal genes. This is a hack for
+        gene matchers to work faster until the whole implementations
+        transitions to REST. Does not include links to DBs.
+        """
+        s1 = urllib2.urlopen("http://rest.kegg.jp/list/%s" % self.org_code).read()
+        out = []
+        for l in s1.split('\n'):
+            if l:
+                tabs = l.split("\t")
+                cset = set([tabs[0]])
+                try:
+                    rest = tabs[1].split(";")[0]
+                    cset |= set(rest.split(", "))
+                except:
+                    pass #do not crash if a line does not conform
+                out.append(cset)
+        return out
+
     def get_enriched_pathways(self, genes, reference=None, prob=obiProb.Binomial(), callback=None):
         """ Return a dictionary with enriched pathways ids as keys
         and (list_of_genes, p_value, num_of_reference_genes) tuples 
@@ -256,61 +276,6 @@ def to_taxid(name):
 
 def create_gene_sets():
     pass
-
-from .. import obiGene
-from Orange.utils import ConsoleProgressBar
-
-class MatcherAliasesKEGG(obiGene.MatcherAliasesPickled):
-    DOMAIN = "KEGG"
-    VERSION = "v3.0"
-    def create_aliases(self):
-        import cPickle
-        files = set(serverfiles.ServerFiles().listfiles(self.DOMAIN))
-        ids_filename = "kegg_gene_id_aliases_" + self.organism + ".pickle"
-        if ids_filename in files:
-            filename = serverfiles.localpath_download(self.DOMAIN, ids_filename)
-            
-            aliases = cPickle.load(open(filename, "rb"))
-        else:
-            pb = ConsoleProgressBar("Retriving KEGG ids:")
-            kegg_org = KEGGOrganism(self.organism)
-            genes = kegg_org.genes
-            genes.pre_cache(progress_callback=pb.set_state)
-            aliases = []
-            for key, entry in genes.iteritems():
-                aliases.append(set([key]) | set(entry.alt_names))
-            filename = serverfiles.localpath_download(self.DOMAIN, ids_filename)
-            cPickle.dump(aliases, open(filename, "wb"))
-            
-        return aliases
-    
-    def filename(self):
-        return "kegg3_" + self.organism
-    
-    def aliases_path(self):
-        ids_filename = "kegg_gene_id_aliases_" + self.organism + ".pickle"
-        return serverfiles.localpath(self.DOMAIN, ids_filename)
-    
-    def create_aliases_version(self):
-        files = set(serverfiles.listfiles(self.DOMAIN))
-        ids_filename = "kegg_gene_id_aliases_" + self.organism + ".pickle"
-        if ids_filename in files:
-            version = serverfiles.info(self.DOMAIN, ids_filename)["datetime"]
-        else:
-            kegg_org = KEGGOrganism(self.organism)
-            genes = kegg_org.genes
-            version = genes.info.release
-        return version
-        
-    def __init__(self, organism, **kwargs):
-        self.organism = organism
-        sf = serverfiles.ServerFiles()
-        files = set(sf.listfiles(self.DOMAIN))
-        ids_filename = "kegg_gene_id_aliases_" + self.organism + ".pickle"
-        if ids_filename in files:
-            serverfiles.update(self.DOMAIN, ids_filename)
-            
-        obiGene.MatcherAliasesPickled.__init__(self, **kwargs)
 
 def main():
     KEGGGenome()

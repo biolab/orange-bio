@@ -21,7 +21,6 @@ from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
 
-from .. import obiKEGG
 from .. import obiTaxonomy
 from .. import obiKEGG2 as obiKEGG
 from .. import obiGeneSets
