@@ -19,7 +19,7 @@ from collections import defaultdict
 
 from datetime import datetime
 
-from Orange.utils import lru_cache, serverfiles
+from Orange.utils import lru_cache
 
 from . import databases
 from . import entry
@@ -222,8 +222,6 @@ class Organism(object):
         genome = KEGGGenome()
         info = genome.api.binfo(name)
         return info.release
-#        orngServerFiles.localpath_download("KEGG", "kegg_genes_%s.tar.gz" % name)
-#        return orngServerFiles.info("KEGG", "kegg_genes_%s.tar.gz" % name)["datetime"]
     
     def _set_genematcher(self, genematcher):
         setattr(self, "_genematcher", genematcher)

@@ -44,7 +44,6 @@ def keggGeneSets(org):
     """
     Returns gene sets from KEGG pathways.
     """
-    from . import obiKEGG2 as obiKEGG
     
     kegg = obiKEGG.KEGGOrganism(org)
 
@@ -77,8 +76,8 @@ def miRNAGeneSets(org):
     """
     Return gene sets from miRNA targets
     """
-    from . import obimiRNA, obiKEGG2
-    org_code = obiKEGG2.from_taxid(org)
+    from . import obimiRNA
+    org_code = obiKEGG.from_taxid(org)
     link_fmt = "http://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=%s"
     mirnas = [(id, obimiRNA.get_info(id)) for id in obimiRNA.ids(org_code)]
     genesets = [GeneSet(id=mirna.matACC, name=mirna.matID, genes=mirna.targets.split(","), hierarchy=("miRNA", "Targets"),
@@ -349,8 +348,6 @@ def upload_genesets(rsf):
     Builds the default gene sets and 
     """
     orngServerFiles.update_local_files()
-
-    from . import obiKEGG2 as obiKEGG
 
     genesetsfn = [ keggGeneSets, goGeneSets, miRNAGeneSets]
     organisms = obiTaxonomy.common_taxids()

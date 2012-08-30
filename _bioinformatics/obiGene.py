@@ -5,6 +5,7 @@ import os, time
 from Orange.orng import orngServerFiles
 
 from . import obiTaxonomy
+from . import obiKEGG
 
 default_database_path = orngServerFiles.localpath("NCBI_geneinfo")
 
@@ -647,19 +648,16 @@ from Orange.utils import ConsoleProgressBar
 class MatcherAliasesKEGG(MatcherAliasesPickled):
 
     def _organism_name(self, organism):
-        from . import obiKEGG2
-        return obiKEGG2.organism_name_search(organism)
+        return obiKEGG.organism_name_search(organism)
 
     def create_aliases(self):
         organism = self._organism_name(self.organism)
-        from . import obiKEGG2
-        org = obiKEGG2.KEGGOrganism(self.organism, genematcher=GMDirect())
+        org = obiKEGG.KEGGOrganism(self.organism, genematcher=GMDirect())
         osets = org._gm_gene_aliases()
         return osets
 
     def create_aliases_version(self):
-        from . import obiKEGG2
-        return obiKEGG2.KEGGOrganism.organism_version(self.organism) + ".1"
+        return obiKEGG.KEGGOrganism.organism_version(self.organism) + ".1"
 
     def filename(self):
         return "kegg_2_" + self._organism_name(self.organism) 

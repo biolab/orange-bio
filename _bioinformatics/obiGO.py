@@ -628,8 +628,8 @@ class Annotations(object):
             sf = orngServerFiles.ServerFiles()
             available = sf.listfiles("GO")
             if file not in available:
-                from . import obiKEGG2
-                raise obiKEGG2.OrganismNotFoundError(org + str(code))
+                from . import obiKEGG
+                raise obiKEGG.OrganismNotFoundError(org + str(code))
             orngServerFiles.download("GO", file)
 
         return cls(path, ontology=ontology, genematcher=genematcher, progressCallback=progressCallback)

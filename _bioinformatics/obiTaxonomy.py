@@ -332,9 +332,9 @@ def lineage(taxid):
 def to_taxid(code, mapTo=None):
     """ See if the code is a valid code in any database and return a set of its taxids.
     """
-    from . import obiKEGG2, obiGO
+    from . import obiKEGG, obiGO
     results = set()
-    for test in [obiKEGG2.to_taxid, obiGO.to_taxid]:
+    for test in [obiKEGG.to_taxid, obiGO.to_taxid]:
         try:
             r = test(code)
             if type(r) == set:

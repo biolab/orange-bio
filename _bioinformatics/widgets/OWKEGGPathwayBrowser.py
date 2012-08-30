@@ -22,7 +22,7 @@ from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiTaxonomy
-from .. import obiKEGG2 as obiKEGG
+from .. import obiKEGG
 from .. import obiGeneSets
 
 USE_THREADING = True
@@ -726,7 +726,7 @@ to use KEGG Pathways widget.</p>'
             self.send("Unselected Examples", None)
         
     def ClearCache(self):
-        from ..obiKEGG2 import caching
+        from ..obiKEGG import caching
         try:
             caching.clear_cache()
         except Exception, ex:

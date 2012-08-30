@@ -197,22 +197,6 @@ def firstUpdateConsole():
         print "Updating GO anotations for", name
         pkgUpdate.UpdateAnnotation(org)
 
-    pkgUpdate = obiGenomicsUpdate.PKGUpdate("kegg", obiKEGG.Update())
-
-    print "Updating KEGG taxonomy"
-    pkgUpdate.UpdateTaxonomy()
-
-    print "Updating KEGG orthology"
-    pkgUpdate.UpdateOrthology()
-
-    print "Updating KEGG reference pathways"
-    pkgUpdate.UpdateReference()
-
-    for org, name in [("hsa", "Homo sapiens"), ("sce", "Yeast")]:
-        print "Updating KEGG pathways for", name
-        pkgUpdate.UpdateOrganism(org)
-    
-
 def firstUpdateQt():
     pass
     

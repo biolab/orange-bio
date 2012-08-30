@@ -6,7 +6,7 @@ import math, os, random, re, urllib
 from Orange.orng import orngServerFiles as osf
 import statc
 
-from . import obiGene as ge, obiGO as go, obiKEGG2 as kg, obiProb as op, obiTaxonomy
+from . import obiGene as ge, obiGO as go, obiKEGG as kg, obiProb as op, obiTaxonomy
 
 mirnafile = osf.localpath_download('miRNA','miRNA.txt')
 premirnafile = osf.localpath_download('miRNA','premiRNA.txt')
@@ -187,8 +187,8 @@ def ids(taxid=None):
             return [e for e in IDs if e.split('-')[0]==taxid]
                 
         else:
-            from . import obiKEGG2
-            raise obiKEGG2.OrganismNotFoundError(taxid)
+            from . import obiKEGG
+            raise obiKEGG.OrganismNotFoundError(taxid)
         
 class mat_miRNA:
     pass

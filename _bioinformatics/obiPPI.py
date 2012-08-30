@@ -15,7 +15,7 @@ from Orange.orng import orngServerFiles
 from Orange.utils import ConsoleProgressBar, lru_cache
 
 from . import obiTaxonomy
-from .obiKEGG import downloader
+
 from .obiTaxonomy import pickled_cache
 
 class PPIDatabase(object):
