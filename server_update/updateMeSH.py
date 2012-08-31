@@ -2,7 +2,7 @@
 ##!contact=ales.erjavec@fri.uni-lj.si
 
 from urllib import urlopen
-import orngServerFiles
+import Orange.utils.serverfiles as orngServerFiles
 import os, sys
 
 from getopt import getopt
@@ -13,7 +13,7 @@ username = opt.get("-u", opt.get("--user", "username"))
 password = opt.get("-p", opt.get("--password", "password"))
 
 
-ontology = urlopen("ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2008.bin")
+ontology = urlopen("ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2012.bin")
 size = int(ontology.info().getheader("Content-Length"))
 rsize = 0
 results = list()

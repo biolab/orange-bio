@@ -12,7 +12,7 @@ from collections import defaultdict
 from operator import itemgetter
 
 from Orange.orng import orngServerFiles
-from Orange.utils import ConsoleProgressBar, lru_cache
+from Orange.utils import ConsoleProgressBar, lru_cache, wget
 
 from . import obiTaxonomy
 
@@ -312,8 +312,8 @@ class BioGRID(PPIDatabase):
         primary ids. Use `taxid` to limit the results to a single organism.
          
         """
-        # TODO: synonyms_interactor can contain multiple synonyms
-        # (should create an indexed table of synonyms)
+            # TODO: synonyms_interactor can contain multiple synonyms
+            # (should create an indexed table of synonyms)
         if taxid is None:
             cur = self.db.execute("""\
                 select biogrid_id_interactor
@@ -354,7 +354,7 @@ class BioGRID(PPIDatabase):
                     orngServerFiles.localpath("PPI", "BIOGRID-ALL.tab2"))
         filepath = orngServerFiles.localpath("PPI", "BIOGRID-ALL.tab2")
         cls.init_db(filepath)
-        shutil.remove(filepath)
+        os.remove(filepath)
         
     @classmethod
     def init_db(cls, filepath):
@@ -366,7 +366,7 @@ class BioGRID(PPIDatabase):
         lineiter = iter(open(filepath, "rb"))
         headers = lineiter.next() # read the first line
         
-        con = sqlite3.connect(os.path.join(dirname, "BIOGRID-ALL.sqlite"))
+        con = sqlite3.connect(os.path.join(dirname, BioGRID.SERVER_FILE))
         con.execute("drop table if exists links") # Drop old table
         con.execute("drop table if exists proteins") # Drop old table
         
@@ -444,8 +444,6 @@ class BioGRID(PPIDatabase):
         
 from collections import namedtuple
 from functools import partial
-
-from .obiGeneMania import wget, copyfileobj
 
 def chainiter(iterable):
     for sub_iter in iterable:

@@ -1,7 +1,8 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
-import obiPPI, orngServerFiles
+from Orange.bio import obiPPI
+import Orange.utils.serverfiles as orngServerFiles
 import os, sys, shutil, urllib2, tarfile
 from getopt import getopt
 
@@ -17,26 +18,35 @@ try:
 except OSError:
     pass
 
-obiPPI.MIPS.download()
-
 try:
     serverFiles.create_domain("PPI")
 except Exception, ex:
     print ex
-filename = orngServerFiles.localpath("PPI", "mppi.gz")
-serverFiles.upload("PPI", "allppis.xml", filename, "MIPS Protein interactions",
-                   tags=["protein interaction", "MIPS", "#compression:gz", "#version:%i" % obiPPI.MIPS.VERSION]
-                   )
-serverFiles.unprotect("PPI", "allppis.xml") 
 
-if False: ## download BIOGRID-ALL manually
+if True:
+    obiPPI.MIPS.download()
+
+    filename = orngServerFiles.localpath("PPI", "mppi.gz")
+    serverFiles.upload("PPI", "allppis.xml", filename, "MIPS Protein interactions",
+                       tags=["protein interaction", "MIPS", "#compression:gz", "#version:%i" % obiPPI.MIPS.VERSION]
+                       )
+    serverFiles.unprotect("PPI", "allppis.xml") 
+
+if True:
+    obiPPI.BioGRID.download_data("http://thebiogrid.org/downloads/archives/Release%20Archive/BIOGRID-3.1.91/BIOGRID-ALL-3.1.91.tab2.zip") #replace with the newest version
+
+    sfn = obiPPI.BioGRID.SERVER_FILE
+
+    filename = orngServerFiles.localpath("PPI", sfn)
+
     import gzip
-    filename = orngServerFiles.localpath("PPI", "BIOGRID-ALL.tab")
     gz = gzip.GzipFile(filename + ".gz", "wb")
     gz.write(open(filename, "rb").read())
     gz.close()
-    serverFiles.upload("PPI", "BIOGRID-ALL.tab", filename + ".gz", title="BioGRID Protein interactions", 
-                       tags=["protein interaction", "BioGrid", "#compression:gz", "#version:%i" % obiPPI.BioGRID.VERSION]
-                       )
-    serverFiles.unprotect("PPI", "BIOGRID-ALL.tab")
+
+    serverFiles.upload("PPI", sfn, filename + ".gz", 
+        title="BioGRID Protein interactions", 
+        tags=["protein interaction", "BioGrid", "#compression:gz", "#version:%s" % obiPPI.BioGRID.VERSION]
+        )
+    serverFiles.unprotect("PPI", sfn)
 

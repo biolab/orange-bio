@@ -1,13 +1,14 @@
 ##interval:7
-import obiGene, obiTaxonomy
-import orngServerFiles, orngEnviron
+from Orange.bio import obiGene, obiTaxonomy
+import Orange.utils.serverfiles as orngServerFiles
+import Orange.utils.environ as orngEnviron
 import sys, os
 from gzip import GzipFile
 from getopt import getopt
 
 opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
 
-tmpdir = os.path.join(orngEnviron.bufferDir, "tmp_NCBIGene_info")
+tmpdir = os.path.join(orngEnviron.buffer_dir, "tmp_NCBIGene_info")
 try:
     os.mkdir(tmpdir)
 except Exception, ex:

@@ -12,9 +12,9 @@ import sys
 from getopt import getopt
 import zipfile
 
-import obiTaxonomy as tax
-import orngServerFiles
-import orngEnviron
+import Orange.bio.obiTaxonomy as tax
+import Orange.utils.serverfiles as orngServerFiles
+import Orange.utils.environ as orngEnviron
 
 def fastprint(filename,mode,what):
     
@@ -25,6 +25,7 @@ def fastprint(filename,mode,what):
 
 def sendMail(subject):
     
+    print "MAIL", subject
     toaddr = "rsberex@yahoo.it"
     fromaddr = "orange@fri.uni-lj.si";
     msg = "From: %s\r\nTo: %s\r\nSubject: %s" % (fromaddr, toaddr, subject)
@@ -224,7 +225,7 @@ opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
 username = opt.get("-u", opt.get("--user", "username"))
 password = opt.get("-p", opt.get("--password", "password"))
 
-path = os.path.join(orngEnviron.bufferDir, "tmp_miRNA")
+path = os.path.join(orngEnviron.buffer_dir, "tmp_miRNA")
 print 'path: ', path
 
 serverFiles = orngServerFiles.ServerFiles(username, password)

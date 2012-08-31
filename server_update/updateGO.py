@@ -1,7 +1,10 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
-import obiGO, obiTaxonomy, obiGene, obiGenomicsUpdate, orngEnviron, orngServerFiles
+from Orange.bio import obiGO, obiTaxonomy, obiGene, obiGenomicsUpdate
+
+import Orange.utils.environ as orngEnviron
+import Orange.utils.serverfiles as orngServerFiles
 import os, sys, shutil, urllib2, tarfile
 from getopt import getopt
 
@@ -12,7 +15,7 @@ password = opt.get("-p", opt.get("--password", "password"))
 
 from collections import defaultdict
 
-tmpDir = os.path.join(orngEnviron.bufferDir, "tmp_GO")
+tmpDir = os.path.join(orngEnviron.buffer_dir, "tmp_GO")
 try:
     os.mkdir(tmpDir)
 except Exception:
@@ -57,7 +60,6 @@ essentialOrgs = [obiGO.from_taxid(id) for id in obiTaxonomy.essential_taxids()]
 exclude = ["goa_uniprot", "goa_pdb", "GeneDB_tsetse", "reactome", "goa_zebrafish", "goa_rat", "goa_mouse"]
 
 updatedTaxonomy = defaultdict(set)
-import obiTaxonomy
 
 for org in u.GetAvailableOrganisms():
     if org in exclude or org not in commonOrgs:

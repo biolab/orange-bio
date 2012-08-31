@@ -46,9 +46,10 @@ class OMIM(object):
             if not os.path.exists(cls.DEFAULT_DATABASE_PATH):
                 os.mkdir(cls.DEFAULT_DATABASE_PATH)
             file = open(os.path.join(cls.DEFAULT_DATABASE_PATH, "morbidmap"), "wb")
-        elif type(file) in [str, unicode]:
+        elif isinstance(file, basestring):
             file = open(file, "wb")
         file.write(data)
+        file.close()
         
     @classmethod
     def get_instance(cls):

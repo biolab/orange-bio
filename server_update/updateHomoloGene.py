@@ -1,10 +1,10 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
-import obiHomoloGene
-import orngServerFiles
+from Orange.bio import obiHomoloGene
+import Orange.utils.serverfiles as orngServerFiles
 
-import orngEnviron
+import Orange.utils.environ as orngEnviron
 import os, sys
 import gzip, shutil
 
@@ -15,7 +15,7 @@ opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
 username = opt.get("-u", opt.get("--user", "username"))
 password = opt.get("-p", opt.get("--password", "password"))
 
-path = os.path.join(orngEnviron.bufferDir, "tmp_HomoloGene")
+path = os.path.join(orngEnviron.buffer_dir, "tmp_HomoloGene")
 serverFiles = orngServerFiles.ServerFiles(username, password)
 
 try:

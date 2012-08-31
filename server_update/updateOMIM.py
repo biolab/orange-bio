@@ -1,8 +1,8 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
-import obiOMIM
-import orngServerFiles
+from Orange.bio import obiOMIM
+import Orange.utils.serverfiles as orngServerFiles
 
 import orngEnviron
 import os, sys

@@ -1,6 +1,4 @@
 """
-Getting genesets from KEGG and GO.
-
 Maintainer: Marko Toplak
 """
 

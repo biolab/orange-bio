@@ -444,47 +444,7 @@ def guess_size(fileobj):
     except Exception, ex:
         pass
 
-
-def copyfileobj(src, dst, buffer=2**10, content_len=None, progress=None):
-    count = 0
-    if content_len is None:
-        content_len = guess_size(src) or sys.maxint
-    while True:
-        data = src.read(buffer)
-        dst.write(data)
-        count += len(data)
-        if progress:
-            progress(100.0 * count / content_len)
-        if not data:
-            break
-            
-            
-def wget(url, directory=".", dst_obj=None, progress=None):
-    """
-    .. todo:: Move to Orange.misc
-    
-    """
-    stream = urllib2.urlopen(url)
-    length = stream.headers.get("content-length", None)
-    if length is None:
-        length = sys.maxint
-    else:
-        length = int(length)
-    
-    basename = posixpath.basename(url)
-        
-    if dst_obj is None:
-        dst_obj = open(os.path.join(directory, basename), "wb")
-    
-    if progress == True:
-        from Orange.utils import ConsoleProgressBar
-        progress = ConsoleProgressBar("Downloading %r." % basename)
-        with finishing(progress):
-            copyfileobj(stream, dst_obj, buffer=2**10, content_len=length,
-                        progress=progress)
-    else:
-        copyfileobj(stream, dst_obj, buffer=2**10, content_len=length,
-                    progress=progress)
+from Orange.utils import wget
     
 from . import obiPPI
 from Orange.orng import orngServerFiles
