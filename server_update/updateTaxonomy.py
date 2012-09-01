@@ -1,10 +1,10 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
-import obiTaxonomy
-import orngServerFiles
+from Orange.bio import obiTaxonomy
+import Orange.utils.serverfiles as orngServerFiles
+import Orange.utils.environ
 
-import orngEnviron
 import os, sys, tarfile
 import socket
 
@@ -15,7 +15,7 @@ opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
 username = opt.get("-u", opt.get("--user", "username"))
 password = opt.get("-p", opt.get("--password", "password"))
 
-path = os.path.join(orngEnviron.bufferDir, "tmp_Taxonomy")
+path = os.path.join(Orange.utils.environ.buffer_dir, "tmp_Taxonomy")
 serverFiles = orngServerFiles.ServerFiles(username, password)
 u = obiTaxonomy.Update(local_database_path=path)
 

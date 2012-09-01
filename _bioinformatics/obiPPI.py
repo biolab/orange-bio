@@ -943,7 +943,7 @@ class STRINGDetailed(STRING):
         # Strip .gz extension
         links_filename = os.path.join(dir, os.path.splitext(links_filename)[0])
         if not os.path.exists(links_filename):
-            shutil.copyfileobj(gz, open(links_filename))
+            shutil.copyfileobj(gz, open(links_filename, "wb"))
         
         cls.init_db(version, taxids)
             

@@ -248,9 +248,13 @@ class Taxonomy(object):
     @staticmethod
     def ParseTaxdumpFile(file=None, outputdir=None, callback=None):
         from cStringIO import StringIO
+        import Orange.utils
         if file == None:
-            file = tarfile.open(None, "r:gz", StringIO(urllib2.urlopen("ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz").read()))
-        if type(file) == str:
+            so = StringIO()
+            Orange.utils.wget("ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz", dst_obj=so)
+            file = tarfile.open(None, "r:gz", StringIO(so.getvalue()))
+            so.close()
+        elif type(file) == str:
             file = tarfile.open(file)
         names = file.extractfile("names.dmp").readlines()
         nodes = file.extractfile("nodes.dmp").readlines()
@@ -279,7 +283,7 @@ class Taxonomy(object):
             outputdir = default_database_path
         text = TextDB().create(os.path.join(outputdir, "ncbi_taxonomy.db"))
         info = TextDB().create(os.path.join(outputdir, "ncbi_taxonomy_inf.db"))
-        milestones = set(range(0, len(namesDict), max(len(namesDict)/100, 1)))
+        milestones = set(range(0, len(namesDict), max(int(len(namesDict)/100), 1)))
         for i, (id, names) in enumerate(namesDict.items()):
             parent, rank = nodesDict[id]
             ## id, parent and rank go first
