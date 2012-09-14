@@ -2,18 +2,11 @@
 ##!contact=ales.erjavec@fri.uni-lj.si
 
 from Orange.bio import obiPPI
-import Orange.utils.serverfiles as orngServerFiles
-import os, sys, shutil, urllib2, gzip
-from getopt import getopt
+import urllib2, gzip
 
-opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
+from common import *
 
-username = opt.get("-u", opt.get("--user", "username"))
-password = opt.get("-p", opt.get("--password", "password"))
-
-serverFiles = orngServerFiles.ServerFiles(username, password)
-
-filename = orngServerFiles.localpath("PPI", obiPPI.STRING.FILENAME)
+filename = sf_local.localpath("PPI", obiPPI.STRING.FILENAME)
 
 if False:
     if os.path.exists(filename):
@@ -24,15 +17,15 @@ if False:
     gzfile = gzip.GzipFile(filename + ".gz", "wb")
     shutil.copyfileobj(open(filename, "rb"), gzfile)
 
-    serverFiles.upload("PPI", obiPPI.STRING.FILENAME, filename + ".gz", 
+    sf_server.upload("PPI", obiPPI.STRING.FILENAME, filename + ".gz", 
                        "STRING Protein interactions (Creative Commons Attribution 3.0 License)",
                        tags=["protein interaction", "STRING", 
                              "#compression:gz", "#version:%s" % obiPPI.STRING.VERSION]
                        )
-    serverFiles.unprotect("PPI", obiPPI.STRING.FILENAME)
+    sf_server.unprotect("PPI", obiPPI.STRING.FILENAME)
 
 # The second part
-filename = orngServerFiles.localpath("PPI", obiPPI.STRINGDetailed.FILENAME_DETAILED)
+filename = sf_local.localpath("PPI", obiPPI.STRINGDetailed.FILENAME_DETAILED)
 
 if os.path.exists(filename):
     os.remove(filename)
@@ -42,10 +35,10 @@ obiPPI.STRINGDetailed.download_data("v9.0")
 gzfile = gzip.GzipFile(filename + ".gz", "wb")
 shutil.copyfileobj(open(filename, "rb"), gzfile)
 
-serverFiles.upload("PPI", obiPPI.STRINGDetailed.FILENAME_DETAILED, filename + ".gz", 
+sf_server.upload("PPI", obiPPI.STRINGDetailed.FILENAME_DETAILED, filename + ".gz", 
                    "STRING Protein interactions (Creative Commons Attribution-Noncommercial-Share Alike 3.0 License)" ,
                    tags=["protein interaction", "STRING",
                          "#compression:gz", "#version:%s" % obiPPI.STRINGDetailed.VERSION]
                    )
-serverFiles.unprotect("PPI", obiPPI.STRINGDetailed.FILENAME_DETAILED)
+sf_server.unprotect("PPI", obiPPI.STRINGDetailed.FILENAME_DETAILED)
     

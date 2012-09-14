@@ -1,27 +1,19 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
+from common import *
+
 from Orange.bio import obiGO, obiTaxonomy, obiGene, obiGenomicsUpdate
 
-import Orange.utils.environ as orngEnviron
-import Orange.utils.serverfiles as orngServerFiles
-import os, sys, shutil, urllib2, tarfile
-from getopt import getopt
-
-opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
-
-username = opt.get("-u", opt.get("--user", "username"))
-password = opt.get("-p", opt.get("--password", "password"))
+import urllib2, tarfile
 
 from collections import defaultdict
 
-tmpDir = os.path.join(orngEnviron.buffer_dir, "tmp_GO")
+tmpDir = os.path.join(environ.buffer_dir, "tmp_GO")
 try:
     os.mkdir(tmpDir)
 except Exception:
     pass
-
-serverFiles = orngServerFiles.ServerFiles(username, password)
 
 u = obiGO.Update(local_database_path = tmpDir)
 
@@ -37,9 +29,9 @@ if u.IsUpdatable(obiGO.Update.UpdateOntology, ()):
     del o
     ##upload the ontology
     print "Uploading gene_ontology_edit.obo.tar.gz"
-    serverFiles.upload("GO", "gene_ontology_edit.obo.tar.gz", filename, title = "Gene Ontology (GO)",
+    sf_server.upload("GO", "gene_ontology_edit.obo.tar.gz", filename, title = "Gene Ontology (GO)",
                        tags=["gene", "ontology", "GO", "essential", "#uncompressed:%i" % uncompressedSize(filename), "#version:%i" % obiGO.Ontology.version])
-    serverFiles.unprotect("GO", "gene_ontology_edit.obo.tar.gz")
+    sf_server.unprotect("GO", "gene_ontology_edit.obo.tar.gz")
 
 #from obiGeneMatch import _dbOrgMap
 #
@@ -85,15 +77,15 @@ for org in u.GetAvailableOrganisms():
         orgName = obiTaxonomy.name(commonOrgs[org])
 #            print "unknown organism name translation for:", org
         print "Uploading", "gene_association." + org + ".tar.gz"
-        serverFiles.upload("GO", "gene_association." + org + ".tar.gz", filename, title = "GO Annotations for " + orgName,
+        sf_server.upload("GO", "gene_association." + org + ".tar.gz", filename, title = "GO Annotations for " + orgName,
                            tags=["gene", "annotation", "ontology", "GO", orgName, "#uncompressed:%i" % uncompressedSize(filename),
                                  "#organism:"+orgName, "#version:%i" % obiGO.Annotations.version] + (["essential"] if org in essentialOrgs else []))
-        serverFiles.unprotect("GO", "gene_association." + org + ".tar.gz")
+        sf_server.unprotect("GO", "gene_association." + org + ".tar.gz")
         
 try:
     import cPickle
 #    tax = cPickle.load(open(os.path.join(tmpDir, "taxonomy.pickle"), "rb"))
-    tax = cPickle.load(open(orngServerFiles.localpath_download("GO", "taxonomy.pickle"), "rb"))
+    tax = cPickle.load(open(sf_local.localpath_download("GO", "taxonomy.pickle"), "rb"))
 except Exception:
     tax = {}
 
@@ -102,6 +94,6 @@ if any(tax.get(key, set()) != updatedTaxonomy.get(key, set()) for key in set(upd
     tax.update(updatedTaxonomy)
     cPickle.dump(tax, open(os.path.join(tmpDir, "taxonomy.pickle"), "wb"))
     print "Uploading", "taxonomy.pickle"
-    serverFiles.upload("GO", "taxonomy.pickle", os.path.join(tmpDir, "taxonomy.pickle"), title="GO taxon IDs",
+    sf_server.upload("GO", "taxonomy.pickle", os.path.join(tmpDir, "taxonomy.pickle"), title="GO taxon IDs",
                        tags = ["GO", "taxon", "organism", "essential", "#version:%i" % obiGO.Taxonomy.version])
-    serverFiles.unprotect("GO", "taxonomy.pickle")
+    sf_server.unprotect("GO", "taxonomy.pickle")

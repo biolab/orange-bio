@@ -1,21 +1,12 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
+from common import *
 from Orange.bio import obiOMIM
-import Orange.utils.serverfiles as orngServerFiles
 
-import orngEnviron
 import os, sys
 
-from getopt import getopt
-
-opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
-
-username = opt.get("-u", opt.get("--user", "username"))
-password = opt.get("-p", opt.get("--password", "password"))
-
-path = os.path.join(orngEnviron.bufferDir, "tmp_OMIM")
-serverFiles = orngServerFiles.ServerFiles(username, password)
+path = os.path.join(environ.buffer_dir, "tmp_OMIM")
 
 try:
     os.mkdir(path)
@@ -24,6 +15,6 @@ except OSError:
 filename = os.path.join(path, "morbidmap")
 obiOMIM.OMIM.download_from_NCBI(filename)
 
-serverFiles.upload("OMIM", "morbidmap", filename, title="Online Mendelian Inheritance in Man (OMIM)",
+sf_server.upload("OMIM", "morbidmap", filename, title="Online Mendelian Inheritance in Man (OMIM)",
                    tags=["genes", "diseases", "human", "OMIM" "#version:%i" % obiOMIM.OMIM.VERSION])
-serverFiles.unprotect("OMIM", "morbidmap")
+sf_server.unprotect("OMIM", "morbidmap")

@@ -1,22 +1,16 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
+from common import *
+
 from Orange.bio import obiTaxonomy
 import Orange.utils.serverfiles as orngServerFiles
 import Orange.utils.environ
 
-import os, sys, tarfile
+import tarfile
 import socket
 
-from getopt import getopt
-
-opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
-
-username = opt.get("-u", opt.get("--user", "username"))
-password = opt.get("-p", opt.get("--password", "password"))
-
-path = os.path.join(Orange.utils.environ.buffer_dir, "tmp_Taxonomy")
-serverFiles = orngServerFiles.ServerFiles(username, password)
+path = os.path.join(environ.buffer_dir, "tmp_Taxonomy")
 u = obiTaxonomy.Update(local_database_path=path)
 
 uncompressedSize = lambda filename: sum(info.size for info in tarfile.open(filename).getmembers())
@@ -29,6 +23,6 @@ if u.IsUpdatable(obiTaxonomy.Update.UpdateTaxonomy, ()):
         except socket.timeout, ex:
             print ex
             pass
-    serverFiles.upload("Taxonomy", "ncbi_taxonomy.tar.gz", os.path.join(path, "ncbi_taxonomy.tar.gz"), title ="NCBI Taxonomy",
+    sf_server.upload("Taxonomy", "ncbi_taxonomy.tar.gz", os.path.join(path, "ncbi_taxonomy.tar.gz"), title ="NCBI Taxonomy",
                        tags=["NCBI", "taxonomy", "organism names", "essential", "#uncompressed:%i" % uncompressedSize(os.path.join(path, "ncbi_taxonomy.tar.gz"))])
-    serverFiles.unprotect("Taxonomy", "ncbi_taxonomy.tar.gz")
+    sf_server.unprotect("Taxonomy", "ncbi_taxonomy.tar.gz")

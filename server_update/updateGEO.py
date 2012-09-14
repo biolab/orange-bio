@@ -2,15 +2,13 @@
 ##!contact=blaz.zupan@fri.uni-lj.si
 
 from Orange.bio import obiTaxonomy, obiGEO
-import sys
-import Orange.utils.serverfiles as orngServerFiles
-from getopt import getopt
 import cPickle
 import re
 import ftplib
 import time
 from datetime import datetime
-import os
+
+from common import *
 
 DOMAIN = "GEO"
 GDS_INFO = "gds_info.pickled"
@@ -20,18 +18,13 @@ TAGS = ["Gene Expression Omnibus", "data sets", "GEO", "GDS"]
 FTP_NCBI = "ftp.ncbi.nih.gov"
 NCBI_DIR = "pub/geo/DATA/SOFT/GDS"
 
-opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
-username = opt.get("-u", opt.get("--user", "username"))
-password = opt.get("-p", opt.get("--password", "password"))
-server = orngServerFiles.ServerFiles(username, password)
-
 force_update = False
 # check if the DOMAIN/files are already on the server, else, create
-if DOMAIN not in server.listdomains():
+if DOMAIN not in sf_server.listdomains():
     # DOMAIN does not exist on the server, create it
-    server.create_domain(DOMAIN)
+    sf_server.create_domain(DOMAIN)
 
-localfile = orngServerFiles.localpath(DOMAIN, GDS_INFO)
+localfile = sf_local.localpath(DOMAIN, GDS_INFO)
 
 def _create_path_for_file(target): #KEGG uses this!
     try:
@@ -39,11 +32,11 @@ def _create_path_for_file(target): #KEGG uses this!
     except OSError:
         pass
 
-path = orngServerFiles.localpath(DOMAIN)
-if GDS_INFO in server.listfiles(DOMAIN):
+path = sf_local.localpath(DOMAIN)
+if GDS_INFO in sf_server.listfiles(DOMAIN):
     print "Updating info file from server ..."
-    orngServerFiles.update(DOMAIN, GDS_INFO)
-    info = orngServerFiles.info(DOMAIN, GDS_INFO)
+    sf_local.update(DOMAIN, GDS_INFO)
+    info = sf_local.info(DOMAIN, GDS_INFO)
     gds_info_datetime = datetime.strptime(info["datetime"], "%Y-%m-%d %H:%M:%S.%f")
     
 else:
@@ -52,8 +45,8 @@ else:
     f = file(localfile, "wb")
     cPickle.dump(({}, {}), f, True)
     f.close()
-    server.upload(DOMAIN, GDS_INFO, localfile, TITLE, TAGS)
-    server.protect(DOMAIN, GDS_INFO, "0")
+    sf_server.upload(DOMAIN, GDS_INFO, localfile, TITLE, TAGS)
+    sf_server.protect(DOMAIN, GDS_INFO, "0")
     gds_info_datetime = datetime.fromtimestamp(0)
     
 
@@ -128,8 +121,8 @@ if len(gds_names):
     
     print "Updating %s:%s on the server ..." % (DOMAIN, GDS_INFO)
  
-    server.upload(DOMAIN, GDS_INFO, localfile, TITLE, TAGS)
-    server.protect(DOMAIN, GDS_INFO, "0")
+    sf_server.upload(DOMAIN, GDS_INFO, localfile, TITLE, TAGS)
+    sf_server.protect(DOMAIN, GDS_INFO, "0")
 else:
     print "No update required."
 

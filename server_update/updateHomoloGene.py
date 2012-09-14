@@ -1,22 +1,11 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
+from common import *
+
 from Orange.bio import obiHomoloGene
-import Orange.utils.serverfiles as orngServerFiles
 
-import Orange.utils.environ as orngEnviron
-import os, sys
-import gzip, shutil
-
-from getopt import getopt
-
-opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
-
-username = opt.get("-u", opt.get("--user", "username"))
-password = opt.get("-p", opt.get("--password", "password"))
-
-path = os.path.join(orngEnviron.buffer_dir, "tmp_HomoloGene")
-serverFiles = orngServerFiles.ServerFiles(username, password)
+path = os.path.join(environ.buffer_dir, "tmp_HomoloGene")
 
 try:
     os.mkdir(path)
@@ -30,13 +19,13 @@ f = gzip.open(filename + ".gz", "wb")
 shutil.copyfileobj(open(filename), f)
 f.close()
 
-#serverFiles.create_domain("HomoloGene")
+#sf_server.create_domain("HomoloGene")
 print "Uploading homologene.data"
-serverFiles.upload("HomoloGene", "homologene.data", filename + ".gz", title="HomoloGene",
+sf_server.upload("HomoloGene", "homologene.data", filename + ".gz", title="HomoloGene",
                    tags=["genes", "homologs", "HomoloGene", "#compression:gz",
                          "#uncompressed:%i" % uncompressed, 
                          "#version:%i" % obiHomoloGene.HomoloGene.VERSION])
-serverFiles.unprotect("HomoloGene", "homologene.data")
+sf_server.unprotect("HomoloGene", "homologene.data")
 
 ####
 # InParanioid Orthologs update
@@ -116,11 +105,11 @@ shutil.copyfileobj(file, gzfile)
 gzfile.close()
 
 print "Uploading InParanoid.sqlite"
-serverFiles.upload("HomoloGene", "InParanoid.sqlite", filename + ".gz", title="InParanoid: Eukaryotic Ortholog Groups",
+sf_server.upload("HomoloGene", "InParanoid.sqlite", filename + ".gz", title="InParanoid: Eukaryotic Ortholog Groups",
                    tags=["genes", "homologs", "orthologs", "InParanoid", "#compression:gz",
                          "#uncompressed:%i" % os.stat(filename).st_size,
                          "#version:%i" % obiHomoloGene.InParanoid.VERSION])
-serverFiles.unprotect("HomoloGene", "InParanoid.sqlite")
+sf_server.unprotect("HomoloGene", "InParanoid.sqlite")
         
         
             

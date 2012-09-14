@@ -1,21 +1,13 @@
 ##interval:7
+from common import *
 from Orange.bio import obiGene, obiTaxonomy
-import Orange.utils.serverfiles as orngServerFiles
-import Orange.utils.environ as orngEnviron
-import sys, os
 from gzip import GzipFile
-from getopt import getopt
 
-opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
-
-tmpdir = os.path.join(orngEnviron.buffer_dir, "tmp_NCBIGene_info")
+tmpdir = os.path.join(environ.buffer_dir, "tmp_NCBIGene_info")
 try:
     os.mkdir(tmpdir)
 except Exception, ex:
     pass
-
-username = opt.get("-u", opt.get("--user", "username"))
-password = opt.get("-p", opt.get("--password", "password"))
 
 gene_info_filename = os.path.join(tmpdir, "gene_info")
 gene_history_filename = os.path.join(tmpdir, "gene_history")
@@ -39,9 +31,6 @@ for hi in hist:
     if any(hi.startswith(id + "\t") for id in taxids): 
         history[hi.split("\t", 1)[0]].append(hi.strip())
 
-        
-sf = orngServerFiles.ServerFiles(username, password)
-
 for taxid, genes in genes.items():
     filename = os.path.join(tmpdir, "gene_info.%s.db" % taxid)
     f = open(filename, "wb")
@@ -49,10 +38,10 @@ for taxid, genes in genes.items():
     f.flush()
     f.close()
     print "Uploading", filename
-    sf.upload("NCBI_geneinfo", "gene_info.%s.db" % taxid, filename,
+    sf_server.upload("NCBI_geneinfo", "gene_info.%s.db" % taxid, filename,
               title = "NCBI gene info for %s" % obiTaxonomy.name(taxid),
               tags = ["NCBI", "gene info", "gene_names", obiTaxonomy.name(taxid)] + (["essential"] if taxid in essential else []))
-    sf.unprotect("NCBI_geneinfo", "gene_info.%s.db" % taxid)
+    sf_server.unprotect("NCBI_geneinfo", "gene_info.%s.db" % taxid)
     
     filename = os.path.join(tmpdir, "gene_history.%s.db" % taxid)
     f = open(filename, "wb")
@@ -60,7 +49,7 @@ for taxid, genes in genes.items():
     f.flush()
     f.close()
     print "Uploading", filename
-    sf.upload("NCBI_geneinfo", "gene_history.%s.db" % taxid, filename,
+    sf_server.upload("NCBI_geneinfo", "gene_history.%s.db" % taxid, filename,
               title = "NCBI gene history for %s" % obiTaxonomy.name(taxid),
               tags = ["NCBI", "gene info", "history", "gene_names", obiTaxonomy.name(taxid)] + (["essential"] if taxid in essential else []))
-    sf.unprotect("NCBI_geneinfo", "gene_history.%s.db" % taxid)
+    sf_server.unprotect("NCBI_geneinfo", "gene_history.%s.db" % taxid)

@@ -1,17 +1,8 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
+from common import *
 from urllib import urlopen
-import Orange.utils.serverfiles as orngServerFiles
-import os, sys
-
-from getopt import getopt
-
-opt = dict(getopt(sys.argv[1:], "u:p:", ["user=", "password="])[0])
-
-username = opt.get("-u", opt.get("--user", "username"))
-password = opt.get("-p", opt.get("--password", "password"))
-
 
 ontology = urlopen("ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2012.bin")
 size = int(ontology.info().getheader("Content-Length"))
@@ -51,15 +42,9 @@ for i in results:
 output.close()
 print "Ontology downloaded."
 
-
-
-
-ordinary = orngServerFiles.ServerFiles()
-authenticated = orngServerFiles.ServerFiles(username, password)
-
-authenticated.upload('MeSH', 'mesh-ontology.dat', 'mesh-ontology.dat', title="MeSH ontology", tags=['MeSH', 'ontology', 'orngMeSH'])
+sf_server.upload('MeSH', 'mesh-ontology.dat', 'mesh-ontology.dat', title="MeSH ontology", tags=['MeSH', 'ontology', 'orngMeSH'])
 #authenticated.upload('MeSH', 'cid-annotation.dat', 'cid-annotation.dat', title="Annotation for chemicals (CIDs)", tags =['CID','MeSH','orngMeSH','annotation'])
 
-authenticated.unprotect('MeSH', 'mesh-ontology.dat')
+sf_server.unprotect('MeSH', 'mesh-ontology.dat')
 os.remove('mesh-ontology.dat')
 print "Ontology uploaded to server."
