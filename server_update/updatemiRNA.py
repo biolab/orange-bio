@@ -213,6 +213,7 @@ except OSError:
 org_taxo = [tax.name(id) for id in tax.common_taxids()]
 
 ### targets library from TargetScan
+
 try:
     tarscan_url = 'http://www.targetscan.org//vert_50//vert_50_data_download/Conserved_Site_Context_Scores.txt.zip'
     
@@ -241,10 +242,15 @@ except IOError:
     flag = 0
     sendMail('Database file of miRNAs not found on: %s' % address)
      
-        
 if flag:
-    orgs_des = dict(zip([re.findall('ID\s*(\S{3,4})-\S*\s*standard;',l)[0] for l in data_webPage.splitlines() if l[0:2]=='ID'],[re.findall('DE\s*(.*)\s\S*.*\sstem[\s|-]loop',l)[0] for l in data_webPage.splitlines() if l[0:2]=='DE']))
-    
+
+    orgs = [re.findall('ID\s*(\S+?)-\S*\s*standard;',l)[0] for l in data_webPage.splitlines() if l[:2]=='ID']
+    des = [re.findall('DE\s*(.*)\s\S*.*\sstem[\s|-]loop',l)[0] for l in data_webPage.splitlines() if l[:2]=='DE']
+
+    assert len(orgs) == len(des)
+
+    orgs_des = dict(zip(orgs, des))
+
     file_org = get_intoFiles(path,data_webPage)
     
     miRNA_path = os.path.join(path,'miRNA.txt')
