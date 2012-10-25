@@ -296,7 +296,12 @@ def setSig_example_geneset(ex, data, no_unknowns):
             vals1 = [ v for v,c in zip(vals1, common) if c ]
             vals2 = [ v for v,c in zip(vals2, common) if c ]
 
-        return numpy.corrcoef([vals1, vals2])[0,1]
+        #statc correlation is from 5-10 times faster than numpy!
+        try:
+            return statc.pearsonr(vals1, vals2)[0]
+        except:
+            return numpy.corrcoef([vals1, vals2])[0,1] 
+        
 
     def ttest(ex1, ex2):
         try:
