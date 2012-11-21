@@ -239,10 +239,14 @@ class Assess(GeneSetTrans):
             lcor = [ attrans[index_in_data](ex[index_in_ex].value) 
                 for index_in_data, index_in_ex in indexes if
                 ex[index_in_ex].value != '?' ]
+
+            indices_to_lcori = dict( (index_in_ex, i) for i,(_, index_in_ex) in enumerate(indexes) 
+                if ex[index_in_ex].value != '?')
+
             #indexes in original lcor, sorted from higher to lower values
             ordered = obiGsea.orderedPointersCorr(lcor)
             rev2 = numpy.argsort(ordered)
-            self.example_buffer[key] = lcor,ordered,rev2
+            self.example_buffer[key] = lcor, ordered, rev2, indices_to_lcori
         return self.example_buffer[key]
 
     def build_features(self, data, gene_sets):
@@ -266,12 +270,14 @@ class Assess(GeneSetTrans):
             genes = set(genes)
 
             def t(ex, w, takegenes=takegenes, nm=nm, attrans=attrans, attransv=attransv):
-
                 nm2, name_ind2, genes2 = self._match_instance(ex, takegenes)
-                lcor, ordered, rev2 = self._ordered_and_lcor(ex, nm, name_ind, attrans, attransv)
-
+                lcor, ordered, rev2, indices_to_lcori = \
+                    self._ordered_and_lcor(ex, nm, name_ind, attrans, attransv)
+        
                 #subset = list of indices, lcor = correlations, ordered = order
-                subset = [ name_ind2[g] for g in genes2 ]
+                #make it compatible with lcor, if some are missing in lcor
+                subset = filter(None,
+                    [ indices_to_lcori.get(name_ind2[g], None) for g in genes2 ] )
                 return obiGsea.enrichmentScoreRanked(subset, lcor, ordered, rev2=rev2)[0] 
 
             at.get_value_from = t
