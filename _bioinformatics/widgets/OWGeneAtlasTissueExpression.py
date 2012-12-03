@@ -1,7 +1,7 @@
 """
 <name>Gene Atlas Tissue Expression</name>
 <description></description>
-<icon>icons/Gene Expression Atlas.svg</icon>
+<icon>icons/GeneExpressionAtlas.svg</icon>
 """
 
 from __future__ import absolute_import

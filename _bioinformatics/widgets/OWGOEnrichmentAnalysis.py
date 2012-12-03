@@ -2,7 +2,7 @@
 <name>GO Browser</name>
 <description>Enrichment analysis for Gene Ontology terms.</description>
 <contact>Ales Erjavec</contact>
-<icon>icons/GO Browser.svg</icon>
+<icon>icons/GOBrowser.svg</icon>
 <priority>2020</priority>
 """
 

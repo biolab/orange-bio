@@ -1,7 +1,7 @@
 """
 <name>dictyExpress</name>
 <description>Access to data in dictyExpress database.</description>
-<icon>icons/dictyExpress.png</icon>
+<icon>icons/DictyExpress.svg</icon>
 <priority>40</priority>
 """
 

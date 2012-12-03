@@ -1,4 +1,5 @@
 """<name>Gene Set Enrichment</name>
+<icon>icons/GeneSetEnrichment.svg</icon>
 """
 
 from __future__ import absolute_import, with_statement

@@ -1,6 +1,6 @@
 """<name>MA Plot</name>
 <description>Normalize expression array data on a MA - plot</description>
-<icon>icons/Normalize.png</icons>
+<icon>icons/MAPlot.svg</icon>
 """
 
 from __future__ import absolute_import

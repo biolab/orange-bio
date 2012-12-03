@@ -2,7 +2,7 @@
 <description>Access to Gene Expression Omnibus data sets.</description>
 <priority>20</priority>
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si)</contact>
-<icon>icons/GEODataSets.png</icon>
+<icon>icons/GEODataSets.svg</icon>
 """
 
 from __future__ import absolute_import, with_statement

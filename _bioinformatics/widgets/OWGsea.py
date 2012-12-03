@@ -3,7 +3,7 @@
 <description>Gene set enrichment analysis.</description>
 <contact>Marko Toplak (marko.toplak(@at@)gmail.com)</contact>
 <priority>2025</priority>
-<icon>icons/GSEA.png</icon>
+<icon>icons/GSEA.svg</icon>
 """
 
 from __future__ import absolute_import, with_statement

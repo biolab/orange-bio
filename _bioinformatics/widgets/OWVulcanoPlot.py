@@ -3,7 +3,7 @@
 <description>Plots fold change vs. p-value.)</description>
 <priority>1020</priority>
 <contact>Ales Erjavec (ales.erjavec@fri.uni-lj.si)</contact>
-<icon>icons/VulcanoPlot.png</icon>
+<icon>icons/VulcanoPlot.svg</icon>
 """
 
 from __future__ import absolute_import

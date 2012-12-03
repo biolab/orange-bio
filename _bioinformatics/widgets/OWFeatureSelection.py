@@ -2,7 +2,7 @@
 <name>Gene Selection</name>
 <description>Gene differential expression scoring and selection.</description>
 <priority>1010</priority>
-<icon>icons/FeatureSelection.png</icon>
+<icon>icons/GeneSelection.svg</icon>
 """
 
 from __future__ import absolute_import, with_statement

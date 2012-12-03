@@ -2,7 +2,7 @@
 <description>Query BioMart service</description>
 <contact>Ales Erjavec (ales.erjavec(@at@)fri.uni-lj.si</contact>
 <priority>2010</priority>
-<icon>icons/BioMart.png</icon>
+<icon>icons/BioMart.svg</icon>
 """
 
 from __future__ import absolute_import

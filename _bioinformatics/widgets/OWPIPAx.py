@@ -1,7 +1,7 @@
 """
 <name>PIPAx</name>
 <description>Access data from PIPA RNA-Seq database.</description>
-<icon>icons/PIPA.png</icon>
+<icon>icons/PIPA.svg</icon>
 <priority>35</priority>
 """
 

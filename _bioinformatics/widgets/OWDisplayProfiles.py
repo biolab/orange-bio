@@ -2,7 +2,7 @@
 <name>Data Profiles</name>
 <description>Visualization of data profiles (e.g., time series).</description>
 <contact>Tomaz Curk</contact>
-<icon>icons/ExpressionProfiles.png</icon>
+<icon>icons/ExpressionProfiles.svg</icon>
 <priority>1030</priority>
 """
 

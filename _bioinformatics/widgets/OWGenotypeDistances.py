@@ -1,6 +1,6 @@
 """<name>Genotype Distances</name>
 <description>Compute distances between expression profiles of different experimental factors.</description>
-<icon>icons/GenotypeDistances.png</icon>
+<icon>icons/GenotypeDistances.svg</icon>
 <priority>1050</priority>
 <contact>Ales Erjavec (ales.erjavec(@at@).fri.uni-lj.si)</contact>
 """

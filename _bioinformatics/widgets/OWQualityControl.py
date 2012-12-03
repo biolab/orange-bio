@@ -1,6 +1,7 @@
 """
 <name>Quality Control</name>
 <description>Experiment quality control</description>
+<icon>icons/QualityControl.svg</icon>
 
 """
 

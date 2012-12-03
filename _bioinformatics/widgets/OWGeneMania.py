@@ -1,5 +1,5 @@
 """<name>GeneMANIA</name>
-<icon>icons/GeneMANIA.png</icon>
+<icon>icons/GeneMANIA.svg</icon>
 """
 
 from __future__ import absolute_import

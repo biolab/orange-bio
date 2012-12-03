@@ -1,7 +1,7 @@
 """
 <name>MeSH Browser</name>
 <description>Browse MeSH ontology.</description>
-<icon>icons/MeSH.png</icon>
+<icon>icons/MeSHBrowser.svg</icon>
 <contact>Crt Gorup (crt.gorup@gmail.com)</contact> 
 <priority>2040</priority>
 """
