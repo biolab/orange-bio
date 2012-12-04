@@ -705,6 +705,10 @@ class GeneManiaDatabase(obiPPI.PPIDatabase):
         
         baseurl = "http://genemania.org/data/current/"
         directory = orngServerFiles.localpath("PPI")
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
         if taxid is None:
             taxid = cls.common_taxids()
         
