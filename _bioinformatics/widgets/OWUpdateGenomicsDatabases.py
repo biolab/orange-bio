@@ -3,7 +3,7 @@
 <description>Update of systems biology data and knowledge bases.</description>
 <contact>Ales Erjavec</contact>
 <priority>10</priority>
-<icon>icons/UpdateDatabases.png</icon>
+<icon>icons/Databases.svg</icon>
 """
 
 from Orange.OrangeWidgets.OWDatabasesUpdate import *
