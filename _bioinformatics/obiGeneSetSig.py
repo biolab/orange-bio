@@ -218,6 +218,7 @@ class Assess(GeneSetTrans):
             self.rankingf = AT_edelmanParametricLearner()
         self.example_buffer = {}
         self.attransv = 0
+        self.ignore_unmatchable_context = True
         super(Assess, self).__init__(**kwargs)
 
     def _ordered_and_lcor(self, ex, nm, name_ind, attrans, attransv):
@@ -226,8 +227,8 @@ class Assess(GeneSetTrans):
         key = (ex, nm, attransv)
         if key not in self.example_buffer:
             ex_atts = [ at.name for at in ex.domain.attributes ]
-            new_atts = [ name_ind[nm.umatch(an)] if nm.umatch(an) != None else None
-                for an in ex_atts ]
+            new_atts = [ name_ind[nm.umatch(an)] if nm.umatch(an) != None else (None if self.ignore_unmatchable_context else i)
+                for i,an in enumerate(ex_atts) ]
 
             #new_atts: indices of genes in original data for that sample 
             #POSSIBLE REVERSE IMPLEMENTATION (slightly different
@@ -273,11 +274,13 @@ class Assess(GeneSetTrans):
                 nm2, name_ind2, genes2 = self._match_instance(ex, takegenes)
                 lcor, ordered, rev2, indices_to_lcori = \
                     self._ordered_and_lcor(ex, nm, name_ind, attrans, attransv)
-        
+
+           
                 #subset = list of indices, lcor = correlations, ordered = order
                 #make it compatible with lcor, if some are missing in lcor
                 subset = filter(None,
                     [ indices_to_lcori.get(name_ind2[g], None) for g in genes2 ] )
+
                 return obiGsea.enrichmentScoreRanked(subset, lcor, ordered, rev2=rev2)[0] 
 
             at.get_value_from = t
