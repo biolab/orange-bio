@@ -111,6 +111,9 @@ ENTRY_POINTS = {
         # all wanted widgets and prototypes should just have a flag, but for now ...
         'Prototypes = _bioinformatics.widgets.prototypes',
     ),
+    'orange.canvas.help': (
+        'intersphinx = _bioinformatics.widgets:intersphinx'
+    )
 }
 
 if __name__ == '__main__':
