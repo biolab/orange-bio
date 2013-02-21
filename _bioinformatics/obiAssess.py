@@ -171,7 +171,7 @@ class Assess(object):
         enrichmentScores = dict( 
             (name, obiGsea.enrichmentScoreRanked(subset, lcor, ordered, rev2=rev2)[0]) \
             for name,subset in gsetsnumit)
-    
+
         return enrichmentScores
 
 
