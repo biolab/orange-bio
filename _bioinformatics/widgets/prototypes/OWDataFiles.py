@@ -16,14 +16,14 @@ from Orange.OrangeWidgets import OWGUI
 import warnings
 warnings.filterwarnings("ignore", "'strain'", orange.AttributeWarning)
 
-class DataFiles(orange.Orange):
+class DataFiles(orange.OrangeBase):
     """Structure for communicating multiple ExampleTables:
     [(name1,[exampleTable1a,exampleTable1b,...]), (name2,[exampleTable2a,...]), ...]
     """
     pass
 
 
-class ExampleSelection(orange.Orange):
+class ExampleSelection(orange.OrangeBase):
     """Structure for selection of examples: (selectorName, [0,1,...])
     """
     pass
