@@ -395,8 +395,11 @@ class Genes(DBDataBase):
     def gene_aliases(self):
         aliases = {}
         for entry in self.itervalues():
-            aliases.update(dict.fromkeys(entry.aliases(),
-                                         self.org_code + ":" + entry.entry_key))
+            aliases.update(
+                dict.fromkeys(entry.aliases(),
+                              self.org_code + ":" + entry.entry_key)
+            )
+
         return aliases
 
 

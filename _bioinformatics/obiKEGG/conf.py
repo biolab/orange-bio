@@ -1,5 +1,5 @@
 """
-obiKEGG2 configuration 
+obiKEGG2 configuration
 
 mostly just caching settings
 
@@ -39,13 +39,13 @@ parser.read([os.path.expanduser("~/.obiKEGG/rc.cfg")])
 
 params = {}
 
-_ALL_PARAMS = \
-    ["cache.path",
-     "cache.store",
-     "cache.invalidate",
-     "service.transport"
-     ]
+_ALL_PARAMS = [
+    "cache.path",
+    "cache.store",
+    "cache.invalidate",
+    "service.transport"
+]
+
 for p in _ALL_PARAMS:
     section, option = p.split(".")
     params[p] = parser.get(section, option)
-    

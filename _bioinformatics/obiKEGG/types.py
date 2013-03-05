@@ -143,4 +143,3 @@ Subtype = namedtuple(
                 "relation",
                 "type",
                 ])
-

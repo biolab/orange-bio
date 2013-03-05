@@ -24,8 +24,9 @@ from datetime import datetime
 
 from Orange.utils import lru_cache
 from Orange.utils import progress_bar_milestones
-from Orange.utils import deprecated_keywords, deprecated_attribute, \
-                         deprecated_function_name
+from Orange.utils import (
+    deprecated_keywords, deprecated_attribute, deprecated_function_name
+)
 
 from .. import obiProb
 
@@ -104,20 +105,20 @@ class Organism(object):
             return self.api.get_pathways_by_genes(with_ids)
         else:
             return [p.entry_id for p in self.api.list_pathways(self.org_code)]
-    
+
     def list_pathways(self):
         """
         List all pathways.
         """
         # NOTE: remove/deprecate and use pathways()
         return self.pathways()
-    
+
     def get_linked_pathways(self, pathway_id):
         self.api.get_linked_pathways(pathway_id)
-        
+
     def enzymes(self, genes=None):
         raise NotImplementedError()
-    
+
     def _gm_gene_aliases(self):
         """
         Return a list of sets of equal genes. This is a hack for
@@ -194,10 +195,10 @@ class Organism(object):
 
     def get_enzymes_by_pathway(self, pathway_id):
         return KEGGPathway(pathway_id).enzymes()
-    
+
     def get_compounds_by_pathway(self, pathway_id):
         return KEGGPathway(pathway_id).compounds()
-    
+
     def get_pathways_by_genes(self, gene_ids):
         return self.api.get_pathways_by_genes(gene_ids)
         gene_ids = set(gene_ids)
@@ -229,7 +230,7 @@ class Organism(object):
 
     def get_compounds_by_enzyme(self, enzyme_id):
         return self._enzymes_to_compounds.get(enzyme_id)
-    
+
     @deprecated_keywords({"caseSensitive": "case_sensitive"})
     def get_unique_gene_ids(self, genes, case_sensitive=True):
         """
@@ -264,12 +265,12 @@ class Organism(object):
                 ids = obiTaxonomy.search(name)
                 ids = [id for id in ids if genome.search(id)]
             name = ids.pop(0) if ids else name
-            
+
         try:
             return genome[name].organism_code
         except KeyError:
             raise OrganismNotFoundError(name)
-        
+
     @classmethod
     def organism_version(cls, name):
         name = cls.organism_name_search(name)
@@ -279,14 +280,14 @@ class Organism(object):
 
     def _set_genematcher(self, genematcher):
         setattr(self, "_genematcher", genematcher)
-        
+
     def _get_genematcher(self):
-        if getattr(self, "_genematcher", None) == None:
+        if getattr(self, "_genematcher", None) is None:
             from .. import obiGene
             if self.org_code == "ddi":
                 self._genematcher = obiGene.matcher(
                     [obiGene.GMKEGG(self.org_code), obiGene.GMDicty(),
-                    [obiGene.GMKEGG(self.org_code), obiGene.GMDicty()]]
+                     [obiGene.GMKEGG(self.org_code), obiGene.GMDicty()]]
                 )
             else:
                 self._genematcher = obiGene.matcher(
@@ -294,7 +295,7 @@ class Organism(object):
 
             self._genematcher.set_targets(self.genes.keys())
         return self._genematcher
-    
+
     genematcher = property(_get_genematcher, _set_genematcher)
 
 
@@ -304,22 +305,26 @@ KEGGOrganism = Organism
 def organism_name_search(name):
     return KEGGOrganism.organism_name_search(name)
 
+
 def pathways(org):
     return KEGGPathway.list(org)
 
+
 def organisms():
     return KEGGOrganism.organisms()
+
 
 def from_taxid(taxid):
     genome = KEGGGenome()
     res = genome.search(taxid)
     for r in res:
         e = genome[r]
-        
-        if e.taxid in [taxid,  genome.TAXID_MAP.get(taxid, taxid)]:
+
+        if e.taxid in [taxid, genome.TAXID_MAP.get(taxid, taxid)]:
             return e.org_code()
 
     return None
+
 
 def to_taxid(name):
     genome = KEGGGenome()
@@ -331,6 +336,7 @@ def to_taxid(name):
         return genome[keys[0]].taxid
     else:
         return None
+
 
 def create_gene_sets():
     pass

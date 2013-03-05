@@ -331,13 +331,13 @@ except ImportError:
     # standalone package
     from Orange.utils import lru_cache
 
-    
+
 class CachedKeggApi(KeggApi):
     def __init__(self, store=None):
         KeggApi.__init__(self)
         if store is None:
             self.store = {}
-    
+
     # Needed API for cached decorator.
     def cache_store(self):
         from . import conf
@@ -345,17 +345,17 @@ class CachedKeggApi(KeggApi):
         touch_dir(path)
         return caching.Sqlite3Store(os.path.join(path,
                                                  "kegg_api_cache_1.sqlite3"))
-    
+
     def last_modified(self, args, kwargs=None):
         return getattr(self, "default_release", "")
-    
+
     def set_default_release(self, release):
         self.default_release = release
 
     @cached_method
     def list_organisms(self):
         return KeggApi.list_organisms(self)
-    
+
     @cached_method
     def list_pathways(self, organism):
         return KeggApi.list_pathways(self, organism)
@@ -488,31 +488,34 @@ class CachedKeggApi(KeggApi):
     ######
     # SSDB
     ######
-    
+
     @cached_method
     def get_best_best_neighbors_by_gene(self, genes_id, offset, limit):
-        return KeggApi.get_best_best_neighbors_by_gene(self, genes_id, offset, limit)
-    
+        return KeggApi.get_best_best_neighbors_by_gene(self, genes_id, offset,
+                                                       limit)
+
     @cached_method
     def get_best_neighbors_by_gene(self, genes_id, offset, limit):
-        return KeggApi.get_best_neighbors_by_gene(self, genes_id, offset, limit)
-    
+        return KeggApi.get_best_neighbors_by_gene(self, genes_id, offset,
+                                                  limit)
+
     @cached_method
     def get_reverse_best_neighbors_by_gene(self, genes_id, offset, limit):
-        return KeggApi.get_reverse_best_neighbors_by_gene(self, genes_id, offset, limit)
-    
+        return KeggApi.get_reverse_best_neighbors_by_gene(self, genes_id,
+                                                          offset, limit)
+
     @cached_method
     def get_paralogs_by_gene(self, genes_id, offset, limit):
         return KeggApi.get_paralogs_by_gene(self, genes_id, offset, limit)
-    
+
     #######
     # Motif
     #######
-    
+
     @cached_method
     def get_motifs_by_gene(self, genes_id, db):
         return KeggApi.get_motifs_by_gene(self, genes_id, db)
-    
+
     @cached_method
     def get_genes_by_motifs(self, motif_id_list, offset, limit):
         return KeggApi.get_genes_by_motifs(self, motif_id_list, offset, limit)
@@ -520,91 +523,93 @@ class CachedKeggApi(KeggApi):
     ####
     # KO
     ####
-    
+
     @cached_method
     def get_ko_by_gene(self, genes_id):
         return KeggApi.get_ko_by_gene(self, genes_id)
-    
+
     @cached_method
     def get_ko_by_ko_class(self, ko_class_id):
         return KeggApi.service.get_ko_by_ko_class(self, ko_class_id)
-    
+
     @cached_method
     def get_genes_by_ko_class(self, ko_class_id, org, offset, limit):
-        return KeggApi.get_genes_by_ko_class(self, ko_class_id, org, offset, limit)
-    
+        return KeggApi.get_genes_by_ko_class(self, ko_class_id, org, offset,
+                                             limit)
+
     @cached_method
     def get_genes_by_ko(self, ko_id, org):
         return KeggApi.get_genes_by_ko(self, ko_id, org)
-    
+
     #########
     # Pathway
     #########
 
     @cached_method
     def get_genes_by_organism(self, organism, offset=None, limit=None):
-        return KeggApi.get_genes_by_organism(self, organism, offset=offset, limit=limit)
-    
+        return KeggApi.get_genes_by_organism(self, organism, offset=offset,
+                                             limit=limit)
+
     @cached_method
     def get_number_of_genes_by_organism(self, organism):
         return KeggApi.get_number_of_genes_by_organism(self, organism)
-     
+
     @cached_method
     def get_pathways_by_genes(self, gene_list):
         return KeggApi.get_pathways_by_genes(self, gene_list)
-    
+
     @cached_method
     def get_pathways_by_enzymes(self, enzyme_list):
         return KeggApi.get_pathways_by_enzymes(self, enzyme_list)
-    
+
     @cached_method
     def get_pathways_by_compounds(self, compound_list):
         return KeggApi.get_pathways_by_compounds(self, compound_list)
-    
+
     @cached_method
     def get_pathways_by_drugs(self, drug_list):
         return KeggApi.get_pathways_by_drugs(self, drug_list)
-    
+
     @cached_method
     def get_pathways_by_glycans(self, glycan_list):
         return KeggApi.get_pathways_by_glycans(self, glycan_list)
-    
+
     @cached_method
     def get_pathways_by_reactions(self, reaction_list):
         return KeggApi.get_pathways_by_reactions(self, reaction_list)
-    
+
     @cached_method
     def get_pathways_by_kos(self, ko_list):
         return KeggApi.get_pathways_by_kos(self, ko_list)
-    
+
     @cached_method
     def get_elements_by_pathway(self, pathway_id):
         return KeggApi.get_elements_by_pathway(self, pathway_id)
-    
+
     @cached_method
     def get_genes_by_pathway(self, pathway_id):
         return KeggApi.get_genes_by_pathway(self, pathway_id)
-    
+
     @cached_method
     def get_enzymes_by_pathway(self, pathway_id):
         return KeggApi.get_enzymes_by_pathway(self, pathway_id)
-    
+
     @cached_method
     def get_compounds_by_pathway(self, pathway_id):
         return KeggApi.get_compounds_by_pathway(self, pathway_id)
-    
+
     @cached_method
     def get_drugs_by_pathway(self, pathway_id):
         return KeggApi.get_drugs_by_pathway(self, pathway_id)
-    
+
     @cached_method
     def get_glycans_by_pathway(self, pathway_id):
         return KeggApi.get_glycans_by_pathway(self, pathway_id)
-    
+
     @cached_method
     def get_reactions_by_pathway(self, pathway_id):
         return KeggApi.get_reactions_by_pathway(self, pathway_id)
-    
+
     @cached_method
     def get_kos_by_pathway(self, pathway_id):
         return KeggApi.get_kos_by_pathway(self, pathway_id)

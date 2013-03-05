@@ -10,12 +10,15 @@ from collections import defaultdict
 from . import fields
 from .parser import DBGETEntryParser
 
+
 def entry_decorate(cls):
-    """ Decorate the DBEntry subclass with properties for acessing
+    """
+    Decorate the DBEntry subclass with properties for accessing
     the fields through the 'DBField._convert' interface
-     
+
     """
     reserved_names_map = {"class": "class_", "def": "def_"}
+
     def construct_one(name):
         def get(self):
             field = getattr(self, name, None)
@@ -24,7 +27,7 @@ def entry_decorate(cls):
             else:
                 return None
         return property(get, doc=name)
-    
+
     def construct_multiple(name):
         def get(self):
             field = getattr(self, name, None)
@@ -33,7 +36,7 @@ def entry_decorate(cls):
             else:
                 return None
         return property(get, doc=name)
-    
+
     for name, field in cls.FIELDS:
         name_lower = name.lower()
         if not hasattr(cls, name_lower):
@@ -42,38 +45,37 @@ def entry_decorate(cls):
             else:
                 prop = construct_one(name)
             setattr(cls, reserved_names_map.get(name_lower, name_lower), prop)
-        
+
     return cls
 
+
 class DBEntry(object):
-    """ A DBGET entry object.
     """
-    FIELDS = [("ENTRY", fields.DBEntryField),
-              ]
+    A DBGET entry object.
+    """
+    FIELDS = [("ENTRY", fields.DBEntryField)]
     MULTIPLE_FIELDS = []
-    
+
     def __init__(self, text=None):
         self._sections = {}
         if text is not None:
             self.parse(text)
-            
+
     @property
     def entry_key(self):
         """ Primary entry key used for querying.
         """
         return self.entry.split(" ", 1)[0]
-    
+
     def parse(self, text):
         parser = DBGETEntryParser()
         gen = parser.parse_string(text)
-        entry_start = 0
         field_constructors = dict(self.FIELDS)
-        sections = defaultdict(list)
+
         current = None
         current_subfield = None
         entry_fields = []
         for (event, title, text) in gen:
-#            print event, title, text
             if event == DBGETEntryParser.SECTION_START:
                 if title in field_constructors:
                     ftype = field_constructors[title]
@@ -93,7 +95,7 @@ class DBEntry(object):
                     new = fields.DBFieldWithSubsections(current.text)
                     new.TITLE = current.TITLE
                     current = new
-                    
+
             elif event == DBGETEntryParser.SUBSECTION_END:
                 current.subsections.append(current_subfield)
                 current_subfield = None
@@ -104,41 +106,41 @@ class DBEntry(object):
                     current.text += text
             elif event == DBGETEntryParser.ENTRY_END:
                 break
-        
+
         self.fields = entry_fields
         self._consolidate()
-        
+
     def _consolidate(self):
-        """ Update mapping to field entries.
+        """
+        Update mapping to field entries.
         """
         registered_fields = dict(self.FIELDS)
         multiple_fields = set(self.MULTIPLE_FIELDS)
-        
+
         for field in self.fields:
             title = field.TITLE
             if title not in registered_fields:
                 import warnings
                 warnings.warn("Nonregisterd field %r in %r" % \
-                                (title, type(self)))
-            title_lower = title.lower()
+                              (title, type(self)))
+
             if title in multiple_fields:
                 if not hasattr(self, title):
                     setattr(self, title, [])
                 getattr(self, title).append(field)
             else:
                 setattr(self, title, field)
-        
-    
+
     def __str__(self):
         return self.format()
-    
+
     def format(self, section_indent=12):
-        return "".join(f.format(section_indent)\
+        return "".join(f.format(section_indent)
                        for f in self.fields)
-        
+
     def get(self, key, default=None):
         raise NotImplementedError
-    
+
         f = getattr(self, key, None)
         if f is not None:
             if key in self.MULTIPLE_FIELDS:
