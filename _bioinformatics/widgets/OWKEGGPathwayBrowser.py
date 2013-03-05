@@ -5,12 +5,10 @@
 <icon>icons/KEGGPathways.svg</icon>
 """
 
-from __future__ import absolute_import, with_statement 
-
-if __name__ == "__main__": 
-    __package__ = "Orange.bio.widgets"
+from __future__ import absolute_import, with_statement
 
 import sys
+import gc
 from collections import defaultdict
 import webbrowser
 
@@ -309,61 +307,64 @@ class OWKEGGPathwayBrowser(OWWidget):
         
         self.setEnabled(False)
         QTimer.singleShot(100, self.UpdateOrganismComboBox)
-        
-        
+
     def UpdateOrganismComboBox(self):
         # First try to import suds
         try:
-            import suds
+            import slumber
         except ImportError:
             QMessageBox.warning(self,
-                "'suds' library required.",
-                '<p>Please install \
-<a href="http://pypi.python.org/pypi/suds">suds</a> library \
-to use KEGG Pathways widget.</p>'
-                )
-            
+                "'slumber' library required.",
+                '<p>Please install '
+                '<a href="http://pypi.python.org/pypi/slumber">slumber</a> '
+                'library to use KEGG Pathways widget.</p>'
+            )
+
         try:
             genome = obiKEGG.KEGGGenome()
-            all_codes = list(genome)
-            
-            self.allOrganismCodes = genome 
-    
+
+            self.allOrganismCodes = genome
+
             essential = genome.essential_organisms()
             common = genome.common_organisms()
             common = [c for c in common if c not in essential]
-            
-            self.infoLabel.setText("Fetching organism definitions\n")
-            
-            pb = OWGUI.ProgressBar(self, len(essential + common))
-            codes = []
-            for i, code in enumerate(essential + common):
-                codes.append((code, genome[code].definition))
-                pb.advance()
-            pb.finish()
-            self.organismCodes = codes
-            
-            items = [desc for code, desc in self.organismCodes]
-            
-            self.organismCodes = [code for code, desc in self.organismCodes]
 
-            # TODO: Add option to specify additional organisms not 
+            # TODO: Add option to specify additional organisms not
             # in the common list.
 
+            self.infoLabel.setText("Fetching organism definitions\n")
+
+            keys = map(genome.org_code_to_entry_key, essential + common)
+
+            self.progressBarInit()
+            genome.pre_cache(keys, progress_callback=self.progressBarSet)
+            self.progressBarFinished()
+
+            codes = []
+            for code, key in zip(essential + common, keys):
+                codes.append((code, genome[key].definition))
+
+            items = [desc for code, desc in codes]
+
+            self.organismCodes = [code for code, desc in codes]
             self.organismComboBox.addItems(items)
+
         finally:
             self.setEnabled(True)
             self.infoLabel.setText("No data on input\n")
-            self.signalManager.freeze(self).pop() #setFreeze(0)
+            self.signalManager.freeze(self).pop()
 
     def Clear(self):
+        """
+        Clear the widget state.
+        """
         self.infoLabel.setText("No data on input\n")
         self.listView.clear()
         self.ClearPathway()
-        
+
         self.send("Selected Examples", None)
         self.send("Unselected Examples", None)
-        
+
     def ClearPathway(self):
         self.pathwayView.SetPathway(None)
         self.selectedObjects = defaultdict(list)
@@ -418,80 +419,97 @@ to use KEGG Pathways widget.</p>'
         self.geneAttrCombo.clear()
         
         self.geneAttrCombo.addItems([var.name for var in self.geneAttrCandidates])
-            
+
     def UpdateListView(self):
         self.bestPValueItem = None
         self.listView.clear()
         if not self.data:
             return
+
         allPathways = self.org.pathways()
         allRefPathways = obiKEGG.pathways("map")
-#        self.progressBarFinished()
+
         items = []
         self.progressBarInit()
         kegg_pathways = obiKEGG.KEGGPathways()
         kegg_pathways.pre_cache(self.pathways.keys(),
                                 progress_callback=self.progressBarSet)
         self.progressBarFinished()
+
+        org_code = self.organismCodes[min(self.organismIndex,
+                                          len(self.organismCodes)-1)]
+
         if self.showOrthology:
             self.koOrthology = obiKEGG.KEGGBrite("ko00001")
             self.listView.setRootIsDecorated(True)
             path_ids = set([s[-5:] for s in self.pathways.keys()])
+
             def _walkCollect(koEntry):
                 num = koEntry.title[:5] if koEntry.title else None
-                if num  in path_ids:
-                    return [koEntry] + reduce(lambda li,c:li+_walkCollect(c), [child for child in koEntry.entries], [])
+                if num in path_ids:
+                    return [koEntry] + reduce(lambda li, c:li + _walkCollect(c), [child for child in koEntry.entries], [])
                 else:
-                    c = reduce(lambda li,c:li+_walkCollect(c), [child for child in koEntry.entries], [])
+                    c = reduce(lambda li, c: li + _walkCollect(c),
+                               [child for child in koEntry.entries], [])
                     return c + (c and [koEntry] or [])
-            allClasses = reduce(lambda li1, li2: li1+li2, [_walkCollect(c) for c in self.koOrthology], [])
+
+            allClasses = reduce(lambda li1, li2: li1 + li2,
+                                [_walkCollect(c) for c in self.koOrthology], [])
+
             def _walkCreate(koEntry, lvItem):
                 item = QTreeWidgetItem(lvItem)
-                id = "path:"+self.organismCodes[min(self.organismIndex, len(self.organismCodes)-1)] + koEntry.title[:5]
-                p = kegg_pathways.get_entry(id)
+                id = "path:" + org_code + koEntry.title[:5]
+
                 if koEntry.title[:5] in path_ids:
+                    p = kegg_pathways.get_entry(id)
                     if p is None:
-                        # In case the genesets still have obsolete entries 
+                        # In case the genesets still have obsolete entries
                         name = koEntry.title
                     else:
                         name = p.name
                     genes, p_value, ref = self.pathways[id]
                     item.setText(0, name)
                     item.setText(1, "%.5f" % p_value)
-                    item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
-                    item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
+                    item.setText(2, "%i of %i" % (len(genes), len(self.genes)))
+                    item.setText(3, "%i of %i" % (ref, len(self.referenceGenes)))
                     item.pathway_id = id if p is not None else None
                 else:
-                    item.setText(0, p.name if id in allPathways else koEntry.title)
+                    if id in allPathways:
+                        text = kegg_pathways.get_entry(id).name
+                    else:
+                        text = koEntry.title
+                    item.setText(0, text)
+
                     if id in allPathways:
                         item.pathway_id = id
                     elif "path:map" + koEntry.title[:5] in allRefPathways:
                         item.pathway_id = "path:map" + koEntry.title[:5]
                     else:
                         item.pathway_id = None
-                
+
                 for child in koEntry.entries:
                     if child in allClasses:
                         _walkCreate(child, item)
-            
+
             for koEntry in self.koOrthology:
                 if koEntry in allClasses:
                     _walkCreate(koEntry, self.listView)
-                    
+
             self.listView.update()
         else:
             self.listView.setRootIsDecorated(False)
             pathways = self.pathways.items()
-            pathways.sort(lambda a,b:cmp(a[1][1], b[1][1]))
+            pathways.sort(lambda a, b: cmp(a[1][1], b[1][1]))
+
             for id, (genes, p_value, ref) in pathways:
                 item = QTreeWidgetItem(self.listView)
                 item.setText(0, kegg_pathways.get_entry(id).name)
                 item.setText(1, "%.5f" % p_value)
-                item.setText(2, "%i of %i" %(len(genes), len(self.genes)))
-                item.setText(3, "%i of %i" %(ref, len(self.referenceGenes)))
+                item.setText(2, "%i of %i" % (len(genes), len(self.genes)))
+                item.setText(3, "%i of %i" % (ref, len(self.referenceGenes)))
                 item.pathway_id = id
                 items.append(item)
-                
+
         self.bestPValueItem = items and items[0] or None
         self.listView.expandAll()
         for i in range(4):
@@ -759,26 +777,20 @@ to use KEGG Pathways widget.</p>'
     @pyqtSignature("queuedInvoke(PyQt_PyObject)")
     def queuedInvoke(self, func):
         func()
-        
+
     def progressBarSet(self, value):
-#        print "Enter"
         if not getattr(self, "_in_progress_update", False):
             self._in_progress_update = True
             try:
                 OWWidget.progressBarSet(self, value)
             finally:
                 self._in_progress_update = False
-#        else:
-#            print "====="
-        
-#        print "Exit"
-    
+
     def onDeleteWidget(self):
         """ Called before the widget is removed from the canvas.
         """
         self.org = None
-        import gc
-        gc.collect() # Force collection
+        gc.collect()  # Force collection
         
     def UpdateToLatestPathways(self):
         pass        
@@ -811,15 +823,15 @@ def pathway_enrichment(genesets, genes, reference, prob=None, callback=None):
     return dict([(id, (genes, p_val, len(ref))) \
                  for (id, genes, ref), p_val in zip(result_sets, p_values)]
                 )
-    
-if __name__=="__main__":
+
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     data = orange.ExampleTable("brown-selected.tab")
     w = OWKEGGPathwayBrowser()
     w.UpdateOrganismComboBox()
-##    app.setMainWidget(w)
     w.show()
     w.SetData(orange.ExampleTable(data[:]))
     QTimer.singleShot(10, w.handleNewSignals)
+
     app.exec_()
     w.saveSettings()

@@ -1,5 +1,5 @@
 """
-DBGET entry 
+DBGET entry
 """
 from __future__ import absolute_import
 

@@ -89,7 +89,7 @@ EXTRAS_REQUIRE = {
         'Orange[NETWORK]'
     ),
     'KEGG': (
-        'suds'
+        'slumber >= 0.4'
     )
 
 }

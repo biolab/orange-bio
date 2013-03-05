@@ -3,23 +3,31 @@
 KEGG - Kyoto Encyclopedia of Genes and Genomes
 ==============================================
 
-This is a python module for access to `KEGG`_ using its web services. To use this module you need to have
-`SUDS`_ python library installed (other backends are planed). 
+This is a python module for access to `KEGG`_ using its web services.
+
+To use this module you need to have `slumber` and `requests` package
+installed.
 
 .. _`KEGG`: http://www.genome.jp/kegg/
 
-.. _`SUDS`: http://pypi.python.org/pypi/suds/
 
 """
 from __future__ import absolute_import
 
+import os
+import sys
 import urllib2
-import os, sys
+
 from collections import defaultdict
 
 from datetime import datetime
 
 from Orange.utils import lru_cache
+from Orange.utils import progress_bar_milestones
+from Orange.utils import deprecated_keywords, deprecated_attribute, \
+                         deprecated_function_name
+
+from .. import obiProb
 
 from . import databases
 from . import entry
@@ -32,9 +40,10 @@ from . import pathway
 
 KEGGGenome = databases.Genome
 KEGGGenes = databases.Genes
-KEGGEnzymes = databases.Enzymes
-KEGGReaction = databases.Reactions
-KEGGPathways = databases.Pathways
+KEGGEnzyme = databases.Enzyme
+KEGGReaction = databases.Reaction
+KEGGPathways = databases.Pathway
+KEGGCompound = databases.Compound
 
 KEGGBrite = Brite
 KEGGBriteEntry = BriteEntry
@@ -44,38 +53,63 @@ KEGGPathway = pathway.Pathway
 DEFAULT_CACHE_DIR = conf.params["cache.path"]
 
 
-from .. import obiProb
-from Orange.utils import deprecated_keywords, deprecated_attribute
+class OrganismNotFoundError(Exception):
+    pass
 
-class OrganismNotFoundError(Exception): pass
 
 class Organism(object):
+    """
+    A convenience class for retrieving information regarding an
+    organism in the KEGG Genes database.
+
+    :param org: KEGGG organism code (e.g. "hsa", "sce")
+    :type org: str
+
+    """
     def __init__(self, org, genematcher=None):
         self.org_code = self.organism_name_search(org)
         self.genematcher = genematcher
         self.api = api.CachedKeggApi()
-        
+
     @property
     def org(self):
+        """
+        KEGG organism code.
+        """
         return self.org_code
-    
+
     @property
     def genes(self):
+        """
+        An :class:`Genes` database instance for this organism.
+        """
+        # TODO: This should not be a property but a method.
+        # I think it was only put here as back compatibility with old obiKEGG.
         if not hasattr(self, "_genes"):
             genes = KEGGGenes(self.org_code)
             self._genes = genes
         return self._genes
-    
+
     def gene_aliases(self):
-        return self.genes().gene_aliases()
-    
+        """
+        Return known gene aliases (synonyms in other databases).
+        """
+        return self.genes.gene_aliases()
+
     def pathways(self, with_ids=None):
+        """
+        Return a list of all pathways for this organism.
+        """
         if with_ids is not None:
             return self.api.get_pathways_by_genes(with_ids)
         else:
             return [p.entry_id for p in self.api.list_pathways(self.org_code)]
     
     def list_pathways(self):
+        """
+        List all pathways.
+        """
+        # NOTE: remove/deprecate and use pathways()
         return self.pathways()
     
     def get_linked_pathways(self, pathway_id):
@@ -96,56 +130,68 @@ class Organism(object):
             if l:
                 tabs = l.split("\t")
                 cset = set([tabs[0]])
+
+                if ":" in tabs[0]:
+                    # also add 'identifier' from 'org_code:identifier'
+                    cset.add(tabs[0].split(":", 1)[-1])
+
                 try:
                     rest = tabs[1].split(";")[0]
                     cset |= set(rest.split(", "))
                 except:
-                    pass #do not crash if a line does not conform
+                    pass  # do not crash if a line does not conform
                 out.append(cset)
         return out
 
-    def get_enriched_pathways(self, genes, reference=None, prob=obiProb.Binomial(), callback=None):
-        """ Return a dictionary with enriched pathways ids as keys
-        and (list_of_genes, p_value, num_of_reference_genes) tuples 
-        as items.
-        
+    def get_enriched_pathways(self, genes, reference=None,
+                              prob=obiProb.Binomial(), callback=None):
         """
-        allPathways = defaultdict(lambda :[[], 1.0, []])
-        from Orange.orng import orngMisc
-        milestones = orngMisc.progressBarMilestones(len(genes), 100)
+        Return a dictionary with enriched pathways ids as keys
+        and (list_of_genes, p_value, num_of_reference_genes) tuples
+        as items.
+
+        """
+        if reference is None:
+            reference = self.genes.keys()
+        reference = set(reference)
+
+        allPathways = defaultdict(lambda: [[], 1.0, []])
+        milestones = progress_bar_milestones(len(genes), 100)
         pathways_db = KEGGPathways()
-        
+
         pathways_for_gene = []
         for i, gene in enumerate(genes):
             pathways_for_gene.append(self.pathways([gene]))
             if callback and i in milestones:
-                callback(i*50.0/len(genes))
-                
-        # precache for speed 
-        pathways_db.pre_cache([pid for pfg in pathways_for_gene for pid in pfg]) 
+                callback(i * 50.0 / len(genes))
+
+        # pre-cache for speed
+        pathways_db.pre_cache([pid for pfg in pathways_for_gene
+                               for pid in pfg])
         for i, (gene, pathways) in enumerate(zip(genes, pathways_for_gene)):
             for pathway in pathways:
-                if pathways_db.get_entry(pathway).gene: 
+                if pathways_db.get_entry(pathway).gene:
                     allPathways[pathway][0].append(gene)
             if callback and i in milestones:
-                callback(50.0 + i*50.0/len(genes))
-        reference = set(reference if reference is not None else self.genes.keys())
-        
+                callback(50.0 + i * 50.0 / len(genes))
+
         pItems = allPathways.items()
-        
+
         for i, (p_id, entry) in enumerate(pItems):
             pathway = pathways_db.get_entry(p_id)
             entry[2].extend(reference.intersection(pathway.gene or []))
-            entry[1] = prob.p_value(len(entry[0]), len(reference), len(entry[2]), len(genes))
-        return dict([(pid, (genes, p, len(ref))) for pid, (genes, p, ref) in allPathways.items()])
-        
+            entry[1] = prob.p_value(len(entry[0]), len(reference),
+                                    len(entry[2]), len(genes))
+        return dict([(pid, (genes, p, len(ref)))
+                     for pid, (genes, p, ref) in allPathways.items()])
+
     def get_genes_by_enzyme(self, enzyme):
-        enzyme = Enzymes().get_entry(enzyme)
+        enzyme = KEGGEnzyme().get_entry(enzyme)
         return enzyme.genes.get(self.org_code, []) if enzyme.genes else []
-    
+
     def get_genes_by_pathway(self, pathway_id):
         return KEGGPathway(pathway_id).genes()
-    
+
     def get_enzymes_by_pathway(self, pathway_id):
         return KEGGPathway(pathway_id).enzymes()
     
@@ -155,36 +201,43 @@ class Organism(object):
     def get_pathways_by_genes(self, gene_ids):
         return self.api.get_pathways_by_genes(gene_ids)
         gene_ids = set(gene_ids)
-        pathways = [self.genes[id].pathway for id in gene_ids if self.genes[id].pathway]
+        pathways = [self.genes[id].pathway for id in gene_ids
+                    if self.genes[id].pathway]
         pathways = reduce(set.union, pathways, set())
-        return [id for id in pathways if gene_ids.issubset(KEGGPathway(id).genes())] 
-    
+        return [id for id in pathways
+                if gene_ids.issubset(KEGGPathway(id).genes())]
+
     def get_pathways_by_enzymes(self, enzyme_ids):
         enzyme_ids = set(enzyme_ids)
-        pathways = [KEGGEnzymes()[id].pathway for id in enzyme_ids]
-        pathwats = reduce(set.union, pathways, set())
-        return [id for id in pathways if enzyme_ids.issubset(KEGGPathway(id).enzymes())]
-    
+        pathways = [KEGGEnzyme()[id].pathway for id in enzyme_ids]
+        pathways = reduce(set.union, pathways, set())
+        return [id for id in pathways
+                if enzyme_ids.issubset(KEGGPathway(id).enzymes())]
+
     def get_pathways_by_compounds(self, compound_ids):
         compound_ids = set(compound_ids)
-        pathways = [KEGGCompounds()[id].pathway for id in compound_ids]
-        pathwats = reduce(set.union, pathways, set())
-        return [id for id in pathways if compound_ids.issubset(KEGGPathway(id).compounds())]
-    
+        pathways = [KEGGCompound()[id].pathway for id in compound_ids]
+        pathways = reduce(set.union, pathways, set())
+        return [id for id in pathways
+                if compound_ids.issubset(KEGGPathway(id).compounds())]
+
     def get_enzymes_by_compound(self, compound_id):
         return KEGGCompound()[compound_id].enzyme
-    
+
     def get_enzymes_by_gene(self, gene_id):
         return self.genes[gene_id].enzymes
-    
+
     def get_compounds_by_enzyme(self, enzyme_id):
         return self._enzymes_to_compounds.get(enzyme_id)
     
     @deprecated_keywords({"caseSensitive": "case_sensitive"})
     def get_unique_gene_ids(self, genes, case_sensitive=True):
-        """Return a tuple with three elements. The first is a dictionary mapping from unique gene
-        ids to gene names in genes, the second is a list of conflicting gene names and the third is a list
-        of unknown genes.
+        """
+        Return a tuple with three elements. The first is a dictionary
+        mapping from unique geneids to gene names in genes, the second
+        is a list of conflicting gene names and the third is a list of
+        unknown genes.
+
         """
         unique, conflicting, unknown = {}, [], []
         for gene in genes:
@@ -196,10 +249,11 @@ class Organism(object):
             else:
                 conflicting.append(gene)
         return unique, conflicting, unknown
-    
+
+    @deprecated_function_name
     def get_genes(self):
         return self.genes
-    
+
     @classmethod
     def organism_name_search(cls, name):
         genome = KEGGGenome()
@@ -212,7 +266,7 @@ class Organism(object):
             name = ids.pop(0) if ids else name
             
         try:
-            return genome[name].entry_key
+            return genome[name].organism_code
         except KeyError:
             raise OrganismNotFoundError(name)
         
@@ -220,9 +274,9 @@ class Organism(object):
     def organism_version(cls, name):
         name = cls.organism_name_search(name)
         genome = KEGGGenome()
-        info = genome.api.binfo(name)
+        info = genome.api.info(name)
         return info.release
-    
+
     def _set_genematcher(self, genematcher):
         setattr(self, "_genematcher", genematcher)
         
@@ -230,17 +284,23 @@ class Organism(object):
         if getattr(self, "_genematcher", None) == None:
             from .. import obiGene
             if self.org_code == "ddi":
-                self._genematcher = obiGene.matcher([obiGene.GMKEGG(self.org_code), obiGene.GMDicty(),
-                                                     [obiGene.GMKEGG(self.org_code), obiGene.GMDicty()]])
+                self._genematcher = obiGene.matcher(
+                    [obiGene.GMKEGG(self.org_code), obiGene.GMDicty(),
+                    [obiGene.GMKEGG(self.org_code), obiGene.GMDicty()]]
+                )
             else:
-                self._genematcher = obiGene.matcher([obiGene.GMKEGG(self.org_code)])
+                self._genematcher = obiGene.matcher(
+                    [obiGene.GMKEGG(self.org_code)])
+
             self._genematcher.set_targets(self.genes.keys())
         return self._genematcher
     
     genematcher = property(_get_genematcher, _set_genematcher)
-    
+
+
 KEGGOrganism = Organism
-    
+
+
 def organism_name_search(name):
     return KEGGOrganism.organism_name_search(name)
 
@@ -258,14 +318,14 @@ def from_taxid(taxid):
         
         if e.taxid in [taxid,  genome.TAXID_MAP.get(taxid, taxid)]:
             return e.org_code()
-        
+
     return None
 
 def to_taxid(name):
     genome = KEGGGenome()
     if name in genome:
         return genome[name].taxid
-    
+
     keys = genome.search(name)
     if keys:
         return genome[keys[0]].taxid
@@ -275,11 +335,13 @@ def to_taxid(name):
 def create_gene_sets():
     pass
 
+
 def main():
     KEGGGenome()
     import doctest
     extraglobs = {"api": KeggApi()}
     doctest.testmod(optionflags=doctest.ELLIPSIS, extraglobs=extraglobs)
+
 
 if __name__ == "__main__":
     sys.exit(main())
