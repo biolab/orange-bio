@@ -213,7 +213,7 @@ class DBDataBase(object):
 
         """
         entries = []
-        batch_size = 100
+        batch_size = 10
         keys = list(keys)
         start = 0
         while start < len(keys):

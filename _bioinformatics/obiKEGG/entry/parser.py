@@ -136,7 +136,12 @@ class DBGETEntryParser(object):
         """
         Split the section title from the rest of the line
         """
-        title, rest = line.split(" ", 1)
+        try:
+            title, rest = line.split(" ", 1)
+        except ValueError:
+            # no contents, only section title
+            title = line.rstrip()
+            rest = ""
         rest = rest.lstrip(" ")
         return title, rest
 
