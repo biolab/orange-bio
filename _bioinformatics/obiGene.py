@@ -643,7 +643,6 @@ class MatcherAliasesPickled(MatcherAliases):
         self.ignore_case = ignore_case
         self.filename() # test if valid filename can be built
 
-from Orange.utils import ConsoleProgressBar
 
 class MatcherAliasesKEGG(MatcherAliasesPickled):
 
@@ -651,20 +650,23 @@ class MatcherAliasesKEGG(MatcherAliasesPickled):
         return obiKEGG.organism_name_search(organism)
 
     def create_aliases(self):
-        organism = self._organism_name(self.organism)
         org = obiKEGG.KEGGOrganism(self.organism, genematcher=GMDirect())
-        osets = org._gm_gene_aliases()
+        osets = org.gene_aliases()
         return osets
 
     def create_aliases_version(self):
-        return obiKEGG.KEGGOrganism.organism_version(self.organism) + ".1"
+        # use KEGG short release string (e.g. '66.0+')
+        release = obiKEGG.KEGGOrganism.organism_version(self.organism) + ".2"
+        release, _ = release.split("/")
+        return release
 
     def filename(self):
-        return "kegg_2_" + self._organism_name(self.organism) 
+        return "kegg_2_" + self._organism_name(self.organism)
 
     def __init__(self, organism, ignore_case=True):
         self.organism = organism
         MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
+
 
 class MatcherAliasesFile(MatcherAliasesPickled):
 

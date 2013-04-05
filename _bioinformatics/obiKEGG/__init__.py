@@ -19,7 +19,7 @@ import sys
 import urllib2
 
 from collections import defaultdict
-
+from itertools import chain
 from datetime import datetime
 
 from Orange.utils import lru_cache
@@ -93,9 +93,34 @@ class Organism(object):
 
     def gene_aliases(self):
         """
-        Return known gene aliases (synonyms in other databases).
+        Return a list of sets of equal genes (synonyms) in KEGG for
+        this organism.
+
+        .. note::
+
+            This only includes 'ncbi-geneid' and 'ncbi-gi' records
+            from the KEGG Genes DBLINKS entries.
+
         """
-        return self.genes.gene_aliases()
+        definitions = self.api.list(self.org_code)
+        ncbi_geneid = self.api.conv(self.org_code, "ncbi-geneid")
+        ncbi_gi = self.api.conv(self.org_code, "ncbi-gi")
+
+        aliases = defaultdict(set)
+
+        for entry_id, definition in definitions:
+            # genes entry id without the organism code
+            aliases[entry_id].add(entry_id.split(":", 1)[1])
+            # all names in the NAME field (KEGG API list returns
+            # 'NAME; DEFINITION') fields for genes
+            names = definition.split(";")[0].split(",")
+            aliases[entry_id].update([name.strip() for name in names])
+
+        for source_id, target_id in chain(ncbi_geneid, ncbi_gi):
+            aliases[target_id].add(source_id.split(":", 1)[1])
+
+        return [set([entry_id]).union(names)
+                for entry_id, names in aliases.iteritems()]
 
     def pathways(self, with_ids=None):
         """
@@ -118,31 +143,6 @@ class Organism(object):
 
     def enzymes(self, genes=None):
         raise NotImplementedError()
-
-    def _gm_gene_aliases(self):
-        """
-        Return a list of sets of equal genes. This is a hack for
-        gene matchers to work faster until the whole implementations
-        transitions to REST. Does not include links to DBs.
-        """
-        s1 = urllib2.urlopen("http://rest.kegg.jp/list/%s" % self.org_code).read()
-        out = []
-        for l in s1.split('\n'):
-            if l:
-                tabs = l.split("\t")
-                cset = set([tabs[0]])
-
-                if ":" in tabs[0]:
-                    # also add 'identifier' from 'org_code:identifier'
-                    cset.add(tabs[0].split(":", 1)[-1])
-
-                try:
-                    rest = tabs[1].split(";")[0]
-                    cset |= set(rest.split(", "))
-                except:
-                    pass  # do not crash if a line does not conform
-                out.append(cset)
-        return out
 
     def get_enriched_pathways(self, genes, reference=None,
                               prob=obiProb.Binomial(), callback=None):

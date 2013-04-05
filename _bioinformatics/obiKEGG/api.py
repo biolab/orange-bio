@@ -108,8 +108,17 @@ class KeggApi(object):
 
         return self.service.get(ids).get()
 
-    def conv(self, ids):
-        raise NotImplementedError()
+    def conv(self, target_db, source):
+        """
+        Return a mapping from source to target_db ids as a list of two
+        tuples [(source_id, target_id), ...].
+
+        """
+        if not isinstance(source, basestring):
+            source = "+".join(source)
+
+        res = self.service.conv(target_db)(source).get()
+        return [tuple(line.split("\t")) for line in res.splitlines()]
 
     def link(self, target_db, source_db=None, ids=None):
         if not (source_db or ids):
@@ -430,8 +439,8 @@ class CachedKeggApi(KeggApi):
         return rval
 
     @cached_method
-    def conv(self, ids):
-        return KeggApi.conv(self, ids)
+    def conv(self, target_db, source):
+        return KeggApi.conv(self, target_db, source)
 
     ########
     # LinkDB
