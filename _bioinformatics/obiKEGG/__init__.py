@@ -3,13 +3,51 @@
 KEGG - Kyoto Encyclopedia of Genes and Genomes
 ==============================================
 
-This is a python module for access to `KEGG`_ using its web services.
+:mod:`obiKEGG` is a python module for accessing `KEGG (Kyoto Encyclopedia
+of Genes and Genomes) <http://www.genome.jp/kegg/>`_ using its web services.
 
-To use this module you need to have `slumber` and `requests` package
-installed.
+.. note:: To use this module you need to have `slumber`_ and `requests`_
+          package installed.
 
-.. _`KEGG`: http://www.genome.jp/kegg/
+.. _`slumber`: https://pypi.python.org/pypi/slumber/
 
+.. _`requests`: https://pypi.python.org/pypi/requests
+
+
+>>> # Create a KEGG Genes database interface
+>>> genome = KEGGGenome()
+>>> # List all available entry ids
+>>> keys = genome.keys()
+>>> print keys[0]
+T01001
+>>> # Retrieve the entry for the key.
+>>> entry = genome[keys[0]]
+>>> print entry.entry_key
+T01001
+>>> print entry.definition
+Homo sapiens (human)
+>>> print str(entry)
+ENTRY       T01001            Complete  Genome
+NAME        hsa, HUMAN, 9606
+DEFINITION  Homo sapiens (human)
+...
+
+The :class:`Organism` class can be used as a convenient starting point
+for organism specific databases.
+
+>>> organism = Organism("Homo sapiens")  # searches for the organism by name
+>>> print organism.org_code  # prints the KEGG organism code
+hsa
+>>> genes = organism.genes  # get the genes database for the organism
+>>> gene_ids = genes.keys() # KEGG gene identifiers
+>>> entry = genes["hsa:672"]
+>>> print entry.definition
+breast cancer 1, early onset
+>>> print entry  # print the entry in DBGET database format.
+ENTRY       672               CDS       T01001
+NAME        BRCA1, BRCAI, BRCC1, BROVCA1, IRIS, PNCA4, PPP1R53, PSCP, RNF53
+DEFINITION  breast cancer 1, early onset
+...
 
 """
 from __future__ import absolute_import
@@ -63,8 +101,15 @@ class Organism(object):
     A convenience class for retrieving information regarding an
     organism in the KEGG Genes database.
 
-    :param org: KEGGG organism code (e.g. "hsa", "sce")
+    :param org: KEGG organism code (e.g. "hsa", "sce"). Can also be a
+        descriptive name (e.g. 'yeast', "homo sapiens") in which case the
+        organism code will be searched for by using KEGG `find` api.
     :type org: str
+
+    .. seealso::
+
+        :func:`organism_name_search`
+            Search KEGG for an organism code
 
     """
     def __init__(self, org, genematcher=None):
@@ -82,7 +127,7 @@ class Organism(object):
     @property
     def genes(self):
         """
-        An :class:`Genes` database instance for this organism.
+        An :class:`~.databases.Genes` database instance for this organism.
         """
         # TODO: This should not be a property but a method.
         # I think it was only put here as back compatibility with old obiKEGG.
@@ -133,7 +178,11 @@ class Organism(object):
 
     def list_pathways(self):
         """
-        List all pathways.
+        List all pathways for this organism.
+
+        .. deprecated: 2.5
+            Use :func:`pathways` instead.
+
         """
         # NOTE: remove/deprecate and use pathways()
         return self.pathways()
@@ -303,18 +352,30 @@ KEGGOrganism = Organism
 
 
 def organism_name_search(name):
+    """
+    Search and organism by `name` and return an KEGG organism code.
+    """
     return KEGGOrganism.organism_name_search(name)
 
 
 def pathways(org):
+    """
+    Return a list of all KEGG pathways for an KEGG organism code `org`.
+    """
     return KEGGPathway.list(org)
 
 
 def organisms():
+    """
+    Return a list of all KEGG organisms.
+    """
     return KEGGOrganism.organisms()
 
 
 def from_taxid(taxid):
+    """
+    Return a KEGG organism code for a an NCBI Taxonomy id string `taxid`.
+    """
     genome = KEGGGenome()
     res = genome.search(taxid)
     for r in res:
@@ -327,6 +388,9 @@ def from_taxid(taxid):
 
 
 def to_taxid(name):
+    """
+    Return a NCBI Taxonomy id for a given KEGG Organism name
+    """
     genome = KEGGGenome()
     if name in genome:
         return genome[name].taxid

@@ -1,5 +1,7 @@
 """
-DBGET database
+DBGET Database Interface
+========================
+
 """
 from __future__ import absolute_import
 
@@ -11,11 +13,17 @@ from . import api
 
 
 def iter_take(source_iter, n):
+    """
+    Return a list of the first `n` items in `source_iter`.
+    """
     source_iter = iter(source_iter)
     return [item for _, item in zip(range(n), source_iter)]
 
 
 def batch_iter(source_iter, n):
+    """
+    Split the `source_iter` into batches of size `n`.
+    """
     source_iter = iter(source_iter)
     while True:
         batch = iter_take(source_iter, n)
@@ -45,14 +53,16 @@ def chain_iter(chains_iter):
 
 class DBDataBase(object):
     """
-    A wrapper for DBGET database.
+    Base class for a DBGET database interface.
 
     """
-    # ENTRY_TYPE constructor (type)
+    #: ENTRY_TYPE constructor (a :class:`~.entry.DBEntry` subclass). This
+    #: should be redefined in subclasses.
     ENTRY_TYPE = entry.DBEntry
 
-    # A database name/abbreviation (e.g. path). Needs to be set in a
-    # subclass or object instance's constructor
+    #: A database name/abbreviation (e.g. 'pathway'). Needs to be set in a
+    #: subclass or object instance's constructor before calling the base.
+    #: __init__
     DB = None
 
     def __init__(self, **kwargs):
@@ -68,7 +78,7 @@ class DBDataBase(object):
 
     def keys(self):
         """
-        Return a list of database keys. These are unique kegg identifiers
+        Return a list of database keys. These are unique KEGG identifiers
         that can be used to query the database.
 
         """
@@ -76,13 +86,15 @@ class DBDataBase(object):
 
     def iterkeys(self):
         """
-        Return an iterator over the `keys`
+        Return an iterator over the `keys`.
         """
         return iter(self._keys)
 
     def items(self):
         """
-        Return a list of all (key, `ENTRY_TYPE` instance) tuples.
+        Return a list of all (key, :obj:`DBDataBase.ENTRY_TYPE` instance)
+        tuples.
+
         """
         return list(zip(self.keys(), self.batch_get(self.keys())))
 
@@ -97,13 +109,13 @@ class DBDataBase(object):
 
     def values(self):
         """
-        Return a list of all `ENTRY_TYPE` instances.
+        Return a list of all :obj:`DBDataBase.ENTRY_TYPE` instances.
         """
         return self.batch_get(self.keys())
 
     def itervalues(self):
         """
-        Return an iterator over all `ENTRY_TYPE` instances.
+        Return an iterator over all :obj:`DBDataBase.ENTRY_TYPE` instances.
         """
         batch_size = 100
         iterkeys = self.iterkeys()
@@ -112,8 +124,8 @@ class DBDataBase(object):
 
     def get(self, key, default=None):
         """
-        Return an `ENTRY_TYPE` instance for the `key`. Raises `KeyError` if
-        not found.
+        Return an :obj:`DBDataBase.ENTRY_TYPE` instance for the `key`.
+        Raises :class:`KeyError` if not found.
 
         """
         try:
@@ -159,17 +171,18 @@ class DBDataBase(object):
 
     def find(self, name):
         """
-        Find ``name`` using kegg ``find`` api.
+        Find `name` using kegg `find` api.
         """
         res = self.api.find(self.DB, name).splitlines()
         return [r.split(" ", 1)[0] for r in res]
 
     def pre_cache(self, keys=None, batch_size=10, progress_callback=None):
         """
-        Retrieve all the entries and cache them locally.
-        """
-        # TODO do this in multiple threads
+        Retrieve all the entries for `keys` and cache them locally for faster
+        subsequent retrieval. If `keys` is ``None`` then all entries will be
+        retrieved.
 
+        """
         if not isinstance(self.api, api.CachedKeggApi):
             raise TypeError("Not an instance of api.CachedKeggApi")
 
@@ -267,11 +280,9 @@ class GenomeEntry(entry.DBEntry):
         """
         return self.TAXONOMY.taxid
 
-#    def org_code(self):
-#        if self.name is not None:
-#            return self.name.split(",")[0]
-#        else:
-#            return self.entry.split(" ")[0]
+    def org_code(self):
+        # for backwards compatibility; return the `organism_code`
+        return self.organism_code
 
 
 class Genome(DBDataBase):
@@ -382,6 +393,13 @@ class GeneEntry(entry.DBEntry):
 
 
 class Genes(DBDataBase):
+    """
+    Interface to the KEGG Genes database.
+
+    :param org_code: KEGG organism code (e.g. 'hsa').
+    :type org_code: str
+
+    """
     DB = None  # Needs to be set in __init__
     ENTRY_TYPE = GeneEntry
 

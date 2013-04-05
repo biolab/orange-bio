@@ -1,5 +1,7 @@
 """
-KEGG Pathway (from kgml file)
+============
+KEGG Pathway
+============
 
 """
 from __future__ import absolute_import
@@ -31,6 +33,12 @@ def cached_method(func, cache_name="_cached_method_cache", store=None):
 
 
 class Pathway(object):
+    """
+    Class representing a KEGG Pathway (parsed from a "kgml" file)
+
+    :param str pathway_id: A KEGG pathway id (e.g. 'path:hsa05130')
+
+    """
     KGML_URL_FORMAT = "http://www.genome.jp/kegg-bin/download?entry={pathway_id}&format=kgml"
 
     def __init__(self, pathway_id, local_cache=None, connection=None):
@@ -54,7 +62,8 @@ class Pathway(object):
                                                  "last_modified.sqlite3"))
 
     def _get_kgml(self):
-        """ Return an open kgml file for the pathway.
+        """
+        Return an open kgml file for the pathway.
         """
         from datetime import datetime, timedelta
         valid = False
@@ -86,7 +95,8 @@ class Pathway(object):
         return open(local_filename, "rb")
 
     def _get_image_filename(self):
-        """ Return a filename of a local copy of the pathway image
+        """
+        Return a filename of a local copy of the pathway image
         """
         # TODO: keep-alive (using httplib if it supports it)
         # better to move all code to use requests package
@@ -125,7 +135,8 @@ class Pathway(object):
         return local_filename
 
     def _local_kgml_filename(self):
-        """ Return the local kgml xml filename for the pathway.
+        """
+        Return the local kgml xml filename for the pathway.
         """
         local_filename = os.path.join(self.local_cache,
                                       self.pathway_id + ".xml")
@@ -136,19 +147,26 @@ class Pathway(object):
             self.__dict__.update(dom_element.attributes.items())
             self.graphics = ()
             self.components = []
-            self.graphics = dict(dom_element.getElementsByTagName("graphics")[0].attributes.items())
-            self.components = [node.getAttribute("id") for node in dom_element.getElementsByTagName("component")]
+
+            graphics = dom_element.getElementsByTagName("graphics")[0]
+            self.graphics = dict(graphics.attributes.items())
+
+            components = dom_element.getElementsByTagName("component")
+            self.components = [node.getAttribute("id") for node in components]
 
     class reaction(object):
         def __init__(self, dom_element):
             self.__dict__.update(dom_element.attributes.items())
-            self.substrates = [node.getAttribute("name") for node in dom_element.getElementsByTagName("substrate")]
-            self.products = [node.getAttribute("name") for node in dom_element.getElementsByTagName("product")]
+            self.substrates = [node.getAttribute("name") for node in
+                               dom_element.getElementsByTagName("substrate")]
+            self.products = [node.getAttribute("name") for node in
+                             dom_element.getElementsByTagName("product")]
 
     class relation(object):
         def __init__(self, dom_element):
             self.__dict__.update(dom_element.attributes.items())
-            self.subtypes = [node.attributes.items() for node in dom_element.getElementsByTagName("subtype")]
+            self.subtypes = [node.attributes.items() for node in
+                             dom_element.getElementsByTagName("subtype")]
 
     @cached_method
     def pathway_attributes(self):
@@ -156,26 +174,44 @@ class Pathway(object):
 
     @property
     def name(self):
+        """
+        Pathway name/id (e.g. "path:hsa05130")
+        """
         return self.pathway_attributes().get("name")
 
     @property
     def org(self):
+        """
+        Pathway organism code (e.g. 'hsa')
+        """
         return self.pathway_attributes().get("org")
 
     @property
     def number(self):
+        """
+        Pathway number as a string (e.g. '05130')
+        """
         return self.pathway_attributes().get("number")
 
     @property
     def title(self):
+        """
+        Pathway title string.
+        """
         return self.pathway_attributes().get("title")
 
     @property
     def image(self):
+        """
+        URL of the pathway image.
+        """
         return self.pathway_attributes().get("image")
 
     @property
     def link(self):
+        """
+        URL to a pathway on the KEGG web site.
+        """
         return self.pathway_attributes().get("link")
 
     @cached_method
@@ -213,12 +249,14 @@ class Pathway(object):
             return []
 
     def __iter__(self):
-        """ Iterate over all elements in the pathway
+        """
+        Iterate over all elements in the pathway.
         """
         return iter(self.all_elements())
 
     def __contains__(self, element):
-        """ Retrurn true if element in the pathway
+        """
+        Return ``True`` if element in the pathway.
         """
         return element in self.all_elements()
 
@@ -230,7 +268,8 @@ class Pathway(object):
 
     @cached_method
     def all_elements(self):
-        """ Return all elements
+        """
+        Return all elements
         """
         return reduce(list.__add__,
                       [self.genes(), self.compounds(),
@@ -245,46 +284,57 @@ class Pathway(object):
 
     @cached_method
     def genes(self):
-        """ Return all genes on the pathway
+        """
+        Return all genes on the pathway.
         """
         return self._get_entries_by_type("gene")
 
     @cached_method
     def compounds(self):
-        """ Return all compounds on the pathway
+        """
+        Return all compounds on the pathway.
         """
         return self._get_entries_by_type("compound")
 
     @cached_method
     def enzymes(self):
-        """ Return all enzymes on the pathway
+        """
+        Return all enzymes on the pathway.
         """
         return self._get_entries_by_type("enzyme")
 
     @cached_method
     def orthologs(self):
-        """ Return all orthologs on the pathway
+        """
+        Return all orthologs on the pathway.
         """
         return self._get_entries_by_type("ortholog")
 
     @cached_method
     def maps(self):
-        """ Return all linked maps on the pathway
+        """
+        Return all linked maps on the pathway.
         """
         return self._get_entries_by_type("map")
 
     @cached_method
     def groups(self):
-        """ Return all groups on the pathway
+        """
+        Return all groups on the pathway.
         """
         return self._get_entries_by_type("ortholog")
 
     def get_image(self):
-        """ Return an image of the pathway
+        """
+        Return an local filesystem path to an image of the pathway. The image
+        will be downloaded if not already cached.
         """
         return self._get_image_filename()
 
     @classmethod
     def list(cls, organism):
+        """
+        List all pathways for KEGG organism code `organism`.
+        """
         kegg = api.CachedKeggApi()
         return kegg.list_pathways(organism)

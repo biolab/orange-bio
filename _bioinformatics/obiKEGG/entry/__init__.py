@@ -11,6 +11,12 @@ from . import fields
 from .parser import DBGETEntryParser
 
 
+# TODO: Remove the use of entry_decorate decorator
+# for constructing a DBEntry subclass, make fields
+# properties with __get__ method, and explicit assignment
+# and meaningful docstrings
+
+
 def entry_decorate(cls):
     """
     Decorate the DBEntry subclass with properties for accessing
@@ -63,11 +69,15 @@ class DBEntry(object):
 
     @property
     def entry_key(self):
-        """ Primary entry key used for querying.
+        """
+        Primary entry key used for identifying the entry.
         """
         return self.entry.split(" ", 1)[0]
 
     def parse(self, text):
+        """
+        Parse `text` string containing a formated DBGET entry.
+        """
         parser = DBGETEntryParser()
         gen = parser.parse_string(text)
         field_constructors = dict(self.FIELDS)
@@ -135,6 +145,9 @@ class DBEntry(object):
         return self.format()
 
     def format(self, section_indent=12):
+        """
+        Return a DBGET formated string representation.
+        """
         return "".join(f.format(section_indent)
                        for f in self.fields)
 
