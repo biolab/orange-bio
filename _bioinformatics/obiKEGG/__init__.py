@@ -307,6 +307,11 @@ class Organism(object):
     @classmethod
     def organism_name_search(cls, name):
         genome = KEGGGenome()
+        try:
+            name = genome.org_code_to_entry_key(name)
+        except KeyError:
+            pass
+
         if name not in genome:
             ids = genome.search(name)
             if not ids:
