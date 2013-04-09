@@ -13,7 +13,7 @@ import webbrowser
 import threading
 from functools import partial
 from collections import defaultdict
-from operator import add
+from operator import add, itemgetter
 
 from PyQt4.QtGui import (
     QTreeWidget, QTreeWidgetItem, QItemSelectionModel, QSplitter,
@@ -501,6 +501,13 @@ class OWKEGGPathwayBrowser(OWWidget):
 
         self.geneAttrCombo.addItems([var.name for var in
                                      self.geneAttrCandidates])
+
+        names_lower = [v.name.lower() for v in self.geneAttrCandidates]
+
+        scores = [(name == "gene", "gene" in name)
+                  for name in names_lower]
+        imax, _ = max(enumerate(scores), key=itemgetter(1))
+        self.geneAttrIndex = imax
 
     def UpdateListView(self):
         self.bestPValueItem = None
