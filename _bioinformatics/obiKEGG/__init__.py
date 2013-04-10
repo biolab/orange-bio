@@ -407,10 +407,6 @@ def to_taxid(name):
         return None
 
 
-def create_gene_sets():
-    pass
-
-
 def main():
     KEGGGenome()
     import doctest

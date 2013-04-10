@@ -396,8 +396,7 @@ class Genes(DBDataBase):
     """
     Interface to the KEGG Genes database.
 
-    :param org_code: KEGG organism code (e.g. 'hsa').
-    :type org_code: str
+    :param str org_code: KEGG organism code (e.g. 'hsa').
 
     """
     DB = None  # Needs to be set in __init__
@@ -575,9 +574,23 @@ class PathwayEntry(entry.DBEntry):
 
 
 class Pathway(DBDataBase):
+    """
+    KEGG Pathway database
+
+    :param str prefix:
+        KEGG Organism code ('hsa', ...) or 'map', 'ko', 'ec' or 'rn'
+
+    """
     DB = "path"
     ENTRY_TYPE = PathwayEntry
 
-    def __init__(self):
+    def __init__(self, prefix="map"):
         DBDataBase.__init__(self)
-        self._keys = [d.entry_id for d in self.api.list("path")]
+        self.prefix = prefix
+        valid = [d.org_code for d in self.api.list_organisms()] + \
+                ["map", "ko", "ec", "rn"]
+
+        if prefix not in valid:
+            raise ValueError("Invalid prefix %r" % prefix)
+
+        self._keys = [d.entry_id for d in self.api.list("pathway/" + prefix)]
