@@ -25,6 +25,7 @@ Scripting Reference
    :maxdepth: 1
 
    reference/kegg.rst
+   reference/ontology.rst
 
 Installation
 ------------
