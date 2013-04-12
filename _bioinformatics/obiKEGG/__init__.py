@@ -309,7 +309,7 @@ class Organism(object):
         genome = KEGGGenome()
         try:
             name = genome.org_code_to_entry_key(name)
-        except KeyError:
+        except ValueError:
             pass
 
         if name not in genome:
