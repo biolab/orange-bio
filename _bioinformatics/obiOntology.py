@@ -47,6 +47,7 @@ of the .obo file format.
 import re
 import urllib2
 import warnings
+import keyword
 from collections import defaultdict
 from StringIO import StringIO
 
@@ -180,7 +181,7 @@ class OBOObject(object):
             ('def_', 'class_')
 
         """
-        if tag in ["def", "class", "in", "not"]:
+        if keyword.iskeyword(tag):
             return tag + "_"
         else:
             return tag
@@ -189,7 +190,7 @@ class OBOObject(object):
         """
         Reverse of `name_mangle`.
         """
-        if tag in ["def_", "class_", "in_", "not_"]:
+        if tag.endswith("_") and keyword.iskeyword(tag[:-1]):
             return tag[:-1]
         else:
             return tag
