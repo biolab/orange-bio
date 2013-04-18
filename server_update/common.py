@@ -15,5 +15,9 @@ parser.add_option("-m", "--mailto", help="e-mail the results to EMAIL", metavar=
 
 option, args = parser.parse_args()
 
+if not option.user or not option.password:
+    print "Pass -u username -p password!"
+    sys.exit(1)
+
 sf_server = serverfiles.ServerFiles(option.user, option.password)
 sf_local = Orange.utils.serverfiles
