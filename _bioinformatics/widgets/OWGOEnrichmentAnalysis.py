@@ -157,7 +157,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
                             tooltip="Select organism", debuggingEnabled=0)
         
         # freeze until annotation combo box is updateded with available annotations.
-        self.signalManager.freeze(self).push()
+        if self.signalManager:
+            self.signalManager.freeze(self).push()
         QTimer.singleShot(0, self.UpdateOrganismComboBox)
         
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex",
@@ -308,8 +309,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.annotationComboBox.addItems(self.annotationCodes)
             self.annotationComboBox.setCurrentIndex(self.annotationIndex)
         finally:
-            self.signalManager.freeze(self).pop()
-            
+            if self.signalManager:
+                self.signalManager.freeze(self).pop()
+
     def UpdateGeneMatcher(self):
         dialog = GeneMatcherDialog(self, defaults=self.geneMatcherSettings, modal=True)
         if dialog.exec_():
@@ -1016,7 +1018,7 @@ if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
     w=OWGOEnrichmentAnalysis()
-    data = orange.ExampleTable("../../../doc/datasets/brown-selected.tab")
+    data = orange.ExampleTable("brown-selected.tab")
     w.show()
     w.SetClusterDataset(data)
     app.exec_()

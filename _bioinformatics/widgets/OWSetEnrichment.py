@@ -83,7 +83,8 @@ class OWSetEnrichment(OWWidget):
         
         self.loadSettings()
         
-        self.signalManager.freeze(self).push()
+        if self.signalManager:
+            self.signalManager.freeze(self).push()
         QTimer.singleShot(50, self.updateHierarchy)
         
         box = OWGUI.widgetBox(self.controlArea, "Info")
@@ -210,7 +211,8 @@ class OWSetEnrichment(OWWidget):
             self.speciesComboBox.addItems([obiTaxonomy.name(id) for id in self.taxid_list])
             self.genesets = all
         finally:
-            self.signalManager.freeze(self).pop() #setFreeze(self.signalManager.freezing - 1)
+            if self.signalManager:
+                self.signalManager.freeze(self).pop()
         
     def setData(self, data=None):
         self.data = data
@@ -573,7 +575,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     w = OWSetEnrichment()
     w.updateHierarchy()
-    data = orange.ExampleTable("../../../doc/datasets/brown-selected")
+    data = orange.ExampleTable("brown-selected")
 #    data = orange.ExampleTable("../human")
 #    print cProfile.runctx("w.setData(data)", globals(), locals())
     w.setData(data)

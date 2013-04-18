@@ -299,7 +299,8 @@ class OWKEGGPathwayBrowser(OWWidget):
             debuggingEnabled=0,
             tooltip="Select the organism of the input genes")
 
-        self.signalManager.freeze(self).push()
+        if self.signalManager:
+            self.signalManager.freeze(self).push()
 
         # Selection of genes attribute
         box = OWGUI.widgetBox(self.controlArea, "Gene attribute")
@@ -431,7 +432,8 @@ class OWKEGGPathwayBrowser(OWWidget):
         finally:
             self.setEnabled(True)
             self.infoLabel.setText("No data on input\n")
-            self.signalManager.freeze(self).pop()
+            if self.signalManager:
+                self.signalManager.freeze(self).pop()
 
     def Clear(self):
         """

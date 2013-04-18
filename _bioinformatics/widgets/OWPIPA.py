@@ -553,7 +553,8 @@ class OWPIPA(OWWidget):
             return "-1"
 
     def UpdateExperimentTypes(self):
-        self.signalManager.freeze(self).push() #setFreeze(1)
+        if self.signalManager:
+            self.signalManager.freeze(self).push()
         try:
             self.expressionTypesCB.clear()
             items = [desc for _,desc,_ in self.exTypes]
@@ -561,7 +562,9 @@ class OWPIPA(OWWidget):
         except IOError:
             pass
         finally:
-            self.signalManager.freeze(self).pop() #setFreeze(0)
+            if self.signalManager:
+                self.signalManager.freeze(self).pop()
+
         self.ctypei = max(0, min(self.ctypei, len(self.exTypes)-1))
 
     def UpdateExperiments(self, reload=False):
