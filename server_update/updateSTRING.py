@@ -5,40 +5,45 @@ from Orange.bio import obiPPI
 import urllib2, gzip
 
 from common import *
+import re
 
-filename = sf_local.localpath("PPI", obiPPI.STRING.FILENAME)
 
-if False:
-    if os.path.exists(filename):
-        os.remove(filename)
+def get_version():
+    from urllib2 import build_opener
+    html = build_opener().open('http://www.string-db.org/newstring_cgi/show_download_page.pl').read().decode()
+    ver = re.findall("protein\.links\.(v.*?)\.txt\.gz", html, re.DOTALL)[0]
+    return ver
 
-    obiPPI.STRING.download_data("v9.0")
+version = get_version()
+version_id = "#dbversion:%s" % version
 
-    gzfile = gzip.GzipFile(filename + ".gz", "wb")
-    shutil.copyfileobj(open(filename, "rb"), gzfile)
+force = False # force update
 
-    sf_server.upload("PPI", obiPPI.STRING.FILENAME, filename + ".gz", 
-                       "STRING Protein interactions (Creative Commons Attribution 3.0 License)",
+for cl,desc,sfn in [ (obiPPI.STRING, 
+                    "STRING Protein interactions (Creative Commons Attribution 3.0 License)", 
+                    obiPPI.STRING.FILENAME),
+                    (obiPPI.STRINGDetailed, 
+                    "STRING Protein interactions (Creative Commons Attribution-Noncommercial-Share Alike 3.0 License)", 
+                    obiPPI.STRINGDetailed.FILENAME_DETAILED) ]:
+
+    print cl
+    print "current info", sf_server.info("PPI", sfn)
+
+    if force or version_id not in sf_server.info("PPI", sfn)["tags"]:
+
+        filename = sf_local.localpath("PPI",  sfn)
+
+        if os.path.exists(filename):
+            os.remove(filename)
+
+        cl.download_data(version)
+
+        gzfile = gzip.GzipFile(filename + ".gz", "wb")
+        shutil.copyfileobj(open(filename, "rb"), gzfile)
+
+        sf_server.upload("PPI", sfn, filename + ".gz", 
+                       desc,
                        tags=["protein interaction", "STRING", 
-                             "#compression:gz", "#version:%s" % obiPPI.STRING.VERSION]
+                             "#compression:gz", "#version:%s" % cl.VERSION, version_id]
                        )
-    sf_server.unprotect("PPI", obiPPI.STRING.FILENAME)
-
-# The second part
-filename = sf_local.localpath("PPI", obiPPI.STRINGDetailed.FILENAME_DETAILED)
-
-if os.path.exists(filename):
-    os.remove(filename)
-
-obiPPI.STRINGDetailed.download_data("v9.0")
-
-gzfile = gzip.GzipFile(filename + ".gz", "wb")
-shutil.copyfileobj(open(filename, "rb"), gzfile)
-
-sf_server.upload("PPI", obiPPI.STRINGDetailed.FILENAME_DETAILED, filename + ".gz", 
-                   "STRING Protein interactions (Creative Commons Attribution-Noncommercial-Share Alike 3.0 License)" ,
-                   tags=["protein interaction", "STRING",
-                         "#compression:gz", "#version:%s" % obiPPI.STRINGDetailed.VERSION]
-                   )
-sf_server.unprotect("PPI", obiPPI.STRINGDetailed.FILENAME_DETAILED)
-    
+        sf_server.unprotect("PPI", sfn)
