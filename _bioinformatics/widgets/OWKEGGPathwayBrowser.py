@@ -387,6 +387,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.has_new_reference_set = False
 
         self.setEnabled(False)
+        self.infoLabel.setText("Fetching organism definitions\n")
         QTimer.singleShot(100, self.UpdateOrganismComboBox)
 
     def UpdateOrganismComboBox(self):
@@ -413,8 +414,6 @@ class OWKEGGPathwayBrowser(OWWidget):
             # TODO: Add option to specify additional organisms not
             # in the common list.
 
-            self.infoLabel.setText("Fetching organism definitions\n")
-
             keys = map(genome.org_code_to_entry_key, essential + common)
 
             self.progressBarInit()
@@ -428,7 +427,9 @@ class OWKEGGPathwayBrowser(OWWidget):
             items = [desc for code, desc in codes]
 
             self.organismCodes = [code for code, desc in codes]
+            self.organismComboBox.clear()
             self.organismComboBox.addItems(items)
+            self.organismComboBox.setCurrentIndex(self.organismIndex)
         finally:
             self.setEnabled(True)
             self.infoLabel.setText("No data on input\n")
@@ -922,12 +923,13 @@ def pathway_enrichment(genesets, genes, reference, prob=None, callback=None):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    data = Orange.data.Table("brown-selected.tab")
     w = OWKEGGPathwayBrowser()
-    w.UpdateOrganismComboBox()
     w.show()
-    w.SetData(Orange.data.Table(data[:]))
-    QTimer.singleShot(10, w.handleNewSignals)
+
+    data = Orange.data.Table("brown-selected.tab")
+
+    QTimer.singleShot(1000, lambda: w.SetData(data))
+    QTimer.singleShot(1500, w.handleNewSignals)
 
     app.exec_()
     w.saveSettings()
