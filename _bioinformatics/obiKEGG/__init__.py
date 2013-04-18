@@ -314,11 +314,10 @@ class Organism(object):
 
         if name not in genome:
             ids = genome.search(name)
-            if not ids:
-                from .. import obiTaxonomy
-                ids = obiTaxonomy.search(name)
-                ids = [id for id in ids if genome.search(id)]
-            name = ids.pop(0) if ids else name
+            if ids:
+                name = ids.pop(0) if ids else name
+            else:
+                raise OrganismNotFoundError(name)
 
         try:
             return genome[name].organism_code

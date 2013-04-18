@@ -347,7 +347,7 @@ class Genome(DBDataBase):
         if string in self.TAXID_MAP:
             string = self.TAXID_MAP[string]
 
-        res = self.api.find(self.DB, string)
+        res = self.api.find(self.DB, string).strip()
         if not res:
             return []
 
