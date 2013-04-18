@@ -254,21 +254,26 @@ class OWGsea(OWWidget):
 
     def UpdateOrganismComboBox(self):
         try:
-            self.progressBarInit()
-            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                genome = obiKEGG.KEGGGenome()
-            self.progressBarFinished()
-            
-            self.allOrganismCodes = genome 
-    
+            genome = obiKEGG.KEGGGenome()
+
+            self.allOrganismCodes = genome
+
             essential = genome.essential_organisms()
-            
-            local = [name.split(".")[0].split("_")[-1] for name in orngServerFiles.listfiles("KEGG") if "kegg_genes" in name]
-            self.organismCodes = [(code, organism.definition) for code, organism in self.allOrganismCodes.items() if code in local or code in essential]
-            self.organismCodes.sort()
-            items = [desc for code, desc in self.organismCodes]
-            self.organismCodes = [obiKEGG.to_taxid(code) for code, desc in self.organismCodes]
-            
+
+            local = [name.split(".")[0].split("_")[-1]
+                     for name in orngServerFiles.listfiles("KEGG")
+                     if "kegg_genes" in name]
+
+            entry_keys = map(genome.org_code_to_entry_key,
+                             essential + local)
+
+            entries = genome.batch_get(entry_keys)
+
+            items = [entry.definition for entry in entries]
+
+            self.organismTaxids = [entry.taxid for entry in entries]
+
+            self.organismComboBox.clear()
             self.organismComboBox.addItems(items)
         finally:
             if self.signalManager:
@@ -316,7 +321,7 @@ class OWGsea(OWWidget):
         box = OWGUI.widgetBox(ca, 'Organism')
         #FROM KEGG WIDGET - organism selection
         self.allOrganismCodes = {}
-        self.organismCodes = []
+        self.organismTaxids = []
         self.organismComboBox = cb = OWGUI.comboBox(box, self, "organismIndex", items=[], debuggingEnabled=0) #changed
         cb.setMaximumWidth(200)
 
@@ -568,7 +573,7 @@ class OWGsea(OWWidget):
 
         collectionNames = [ self.geneSel[a] for a in self.gridSel ]
 
-        organism = self.organismCodes[self.organismIndex]
+        organism = self.organismTaxids[self.organismIndex]
 
         if self.gsgo:
             collectionNames.append((("GO",),organism))
@@ -690,11 +695,10 @@ class OWGsea(OWWidget):
         if data:
             taxid = data_hints.get_hint(data, "taxid", None)
             try:
-                code = obiKEGG.from_taxid(taxid)
-                self.organismIndex = self.organismCodes.index(code)
+                self.organismIndex = self.organismTaxids.index(taxid)
             except Exception, ex:
                 pass
-            
+
             if obiGsea.already_have_correlations(data):
 
                 #disable correlation type
@@ -802,7 +806,8 @@ if __name__=="__main__":
     #d = orange.ExampleTable('/home/marko/ddd.tab')
     #d = orange.ExampleTable('tmp.tab')
     #d = orange.ExampleTable('../gene_three_lines_log.tab')
-    ow.setData(d)
+
+    QTimer.singleShot(1000, lambda : ow.setData(d))
 
     a.exec_()
     ow.saveSettings()
