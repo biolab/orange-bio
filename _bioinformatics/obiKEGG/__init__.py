@@ -1,4 +1,4 @@
-"""\
+"""
 ==============================================
 KEGG - Kyoto Encyclopedia of Genes and Genomes
 ==============================================
@@ -55,10 +55,12 @@ from __future__ import absolute_import
 import os
 import sys
 import urllib2
+import threading
 
 from collections import defaultdict
 from itertools import chain
 from datetime import datetime
+from contextlib import contextmanager
 
 from Orange.utils import lru_cache
 from Orange.utils import progress_bar_milestones
@@ -306,30 +308,14 @@ class Organism(object):
 
     @classmethod
     def organism_name_search(cls, name):
-        genome = KEGGGenome()
-        try:
-            name = genome.org_code_to_entry_key(name)
-        except ValueError:
-            pass
-
-        if name not in genome:
-            ids = genome.search(name)
-            if ids:
-                name = ids.pop(0) if ids else name
-            else:
-                raise OrganismNotFoundError(name)
-
-        try:
-            return genome[name].organism_code
-        except KeyError:
-            raise OrganismNotFoundError(name)
+        return organism_name_search(name)
 
     @classmethod
     def organism_version(cls, name):
         name = cls.organism_name_search(name)
-        genome = KEGGGenome()
-        info = genome.api.info(name)
-        return info.release
+        with _global_genome_instance() as genome:
+            info = genome.api.info(name)
+            return info.release
 
     def _set_genematcher(self, genematcher):
         setattr(self, "_genematcher", genematcher)
@@ -357,9 +343,25 @@ KEGGOrganism = Organism
 
 def organism_name_search(name):
     """
-    Search and organism by `name` and return an KEGG organism code.
+    Search for a organism by `name` and return it's KEGG organism code.
     """
-    return KEGGOrganism.organism_name_search(name)
+    with _global_genome_instance() as genome:
+        try:
+            name = genome.org_code_to_entry_key(name)
+        except ValueError:
+            pass
+
+        if name not in genome:
+            ids = genome.search(name)
+            if ids:
+                name = ids.pop(0) if ids else name
+            else:
+                raise OrganismNotFoundError(name)
+
+        try:
+            return genome[name].organism_code
+        except KeyError:
+            raise OrganismNotFoundError(name)
 
 
 def pathways(org):
@@ -369,41 +371,52 @@ def pathways(org):
     return KEGGPathway.list(org)
 
 
-def organisms():
-    """
-    Return a list of all KEGG organisms.
-    """
-    return KEGGOrganism.organisms()
-
-
 def from_taxid(taxid):
     """
     Return a KEGG organism code for a an NCBI Taxonomy id string `taxid`.
     """
-    genome = KEGGGenome()
-    res = genome.search(taxid)
-    for r in res:
-        e = genome[r]
+    with _global_genome_instance() as genome:
+        res = genome.search(taxid)
+        for r in res:
+            e = genome[r]
 
-        if e.taxid in [taxid, genome.TAXID_MAP.get(taxid, taxid)]:
-            return e.org_code()
+            if e.taxid in [taxid, genome.TAXID_MAP.get(taxid, taxid)]:
+                return e.org_code()
 
-    return None
+        return None
 
 
 def to_taxid(name):
     """
     Return a NCBI Taxonomy id for a given KEGG Organism name
     """
-    genome = KEGGGenome()
-    if name in genome:
-        return genome[name].taxid
+    with _global_genome_instance() as genome:
+        if name in genome:
+            return genome[name].taxid
 
-    keys = genome.search(name)
-    if keys:
-        return genome[keys[0]].taxid
-    else:
-        return None
+        keys = genome.search(name)
+        if keys:
+            return genome[keys[0]].taxid
+        else:
+            return None
+
+
+def _global_genome_instance():
+    genome = getattr(_global_genome_instance, "_genome", None)
+    if genome is None:
+        genome = KEGGGenome()
+        genome._lock = threading.RLock()
+        _global_genome_instance._genome = genome
+
+    @contextmanager
+    def instance_locked(instance, lock):
+        lock.acquire()
+        try:
+            yield instance
+        finally:
+            lock.release()
+
+    return instance_locked(genome, genome._lock)
 
 
 def main():
