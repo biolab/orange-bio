@@ -652,31 +652,20 @@ class STRING(PPIDatabase):
         dir = orngServerFiles.localpath("PPI")
 
         base_url = "http://www.string-db.org/newstring_download/"
-        links = base_url + "protein.links.{version}.txt.gz"
-        actions = base_url + "protein.actions.{version}.txt.gz"
-        aliases = base_url + "protein.aliases.{version}.txt.gz"
-        
-        wget(links.format(version=version), dir, progress=True)
-        wget(actions.format(version=version), dir, progress=True)
-        wget(aliases.format(version=version), dir, progress=True)
-        
-        links_filename = os.path.join(dir, "protein.links.{version}.txt".format(version=version))
-        actions_filename = os.path.join(dir, "protein.actions.{version}.txt".format(version=version))
-        aliases_filename = os.path.join(dir, "protein.aliases.{version}.txt".format(version=version))
-        
-        progress = ConsoleProgressBar("Extracting files:")
-        progress(1.0)
-        links_file = gzip.GzipFile(links_filename + ".gz", "rb")
-        shutil.copyfileobj(links_file, open(links_filename, "wb"))
-        
-        progress(60.0)
-        actions_file = gzip.GzipFile(actions_filename + ".gz", "rb")
-        shutil.copyfileobj(actions_file, open(actions_filename, "wb"))
-        
-        progress(90.0)
-        aliases_file = gzip.GzipFile(aliases_filename + ".gz", "rb")
-        shutil.copyfileobj(aliases_file, open(aliases_filename, "wb"))
-        progress.finish()
+        links = "protein.links.{version}.txt.gz".format(version=version)
+        actions = "protein.actions.{version}.txt.gz".format(version=version)
+        aliases = "protein.aliases.{version}.txt.gz".format(version=version)
+
+        def wgeti(f, dir, progress):
+            if not os.path.exists(os.path.join(dir, f)):
+                print "Downloading:", f
+                wget(base_url + f, dir, progress=progress)
+            else:
+                print "Already downloaded - skiping:", f
+
+        wgeti(links, dir, progress=True)
+        wgeti(actions, dir, progress=True)
+        wgeti(aliases, dir, progress=True)
         
         cls.init_db(version, taxids)
         
@@ -699,17 +688,17 @@ class STRING(PPIDatabase):
 
         dir = orngServerFiles.localpath(cls.DOMAIN)
         
-        links_filename = os.path.join(dir, "protein.links.{version}.txt".format(version=version))
-        actions_filename = os.path.join(dir, "protein.actions.{version}.txt".format(version=version))
-        aliases_filename = os.path.join(dir, "protein.aliases.{version}.txt".format(version=version))
+        links_filename = os.path.join(dir, "protein.links.{version}.txt.gz".format(version=version))
+        actions_filename = os.path.join(dir, "protein.actions.{version}.txt.gz".format(version=version))
+        aliases_filename = os.path.join(dir, "protein.aliases.{version}.txt.gz".format(version=version))
         
-        links_file = open(links_filename, "rb")
-        actions_file = open(actions_filename, "rb")
-        aliases_file = open(aliases_filename, "rb")
+        links_file = gzip.GzipFile(links_filename, "rb")
+        actions_file = gzip.GzipFile(actions_filename, "rb")
+        aliases_file = gzip.GzipFile(aliases_filename, "rb")
         
         progress = ConsoleProgressBar("Processing links:")
         progress(0.0)
-        filesize = os.stat(links_filename).st_size
+        filesize = os.stat(links_filename).st_size*10 #not the correct size!
         
         if taxids:
             taxids = set(taxids)
@@ -772,7 +761,7 @@ class STRING(PPIDatabase):
             
             progress.finish()
             
-            filesize = os.stat(actions_filename).st_size
+            filesize = os.stat(actions_filename).st_size*10
             
             actions_file.readline() # read header
             
@@ -795,7 +784,7 @@ class STRING(PPIDatabase):
             
             progress.finish()
             
-            filesize = os.stat(aliases_filename).st_size
+            filesize = os.stat(aliases_filename).st_size*10
             aliases_file.readline() # read header
             
             progress = ConsoleProgressBar("Processing aliases:")
@@ -938,13 +927,6 @@ class STRINGDetailed(STRING):
         else:
             print "Already downloaded - skiping"
             
-        gz = gzip.open(os.path.join(dir, links_filename), "rb")
-
-        # Strip .gz extension
-        links_filename = os.path.join(dir, os.path.splitext(links_filename)[0])
-        if not os.path.exists(links_filename):
-            shutil.copyfileobj(gz, open(links_filename, "wb"))
-        
         cls.init_db(version, taxids)
             
     @classmethod
@@ -952,7 +934,7 @@ class STRINGDetailed(STRING):
         import csv
         dir = orngServerFiles.localpath(cls.DOMAIN)
         
-        links_filename = "protein.links.detailed.{version}.txt".format(version=version)
+        links_filename = "protein.links.detailed.{version}.txt.gz".format(version=version)
         links_filename = os.path.join(dir, links_filename)
         
         if taxids:
@@ -960,7 +942,7 @@ class STRINGDetailed(STRING):
         else:
             taxids = set(cls.common_taxids())
         
-        links_file = open(links_filename, "rb")
+        links_file = gzip.GzipFile(links_filename, "rb")
         
         con = sqlite3.connect(os.path.join(dir, cls.FILENAME_DETAILED))
         with con:
@@ -984,7 +966,7 @@ class STRINGDetailed(STRING):
             
             links = csv.reader(links_file, delimiter=" ")
             links.next() # Read header
-            filesize = os.stat(links_filename).st_size
+            filesize = os.stat(links_filename).st_size*10 #not the correct size
             
             progress = ConsoleProgressBar("Processing links file:")
             progress(1.0)

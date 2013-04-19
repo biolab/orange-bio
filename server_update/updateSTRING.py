@@ -33,12 +33,12 @@ for cl,desc,sfn in [ (obiPPI.STRING,
 
         filename = sf_local.localpath("PPI",  sfn)
 
-        if os.path.exists(filename):
+        if os.path.exists(filename): #remvoe prebuilt sqlite database
             os.remove(filename)
 
         cl.download_data(version)
 
-        gzfile = gzip.GzipFile(filename + ".gz", "wb")
+        gzfile = gzip.GzipFile(filename + ".gz", "wb") #gzip the database
         shutil.copyfileobj(open(filename, "rb"), gzfile)
 
         sf_server.upload("PPI", sfn, filename + ".gz", 
