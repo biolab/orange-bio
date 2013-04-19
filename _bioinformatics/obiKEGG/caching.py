@@ -117,6 +117,8 @@ class cached_wrapper(object):
 
     def key_from_args(self, args, kwargs=None):
         key = self.function.__name__ + repr(args)
+        if kwargs is not None:
+            raise NotImplementedError("kwargs are not supported yet")
         return key
 
     def invalidate_key(self, key):
@@ -124,9 +126,8 @@ class cached_wrapper(object):
             del store[key]
 
     def last_modified_from_args(self, args, kwargs=None):
-        key = self.key_from_args(args, kwargs)
         if self.instance is not None:
-            self.instance.last_modified(args)
+            return self.instance.last_modified(args)
 
     def invalidate_args(self, args):
         return self.invalidate_key(self.key_from_args(args))
@@ -149,26 +150,26 @@ class cached_wrapper(object):
     def __call__(self, *args):
         key = self.key_from_args(args)
         with closing(self.cache_store()) as store:
-            valid = True
-            if key not in store:
-                valid = False
+            if self.key_has_valid_cache(key, store):
+                rval = store[key].value
             else:
-                entry = store[key]
-                rval = entry.value
-
-                if not self.is_entry_valid(entry, args):
-                    valid = False
-            if not valid:
                 rval = self.function(self.instance, *args)
                 store[key] = cache_entry(rval, datetime.now(), None)
 
         return rval
 
-    def min_timestamp(self, args):
-        key = self.key_from_args(args)
-        return datetime.fromtimestamp(0)
+    def key_has_valid_cache(self, key, store):
+        if key not in store:
+            return False
+        else:
+            entry = store[key]
+            return self.is_entry_valid(entry, None)
 
     def is_entry_valid(self, entry, args):
+        # For now always return True, the caching architecture needs to be
+        # completely reworked
+        return True
+
         # Need to check datetime first (it subclasses date)
         if isinstance(entry.mtime, datetime):
             mtime = entry.mtime
@@ -176,9 +177,6 @@ class cached_wrapper(object):
             mtime = datetime(entry.mtime.year, entry.mtime.month,
                              entry.mtime.day, 1, 1, 1)
         else:
-            return False
-
-        if self.min_timestamp(args) > mtime:
             return False
 
         last_modified = self.last_modified_from_args(args)

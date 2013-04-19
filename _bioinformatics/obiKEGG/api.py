@@ -13,6 +13,7 @@ from .service import web_service
 from .types import OrganismSummary, Definition, BInfo, Link
 
 
+# A list of all databases with names, abbreviations
 DATABASES = [
     ("KEGG Pathway", "pathway", "path", None),
     ("KEGG Brite", "brite", "br", None),
@@ -39,7 +40,7 @@ def _link_targets(links):
 
 class KeggApi(object):
     """
-    An abstraction of a kegg api.
+    An abstraction of a rest KEGG API.
     """
 
     def __init__(self):
@@ -50,7 +51,7 @@ class KeggApi(object):
         Return a list of all available organisms
 
         >>> api.list_organisms()
-        [Definition(entry_id='hsa',...
+        [OrganismSummary(entry_id=T0..
 
         """
         return map(OrganismSummary.from_str,
@@ -401,12 +402,13 @@ class CachedKeggApi(KeggApi):
             # TODO: Invalidate entries by release string.
             for id in ids:
                 key = get.key_from_args((id,))
-                if key not in store:
+                if not get.key_has_valid_cache(key, store):
                     uncached.append(id)
 
         if uncached:
             # in case there are duplicate ids
             uncached = sorted(set(uncached))
+
             rval = KeggApi.get(self, uncached)
 
             if rval is not None:
