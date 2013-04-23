@@ -11,7 +11,7 @@ from Orange.OrangeWidgets.OWDatabasesUpdate import *
 class OWUpdateGenomicsDatabases(OWDatabasesUpdate): 
     def __init__(self, parent=None, signalManager=None, name="Databases", **kwds):
         OWDatabasesUpdate.__init__(self, parent, signalManager, name, domains = \
-                ["GO", "KEGG", "MeSH", "Taxonomy", "NCBI_geneinfo", "GEO", 
+                ["GO", "MeSH", "Taxonomy", "NCBI_geneinfo", "GEO", 
                  "dictybase", "OMIM", "HomoloGene", "Affy", "miRNA", "gene_sets",
                  "PPI"], **kwds)
 
