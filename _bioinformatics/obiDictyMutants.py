@@ -94,11 +94,11 @@ def genes():
 def mutant_genes(mutant):
     """ Return a set of all genes referenced by a mutant in dictybase
     """
-    return OMIM.get_instance().mutant_genes(mutant)
+    return dicty_mutants.get_instance().mutant_genes(mutant)
 
 def gene_mutants():
-    """ Return a dictionary {gene: set(disease_objects for gene), ...}
+    """ Return a dictionary {gene: set(mutant_objects for mutant), ...}
     """
-    return OMIM.get_instance().gene_diseases()
+    return dicty_mutants.get_instance().gene_mutants()
 
 
