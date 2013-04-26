@@ -33,7 +33,7 @@ def goGeneSets(org):
         genes = annotations.GetAllGenes(termn)
         hier = ("GO", term.namespace)
         if len(genes) > 0:
-            gs = GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org, link=link_fmt % termn) 
+            gs = GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org, link=link_fmt % termn)
             genesets.append(gs)
 
     return GeneSets(genesets)
@@ -42,7 +42,7 @@ def keggGeneSets(org):
     """
     Returns gene sets from KEGG pathways.
     """
-    
+
     kegg = obiKEGG.KEGGOrganism(org)
 
     genesets = []
@@ -60,11 +60,21 @@ def keggGeneSets(org):
 
     return GeneSets(genesets)
 
+def dictyMutantSets():
+    """
+    Return dicty mutant phenotype gene sets from Dictybase
+    """
+    from . import obiDictyMutants
+    genesets = [GeneSet(id=dicty_mutant.id, name=dicty_mutant.descriptor, genes=obiDictyMutants.mutant_genes(mutant), hierarchy=("Dictybase", "mutant_phenotypes"), organism="352472", # 352742 gathered from obiGO.py code_map -> Dicty identifier
+                        link=("http://dictybase.org/db/cgi-bin/dictyBase/SC/scsearch.pl?searchdb=strains&search_term=%s&column=all&B1=Submit" % mutant.id if mutant.id else None)) \
+                        for mutant in obiDictyMutants.mutants()]
+    return GeneSets(genesets)
+
 def omimGeneSets():
     """
     Return gene sets from OMIM (Online Mendelian Inheritance in Man) diseses
     """
-    from . import obiOMIM
+    from . import obiOMIM    # The link here leads to a redirection... should replace it with the new URL
     genesets = [GeneSet(id=disease.id, name=disease.name, genes=obiOMIM.disease_genes(disease), hierarchy=("OMIM",), organism="9606",
                     link=("http://www.ncbi.nlm.nih.gov/entrez/dispomim.cgi?id=" % disease.id if disease.id else None)) \
                     for disease in obiOMIM.diseases()]
@@ -87,26 +97,25 @@ def go_miRNASets(org, ontology=None, enrichment=True, pval=0.05, treshold=0.04):
     mirnas = obimiRNA.ids(int(org))
     if ontology is None:
         ontology = obiGO.Ontology()
-         
+
     annotations = obiGO.Annotations(org, ontology=ontology)
-    
+
     go_sets = obimiRNA.get_GO(mirnas, annotations, enrichment=enrichment, pval=pval, goSwitch=False)
     print go_sets
-    
+
     go_sets = obimiRNA.filter_GO(go_sets, annotations, treshold=treshold)
-    
+
     link_fmt = "http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term=%s"
     gsets = [GeneSet(id=key, name=ontology[key].name, genes=value, hierarchy=("miRNA", "go_sets",),
                         organism=org, link=link_fmt % key) for key, value in go_sets.items()]
     gset = GeneSets(gsets)
     return gset
 
-
 def loadGMT(contents, name):
     """
     Eech line consists of tab separated elements. First is
     the geneset name, next is it's description.
-    
+
     For now the description is skipped.
     """
 
@@ -173,7 +182,7 @@ def list_local():
     pth = local_path()
     gs_files = filter(is_genesets_file, os.listdir(pth))
     return [ filename_parse(fn) + (True,) for fn in gs_files ]
-    
+
 def list_serverfiles_from_flist(flist):
     gs_files = filter(is_genesets_file, flist)
     localfiles = set(orngServerFiles.listfiles(sfdomain))
@@ -211,7 +220,7 @@ def update_server_list(serverfiles_upload, serverfiles_list=None):
     flist = map(lambda x: filename(*x[:2]), list_serverfiles_conn(serverfiles_list))
 
     tfname = pickle_temp(flist)
-    
+
     try:
         fn = "index.pck"
         title = "Gene sets: index"
@@ -253,7 +262,7 @@ def _register_serverfiles(genesets, serverFiles):
 
     #save to temporary file
     tfname = pickle_temp(genesets)
-    
+
     try:
         taxname = obiTaxonomy.name(org)
         title = "Gene sets: " + ", ".join(hierarchy) + \
@@ -299,7 +308,7 @@ def load_serverfiles(hierarchy, organism):
     hierd = build_hierarchy_dict(files)
     out = GeneSets()
     for (h, o) in [ files[i] for i in hierd[(hierarchy, organism)]]:
-        fname = orngServerFiles.localpath_download(sfdomain, 
+        fname = orngServerFiles.localpath_download(sfdomain,
             filename(h, o))
         out.update(pickle.load(open(fname, 'r')))
     return out
@@ -343,7 +352,7 @@ class TException(Exception): pass
 
 def upload_genesets(rsf):
     """
-    Builds the default gene sets and 
+    Builds the default gene sets and
     """
     orngServerFiles.update_local_files()
 
@@ -366,3 +375,5 @@ if __name__ == "__main__":
     rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
     upload_genesets(rsf)
     pass
+
+
