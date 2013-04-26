@@ -435,7 +435,12 @@ class CachedKeggApi(KeggApi):
                     store[key] = cache_entry(entry, mtime=datetime.now())
 
         # Finally join all the results, but drop all None objects
-        entries = filter(lambda e: e is not None, map(get, ids))
+
+        with closing(get.cache_store()):
+            keys = [get.key_from_args((id,)) for id in ids]
+            entries = [store[key].value for key in keys]
+
+        entries = filter(lambda e: e is not None, entries)
 
         rval = "".join(entries)
         return rval
