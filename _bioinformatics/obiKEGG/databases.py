@@ -6,6 +6,7 @@ DBGET Database Interface
 from __future__ import absolute_import
 
 import re
+from contextlib import closing
 
 from . import entry
 from .entry import fields
@@ -192,12 +193,22 @@ class DBDataBase(object):
         if keys is None:
             keys = self.keys()
 
-        keys = list(keys)
+        keys = map(self._add_db, keys)
+
+        get = self.api.get
+
+        # drop all keys with a valid cache entry to minimize the number
+        # of 'get' requests.
+        with closing(get.cache_store()) as store:
+            def is_uncached(key):
+                return not get.key_has_valid_cache(get.key_from_args((key,)),
+                                                   store)
+            keys = filter(is_uncached, keys)
+
         start = 0
+
         while start < len(keys):
             batch = keys[start: start + batch_size]
-            batch = map(self._add_db, batch)
-
             self.api.get(batch)
 
             if progress_callback:
@@ -214,11 +225,14 @@ class DBDataBase(object):
         """
         entries = []
         batch_size = 10
-        keys = list(keys)
+        keys = map(self._add_db, keys)
+
+        # Precache the entries first
+        self.pre_cache(keys)
+
         start = 0
         while start < len(keys):
             batch = keys[start: start + batch_size]
-            batch = map(self._add_db, batch)
             batch_entries = self.api.get(batch)
             if batch_entries is not None:
                 batch_entries = batch_entries.split("///\n")
