@@ -1,7 +1,6 @@
-import sys, os
+import os
 import urllib2
 import shutil
-import re
 
 from collections import defaultdict
 
