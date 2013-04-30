@@ -1090,51 +1090,15 @@ def filterByRefFrequency(terms, minF=4):
     return dict(filter(lambda (k, e): e[2] >= minF, terms.items()))
 
 
-def drawEnrichmentGraph_tostream(GOTerms, clusterSize, refSize, fh, width=None, height=None):
-    def getParents(term):
-        parents = extractGODAG([term])
-        parents = filter(lambda t: t.id in GOTerms and t.id != term, parents)
-        c = []
-        map(c.extend, [getParents(t.id) for t in parents])
-        parents = filter(lambda t: t not in c, parents)
-        return parents
-    parents = dict([(term, getParents(term)) for term in GOTerms])
-    # print "Parentes", parents
-
-    def getChildren(term):
-        return filter(lambda t: term in [p.id for p in parents[t]], GOTerms.keys())
-    topLevelTerms = filter(lambda t: not parents[t], parents.keys())
-    # print "Top level terms", topLevelTerms
-    termsList = []
-
-    def collect(term, parent):
-        termsList.append(
-            ((float(len(GOTerms[term][0])) / clusterSize) / (float(GOTerms[term][2]) / refSize),
-            len(GOTerms[term][0]),
-            GOTerms[term][2],
-            "%.4f" % GOTerms[term][1],
-            loadedGO.termDict[term].name,
-            loadedGO.termDict[term].id,
-            ", ".join(GOTerms[term][0]),
-            parent)
-            )
-##        print float(len(GOTerms[term][0])), float(GOTerms[term][2]), clusterSize, refSize
-        parent = len(termsList) - 1
-        for c in getChildren(term):
-            collect(c, parent)
-
-    for topTerm in topLevelTerms:
-        collect(topTerm, None)
-
-    drawEnrichmentGraphPIL_tostream(termsList, fh, width, height)
-
-
-def drawEnrichmentGraph(enriched, file="graph.png", width=None, height=None, header=None, ontology=None, precison=3):
+def drawEnrichmentGraph(enriched, file="graph.png", width=None, height=None,
+                        header=None, ontology=None, precison=3):
     file = open(file, "wb") if type(file) == str else file
-    drawEnrichmentGraph_tostreamMk2(enriched, file, width, height, header, ontology, precison)
+    drawEnrichmentGraph_tostreamMk2(enriched, file, width, height, header,
+                                    ontology, precison)
 
 
-def drawEnrichmentGraph_tostreamMk2(enriched, fh, width, height, header=None, ontology=None, precison=4):
+def drawEnrichmentGraph_tostreamMk2(enriched, fh, width, height, header=None,
+                                    ontology=None, precison=4):
     ontology = ontology if ontology else Ontology()
     header = header if header else ["List", "Total", "p-value", "FDR",
                                     "Names", "Genes"]
@@ -1158,22 +1122,11 @@ def drawEnrichmentGraph_tostreamMk2(enriched, fh, width, height, header=None, on
     fmt = "%" + ".%if" % precison
 
     def collect(term, parent):
-##        termsList.append(
-##            ((float(len(GOTerms[term][0]))/clusterSize) / (float(GOTerms[term][2])/refSize),
-##            len(GOTerms[term][0]),
-##            GOTerms[term][2],
-##            "%.4f" % GOTerms[term][1],
-##            loadedGO.termDict[term].name,
-##            loadedGO.termDict[term].id,
-##            ", ".join(GOTerms[term][0]),
-##            parent)
-##            )
         termsList.append(GOTerms[term][1:4] + \
                          (fmt % GOTerms[term][4],
                           fmt % GOTerms[term][5],
                           ontology[term].name,
                           ", ".join(GOTerms[term][6])) + (parent,))
-##        print float(len(GOTerms[term][0])), float(GOTerms[term][2]), clusterSize, refSize
         parent = len(termsList) - 1
         for c in getChildren(term):
             collect(c, parent)
