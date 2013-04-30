@@ -284,9 +284,9 @@ class Ontology(object):
         self.typedefs = {}
         self.instances = {}
         self.slimsSubset = set()
-        if isinstance(file, basestring):
-            self.ParseFile(file, progressCallback)
 
+        if file is not None:
+            self.ParseFile(file, progressCallback)
         elif rev is not None:
             if not _CVS_REVISION_RE.match(rev):
                 raise ValueError("Invalid revision format.")
@@ -301,6 +301,7 @@ class Ontology(object):
             self.ParseFile(filename, lambda v: progressCallback(v / 2.0 + 50) \
                                      if progressCallback else None)
         else:
+            # Load the default ontology file.
             fool = self.Load(progressCallback)
             # A fool and his attributes are soon parted
             self.__dict__ = fool.__dict__
@@ -310,28 +311,29 @@ class Ontology(object):
         """ A class method that tries to load the ontology file from
         default_database_path. It looks for a filename starting with
         'gene_ontology'. If not found it will download it.
+
         """
         filename = os.path.join(default_database_path,
                                 "gene_ontology_edit.obo.tar.gz")
         if not os.path.isfile(filename) and not os.path.isdir(filename):
             orngServerFiles.download("GO", "gene_ontology_edit.obo.tar.gz")
-        try:
-            return cls(filename, progressCallback=progressCallback)
-        except (IOError, OSError), ex:
-            raise Exception("Could not locate ontology file")
+
+        return cls(filename, progressCallback=progressCallback)
 
     def ParseFile(self, file, progressCallback=None):
         """ Parse the file. file can be a filename string or an open filelike
         object. The optional progressCallback will be called with a single
         argument to report on the progress.
         """
-        if type(file) == str:
+        if isinstance(file, basestring):
             if os.path.isfile(file) and tarfile.is_tarfile(file):
                 f = tarfile.open(file).extractfile("gene_ontology_edit.obo")
             elif os.path.isfile(file):
                 f = open(file)
-            else:
+            elif os.path.isdir(file):
                 f = open(os.path.join(file, "gene_ontology_edit.obo"))
+            else:
+                raise ValueError("Cannot open %r for parsing" % file)
         else:
             f = file
 
@@ -558,7 +560,6 @@ class Annotations(object):
         to report on the progress.
 
         """
-        self.file = file
         self.ontology = ontology
         self.allAnnotations = defaultdict(list)
         self.geneAnnotations = defaultdict(list)
@@ -571,19 +572,22 @@ class Annotations(object):
         self.header = ""
         self.genematcher = genematcher
         self.taxid = None
+
         if type(file) in [list, set, dict, Annotations]:
             for ann in file:
                 self.AddAnnotation(ann)
             if type(file, Annotations):
-                taxid = file.taxid
+                self.taxid = file.taxid
+
         elif isinstance(file, basestring) and os.path.exists(file):
             self.ParseFile(file, progressCallback)
             try:
                 self.taxid = to_taxid(os.path.basename(file).split(".")[1]).pop()
             except IOError:
                 pass
-        elif file is not None:
-            # Organism code
+
+        elif isinstance(file, basestring):
+            # Assuming organism code/name
             if rev is not None:
                 if not _CVS_REVISION_RE.match(rev):
                     raise ValueError("Invalid revision format")
@@ -596,9 +600,8 @@ class Annotations(object):
                                         (code, rev))
 
                 if not os.path.exists(filename):
-                    self.DownloadAnnotationsAtRev(code, rev, filename,
-                                                  progressCallback
-                                                  )
+                    self.DownloadAnnotationsAtRev(
+                        code, rev, filename, progressCallback)
 
                 self.ParseFile(filename, progressCallback)
                 self.taxid = to_taxid(code).pop()
@@ -606,13 +609,19 @@ class Annotations(object):
                 a = self.Load(file, ontology, genematcher, progressCallback)
                 self.__dict__ = a.__dict__
                 self.taxid = to_taxid(organism_name_search(file)).pop()
+        elif file is not None:
+            self.ParseFile(file, progressCallback)
+
         if not self.genematcher and self.taxid:
-            self.genematcher = obiGene.matcher(
-                [obiGene.GMGO(self.taxid)] +
-                ([obiGene.GMDicty(),
-                  [obiGene.GMGO(self.taxid), obiGene.GMDicty()]]
-                 if self.taxid == "352472" else [])
-            )
+            matchers = [obiGene.GMGO(self.taxid)]
+            if self.taxid == "352472":
+                matchers.extend(
+                    [obiGene.GMDicty(),
+                     [obiGene.GMGO(self.taxid), obiGene.GMDicty()]]
+                )
+
+            self.genematcher = obiGene.matcher(matchers)
+
         if self.genematcher:
             self.genematcher.set_targets(self.geneNames)
 
@@ -691,15 +700,17 @@ class Annotations(object):
             - a path to the actual association file
             - an open file-like object of the association file
         """
-        if type(file) == str:
+        if isinstance(file, basestring):
             if os.path.isfile(file) and tarfile.is_tarfile(file):
                 f = tarfile.open(file).extractfile("gene_association")
             elif os.path.isfile(file) and file.endswith(".gz"):
                 f = gzip.open(file)
             elif os.path.isfile(file):
                 f = open(file)
-            else:
+            elif os.path.isdir(file):
                 f = open(os.path.join(file, "gene_association"))
+            else:
+                raise ValueError("Cannot open %r for parsing." % file)
         else:
             f = file
         lines = [line for line in f.read().splitlines() if line.strip()]
@@ -1042,7 +1053,11 @@ class Annotations(object):
 
     @staticmethod
     def DownloadAnnotations(org, file, progressCallback=None):
-        tFile = tarfile.open(file, "w:gz") if type(file) == str else file
+        if isinstance(file, basestring):
+            tFile = tarfile.open(file, "w:gz")
+        else:
+            tFile = file
+
         tmpDir = os.path.join(orngEnviron.bufferDir, "tmp_go/")
         try:
             os.mkdir(tmpDir)
