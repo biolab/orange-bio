@@ -443,21 +443,32 @@ class Ontology(object):
         return cache_[term]
 
     def __getitem__(self, id):
-        """ Return object with id (same as ontology.terms[id]
         """
-        return self.terms.get(id, self.terms.get(self.aliasMapper.get(id, id)))
+        Return a object with id.
+        """
+        if id in self.terms:
+            return self.terms[id]
+        elif id in self.aliasMapper:
+            return self.terms[self.aliasMapper[id]]
+        else:
+            raise KeyError(id)
 
     def __iter__(self):
-        """ Iterate over all ids in ontology
+        """
+        Iterate over all ids in ontology.
         """
         return iter(self.terms)
 
     def __len__(self):
-        """ Return number of objects in ontology
+        """
+        Return number of objects in ontology.
         """
         return len(self.terms)
 
     def __contains__(self, id):
+        """
+        Return `True` if a term with `id` is present in the ontology.
+        """
         return id in self.terms or id in self.aliasMapper
 
     @staticmethod
