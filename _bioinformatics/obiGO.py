@@ -871,7 +871,16 @@ class Annotations(object):
                           "Using 'goslim_generic' subset", UserWarning)
             self.ontology.SetSlimsSubset("goslim_generic")
 
-        terms = self.ontology.ExtractSuperGraph(annotationsDict.keys())
+        terms = annotationsDict.keys()
+        filteredTerms = [term for term in terms if term in self.ontology]
+
+        if len(terms) != len(filteredTerms):
+            termDiff = set(terms) - set(filteredTerms)
+            warnings.warn("%s terms in the annotations were not found in the "
+                          "ontology." % ",".join(map(repr, termDiff)),
+                          UserWarning)
+
+        terms = self.ontology.ExtractSuperGraph(filteredTerms)
         res = {}
 
         milestones = orngMisc.progressBarMilestones(len(terms), 100)
@@ -917,7 +926,16 @@ class Annotations(object):
         for ann in annotations:
             dd[ann.GO_ID].add(revGenesDict.get(ann.geneName, ann.geneName))
         if not directAnnotationOnly:
-            terms = self.ontology.ExtractSuperGraph(dd.keys())
+            terms = dd.keys()
+            filteredTerms = [term for term in terms if term in self.ontology]
+            if len(terms) != len(filteredTerms):
+                termDiff = set(terms) - set(filteredTerms)
+                warnings.warn(
+                    "%s terms in the annotations were not found in the "
+                    "ontology." % ",".join(map(repr, termDiff)),
+                    UserWarning)
+
+            terms = self.ontology.ExtractSuperGraph(filteredTerms)
             for i, term in enumerate(terms):
                 termAnnots = self.GetAllAnnotations(term).intersection(annotations)
 ##                termAnnots.intersection_update(annotations)
