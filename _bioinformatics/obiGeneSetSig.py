@@ -73,10 +73,12 @@ class GeneSetTrans(object):
             # The domain has the transformer that is build on all samples,
             # while the transformed data table uses cross-validation
             # internally
-            folds = 5
-            cvi = Orange.data.sample.SubsetIndicesCV(data, folds)
+            if self.cv == True:
+                cvi = Orange.data.sample.SubsetIndicesCV(data, 5)
+            elif self.cv != False:
+                cvi = self.cv(data)
             data_cv = [ [] for _ in range(len(data)) ]
-            for f in range(folds):
+            for f in set(cvi):
                 learn = data.select(cvi, f, negate=True)
                 test = data.select(cvi, f)
                 lf = self.build_features(learn, gene_sets)
@@ -288,7 +290,7 @@ class Assess(GeneSetTrans):
 
         return attributes
    
-def setSig_example_geneset(ex, data, no_unknowns):
+def setSig_example_geneset(ex, data, no_unknowns, check_same=False):
     """ Gets learning data and example with the same domain, both
     containing only genes from the gene set. """
 
@@ -297,6 +299,9 @@ def setSig_example_geneset(ex, data, no_unknowns):
     def pearson(ex1, ex2):
         vals1 = ex1.native(0)[:-1]
         vals2 = ex2.native(0)[:-1]
+
+        if check_same and vals1 == vals2:
+            return 10 #they are the same
 
         #leaves undefined elements out
         if not no_unknowns:
@@ -323,7 +328,9 @@ def setSig_example_geneset(ex, data, no_unknowns):
  
     #create distances to all learning data - save or other class
     for c in data:
-        distances[classValueMap[c[-1].value]].append(pearson(c, ex))
+        p = pearson(c, ex)
+        if p != 10:
+             distances[classValueMap[c[-1].value]].append(pearson(c, ex))
 
     return ttest(distances[0], distances[1])
 
@@ -357,6 +364,7 @@ class SetSig(GeneSetTrans):
 
     def __init__(self, **kwargs):
         self.no_unknowns = kwargs.pop("no_unknowns", False)
+        self.check_same = kwargs.pop("check_same", False)
         super(SetSig, self).__init__(**kwargs)
 
     def build_feature(self, data, gs):
@@ -377,7 +385,7 @@ class SetSig(GeneSetTrans):
             exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ] + [ "?" ]
             example = Orange.data.Instance(domain, exvalues)
 
-            return setSig_example_geneset(example, datao, self.no_unknowns) #only this one is setsig specific
+            return setSig_example_geneset(example, datao, self.no_unknowns, check_same=self.check_same) #only this one is setsig specific
      
         at.get_value_from = t
         return at
@@ -411,8 +419,10 @@ class ParametrizedTransformation(GeneSetTrans):
             ex = Orange.data.Instance(domain, exvalues)
 
             return self._use_par(ex, constructt)
-            
+        
         at.get_value_from = t
+        at.dbg = constructt #for debugging
+        
         return at
 
 class PLS(ParametrizedTransformation):
@@ -568,13 +578,13 @@ def compute_corg(data, inds, tscorecache):
     bg = 1
     for a in range(2, len(sortedinds)+1):
         tg = S(sortedinds[:a])
-        if tg > g:
+        if tg > g: #improvement
             g = tg
             bg = a
         else:
             break
         
-    return sortedinds[:a]
+    return sortedinds[:bg] #FIXED - one too many was taken
 
 class CORGs(ParametrizedTransformation):
     """
