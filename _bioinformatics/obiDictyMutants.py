@@ -1,6 +1,7 @@
 import os
 import urllib2
 import shutil
+import cPickle as pickle
 
 from collections import defaultdict
 
@@ -26,11 +27,15 @@ class DictyMutants(object):
 
     def __init__(self, local_database_path=None):
         self.local_database_path = local_database_path if local_database_path is not None else self.DEFAULT_DATABASE_PATH
+        self.local_pickle_path = os.path.join(self.local_database_path, "Mutants.pkl")
 
         if not os.path.exists(self.local_database_path):
             os.mkdir(self.local_database_path)
             
-        _mutants = self.prepare_mutants()
+        if not os.path.exists(self.local_pickle_path):
+            self.prepare_mutants()
+        else:
+            self._mutants = pickle.load(open(self.local_pickle_path, "rb"))
  
     def update_file(self, name):
         url = "http://dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=mutant_phenotypes&ID="
@@ -74,6 +79,7 @@ class DictyMutants(object):
             if mutant.name in the_others: mutant.other = True
        
         self._mutants = {x: x for x in _mutants}
+        pickle.dump(self._mutants, open(self.local_pickle_path, "wb"), -1)
 
     @classmethod
     def get_instance(cls):

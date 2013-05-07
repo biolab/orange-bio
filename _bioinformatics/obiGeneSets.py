@@ -74,9 +74,9 @@ def omimGeneSets():
     """
     Return gene sets from OMIM (Online Mendelian Inheritance in Man) diseses
     """
-    from . import obiOMIM    # The link here leads to a redirection... should replace it with the new URL
+    from . import obiOMIM    
     genesets = [GeneSet(id=disease.id, name=disease.name, genes=obiOMIM.disease_genes(disease), hierarchy=("OMIM",), organism="9606",
-                    link=("http://www.ncbi.nlm.nih.gov/entrez/dispomim.cgi?id=" % disease.id if disease.id else None)) \
+                    link=("http://www.omim.org/entry/%s" % disease.id if disease.id else None)) \
                     for disease in obiOMIM.diseases()]
     return GeneSets(genesets)
 
