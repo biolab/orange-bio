@@ -27,6 +27,15 @@ class GeneSetTrans(object):
         return self._cache[data.domain]
 
     def _match_instance(self, instance, geneset, takegenes=None):
+        """
+        Return
+            - a gene matcher with the instance as a target
+            - { name: attribute indices } of an instance
+            - genes names on the data set that were matched by the gene set
+
+        If takegenes is a list of indices, use only genes from
+        the gene set with specified indices.
+        """
         nm, name_ind = self._mat_ni(instance)
         genes = [ nm.umatch(gene) for gene in geneset ]
         if takegenes:
@@ -125,6 +134,34 @@ class AT_edelmanParametric(object):
             #print p1, p2, "exception"
             return 0
 
+def estimate_gaussian_per_class(data, i, a=None, b=None):
+    cv = data.domain.class_var
+
+    if a == None: a = cv.values[0]
+    if b == None: b = cv.values[1]
+
+    def avWCVal(value):
+        return [ex[i].value for ex in data if ex[-1].value == value and not ex[i].isSpecial() ]
+
+    list1 = avWCVal(a)
+    list2 = avWCVal(b)
+
+    mi1 = mi2 = st1 = st2 = None
+
+    try:
+        mi1 = statc.mean(list1)
+        st1 = statc.std(list1)
+    except:
+        pass
+
+    try:
+        mi2 = statc.mean(list2)
+        st2 = statc.std(list2)
+    except:
+        pass
+    
+    return mi1, st1, mi2, st2
+
 class AT_edelmanParametricLearner(object):
     """
     Returns attribute transfromer for Edelman parametric measure for a
@@ -139,31 +176,12 @@ class AT_edelmanParametricLearner(object):
         self.b = b
 
     def __call__(self, i, data):
-        cv = data.domain.classVar
-        #print data.domain
+        cv = data.domain.class_var
 
         if self.a == None: self.a = cv.values[0]
         if self.b == None: self.b = cv.values[1]
 
-        def avWCVal(value):
-            return [ex[i].value for ex in data if ex[-1].value == value and not ex[i].isSpecial() ]
-
-        list1 = avWCVal(self.a)
-        list2 = avWCVal(self.b)
-
-        mi1 = mi2 = st1 = st2 = None
-
-        try:
-            mi1 = statc.mean(list1)
-            st1 = statc.std(list1)
-        except:
-            pass
-    
-        try:
-            mi2 = statc.mean(list2)
-            st2 = statc.std(list2)
-        except:
-            pass
+        mi1, st1, mi2, st2 = estimate_gaussian_per_class(data, i, a=self.a, b=self.b)
 
         return AT_edelmanParametric(mi1=mi1, mi2=mi2, st1=st1, st2=st2)
 
@@ -335,6 +353,10 @@ def setSig_example_geneset(ex, data, no_unknowns, check_same=False):
     return ttest(distances[0], distances[1])
 
 def mat_ni(data, matcher):
+    """ Return (in a tuple):
+        - a gene matcher that matches to the attribute names of data
+        - a dictionary attribute names -> indices in the data set.
+    """
     nm = matcher([at.name for at in data.domain.attributes])
     name_ind = dict((n.name,i) for i,n in enumerate(data.domain.attributes))
     return nm, name_ind
@@ -611,6 +633,91 @@ class CORGs(ParametrizedTransformation):
             nm2, name_ind2, genes2 = self._match_instance(ex, corg, None)
             exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ]
             return sum(v if v != '?' else 0.0 for v in exvalues)/len(corg)**0.5
+     
+        at.get_value_from = t
+        return at
+
+def compute_llr(data, inds, cache):
+    """
+    Compute CORG for this geneset specified with gene inds
+    in the example table. Output is the list of gene inds
+    in CORG.
+    """
+    def gaussianc(data, at, cache=None):
+        """ Cached attribute  tscore calculation """
+        if cache != None and at in cache: return cache[at]
+        ma = estimate_gaussian_per_class(data, at)
+        if cache != None: cache[at] = ma
+        return ma
+
+    gf = [ gaussianc(data, at, cache) for at in inds ]
+    return gf
+
+""" To avoid scipy overhead """
+from math import pi
+_norm_pdf_C = math.sqrt(2*pi)
+_norm_pdf_logC = math.log(_norm_pdf_C)
+def _norm_logpdf(x, mi, std):
+    return -(x-mi)**2 / (2.0*std**2) - _norm_pdf_logC - math.log(std)
+
+def _llrlogratio(v, mi1, std1, mi2, std2):
+    if mi1 == None or std1 == None or mi2 == None or std2 == None:
+        return 0. #problem with estimation
+    #lpdf1 = scipy.stats.norm.logpdf(v, mi1, std1)
+    #lpdf2 = scipy.stats.norm.logpdf(v, mi2, std2)
+    lpdf1 = _norm_logpdf(v, mi1, std1) #avoids scipy's overhead
+    lpdf2 = _norm_logpdf(v, mi2, std2)
+    r = lpdf1 - lpdf2
+    return r
+
+class LLR(ParametrizedTransformation):
+    """ 
+    From Su et al: Accurate and Reliable Cancer Classification Base
+    on Probalistic Inference of Pathway Activity. Plos One, 2009.
+    """
+
+    def __init__(self, **kwargs):
+        self.normalize = kwargs.pop("normalize", False) #normalize final results
+        super(LLR, self).__init__(**kwargs)
+
+    def __call__(self, *args, **kwargs):
+        self._gauss_cache = {} #caching of gaussian estimates
+        self._normalizec = {}
+        return super(LLR, self).__call__(*args, **kwargs)
+
+    def build_feature(self, data, gs):
+
+        at = Orange.feature.Continuous(name=str(gs))
+        geneset = list(gs.genes)
+
+        nm, name_ind, genes, takegenes, to_geneset = self._match_data(data, geneset, odic=True)
+
+        gsi = [ name_ind[g] for g in genes ]
+        gausse = compute_llr(data, gsi, self._gauss_cache)
+        genes_gs = [ to_geneset[g] for g in genes ]
+
+        if self.normalize: # per (3) in the paper
+            #compute log ratios for all samples and genes from this gene set
+            for i, gene_gs, g in zip(gsi, genes_gs, gausse):
+                if gene_gs not in self._normalizec: #skip if computed already
+                    r = [ _llrlogratio(ex[i].value, *g) for ex in data ]
+                    self._normalizec[gene_gs] = (statc.mean(r), statc.std(r))
+
+        def t(ex, w, genes_gs=genes_gs, gausse=gausse, normalizec=self._normalizec):
+            nm2, name_ind2, genes2 = self._match_instance(ex, genes_gs, None)
+            gsvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ]
+
+            vals = [ _llrlogratio(v, *g) if v != "?" else 0.0 for v,g in zip(gsvalues, gausse) ]
+
+            if len(normalizec): #normalize according to (3)
+                vals2 = []
+                for v,g in zip(vals, genes_gs):
+                    m,s = self._normalizec[g]
+                    vals2.append((v-m)/s)
+                vals = vals2
+            
+            return sum(vals)
+
      
         at.get_value_from = t
         return at
