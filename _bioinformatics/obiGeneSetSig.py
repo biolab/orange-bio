@@ -134,7 +134,7 @@ class AT_edelmanParametric(object):
             #print p1, p2, "exception"
             return 0
 
-def estimate_gaussian_per_class(data, i, a=None, b=None):
+def estimate_gaussian_per_class(data, i, a=None, b=None, common_if_extreme=False):
     cv = data.domain.class_var
 
     if a == None: a = cv.values[0]
@@ -159,7 +159,15 @@ def estimate_gaussian_per_class(data, i, a=None, b=None):
         st2 = statc.std(list2)
     except:
         pass
+
+    def extreme():
+        return st1 == 0 or st2 == 0
     
+    if common_if_extreme and extreme():
+        print "extreme", st1, st2,
+        st1 = st2 = statc.std(list1 + list2)
+        print "new", st1, st2
+
     return mi1, st1, mi2, st2
 
 class AT_edelmanParametricLearner(object):
@@ -646,7 +654,7 @@ def compute_llr(data, inds, cache):
     def gaussianc(data, at, cache=None):
         """ Cached attribute  tscore calculation """
         if cache != None and at in cache: return cache[at]
-        ma = estimate_gaussian_per_class(data, at)
+        ma = estimate_gaussian_per_class(data, at, common_if_extreme=True)
         if cache != None: cache[at] = ma
         return ma
 
