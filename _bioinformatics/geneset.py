@@ -16,7 +16,7 @@ class GeneSet(object):
         if genes == None:
             genes = []
 
-        self.hierarchy = hierarchy
+        self.hierarchy = hierarchy     
         self.genes = set(genes)
         self.name = name
         self.id = id

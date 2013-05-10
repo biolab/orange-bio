@@ -66,12 +66,13 @@ def dictyMutantSets():
     """
     from . import obiDictyMutants
     link_fmt = "http://dictybase.org/db/cgi-bin/dictyBase/SC/scsearch.pl?searchdb=strains&search_term=%s&column=all&B1=Submit" 
-    genesets = [GeneSet(id=mutant.name, name=mutant.descriptor, genes=obiDictyMutants.mutant_genes(mutant), hierarchy=("Dictybase", ), organism="352472", # 352472 gathered from obiGO.py code_map -> Dicty identifier
-                        link=(link_fmt % mutant.name if mutant.name else None)) \
-                        for mutant in obiDictyMutants.mutants()]
-    genesets.extend([GeneSet(id=mutant.name, name=mutant.descriptor, genes=obiDictyMutants.mutant_phenotypes(mutant), hierarchy=("Dictybase", "phenotype_mutants"), organism="352472",
-                        link=(link_fmt % mutant.name if mutant.name else None)) \
-                        for mutant in obiDictyMutants.mutants()])
+    #genesets = [GeneSet(id=mutant.name, name=mutant.descriptor, genes=obiDictyMutants.mutant_genes(mutant), hierarchy=("Dictybase", ), organism="352472", # 352472 gathered from obiGO.py code_map -> Dicty identifier
+    #                    link=(link_fmt % mutant.name if mutant.name else None)) \
+    #                    for mutant in obiDictyMutants.mutants()]
+ 
+    genesets = [GeneSet(id=phenotype, name=phenotype, genes=[obiDictyMutants.mutant_genes(mutant)[0] for mutant in mutants], hierarchy=("Dictybase", ), organism="352472", # 352472 gathered from obiGO.py code_map -> Dicty identifier
+                        link="") \
+                        for phenotype, mutants in obiDictyMutants.phenotype_mutants().items()]
 
     return GeneSets(genesets)
 

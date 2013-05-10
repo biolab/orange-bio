@@ -1,11 +1,17 @@
 import os
 import urllib2
 import shutil
-import cPickle as pickle
+import pickle
 
 from collections import defaultdict
 
 from Orange.orng import orngServerFiles
+
+from Orange.utils.serverfiles import localpath_download
+
+domain = "dictybase"
+pickle_file = "mutants.pkl"
+tags = ["Dictyostelium discoideum", "mutant", "dictyBase", "phenotype"]
 
 class DictyMutant(object):
 
@@ -23,20 +29,16 @@ class DictyMutant(object):
  
 class DictyMutants(object):
     VERSION=1
-    DEFAULT_DATABASE_PATH = orngServerFiles.localpath("DictyMutants") #use a default folder for storing the genesets
-
+    DEFAULT_DATABASE_PATH = orngServerFiles.localpath("DictyMutants") #use a default local folder for storing the genesets
+    
     def __init__(self, local_database_path=None):
         self.local_database_path = local_database_path if local_database_path is not None else self.DEFAULT_DATABASE_PATH
-        self.local_pickle_path = os.path.join(self.local_database_path, "Mutants.pkl")
-
+        
         if not os.path.exists(self.local_database_path):
             os.mkdir(self.local_database_path)
             
-        if not os.path.exists(self.local_pickle_path):
-            self.prepare_mutants()
-        else:
-            self._mutants = pickle.load(open(self.local_pickle_path, "rb"))
- 
+        self._mutants = pickle.load(open(localpath_download(domain, pickle_file), "rb"))
+              
     def update_file(self, name):
         url = "http://dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=mutant_phenotypes&ID="
         filename = os.path.join(self.local_database_path, name)
@@ -54,8 +56,8 @@ class DictyMutants(object):
         data_header = data.readline()
         data = data.read()
         return data.splitlines()
-       
-    def prepare_mutants(self):   
+                 
+    def download_mutants(self):   
         all_mutants = self.load_mutants(self.update_file("all-mutants.txt"))
         null_mutants = self.load_mutants(self.update_file("null-mutants.txt"))
         overexp_mutants = self.load_mutants(self.update_file("overexpression-mutants.txt"))
@@ -78,8 +80,11 @@ class DictyMutants(object):
             if mutant.name in the_develops: mutant.develop = True
             if mutant.name in the_others: mutant.other = True
        
-        self._mutants = {x: x for x in _mutants}
-        pickle.dump(self._mutants, open(self.local_pickle_path, "wb"), -1)
+        final_mutants = {x: x for x in _mutants}
+        return final_mutants
+
+    def pickle_data(self):
+        return pickle.dumps(self.download_mutants(), -1)
 
     @classmethod
     def get_instance(cls):
@@ -116,7 +121,6 @@ class DictyMutants(object):
                 dpm[phenotype].add(mutant)
         return dpm
 
-
 def mutants():
     """ Return all mutant objects
     """
@@ -146,6 +150,9 @@ def phenotype_mutants():
     """ Return a dictionary {phenotype: set(mutant_objects for mutant), ...}
     """
     return DictyMutants.get_instance().phenotype_mutants()
+
+def download_mutants():
+    return DictyMutants.get_instance().pickle_data()
 
 if  __name__  == "__main__":
     print(phenotype_mutants())    
