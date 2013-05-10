@@ -26,6 +26,16 @@ def format_checker(content):
         sendMail('Uncorrect format of miRBase data-file.')        
         return False
 
+IDpat = re.compile('ID\s*(\S*)\s*standard;')
+ACpat = re.compile('AC\s*(\S*);')
+RXpat = re.compile('RX\s*PUBMED;\s(\d*).')
+FT1pat = re.compile('FT\s*miRNA\s*(\d{1,}\.\.\d{1,})')
+FT2pat = re.compile('FT\s*/accession="(MIMAT[0-9]*)"')
+FT3pat = re.compile('FT\s*/product="(\S*)"')
+SQpat = re.compile('SQ\s*(.*other;)')
+seqpat = re.compile('\s*([a-z\s]*)\s*\d*')
+
+
     
 def get_intoFiles(path, data_webPage):
     
@@ -96,24 +106,24 @@ def miRNA_info(path,object,org_name):
             for r in rows:
                 
                 if r[0:2] == 'ID':
-                    preID = str(re.findall('ID\s*(\S*)\s*standard;',r)[0])
+                    preID = str(IDpat.findall(r)[0])
                     print preID
                         
                 elif r[0:2] == 'AC':
-                    preACC = str(re.findall('AC\s*(\S*);',r)[0])
+                    preACC = str(ACpat.findall(r)[0])
                     web_addr = 'http://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=%s' % preACC
                         
-                elif r[0:2] == 'RX' and not(re.findall('RX\s*PUBMED;\s(\d*).',r)==[]):
-                    pubIDs.append(str(re.findall('RX\s*PUBMED;\s(\d*).',r)[0]))
-                            
-                elif r[0:2]=='FT' and not(re.findall('FT\s*miRNA\s*(\d{1,}\.\.\d{1,})',r)==[]):
-                    loc_mat = str(re.findall('FT\s*miRNA\s*(\d{1,}\.\.\d{1,})',r)[0])
+                elif r[0:2] == 'RX' and not(RXpat.findall(r)==[]):
+                    pubIDs.append(str(RXpat.findall(r)[0]))
+
+                elif r[0:2]=='FT' and not(FT1pat.findall(r)==[]):
+                    loc_mat = str(FT1pat.findall(r)[0])
                         
                     if not(loc_mat==[]):
                          my_locs.append(loc_mat)
                 
-                elif r[0:2]=='FT' and not(re.findall('FT\s*/accession="(MIMAT[0-9]*)"', r)==[]):
-                     mat_acc = str(re.findall('FT\s*/accession="(MIMAT[0-9]*)"', r)[0])
+                elif r[0:2]=='FT' and not(FT2pat.findall(r)==[]):
+                     mat_acc = str(FT2pat.findall(r)[0])
                         
                      if matACCs == '':
                          matACCs = mat_acc
@@ -123,8 +133,8 @@ def miRNA_info(path,object,org_name):
                      if not(mat_acc == []):
                          my_accs.append(mat_acc)    
                                 
-                elif r[0:2]=='FT' and not(re.findall('FT\s*/product="(\S*)"', r)==[]):
-                     mat_id = str(re.findall('FT\s*/product="(\S*)"', r)[0])
+                elif r[0:2]=='FT' and not(FT3pat.findall(r)==[]):
+                     mat_id = str(FT3pat.findall(r)[0])
                         
                      if matIDs == '':
                          matIDs = mat_id
@@ -136,11 +146,11 @@ def miRNA_info(path,object,org_name):
                                           
                 elif r[0:2]=='SQ':
             
-                     preSQ_INFO = str(re.findall('SQ\s*(.*other;)', r)[0])
+                     preSQ_INFO = str(SQpat.findall(r)[0])
                      seq = 'on'
             
                 elif r[0:2]=='  ' and seq == 'on':
-                     preSQ.append(str(re.findall('\s*([a-z\s]*)\s*\d*',r)[0]).replace(' ',''))
+                     preSQ.append(str(seqpat.findall(r)[0]).replace(' ',''))
                      
             ### cluster search
             clusters = ''
@@ -273,7 +283,7 @@ if flag:
                 label = re.findall('/(\S{3,4}_\S{3}miRNA?)\.txt',filename)[0]
                 
                 if type_file == 'mat':
-                    serverFiles.upload("miRNA", label, filename, title="miRNA: %s mature form" % org, tags=["tag1", "tag2"])
+                    serverFiles.upload("miRNA", label, filename, title="miRNA: %s mature form" % org, tags=["miRNA"])
                     serverFiles.unprotect("miRNA", label)
                     print '%s mat uploaded' % org
                     
@@ -281,7 +291,7 @@ if flag:
                         fastprint(miRNA_path,'a',file_line)                 
                     
                 elif type_file == 'pre':
-                    serverFiles.upload("miRNA", label, filename, title="miRNA: %s pre-form" % org, tags=["tag1", "tag2"])
+                    serverFiles.upload("miRNA", label, filename, title="miRNA: %s pre-form" % org, tags=["miRNA"])
                     serverFiles.unprotect("miRNA", label)
                     print '%s pre uploaded' % org
                     
@@ -291,11 +301,11 @@ if flag:
                 else:
                     print 'Check the label.'
     
-    serverFiles.upload("miRNA", "miRNA.txt", miRNA_path)
+    serverFiles.upload("miRNA", "miRNA.txt", miRNA_path, title="miRNA: miRNA library", tags=["miRNA"] )
     serverFiles.unprotect("miRNA", "miRNA.txt")
     print '\nmiRNA.txt uploaded'
     
-    serverFiles.upload("miRNA", "premiRNA.txt", premiRNA_path)
+    serverFiles.upload("miRNA", "premiRNA.txt", premiRNA_path, title="miRNA: pre-form library", tags=["miRNA"])
     serverFiles.unprotect("miRNA", "premiRNA.txt")
     print 'premiRNA.txt uploaded\n'
 else:
