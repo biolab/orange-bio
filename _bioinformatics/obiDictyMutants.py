@@ -12,7 +12,7 @@ class DictyMutant(object):
     def __init__(self, mutant_line):
         mutant = mutant_line.split("\t")
         self.name = mutant[0]
-        self.descriptor = set(mutant[1].split("/"))
+        self.descriptor = mutant[1]
         self.genes = mutant[2].split(" | ")
         self.phenotypes = mutant[3].split(" | ")
         self.null = False
@@ -98,13 +98,24 @@ class DictyMutants(object):
 
     def mutant_genes(self, mutant):
         return self._mutants[mutant].genes
+    
+    def mutant_phenotypes(self, mutant):
+        return self._mutants[mutant].phenotypes
 
     def gene_mutants(self):
-        d = defaultdict(set)
+        dgm = defaultdict(set)
         for mutant, genes in [(mutant, self.mutant_genes(mutant)) for mutant in self.mutants()]:
             for gene in genes:
-                d[gene].add(mutant)
-        return d
+                dgm[gene].add(mutant)
+        return dgm
+
+    def phenotype_mutants(self):
+        dpm = defaultdict(set)
+        for mutant, phenotypes in [(mutant, self.mutant_phenotypes(mutant)) for mutant in self.mutants()]:
+            for phenotype in phenotypes:
+                dpm[phenotype].add(mutant)
+        return dpm
+
 
 def mutants():
     """ Return all mutant objects
@@ -121,10 +132,20 @@ def mutant_genes(mutant):
     """
     return DictyMutants.get_instance().mutant_genes(mutant)
 
+def mutant_phenotypes(mutant):   
+    """ Return a set of all phenotypes referenced ba a mutant in dictybase
+    """
+    return DictyMutants.get_instance().mutant_phenotypes(mutant)
+
 def gene_mutants():
     """ Return a dictionary {gene: set(mutant_objects for mutant), ...}
     """
     return DictyMutants.get_instance().gene_mutants()
 
+def phenotype_mutants():
+    """ Return a dictionary {phenotype: set(mutant_objects for mutant), ...}
+    """
+    return DictyMutants.get_instance().phenotype_mutants()
+
 if  __name__  == "__main__":
-    print(mutants())    
+    print(phenotype_mutants())    
