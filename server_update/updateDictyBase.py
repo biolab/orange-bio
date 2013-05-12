@@ -58,27 +58,10 @@ shutil.rmtree(tmpdir_mutants)
 """
 Orange server upload for Dicty mutant gene sets
 """
-from Orange.bio.obiGeneSets import dictyMutantSets, update_server_list
-import cPickle as pickle
+from Orange.bio.obiGeneSets import dictyMutantSets, update_server_list, register
 
-mutant_sets = dictyMutantSets()
+mutant_sets_split = dictyMutantSets().split_by_hierarchy()
+for mutant_sets in mutant_sets_split:
+    register(mutant_sets, sf_server)
 
-tmpdir_sets = tempfile.mkdtemp("dictygenesets")
-file_mutants = os.path.join(tmpdir_sets, "tempSets")
-
-with open(file_mutants, "wb") as f:
-    pickle.dump(mutant_sets, f, -1)
-
-fm_dom = "gene_sets"
-fm_name = "DictyMutant phenotypes"
-set_tags = ["Mutant", "phenotype", "dicty"]
-
-print file_mutants
-
-sf_server.upload(fm_dom, fm_name, file_mutants, title="Dictyostelium discoideum mutant phenotypes",
-    tags=set_tags)
-sf_server.unprotect(fm_dom, fm_name)
 update_server_list(sf_server)
-
-shutil.rmtree(tmpdir_sets)
-
