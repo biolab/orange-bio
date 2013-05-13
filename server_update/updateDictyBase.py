@@ -64,4 +64,6 @@ mutant_sets_split = dictyMutantSets().split_by_hierarchy()
 for mutant_sets in mutant_sets_split:
     register(mutant_sets, sf_server)
 
+
+print(sf_server.listfiles("gene_sets"))
 update_server_list(sf_server)
