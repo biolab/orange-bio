@@ -63,5 +63,3 @@ from Orange.bio.obiGeneSets import dictyMutantSets, update_server_list, register
 mutant_sets_split = dictyMutantSets().split_by_hierarchy()
 for mutant_sets in mutant_sets_split:
     register(mutant_sets, sf_server)
-
-update_server_list(sf_server)
