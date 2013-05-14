@@ -46,8 +46,12 @@ class MyTreeWidgetItem(QTreeWidgetItem):
         if not self.treeWidget():
             return id(self) < id(other)
         column = self.treeWidget().sortColumn()
-        lhs = _toPyObject(self.data(column, Qt.DisplayRole))
-        rhs = _toPyObject(other.data(column, Qt.DisplayRole))
+        if column == 4:
+            lhs = _toPyObject(self.data(column, 42))
+            rhs = _toPyObject(other.data(column, 42))
+        else:
+            lhs = _toPyObject(self.data(column, Qt.DisplayRole))
+            rhs = _toPyObject(other.data(column, Qt.DisplayRole))
         return lhs < rhs
 
 def name_or_none(id):
