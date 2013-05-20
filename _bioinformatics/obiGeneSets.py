@@ -78,14 +78,19 @@ def dictyMutantSets():
 
 def cytobandGeneSets():
     """
-    Return cytoband gene sets from Stanford Microarray Database
+    Create cytoband gene sets from Stanford Microarray Database
     """
-    from . import obiCytobands
-    
-    genesets = [GeneSet(id=band.name, name=band.descriptor, genes=obiCytobands.band_genes(band), hierarchy=("Cytobands",), organism="9606", # 352472 gathered from obiGO.py code_map -> Dicty identifier
-                        link="") \
-                        for band in obiCytobands.bands()]
-  
+    import urllib2
+
+    url = "http://www-stat.stanford.edu/~tibs/GSA/cytobands-stanford.gmt"
+    stream = urllib2.urlopen(url)
+    data = stream.read().splitlines()
+
+    genesets = []
+    for band in data:
+        b = band.split("\t")
+        genesets.append(GeneSet(id=b[0], name=b[1], genes=b[2:] if b[2:] else [], hierarchy=("Cytobands",), organism="9606", link=""))          
+
     return GeneSets(genesets)
 
 def omimGeneSets():
@@ -390,6 +395,8 @@ def upload_genesets(rsf):
                 print "organism not found", org
 
 if __name__ == "__main__":
+    print cytobandGeneSets()
+    exit()
     rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
     upload_genesets(rsf)
     pass

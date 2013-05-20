@@ -15,8 +15,8 @@ class disease(object):
     def __init__(self, morbidmap_line):
         string = morbidmap_line.split("|", 1)[0]
         match = self.regex.match(string)
-#        print string
-#        print match.groups()
+        print string
+        print match.groups()
         self.name, self.id, self.mapping = [s.strip() if s else s for s in match.groups()[:3]]
         if match.group("m2"):
             self.mapping += " " + match.group("m2").strip()
@@ -31,6 +31,7 @@ class OMIM(object):
             os.makedirs(self.local_database_path)
             
         filename = os.path.join(self.local_database_path, "morbidmap")
+        print filename
         if not os.path.exists(filename):
             stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/repository/OMIM/ARCHIVE/morbidmap")
             with open(filename, "wb") as file:
