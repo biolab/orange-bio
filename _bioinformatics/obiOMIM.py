@@ -2,10 +2,9 @@ import sys, os
 import urllib2
 import shutil
 import re
+import Orange
 
 from collections import defaultdict
-
-from Orange.orng import orngServerFiles
 
 class disease(object):
     """ A class representing a disease in the OMIM database
@@ -23,32 +22,23 @@ class disease(object):
         
 class OMIM(object):
     VERSION = 1
-    DEFAULT_DATABASE_PATH = orngServerFiles.localpath("OMIM")
+    DEFAULT_DATABASE_PATH = Orange.utils.serverfiles.localpath("OMIM")
     def __init__(self, local_database_path=None):
         self.local_database_path = local_database_path if local_database_path is not None else self.DEFAULT_DATABASE_PATH
         
-        if not os.path.exists(self.local_database_path):
-            os.makedirs(self.local_database_path)
-            
-        filename = os.path.join(self.local_database_path, "morbidmap")
-        if not os.path.exists(filename):
-            stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/repository/OMIM/ARCHIVE/morbidmap")
-            with open(filename, "wb") as file:
-                shutil.copyfileobj(stream, file, length=10)
-            
-            
+        if self.local_database_path == self.DEFAULT_DATABASE_PATH:
+            filename = Orange.utils.serverfiles.localpath_download("OMIM", "morbidmap")
+        else:
+            filename = os.path.join(self.local_database_path, "morbidmap")
+
         self.load(filename)
     
     @classmethod
     def download_from_NCBI(cls, file=None):
-        data = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/repository/OMIM/ARCHIVE/morbidmap").read()
-        if file is None:
-            if not os.path.exists(cls.DEFAULT_DATABASE_PATH):
-                os.mkdir(cls.DEFAULT_DATABASE_PATH)
-            file = open(os.path.join(cls.DEFAULT_DATABASE_PATH, "morbidmap"), "wb")
-        elif isinstance(file, basestring):
+        if isinstance(file, basestring):
             file = open(file, "wb")
-        file.write(data)
+        stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/repository/OMIM/ARCHIVE/morbidmap")
+        shutil.copyfileobj(stream, file, length=10)
         file.close()
         
     @classmethod
