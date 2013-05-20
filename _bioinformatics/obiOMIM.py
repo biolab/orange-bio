@@ -100,3 +100,6 @@ def gene_diseases():
     """ Return a dictionary {gene: set(disease_objects for gene), ...}
     """
     return OMIM.get_instance().gene_diseases()
+
+if __name__ == "__main__":
+    print genes()

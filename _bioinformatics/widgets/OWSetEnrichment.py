@@ -140,8 +140,8 @@ class OWSetEnrichment(OWWidget):
 
         dsp, dspcb = OWGUI.doubleSpin(hWidget, self,
                         "maxPValue", 0.0, 1.0, 0.0001,
-                        label="P-Value (FDR corrected)",
-                        tooltip="Maximum (FDR corrected) P-Value",
+                        label="FDR adjusted P-Value",
+                        tooltip="Maximum (FDR adjusted) P-Value",
                         callback=self.filterAnnotationsChartView,
                         callbackOnReturn=True,
                         checked="useMaxPValFilter",

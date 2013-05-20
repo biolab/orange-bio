@@ -76,6 +76,18 @@ def dictyMutantSets():
 
     return GeneSets(genesets)
 
+def cytobandGeneSets():
+    """
+    Return cytoband gene sets from Stanford Microarray Database
+    """
+    from . import obiCytobands
+    
+    genesets = [GeneSet(id=band.name, name=band.descriptor, genes=obiCytobands.band_genes(band), hierarchy=("Cytobands",), organism="9606", # 352472 gathered from obiGO.py code_map -> Dicty identifier
+                        link="") \
+                        for band in obiCytobands.bands()]
+  
+    return GeneSets(genesets)
+
 def omimGeneSets():
     """
     Return gene sets from OMIM (Online Mendelian Inheritance in Man) diseses
