@@ -93,6 +93,24 @@ def cytobandGeneSets():
 
     return GeneSets(genesets)
 
+def reactomePathwaysGeneSets():
+    """
+    Prepare human pathways gene sets from reactome pathways
+    """
+    import urllib
+    import io
+    from zipfile import ZipFile
+
+    url = urllib.urlopen("http://www.reactome.org/download/current/ReactomePathways.gmt.zip")
+    memfile = io.BytesIO(url.read())
+    with ZipFile(memfile, "r") as myzip:
+        f = myzip.open("ReactomePathways.gmt")
+        content = f.read().splitlines()      
+
+    genesets = [GeneSet(id=path.split("\t")[0], name=path.split("\t")[0], genes=path.split("\t")[2:] if path.split("\t")[2:] else [], hierarchy=("Reactome", "Pathways"), organism="9606", link="") for path in content]
+    return GeneSets(genesets)
+
+
 def omimGeneSets():
     """
     Return gene sets from OMIM (Online Mendelian Inheritance in Man) diseses
@@ -395,7 +413,7 @@ def upload_genesets(rsf):
                 print "organism not found", org
 
 if __name__ == "__main__":
-    print cytobandGeneSets()
+    print reactomePathwaysGeneSets()
     exit()
     rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
     upload_genesets(rsf)
