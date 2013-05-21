@@ -730,9 +730,87 @@ class LLR(ParametrizedTransformation):
         at.get_value_from = t
         return at
 
+def estimate_linear_fit(data, i):
+    """
+    Chen et 2008 write about t-score of the least square fit in the
+    original article, but here we can use just the t-test, because the
+    t-scores obtained are exactly the same (the authors used the
+    the more general version as they supported continous outcomes).
+    """
+    
+    """
+    #implementation that could also support continous outcomes
+    x = numpy.array([ ex[i].value for ex in data ])
+    y = numpy.array([ int(ex[-1]) for ex in data ]) #here classes are 0 and 1
+    ret = scipy.stats.linregress(x,y)
+    b = ret[0]
+    seb = ret[4]
+    return b/seb
+    """
+    """
+    #per mathword.wolfram.com - results are the same
+    c = numpy.cov(x,y)
+    n = len(x)
+    b = c[0,1]/c[0,0] #the same result as from li
+    s = math.sqrt((c[1,1]*n - b*c[0,1]*n)/(n-2))
+    seb = s/math.sqrt(c[0,0]*n)
+    return b/seb
+    """
+    return obiExpression.MA_t_test()(i, data)
+
+
+class SPCA(ParametrizedTransformation):
+    """ Per Chen et al. Supervised principal component analysis for
+    gene set enrichment of microarray data with continuous or survival
+    outcomes. Bioinformatics, 2008.  """
+
+    def __init__(self, **kwargs):
+        self.threshold = kwargs.pop("threshold", None)
+        self.top = kwargs.pop("top", None)
+        self.atleast = kwargs.pop("atleast", 0)
+        super(SPCA, self).__init__(**kwargs)
+
+    def _get_par(self, datao):
+        scores = [ estimate_linear_fit(datao, a) for a in range(len(datao.domain.attributes)) ]
+        scores = list(enumerate(map(abs, scores)))
+        select = None
+        if self.threshold is not None:
+            select = [ i for i,s in scores if s > self.threshold ]
+        elif self.top is not None:
+            select = nth(sorted(scores, key=lambda x: -x[1])[:self.top], 0)
+
+        print sorted(scores, key=lambda x: -x[1])
+
+        if len(select) < self.atleast:
+            select = nth(sorted(scores, key=lambda x: -x[1])[:self.atleast], 0)
+
+        if select == None:
+            somethingWrongWithSelection
+
+        doms = Orange.data.Domain([ datao.domain.attributes[i] for i in select ], datao.domain.class_var)
+        datas = Orange.data.Table(doms, datao)
+
+        return select, pca(datas)
+
+    def _use_par(self, arr, constructt):
+        select, constructt = constructt
+        select = set(select)
+
+        arr = [ arr[i].value for i in range(len(arr.domain.attributes)) 
+            if i in select ]
+
+        evals, evect, xmean = constructt
+
+        arr = arr - xmean # same input transformation - a row in a matrix
+        ev0 = evect[0] #this is a row in a matrix - do a dot product
+        a = numpy.dot(arr, ev0)
+
+        return a
+
 if __name__ == "__main__":
 
     data = Orange.data.Table("iris")
+
     gsets = obiGeneSets.collections({
         #"ALL": ['sepal length', 'sepal width', 'petal length', 'petal width'],
         "f3": ['sepal length', 'sepal width', 'petal length'],
@@ -760,6 +838,6 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = Assess(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
+    ass = SPCA(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, top=0)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
