@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import random
 import math
 from collections import defaultdict
 
@@ -779,8 +780,6 @@ class SPCA(ParametrizedTransformation):
         elif self.top is not None:
             select = nth(sorted(scores, key=lambda x: -x[1])[:self.top], 0)
 
-        print sorted(scores, key=lambda x: -x[1])
-
         if len(select) < self.atleast:
             select = nth(sorted(scores, key=lambda x: -x[1])[:self.atleast], 0)
 
@@ -790,11 +789,16 @@ class SPCA(ParametrizedTransformation):
         doms = Orange.data.Domain([ datao.domain.attributes[i] for i in select ], datao.domain.class_var)
         datas = Orange.data.Table(doms, datao)
 
-        return select, pca(datas)
+        if len(select) == 0:
+            return select, None
+        else:
+            return set(select), pca(datas)
 
     def _use_par(self, arr, constructt):
         select, constructt = constructt
-        select = set(select)
+
+        if len(select) == 0:
+            return 0.
 
         arr = [ arr[i].value for i in range(len(arr.domain.attributes)) 
             if i in select ]
@@ -806,6 +810,51 @@ class SPCA(ParametrizedTransformation):
         a = numpy.dot(arr, ev0)
 
         return a
+
+def _shuffleClass(data, rand):
+    """ Destructive! """
+    locations = range(len(data))
+    rand.shuffle(locations)
+    attribute = -1
+    l = [None]*len(data)
+    for i in range(len(data)):
+        l[locations[i]] = data[i][attribute]
+    for i in range(len(data)):
+        data[i][attribute] = l[i]
+
+class SPCA_ttperm(SPCA):
+    """ Set threshold with a permutation test. """
+
+    def __init__(self, **kwargs):
+        self.pval = kwargs.pop("pval", 0.01) #target p-value
+        self.perm = kwargs.pop("perm", 100) #number of class permutation
+        self.sperm = kwargs.pop("sperm", 100) #sampled attributes per permutation
+        super(SPCA_ttperm, self).__init__(**kwargs)
+
+    def __call__(self, data, *args, **kwargs):
+        joined = []
+        rand = random.Random(0)
+        nat = len(data.domain.attributes)
+
+        datap = Orange.data.Table(data.domain, data)
+
+        for p in range(self.perm):
+            _shuffleClass(datap, rand)
+            if self.sperm is not None:
+                ti = rand.sample(xrange(nat), self.sperm)
+            else:
+                ti = range(nat)
+            joined.extend([ obiExpression.MA_t_test()(i, datap) 
+                for i in ti ])
+
+        joined = map(abs, joined)
+        joined.sort(reverse=True)
+
+        t = joined[int(self.pval*len(joined))]
+
+        self.threshold = t
+        return super(SPCA_ttperm, self).__call__(data, *args, **kwargs)
+    
 
 if __name__ == "__main__":
 
