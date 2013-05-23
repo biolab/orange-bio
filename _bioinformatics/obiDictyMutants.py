@@ -1,3 +1,32 @@
+"""
+==============================================================================
+DictyMutants - An interface to Dictyostelium discoideum mutants from Dictybase
+==============================================================================
+
+:mod:`DictyMutants` is a python module for accessing Dictyostelium discoideum 
+mutant collections from the `Dictybase <http://www.dictybase.org/>`_ website.
+
+The mutants are presented as `DictyMutant` objects with their respective name,
+strain descriptor, associated genes and associated phenotypes.
+
+>>> from Orange.bio.obiDictyMutants import *
+>>> # Create a set of all mutant objects
+>>> dicty_mutants = mutants() 
+>>> # List a set of all genes referenced by a single mutant
+>>> print mutant_genes(dicty_mutants[0])
+['cbfA']
+>>> # List a set of all phenotypes referenced by a single mutant
+>>> print mutant_phenotypes(dicty_mutants[0])
+['aberrant protein localization']
+>>> # List all genes or all phenotypes referenced on Dictybase
+>>> print genes()
+>>> print phenotypes()
+>>> # Display a dictionary {phenotypes: set(mutant_objects)}
+>>> print phenotype_mutants()
+>>> # Display a dictionary {genes: set(mutant_objects)}
+>>> print gene_mutants()
+"""
+
 import os
 import urllib2
 import shutil
@@ -14,9 +43,22 @@ pickle_file = "mutants.pkl"
 tags = ["Dictyostelium discoideum", "mutant", "dictyBase", "phenotype"]
 
 class DictyMutant(object):
+    """
+    A class representing a single Dictyostelium discoideum mutant 
+    from Dictybase
+   
+    :param mutant_entry: A single mutant entry from 
+        dictybase's `all curated mutants file <http://dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=mutant_phenotypes&ID=all-mutants.txt>`_ (updated monthly)
+    :type mutant_entry: str
 
-    def __init__(self, mutant_line):
-        mutant = mutant_line.split("\t")
+    :ivar DictyMutant.name: dictyBase ID for a mutant
+    :ivar DictyMutant.descriptor: dictyBase strain descriptor of a mutant
+    :ivar DictyMutant.genes: all of the mutant's associated genes
+    :ivar DictyMutant.phenotypes: all of the mutant's associated phenotypes
+
+    """
+    def __init__(self, mutant_entry):
+        mutant = mutant_entry.split("\t")
         self.name = mutant[0]
         self.descriptor = mutant[1]
         self.genes = mutant[2].split(" | ")
@@ -28,6 +70,14 @@ class DictyMutant(object):
         self.other = False
  
 class DictyMutants(object):
+    """
+    A class representing the collection of all Dictybase mutants as 
+    a dictionary of `DictyMutant` objects
+    
+    :param local_database_path: A user defined path for storing dicty mutants objects in a file. If `None` then a default database path is used.
+    
+    """
+    
     VERSION=1
     DEFAULT_DATABASE_PATH = orngServerFiles.localpath("DictyMutants") #use a default local folder for storing the genesets
     
@@ -101,6 +151,9 @@ class DictyMutants(object):
     def genes(self):
         return sorted(set(reduce(list.__add__, [self.mutant_genes(mutant) for mutant in self.mutants()], [])))
 
+    def phenotypes(self):
+        return sorted(set(reduce(list.__add__, [self.mutant_phenotypes(mutant) for mutant in self.mutants()], [])))
+
     def mutant_genes(self, mutant):
         return self._mutants[mutant].genes
     
@@ -131,13 +184,18 @@ def genes():
     """
     return DictyMutants.get_instance().genes()
 
+def phenotypes():
+    """ Return a set of all phenotypes referenced in dictybase
+    """
+    return DictyMutants.get_instance().phenotypes()
+
 def mutant_genes(mutant):
     """ Return a set of all genes referenced by a mutant in dictybase
     """
     return DictyMutants.get_instance().mutant_genes(mutant)
 
 def mutant_phenotypes(mutant):   
-    """ Return a set of all phenotypes referenced ba a mutant in dictybase
+    """ Return a set of all phenotypes referenced by a mutant in dictybase
     """
     return DictyMutants.get_instance().mutant_phenotypes(mutant)
 
@@ -155,4 +213,6 @@ def download_mutants():
     return DictyMutants.get_instance().pickle_data()
 
 if  __name__  == "__main__":
-    print(phenotype_mutants())    
+    dicty_mutants = mutants()
+    print mutant_phenotypes(dicty_mutants[0])
+#    print(phenotypes())#_mutants())    

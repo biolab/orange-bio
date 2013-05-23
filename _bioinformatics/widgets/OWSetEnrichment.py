@@ -46,8 +46,12 @@ class MyTreeWidgetItem(QTreeWidgetItem):
         if not self.treeWidget():
             return id(self) < id(other)
         column = self.treeWidget().sortColumn()
-        lhs = _toPyObject(self.data(column, Qt.DisplayRole))
-        rhs = _toPyObject(other.data(column, Qt.DisplayRole))
+        if column == 4:
+            lhs = _toPyObject(self.data(column, 42))
+            rhs = _toPyObject(other.data(column, 42))
+        else:
+            lhs = _toPyObject(self.data(column, Qt.DisplayRole))
+            rhs = _toPyObject(other.data(column, Qt.DisplayRole))
         return lhs < rhs
 
 def name_or_none(id):
@@ -136,8 +140,8 @@ class OWSetEnrichment(OWWidget):
 
         dsp, dspcb = OWGUI.doubleSpin(hWidget, self,
                         "maxPValue", 0.0, 1.0, 0.0001,
-                        label="P-Value (FDR corrected)",
-                        tooltip="Maximum (FDR corrected) P-Value",
+                        label="FDR adjusted P-Value",
+                        tooltip="Maximum (FDR adjusted) P-Value",
                         callback=self.filterAnnotationsChartView,
                         callbackOnReturn=True,
                         checked="useMaxPValFilter",
@@ -458,7 +462,10 @@ class OWSetEnrichment(OWWidget):
                 item.setData(2, Qt.DisplayRole, QVariant(countFmt % (len(cmapped), 100.0*len(cmapped)/countAll)))
                 item.setData(2, Qt.ToolTipRole, QVariant(len(cmapped))) # For filtering
                 item.setData(3, Qt.DisplayRole, QVariant(refFmt % (len(rmapped), 100.0*len(rmapped)/len(referenceGenes))))
-                item.setData(4, Qt.DisplayRole, QVariant("%0.2e"% p_val))
+                if p_val > 0.001:
+                    item.setData(4, Qt.DisplayRole, QVariant("%0.6f" % p_val))
+                else:
+                    item.setData(4, Qt.DisplayRole, QVariant("%0.2e" % p_val))
                 item.setData(4, 42, QVariant(p_val))
                 #stoplec 4 - zelim sort po p_val
                 item.setData(4, Qt.ToolTipRole, QVariant("%0.10f" % p_val))

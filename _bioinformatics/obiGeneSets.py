@@ -76,6 +76,41 @@ def dictyMutantSets():
 
     return GeneSets(genesets)
 
+def cytobandGeneSets():
+    """
+    Create cytoband gene sets from Stanford Microarray Database
+    """
+    import urllib2
+
+    url = "http://www-stat.stanford.edu/~tibs/GSA/cytobands-stanford.gmt"
+    stream = urllib2.urlopen(url)
+    data = stream.read().splitlines()
+
+    genesets = []
+    for band in data:
+        b = band.split("\t")
+        genesets.append(GeneSet(id=b[0], name=b[1], genes=b[2:] if b[2:] else [], hierarchy=("Cytobands",), organism="9606", link=""))          
+
+    return GeneSets(genesets)
+
+def reactomePathwaysGeneSets():
+    """
+    Prepare human pathways gene sets from reactome pathways
+    """
+    import urllib
+    import io
+    from zipfile import ZipFile
+
+    url = urllib.urlopen("http://www.reactome.org/download/current/ReactomePathways.gmt.zip")
+    memfile = io.BytesIO(url.read())
+    with ZipFile(memfile, "r") as myzip:
+        f = myzip.open("ReactomePathways.gmt")
+        content = f.read().splitlines()      
+
+    genesets = [GeneSet(id=path.split("\t")[0], name=path.split("\t")[0], genes=path.split("\t")[2:] if path.split("\t")[2:] else [], hierarchy=("Reactome", "Pathways"), organism="9606", link="") for path in content]
+    return GeneSets(genesets)
+
+
 def omimGeneSets():
     """
     Return gene sets from OMIM (Online Mendelian Inheritance in Man) diseses
@@ -378,6 +413,8 @@ def upload_genesets(rsf):
                 print "organism not found", org
 
 if __name__ == "__main__":
+    print reactomePathwaysGeneSets()
+    exit()
     rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
     upload_genesets(rsf)
     pass
