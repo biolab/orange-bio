@@ -142,7 +142,6 @@ def go_miRNASets(org, ontology=None, enrichment=True, pval=0.05, treshold=0.04):
     annotations = obiGO.Annotations(org, ontology=ontology)
 
     go_sets = obimiRNA.get_GO(mirnas, annotations, enrichment=enrichment, pval=pval, goSwitch=False)
-    print go_sets
 
     go_sets = obimiRNA.filter_GO(go_sets, annotations, treshold=treshold)
 
@@ -223,6 +222,15 @@ def list_local():
     pth = local_path()
     gs_files = filter(is_genesets_file, os.listdir(pth))
     return [ filename_parse(fn) + (True,) for fn in gs_files ]
+
+def remove_local(gene_set):
+    """ Removes a given gene set from the local repository. """
+    pth = local_path()
+    gs_files = filter(is_genesets_file, os.listdir(pth)) 
+    for setfile in gs_files:
+        if setfile.__contains__(gene_set):
+            setBgone = os.path.join(pth, setfile)
+            os.remove(setBgone) 
 
 def list_serverfiles_from_flist(flist):
     gs_files = filter(is_genesets_file, flist)
@@ -413,8 +421,6 @@ def upload_genesets(rsf):
                 print "organism not found", org
 
 if __name__ == "__main__":
-    print reactomePathwaysGeneSets()
-    exit()
     rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
     upload_genesets(rsf)
     pass
