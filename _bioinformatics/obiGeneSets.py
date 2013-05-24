@@ -9,6 +9,7 @@ if __name__ == "__main__":
 
 import cPickle as pickle, os, tempfile, sys
 from collections import defaultdict
+import datetime
 
 import Orange.core as orange
 from Orange.orng import orngServerFiles
@@ -231,6 +232,10 @@ def remove_local(gene_set):
         if setfile.__contains__(gene_set):
             setBgone = os.path.join(pth, setfile)
             os.remove(setBgone) 
+
+def modification_date(file):
+    t = os.path.getmtime(file)
+    return datetime.datetime.fromtimestamp(t)
 
 def list_serverfiles_from_flist(flist):
     gs_files = filter(is_genesets_file, flist)

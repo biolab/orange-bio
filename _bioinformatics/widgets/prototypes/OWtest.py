@@ -1,6 +1,6 @@
 """
 <name>test</name>
-<description>Import custom geneset files</description>
+<description>Manage custom geneset files</description>
 
 """
 import os
@@ -11,7 +11,7 @@ import Orange
 from OWWidget import *
 import OWGUI
 
-from Orange.bio.obiGeneSets import loadGMT, list_local, register, local_path, remove_local
+from Orange.bio.obiGeneSets import loadGMT, list_local, register, local_path, remove_local, modification_date
 
 class standard_icons(object):
     def __init__(self, qwidget=None, style=None):
@@ -34,9 +34,9 @@ class OWCustomGeneSetUpload(OWWidget):
     settingsList = ["recent_files"]
 
     def __init__(self, parent=None, signalManager=None,
-                 title="Custom Geneset File (*.gmt) Import"):
+                 title="Custom Geneset File (*.gmt) Manager"):
         OWWidget.__init__(self, parent, signalManager, title,
-                          wantMainArea=False)
+                          wantMainArea=True)
 
         self.inputs = []
         self.outputs = []
@@ -62,17 +62,10 @@ class OWCustomGeneSetUpload(OWWidget):
                                          toolTip="Browse filesystem",
                                          clicked=self.on_open_dialog)
 
-        self.reload_button = QPushButton("Reload", icon=icons.reload_icon,
-                                         toolTip="Reload the selected file",
-                                         clicked=self.on_reload_file)
-
         layout.addWidget(self.recent_combo, 2)
         layout.addWidget(self.browse_button)
-        layout.addWidget(self.reload_button)
        
-        ################
-        # File Preview #
-        ################
+        # The preview field
         form = QFormLayout()
         
         box = OWGUI.widgetBox(self.controlArea, "Preview")
@@ -82,6 +75,27 @@ class OWCustomGeneSetUpload(OWWidget):
 
         OWGUI.button(self.controlArea, self, "Import", callback=self.import_data)
 
+        # The geneset table
+        ma = self.mainArea
+
+        self.listView = QTreeWidget(ma)
+        ma.layout().addWidget(self.listView)
+        self.listView.setAllColumnsShowFocus(1)
+        self.listView.setColumnCount(2)
+        self.listView.setHeaderLabels(["Genesets name", "Import time"])
+
+        self.listView.header().setStretchLastSection(True)
+        self.listView.header().setClickable(True)
+        self.listView.header().setSortIndicatorShown(True)
+        self.listView.setSortingEnabled(True)
+
+        self.listView.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.listView.setSelectionBehavior(QAbstractItemView.SelectRows)
+
+        self.populate_table()
+
+        OWGUI.button(self.controlArea, self, "Delete", callback=self.delete_data)
+
         self.selected_file = None 
 
         self.resize(450, 500)
@@ -89,6 +103,18 @@ class OWCustomGeneSetUpload(OWWidget):
             QTimer.singleShot(1,
                     lambda: self.set_selected_file(self.recent_files[0])
                     )
+
+    def populate_table(self):
+        self.listView.clear()
+        for geneset in os.listdir(local_path()):
+            item = QTreeWidgetItem(self.listView)
+            name = geneset[geneset.index("gs_")+3:geneset.index(".gmt")+4]
+            the_file = os.path.join(local_path(), geneset)
+            mod_time = str(modification_date(the_file))
+            item.setText(0, name)
+            item.setText(1, mod_time[:mod_time.rfind(".")])
+
+        print list_local()
 
     def on_select_recent(self, recent):
         if isinstance(recent, int):
@@ -126,11 +152,7 @@ class OWCustomGeneSetUpload(OWWidget):
             self.recent_files.pop(index_to_remove + 1)
  
         self.update_preview()
-
-
-    # Funkcija za brisanje fajla iz lokalnega repozitorija. Potrebno jo je še nekam zapakirat.
-    # remove_local(self.genesetname)
-
+    
     def update_preview(self):
         pass
         """ Leftovers from copying another widget
@@ -166,8 +188,8 @@ class OWCustomGeneSetUpload(OWWidget):
                 model = None
             self.preview_view.setModel(model)
         """
-
-    def import_data(self):
+    
+    def import_data(self):    
         self.error(0)     
         if self.selected_file:
             try:
@@ -175,11 +197,24 @@ class OWCustomGeneSetUpload(OWWidget):
                 geneset_split = self.new_geneset.split_by_hierarchy()
                 for geneset in geneset_split:
                     register(geneset)
+                self.populate_table()
             except Exception, ex:
                 self.error(0, "An error occurred while "
                               "loading the file:\n\t%r" % self.selected_file
+                              )   
+
+    def delete_data(self):   
+        self.error(0)
+        if self.listView.selectedItems():
+            try:
+                unwantedGeneset = str(self.listView.selectedItems()[0].text(0))
+                remove_local(unwantedGeneset)
+                self.populate_table()
+            except Exception, ex:
+                self.error(0, "An error occurred while "
+                              "deleting the file:\n\t%r" % unwantedGeneset
                               )    
-        
+       
 if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
