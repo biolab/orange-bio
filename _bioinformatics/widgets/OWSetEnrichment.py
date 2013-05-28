@@ -203,7 +203,7 @@ class OWSetEnrichment(OWWidget):
             self.progressBarInit()
             with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
                 all, local = obiGeneSets.list_all(), obiGeneSets.list_local()
-                organisms = set(obiTaxonomy.essential_taxids() + [t[1] for t in all])
+                organisms = set(obiTaxonomy.essential_taxids() + filter(None, [t[1] for t in all]))
             self.progressBarFinished()
 
             organism_names = map(name_or_none, organisms)
@@ -267,6 +267,9 @@ class OWSetEnrichment(OWWidget):
 
         for hierarchy, t_id, _ in self.genesets:
             collect(collection[t_id], hierarchy)
+
+        #add genesets without species identifiers
+        collection[taxid].update(collection[None])
         return collection[taxid]
 
     def setHierarchy(self, hierarchy):
