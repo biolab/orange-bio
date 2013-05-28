@@ -30,7 +30,7 @@ class standard_icons(object):
         return self.style.standardIcon(QStyle.SP_BrowserReload)
 
 
-class OWCustomGeneSetUpload(OWWidget):
+class OWtest(OWWidget):
     settingsList = ["recent_files"]
 
     def __init__(self, parent=None, signalManager=None,
