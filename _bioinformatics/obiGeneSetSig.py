@@ -623,9 +623,9 @@ class CORGs(ParametrizedTransformation):
     (mean=0, stdev=1) for all samples.
     """
 
-    def __call__(self, *args, **kwargs):
+    def build_features(self, *args, **kwargs):
         self.tscorecache = {} #reset a cache
-        return super(CORGs, self).__call__(*args, **kwargs)
+        return super(CORGs, self).build_features(*args, **kwargs)
 
     def build_feature(self, data, gs):
 
@@ -686,13 +686,13 @@ class LLR(ParametrizedTransformation):
     """
 
     def __init__(self, **kwargs):
-        self.normalize = kwargs.pop("normalize", False) #normalize final results
+        self.normalize = kwargs.pop("normalize", True) #normalize final results
         super(LLR, self).__init__(**kwargs)
 
-    def __call__(self, *args, **kwargs):
+    def build_features(self, *args, **kwargs):
         self._gauss_cache = {} #caching of gaussian estimates
         self._normalizec = {}
-        return super(LLR, self).__call__(*args, **kwargs)
+        return super(LLR, self).build_features(*args, **kwargs)
 
     def build_feature(self, data, gs):
 
@@ -721,12 +721,11 @@ class LLR(ParametrizedTransformation):
             if len(normalizec): #normalize according to (3)
                 vals2 = []
                 for v,g in zip(vals, genes_gs):
-                    m,s = self._normalizec[g]
+                    m,s = normalizec[g]
                     vals2.append((v-m)/s)
                 vals = vals2
             
             return sum(vals)
-
      
         at.get_value_from = t
         return at
@@ -831,7 +830,7 @@ class SPCA_ttperm(SPCA):
         self.sperm = kwargs.pop("sperm", 100) #sampled attributes per permutation
         super(SPCA_ttperm, self).__init__(**kwargs)
 
-    def __call__(self, data, *args, **kwargs):
+    def build_features(self, data, *args, **kwargs):
         joined = []
         rand = random.Random(0)
         nat = len(data.domain.attributes)
@@ -853,7 +852,7 @@ class SPCA_ttperm(SPCA):
         t = joined[int(self.pval*len(joined))]
 
         self.threshold = t
-        return super(SPCA_ttperm, self).__call__(data, *args, **kwargs)
+        return super(SPCA_ttperm, self).build_features(data, *args, **kwargs)
     
 
 if __name__ == "__main__":
@@ -887,6 +886,6 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = SPCA(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, top=0)
+    ass = LLR(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, normalize=True, cv=True)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
