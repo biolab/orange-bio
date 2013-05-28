@@ -68,8 +68,8 @@ class OWSetEnrichment(OWWidget):
 
     def __init__(self, parent=None, signalManager=None, name="Gene Set Enrichment Analysis", **kwargs):
         OWWidget.__init__(self, parent, signalManager, name, **kwargs)
-        self.inputs = [("Example Table", ExampleTable, self.setData, Default), ("Reference", ExampleTable, self.setReference)]
-        self.outputs = [("Selected Examples", ExampleTable)]
+        self.inputs = [("Data", ExampleTable, self.setData, Default), ("Reference", ExampleTable, self.setReference)]
+        self.outputs = [("Data subset", ExampleTable)]
 
         self.speciesIndex = 0
         self.genesinrows = False
