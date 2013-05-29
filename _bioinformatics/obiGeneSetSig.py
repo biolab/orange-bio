@@ -731,6 +731,23 @@ class LLR(ParametrizedTransformation):
         at.get_value_from = t
         return at
 
+class LLR_slow(ParametrizedTransformation):
+    """ Slow and rough implementation of LLR (testing correctness)."""
+
+    def _get_par(self, datao):
+        gaussiane = [ estimate_gaussian_per_class(datao, at, common_if_extreme=True) for at in range(len(datao.domain.attributes)) ]
+        normalizec = []
+        for i,g in zip(range(len(datao.domain.attributes)), gaussiane):
+            r = [ _llrlogratio(ex[i].value, *g) for ex in datao ]
+            normalizec.append((statc.mean(r), statc.std(r)))
+        return gaussiane, normalizec
+
+    def _use_par(self, arr, constructt):
+        gaussiane, normalizec = constructt
+        arr = [ arr[i].value for i in range(len(arr.domain.attributes)) ]
+        return sum ( (_llrlogratio(v, *g)-m)/s for v,g,n in zip(arr, gaussiane, normalizec))
+
+
 def estimate_linear_fit(data, i):
     """
     Chen et 2008 write about t-score of the least square fit in the
@@ -887,6 +904,7 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = LLR(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, normalize=True, cv=True)
+    ass = LLR(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, normalize=True)
+    #ass = LLR_slow(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
