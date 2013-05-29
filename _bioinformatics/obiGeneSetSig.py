@@ -165,9 +165,7 @@ def estimate_gaussian_per_class(data, i, a=None, b=None, common_if_extreme=False
         return st1 == 0 or st2 == 0
     
     if common_if_extreme and extreme():
-        print "extreme", st1, st2,
         st1 = st2 = statc.std(list1 + list2)
-        print "new", st1, st2
 
     return mi1, st1, mi2, st2
 
@@ -670,7 +668,7 @@ def _norm_logpdf(x, mi, std):
     return -(x-mi)**2 / (2.0*std**2) - _norm_pdf_logC - math.log(std)
 
 def _llrlogratio(v, mi1, std1, mi2, std2):
-    if mi1 == None or std1 == None or mi2 == None or std2 == None:
+    if mi1 == None or std1 == None or mi2 == None or std2 == None or std1 == 0 or std2 == 0:
         return 0. #problem with estimation
     #lpdf1 = scipy.stats.norm.logpdf(v, mi1, std1)
     #lpdf2 = scipy.stats.norm.logpdf(v, mi2, std2)
@@ -722,7 +720,10 @@ class LLR(ParametrizedTransformation):
                 vals2 = []
                 for v,g in zip(vals, genes_gs):
                     m,s = normalizec[g]
-                    vals2.append((v-m)/s)
+                    if s == 0: #disregard attributes without differences
+                        vals2.append(0.)
+                    else:
+                        vals2.append((v-m)/s)
                 vals = vals2
             
             return sum(vals)
