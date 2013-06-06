@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import random
 import math
 from collections import defaultdict
 
@@ -164,9 +165,7 @@ def estimate_gaussian_per_class(data, i, a=None, b=None, common_if_extreme=False
         return st1 == 0 or st2 == 0
     
     if common_if_extreme and extreme():
-        print "extreme", st1, st2,
         st1 = st2 = statc.std(list1 + list2)
-        print "new", st1, st2
 
     return mi1, st1, mi2, st2
 
@@ -622,9 +621,9 @@ class CORGs(ParametrizedTransformation):
     (mean=0, stdev=1) for all samples.
     """
 
-    def __call__(self, *args, **kwargs):
+    def build_features(self, *args, **kwargs):
         self.tscorecache = {} #reset a cache
-        return super(CORGs, self).__call__(*args, **kwargs)
+        return super(CORGs, self).build_features(*args, **kwargs)
 
     def build_feature(self, data, gs):
 
@@ -669,7 +668,7 @@ def _norm_logpdf(x, mi, std):
     return -(x-mi)**2 / (2.0*std**2) - _norm_pdf_logC - math.log(std)
 
 def _llrlogratio(v, mi1, std1, mi2, std2):
-    if mi1 == None or std1 == None or mi2 == None or std2 == None:
+    if mi1 == None or std1 == None or mi2 == None or std2 == None or std1 == 0 or std2 == 0:
         return 0. #problem with estimation
     #lpdf1 = scipy.stats.norm.logpdf(v, mi1, std1)
     #lpdf2 = scipy.stats.norm.logpdf(v, mi2, std2)
@@ -685,13 +684,13 @@ class LLR(ParametrizedTransformation):
     """
 
     def __init__(self, **kwargs):
-        self.normalize = kwargs.pop("normalize", False) #normalize final results
+        self.normalize = kwargs.pop("normalize", True) #normalize final results
         super(LLR, self).__init__(**kwargs)
 
-    def __call__(self, *args, **kwargs):
+    def build_features(self, *args, **kwargs):
         self._gauss_cache = {} #caching of gaussian estimates
         self._normalizec = {}
-        return super(LLR, self).__call__(*args, **kwargs)
+        return super(LLR, self).build_features(*args, **kwargs)
 
     def build_feature(self, data, gs):
 
@@ -720,19 +719,164 @@ class LLR(ParametrizedTransformation):
             if len(normalizec): #normalize according to (3)
                 vals2 = []
                 for v,g in zip(vals, genes_gs):
-                    m,s = self._normalizec[g]
-                    vals2.append((v-m)/s)
+                    m,s = normalizec[g]
+                    if s == 0: #disregard attributes without differences
+                        vals2.append(0.)
+                    else:
+                        vals2.append((v-m)/s)
                 vals = vals2
             
             return sum(vals)
-
      
         at.get_value_from = t
         return at
 
+class LLR_slow(ParametrizedTransformation):
+    """ Slow and rough implementation of LLR (testing correctness)."""
+
+    def _get_par(self, datao):
+        gaussiane = [ estimate_gaussian_per_class(datao, at, common_if_extreme=True) for at in range(len(datao.domain.attributes)) ]
+        normalizec = []
+        for i,g in zip(range(len(datao.domain.attributes)), gaussiane):
+            r = [ _llrlogratio(ex[i].value, *g) for ex in datao ]
+            normalizec.append((statc.mean(r), statc.std(r)))
+        return gaussiane, normalizec
+
+    def _use_par(self, arr, constructt):
+        gaussiane, normalizec = constructt
+        arr = [ arr[i].value for i in range(len(arr.domain.attributes)) ]
+        return sum ( (_llrlogratio(v, *g)-m)/s for v,g,n in zip(arr, gaussiane, normalizec))
+
+
+def estimate_linear_fit(data, i):
+    """
+    Chen et 2008 write about t-score of the least square fit in the
+    original article, but here we can use just the t-test, because the
+    t-scores obtained are exactly the same (the authors used the
+    the more general version as they supported continous outcomes).
+    """
+    
+    """
+    #implementation that could also support continous outcomes
+    x = numpy.array([ ex[i].value for ex in data ])
+    y = numpy.array([ int(ex[-1]) for ex in data ]) #here classes are 0 and 1
+    ret = scipy.stats.linregress(x,y)
+    b = ret[0]
+    seb = ret[4]
+    return b/seb
+    """
+    """
+    #per mathword.wolfram.com - results are the same
+    c = numpy.cov(x,y)
+    n = len(x)
+    b = c[0,1]/c[0,0] #the same result as from li
+    s = math.sqrt((c[1,1]*n - b*c[0,1]*n)/(n-2))
+    seb = s/math.sqrt(c[0,0]*n)
+    return b/seb
+    """
+    return obiExpression.MA_t_test()(i, data)
+
+
+class SPCA(ParametrizedTransformation):
+    """ Per Chen et al. Supervised principal component analysis for
+    gene set enrichment of microarray data with continuous or survival
+    outcomes. Bioinformatics, 2008.  """
+
+    def __init__(self, **kwargs):
+        self.threshold = kwargs.pop("threshold", None)
+        self.top = kwargs.pop("top", None)
+        self.atleast = kwargs.pop("atleast", 0)
+        super(SPCA, self).__init__(**kwargs)
+
+    def _get_par(self, datao):
+        scores = [ estimate_linear_fit(datao, a) for a in range(len(datao.domain.attributes)) ]
+        scores = list(enumerate(map(abs, scores)))
+        select = None
+        if self.threshold is not None:
+            select = [ i for i,s in scores if s > self.threshold ]
+        elif self.top is not None:
+            select = nth(sorted(scores, key=lambda x: -x[1])[:self.top], 0)
+
+        if len(select) < self.atleast:
+            select = nth(sorted(scores, key=lambda x: -x[1])[:self.atleast], 0)
+
+        if select == None:
+            somethingWrongWithSelection
+
+        doms = Orange.data.Domain([ datao.domain.attributes[i] for i in select ], datao.domain.class_var)
+        datas = Orange.data.Table(doms, datao)
+
+        if len(select) == 0:
+            return select, None
+        else:
+            return set(select), pca(datas)
+
+    def _use_par(self, arr, constructt):
+        select, constructt = constructt
+
+        if len(select) == 0:
+            return 0.
+
+        arr = [ arr[i].value for i in range(len(arr.domain.attributes)) 
+            if i in select ]
+
+        evals, evect, xmean = constructt
+
+        arr = arr - xmean # same input transformation - a row in a matrix
+        ev0 = evect[0] #this is a row in a matrix - do a dot product
+        a = numpy.dot(arr, ev0)
+
+        return a
+
+def _shuffleClass(data, rand):
+    """ Destructive! """
+    locations = range(len(data))
+    rand.shuffle(locations)
+    attribute = -1
+    l = [None]*len(data)
+    for i in range(len(data)):
+        l[locations[i]] = data[i][attribute]
+    for i in range(len(data)):
+        data[i][attribute] = l[i]
+
+class SPCA_ttperm(SPCA):
+    """ Set threshold with a permutation test. """
+
+    def __init__(self, **kwargs):
+        self.pval = kwargs.pop("pval", 0.01) #target p-value
+        self.perm = kwargs.pop("perm", 100) #number of class permutation
+        self.sperm = kwargs.pop("sperm", 100) #sampled attributes per permutation
+        super(SPCA_ttperm, self).__init__(**kwargs)
+
+    def build_features(self, data, *args, **kwargs):
+        joined = []
+        rand = random.Random(0)
+        nat = len(data.domain.attributes)
+
+        datap = Orange.data.Table(data.domain, data)
+
+        for p in range(self.perm):
+            _shuffleClass(datap, rand)
+            if self.sperm is not None:
+                ti = rand.sample(xrange(nat), self.sperm)
+            else:
+                ti = range(nat)
+            joined.extend([ obiExpression.MA_t_test()(i, datap) 
+                for i in ti ])
+
+        joined = map(abs, joined)
+        joined.sort(reverse=True)
+
+        t = joined[int(self.pval*len(joined))]
+
+        self.threshold = t
+        return super(SPCA_ttperm, self).build_features(data, *args, **kwargs)
+    
+
 if __name__ == "__main__":
 
     data = Orange.data.Table("iris")
+
     gsets = obiGeneSets.collections({
         #"ALL": ['sepal length', 'sepal width', 'petal length', 'petal width'],
         "f3": ['sepal length', 'sepal width', 'petal length'],
@@ -760,6 +904,7 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = Assess(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
+    ass = LLR(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, normalize=True)
+    #ass = LLR_slow(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
