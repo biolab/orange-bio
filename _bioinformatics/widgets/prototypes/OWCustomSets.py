@@ -123,8 +123,6 @@ class OWCustomSets(OWWidget):
             item.setText(3, str(stats[2]))
             item.setText(4, mod_time[:mod_time.rfind(".")])
 
-        print list_local()
-
     def on_select_recent(self, recent):
         if isinstance(recent, int):
             recent = self.recent_files[recent]
@@ -165,7 +163,24 @@ class OWCustomSets(OWWidget):
     def update_preview(self):
         try:
             text = open(self.selected_file).read()
-            self.preview_view.setPlainText(text)
+            final_text=""
+            counts = 0
+            for i in text.split("\n"):
+                counts += 1
+                if counts == 6:
+                    break
+                if len(i) == 0:
+                    continue
+                try:
+                    display_genes = ", ".join((i.split("\t")[2:])[:5])                   
+                except:
+                    display_genes = ", ".join(i.split("\t")[2:]) 
+                genes = i.split("\t")[2:]
+                final_text += (i.split("\t")[0]+" (%d genes)\n" % len(genes))
+                final_text += display_genes + ",...\n\n"
+
+            final_text += "..."
+            self.preview_view.setPlainText(final_text)
         except:
             text = None
             
