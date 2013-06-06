@@ -175,6 +175,11 @@ def loadGMT(contents, name):
 
     return GeneSets(handleNELines(contents, hline))
 
+def getGenesetsStats(genesets):
+    num_sets = len(genesets)
+    unique_genes = len(set([gene for geneset in genesets for gene in geneset.genes]))
+    genes_per_geneset = sum([len(geneset.genes) for geneset in genesets])/num_sets
+    return num_sets, unique_genes, genes_per_geneset
 """
 We have multiple paths for gene set data:
 buffer/bigfiles/gene_sets

@@ -8,11 +8,12 @@ import os
 from StringIO import StringIO
 
 import Orange
+import cPickle as pickle
 
 from OWWidget import *
 import OWGUI
 
-from Orange.bio.obiGeneSets import loadGMT, list_local, register, local_path, remove_local, modification_date
+from Orange.bio.obiGeneSets import loadGMT, list_local, register, local_path, remove_local, modification_date, getGenesetsStats
 
 class standard_icons(object):
     def __init__(self, qwidget=None, style=None):
@@ -84,8 +85,8 @@ class OWCustomSets(OWWidget):
         self.listView = QTreeWidget(ma)
         ma.layout().addWidget(self.listView)
         self.listView.setAllColumnsShowFocus(1)
-        self.listView.setColumnCount(2)
-        self.listView.setHeaderLabels(["Genesets name", "Import time"])
+        self.listView.setColumnCount(5)
+        self.listView.setHeaderLabels(["Name", "Gene Sets", "Unique Genes", "Average no. of Genes/Geneset", "Import time"])
 
         self.listView.header().setStretchLastSection(True)
         self.listView.header().setClickable(True)
@@ -114,8 +115,13 @@ class OWCustomSets(OWWidget):
             name = geneset[geneset.index("_._")+3:geneset.index(".gmt")+4]
             the_file = os.path.join(local_path(), geneset)
             mod_time = str(modification_date(the_file))
+            sets = pickle.load(open(the_file, "rb"))
+            stats = getGenesetsStats(sets)
             item.setText(0, name)
-            item.setText(1, mod_time[:mod_time.rfind(".")])
+            item.setText(1, str(stats[0]))
+            item.setText(2, str(stats[1]))
+            item.setText(3, str(stats[2]))
+            item.setText(4, mod_time[:mod_time.rfind(".")])
 
         print list_local()
 
