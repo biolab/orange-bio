@@ -33,7 +33,6 @@ class standard_icons(object):
 
 
 class OWCustomSets(OWWidget):
-    settingsList = ["recent_files"]
 
     def __init__(self, parent=None, signalManager=None,
                  title="Custom Geneset File (*.gmt) Manager"):
@@ -43,15 +42,12 @@ class OWCustomSets(OWWidget):
         self.inputs = []
         self.outputs = []
         self.new_geneset = set()
+        self.selected_file = "" 
 
         # List of recent opened files.
         self.recent_files = []
         self.loadSettings()
-        try:
-            self.recent_files = filter(os.path.exists, self.recent_files)
-        except:
-            pass
-
+        self.recent_files = filter(os.path.exists, self.recent_files)
 
         layout = QHBoxLayout()
         box = OWGUI.widgetBox(self.controlArea, "File", orientation=layout)
@@ -78,8 +74,7 @@ class OWCustomSets(OWWidget):
         self.preview_view.setWordWrapMode(0)
 
         box.layout().addWidget(self.preview_view)
-
-        
+       
         # The geneset table
         ma = self.mainArea
 
@@ -99,10 +94,7 @@ class OWCustomSets(OWWidget):
 
         self.populate_table()
 
-        
-        self.selected_file = None 
-
-        self.resize(450, 500)
+        self.resize(800, 500)
         if self.recent_files:
             QTimer.singleShot(1,
                     lambda: self.set_selected_file(self.recent_files[0])
@@ -116,7 +108,6 @@ class OWCustomSets(OWWidget):
 
         info_box.layout().addWidget(self.info)       
         
-        OWGUI.button(self.controlArea, self, "Import", callback=self.import_data)
         OWGUI.button(self.controlArea, self, "Delete", callback=self.delete_data)
 
     def selection(self): 
@@ -158,10 +149,6 @@ class OWCustomSets(OWWidget):
         if path:
             self.set_selected_file(path)
 
-    def on_reload_file(self):
-        if self.recent_files:
-            self.set_selected_file(self.recent_files[0])
-
     def set_selected_file(self, filename):
         basedir, name = os.path.split(filename)
         self.selected_file = filename
@@ -179,7 +166,9 @@ class OWCustomSets(OWWidget):
         if index_to_remove is not None:
             self.recent_combo.removeItem(index_to_remove + 1)
             self.recent_files.pop(index_to_remove + 1)
-        
+            
+        self.import_data()
+                                                                    
     def update_preview(self):
         if self.listView.selectedItems():
             final_text = ""
@@ -191,7 +180,7 @@ class OWCustomSets(OWWidget):
                     sets = pickle.load(open(the_file, "rb"))
                     break
             for geneset in sets:
-                final_text += geneset.id + "(%d genes)\n" % len(geneset.genes)
+                final_text += geneset.id + " (%d genes)\n" % len(geneset.genes)
                 final_text += ", ".join([geneset.genes.pop() for i in range(5)]) + ", ...\n\n"
             final_text += "..."
             self.preview_view.setPlainText(final_text)
