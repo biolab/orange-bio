@@ -47,7 +47,11 @@ class OWCustomSets(OWWidget):
         # List of recent opened files.
         self.recent_files = []
         self.loadSettings()
-        self.recent_files = filter(os.path.exists, self.recent_files)
+        try:
+            self.recent_files = filter(os.path.exists, self.recent_files)
+        except:
+            pass
+
 
         layout = QHBoxLayout()
         box = OWGUI.widgetBox(self.controlArea, "File", orientation=layout)
@@ -67,9 +71,7 @@ class OWCustomSets(OWWidget):
         layout.addWidget(self.recent_combo, 2)
         layout.addWidget(self.browse_button)
        
-        # The preview field
-        form = QFormLayout()
-        
+        # The preview field        
         box = OWGUI.widgetBox(self.controlArea, "Preview")
         self.preview_view = QPlainTextEdit()
         self.preview_view.setReadOnly(True)
@@ -77,16 +79,15 @@ class OWCustomSets(OWWidget):
 
         box.layout().addWidget(self.preview_view)
 
-        OWGUI.button(self.controlArea, self, "Import", callback=self.import_data)
-
+        
         # The geneset table
         ma = self.mainArea
 
         self.listView = QTreeWidget(ma)
         ma.layout().addWidget(self.listView)
         self.listView.setAllColumnsShowFocus(1)
-        self.listView.setColumnCount(5)
-        self.listView.setHeaderLabels(["Name", "Gene Sets", "Unique Genes", "Average no. of Genes/Geneset", "Import time"])
+        self.listView.setColumnCount(2)
+        self.listView.setHeaderLabels(["Name", "Import time"])
 
         self.listView.header().setStretchLastSection(True)
         self.listView.header().setClickable(True)
@@ -98,8 +99,7 @@ class OWCustomSets(OWWidget):
 
         self.populate_table()
 
-        OWGUI.button(self.controlArea, self, "Delete", callback=self.delete_data)
-
+        
         self.selected_file = None 
 
         self.resize(450, 500)
@@ -108,6 +108,33 @@ class OWCustomSets(OWWidget):
                     lambda: self.set_selected_file(self.recent_files[0])
                     )
 
+        #Data Set info bar
+        info_box = OWGUI.widgetBox(self.controlArea, "Info")
+        self.info = OWGUI.widgetLabel(info_box, "No gene set selected")
+        self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.selection)
+        self.connect(self.listView, SIGNAL("itemSelectionChanged()"), self.update_preview)
+
+        info_box.layout().addWidget(self.info)       
+        
+        OWGUI.button(self.controlArea, self, "Import", callback=self.import_data)
+        OWGUI.button(self.controlArea, self, "Delete", callback=self.delete_data)
+
+    def selection(self): 
+        if self.listView.selectedItems():
+            self.info.clear()
+            name = self.listView.selectedItems()[0].text(0)            
+            for geneset in os.listdir(local_path()):
+                if geneset.__contains__(str(name)):
+                    the_file = os.path.join(local_path(), geneset) 
+                    sets = pickle.load(open(the_file, "rb"))
+                    stats = getGenesetsStats(sets)
+                    num_sets, uniq_genes, avg_genes = str(stats[0]), str(stats[1]), str(stats[2])
+                    break
+            self.info.setText("Gene Sets: %d\nUnique Genes: %d\nAverage no. of Genes/Gene Set: %d" % (int(num_sets), int(uniq_genes), int(avg_genes)))
+        else:
+            self.info.setText("No gene set selected")
+
+
     def populate_table(self):
         self.listView.clear()
         for geneset in os.listdir(local_path()):
@@ -115,13 +142,8 @@ class OWCustomSets(OWWidget):
             name = geneset[geneset.index("_._")+3:geneset.index(".gmt")+4]
             the_file = os.path.join(local_path(), geneset)
             mod_time = str(modification_date(the_file))
-            sets = pickle.load(open(the_file, "rb"))
-            stats = getGenesetsStats(sets)
             item.setText(0, name)
-            item.setText(1, str(stats[0]))
-            item.setText(2, str(stats[1]))
-            item.setText(3, str(stats[2]))
-            item.setText(4, mod_time[:mod_time.rfind(".")])
+            item.setText(1, mod_time[:mod_time.rfind(".")])
 
     def on_select_recent(self, recent):
         if isinstance(recent, int):
@@ -157,33 +179,25 @@ class OWCustomSets(OWWidget):
         if index_to_remove is not None:
             self.recent_combo.removeItem(index_to_remove + 1)
             self.recent_files.pop(index_to_remove + 1)
- 
-        self.update_preview()
-    
+        
     def update_preview(self):
-        try:
-            text = open(self.selected_file).read()
-            final_text=""
-            counts = 0
-            for i in text.split("\n"):
-                counts += 1
-                if counts == 6:
+        if self.listView.selectedItems():
+            final_text = ""
+            self.preview_view.clear()
+            name = self.listView.selectedItems()[0].text(0)            
+            for geneset in os.listdir(local_path()):
+                if geneset.__contains__(str(name)):
+                    the_file = os.path.join(local_path(), geneset) 
+                    sets = pickle.load(open(the_file, "rb"))
                     break
-                if len(i) == 0:
-                    continue
-                try:
-                    display_genes = ", ".join((i.split("\t")[2:])[:5])                   
-                except:
-                    display_genes = ", ".join(i.split("\t")[2:]) 
-                genes = i.split("\t")[2:]
-                final_text += (i.split("\t")[0]+" (%d genes)\n" % len(genes))
-                final_text += display_genes + ",...\n\n"
-
+            for geneset in sets:
+                final_text += geneset.id + "(%d genes)\n" % len(geneset.genes)
+                final_text += ", ".join([geneset.genes.pop() for i in range(5)]) + ", ...\n\n"
             final_text += "..."
             self.preview_view.setPlainText(final_text)
-        except:
-            text = None
-            
+        else:
+            self.preview_view.clear()
+
     def import_data(self):    
         self.error(0)     
         if self.selected_file:
