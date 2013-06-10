@@ -45,7 +45,7 @@ class OWCustomSets(OWWidget):
         self.selected_file = "" 
 
         layout = QHBoxLayout()
-        box = OWGUI.widgetBox(self.controlArea, "File", orientation=layout)
+        box = OWGUI.widgetBox(self.controlArea, "Gene Set Import", orientation=layout)
 
         icons = standard_icons(self)
 
@@ -56,7 +56,7 @@ class OWCustomSets(OWWidget):
         layout.addWidget(self.browse_button)
        
         # The preview field        
-        box = OWGUI.widgetBox(self.controlArea, "Available Gene Sets")
+        box = OWGUI.widgetBox(self.controlArea, "Imported Gene Sets")
         self.preview_view = QTreeWidget()
         self.preview_view.setAllColumnsShowFocus(1)
         self.preview_view.setColumnCount(3)
@@ -159,7 +159,7 @@ class OWCustomSets(OWWidget):
                 item = QTreeWidgetItem(self.preview_view)
                 item.setText(0, geneset.id)
                 item.setData(1, Qt.DisplayRole, len(geneset.genes))
-                item.setText(2, ", ".join([geneset.genes.pop() for i in range(5)]) + ", ...")
+                item.setText(2, ", ".join(list(geneset.genes)[:5]) + ", ...")
         else:
             self.preview_view.clear()
 
