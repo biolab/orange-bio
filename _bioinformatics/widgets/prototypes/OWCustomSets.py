@@ -44,50 +44,41 @@ class OWCustomSets(OWWidget):
         self.new_geneset = set()
         self.selected_file = "" 
 
-        # List of recent opened files.
-        self.recent_files = []
-        self.loadSettings()
-        self.recent_files = filter(os.path.exists, self.recent_files)
-
         layout = QHBoxLayout()
         box = OWGUI.widgetBox(self.controlArea, "File", orientation=layout)
 
         icons = standard_icons(self)
 
-        self.recent_combo = QComboBox(self, objectName="recent_combo",
-                                      toolTip="Recent files",
-                                      activated=self.on_select_recent)
-        self.recent_combo.addItems([os.path.basename(p) \
-                                    for p in self.recent_files])
-
-        self.browse_button = QPushButton("...", icon=icons.dir_open_icon,
+        self.browse_button = QPushButton(" ...", icon=icons.dir_open_icon,
                                          toolTip="Browse filesystem",
                                          clicked=self.on_open_dialog)
 
-        layout.addWidget(self.recent_combo, 2)
         layout.addWidget(self.browse_button)
        
         # The preview field        
-        box = OWGUI.widgetBox(self.controlArea, "Preview")
+        box = OWGUI.widgetBox(self.controlArea, "Available Gene Sets")
         self.preview_view = QPlainTextEdit()
         self.preview_view.setReadOnly(True)
         self.preview_view.setWordWrapMode(0)
-
-        box.layout().addWidget(self.preview_view)
-       
+ 
         # The geneset table
         ma = self.mainArea
 
         self.listView = QTreeWidget(ma)
-        ma.layout().addWidget(self.listView)
+
+        # Adding the widgets into separate layouts
+        ma.layout().addWidget(self.preview_view)
+        box.layout().addWidget(self.listView)
+
+
         self.listView.setAllColumnsShowFocus(1)
         self.listView.setColumnCount(2)
         self.listView.setHeaderLabels(["Name", "Import time"])
 
         self.listView.header().setStretchLastSection(True)
-        self.listView.header().setClickable(True)
-        self.listView.header().setSortIndicatorShown(True)
-        self.listView.setSortingEnabled(True)
+#        self.listView.header().setClickable(True)
+#        self.listView.header().setSortIndicatorShown(True)
+#        self.listView.setSortingEnabled(True)
 
         self.listView.setSelectionMode(QAbstractItemView.SingleSelection)
         self.listView.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -95,10 +86,6 @@ class OWCustomSets(OWWidget):
         self.populate_table()
 
         self.resize(800, 500)
-        if self.recent_files:
-            QTimer.singleShot(1,
-                    lambda: self.set_selected_file(self.recent_files[0])
-                    )
 
         #Data Set info bar
         info_box = OWGUI.widgetBox(self.controlArea, "Info")
@@ -121,7 +108,7 @@ class OWCustomSets(OWWidget):
                     stats = getGenesetsStats(sets)
                     num_sets, uniq_genes, avg_genes = str(stats[0]), str(stats[1]), str(stats[2])
                     break
-            self.info.setText("Gene Sets: %d\nUnique Genes: %d\nAverage no. of Genes/Gene Set: %d" % (int(num_sets), int(uniq_genes), int(avg_genes)))
+            self.info.setText("Gene Sets: %d\nUnique Genes: %d\nAverage Gene Set size: %d" % (int(num_sets), int(uniq_genes), int(avg_genes)))
         else:
             self.info.setText("No gene set selected")
 
@@ -153,19 +140,6 @@ class OWCustomSets(OWWidget):
         basedir, name = os.path.split(filename)
         self.selected_file = filename
         self.genesetname = name
-        index_to_remove = None
-        if filename in self.recent_files:
-            index_to_remove = self.recent_files.index(filename)
-        elif self.recent_combo.count() > 6:
-            # Always keep 6 latest files in the list.
-            index_to_remove = self.recent_combo.count() - 1
-        self.recent_combo.insertItem(0, name)
-        self.recent_combo.setCurrentIndex(0)
-        self.recent_files.insert(0, filename)
-
-        if index_to_remove is not None:
-            self.recent_combo.removeItem(index_to_remove + 1)
-            self.recent_files.pop(index_to_remove + 1)
             
         self.import_data()
                                                                     
@@ -179,9 +153,13 @@ class OWCustomSets(OWWidget):
                     the_file = os.path.join(local_path(), geneset) 
                     sets = pickle.load(open(the_file, "rb"))
                     break
+            geneset_count = 0
             for geneset in sets:
                 final_text += geneset.id + " (%d genes)\n" % len(geneset.genes)
                 final_text += ", ".join([geneset.genes.pop() for i in range(5)]) + ", ...\n\n"
+                geneset_count += 1
+                if geneset_count == 5:
+                    break
             final_text += "..."
             self.preview_view.setPlainText(final_text)
         else:
