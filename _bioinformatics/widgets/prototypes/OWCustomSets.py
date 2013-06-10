@@ -15,27 +15,10 @@ import OWGUI
 
 from Orange.bio.obiGeneSets import loadGMT, list_local, register, local_path, remove_local, modification_date, getGenesetsStats
 
-class standard_icons(object):
-    def __init__(self, qwidget=None, style=None):
-        self.qwidget = qwidget
-        if qwidget is None:
-            self.style = QApplication.instance().style()
-        else:
-            self.style = qwidget.style()
-
-    @property
-    def dir_open_icon(self):
-        return self.style.standardIcon(QStyle.SP_DirOpenIcon)
-
-    @property
-    def reload_icon(self):
-        return self.style.standardIcon(QStyle.SP_BrowserReload)
-
-
 class OWCustomSets(OWWidget):
 
     def __init__(self, parent=None, signalManager=None,
-                 title="Custom Geneset File (*.gmt) Manager"):
+                 title="Custom Gene Set Manager"):
         OWWidget.__init__(self, parent, signalManager, title,
                           wantMainArea=True)
 
@@ -44,17 +27,9 @@ class OWCustomSets(OWWidget):
         self.new_geneset = set()
         self.selected_file = "" 
 
-        layout = QHBoxLayout()
-        box = OWGUI.widgetBox(self.controlArea, "Gene Set Import", orientation=layout)
+        self.browse_button = OWGUI.button(self.controlArea, self, 'Import Gene Sets ...', callback = self.on_open_dialog)
+        self.browse_button.setIcon(self.style().standardIcon(QStyle.SP_DirOpenIcon))
 
-        icons = standard_icons(self)
-
-        self.browse_button = QPushButton(" ...", icon=icons.dir_open_icon,
-                                         toolTip="Browse filesystem",
-                                         clicked=self.on_open_dialog)
-
-        layout.addWidget(self.browse_button)
-       
         # The preview field        
         box = OWGUI.widgetBox(self.controlArea, "Imported Gene Sets")
         self.preview_view = QTreeWidget()
@@ -110,7 +85,7 @@ class OWCustomSets(OWWidget):
                     stats = getGenesetsStats(sets)
                     num_sets, uniq_genes, avg_genes = str(stats[0]), str(stats[1]), str(stats[2])
                     break
-            self.info.setText("Gene Sets: %d\nUnique Genes: %d\nAverage Gene Set size: %d" % (int(num_sets), int(uniq_genes), int(avg_genes)))
+            self.info.setText("Gene Sets: %d\nUnique Genes: %d\nAverage Gene Set Size: %d" % (int(num_sets), int(uniq_genes), int(avg_genes)))
         else:
             self.info.setText("No gene set selected")
 
