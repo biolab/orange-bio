@@ -57,10 +57,16 @@ class OWCustomSets(OWWidget):
        
         # The preview field        
         box = OWGUI.widgetBox(self.controlArea, "Available Gene Sets")
-        self.preview_view = QPlainTextEdit()
-        self.preview_view.setReadOnly(True)
-        self.preview_view.setWordWrapMode(0)
- 
+        self.preview_view = QTreeWidget()
+        self.preview_view.setAllColumnsShowFocus(1)
+        self.preview_view.setColumnCount(3)
+        self.preview_view.setHeaderLabels(["Name", "# of Genes", "Genes"])
+
+        self.preview_view.header().setStretchLastSection(True)
+        self.preview_view.header().setClickable(True)
+        self.preview_view.header().setSortIndicatorShown(True)
+        self.preview_view.setSortingEnabled(True)
+
         # The geneset table
         ma = self.mainArea
 
@@ -70,15 +76,11 @@ class OWCustomSets(OWWidget):
         ma.layout().addWidget(self.preview_view)
         box.layout().addWidget(self.listView)
 
-
         self.listView.setAllColumnsShowFocus(1)
         self.listView.setColumnCount(2)
         self.listView.setHeaderLabels(["Name", "Import time"])
 
         self.listView.header().setStretchLastSection(True)
-#        self.listView.header().setClickable(True)
-#        self.listView.header().setSortIndicatorShown(True)
-#        self.listView.setSortingEnabled(True)
 
         self.listView.setSelectionMode(QAbstractItemView.SingleSelection)
         self.listView.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -153,15 +155,11 @@ class OWCustomSets(OWWidget):
                     the_file = os.path.join(local_path(), geneset) 
                     sets = pickle.load(open(the_file, "rb"))
                     break
-            geneset_count = 0
             for geneset in sets:
-                final_text += geneset.id + " (%d genes)\n" % len(geneset.genes)
-                final_text += ", ".join([geneset.genes.pop() for i in range(5)]) + ", ...\n\n"
-                geneset_count += 1
-                if geneset_count == 5:
-                    break
-            final_text += "..."
-            self.preview_view.setPlainText(final_text)
+                item = QTreeWidgetItem(self.preview_view)
+                item.setText(0, geneset.id)
+                item.setData(1, Qt.DisplayRole, len(geneset.genes))
+                item.setText(2, ", ".join([geneset.genes.pop() for i in range(5)]) + ", ...")
         else:
             self.preview_view.clear()
 
