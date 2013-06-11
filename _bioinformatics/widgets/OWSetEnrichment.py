@@ -403,8 +403,9 @@ class OWSetEnrichment(OWWidget):
             self.error(0, "Input data contains no attributes with gene names")
             return
 
-        self.progressBarInit()
         self.updateGenematcher()
+
+        self.progressBarInit()
         self.currentAnnotatedCategories = categories = self.selectedCategories()
 
         ## Load collections in a worker thread
