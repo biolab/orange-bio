@@ -466,10 +466,7 @@ class OWSetEnrichment(OWWidget):
                 item.setData(2, Qt.DisplayRole, QVariant(countFmt % (len(cmapped), 100.0*len(cmapped)/countAll)))
                 item.setData(2, Qt.ToolTipRole, QVariant(len(cmapped))) # For filtering
                 item.setData(3, Qt.DisplayRole, QVariant(refFmt % (len(rmapped), 100.0*len(rmapped)/len(referenceGenes))))
-                if p_val > 0.001:
-                    item.setData(4, Qt.DisplayRole, QVariant("%0.6f" % p_val))
-                else:
-                    item.setData(4, Qt.DisplayRole, QVariant("%0.2e" % p_val))
+                item.setData(4, Qt.DisplayRole, QVariant("%0.6f" % p_val)) if p_val > 0.001 else item.setData(4, Qt.DisplayRole, QVariant("%0.2e" % p_val))
                 item.setData(4, 42, QVariant(p_val))
                 #stoplec 4 - zelim sort po p_val
                 item.setData(4, Qt.ToolTipRole, QVariant("%0.10f" % p_val))

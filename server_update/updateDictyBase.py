@@ -49,7 +49,7 @@ fm_name = DictyMutants.pickle_file
 
 print file_mutants
 
-sf_server.upload(fm_dom, fm_name, file_mutants, title="dictyBase mutant collection",
+sf_server.upload(fm_dom, fm_name, file_mutants, title="dictyBase mutant phenotypes",
     tags=DictyMutants.tags)
 sf_server.unprotect(fm_dom, fm_name)
 
