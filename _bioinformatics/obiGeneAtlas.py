@@ -251,7 +251,7 @@ def construct_atlas_gene_sets(genes, organism, factors=["organism_part",
                      description="Diff. expressed in %s=%s" % (ef_display, efv),
                      link="http://www.ebi.ac.uk/gxa/qrs?specie_0={organism}&gprop_0=&gnot_0=&gval_0=&fact_1=&fexp_1=UPDOWN&fmex_1=&fval_1=%22{efv}%22+&view=hm".format( \
                             organism=organism, efv="+".join(efv.lower().split())),
-                     hierarchy=("Tissues", ef_display))
+                     hierarchy=("Gene expression atlas", ef_display))
         gene_sets.append(gs)
     return GeneSets(gene_sets)
 
@@ -352,7 +352,8 @@ class GeneExpressionAtlasConenction(object):
         url += "&format={0}".format(format)
         if indent:
             url += "&indent"
-#        print url
+        #print url
+
         if self.cache is not None:
             return self._query_cached(url, format)
         else:
@@ -448,21 +449,39 @@ GENE_FILTER_QUALIFIERS =\
 ATLAS_ORGANISMS = \
     ["Anopheles gambiae",
      "Arabidopsis thaliana",
+     "Bacillus subtilis",
      "Bos taurus",
      "Caenorhabditis elegans",
+     "Canis familiaris",
+     "Ciona intestinalis",
+     "Ciona savignyi",
      "Danio rerio",
+     "Dasypus novemcinctus",
      "Drosophila melanogaster",
      "Epstein barr virus",
+     "Equus caballus",
      "Gallus gallus",
+     "Gorilla gorilla",
      "Homo sapiens",
      "Human cytomegalovirus",
+     "Human immunodeficiency virus",
      "Kaposi sarcoma-associated herpesvirus",
+     "Macaca mulatta",
+     "Monodelphis domestica",
      "Mus musculus",
+     "Ornithorhynchus anatinus",
+     "Oryza sativa",
+     "Pan troglodytes",
+     "Pongo abelii",
+     "Populus trichocarpa",
      "Rattus norvegicus",
      "Saccharomyces cerevisiae",
      "Schizosaccharomyces pombe",
-#     "Unknown",
-     "Xenopus laevis"
+     "Sus scrofa",
+     "Unknown",
+     "Vitis vinifera",
+     "Xenopus laevis",
+     "Xenopus tropicalis"
      ]
     
 def ef_ontology():
@@ -567,7 +586,7 @@ class ExperimentalFactorCondition(Condition):
     def validate(self):
         # TODO: validate the factor and value
 #        assert(self.factor in ef_ontology())
-        assert(self.regulation in ["up", "down", "updown"])
+        assert(self.regulation in ["up", "down", "updown", "none", "any"])
         
     def rest(self):
         return "{regulation}{n}In{factor}={value}".format(**self.__dict__)
@@ -654,7 +673,7 @@ def run_simple_query(genes=None, regulation=None, organism=None,
     
     :param genes: A list of gene names to search for.
     :param regulation: Search for experiments in which `genes` are "up",
-        "down", "updown" or "none" regulated. If None all experiments
+        "down", "updown", "any" or "none" regulated. If "any" all experiments
         are searched.
     :param organism: Search experiments for organism. If None all experiments
         are searched.

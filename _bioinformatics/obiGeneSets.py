@@ -301,7 +301,6 @@ def update_server_list(serverfiles_upload, serverfiles_list=None):
 def _register_local(genesets):
     """ Registers using the common hierarchy and organism. """
     pth = local_path()
-
     org = genesets.common_org()
     hierarchy = genesets.common_hierarchy()
     fn = filename(hierarchy, org)
