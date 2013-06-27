@@ -97,7 +97,7 @@ class OWSetEnrichment(OWWidget):
 
         self.speciesComboBox = OWGUI.comboBox(self.controlArea, self,
                       "speciesIndex", "Species",
-                      callback=lambda :self.data and self.updateAnnotations(),
+                      callback=lambda: self.data and self.updateAnnotations(),
                       debuggingEnabled=0)
 
         box = OWGUI.widgetBox(self.controlArea, "Gene names")
@@ -183,9 +183,6 @@ class OWSetEnrichment(OWWidget):
         self.taxid_list = []
 
         self.connect(self.groupsWidget, SIGNAL("itemClicked(QTreeWidgetItem *, int)"), self.subsetSelectionChanged)
-
-        self.omnibox = 1                                                                  ## A FUNCTION CALL TO HANDLE SELECTING/DESELECTING gene sets
-        OWGUI.checkBox(self.controlArea, self, "omnibox", "Select/Unselect all gene sets")#, callback= lambda :self.allSetsChanged())
 
         OWGUI.button(self.controlArea, self, "Commit", callback=self.commit)
 
@@ -274,18 +271,6 @@ class OWSetEnrichment(OWWidget):
         #add genesets without species identifiers
         collection[taxid].update(collection[None])
         return collection[taxid]
-
-
-
-
-## AN ATTEMPT TO ENABLE/DISABLE all gene sets at once
-#    def allSetsChanged(self):
-#        print self.omnibox
-#        print self.getHierarchyCheckState()
-#        print self.categoriesCheckState
-#        print self.selectedCategories()
-        
-
 
     def setHierarchy(self, hierarchy):
         self.groupsWidgetItems = {}

@@ -3,13 +3,14 @@
 from collections import defaultdict
 from Orange.bio.obiGeneAtlas import run_simple_query
 from Orange.bio.obiGeneSets import GeneSets, GeneSet
+import time
 
 def display_string(string):
     return string.capitalize().replace("_", " ")
 
 regulation = "updown"
 organism   = "Homo sapiens"
-condition  = "cell_line"
+condition  = "organism_part"
 org_code   = "9606"
 max_pvalue = 1e-5
 
@@ -26,10 +27,11 @@ i=0
 sets = defaultdict(list)
 
 for start in range(no_of_pages+1):
+    start = time.time()
     query = run_simple_query(regulation=regulation, organism=organism, condition=condition, start=start*no_of_genes, rows=no_of_genes)
     for result in query["results"]:
         i += 1
-        #print result["gene"]["name"] + "\t" + str(i) # For printing out gene names and the current number of genes during debugging
+        print result["gene"]["name"] + "\t" + str(i) # For printing out gene names and the current number of genes during debugging
         for exp in result["expressions"]: 
             diff_exp = [e for e in exp["experiments"] if e["pvalue"] <= max_pvalue] # Use only genes that are significantly diff. expressed
             if diff_exp:
@@ -37,6 +39,7 @@ for start in range(no_of_pages+1):
                     sets[exp["ef"], exp["efv"]].append(result["gene"]["name"]) # The Gene Expression Atlas entries are not consistent. 
                 except:
                     sets[exp["efoTerm"], exp["efoId"]].append(result["gene"]["name"])
+    print time.time() - start
         
 gene_sets = []
 for (ef, efv), genes in sets.items():
@@ -49,8 +52,8 @@ for (ef, efv), genes in sets.items():
 
 final_set = GeneSets(gene_sets)
 
-#print final_set
-#exit()
+print final_set
+exit()
 
 from Orange.bio.obiGeneSets import register
 import Orange.utils.serverfiles as serverfiles
