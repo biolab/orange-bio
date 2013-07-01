@@ -1766,7 +1766,7 @@ class DictyBase(object):
 
     domain = "dictybase"
     filename = "information_mappings.pck"
-    tags = [ "Dictyostelium discoideum", "gene", "essential", "dictyBase" ] 
+    tags = [ "Dictyostelium discoideum", "gene", "essential", "dictyBase"] 
  
     @classmethod
     def version(cls):

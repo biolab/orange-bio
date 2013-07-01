@@ -332,7 +332,7 @@ def _register_serverfiles(genesets, serverFiles):
         taxname = obiTaxonomy.name(org)
         title = "Gene sets: " + ", ".join(hierarchy) + \
             ((" (" + taxname + ")") if org != None else "")
-        tags = list(hierarchy) + [ "gene sets", taxname ] + \
+        tags = list(hierarchy) + [ "gene sets", taxname ] + obiTaxonomy.shortname(org) +\
             ([ "essential" ] if org in obiTaxonomy.essential_taxids() else [] )
         serverFiles.upload(sfdomain, fn, tfname, title, tags)
         serverFiles.unprotect(sfdomain, fn)
@@ -358,7 +358,9 @@ def build_hierarchy_dict(files):
             hierd[(hier[:i], org)].append(ind)
     return hierd
 
-def load_local(hierarchy, organism):
+
+
+
     files = map(lambda x: x[:2], list_local())
     hierd = build_hierarchy_dict(files)
 
