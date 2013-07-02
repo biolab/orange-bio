@@ -7,6 +7,7 @@ import StringIO
 import zipfile
 
 import Orange.bio.obiTaxonomy as tax
+from Orange.bio.obimiRNA import toTaxo
 
 def fastprint(filename,mode,what):
     
@@ -281,7 +282,9 @@ if flag:
                 org = re.findall('/(\S{3,4})_\S{3}miRNA\.txt',filename)[0]
                 type_file = re.findall(org+'_(\S*)miRNA\.txt',filename)[0]
                 label = re.findall('/(\S{3,4}_\S{3}miRNA?)\.txt',filename)[0]
-                
+    
+                org = tax.name(str(toTaxo.get(org)))
+
                 if type_file == 'mat':
                     serverFiles.upload("miRNA", label, filename, title="miRNA: %s mature form" % org, tags=["miRNA"])
                     serverFiles.unprotect("miRNA", label)
