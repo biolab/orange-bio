@@ -283,10 +283,11 @@ if flag:
                 type_file = re.findall(org+'_(\S*)miRNA\.txt',filename)[0]
                 label = re.findall('/(\S{3,4}_\S{3}miRNA?)\.txt',filename)[0]
     
+                org_taxid = str(toTaxo.get(org))
                 org = tax.name(str(toTaxo.get(org)))
-
+                
                 if type_file == 'mat':
-                    serverFiles.upload("miRNA", label, filename, title="miRNA: %s mature form" % org, tags=["miRNA"])
+                    serverFiles.upload("miRNA", label, filename, title="miRNA: %s mature form" % org, tags=["miRNA"] + tax.shortname(org_taxid))
                     serverFiles.unprotect("miRNA", label)
                     print '%s mat uploaded' % org
                     
@@ -294,7 +295,7 @@ if flag:
                         fastprint(miRNA_path,'a',file_line)                 
                     
                 elif type_file == 'pre':
-                    serverFiles.upload("miRNA", label, filename, title="miRNA: %s pre-form" % org, tags=["miRNA"])
+                    serverFiles.upload("miRNA", label, filename, title="miRNA: %s pre-form" % org, tags=["miRNA"] + tax.shortname(org_taxid))
                     serverFiles.unprotect("miRNA", label)
                     print '%s pre uploaded' % org
                     
