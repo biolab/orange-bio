@@ -188,7 +188,7 @@ def ids(taxid=None):
                 
         else:
             from . import obiKEGG
-            raise obiKEGG.OrganismNotFoundError(taxid)
+            raise obiTaxonomy.UnknownSpeciesIdentifier(taxid)
         
 class mat_miRNA:
     pass

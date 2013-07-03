@@ -58,7 +58,6 @@ for org in u.GetAvailableOrganisms():
         continue
 
     if u.IsUpdatable(obiGO.Update.UpdateAnnotation, (org,)):
-        print "JA"
         u.UpdateAnnotation(org)
         filename = os.path.join(tmpDir, "gene_association." + org + ".tar.gz")
         
@@ -76,11 +75,12 @@ for org in u.GetAvailableOrganisms():
 #        else:
 #            orgName = org
         orgName = obiTaxonomy.name(commonOrgs[org])
+        taxid = obiTaxonomy.taxname_to_taxid(orgName)
 #            print "unknown organism name translation for:", org
         print "Uploading", "gene_association." + org + ".tar.gz"
         sf_server.upload("GO", "gene_association." + org + ".tar.gz", filename, title = "GO Annotations for " + orgName,
                            tags=["gene", "annotation", "ontology", "GO", orgName, "#uncompressed:%i" % uncompressedSize(filename),
-                                 "#organism:"+orgName, "#version:%i" % obiGO.Annotations.version] + (["essential"] if org in essentialOrgs else [])+ obiTaxonomy.shortname(org))
+                                 "#organism:"+orgName, "#version:%i" % obiGO.Annotations.version] + (["essential"] if org in essentialOrgs else []) + obiTaxonomy.shortname(taxid))
         sf_server.unprotect("GO", "gene_association." + org + ".tar.gz")
         
 try:

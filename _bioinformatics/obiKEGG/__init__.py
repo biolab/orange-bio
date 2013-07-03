@@ -68,7 +68,7 @@ from Orange.utils import (
     deprecated_keywords, deprecated_attribute, deprecated_function_name
 )
 
-from .. import obiProb
+from .. import obiProb, obiTaxonomy
 
 from . import databases
 from . import entry
@@ -92,10 +92,6 @@ KEGGBriteEntry = BriteEntry
 KEGGPathway = pathway.Pathway
 
 DEFAULT_CACHE_DIR = conf.params["cache.path"]
-
-
-class OrganismNotFoundError(Exception):
-    pass
 
 
 class Organism(object):
@@ -356,12 +352,12 @@ def organism_name_search(name):
             if ids:
                 name = ids.pop(0) if ids else name
             else:
-                raise OrganismNotFoundError(name)
+                raise obiTaxonomy.UnknownSpeciesIdentifier(name)
 
         try:
             return genome[name].organism_code
         except KeyError:
-            raise OrganismNotFoundError(name)
+            raise obiTaxonomy.UnknownSpeciesIdentifier(name)
 
 
 def pathways(org):

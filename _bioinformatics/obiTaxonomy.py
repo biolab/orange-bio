@@ -33,6 +33,34 @@ def common_taxids():
             "4577",  # Zea mays
              ] 
 
+def taxname_to_taxid(name):
+    """Return taxonomy ID for a taxonomy name"""
+    ids = {
+    "Arabidopsis thaliana": "3702",
+    "Bos taurus": "9913",
+    "Caenorhabditis elegans": "6239",  
+    "Chlamydomonas reinhardtii": "3055",
+    "Danio rerio": "7955",
+    "Dictyostelium discoideum": "352472", 
+    "Drosophila melanogaster": "7227",
+    "Escherichia coli": "562",
+    "Hepatitis C virus": "11103",
+    "Homo sapiens": "9606",
+    "Mus musculus": "10090", 
+    "Mycoplasma pneumoniae": "2104",
+    "Oryza sativa": "4530",  
+    "Plasmodium falciparum": "5833", 
+    "Pneumocystis carinii": "4754",
+    "Rattus norvegicus": "10116", 
+    "Saccharomyces cerevisiae": "4932",  
+    "Schizosaccharomyces pombe": "4896",  
+    "Takifugu rubripes": "31033",
+    "Xenopus laevis": "8355",
+    "Zea mays": "4577" }
+    if name in ids.keys():
+        return ids[name]
+    return []
+
 def essential_taxids():
     """Return taxonomy IDs for organisms that are included in (default) Orange Bioinformatics installation."""
     return ["352472", # Dictyostelium discoideum

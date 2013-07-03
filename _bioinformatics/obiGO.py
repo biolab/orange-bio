@@ -24,7 +24,7 @@ from Orange.orng import orngEnviron
 from Orange.orng import orngServerFiles
 from Orange.orng import orngMisc
 
-from . import obiProb, obiGene
+from . import obiProb, obiGene, obiTaxonomy
 
 default_database_path = os.path.join(orngServerFiles.localpath(), "GO")
 
@@ -676,6 +676,9 @@ class Annotations(object):
         """
         code = organism_name_search(org)
 
+        print "CODE: %s" % code
+        print "ORG: %s" % org
+
         file = "gene_association.%s.tar.gz" % code
 
         path = os.path.join(orngServerFiles.localpath("GO"), file)
@@ -685,7 +688,7 @@ class Annotations(object):
             available = sf.listfiles("GO")
             if file not in available:
                 from . import obiKEGG
-                raise obiKEGG.OrganismNotFoundError(org + str(code))
+                raise obiTaxonomy.UnknownSpeciesIdentifier(org + str(code))
             orngServerFiles.download("GO", file)
 
         return cls(path, ontology=ontology, genematcher=genematcher,
