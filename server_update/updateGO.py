@@ -78,7 +78,7 @@ for org in u.GetAvailableOrganisms():
 #            print "unknown organism name translation for:", org
         print "Uploading", "gene_association." + org + ".tar.gz"
         sf_server.upload("GO", "gene_association." + org + ".tar.gz", filename, title = "GO Annotations for " + orgName,
-                           tags=["gene", "annotation", "ontology", "GO", orgName, "#uncompressed:%i" % uncompressedSize(filename),
+                           tags=["gene", "annotation", "ontology", "GO", orgName + obiTaxonomy.shortname(org), "#uncompressed:%i" % uncompressedSize(filename),
                                  "#organism:"+orgName, "#version:%i" % obiGO.Annotations.version] + (["essential"] if org in essentialOrgs else []))
         sf_server.unprotect("GO", "gene_association." + org + ".tar.gz")
         

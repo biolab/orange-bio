@@ -40,7 +40,7 @@ for taxid, genes in genes.items():
     print "Uploading", filename
     sf_server.upload("NCBI_geneinfo", "gene_info.%s.db" % taxid, filename,
               title = "NCBI gene info for %s" % obiTaxonomy.name(taxid),
-              tags = ["NCBI", "gene info", "gene_names", obiTaxonomy.name(taxid)] + (["essential"] if taxid in essential else []))
+              tags = ["NCBI", "gene info", "gene_names", obiTaxonomy.name(taxid)] + obiTaxonomy.shortname(taxid) + (["essential"] if taxid in essential else []))
     sf_server.unprotect("NCBI_geneinfo", "gene_info.%s.db" % taxid)
     
     filename = os.path.join(tmpdir, "gene_history.%s.db" % taxid)
@@ -51,5 +51,5 @@ for taxid, genes in genes.items():
     print "Uploading", filename
     sf_server.upload("NCBI_geneinfo", "gene_history.%s.db" % taxid, filename,
               title = "NCBI gene history for %s" % obiTaxonomy.name(taxid),
-              tags = ["NCBI", "gene info", "history", "gene_names", obiTaxonomy.name(taxid)] + (["essential"] if taxid in essential else []))
+              tags = ["NCBI", "gene info", "history", "gene_names", obiTaxonomy.name(taxid)] + obiTaxonomy.shortname(taxid) + (["essential"] if taxid in essential else []))
     sf_server.unprotect("NCBI_geneinfo", "gene_history.%s.db" % taxid)
