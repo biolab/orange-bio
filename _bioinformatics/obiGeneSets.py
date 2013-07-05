@@ -425,7 +425,6 @@ def upload_genesets(rsf):
 
     genesetsfn = [ keggGeneSets, goGeneSets, miRNAGeneSets]
     organisms = obiTaxonomy.common_taxids()
-    organisms = [ "3055" ]
     for fn in genesetsfn:
         for org in organisms:
             try:
@@ -436,8 +435,10 @@ def upload_genesets(rsf):
                     register(gs, rsf) #server files
                     #register(gs)
                     print "successful", gs.common_hierarchy()
-            except obiTaxonomy.UnknownSpeciesIdentifier, GenesetRegException:
-                print "organism not found", org
+            except obiTaxonomy.UnknownSpeciesIdentifier:
+                print "Organism ontology not available", org
+            except GenesetRegException:
+                print "Empty gene sets.", org
 
 if __name__ == "__main__":
     rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
