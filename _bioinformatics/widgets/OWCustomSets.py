@@ -1,7 +1,7 @@
 """
 <name>Custom Gene Sets</name>
 <description>Manage custom geneset files</description>
-<icon></icon>
+<icon>icons/customSets.svg</icon>
 <contact>Vid Jelen (vid.jelen1@gmail.com)</contact>
 """
 import os
@@ -77,7 +77,7 @@ class OWCustomSets(OWWidget):
     def selection(self): 
         if self.listView.selectedItems():
             self.info.clear()
-            name = self.listView.selectedItems()[0].text(0)            
+            name = self.listView.selectedItems()[0].text(0).replace(" - ", "_._") 
             for geneset in os.listdir(local_path()):
                 if geneset.__contains__(str(name)):
                     the_file = os.path.join(local_path(), geneset) 
@@ -94,10 +94,10 @@ class OWCustomSets(OWWidget):
         self.listView.clear()
         for geneset in os.listdir(local_path()):
             item = QTreeWidgetItem(self.listView)
-            name = geneset[geneset.index("_._")+3:geneset.index(".gmt")+4]
+            name = geneset[geneset.index("_")+1:geneset.rfind("_._")]
             the_file = os.path.join(local_path(), geneset)
             mod_time = str(modification_date(the_file))
-            item.setText(0, name)
+            item.setText(0, name.replace("_._", " - "))
             item.setText(1, mod_time[:mod_time.rfind(".")])
 
     def on_select_recent(self, recent):
@@ -124,7 +124,7 @@ class OWCustomSets(OWWidget):
         if self.listView.selectedItems():
             final_text = ""
             self.preview_view.clear()
-            name = self.listView.selectedItems()[0].text(0)            
+            name = self.listView.selectedItems()[0].text(0).replace(" - ", "_._")            
             for geneset in os.listdir(local_path()):
                 if geneset.__contains__(str(name)):
                     the_file = os.path.join(local_path(), geneset) 
