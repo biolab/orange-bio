@@ -358,9 +358,7 @@ def build_hierarchy_dict(files):
             hierd[(hier[:i], org)].append(ind)
     return hierd
 
-
-
-
+def load_local(hierarchy, organism):
     files = map(lambda x: x[:2], list_local())
     hierd = build_hierarchy_dict(files)
 
