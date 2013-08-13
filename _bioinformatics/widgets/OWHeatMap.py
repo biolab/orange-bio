@@ -187,7 +187,8 @@ class OWHeatMap(OWWidget):
                     "BSpotVar", "ShowGeneAnnotations",
                     "ShowDataFileNames", "BAnnotationVar",
                     "SelectionType",
-                    "CurrentPalette", "SortGenes", "colorSettings", "selectedSchemaIndex",
+                    "SortExamples", "SortAttributes",
+                    "CurrentPalette", "colorSettings", "selectedSchemaIndex",
                     "palette", "ShowColumnLabels", "ColumnLabelPosition"]
 
     def __init__(self, parent=None, signalManager = None):
@@ -415,8 +416,6 @@ class OWHeatMap(OWWidget):
         self.sorted_data = None
         
         self._ordering_cache = {}
-        self._ordering_cache_examples = {}
-        self._ordering_cache_attributes = {}
         
         self.resize(800,400)
 
@@ -615,8 +614,6 @@ class OWHeatMap(OWWidget):
         self.closeContext("Selection")
         
         self._ordering_cache.clear()
-        self._ordering_cache_examples.clear()
-        self._ordering_cache_attributes.clear()
         
         self.clear()
         self.data = data
@@ -646,41 +643,17 @@ class OWHeatMap(OWWidget):
             
         group_domains = [dom for _, dom in groups]
 
-        # Both rows and columns
-        if self.SortExamples > 1 and self.SortAttributes > 0:
+        attr_ordering = range(len(group_domains[0][1].attributes))
+        attr_cluster = None
+        data_ordering = []
+        data_clusters = [None]
+        sorted_data = data
+
+        if self.SortExamples > 1:
             self.progressBarInit()
 
-            args_key = tuple(tuple(d) for d in group_domains), self.SortExamples == 3, self.SortAttributes == 2
-            cluster_ordering = self._ordering_cache.get(args_key, None)
-            if cluster_ordering is None:
-
-                # Rows separately
-                data_ordering, data_clusters = \
-                        hierarchical_cluster_ordering_data(data, group_domains,
-                                      opt_order=self.SortExamples == 3,
-                                      progress_callback=self.progressBarSet)
-
-                # Columns separately
-                attr_ordering, attr_cluster = \
-                        hierarchical_cluster_ordering_attr(data, group_domains,
-                                      opt_order=self.SortAttributes == 2,
-                                      progress_callback=self.progressBarSet)
-
-                # Cache the clusters
-                self._ordering_cache[args_key] = (attr_ordering, attr_cluster,
-                                                  data_ordering, data_clusters)
-            else:
-                 attr_ordering, attr_cluster, data_ordering, data_clusters = cluster_ordering
-                    
-            sorted_data = [data[i] for i in itertools.chain(*data_ordering)]
-            self.progressBarFinished()
-        
-        # Only rows
-        elif self.SortExamples > 1:
-            self.progressBarInit()
-
-            args_key = tuple(tuple(d) for d in group_domains), self.SortExamples == 3
-            cluster_ordering_examples = self._ordering_cache_examples.get(args_key, None)
+            args_key = tuple(tuple(d) for d in group_domains), self.SortExamples == 3, "data"
+            cluster_ordering_examples = self._ordering_cache.get(args_key, None)
             if cluster_ordering_examples is None:
 
                 # Rows separately
@@ -690,21 +663,19 @@ class OWHeatMap(OWWidget):
                                       progress_callback=self.progressBarSet)
 
                 # Cache the clusters
-                self._ordering_cache_examples[args_key] = (data_ordering, data_clusters)
+                self._ordering_cache[args_key] = (data_ordering, data_clusters)
             else:
                  data_ordering, data_clusters = cluster_ordering_examples
             
-            attr_ordering = range(len(group_domains[0][1].attributes))
-            attr_cluster = None
             sorted_data = [data[i] for i in itertools.chain(*data_ordering)]
             self.progressBarFinished()
         
         # Only columns
-        elif self.SortAttributes > 0:
+        if self.SortAttributes > 0:
             self.progressBarInit()
 
-            args_key = tuple(tuple(d) for d in group_domains), self.SortAttributes == 2
-            cluster_ordering_attributes = self._ordering_cache_attributes.get(args_key, None)
+            args_key = tuple(tuple(d) for d in group_domains), self.SortAttributes == 2, "attributes"
+            cluster_ordering_attributes = self._ordering_cache.get(args_key, None)
             if cluster_ordering_attributes is None:
 
                 # Columns separately
@@ -714,22 +685,12 @@ class OWHeatMap(OWWidget):
                                       progress_callback=self.progressBarSet)
 
                 # Cache the clusters
-                self._ordering_cache_attributes[args_key] = (attr_ordering, attr_cluster)
+                self._ordering_cache[args_key] = (attr_ordering, attr_cluster)
             else:
                  attr_ordering, attr_cluster = cluster_ordering_attributes
             
-            data_ordering = []
-            data_clusters = [None]
-            sorted_data = data
             self.progressBarFinished()
 
-        else:
-            attr_ordering = range(len(group_domains[0][1].attributes))
-            attr_cluster = None
-            data_ordering = []
-            data_clusters = [None]
-            sorted_data = data
-            
         self.heatmapconstructor = []
         self._group_data = []
         
