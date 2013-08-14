@@ -22,6 +22,8 @@ from Orange.OrangeWidgets.OWClustering import HierarchicalClusterItem, Dendrogra
 from Orange.OrangeWidgets.OWDlgs import OWChooseImageSizeDlg
 from Orange.OrangeWidgets.OWWidget import *
 
+import functools
+
 DEBUG = False
 
 #BUG: OWHeatMap does not support heatmaps which need a image which is larger than maxint X maxint pixels!
@@ -75,52 +77,59 @@ def group_by_unordered(iterable, key):
         groups[key(item)].append(item)
     return groups.items()
 
-def hierarchical_cluster_ordering(data, dimension, group_domains=None, opt_order=False, progress_callback=None):
+class PP_callback(object):
+
+    def __init__(self, parts=None, progress_callback=None):
+        self.progress_callback = progress_callback
+        self.parts = parts
+        self.part = 0
+
+    def __call__(self, value):
+        return self.progress_callback(value / self.parts + 100.0 * self.part / self.parts)
+
+    def newpart(self):
+        self.part += 1
+        self.__call__(0)
+ 
+
+def hierarchical_cluster_ordering_examples(data, group_domains=None, opt_order=False, pp_callback=None):
+       
     classVar = data.domain.classVar
     if classVar and isinstance(classVar, orange.EnumVariable):
         class_data = [select_by_class_indices(data, val) for val in data.domain.classVar.values]
     else:
         class_data = [[1] * len(data)]
-        
-    parts = len(class_data) + 1 
+ 
+    def indices_map(indices):
+        map = zip(range(len(indices)), indices)
+        map = [i for i, test in map if test]
+        return dict(enumerate(map))
     
-    def pp_callback(part):
-        def callback(value):
-            return progress_callback(value / parts + 100.0 * part / parts)
-        if progress_callback:
-            callback(100.0 * part / parts)
-            return callback
-        else:
-            return progress_callback
+    data_ordering = []
+    data_clusters = []
+    for i, indices in enumerate(class_data):
+        sub_data = data.select(indices)
+        pp_callback.newpart()
+        cluster = orngClustering.hierarchicalClustering(sub_data, order=opt_order, progressCallback=pp_callback)
+        ind_map = indices_map(indices)
+        data_ordering.append([ind_map[m] for m in cluster.mapping])
+        data_clusters.append(cluster)
         
+    return data_ordering, data_clusters 
+
+def hierarchical_cluster_ordering_attributes(data, group_domains=None, opt_order=False, pp_callback=None):
+
+    pp_callback.newpart()
+
     if group_domains is not None and len(group_domains) > 1:
         stacked = vstack_by_subdomain(data, group_domains)
     else:
         stacked = data    
-    
-    if dimension == 'X':
 
-        def indices_map(indices):
-            map = zip(range(len(indices)), indices)
-            map = [i for i, test in map if test]
-            return dict(enumerate(map))
-        
-        data_ordering = []
-        data_clusters = []
-        for i, indices in enumerate(class_data):
-            sub_data = data.select(indices)
-            cluster = orngClustering.hierarchicalClustering(sub_data, order=opt_order, progressCallback=pp_callback(i + 1))
-            ind_map = indices_map(indices)
-            data_ordering.append([ind_map[m] for m in cluster.mapping])
-            data_clusters.append(cluster)
-            
-        return data_ordering, data_clusters 
-
-    if dimension == 'Y':
-        attr_cluster = orngClustering.hierarchicalClustering_attributes(stacked, order=opt_order, progressCallback=pp_callback(3))
-        attr_ordering = list(attr_cluster.mapping)
-           
-        return attr_ordering, attr_cluster
+    attr_cluster = orngClustering.hierarchicalClustering_attributes(stacked, order=opt_order, progressCallback=pp_callback)
+    attr_ordering = list(attr_cluster.mapping)
+       
+    return attr_ordering, attr_cluster
 
 ##############################################################################
 # parameters that determine the canvas layout
@@ -274,18 +283,18 @@ class OWHeatMap(OWWidget):
         
         boxy = OWGUI.widgetBox(settingsTab, "Sorting", orientation = "vertical", addSpace=True)
 
-        # For examples
-        OWGUI.comboBox(boxy, self, "SortExamples",
-                        items=["No sorting", "Sort examples", "Clustering",
-                               "Clustering with leaf ordering"], label='X axis',
-                               callback=self.update_sorting_examples)
-        
         # For attributes
         OWGUI.comboBox(boxy, self, "SortAttributes", 
                         items=["No sorting", "Clustering",
-                               "Clustering with leaf ordering"], label='Y axis',
+                               "Clustering with leaf ordering"], label='X axis',
                                callback=self.update_sorting_attributes)
-        
+ 
+        # For examples
+        OWGUI.comboBox(boxy, self, "SortExamples",
+                        items=["No sorting", "Sort examples", "Clustering",
+                               "Clustering with leaf ordering"], label='Y axis',
+                               callback=self.update_sorting_examples)
+       
         OWGUI.rubber(settingsTab)
         
         # FILTER TAB
@@ -628,9 +637,22 @@ class OWHeatMap(OWWidget):
         data_clusters = [None]
         sorted_data = data
 
-        # Only rows
+        self.progressBarInit()
+
+        progress_parts = 0
         if self.SortExamples > 1:
-            self.progressBarInit()
+            classVar = data.domain.class_var
+            if classVar and isinstance(classVar, orange.EnumVariable):
+                progress_parts += len(classVar.values)
+            else:
+                progress_parts += 1
+        if self.SortAttributes > 0:
+            progress_parts += 1
+
+        progress_bar = PP_callback(progress_callback=self.progressBarSet, parts=progress_parts)
+
+        # rows
+        if self.SortExamples > 1:
 
             args_key = tuple(tuple(d) for d in group_domains), self.SortExamples == 3, "data"
             cluster_ordering = self._ordering_cache.get(args_key, None)
@@ -638,9 +660,9 @@ class OWHeatMap(OWWidget):
 
                 # Rows separately
                 data_ordering, data_clusters = \
-                        hierarchical_cluster_ordering(data, "X", group_domains,
+                        hierarchical_cluster_ordering_examples(data, group_domains,
                                       opt_order=self.SortExamples == 3,
-                                      progress_callback=self.progressBarSet)
+                                      pp_callback=progress_bar)
 
                 # Cache the clusters
                 self._ordering_cache[args_key] = (data_ordering, data_clusters)
@@ -648,11 +670,9 @@ class OWHeatMap(OWWidget):
                  data_ordering, data_clusters = cluster_ordering
             
             sorted_data = [data[i] for i in itertools.chain(*data_ordering)]
-            self.progressBarFinished()
         
-        # Only columns
+        # columns
         if self.SortAttributes > 0:
-            self.progressBarInit()
 
             args_key = tuple(tuple(d) for d in group_domains), self.SortAttributes == 2, "attributes"
             cluster_ordering = self._ordering_cache.get(args_key, None)
@@ -660,16 +680,16 @@ class OWHeatMap(OWWidget):
 
                 # Columns separately
                 attr_ordering, attr_cluster = \
-                        hierarchical_cluster_ordering(data, "Y", group_domains,
+                        hierarchical_cluster_ordering_attributes(data, group_domains,
                                       opt_order=self.SortAttributes == 2,
-                                      progress_callback=self.progressBarSet)
+                                      pp_callback=progress_bar)
 
                 # Cache the clusters
                 self._ordering_cache[args_key] = (attr_ordering, attr_cluster)
             else:
                  attr_ordering, attr_cluster = cluster_ordering
-            
-            self.progressBarFinished()
+ 
+        self.progressBarFinished()
 
         self.heatmapconstructor = []
         self._group_data = []
@@ -1946,10 +1966,7 @@ if __name__=="__main__":
     a=QApplication(sys.argv)
     ow = OWHeatMap()
     
-#    fn = "/home/marko/pipa4.tab"
-#    fn = "../../../doc/datasets/brown-selected.tab"
-    fn = os.path.expanduser("~/Documents/abc-subset")
-    ow.set_dataset(orange.ExampleTable(fn), 0)
+    ow.set_dataset(orange.ExampleTable("brown-selected"), 0)
     ow.handleNewSignals()
     ow.show()
     
