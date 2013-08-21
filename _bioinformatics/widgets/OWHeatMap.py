@@ -82,13 +82,13 @@ class PP_callback(object):
     def __init__(self, parts=None, progress_callback=None):
         self.progress_callback = progress_callback
         self.parts = parts
-        self.part = 0
+        self.part = -1
 
     def __call__(self, value):
         return self.progress_callback(value / self.parts + 100.0 * self.part / self.parts)
 
-    def newpart(self):
-        self.part += 1
+    def newpart(self, k=1):
+        self.part += k
         self.__call__(0)
  
 
@@ -108,8 +108,8 @@ def hierarchical_cluster_ordering_examples(data, group_domains=None, opt_order=F
     data_ordering = []
     data_clusters = []
     for i, indices in enumerate(class_data):
-        sub_data = data.select(indices)
         pp_callback.newpart()
+        sub_data = data.select(indices)
         cluster = orngClustering.hierarchicalClustering(sub_data, order=opt_order, progressCallback=pp_callback)
         ind_map = indices_map(indices)
         data_ordering.append([ind_map[m] for m in cluster.mapping])
@@ -640,13 +640,18 @@ class OWHeatMap(OWWidget):
         self.progressBarInit()
 
         progress_parts = 0
-        if self.SortExamples > 1:
+
+        args_key_examples = tuple(tuple(d) for d in group_domains), self.SortExamples == 3, "data"
+        args_key_attributes = tuple(tuple(d) for d in group_domains), self.SortAttributes == 2, "attributes"
+
+        if self.SortExamples > 1 and args_key_examples not in self._ordering_cache:
             classVar = data.domain.class_var
             if classVar and isinstance(classVar, orange.EnumVariable):
                 progress_parts += len(classVar.values)
             else:
                 progress_parts += 1
-        if self.SortAttributes > 0:
+
+        if self.SortAttributes > 0 and args_key_attributes not in self._ordering_cache:
             progress_parts += 1
 
         progress_bar = PP_callback(progress_callback=self.progressBarSet, parts=progress_parts)
@@ -654,8 +659,7 @@ class OWHeatMap(OWWidget):
         # rows
         if self.SortExamples > 1:
 
-            args_key = tuple(tuple(d) for d in group_domains), self.SortExamples == 3, "data"
-            cluster_ordering = self._ordering_cache.get(args_key, None)
+            cluster_ordering = self._ordering_cache.get(args_key_examples, None)
             if cluster_ordering is None:
 
                 # Rows separately
@@ -665,17 +669,16 @@ class OWHeatMap(OWWidget):
                                       pp_callback=progress_bar)
 
                 # Cache the clusters
-                self._ordering_cache[args_key] = (data_ordering, data_clusters)
+                self._ordering_cache[args_key_examples] = (data_ordering, data_clusters)
             else:
-                 data_ordering, data_clusters = cluster_ordering
+                data_ordering, data_clusters = cluster_ordering
             
             sorted_data = [data[i] for i in itertools.chain(*data_ordering)]
         
         # columns
         if self.SortAttributes > 0:
 
-            args_key = tuple(tuple(d) for d in group_domains), self.SortAttributes == 2, "attributes"
-            cluster_ordering = self._ordering_cache.get(args_key, None)
+            cluster_ordering = self._ordering_cache.get(args_key_attributes, None)
             if cluster_ordering is None:
 
                 # Columns separately
@@ -685,10 +688,10 @@ class OWHeatMap(OWWidget):
                                       pp_callback=progress_bar)
 
                 # Cache the clusters
-                self._ordering_cache[args_key] = (attr_ordering, attr_cluster)
+                self._ordering_cache[args_key_attributes] = (attr_ordering, attr_cluster)
             else:
-                 attr_ordering, attr_cluster = cluster_ordering
- 
+                attr_ordering, attr_cluster = cluster_ordering
+
         self.progressBarFinished()
 
         self.heatmapconstructor = []
