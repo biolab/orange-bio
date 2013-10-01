@@ -278,7 +278,7 @@ class ListTextEdit(QPlainTextEdit):
         cursor.setPosition(cursor.position() - len(prefix),
                            QTextCursor.KeepAnchor)
 
-        cursor.insertText(completion)
+        cursor.insertText(completion + " ")
 
 
 class NameHighlight(QSyntaxHighlighter):
