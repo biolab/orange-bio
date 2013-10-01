@@ -1,12 +1,13 @@
 import re
 import unicodedata
+from contextlib import contextmanager
 
 from PyQt4.QtGui import (
     QLabel, QWidget, QPlainTextEdit, QSyntaxHighlighter, QTextCharFormat,
     QTextCursor, QCompleter, QStringListModel, QListView
 )
 
-from PyQt4.QtCore import Qt, pyqtSignal as Signal
+from PyQt4.QtCore import Qt, QEvent, pyqtSignal as Signal
 
 import Orange
 
@@ -66,9 +67,10 @@ class OWSelectGenes(OWWidget):
 
         box.layout().addWidget(self.entryField)
 
-        completer = QCompleter(self)
+        completer = ListCompleter(self)
         completer.setCompletionMode(QCompleter.PopupCompletion)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setMaxVisibleItems(10)
         completer.popup().setAlternatingRowColors(True)
         completer.setModel(QStringListModel([], self))
 
@@ -190,8 +192,6 @@ def gene_candidates(data):
 
 
 class ListTextEdit(QPlainTextEdit):
-    listChanged = Signal()
-
     def __init__(self, parent=None, **kwargs):
         QPlainTextEdit.__init__(self, parent, **kwargs)
 
@@ -203,19 +203,13 @@ class ListTextEdit(QPlainTextEdit):
         """
         if self._completer is not None:
             self._completer.setWidget(None)
-            if isinstance(self._completer, ListCompleter):
-                self._completer.activatedList.disconnect(self._insertCompletion)
-            else:
-                self._completer.activated.disconnect(self._insertCompletion)
+            self._completer.activated.disconnect(self._insertCompletion)
 
         self._completer = completer
 
         if self._completer:
             self._completer.setWidget(self)
-            if isinstance(self._completer, ListCompleter):
-                self._completer.activatedList.connect(self._insertCompletion)
-            else:
-                self._completer.activated.connect(self._insertCompletion)
+            self._completer.activated.connect(self._insertCompletion)
 
     def completer(self):
         """
@@ -274,7 +268,11 @@ class ListTextEdit(QPlainTextEdit):
                 self._completer.popup().hide()
 
     def _insertCompletion(self, item):
-        completion = unicode(item)
+        if isinstance(item, list):
+            completion = " ".join(item)
+        else:
+            completion = unicode(item)
+
         prefix = self._completer.completionPrefix()
 
         cursor = self.textCursor()
@@ -330,30 +328,61 @@ def toString(variant):
         return unicode(variant)
 
 
+@contextmanager
+def signals_blocked(obj):
+    blocked = obj.signalsBlocked()
+    obj.blockSignals(True)
+    try:
+        yield
+    finally:
+        obj.blockSignals(blocked)
+
+
 class ListCompleter(QCompleter):
-    activatedList = Signal(list)
+    activated = Signal(list)
 
     def __init__(self, *args, **kwargs):
         QCompleter.__init__(self, *args, **kwargs)
 
         popup = QListView()
+        popup.setEditTriggers(QListView.NoEditTriggers)
         popup.setSelectionMode(QListView.ExtendedSelection)
+
         self.setPopup(popup)
 
     def setPopup(self, popup):
         QCompleter.setPopup(self, popup)
 
-        popup.selectionModel().selectionChanged.connect(
-            self._completionSelected)
+        popup.viewport().installEventFilter(self)
+        popup.doubleClicked.connect(self._complete)
 
-    def _completionSelected(self, selected, deselected):
+    def eventFilter(self, receiver, event):
+        if event.type() == QEvent.KeyPress and receiver is self.popup():
+            if event.key() in [Qt.Key_Enter, Qt.Key_Return, Qt.Key_Tab]:
+                self._complete()
+                return True
+
+        elif event.type() == QEvent.MouseButtonRelease and \
+                receiver is self.popup().viewport():
+            # Process the event without emitting 'clicked', ... signal to
+            # override the default QCompleter behavior
+            with signals_blocked(self.popup()):
+                QApplication.sendEvent(self.popup(), event)
+                return True
+
+        return QCompleter.eventFilter(self, receiver, event)
+
+    def _complete(self):
         selection = self.popup().selectionModel().selection()
         indexes = selection.indexes()
 
         items = [toString(index.data(self.completionRole()))
                  for index in indexes]
 
-        self.activatedList.emit(items)
+        if self.popup().isVisible():
+            self.popup().hide()
+
+        self.activated.emit(items)
 
 
 # All control character categories.
