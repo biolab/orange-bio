@@ -73,6 +73,7 @@ class GeneSetTrans(object):
         gene_sets = select_genesets(nm, self.gene_sets, self.min_size, self.max_size, self.min_part)
 
         #build a new domain
+        print "WHOLE"
         newfeatures = self.build_features(data, gene_sets)
         newdomain = Orange.data.Domain(newfeatures, data.domain.class_var)
 
@@ -89,6 +90,7 @@ class GeneSetTrans(object):
                 cvi = self.cv(data)
             data_cv = [ [] for _ in range(len(data)) ]
             for f in set(cvi):
+                print "FOLD", f
                 learn = data.select(cvi, f, negate=True)
                 test = data.select(cvi, f)
                 lf = self.build_features(learn, gene_sets)
@@ -97,6 +99,7 @@ class GeneSetTrans(object):
                 for ex, pos in \
                     zip(trans_test, [ i for i,n in enumerate(cvi) if n == f ]):
                     data_cv[pos] = ex.native(0)
+            print data_cv[0]
             return Orange.data.Table(newdomain, data_cv)
 
     def build_features(self, data, gene_sets):
@@ -613,7 +616,7 @@ def compute_corg(data, inds, tscorecache):
         else:
             break
         
-    return sortedinds[:bg] #FIXED - one too many was taken
+    return sortedinds[:bg]
 
 class CORGs(ParametrizedTransformation):
     """
@@ -635,7 +638,7 @@ class CORGs(ParametrizedTransformation):
 
         ind_names = dict( (a,b) for b,a in name_ind.items() )
         selected_genes = sorted(set([to_geneset[ind_names[i]] for i in indices]))
-            
+    
         def t(ex, w, corg=selected_genes): #copy od the data
             nm2, name_ind2, genes2 = self._match_instance(ex, corg, None)
             exvalues = [ vou(ex, gn, name_ind2) for gn in genes2 ]
@@ -906,5 +909,6 @@ if __name__ == "__main__":
 
     ass = LLR(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, normalize=True)
     #ass = LLR_slow(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
+    ass = CORGs(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, cv=True)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)

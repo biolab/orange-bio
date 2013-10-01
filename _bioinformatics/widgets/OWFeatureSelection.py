@@ -1,5 +1,5 @@
 """
-<name>Gene Selection</name>
+<name>Differential expression</name>
 <description>Gene differential expression scoring and selection.</description>
 <priority>1010</priority>
 <icon>icons/GeneSelection.svg</icon>
@@ -321,7 +321,7 @@ class OWFeatureSelection(OWWidget):
         if self.data is not None  and \
                 not (self.attribute_targets or self.class_targets):
             # If both attr. labels and classes are missing, show an error
-            self.error(1, "Cannot compute gene scores! Gene Selection widget "
+            self.error(1, "Cannot compute gene scores! Differential expression widget "
                           "requires a data-set with a discrete class variable "
                           "or attribute labels!")
             self.data = None
