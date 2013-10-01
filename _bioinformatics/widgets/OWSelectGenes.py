@@ -1,5 +1,7 @@
 import re
 import unicodedata
+from collections import defaultdict
+
 from contextlib import contextmanager
 
 from PyQt4.QtGui import (
@@ -32,7 +34,7 @@ class OWSelectGenes(OWWidget):
         )
     }
 
-    settingsList = ["autoCommit"]
+    settingsList = ["autoCommit", "preserveOrder"]
 
     def __init__(self, parent=None, signalManager=None, title=NAME):
         OWWidget.__init__(self, parent, signalManager, title,
@@ -41,6 +43,7 @@ class OWSelectGenes(OWWidget):
         self.selection = []
         self.geneIndex = None
         self.autoCommit = False
+        self.preserveOrder = True
 
         self.loadSettings()
 
@@ -79,7 +82,10 @@ class OWSelectGenes(OWWidget):
         self.hightlighter = NameHighlight(self.entryField.document())
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
-
+        OWGUI.checkBox(box, self, "preserveOrder", "Preserve input order",
+                       tooltip="Preserve the order of the input data "
+                               "instances.",
+                       callback=self.invalidateOutput)
         cb = OWGUI.checkBox(box, self, "autoCommit", "Auto commit")
         button = OWGUI.button(box, self, "Commit", callback=self.commit)
 
@@ -129,10 +135,18 @@ class OWSelectGenes(OWWidget):
         gene = self.geneVar
 
         if gene is not None:
-            selection = set(self.selection)
+            if self.preserveOrder:
+                selection = set(self.selection)
+                sel = [inst for inst in self.data
+                       if str(inst[gene]) in selection]
+            else:
+                by_genes = defaultdict(list)
+                for inst in self.data:
+                    by_genes[str(inst[gene])].append(inst)
 
-            sel = [inst for inst in self.data
-                   if str(inst[gene]) in selection]
+                sel = []
+                for name in self.selection:
+                    sel.extend(by_genes.get(name, []))
 
             if sel:
                 data = Orange.data.Table(self.data.domain, sel)
