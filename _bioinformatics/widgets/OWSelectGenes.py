@@ -46,7 +46,7 @@ class OWSelectGenes(OWWidget):
         # Input variables that could contain names
         self.variables = VariableListModel()
         # All gene names from the input (in self.geneIndex column)
-        self.geneNames = set([])
+        self.geneNames = []
         # Output changed flag
         self._changedFlag = False
 
@@ -70,6 +70,8 @@ class OWSelectGenes(OWWidget):
         completer.setCompletionMode(QCompleter.PopupCompletion)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.popup().setAlternatingRowColors(True)
+        completer.setModel(QStringListModel([], self))
+
         self.entryField.setCompleter(completer)
 
         self.hightlighter = NameHighlight(self.entryField.document())
@@ -150,8 +152,7 @@ class OWSelectGenes(OWWidget):
             names = []
 
         self.geneNames = names
-        self._completerModel = QStringListModel(names)
-        self.entryField.completer().setModel(self._completerModel)
+        self.entryField.completer().model().setStringList(sorted(set(names)))
         self.hightlighter.setNames(names)
 
     def _onGeneIndexChanged(self):
@@ -162,9 +163,13 @@ class OWSelectGenes(OWWidget):
         names = self.entryField.list()
         selection = set(names).intersection(self.geneNames)
         curr_selection = set(self.selection).intersection(self.geneNames)
+
         if selection != curr_selection:
             self.selection = names
             self.invalidateOutput()
+
+            names = set(self.geneNames) - set(names)
+            self.entryField.completer().model().setStringList(sorted(names))
 
 
 def is_string(feature):
