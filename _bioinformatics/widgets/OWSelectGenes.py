@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 from contextlib import contextmanager
 
@@ -53,6 +53,7 @@ class OWSelectGenes(OWWidget):
         self.geneNames = []
         # Output changed flag
         self._changedFlag = False
+        self.data = None
 
         box = OWGUI.widgetBox(self.controlArea, "Gene Attribute")
         self.attrsCombo = OWGUI.comboBox(
@@ -66,7 +67,7 @@ class OWSelectGenes(OWWidget):
         self.entryField = ListTextEdit(box)
         self.entryField.setTabChangesFocus(True)
         self.entryField.setToolTip("Enter selected gene names")
-        self.entryField.textChanged.connect(self._textChanged)
+        self.entryField.itemsChanged.connect(self._itemsChanged)
 
         box.layout().addWidget(self.entryField)
 
@@ -175,8 +176,7 @@ class OWSelectGenes(OWWidget):
         self._updateCompletionModel()
         self.invalidateOutput()
 
-    def _textChanged(self):
-        names = self.entryField.list()
+    def _itemsChanged(self, names):
         selection = set(names).intersection(self.geneNames)
         curr_selection = set(self.selection).intersection(self.geneNames)
 
@@ -205,11 +205,26 @@ def gene_candidates(data):
     return vars
 
 
+_CompletionState = namedtuple(
+    "_CompletionState",
+    ["start",  # completion prefix start position
+     "pos",  # cursor position
+     "anchor"]  # anchor position (inline completion end)
+)
+
+
 class ListTextEdit(QPlainTextEdit):
+    itemsChanged = Signal(list)
+
     def __init__(self, parent=None, **kwargs):
         QPlainTextEdit.__init__(self, parent, **kwargs)
 
+        self._items = None
         self._completer = None
+        self._completionState = _CompletionState(-1, -1, -1)
+
+        self.cursorPositionChanged.connect(self._cursorPositionChanged)
+        self.textChanged.connect(self._textChanged)
 
     def setCompleter(self, completer):
         """
@@ -231,15 +246,19 @@ class ListTextEdit(QPlainTextEdit):
         """
         return self._completer
 
-    def setList(self, list):
-        text = " ".join(list)
+    def setItems(self, items):
+        text = " ".join(items)
         self.setPlainText(text)
 
-    def list(self):
-        return [name for name in unicode(self.toPlainText()).split()
-                if name.strip()]
+    def items(self):
+        if self._items is None:
+            self._items = self._getItems()
+        return self._items
 
     def keyPressEvent(self, event):
+        # TODO: in Qt 4.8 QPlainTextEdit uses inputMethodEvent for
+        # non-ascii input
+
         if self._completer.popup().isVisible():
             if event.key() in [Qt.Key_Enter, Qt.Key_Return, Qt.Key_Escape,
                                Qt.Key_Tab, Qt.Key_Backtab]:
@@ -253,14 +272,14 @@ class ListTextEdit(QPlainTextEdit):
             return
 
         text = unicode(self.toPlainText())
-        pos = self.textCursor().position()
+        cursor = self.textCursor()
+        pos = cursor.position()
 
         if pos == len(text) or not(text[pos].strip()):
-            # At end of text or whitespace
-            # TODO: Match all whitespace characters.
-            start_sp = text.rfind(" ", 0, pos) + 1
-            start_n = text.rfind("\n", 0, pos) + 1
-            start = max(start_sp, start_n)
+            # cursor is at end of text or whitespace
+            # find the beginning of the current word
+            whitespace = " \t\n\r\f\v"
+            start = max([text.rfind(c, 0, pos) for c in whitespace]) + 1
 
             prefix = text[start:pos]
 
@@ -276,10 +295,51 @@ class ListTextEdit(QPlainTextEdit):
                     rect.setWidth(popup.sizeHintForColumn(0) +
                                   popup.verticalScrollBar().sizeHint().width())
 
+                # Popup the completer list
                 self._completer.complete(rect)
 
+                # Inline completion of a common prefix
+                inline = self._commonCompletionPrefix()
+                inline = inline[len(prefix):]
+
+                self._completionState = \
+                    _CompletionState(start, pos, pos + len(inline))
+
+                cursor.insertText(inline)
+                cursor.setPosition(pos, QTextCursor.KeepAnchor)
+                self.setTextCursor(cursor)
+
             elif self._completer.popup().isVisible():
-                self._completer.popup().hide()
+                self._stopCompletion()
+
+    def _cursorPositionChanged(self):
+        cursor = self.textCursor()
+        pos = cursor.position()
+        start, _, _ = self._completionState
+
+        if start == -1:
+            # completion not in progress
+            return
+
+        if pos <= start:
+            # cursor moved before the start of the prefix
+            self._stopCompletion()
+            return
+
+        text = unicode(self.toPlainText())
+        # Find the end of the word started by completion prefix
+        word_end = len(text)
+        for i in range(start, len(text)):
+            if text[i] in " \t\n\r\f\v":
+                word_end = i
+                break
+
+        if pos > word_end:
+            # cursor moved past the word boundary
+            self._stopCompletion()
+
+        # TODO: Update the prefix when moving the cursor
+        # inside the word
 
     def _insertCompletion(self, item):
         if isinstance(item, list):
@@ -287,20 +347,59 @@ class ListTextEdit(QPlainTextEdit):
         else:
             completion = unicode(item)
 
-        prefix = self._completer.completionPrefix()
+        start, _, end = self._completionState
+
+        self._stopCompletion()
 
         cursor = self.textCursor()
-        # Replace the prefix with the full completion (correcting for the
-        # case-insensitive search).
-        cursor.setPosition(cursor.position() - len(prefix),
-                           QTextCursor.KeepAnchor)
+        # Replace the prefix+inline with the full completion
+        # (correcting for the case-insensitive search).
+        cursor.setPosition(min(end, self.document().characterCount()))
+        cursor.setPosition(start, QTextCursor.KeepAnchor)
 
         cursor.insertText(completion + " ")
+
+    def _commonCompletionPrefix(self):
+        model = self._completer.completionModel()
+        column = self._completer.completionColumn()
+        role = self._completer.completionRole()
+        items = [toString(model.index(i, column).data(role))
+                 for i in range(model.rowCount())]
+
+        if not items:
+            return ""
+
+        first = min(items)
+        last = max(items)
+        for i, c in enumerate(first):
+            if c != last[i]:
+                return first[:i]
+
+        return first
+
+    def _stopCompletion(self):
+        self._completionState = _CompletionState(-1, -1, -1)
+        if self._completer.popup().isVisible():
+            self._completer.popup().hide()
+
+    def _textChanged(self):
+        items = self._getItems()
+        if self._items != items:
+            self._items = items
+            self.itemsChanged.emit(items)
+
+    def _getItems(self):
+        text = unicode(self.toPlainText())
+        if self._completionState[0] != -1:
+            # Remove the inline completion text from the text
+            _, pos, end = self._completionState
+            text = text[:pos] + text[end:]
+        return [item for item in text.split() if item.strip()]
 
 
 class NameHighlight(QSyntaxHighlighter):
     def __init__(self, parent=None, **kwargs):
-        super(NameHighlight, self).__init__(parent)
+        super(NameHighlight, self).__init__(parent, **kwargs)
 
         self._names = set()
 
@@ -396,7 +495,8 @@ class ListCompleter(QCompleter):
         if self.popup().isVisible():
             self.popup().hide()
 
-        self.activated.emit(items)
+        if items:
+            self.activated.emit(items)
 
 
 # All control character categories.
