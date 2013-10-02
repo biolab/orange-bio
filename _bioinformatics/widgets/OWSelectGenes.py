@@ -103,12 +103,16 @@ class OWSelectGenes(OWWidget):
             attrs = gene_candidates(data)
             self.variables[:] = attrs
             self.attrsCombo.setCurrentIndex(0)
-            self.geneIndex = 0
+            if attrs:
+                self.geneIndex = 0
+            else:
+                self.geneIndex = -1
+                self.warning(0, "No suitable columns for gene names.")
+
             self.selection = []
         else:
             self.variables[:] = []
             self.geneIndex = -1
-            self.warning(0, "No suitable columns for gene names.")
 
         self._changedFlag = True
         self._updateCompletionModel()
