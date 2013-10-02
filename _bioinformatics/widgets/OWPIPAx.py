@@ -534,9 +534,31 @@ class OWPIPAx(OWWidget):
             # Sort attributes
             sortOrder = self.columnsSortingWidget.sortingOrder
 
+            all_values = defaultdict(set)
+            for at in table.domain.attributes:
+                atts = at.attributes
+                for name in sortOrder:
+                    all_values[name].add(atts.get(reverse_header_dict[name], ""))
+
+            isnum = {}
+            for at, vals in all_values.items():
+                vals = filter(None, vals)
+                try:
+                    for a in vals:
+                        float(a)
+                    isnum[at] = True
+                except:
+                    isnum[at] = False
+
+            def optfloat(x, at):
+                if x == "":
+                    return ""
+                else:
+                    return float(x) if isnum[at] else x
+
             def sorting_key(attr):
                 atts = attr.attributes
-                return tuple([atts.get(reverse_header_dict[name], "") \
+                return tuple([optfloat(atts.get(reverse_header_dict[name], ""), name) \
                               for name in sortOrder])
 
             attributes = sorted(table.domain.attributes,
