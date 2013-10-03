@@ -535,7 +535,7 @@ class OWHeatMap(OWWidget):
         self.BSpotVar = self.meta[0] if self.meta else None
         self.BAnnotationIndx = 0
         self.BAnnotationVar = self.meta[0] if self.meta else None
-
+        
     def get_candidate_splits(self):
         """ Return candidate labels on which we can split the data. 
         """
@@ -575,7 +575,6 @@ class OWHeatMap(OWWidget):
         self.annotationCombo.clear()
         self.splitLB.clear()
         self.meta = []
-        
         self.clear_scene()
         
     def clear_scene(self):
@@ -589,7 +588,6 @@ class OWHeatMap(OWWidget):
         self.gene_dendrogram_widgets = []
         
         self.selection_rects = []
-        
         
     def saveFig(self):
         sizeDlg = OWChooseImageSizeDlg(self.scene, parent=self)
@@ -615,11 +613,17 @@ class OWHeatMap(OWWidget):
         
     def handleNewSignals(self):
         self.send('Examples', None)
+        self.error(0)
         if self.data:
-            self.update_heatmaps()
+            if self.data.domain.has_discrete_attributes(): 
+                self.error(0, "Data contains discrete attributes")
+            elif len(self.data.domain.features) == 1:
+                self.error(0, "Cannot construct heatmap with only a single feature")
+            else:
+                self.update_heatmaps()
         else:
             self.clear()
-        
+
         if self.data:
             self.openContext("Selection", self.data)
             
