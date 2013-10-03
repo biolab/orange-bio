@@ -26,24 +26,88 @@ INPUTS = [("Data", Orange.data.Table, "set_data")]
 OUTPUTS = [("Selected Data", Orange.data.Table)]
 
 
+def toString(variant):
+    if isinstance(variant, QVariant):
+        return unicode(variant.toString())
+    else:
+        return unicode(variant)
+
+
+def toBool(variant):
+    if isinstance(variant, QVariant):
+        return bool(variant.toPyObject())
+    else:
+        return bool(variant)
+
+
+class SaveSlot(QStandardItem):
+    ModifiedRole = next(OWGUI.OrangeUserRole)
+
+    def __init__(self, name, savedata=None, modified=False):
+        super(SaveSlot, self).__init__(name)
+
+        self.savedata = savedata
+        self.modified = modified
+        self.document = None
+
+    @property
+    def name(self):
+        return unicode(self.text())
+
+    @property
+    def modified(self):
+        return toBool(self.data(SaveSlot.ModifiedRole))
+
+    @modified.setter
+    def modified(self, state):
+        self.setData(bool(state), SaveSlot.ModifiedRole)
+
+
+class SavedSlotDelegate(QStyledItemDelegate):
+
+    def paint(self, painter, option, index):
+        option = QStyleOptionViewItemV4(option)
+        self.initStyleOption(option, index)
+
+        modified = toBool(index.data(SaveSlot.ModifiedRole))
+        if modified:
+            option.palette.setColor(QPalette.Text, QColor(Qt.red))
+            option.palette.setColor(QPalette.Highlight, QColor(Qt.darkRed))
+            option.text = "*" + option.text
+
+        if option.widget:
+            widget = option.widget
+            style = widget.style()
+        else:
+            widget = None
+            style = QApplication.style()
+
+        style.drawControl(QStyle.CE_ItemViewItem, option, painter, widget)
+
+
 class OWSelectGenes(OWWidget):
 
     contextHandlers = {
         "": DomainContextHandler(
-            "", ["geneIndex", "selection"]
+            "", ["geneIndex"]
         )
     }
 
-    settingsList = ["autoCommit", "preserveOrder"]
+    settingsList = ["autoCommit", "preserveOrder", "savedSelections",
+                    "selectedSelectionIndex"]
 
     def __init__(self, parent=None, signalManager=None, title=NAME):
         OWWidget.__init__(self, parent, signalManager, title,
                           wantMainArea=False)
 
-        self.selection = []
         self.geneIndex = None
         self.autoCommit = False
         self.preserveOrder = True
+        self.savedSelections = [
+            ("Example", ["MRE11A", "RAD51", "MLH1", "MSH2", "DMC1"])
+        ]
+
+        self.selectedSelectionIndex = -1
 
         self.loadSettings()
 
@@ -54,6 +118,8 @@ class OWSelectGenes(OWWidget):
         # Output changed flag
         self._changedFlag = False
         self.data = None
+        # Current gene names
+        self.selection = []
 
         box = OWGUI.widgetBox(self.controlArea, "Gene Attribute")
         self.attrsCombo = OWGUI.comboBox(
@@ -67,11 +133,12 @@ class OWSelectGenes(OWWidget):
         self.entryField = ListTextEdit(box)
         self.entryField.setTabChangesFocus(True)
         self.entryField.setToolTip("Enter selected gene names")
-        self.entryField.itemsChanged.connect(self._itemsChanged)
+        self.entryField.setDocument(self._createDocument())
+        self.entryField.itemsChanged.connect(self._onItemsChanged)
 
         box.layout().addWidget(self.entryField)
 
-        completer = ListCompleter(self)
+        completer = ListCompleter()
         completer.setCompletionMode(QCompleter.PopupCompletion)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setMaxVisibleItems(10)
@@ -80,7 +147,51 @@ class OWSelectGenes(OWWidget):
 
         self.entryField.setCompleter(completer)
 
-        self.hightlighter = NameHighlight(self.entryField.document())
+        box = OWGUI.widgetBox(self.controlArea, "Saved Selections")
+        box.layout().setSpacing(1)
+
+        self.selectionsModel = QStandardItemModel()
+        self.selectionsView = QListView()
+        self.selectionsView.setAlternatingRowColors(True)
+        self.selectionsView.setModel(self.selectionsModel)
+        self.selectionsView.setItemDelegate(SavedSlotDelegate(self))
+        self.selectionsView.selectionModel().selectionChanged.connect(
+            self._onSelectedSaveSlotChanged
+        )
+
+        box.layout().addWidget(self.selectionsView)
+
+        self.actionSave = QAction("Save", self)
+        self.actionAdd = QAction("+", self)
+        self.actionRemove = QAction("-", self)
+
+        toolbar = QFrame()
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(1)
+
+        def button(action):
+            b = QToolButton()
+            b.setDefaultAction(action)
+            return b
+
+        b = button(self.actionAdd)
+        layout.addWidget(b)
+
+        b = button(self.actionSave)
+        b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        layout.addWidget(b, stretch=10)
+
+        b = button(self.actionRemove)
+        layout.addWidget(b)
+
+        toolbar.setLayout(layout)
+
+        box.layout().addWidget(toolbar)
+
+        self.actionSave.triggered.connect(self.saveSelection)
+        self.actionAdd.triggered.connect(self.addSelection)
+        self.actionRemove.triggered.connect(self.removeSelection)
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
         OWGUI.checkBox(box, self, "preserveOrder", "Preserve input order",
@@ -91,6 +202,18 @@ class OWSelectGenes(OWWidget):
         button = OWGUI.button(box, self, "Commit", callback=self.commit)
 
         OWGUI.setStopper(self, button, cb, "_changedFlag", self.commit)
+
+        # restore saved selections model.
+        for name, names in self.savedSelections:
+            item = SaveSlot(name, names)
+            self.selectionsModel.appendRow([item])
+
+        if self.selectedSelectionIndex != -1:
+            self.selectionsView.selectionModel().select(
+                self.selectionsModel.index(self.selectedSelectionIndex, 0),
+                QItemSelectionModel.Select
+            )
+        self._updateActions()
 
     def set_data(self, data):
         """
@@ -108,8 +231,6 @@ class OWSelectGenes(OWWidget):
             else:
                 self.geneIndex = -1
                 self.warning(0, "No suitable columns for gene names.")
-
-            self.selection = []
         else:
             self.variables[:] = []
             self.geneIndex = -1
@@ -118,8 +239,6 @@ class OWSelectGenes(OWWidget):
         self._updateCompletionModel()
 
         self.openContext("", data)
-
-        self.entryField.setPlainText(" ".join(self.selection))
 
         self.commit()
 
@@ -174,22 +293,115 @@ class OWSelectGenes(OWWidget):
 
         self.geneNames = names
         self.entryField.completer().model().setStringList(sorted(set(names)))
-        self.hightlighter.setNames(names)
+        self.entryField.document().highlighter.setNames(names)
 
     def _onGeneIndexChanged(self):
         self._updateCompletionModel()
         self.invalidateOutput()
 
-    def _itemsChanged(self, names):
+    def _onItemsChanged(self, names):
         selection = set(names).intersection(self.geneNames)
         curr_selection = set(self.selection).intersection(self.geneNames)
 
-        if selection != curr_selection:
-            self.selection = names
-            self.invalidateOutput()
+        self.selection = names
 
-            names = set(self.geneNames) - set(names)
-            self.entryField.completer().model().setStringList(sorted(names))
+        if selection != curr_selection:
+            self.invalidateOutput()
+            to_complete = sorted(set(self.geneNames) - set(names))
+            self.entryField.completer().model().setStringList(to_complete)
+
+        item = self._selectedSaveSlot()
+        if item:
+            item.modified = item.savedata != names
+
+    def _selectedSaveSlot(self):
+        """
+        Return the current selected saved selection slot.
+        """
+        indexes = self.selectionsView.selectedIndexes()
+        if indexes:
+            return self.selectionsModel.item(indexes[0].row())
+        else:
+            return None
+
+    def saveSelection(self):
+        """
+        Save (update) the items in the current selected selection.
+        """
+        item = self._selectedSaveSlot()
+        if item:
+            item.savedata = self.entryField.items()
+            item.modified = False
+
+    def addSelection(self, name=None):
+        """
+        Add a new saved selection entry initialized by the current items.
+
+        The new slot will be selected.
+
+        """
+        item = SaveSlot(name or "New selection")
+        item.savedata = self.entryField.items()
+        self.selectionsModel.appendRow([item])
+        self.selectionsView.setCurrentIndex(item.index())
+
+        if not name:
+            self.selectionsView.edit(item.index())
+
+    def removeSelection(self):
+        """
+        Remove the current selected save slot.
+        """
+        item = self._selectedSaveSlot()
+        if item:
+            self.selectionsModel.removeRow(item.row())
+
+    def _onSelectedSaveSlotChanged(self):
+        item = self._selectedSaveSlot()
+        if item:
+            if not item.document:
+                item.document = self._createDocument()
+                if item.savedata:
+                    item.document.setPlainText(" ".join(item.savedata))
+
+            item.document.highlighter.setNames(self.geneNames)
+
+            self.entryField.setDocument(item.document)
+
+        self._updateActions()
+
+    def _createDocument(self):
+        """
+        Create and new QTextDocument instance for editing gene names.
+        """
+        doc = QTextDocument(self)
+        doc.setDocumentLayout(QPlainTextDocumentLayout(doc))
+        doc.highlighter = NameHighlight(doc)
+        return doc
+
+    def _updateActions(self):
+        """
+        Update the Save/remove action enabled state.
+        """
+        selected = bool(self._selectedSaveSlot())
+        self.actionRemove.setEnabled(selected)
+        self.actionSave.setEnabled(selected)
+
+    def getSettings(self, *args, **kwargs):
+        # copy the saved selections model back to widget settings.
+        selections = []
+        for i in range(self.selectionsModel.rowCount()):
+            item = self.selectionsModel.item(i)
+            selections.append((item.name, item.savedata))
+        self.savedSelections = selections
+
+        item = self._selectedSaveSlot()
+        if item is None:
+            self.selectedSelectionIndex = -1
+        else:
+            self.selectedSelectionIndex = item.row()
+
+        return OWWidget.getSettings(self, *args, **kwargs)
 
 
 def is_string(feature):
@@ -438,13 +650,6 @@ class NameHighlight(QSyntaxHighlighter):
             self.setFormat(match.start(), match_len, format)
 
 
-def toString(variant):
-    if isinstance(variant, QVariant):
-        return unicode(variant.toString())
-    else:
-        return unicode(variant)
-
-
 @contextmanager
 def signals_blocked(obj):
     blocked = obj.signalsBlocked()
@@ -521,6 +726,7 @@ def test():
     w.set_data(data)
     w.show()
     app.exec_()
+    w.saveSettings()
     w.deleteLater()
     del w
     app.processEvents()
