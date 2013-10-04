@@ -22,7 +22,7 @@ NAME = "Select Genes"
 DESCRIPTION = "Select a specified subset of the input genes."
 ICON = "icons/SelectGenes.svg"
 
-INPUTS = [("Data", Orange.data.Table, "set_data")]
+INPUTS = [("Data", Orange.data.Table, "setData")]
 OUTPUTS = [("Selected Data", Orange.data.Table)]
 
 
@@ -215,7 +215,7 @@ class OWSelectGenes(OWWidget):
             )
         self._updateActions()
 
-    def set_data(self, data):
+    def setData(self, data):
         """
         Set the input data.
         """
@@ -244,6 +244,9 @@ class OWSelectGenes(OWWidget):
 
     @property
     def geneVar(self):
+        """
+        Current gene attribute or None if none available.
+        """
         if self.data is not None and self.geneIndex >= 0:
             return self.variables[self.geneIndex]
         else:
@@ -256,27 +259,15 @@ class OWSelectGenes(OWWidget):
             self._changedFlag = True
 
     def commit(self):
+        """
+        Send the selected data subset to the output.
+        """
         gene = self.geneVar
 
         if gene is not None:
-            if self.preserveOrder:
-                selection = set(self.selection)
-                sel = [inst for inst in self.data
-                       if str(inst[gene]) in selection]
-            else:
-                by_genes = defaultdict(list)
-                for inst in self.data:
-                    by_genes[str(inst[gene])].append(inst)
-
-                sel = []
-                for name in self.selection:
-                    sel.extend(by_genes.get(name, []))
-
-            if sel:
-                data = Orange.data.Table(self.data.domain, sel)
-            else:
-                data = Orange.data.Table(self.data.domain)
-
+            data = select_by_genes(self.data, gene,
+                                   gene_list=self.selection,
+                                   preserve_order=self.preserveOrder)
         else:
             data = None
 
@@ -409,6 +400,9 @@ def is_string(feature):
 
 
 def domain_variables(domain):
+    """
+    Return all feature descriptors from the domain.
+    """
     vars = (domain.features +
             domain.class_vars +
             domain.getmetas().values())
@@ -416,9 +410,34 @@ def domain_variables(domain):
 
 
 def gene_candidates(data):
+    """
+    Return features that could contain gene names.
+    """
     vars = domain_variables(data.domain)
     vars = filter(is_string, vars)
     return vars
+
+
+def select_by_genes(data, gene_feature, gene_list, preserve_order=True):
+    if preserve_order:
+        selection = set(gene_list)
+        sel = [inst for inst in data
+               if str(inst[gene_feature]) in selection]
+    else:
+        by_genes = defaultdict(list)
+        for inst in data:
+            by_genes[str(inst[gene_feature])].append(inst)
+
+        sel = []
+        for name in gene_list:
+            sel.extend(by_genes.get(name, []))
+
+    if sel:
+        data = Orange.data.Table(data.domain, sel)
+    else:
+        data = Orange.data.Table(data.domain)
+
+    return data
 
 
 _CompletionState = namedtuple(
@@ -430,6 +449,10 @@ _CompletionState = namedtuple(
 
 
 class ListTextEdit(QPlainTextEdit):
+    """
+    A text editor specialized for editing a list of items.
+    """
+    #: Emitted when the list items change.
     itemsChanged = Signal(list)
 
     def __init__(self, parent=None, **kwargs):
@@ -576,6 +599,9 @@ class ListTextEdit(QPlainTextEdit):
         cursor.insertText(completion + " ")
 
     def _commonCompletionPrefix(self):
+        """
+        Return the common prefix of items in the current completion model.
+        """
         model = self._completer.completionModel()
         column = self._completer.completionColumn()
         role = self._completer.completionRole()
@@ -605,9 +631,15 @@ class ListTextEdit(QPlainTextEdit):
             self.itemsChanged.emit(items)
 
     def _getItems(self):
+        """
+        Return the current items (a list of strings).
+
+        .. note:: The inline completion text is not included.
+
+        """
         text = unicode(self.toPlainText())
         if self._completionState[0] != -1:
-            # Remove the inline completion text from the text
+            # Remove the inline completion text
             _, pos, end = self._completionState
             text = text[:pos] + text[end:]
         return [item for item in text.split() if item.strip()]
@@ -661,6 +693,9 @@ def signals_blocked(obj):
 
 
 class ListCompleter(QCompleter):
+    """
+    A completer supporting selection of multiple list items.
+    """
     activated = Signal(list)
 
     def __init__(self, *args, **kwargs):
@@ -723,7 +758,7 @@ def test():
     app = QApplication([])
     w = OWSelectGenes()
     data = Orange.data.Table("brown-selected")
-    w.set_data(data)
+    w.setData(data)
     w.show()
     app.exec_()
     w.saveSettings()
