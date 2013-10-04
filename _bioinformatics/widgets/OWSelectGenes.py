@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from collections import defaultdict, namedtuple
+from xml.sax.saxutils import escape
 
 from contextlib import contextmanager
 
@@ -393,6 +394,31 @@ class OWSelectGenes(OWWidget):
             self.selectedSelectionIndex = item.row()
 
         return OWWidget.getSettings(self, *args, **kwargs)
+
+    def sendReport(self):
+        report = []
+        if self.data is not None:
+            report.append("%i instances on input." % len(self.data))
+        else:
+            report.append("No data on input.")
+
+        if self.geneVar is not None:
+            report.append("Gene names taken from %r attribute." %
+                          escape(self.geneVar.name))
+
+        self.reportSection("Input")
+        self.startReportList()
+        for item in report:
+            self.addToReportList(item)
+        self.finishReportList()
+        self.reportRaw(
+            "<p>Gene Selection: %s</p>" %
+            escape(" ".join(self.selection))
+        )
+        self.reportSettings(
+            "Settings",
+            [("Preserve order", self.preserveOrder)]
+        )
 
 
 def is_string(feature):
