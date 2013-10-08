@@ -14,6 +14,17 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiGeneMania
 
+NAME = "GeneMANIA"
+DESCRIPTION = ""
+ICON = "icons/GeneMANIA.svg"
+
+INPUTS = [("Input Genes", Orange.data.Table, "setData")]
+OUTPUTS = [("Network", Orange.network.Graph, Default),
+           ("Items", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWGeneMania.OWGeneMania"]
+
+
 class BarItemDelegate(QStyledItemDelegate):
     BarRole = OWGUI.OrangeUserRole.next() 
     BarForegroundRole = OWGUI.OrangeUserRole.next()

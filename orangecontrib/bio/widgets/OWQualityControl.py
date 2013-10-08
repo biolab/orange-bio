@@ -24,6 +24,17 @@ from .. import obiExperiments as exp
 
 from .OWGenotypeDistances import SetContextHandler
 
+NAME = "Quality Control"
+DESCRIPTION = "Experiment quality control"
+ICON = "icons/QualityControl.svg"
+PRIORITY = 5000
+
+INPUTS = [("Experiment Data", Orange.data.Table, "set_data")]
+OUTPUTS = []
+
+REPLACES = ["_bioinformatics.widgets.OWQualityControl.OWQualityControl"]
+
+
 DEBUG = False
 
 @contextmanager

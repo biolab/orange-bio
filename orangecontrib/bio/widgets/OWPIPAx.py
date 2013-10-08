@@ -21,6 +21,16 @@ from .. import obiDicty
 from .OWPIPA import (MyTreeWidgetItem, ListItemDelegate,
                     SelectionSetsWidget, SortedListWidget)
 
+NAME = "PIPAx"
+DESCRIPTION = "Access data from PIPA RNA-Seq database."
+ICON = "icons/PIPA.svg"
+PRIORITY = 35
+
+INPUTS = []
+OUTPUTS = [("Example table", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWPIPAx.OWPIPAx"]
+
 try:
     from ast import literal_eval
 except ImportError:

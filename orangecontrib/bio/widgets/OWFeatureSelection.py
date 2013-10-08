@@ -27,6 +27,19 @@ from ..obiExpression import *
 from ..obiGEO import transpose
 
 
+NAME = "Differential expression"
+DESCRIPTION = "Gene differential expression scoring and selection."
+ICON = "icons/GeneSelection.svg"
+PRIORITY = 1010
+
+INPUTS = [("Examples", Orange.data.Table, "set_data")]
+OUTPUTS = [("Example table with selected genes", Orange.data.Table, Default),
+           ("Example table with remaining genes", Orange.data.Table),
+           ("Selected genes", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWFeatureSelection.OWFeatureSelection"]
+
+
 class ExpressionSignificance_TTest_PValue(ExpressionSignificance_TTest):
     def __call__(self, *args, **kwargs):
         return [(key, pval) for key, (t, pval) in \

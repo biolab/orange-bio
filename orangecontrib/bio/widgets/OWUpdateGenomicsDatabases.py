@@ -8,6 +8,17 @@
 
 from Orange.OrangeWidgets.OWDatabasesUpdate import *
 
+NAME = "Databases"
+DESCRIPTION = "Update of systems biology data and knowledge bases."
+ICON = "icons/Databases.svg"
+PRIORITY = 10
+
+INPUTS = []
+OUTPUTS = []
+
+REPLACES = ["_bioinformatics.widgets.OWUpdateGenomicsDatabases.OWUpdateGenomicsDatabases"]
+
+
 class OWUpdateGenomicsDatabases(OWDatabasesUpdate): 
     def __init__(self, parent=None, signalManager=None, name="Databases", **kwds):
         OWDatabasesUpdate.__init__(self, parent, signalManager, name, domains = \

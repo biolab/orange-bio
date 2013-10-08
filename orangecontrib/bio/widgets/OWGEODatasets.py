@@ -18,6 +18,17 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiGEO
 
+NAME = "GEO Data Sets"
+DESCRIPTION = "Access to Gene Expression Omnibus data sets."
+ICON = "icons/GEODataSets.svg"
+PRIORITY = 20
+
+INPUTS = []
+OUTPUTS = [("Expression Data", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWGEODatasets.OWGEODatasets"]
+
+
 LOCAL_GDS_COLOR = Qt.darkGreen
 
 TextFilterRole = OWGUI.OrangeUserRole.next()

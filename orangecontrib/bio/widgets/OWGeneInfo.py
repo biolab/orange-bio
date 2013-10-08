@@ -19,6 +19,18 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiGene, obiTaxonomy
 
+
+NAME = "Gene Info"
+DESCRIPTION = "Displays gene information from NCBI and other sources."
+ICON = "icons/GeneInfo.svg"
+PRIORITY = 2010
+
+INPUTS = [("Examples", Orange.data.Table, "setData")]
+OUTPUTS = [("Selected Examples", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWGeneInfo.OWGeneInfo"]
+
+
 class TreeModel(QAbstractItemModel):
     def __init__(self, data, header, parent):
         QAbstractItemModel.__init__(self, parent)

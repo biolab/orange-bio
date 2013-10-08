@@ -17,6 +17,18 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiDicty
 
+(2, 'No such file or directory')
+NAME = "PIPA"
+DESCRIPTION = "Access data from PIPA RNA-Seq database."
+ICON = "icons/PIPA.svg"
+PRIORITY = 30
+
+INPUTS = []
+OUTPUTS = [("Example table", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWPIPA.OWPIPA"]
+
+
 #def pyqtConfigure(object, **kwargs):
 #    if hasattr(object, "pyqtConfigure"):
 #        object.pyqtConfigure(**kwargs)

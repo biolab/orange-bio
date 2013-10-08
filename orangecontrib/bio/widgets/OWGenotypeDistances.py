@@ -20,6 +20,18 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from ..obiExperiments import separate_by, data_type, linearize, dist_pcorr, dist_eucl, dist_spearman
 
+NAME = "Genotype Distances"
+DESCRIPTION = "Compute distances between expression profiles of different experimental factors."
+ICON = "icons/GenotypeDistances.svg"
+PRIORITY = 1050
+
+INPUTS = [("Example Table", Orange.data.Table, "set_data")]
+OUTPUTS = [("Distances", Orange.core.SymMatrix),
+           ("Sorted Example Table", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWGenotypeDistances.OWGenotypeDistances"]
+
+
 def clone_attr(attr):
     newattr = attr.clone()
     def get_value_from(ex, w=None):

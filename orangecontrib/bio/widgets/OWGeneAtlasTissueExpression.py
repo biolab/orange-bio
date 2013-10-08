@@ -19,6 +19,17 @@ from Orange.orng import orngDataCaching, orngServerFiles
 
 from .. import obiArrayExpress, obiGene, obiGeneAtlas
 
+NAME = "Gene Atlas Tissue Expression"
+DESCRIPTION = ""
+ICON = "icons/GeneExpressionAtlas.svg"
+PRIORITY = 5000
+
+INPUTS = [("Example Table", Orange.data.Table, "set_data")]
+OUTPUTS = [("Selected Genes", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWGeneAtlasTissueExpression.OWGeneAtlasTissueExpression"]
+
+
 TAXID_TO_ORG = obiGeneAtlas.TAXID_TO_ORG
 
 class OWGeneAtlasTissueExpression(OWWidget):

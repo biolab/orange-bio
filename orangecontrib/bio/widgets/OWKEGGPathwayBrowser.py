@@ -38,6 +38,20 @@ from .. import obiTaxonomy
 from .. import obiKEGG
 from .. import obiGeneSets
 
+
+NAME = "KEGG Pathways"
+DESCRIPTION = "Browse KEGG pathways that include an input set of genes."
+ICON = "icons/KEGGPathways.svg"
+PRIORITY = 2030
+
+INPUTS = [("Examples", Orange.data.Table, "SetData", Default),
+          ("Reference", Orange.data.Table, "SetRefData")]
+OUTPUTS = [("Selected Examples", Orange.data.Table, Default),
+           ("Unselected Examples", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWKEGGPathwayBrowser.OWKEGGPathwayBrowser"]
+
+
 USE_THREADING = True
 
 if USE_THREADING:

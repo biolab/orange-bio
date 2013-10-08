@@ -27,6 +27,17 @@ from Orange.OrangeWidgets import OWGUI
 from .. import obiExpression
 from ..obiGEO import transpose
 
+NAME = "Vulcano Plot"
+DESCRIPTION = "Plots fold change vs. p-value.)"
+ICON = "icons/VulcanoPlot.svg"
+PRIORITY = 1020
+
+INPUTS = [("Examples", Orange.data.Table, "setData")]
+OUTPUTS = [("Examples with selected attributes", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWVulcanoPlot.OWVulcanoPlot"]
+
+
 class GraphSelections(QObject):
     """ Selection manager using a union of rectangle areas 
     """

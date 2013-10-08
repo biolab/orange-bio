@@ -15,6 +15,17 @@ import OWGUI
 
 from Orange.bio.obiGeneSets import loadGMT, list_local, register, local_path, remove_local, modification_date, getGenesetsStats
 
+NAME = "Custom Gene Sets"
+DESCRIPTION = "Manage custom geneset files"
+ICON = "icons/customSets.svg"
+PRIORITY = 5000
+
+INPUTS = []
+OUTPUTS = []
+
+REPLACES = ["_bioinformatics.widgets.OWCustomSets.OWCustomSets"]
+
+
 class OWCustomSets(OWWidget):
 
     def __init__(self, parent=None, signalManager=None,

@@ -16,6 +16,19 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from ..obiMeSH import *
 
+NAME = "MeSH Browser"
+DESCRIPTION = "Browse MeSH ontology."
+ICON = "icons/MeSHBrowser.svg"
+PRIORITY = 2040
+
+INPUTS = [("Reference data", Orange.data.Table, "getReferenceData"),
+		  ("Cluster data", Orange.data.Table, "getClusterData")]
+
+OUTPUTS = [("Selected examples", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWMeSHBrowser.OWMeSHBrowser"]
+
+
 class MyQTableWidgetItem(QTableWidgetItem):
 	""" Our implementation of QTable item allowing numerical sorting.  """
 	def __init__(self,table,text):
