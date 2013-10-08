@@ -54,7 +54,11 @@ class Sqlite3Store(Store, UserDict.DictMixin):
         if not r:
             raise KeyError(key)
         else:
-            return pickle.loads(str(r[0][0]))
+            pickle_str = str(r[0][0])
+            try:
+                return pickle.loads(pickle_str)
+            except Exception:
+                raise KeyError(key)
 
     def __setitem__(self, key, value):
         value = pickle.dumps(value)
