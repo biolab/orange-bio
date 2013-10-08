@@ -265,11 +265,13 @@ class OWSetEnrichment(OWWidget):
             if hier:
                 collect(col[hier[0]], hier[1:])
 
+        print "GS", self.genesets
+
         for hierarchy, t_id, _ in self.genesets:
             collect(collection[t_id], hierarchy)
 
-        #add genesets without species identifiers
-        collection[taxid].update(collection[None])
+        #TODO add genesets without species identifiers
+
         return collection[taxid]
 
     def setHierarchy(self, hierarchy):
@@ -409,6 +411,7 @@ class OWSetEnrichment(OWWidget):
         self.currentAnnotatedCategories = categories = self.selectedCategories()
 
         ## Load collections in a worker thread
+        print "CAT", categories
         call = self.asyncCall(obiGeneSets.collections, categories, name="Loading collections", blocking=True, thread=self.thread())
         call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
         with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
