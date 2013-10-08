@@ -16,6 +16,10 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiGene, obiGeneSets, obiProb, obiTaxonomy
 
+def gsname(geneset):
+    return geneset.name if geneset.name else geneset.id
+
+
 def _toPyObject(variant):
     val = variant.toPyObject()
     if isinstance(val, type(NotImplemented)): # PyQt 4.4 converts python int, floats ... to C types
@@ -247,7 +251,7 @@ class OWSetEnrichment(OWWidget):
 
 #            print self.speciesIndex
 
-            self.setHierarchy(self.getHierarchy(taxid=self.taxid_list[self.speciesIndex]))
+            self.setHierarchy(*self.getHierarchy(taxid=self.taxid_list[self.speciesIndex]))
 
             self.loadedGenematcher = "None"
             self.updateAnnotations()
@@ -265,18 +269,14 @@ class OWSetEnrichment(OWWidget):
             if hier:
                 collect(col[hier[0]], hier[1:])
 
-        print "GS", self.genesets
-
         for hierarchy, t_id, _ in self.genesets:
             collect(collection[t_id], hierarchy)
 
-        #TODO add genesets without species identifiers
+        return (taxid, collection[taxid]), (None, collection[None])
 
-        return collection[taxid]
-
-    def setHierarchy(self, hierarchy):
+    def setHierarchy(self, hierarchy, hierarchy_noorg):
         self.groupsWidgetItems = {}
-        def fill(col, parent, full=()):
+        def fill(col, parent, full=(), org=""):
             for key, value in sorted(col.items()):
                 full_cat = full + (key,)
                 item = QTreeWidgetItem(parent, [key])
@@ -287,25 +287,26 @@ class OWSetEnrichment(OWWidget):
                 item.setData(0, Qt.CheckStateRole, QVariant(self.categoriesCheckState.get(full_cat, Qt.Checked)))
                 item.setExpanded(True)
                 item.category = full_cat
+                item.organism = org
                 self.groupsWidgetItems[full_cat] = item
-                fill(value, item, full_cat)
+                fill(value, item, full_cat, org=org)
 
-        fill(hierarchy, self.groupsWidget)
+        fill(hierarchy[1], self.groupsWidget, org=hierarchy[0])
+        fill(hierarchy_noorg[1], self.groupsWidget, org=hierarchy_noorg[0])
 
 #    def updateCategoryCounts(self):
 #        for cat, item in self.groupWidgetItem:
 #            item.setData(1, QVariant(), Qt.DisplayRole)
 
     def selectedCategories(self):
-        taxid = self.taxid_list[self.speciesIndex]
-        return [(key, taxid) for key, check in self.getHierarchyCheckState().items() if check == Qt.Checked]
+        return [(key, org) for (key, org), check in self.getHierarchyCheckState().items() if check == Qt.Checked]
 
     def getHierarchyCheckState(self):
         def collect(item, full=()):
             checked = item.checkState(0)
             name = str(item.data(0, Qt.DisplayRole).toString())
             full_cat = full + (name,)
-            result = [(full_cat, checked)]
+            result = [((full_cat, item.organism), checked)]
             for i in range(item.childCount()):
                 result.extend(collect(item.child(i), full_cat))
             return result
@@ -315,8 +316,8 @@ class OWSetEnrichment(OWWidget):
         return dict(states)
 
     def subsetSelectionChanged(self, item, column):
+        #FIXME this should also recompute FDR
         self.categoriesCheckState = self.getHierarchyCheckState()
-
         categories = self.selectedCategories()
         if not set(categories) <= set(self.currentAnnotatedCategories):
             self.updateAnnotations()
@@ -411,7 +412,6 @@ class OWSetEnrichment(OWWidget):
         self.currentAnnotatedCategories = categories = self.selectedCategories()
 
         ## Load collections in a worker thread
-        print "CAT", categories
         call = self.asyncCall(obiGeneSets.collections, categories, name="Loading collections", blocking=True, thread=self.thread())
         call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
         with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
@@ -465,7 +465,7 @@ class OWSetEnrichment(OWWidget):
         self.treeItems = []
         for i, (geneset, (cmapped, rmapped, p_val, enrichment)) in enumerate(results):
             if len(cmapped) > 0:
-                item = MyTreeWidgetItem(self.annotationsChartView, [" ".join(geneset.hierarchy), geneset.name])
+                item = MyTreeWidgetItem(self.annotationsChartView, [" ".join(geneset.hierarchy), gsname(geneset)])
                 item.setData(2, Qt.DisplayRole, QVariant(countFmt % (len(cmapped), 100.0*len(cmapped)/countAll)))
                 item.setData(2, Qt.ToolTipRole, QVariant(len(cmapped))) # For filtering
                 item.setData(3, Qt.DisplayRole, QVariant(refFmt % (len(rmapped), 100.0*len(rmapped)/len(referenceGenes))))
@@ -489,7 +489,7 @@ class OWSetEnrichment(OWWidget):
             self.warning(0)
 
         replace = lambda s:s.replace(",", " ").replace("(", " ").replace(")", " ")
-        self._completerModel = completerModel = QStringListModel(sorted(reduce(set.union, [[geneset.name] + replace(geneset.name).split() for geneset, (c, _, _, _) in results if c], set())))
+        self._completerModel = completerModel = QStringListModel(sorted(reduce(set.union, [[gsname(geneset)] + replace(gsname(geneset)).split() for geneset, (c, _, _, _) in results if c], set())))
         self.filterCompleter.setModel(completerModel)
 
         self.annotationsChartView.setItemDelegateForColumn(5, BarItemDelegate(self, scale=(0.0, max(t[1][3] for t in results))))
@@ -512,7 +512,7 @@ class OWSetEnrichment(OWWidget):
         for item in self.treeItems:
             item_cat = str(item.data(0, Qt.EditRole).toString())
             count, pval = _toPyObject(item.data(2, Qt.ToolTipRole)), _toPyObject(item.data(4, 42))
-            geneset = item.geneset.name.lower()
+            geneset = gsname(item.geneset).lower()
             hidden = item_cat not in categories or (self.useMinCountFilter and count < self.minClusterCount) or \
                      (self.useMaxPValFilter and pval > self.maxPValue) or filterString not in geneset
             item.setHidden(hidden)
