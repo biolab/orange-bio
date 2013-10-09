@@ -70,6 +70,9 @@ class OWSetEnrichment(OWWidget):
     settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
     contextHandlers = {"":DomainContextHandler("", ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
 
+    def refreshHierarchy(self):
+        self.setHierarchy(*self.getHierarchy(taxid=self.taxid_list[self.speciesIndex]))
+
     def __init__(self, parent=None, signalManager=None, name="Gene Set Enrichment Analysis", **kwargs):
         OWWidget.__init__(self, parent, signalManager, name, **kwargs)
         self.inputs = [("Data", ExampleTable, self.setData, Default), ("Reference", ExampleTable, self.setReference)]
@@ -101,7 +104,7 @@ class OWSetEnrichment(OWWidget):
 
         self.speciesComboBox = OWGUI.comboBox(self.controlArea, self,
                       "speciesIndex", "Species",
-                      callback=lambda: self.data and self.updateAnnotations(),
+                      callback=lambda: (self.refreshHierarchy(), self.data and self.updateAnnotations()),
                       debuggingEnabled=0)
 
         box = OWGUI.widgetBox(self.controlArea, "Gene names")
@@ -248,10 +251,8 @@ class OWSetEnrichment(OWWidget):
             self.genesinrows = data_hints.get_hint(data, "genesinrows", self.genesinrows)
 
             self.openContext("", data)
-
-#            print self.speciesIndex
-
-            self.setHierarchy(*self.getHierarchy(taxid=self.taxid_list[self.speciesIndex]))
+        
+            self.refreshHierarchy()
 
             self.loadedGenematcher = "None"
             self.updateAnnotations()
@@ -291,6 +292,7 @@ class OWSetEnrichment(OWWidget):
                 self.groupsWidgetItems[full_cat] = item
                 fill(value, item, full_cat, org=org)
 
+        self.groupsWidget.clear()
         fill(hierarchy[1], self.groupsWidget, org=hierarchy[0])
         fill(hierarchy_noorg[1], self.groupsWidget, org=hierarchy_noorg[0])
 
@@ -319,10 +321,12 @@ class OWSetEnrichment(OWWidget):
         #FIXME this should also recompute FDR
         self.categoriesCheckState = self.getHierarchyCheckState()
         categories = self.selectedCategories()
+        
         if not set(categories) <= set(self.currentAnnotatedCategories):
             self.updateAnnotations()
         else:
             self.filterAnnotationsChartView()
+        
 
     def updateGeneMatcherSettings(self):
         from .OWGOEnrichmentAnalysis import GeneMatcherDialog
@@ -470,8 +474,7 @@ class OWSetEnrichment(OWWidget):
                 item.setData(2, Qt.ToolTipRole, QVariant(len(cmapped))) # For filtering
                 item.setData(3, Qt.DisplayRole, QVariant(refFmt % (len(rmapped), 100.0*len(rmapped)/len(referenceGenes))))
                 item.setData(4, Qt.DisplayRole, QVariant("%0.6f" % p_val)) if p_val > 0.001 else item.setData(4, Qt.DisplayRole, QVariant("%0.2e" % p_val))
-                item.setData(4, 42, QVariant(p_val))
-                #stoplec 4 - zelim sort po p_val
+                item.setData(4, 42, QVariant(p_val)) #sorting
                 item.setData(4, Qt.ToolTipRole, QVariant("%0.10f" % p_val))
                 item.setData(5, Qt.DisplayRole, QVariant(enrichment))
                 item.setData(5, Qt.ToolTipRole, QVariant("%.3f" % enrichment))
@@ -507,6 +510,9 @@ class OWSetEnrichment(OWWidget):
         if self.updatingAnnotationsFlag:
             return
         categories = set(" ".join(cat) for cat, taxid in self.selectedCategories())
+
+        #compute FDR after selection categories
+    
         filterString = str(self.filterLineEdit.text()).lower()
         itemsHidden = []
         for item in self.treeItems:
@@ -590,8 +596,8 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     w = OWSetEnrichment()
-    w.updateHierarchy()
     data = orange.ExampleTable("yeast-class-RPR.tab")
+    #data = orange.ExampleTable("/home/marko/Downloads/tmp.tab")
 #    data = orange.ExampleTable("../human")
 #    print cProfile.runctx("w.setData(data)", globals(), locals())
     w.setData(data)
