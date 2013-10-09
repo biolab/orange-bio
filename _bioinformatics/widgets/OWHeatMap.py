@@ -613,14 +613,8 @@ class OWHeatMap(OWWidget):
         
     def handleNewSignals(self):
         self.send('Examples', None)
-        self.error(0)
         if self.data:
-            if self.data.domain.has_discrete_attributes(): 
-                self.error(0, "Data contains discrete attributes")
-            elif len(self.data.domain.features) == 1:
-                self.error(0, "Cannot construct heatmap with only a single feature")
-            else:
-                self.update_heatmaps()
+            self.update_heatmaps()
         else:
             self.clear()
 
