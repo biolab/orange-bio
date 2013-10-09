@@ -23,6 +23,8 @@ def nth(l,n):
 
 from Orange.bio.geneset import GeneSet, GeneSets, GenesetRegException
 
+class NoGenesetsException(Exception): pass
+
 def goGeneSets(org):
     """Returns gene sets from GO."""
     ontology = obiGO.Ontology()
@@ -359,32 +361,34 @@ def build_hierarchy_dict(files):
     return hierd
 
 def load_local(hierarchy, organism):
-    files = map(lambda x: x[:2], list_local())
-    hierd = build_hierarchy_dict(files)
-
-    out = GeneSets()
-    for (h, o) in [ files[i] for i in hierd[(hierarchy, organism)]]:
-        fname = os.path.join(local_path(), filename(h, o))
-        out.update(pickle.load(open(fname, 'r')))
-    return out
+    return load_fn(hierarchy, organism, list_local, 
+        lambda h,o: os.path.join(local_path(), filename(h, o)))
 
 def load_serverfiles(hierarchy, organism):
-    files = map(lambda x: x[:2], list_serverfiles())
+    return load_fn(hierarchy, organism, list_serverfiles, 
+        lambda h,o: orngServerFiles.localpath_download(sfdomain, filename(h, o)))
+
+def load_fn(hierarchy, organism, fnlist, fnget):
+    files = map(lambda x: x[:2], fnlist())
     hierd = build_hierarchy_dict(files)
     out = GeneSets()
+    matches = hierd[(hierarchy, organism)]
+    if not matches:
+        exstr = "No gene sets for " + str(hierarchy) + \
+                " (org " + str(organism) + ")"
+        raise NoGenesetsException(exstr)
     for (h, o) in [ files[i] for i in hierd[(hierarchy, organism)]]:
-        fname = orngServerFiles.localpath_download(sfdomain,
-            filename(h, o))
+        fname = fnget(h, o)
         out.update(pickle.load(open(fname, 'r')))
     return out
 
 def load(hierarchy, organism):
     """ First try to load from the local registred folder. If the file
     is not available, load it from the server files. """
-    ret = load_local(hierarchy, organism)
-    if len(ret) == 0:
-        ret.update(load_serverfiles(hierarchy, organism))
-    return ret
+    try:
+        return load_local(hierarchy, organism)
+    except NoGenesetsException:
+        return load_serverfiles(hierarchy, organism)
 
 def collections(*args):
     """
