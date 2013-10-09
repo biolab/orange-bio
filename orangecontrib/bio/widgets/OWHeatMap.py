@@ -624,14 +624,8 @@ class OWHeatMap(OWWidget):
         
     def handleNewSignals(self):
         self.send('Examples', None)
-        self.error(0)
         if self.data:
-            if self.data.domain.has_discrete_attributes(): 
-                self.error(0, "Data contains discrete attributes")
-            elif len(self.data.domain.features) == 1:
-                self.error(0, "Cannot construct heatmap with only a single feature")
-            else:
-                self.update_heatmaps()
+            self.update_heatmaps()
         else:
             self.clear()
 
@@ -1244,7 +1238,12 @@ class OWHeatMap(OWWidget):
         data = None
         if self.sorted_data:
             if self.selected_rows:
-                examples = [self.sorted_data[i] for i in self.selected_rows]
+                #bug if merge is used does not return enough genes
+                #examples = [self.sorted_data[i] for i in self.selected_rows]
+
+                #uses Merge parameter, but does not work correctly for data with multiple classes
+                examples = [self.sorted_data[i*self.Merge+j] for i in self.selected_rows for j in range(self.Merge) if i*self.Merge+j < len(self.sorted_data)]
+
                 data = orange.ExampleTable(examples)
             else:
                 data = None
