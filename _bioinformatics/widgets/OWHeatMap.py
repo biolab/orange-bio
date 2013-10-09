@@ -1227,13 +1227,21 @@ class OWHeatMap(OWWidget):
         data = None
         if self.sorted_data:
             if self.selected_rows:
-                #bug if merge is used does not return enough genes
-                #examples = [self.sorted_data[i] for i in self.selected_rows]
+                
+                #obtain examples directly from the heatmap, so their order does not matter
 
-                #uses Merge parameter, but does not work correctly for data with multiple classes
-                examples = [self.sorted_data[i*self.Merge+j] for i in self.selected_rows for j in range(self.Merge) if i*self.Merge+j < len(self.sorted_data)]
+                rd = self.selection_manager.rows_to_heatmaps()
+                hr = self.selection_manager._heatmap_ranges
 
+                examples = []
+                for row in self.selected_rows:
+                    h = rd[row][0]
+                    begin,_ = hr[h]
+                    hm = h.heatmap
+                    examples.extend(hm.examples[hm.exampleIndices[row-begin] : hm.exampleIndices[row+1-begin]])
+                    
                 data = orange.ExampleTable(examples)
+
             else:
                 data = None
         
