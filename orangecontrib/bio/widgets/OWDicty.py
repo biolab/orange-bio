@@ -87,10 +87,12 @@ class OWDicty(OWWidget):
     def __updateSelectionList(self, oldList, oldSelection, newList):
         oldList = [oldList[i] for i in oldSelection]
         return [ i for i, new in enumerate(newList) if new in oldList]
-    
-    def Connect(self):
 
-        address = self.server + "?"
+    def Connect(self):
+        address = self.server
+        if not address.endswith("?"):
+            address = address + "?"
+
         if self.serverToken:
             address += "token="+self.serverToken+"&"
         try:
