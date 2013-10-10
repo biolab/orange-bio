@@ -19,6 +19,8 @@ from .. import obiGene, obiGeneSets, obiProb, obiTaxonomy
 def gsname(geneset):
     return geneset.name if geneset.name else geneset.id
 
+fmtp = lambda score: "%0.5f" % score if score > 10e-4 else "%0.1e" % score
+fmtpdet = lambda score: "%0.9f" % score if score > 10e-4 else "%0.5e" % score
 
 def _toPyObject(variant):
     val = variant.toPyObject()
@@ -50,7 +52,7 @@ class MyTreeWidgetItem(QTreeWidgetItem):
         if not self.treeWidget():
             return id(self) < id(other)
         column = self.treeWidget().sortColumn()
-        if column == 4:
+        if column in [4,5]:
             lhs = _toPyObject(self.data(column, 42))
             rhs = _toPyObject(other.data(column, 42))
         else:
@@ -67,7 +69,7 @@ def name_or_none(id):
         return None
 
 class OWSetEnrichment(OWWidget):
-    settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"]
+    settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState", "useMinCountFilter", "useMaxPValFilter", "useMaxFDRFilter", "minClusterCount", "maxPValue", "maxFDR" ]
     contextHandlers = {"":DomainContextHandler("", ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
 
     def refreshHierarchy(self):
@@ -85,10 +87,10 @@ class OWSetEnrichment(OWWidget):
         self.useReferenceData = False
         self.useMinCountFilter = True
         self.useMaxPValFilter = True
-        self.minClusterCount = 0
+        self.useMaxFDRFilter = True
+        self.minClusterCount = 3
         self.maxPValue = 0.01
-
-        self.useFDR = True
+        self.maxFDR = 0.01
 
         self.categoriesCheckState = {}
 
@@ -147,11 +149,20 @@ class OWSetEnrichment(OWWidget):
 
         dsp, dspcb = OWGUI.doubleSpin(hWidget, self,
                         "maxPValue", 0.0, 1.0, 0.0001,
-                        label="FDR adjusted P-Value",
-                        tooltip="Maximum (FDR adjusted) P-Value",
+                        label="p-value",
+                        tooltip="Maximum p-value",
                         callback=self.filterAnnotationsChartView,
                         callbackOnReturn=True,
                         checked="useMaxPValFilter",
+                        checkCallback=self.filterAnnotationsChartView)
+
+        dsfdr, dsfdrcb = OWGUI.doubleSpin(hWidget, self,
+                        "maxFDR", 0.0, 1.0, 0.0001,
+                        label="FDR",
+                        tooltip="Maximum False discovery rate",
+                        callback=self.filterAnnotationsChartView,
+                        callbackOnReturn=True,
+                        checked="useMaxFDRFilter",
                         checkCallback=self.filterAnnotationsChartView)
 
         from Orange.OrangeWidgets import OWGUIEx
@@ -175,7 +186,7 @@ class OWSetEnrichment(OWWidget):
 
         self.annotationsChartView = MyTreeWidget(self)
         self.annotationsChartView.setHeaderLabels(["Category", "Term",
-                            "Count", "Reference count", "P-Value", "Enrichment"])
+                            "Count", "Reference count", "p-value", "FDR", "Enrichment"])
         self.annotationsChartView.setAlternatingRowColors(True)
         self.annotationsChartView.setSortingEnabled(True)
         self.annotationsChartView.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -318,7 +329,6 @@ class OWSetEnrichment(OWWidget):
         return dict(states)
 
     def subsetSelectionChanged(self, item, column):
-        #FIXME this should also recompute FDR
         self.categoriesCheckState = self.getHierarchyCheckState()
         categories = self.selectedCategories()
         
@@ -447,18 +457,11 @@ class OWSetEnrichment(OWWidget):
             if i in milestones:
                 self.progressBarSet(100.0 * i / len(collections))
 
-        if self.useFDR:
-            results = sorted(results, key=lambda a:a[1][2])
-            pvals = obiProb.FDR([pval for _, (_, _, pval, _) in results])
-            results = [(geneset, (cmapped, rmapped, pvals[i], es)) for i, (geneset, (cmapped, rmapped, _, es)) in enumerate(results)]
-
-        fmt = lambda score, max_decimals=10: "%%.%if" % min(int(abs(math.log(max(score, 1e-10)))) + 2, max_decimals) if score > math.pow(10, -max_decimals) and score < 1 else "%.1f"
         self.annotationsChartView.clear()
 
         maxCount = max([len(cm) for _, (cm, _, _, _) in results] + [1])
         maxRefCount = max([len(rc) for _, (_, rc, _, _) in results] + [1])
         countSpaces = int(math.ceil(math.log10(maxCount)))
-        #print maxRefCount
         refSpaces = int(math.ceil(math.log(maxRefCount)))
         countFmt = "%"+str(countSpaces) + "s  (%.2f%%)"
         refFmt = "%"+str(refSpaces) + "s  (%.2f%%)"
@@ -473,11 +476,12 @@ class OWSetEnrichment(OWWidget):
                 item.setData(2, Qt.DisplayRole, QVariant(countFmt % (len(cmapped), 100.0*len(cmapped)/countAll)))
                 item.setData(2, Qt.ToolTipRole, QVariant(len(cmapped))) # For filtering
                 item.setData(3, Qt.DisplayRole, QVariant(refFmt % (len(rmapped), 100.0*len(rmapped)/len(referenceGenes))))
-                item.setData(4, Qt.DisplayRole, QVariant("%0.6f" % p_val)) if p_val > 0.001 else item.setData(4, Qt.DisplayRole, QVariant("%0.2e" % p_val))
-                item.setData(4, 42, QVariant(p_val)) #sorting
-                item.setData(4, Qt.ToolTipRole, QVariant("%0.10f" % p_val))
-                item.setData(5, Qt.DisplayRole, QVariant(enrichment))
-                item.setData(5, Qt.ToolTipRole, QVariant("%.3f" % enrichment))
+                item.setData(4, Qt.ToolTipRole, QVariant(fmtpdet(p_val)))
+                item.setData(4, Qt.DisplayRole, QVariant(fmtp(p_val)))
+                item.setData(4, 42, QVariant(p_val))
+                #column 5, FDR, is computed in filterAnnotationsChartView
+                item.setData(6, Qt.DisplayRole, QVariant(enrichment))
+                item.setData(6, Qt.ToolTipRole, QVariant("%.3f" % enrichment))
                 item.geneset= geneset
                 self.treeItems.append(item)
                 if geneset.link:
@@ -495,7 +499,7 @@ class OWSetEnrichment(OWWidget):
         self._completerModel = completerModel = QStringListModel(sorted(reduce(set.union, [[gsname(geneset)] + replace(gsname(geneset)).split() for geneset, (c, _, _, _) in results if c], set())))
         self.filterCompleter.setModel(completerModel)
 
-        self.annotationsChartView.setItemDelegateForColumn(5, BarItemDelegate(self, scale=(0.0, max(t[1][3] for t in results))))
+        self.annotationsChartView.setItemDelegateForColumn(6, BarItemDelegate(self, scale=(0.0, max(t[1][3] for t in results))))
         self.annotationsChartView.setItemDelegateForColumn(1, LinkStyledItemDelegate(self.annotationsChartView))
 
         for i in range(self.annotationsChartView.columnCount()):
@@ -511,18 +515,43 @@ class OWSetEnrichment(OWWidget):
             return
         categories = set(" ".join(cat) for cat, taxid in self.selectedCategories())
 
-        #compute FDR after selection categories
     
         filterString = str(self.filterLineEdit.text()).lower()
-        itemsHidden = []
+
+        #hide categories
+        itemsHiddenCat = []
         for item in self.treeItems:
             item_cat = str(item.data(0, Qt.EditRole).toString())
-            count, pval = _toPyObject(item.data(2, Qt.ToolTipRole)), _toPyObject(item.data(4, 42))
             geneset = gsname(item.geneset).lower()
-            hidden = item_cat not in categories or (self.useMinCountFilter and count < self.minClusterCount) or \
-                     (self.useMaxPValFilter and pval > self.maxPValue) or filterString not in geneset
+            hidden = item_cat not in categories
+            itemsHiddenCat.append(hidden)
+        
+        #compute FDR according the selected categories
+        pvals = [ _toPyObject(item.data(4, 42)) for item, hidden in zip(self.treeItems, itemsHiddenCat) if not hidden ]
+        fdrs = obiProb.FDR(pvals)
+
+        #update FDR for the selected collections and apply filtering rules
+        fdri = 0
+        itemsHidden = []
+        for item, hidden in zip(self.treeItems, itemsHiddenCat):
+            if not hidden:
+                fdr = fdrs[fdri]
+                fdri += 1
+
+                count, pval = _toPyObject(item.data(2, Qt.ToolTipRole)), _toPyObject(item.data(4, 42))
+
+                hidden = (self.useMinCountFilter and count < self.minClusterCount) or \
+                         (self.useMaxPValFilter and pval > self.maxPValue) or \
+                         (self.useMaxFDRFilter and fdr > self.maxFDR)
+                
+                if not hidden:
+                    item.setData(5, Qt.ToolTipRole, QVariant(fmtpdet(fdr)))
+                    item.setData(5, Qt.DisplayRole, QVariant(fmtp(fdr)))
+                    item.setData(5, 42, QVariant(fdr))
+
             item.setHidden(hidden)
             itemsHidden.append(hidden)
+                
 
         if self.treeItems and all(itemsHidden):
             self.information(0, "All sets were filtered out.")
@@ -558,7 +587,8 @@ class OWSetEnrichment(OWWidget):
     def sendReport(self):
         self.reportSettings("Settings", [("Organism", obiTaxonomy.name(self.taxid_list[self.speciesIndex]))])
         self.reportSettings("Filter", [("Min cluster size", self.minClusterCount if self.useMinCountFilter else 0),
-                                       ("Max p-value", self.maxPValue if self.useMaxPValFilter else 1.0)])
+                                       ("Max p-value", self.maxPValue if self.useMaxPValFilter else 1.0),
+                                       ("Max FDR", self.maxFDR if self.useMaxFDRFilter else 1.0)])
 
         self.reportSubsection("Annotations")
         self.reportRaw(reportItemView(self.annotationsChartView))
