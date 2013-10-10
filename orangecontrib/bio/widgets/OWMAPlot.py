@@ -16,6 +16,18 @@ from Orange.OrangeWidgets.OWGraph import *
 
 from .. import obiExpression
 
+NAME = "MA Plot"
+DESCRIPTION = "Normalize expression array data on a MA - plot"
+ICON = "icons/MAPlot.svg"
+PRIORITY = 5000
+
+INPUTS = [("Expression array", Orange.data.Table, "setData")]
+OUTPUTS = [("Normalized expression array", Orange.data.Table, Default),
+           ("Filtered expression array", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWMAPlot.OWMAPlot"]
+
+
 class ProgressBarDiscard(QObject):
     def __init__(self, parent, redirect):
         QObject.__init__(self, parent)

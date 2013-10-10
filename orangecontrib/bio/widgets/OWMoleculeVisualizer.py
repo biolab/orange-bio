@@ -22,6 +22,19 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiChem
 
+NAME = "Molecule Visualizer"
+DESCRIPTION = "Rendering of 2D structure of molecules based on their SMILES description."
+ICON = "icons/MoleculeVisualizer.svg"
+PRIORITY = 2050
+
+INPUTS = [("Molecules", Orange.data.Table, "setMoleculeTable", Default),
+		  ("Molecule subset", Orange.data.Table, "setMoleculeSubset"),
+		  ("Fragments", Orange.data.Table, "setFragmentTable")]
+OUTPUTS = [("Selected Molecules", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWMoleculeVisualizer.OWMoleculeVisualizer"]
+
+
 class dummy_module(object):
 	def __init__(self, name):
 		self.name = name

@@ -13,6 +13,16 @@ from Orange.OrangeWidgets.OWTools import *
 from Orange.OrangeWidgets.OWWidget import *
 import statc
 
+NAME = "Data Profiles"
+DESCRIPTION = "Visualization of data profiles (e.g., time series)."
+ICON = "icons/ExpressionProfiles.svg"
+PRIORITY = 1030
+
+INPUTS = [("Examples", Orange.data.Table, "data", Multiple + Default)]
+OUTPUTS = [("Examples", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWDisplayProfiles.OWDisplayProfiles"]
+
 ## format of data:
 ##     largestAdjacentValue
 ##     yq3

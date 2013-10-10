@@ -3,7 +3,7 @@
 PIPA
 ====
 
-.. image:: ../../_bioinformatics/widgets/icons/PIPA.png
+.. image:: ../../orangecontrib/bio/widgets/icons/PIPA.png
    :alt: Widget icon
    
 Signals

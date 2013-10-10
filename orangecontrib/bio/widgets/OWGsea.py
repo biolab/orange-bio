@@ -19,6 +19,19 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiGene, obiGeneSets, obiGsea, obiKEGG
 
+NAME = "GSEA"
+DESCRIPTION = "Gene set enrichment analysis."
+ICON = "icons/GSEA.svg"
+PRIORITY = 2025
+
+INPUTS = [("Examples", Orange.data.Table, "setData")]
+OUTPUTS = [("Examples with selected genes only", Orange.data.Table),
+           ("Results", Orange.data.Table),
+           ("Distance Matrix", Orange.core.SymMatrix)]
+
+REPLACES = ["_bioinformatics.widgets.OWGsea.OWGsea"]
+
+
 def nth(l, n):
     return [ a[n] for a in l ]
 

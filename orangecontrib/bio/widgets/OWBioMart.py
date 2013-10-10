@@ -14,14 +14,28 @@ import socket
 from collections import defaultdict
 import itertools
 
+import Orange
+
 from Orange.OrangeWidgets import OWConcurrent
 from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiBioMart
 from ..obiBioMart import *
 
+NAME = "BioMart"
+DESCRIPTION = "Query BioMart service"
+ICON = "icons/BioMart.svg"
+PRIORITY = 2010
+
+INPUTS = [("Input ids", Orange.data.Table, "setData")]
+OUTPUTS = [("Example Table", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWBioMart.OWBioMart"]
+
+
 socket.setdefaulttimeout(60)
-                
+
+
 def is_hidden(tree):
     return getattr(tree, "hidden", "false") != "false" or getattr(tree, "hideDisplay", "false") != "false"
 

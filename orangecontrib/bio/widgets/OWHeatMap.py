@@ -24,6 +24,17 @@ from Orange.OrangeWidgets.OWWidget import *
 
 import functools
 
+NAME = "Heat Map"
+DESCRIPTION = "Heatmap visualization."
+ICON = "icons/Heatmap.svg"
+PRIORITY = 1040
+
+INPUTS = [("Examples", Orange.data.Table, "set_dataset")]
+OUTPUTS = [("Examples", Orange.data.Table, Single + Default)]
+
+REPLACES = ["_bioinformatics.widgets.OWHeatMap.OWHeatMap"]
+
+
 DEBUG = False
 
 #BUG: OWHeatMap does not support heatmaps which need a image which is larger than maxint X maxint pixels!

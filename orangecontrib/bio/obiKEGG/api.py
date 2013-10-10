@@ -354,7 +354,7 @@ class CachedKeggApi(KeggApi):
         path = conf.params["cache.path"]
         touch_dir(path)
         return caching.Sqlite3Store(os.path.join(path,
-                                                 "kegg_api_cache_1.sqlite3"))
+                                                 "kegg_api_cache_2.sqlite3"))
 
     def last_modified(self, args, kwargs=None):
         return getattr(self, "default_release", "")

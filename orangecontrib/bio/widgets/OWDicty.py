@@ -10,11 +10,24 @@ from __future__ import absolute_import
 from collections import defaultdict
 import sys
 
+import Orange
 from Orange.orng import orngEnviron
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiDicty
+
+NAME = "dictyExpress"
+DESCRIPTION = "Access to data in dictyExpress database."
+ICON = "icons/DictyExpress.svg"
+PRIORITY = 40
+
+
+INPUTS = []
+OUTPUTS = [("Example table", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWDicty.OWDicty"]
+
 
 class MyTreeWidgetItem(QTreeWidgetItem):
     def __contains__(self, text):

@@ -59,9 +59,12 @@ CLASSIFIERS = (
 PACKAGES = find_packages(
     exclude = ('*.tests', '*.tests.*', 'tests.*', 'tests'),
 )
- 
+
 PACKAGE_DATA = {
 }
+
+# Backwards compatibility stub. Should be removed by the 2.7 release.
+PY_MODULES = ["_bioinformatics"]
 
 SETUP_REQUIRES = (
     'setuptools',
@@ -103,16 +106,16 @@ DEPENDENCY_LINKS = (
 
 ENTRY_POINTS = {
     'orange.addons': (
-        'bio = _bioinformatics',
+        'bio = orangecontrib.bio',
     ),
     'orange.widgets': (
-        'Bioinformatics = _bioinformatics.widgets',
+        'Bioinformatics = orangecontrib.bio.widgets',
         # This should be unneeded, because module given should load (register)
         # all wanted widgets and prototypes should just have a flag, but for now ...
-        'Prototypes = _bioinformatics.widgets.prototypes',
+        'Prototypes = orangecontrib.bio.widgets.prototypes',
     ),
     'orange.canvas.help': (
-        'intersphinx = _bioinformatics.widgets:intersphinx'
+        'intersphinx = orangecontrib.bio.widgets:intersphinx'
     )
 }
 
@@ -131,6 +134,7 @@ if __name__ == '__main__':
         classifiers = CLASSIFIERS,
         packages = PACKAGES,
         package_data = PACKAGE_DATA,
+        py_modules = PY_MODULES,
         setup_requires = SETUP_REQUIRES,
         install_requires = INSTALL_REQUIRES,
         extras_require = EXTRAS_REQUIRE,

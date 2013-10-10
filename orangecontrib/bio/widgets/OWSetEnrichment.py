@@ -16,6 +16,18 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiGene, obiGeneSets, obiProb, obiTaxonomy
 
+NAME = "Gene Set Enrichment"
+DESCRIPTION = ""
+ICON = "icons/GeneSetEnrichment.svg"
+PRIORITY = 5000
+
+INPUTS = [("Data", Orange.data.Table, "setData", Default),
+          ("Reference", Orange.data.Table, "setReference")]
+OUTPUTS = [("Data subset", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWSetEnrichment.OWSetEnrichment"]
+
+
 def gsname(geneset):
     return geneset.name if geneset.name else geneset.id
 

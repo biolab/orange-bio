@@ -21,6 +21,24 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiGene, obiGO, obiProb, obiTaxonomy
 
+NAME = "GO Browser"
+DESCRIPTION = "Enrichment analysis for Gene Ontology terms."
+ICON = "icons/GOBrowser.svg"
+PRIORITY = 2020
+
+INPUTS = [("Cluster Examples", Orange.data.Table,
+           "SetClusterDataset", Single + Default),
+          ("Reference Examples", Orange.data.Table,
+           "SetReferenceDataset")]
+
+OUTPUTS = [("Selected Examples", Orange.data.Table),
+           ("Unselected Examples", Orange.data.Table),
+           ("Example With Unknown Genes", Orange.data.Table),
+           ("Enrichment Report", Orange.data.Table)]
+
+REPLACES = ["_bioinformatics.widgets.OWGOEnrichmentAnalysis.OWGOEnrichmentAnalysis"]
+
+
 dataDir = orngServerFiles.localpath("GO")
 
 def listAvailable():
