@@ -104,9 +104,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     "geneAttrIndex", "geneMatcherSettings",
                     "filterByNumOfInstances", "minNumOfInstances",
                     "filterByPValue", "maxPValue", "selectionDirectAnnotation",
+                    "filterByPValue_nofdr", "maxPValue_nofdr",
                     "selectionDisjoint", "selectionType",
-                    "selectionAddTermAsClass", "useAttrNames", "probFunc",
-                    "useFDR"
+                    "selectionAddTermAsClass", "useAttrNames", "probFunc"
                     ]
 
     contextHandlers = {"": DomainContextHandler(
@@ -139,8 +139,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.minNumOfInstances = 1
         self.filterByPValue = True
         self.maxPValue = 0.1
+        self.filterByPValue_nofdr = False
+        self.maxPValue_nofdr = 0.1
         self.probFunc = 0
-        self.useFDR = True
         self.selectionDirectAnnotation = 0
         self.selectionDisjoint = 0
         self.selectionAddTermAsClass = 0
@@ -215,22 +216,31 @@ class OWGOEnrichmentAnalysis(OWWidget):
                    callbackOnReturn=True, 
                    tooltip="Min. number of input genes mapped to a term")
         
-        OWGUI.checkBox(box, self, "filterByPValue", "Significance",
+        OWGUI.checkBox(box, self, "filterByPValue_nofdr", "p-value",
                        callback=self.FilterAndDisplayGraph, 
                        tooltip="Filter by term p-value")
+        OWGUI.doubleSpin(OWGUI.indentedBox(box), self, 'maxPValue_nofdr', 1e-8, 1, 
+                         step=1e-8,  label='p:', labelWidth=15, 
+                         callback=self.FilterAndDisplayGraph, 
+                         callbackOnReturn=True, 
+                         tooltip="Max term p-value")
+
+        #use filterByPValue for FDR, as it was the default in prior versions
+        OWGUI.checkBox(box, self, "filterByPValue", "FDR",
+                       callback=self.FilterAndDisplayGraph, 
+                       tooltip="Filter by term FDR")
         OWGUI.doubleSpin(OWGUI.indentedBox(box), self, 'maxPValue', 1e-8, 1, 
                          step=1e-8,  label='p:', labelWidth=15, 
                          callback=self.FilterAndDisplayGraph, 
                          callbackOnReturn=True, 
                          tooltip="Max term p-value")
+
         box = OWGUI.widgetBox(box, "Significance test")
+
         OWGUI.radioButtonsInBox(box, self, "probFunc", ["Binomial", "Hypergeometric"], 
                                 tooltips=["Use binomial distribution test", 
                                           "Use hypergeometric distribution test"], 
                                 callback=self.Update)
-        OWGUI.checkBox(box, self, "useFDR", "Use FDR (False Discovery Rate)", 
-                       callback=self.Update, 
-                       tooltip="Use False Discovery Rate correction")
         box = OWGUI.widgetBox(self.filterTab, "Evidence codes in annotation", 
                               addSpace=True)
         self.evidenceCheckBoxDict = {}
@@ -260,7 +270,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                                          callback=self.ExampleSelection)
 
         # ListView for DAG, and table for significant GOIDs
-        self.DAGcolumns = ['GO term', 'Cluster', 'Reference', 'p value', 'Genes', 'Enrichment']
+        self.DAGcolumns = ['GO term', 'Cluster', 'Reference', 'p-value', 'FDR', 'Genes', 'Enrichment']
         
         self.splitter = QSplitter(Qt.Vertical, self.mainArea)
         self.mainArea.layout().addWidget(self.splitter)
@@ -275,7 +285,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.listView.header().setClickable(True)
         self.listView.header().setSortIndicatorShown(True)
         self.listView.setSortingEnabled(True)
-        self.listView.setItemDelegateForColumn(5, EnrichmentColumnItemDelegate(self))
+        self.listView.setItemDelegateForColumn(6, EnrichmentColumnItemDelegate(self))
         self.listView.setRootIsDecorated(True)
 
         
@@ -287,6 +297,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.sigTerms.setHeaderLabels(self.DAGcolumns)
         self.sigTerms.setSortingEnabled(True)
         self.sigTerms.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.sigTerms.setItemDelegateForColumn(6, EnrichmentColumnItemDelegate(self))
         
         self.connect(self.sigTerms, SIGNAL("itemSelectionChanged()"), self.TableSelectionChanged)
         self.splitter.show()
@@ -650,8 +661,16 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
         if clusterGenes:
             self.terms = terms = self.annotations.GetEnrichedTerms(clusterGenes, referenceGenes, evidences, aspect=aspect,
-                                                                   prob=self.probFunctions[self.probFunc], useFDR=self.useFDR,
+                                                                   prob=self.probFunctions[self.probFunc], useFDR=False,
                                                                    progressCallback=lambda value:pb.advance() )
+            ids = []
+            pvals = []
+            for i,d in self.terms.items():
+                ids.append(i)
+                pvals.append(d[1])
+            for i,fdr in zip(ids, obiProb.FDR(pvals)): #save FDR as the last part of the tuple
+                terms[i] = tuple(list(terms[i]) + [ fdr ])
+
         else:
             self.terms = terms = {}
         if not self.terms:
@@ -680,10 +699,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
         return terms
         
     def FilterGraph(self, graph):
-        if self.filterByPValue:
-            graph = obiGO.filterByPValue(graph, self.maxPValue)
+        if self.filterByPValue_nofdr:
+            graph = obiGO.filterByPValue(graph, self.maxPValue_nofdr)
+        if self.filterByPValue: #FDR
+            graph = dict(filter(lambda (k, e): e[3] <= self.maxPValue, graph.items()))
         if self.filterByNumOfInstances:
-            graph = dict(filter(lambda (id,(genes, p, rc)):len(genes)>=self.minNumOfInstances, graph.items()))
+            graph = dict(filter(lambda (id,(genes, p, rc, fdr)):len(genes)>=self.minNumOfInstances, graph.items()))
         return graph
 
     def FilterAndDisplayGraph(self):
@@ -716,6 +737,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         enrichment = lambda t:float(len(t[0])) / t[2] * (float(len(self.referenceGenes))/len(self.clusterGenes))
         maxFoldEnrichment = max([enrichment(term) for term in self.graph.values()] or [1])
 
+
         def addNode(term, parent, parentDisplayNode):
             if (parent, term) in fromParentDict:
                 return
@@ -743,9 +765,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.sigTableTermsSorted = [t[0] for t in terms]
 
         self.sigTerms.clear()
-        for i, (t_id, (genes, p_value, refCount)) in enumerate(terms):
+        for i, (t_id, (genes, p_value, refCount, fdr)) in enumerate(terms):
             item = GOTreeWidgetItem(self.ontology[t_id],
-                                    (genes, p_value, refCount),
+                                    (genes, p_value, refCount, fdr),
                                     len(self.clusterGenes),
                                     len(self.referenceGenes),
                                     maxFoldEnrichment,
@@ -753,10 +775,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
             item.goId = t_id
 
         self.listView.expandAll()
-        for i in range(4):
+        for i in range(5):
             self.listView.resizeColumnToContents(i)
             self.sigTerms.resizeColumnToContents(i)
-        self.sigTerms.resizeColumnToContents(5)
+        self.sigTerms.resizeColumnToContents(6)
         width = min(self.listView.columnWidth(0), 350)
         self.listView.setColumnWidth(0, width)
         self.sigTerms.setColumnWidth(0, width)
@@ -767,7 +789,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
              orange.StringVariable("GO Term Name"),
              orange.FloatVariable("Cluster Frequency"),
              orange.FloatVariable("Reference Frequency"),
-             orange.FloatVariable("P-value"),
+             orange.FloatVariable("p-value"),
+             orange.FloatVariable("FDR"),
              orange.FloatVariable("Enrichment"),
              orange.StringVariable("Genes")
              ], None)
@@ -777,11 +800,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
                   float(len(genes)) / len(self.clusterGenes),
                   float(r_count) / len(self.referenceGenes),
                   p_value,
+                  fdr,
                   float(len(genes)) / len(self.clusterGenes) * \
                   float(len(self.referenceGenes)) / r_count,
                   ",".join(genes)
                   ]
-                 for t_id, (genes, p_value, r_count) in terms]
+                 for t_id, (genes, p_value, r_count, fdr) in terms]
 
         if terms:
             termsTable = orange.ExampleTable(termsDomain, terms)
@@ -916,9 +940,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
         
     def sendReport(self):
         self.reportSettings("Settings", [("Organism", self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes) - 1)]),
-                                         ("Significance test", ("Binomial" if self.probFunc == 0 else "Hypergeometric") + (" with FDR" if self.useFDR else ""))])
+                                         ("Significance test", ("Binomial" if self.probFunc == 0 else "Hypergeometric") )])
         self.reportSettings("Filter", ([("Min cluster size", self.minNumOfInstances)] if self.filterByNumOfInstances else []) + \
-                                      ([("Max p-value", self.maxPValue)] if self.filterByPValue else []))
+                                      ([("Max p-value", self.maxPValue_nofdr)] if self.filterByPValue_nofdr else []) + \
+                                      ([("Max FDR", self.maxPValue)] if self.filterByPValue else []))
 
         def treeDepth(item):
             return 1 + max([treeDepth(item.child(i)) for i in range(item.childCount())] +[0])
@@ -926,17 +951,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
         def printTree(item, level, treeDepth):
             text = '<tr>' + '<td width=16px></td>' * level
             text += '<td colspan="%i">%s: %s</td>' % (treeDepth - level, item.term.id, item.term.name)
-            text += ''.join('<td>%s</td>' % item.text(i) for i in range(1, 4) + [5]) + '</tr>\n'
+            text += ''.join('<td>%s</td>' % item.text(i) for i in range(1, 5) + [6]) + '</tr>\n'
             for i in range(item.childCount()):
                 text += printTree(item.child(i), level + 1, treeDepth)
             return text
         
         treeDepth = max([treeDepth(self.listView.topLevelItem(i)) for i in range(self.listView.topLevelItemCount())] + [0])
         
-        tableText = '<table>\n<tr>' + ''.join('<th>%s</th>' % s for s in ["Term:", "List:", "Reference:", "P-value:", "Enrichment:"]) + '</tr>'
+        tableText = '<table>\n<tr>' + ''.join('<th>%s</th>' % s for s in ["Term:", "List:", "Reference:", "p-value:", "FDR", "Enrichment:"]) + '</tr>'
         
         treeText = '<table>\n' +  '<th colspan="%i">%s</th>' % (treeDepth, "Term:") 
-        treeText += ''.join('<th>%s</th>' % s for s in ["List:", "Reference:", "P-value:", "Enrichment:"]) + '</tr>'
+        treeText += ''.join('<th>%s</th>' % s for s in ["List:", "Reference:", "p-value:", "FDR", "Enrichment:"]) + '</tr>'
         
         for index in range(self.sigTerms.topLevelItemCount()):
             item = self.sigTerms.topLevelItem(index)
@@ -966,6 +991,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         gc.collect() # Force collection
         
 
+fmtp = lambda score: "%0.5f" % score if score > 10e-4 else "%0.1e" % score
+fmtpdet = lambda score: "%0.9f" % score if score > 10e-4 else "%0.5e" % score
+
 class GOTreeWidgetItem(QTreeWidgetItem):
     def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes, maxFoldEnrichment, parent):
         QTreeWidgetItem.__init__(self, parent)
@@ -980,11 +1008,15 @@ class GOTreeWidgetItem(QTreeWidgetItem):
         self.setText(1, fmt % (len(enrichmentResult[0]), 100.0*len(self.enrichmentResult[0])/nClusterGenes))
         fmt = "%" + str(-int(math.log(nRefGenes))) + "i (%.2f%%)"
         self.setText(2, fmt % (enrichmentResult[2], 100.0*enrichmentResult[2]/nRefGenes))
-        self.setText(3, "%.4f" % enrichmentResult[1])
-        self.setText(4, ", ".join(enrichmentResult[0]))
-        self.setText(5, "%.2f" % (enrichment(enrichmentResult)))
+        self.setText(3, fmtp(enrichmentResult[1]))
+        self.setToolTip(3, fmtpdet(enrichmentResult[1]))
+        self.setText(4, fmtp(enrichmentResult[3])) #FDR
+        self.setToolTip(4, fmtpdet(enrichmentResult[3]))
+        self.setText(5, ", ".join(enrichmentResult[0]))
+        self.setText(6, "%.2f" % (enrichment(enrichmentResult)))
+        self.setToolTip(6, "%.2f" % (enrichment(enrichmentResult)))
         self.setToolTip(0, "<p>" + term.__repr__()[6:].strip().replace("\n", "<br>"))
-        self.sortByData = [term.name, len(self.enrichmentResult[0]), enrichmentResult[2], enrichmentResult[1], ", ".join(enrichmentResult[0]), enrichment(enrichmentResult)]
+        self.sortByData = [term.name, len(self.enrichmentResult[0]), enrichmentResult[2], enrichmentResult[1], enrichmentResult[3], ", ".join(enrichmentResult[0]), enrichment(enrichmentResult)]
 
     def data(self, col, role):
         if role == Qt.UserRole:
