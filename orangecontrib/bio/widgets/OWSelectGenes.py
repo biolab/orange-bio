@@ -175,19 +175,24 @@ class OWSelectGenes(OWWidget):
         self.subsetbox.setEnabled(
             self.selectedSource == OWSelectGenes.SelectInput)
 
+        box1 = OWGUI.widgetBox(self.subsetbox, "Gene Attribute", flat=True)
         self.subsetVarCombo = OWGUI.comboBox(
-            OWGUI.widgetBox(self.subsetbox, "Gene Attribute", flat=True),
-            self, "subsetGeneIndex",
+            box1, self, "subsetGeneIndex",
             callback=self._onSubsetGeneIndexChanged
         )
         self.subsetVarCombo.setModel(self.subsetVariables)
         self.subsetVarCombo.setToolTip(
             "Column with gene names in the 'Gene Subset' input"
         )
+        OWGUI.button(box1, self, "Copy genes to saved subsets",
+                     callback=self.copyToSaved)
+
+        OWGUI.button(box1, self, "Append genes to current saved selection",
+                     callback=self.appendToSelected)
 
         box.layout().addWidget(button2)
 
-        group = QButtonGroup(box)
+        self.selectedSourceButtons = group = QButtonGroup(box)
         group.addButton(button1, OWSelectGenes.SelectInput)
         group.addButton(button2, OWSelectGenes.SelectCustom)
         group.buttonClicked[int].connect(self._selectionSourceChanged)
@@ -411,6 +416,14 @@ class OWSelectGenes(OWWidget):
         self.send("Selected Data", data)
         self._changedFlag = False
 
+    def setSelectionSource(self, source):
+        if self.selectedSource != source:
+            self.selectedSource = source
+            self.subsetbox.setEnabled(source == OWSelectGenes.SelectInput)
+            self.entrybox.setEnabled(source == OWSelectGenes.SelectCustom)
+            b = self.selectedSourceButtons.button(source)
+            b.setChecked(True)
+
     def _selectionSourceChanged(self, source):
         if self.selectedSource != source:
             self.selectedSource = source
@@ -471,6 +484,33 @@ class OWSelectGenes(OWWidget):
         if item:
             item.savedata = self.entryField.items()
             item.modified = False
+
+    def copyToSaved(self):
+        """
+        Copy the current 'Gene Subset' names to saved selections.
+        """
+        if self.subsetGeneVar and \
+                self.selectedSource == OWSelectGenes.SelectInput:
+            names = self.selectedGenes()
+            item = SaveSlot("New selection")
+            item.savedata = names
+            self.selectionsModel.appendRow([item])
+            self.setSelectionSource(OWSelectGenes.SelectCustom)
+            self.selectionsView.setCurrentIndex(item.index())
+            self.selectionsView.edit(item.index())
+
+    def appendToSelected(self):
+        """
+        Append the current 'Gene Subset' names to 'Select Genes' entry field.
+        """
+        if self.subsetGeneVar and \
+                self.selectedSource == OWSelectGenes.SelectInput:
+            names = self.selectedGenes()
+            text = " ".join(names)
+            self.entryField.appendPlainText(text)
+            self.setSelectionSource(OWSelectGenes.SelectCustom)
+            self.entryField.setFocus()
+            self.entryField.moveCursor(QTextCursor.End)
 
     def addSelection(self, name=None):
         """
