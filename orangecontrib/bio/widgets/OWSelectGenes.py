@@ -6,15 +6,22 @@ from xml.sax.saxutils import escape
 from contextlib import contextmanager
 
 from PyQt4.QtGui import (
-    QLabel, QWidget, QPlainTextEdit, QSyntaxHighlighter, QTextCharFormat,
-    QTextCursor, QCompleter, QStringListModel, QListView
+    QFrame, QHBoxLayout, QPlainTextEdit, QSyntaxHighlighter, QTextCharFormat,
+    QTextCursor, QCompleter, QStringListModel, QStandardItemModel,
+    QStandardItem, QListView, QStyle, QStyledItemDelegate,
+    QStyleOptionViewItemV4, QPalette, QColor, QApplication,
+    QAction, QToolButton, QSizePolicy, QItemSelectionModel,
+    QPlainTextDocumentLayout, QTextDocument, QRadioButton,
+    QButtonGroup, QStyleOptionButton
 )
 
-from PyQt4.QtCore import Qt, QEvent, pyqtSignal as Signal
+from PyQt4.QtCore import Qt, QEvent, QVariant, pyqtSignal as Signal
 
 import Orange
 
-from Orange.OrangeWidgets.OWWidget import *
+from Orange.OrangeWidgets.OWWidget import \
+    OWWidget, DomainContextHandler, Default
+
 from Orange.OrangeWidgets.OWItemModels import VariableListModel
 from Orange.OrangeWidgets import OWGUI
 
@@ -23,7 +30,9 @@ NAME = "Select Genes"
 DESCRIPTION = "Select a specified subset of the input genes."
 ICON = "icons/SelectGenes.svg"
 
-INPUTS = [("Data", Orange.data.Table, "setData")]
+INPUTS = [("Data", Orange.data.Table, "setData", Default),
+          ("Gene Subset", Orange.data.Table, "setGeneSubset")]
+
 OUTPUTS = [("Selected Data", Orange.data.Table)]
 
 
@@ -86,16 +95,31 @@ class SavedSlotDelegate(QStyledItemDelegate):
         style.drawControl(QStyle.CE_ItemViewItem, option, painter, widget)
 
 
+def radio_indicator_width(button):
+    button.ensurePolished()
+    style = button.style()
+    option = QStyleOptionButton()
+    button.initStyleOption(option)
+
+    w = style.pixelMetric(QStyle.PM_ExclusiveIndicatorWidth, option, button)
+    return w
+
+
 class OWSelectGenes(OWWidget):
 
     contextHandlers = {
         "": DomainContextHandler(
             "", ["geneIndex"]
+        ),
+        "subset": DomainContextHandler(
+            "subset", ["subsetGeneIndex"]
         )
     }
 
     settingsList = ["autoCommit", "preserveOrder", "savedSelections",
-                    "selectedSelectionIndex"]
+                    "selectedSelectionIndex", "selectedSource"]
+
+    SelectInput, SelectCustom = 0, 1
 
     def __init__(self, parent=None, signalManager=None, title=NAME):
         OWWidget.__init__(self, parent, signalManager, title,
@@ -109,6 +133,7 @@ class OWSelectGenes(OWWidget):
         ]
 
         self.selectedSelectionIndex = -1
+        self.selectedSource = OWSelectGenes.SelectCustom
 
         self.loadSettings()
 
@@ -118,22 +143,72 @@ class OWSelectGenes(OWWidget):
         self.geneNames = []
         # Output changed flag
         self._changedFlag = False
-        self.data = None
         # Current gene names
         self.selection = []
+        # Input data
+        self.data = None
+        self.subsetData = None
+        # Input variables that could contain gene names from "Gene Subset"
+        self.subsetVariables = VariableListModel()
+        # Selected subset variable index
+        self.subsetGeneIndex = -1
 
         box = OWGUI.widgetBox(self.controlArea, "Gene Attribute")
+        box.setToolTip("Column with gene names")
         self.attrsCombo = OWGUI.comboBox(
             box, self, "geneIndex",
             callback=self._onGeneIndexChanged,
-            tooltip="Column with gene names"
         )
         self.attrsCombo.setModel(self.variables)
 
         box = OWGUI.widgetBox(self.controlArea, "Gene Selection")
+
+        button1 = QRadioButton("Select genes from 'Gene Subset' input")
+        button2 = QRadioButton("Select specified genes")
+
+        box.layout().addWidget(button1)
+
+        # Subset gene variable selection
+        self.subsetbox = OWGUI.widgetBox(box, None)
+        offset = radio_indicator_width(button1)
+        self.subsetbox.layout().setContentsMargins(offset, 0, 0, 0)
+        self.subsetbox.setEnabled(
+            self.selectedSource == OWSelectGenes.SelectInput)
+
+        self.subsetVarCombo = OWGUI.comboBox(
+            OWGUI.widgetBox(self.subsetbox, "Gene Attribute", flat=True),
+            self, "subsetGeneIndex",
+            callback=self._onSubsetGeneIndexChanged
+        )
+        self.subsetVarCombo.setModel(self.subsetVariables)
+        self.subsetVarCombo.setToolTip(
+            "Column with gene names in the 'Gene Subset' input"
+        )
+
+        box.layout().addWidget(button2)
+
+        group = QButtonGroup(box)
+        group.addButton(button1, OWSelectGenes.SelectInput)
+        group.addButton(button2, OWSelectGenes.SelectCustom)
+        group.buttonClicked[int].connect(self._selectionSourceChanged)
+
+        if self.selectedSource == OWSelectGenes.SelectInput:
+            button1.setChecked(True)
+        else:
+            button2.setChecked(True)
+
+        self.entrybox = OWGUI.widgetBox(box, None)
+        offset = radio_indicator_width(button2)
+        self.entrybox.layout().setContentsMargins(offset, 0, 0, 0)
+
+        self.entrybox.setEnabled(
+            self.selectedSource == OWSelectGenes.SelectCustom)
+
+        box = OWGUI.widgetBox(self.entrybox, "Select Genes", flat=True)
+        box.setToolTip("Enter gene names to select")
+
         self.entryField = ListTextEdit(box)
         self.entryField.setTabChangesFocus(True)
-        self.entryField.setToolTip("Enter selected gene names")
         self.entryField.setDocument(self._createDocument())
         self.entryField.itemsChanged.connect(self._onItemsChanged)
 
@@ -148,7 +223,8 @@ class OWSelectGenes(OWWidget):
 
         self.entryField.setCompleter(completer)
 
-        box = OWGUI.widgetBox(self.controlArea, "Saved Selections")
+        box = OWGUI.widgetBox(self.entrybox, "Saved Selections", flat=True)
+        box.setToolTip("Save/Select/Update saved gene selections")
         box.layout().setSpacing(1)
 
         self.selectionsModel = QStandardItemModel()
@@ -162,9 +238,17 @@ class OWSelectGenes(OWWidget):
 
         box.layout().addWidget(self.selectionsView)
 
-        self.actionSave = QAction("Save", self)
-        self.actionAdd = QAction("+", self)
-        self.actionRemove = QAction("-", self)
+        self.actionSave = QAction(
+            "Save", self,
+            toolTip="Save/Update the current selection")
+
+        self.actionAdd = QAction(
+            "+", self,
+            toolTip="Create a new saved selection")
+
+        self.actionRemove = QAction(
+            "-", self,
+            toolTip="Delete the current saved selection")
 
         toolbar = QFrame()
         layout = QHBoxLayout()
@@ -221,7 +305,7 @@ class OWSelectGenes(OWWidget):
         Set the input data.
         """
         self.closeContext("")
-        self.warning()
+        self.warning(0)
         self.data = data
         if data is not None:
             attrs = gene_candidates(data)
@@ -243,13 +327,50 @@ class OWSelectGenes(OWWidget):
 
         self.commit()
 
+    def setGeneSubset(self, data):
+        """
+        Set the gene subset input.
+        """
+        self.closeContext("subset")
+        self.warning(1)
+        self.subsetData = data
+        if data is not None:
+            variables = gene_candidates(data)
+            self.subsetVariables[:] = variables
+            self.subsetVarCombo.setCurrentIndex(0)
+            if variables:
+                self.subsetGeneIndex = 0
+            else:
+                self.subsetGeneIndex = -1
+                self.warning(1, "No suitable column for subset gene names.")
+        else:
+            self.subsetVariables[:] = []
+            self.subsetGeneIndex = -1
+
+        self.openContext("subset", data)
+
+        if self.selectedSource == OWSelectGenes.SelectInput:
+            self.commit()
+
     @property
     def geneVar(self):
         """
         Current gene attribute or None if none available.
         """
-        if self.data is not None and self.geneIndex >= 0:
-            return self.variables[self.geneIndex]
+        index = self.attrsCombo.currentIndex()
+        if self.data is not None and index >= 0:
+            return self.variables[index]
+        else:
+            return None
+
+    @property
+    def subsetGeneVar(self):
+        """
+        Current subset gene attribute or None if not available.
+        """
+        index = self.subsetVarCombo.currentIndex()
+        if self.subsetData is not None and index >= 0:
+            return self.subsetVariables[index]
         else:
             return None
 
@@ -259,15 +380,30 @@ class OWSelectGenes(OWWidget):
         else:
             self._changedFlag = True
 
+    def selectedGenes(self):
+        """
+        Return the names of the current selected genes.
+        """
+        selection = []
+        if self.selectedSource == OWSelectGenes.SelectInput:
+            var = self.subsetGeneVar
+            if var is not None:
+                values = [inst[var] for inst in self.subsetData]
+                selection = [str(val) for val in values
+                             if not val.is_special()]
+        else:
+            selection = self.selection
+        return selection
+
     def commit(self):
         """
         Send the selected data subset to the output.
         """
-        gene = self.geneVar
+        selection = self.selectedGenes()
 
-        if gene is not None:
-            data = select_by_genes(self.data, gene,
-                                   gene_list=self.selection,
+        if self.geneVar is not None:
+            data = select_by_genes(self.data, self.geneVar,
+                                   gene_list=selection,
                                    preserve_order=self.preserveOrder)
         else:
             data = None
@@ -275,11 +411,18 @@ class OWSelectGenes(OWWidget):
         self.send("Selected Data", data)
         self._changedFlag = False
 
+    def _selectionSourceChanged(self, source):
+        if self.selectedSource != source:
+            self.selectedSource = source
+            self.subsetbox.setEnabled(source == OWSelectGenes.SelectInput)
+            self.entrybox.setEnabled(source == OWSelectGenes.SelectCustom)
+            self.invalidateOutput()
+
     def _updateCompletionModel(self):
         var = self.geneVar
         if var is not None:
             names = [str(inst[var]) for inst in self.data
-                     if not inst[var].isSpecial()]
+                     if not inst[var].is_special()]
         else:
             names = []
 
@@ -290,6 +433,10 @@ class OWSelectGenes(OWWidget):
     def _onGeneIndexChanged(self):
         self._updateCompletionModel()
         self.invalidateOutput()
+
+    def _onSubsetGeneIndexChanged(self):
+        if self.selectedSource == OWSelectGenes.SelectInput:
+            self.invalidateOutput()
 
     def _onItemsChanged(self, names):
         selection = set(names).intersection(self.geneNames)
@@ -411,10 +558,18 @@ class OWSelectGenes(OWWidget):
         for item in report:
             self.addToReportList(item)
         self.finishReportList()
-        self.reportRaw(
-            "<p>Gene Selection: %s</p>" %
-            escape(" ".join(self.selection))
-        )
+        report = []
+        selection = self.selectedGenes()
+        if self.selectedSource == OWSelectGenes.SelectInput:
+            self.reportRaw(
+                "<p>Gene Selection (from 'Gene Subset' input): %s</p>" %
+                escape(" ".join(selection))
+            )
+        else:
+            self.reportRaw(
+                "<p>Gene Selection: %s</p>" %
+                escape(" ".join(selection))
+            )
         self.reportSettings(
             "Settings",
             [("Preserve order", self.preserveOrder)]
@@ -785,6 +940,7 @@ def test():
     w = OWSelectGenes()
     data = Orange.data.Table("brown-selected")
     w.setData(data)
+    w.setGeneSubset(Orange.data.Table(data[:10]))
     w.show()
     app.exec_()
     w.saveSettings()
