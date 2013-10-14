@@ -1,24 +1,26 @@
 """
 <name>Array Express</name>
-<description>Access Array Express datasets<description>
+<description>Array Express datasets<description>
 
 """
 
 import sys
 import os
 from datetime import date
-import Orange
 
-from Orange.bio import obiArrayExpress
+import Orange
 
 from OWWidget import *
 import OWGUI
+
+from Orange.bio import obiArrayExpress
 
 
 class OWArrayExpress(OWWidget):
     settingsList = ["current_experiement", "search_string"]
 
     HEADER_LABELS = ["ID", "Title", "Species", "Assays", "Date"]
+
     def __init__(self, parent=None, signalManager=None, title="Array Express"):
         OWWidget.__init__(self, parent, signalManager, title)
 
@@ -33,7 +35,7 @@ class OWArrayExpress(OWWidget):
         #####
 
         box = OWGUI.widgetBox(self.controlArea, "Info")
-        self.info = OWGUI.widgetLabel(box, "")
+        self.info = OWGUI.widgetLabel(box, "\n")
 
         OWGUI.rubber(self.controlArea)
         OWGUI.button(self.controlArea, self, "Commit", callback=self.commit)
@@ -53,7 +55,7 @@ class OWArrayExpress(OWWidget):
         self.mainArea.layout().addWidget(self.experiments_view)
 
         self.setEnabled(False)
-        QTimer.singleShot(50, self.fill_experiments)
+        QTimer.singleShot(5, self.fill_experiments)
 
     def fill_experiments(self):
         self.connection = obiArrayExpress.ArrayExpressConnection()
@@ -75,6 +77,9 @@ class OWArrayExpress(OWWidget):
                       [accession, title, species, assays, date])
             url = "http://www.ebi.ac.uk/arrayexpress/experiments/" + accession
             row[0].setData(QVariant(url), OWGUI.LinkRole)
+            if not exp.get("processeddatafiles", {}).get("available", False):
+                continue
+
             model.appendRow(row)
 
         self.experiments_view.setModel(model)

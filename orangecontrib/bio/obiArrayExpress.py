@@ -283,16 +283,23 @@ class ArrayExpressConnection(object):
             >>> processed_file = conn.open_file("E-TABM-1087", kind="fgem")
              
         """
-        stream = self.query_files(accession=accession, format="xml")
-        tree = ElementTree(file=stream)
-        files = tree.findall("experiment/file")
+        stream = self.query_files(accession=accession, format="json")
+        data = json.load(stream)
+        try:
+            files = data["files"]["experiment"]["file"]
+        except KeyError:
+            raise ValueError(accession)
+
         for file in files:
-            filekind = file.find("kind").text
-            fileext = file.find("extension").text
-            if filekind.strip() == kind and (fileext.strip() == ext or ext is None): 
-                url = file.find("url").text
-                return self._cache_urlopen(url.strip(), timeout=self.timeout)
-            
+            filekind = file["kind"]
+            fileext = file["extension"]
+            if (filekind == kind) and (fileext == ext or ext is None):
+                url = file["url"]
+                return self._cache_urlopen(str(url), timeout=self.timeout)
+
+        raise ValueError("%s does not have a file of kind: %r" %
+                         (accession, kind))
+
     def _cache_urlopen(self, url, timeout=30):
         if self.cache is not None:
             with self.open_cache("r") as cache:
@@ -1016,7 +1023,7 @@ class ArrayExpressExperiment(object):
         self.species = [e.text for e in experiment.findall("species")]
         bool_values = {"true": True, "false": False}
         self.rawdatafiles = bool_values[experiment.find("rawdatafiles").get("available","false")]
-        self.fgemdatafiles = bool_values[experiment.find("fgemdatafiles").get("available", "false")]
+        self.fgemdatafiles = bool_values[experiment.find("processeddatafiles").get("available", "false")]
         
         self.sampleattributes = []
         for sa in experiment.findall("sampleattribute"):
