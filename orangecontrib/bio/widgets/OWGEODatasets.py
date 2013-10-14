@@ -303,13 +303,13 @@ class OWGEODatasets(OWWidget):
         self.progressBarInit()
         with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
             self.gds_info = info = obiGEO.GDSInfo()
-        milestones = set(range(0, len(info), max(len(info)/100, 1)))
+
         self.cells = cells = []
         gdsLinks = []
         pmLinks = []
         localGDS = []
         full_text_search_data = []
-        
+        self.progressBarSet(10)
         self.gds = []
         for i, (name, gds) in enumerate(info.items()):
             local = os.path.exists(orngServerFiles.localpath(obiGEO.DOMAIN, gds["dataset_id"] + ".soft.gz"))
@@ -322,26 +322,24 @@ class OWGEODatasets(OWWidget):
             if local:
                 localGDS.append(i)
             self.gds.append(gds)
-            
-            full_text_search_data.append(unicode(" | ".join([gds.get(key, "").lower() for key in self.searchKeys]), errors="ignore"))
-            
-            if i in milestones:
-                self.progressBarSet(100.0*i/len(info))
 
+            full_text_search_data.append(unicode(" | ".join([gds.get(key, "").lower() for key in self.searchKeys]), errors="ignore"))
+
+        self.progressBarSet(20)
         model = TreeModel(cells, ["", "ID", "Title", "Organism", "Samples", "Features", "Genes", "Subsets", "PubMedID"], self.treeWidget)
         model.setColumnLinks(1, gdsLinks)
         model.setColumnLinks(8, pmLinks)
-        
+
         for i, text in enumerate(full_text_search_data):
             model.setData(model.index(i, 0), QVariant(text), TextFilterRole)
-        
+
         proxyModel = MySortFilterProxyModel(self.treeWidget)
-#        proxyModel = QSortFilterProxyModel(self.treeWidget)
         proxyModel.setSourceModel(model)
         proxyModel.setFilterKeyColumn(0)
         proxyModel.setFilterRole(TextFilterRole)
         proxyModel.setFilterCaseSensitivity(False)
         proxyModel.setFilterFixedString(self.filterString)
+
         self.treeWidget.setModel(proxyModel)
         self.connect(self.treeWidget.selectionModel(), SIGNAL("selectionChanged(QItemSelection , QItemSelection )"), self.updateSelection)
         filterItems = " ".join([self.gds[i][key] for i in range(len(self.gds)) for key in self.searchKeys])
@@ -353,11 +351,17 @@ class OWGEODatasets(OWWidget):
         filterItems = sorted(set(filterItems.split(" ")))
         filterItems = [item for item in filterItems if len(filterItems) > 3]
         self.filterLineEdit.setItems(filterItems)
-        
+
+        self.progressBarSet(40)
+
         for i in range(8):
             self.treeWidget.resizeColumnToContents(i)
+
+        self.progressBarSet(70)
+
         self.treeWidget.setColumnWidth(1, min(self.treeWidget.columnWidth(1), 300))
         self.treeWidget.setColumnWidth(2, min(self.treeWidget.columnWidth(2), 200))
+
         self.progressBarFinished()
 
         if self.currentGds:
@@ -366,7 +370,7 @@ class OWGEODatasets(OWWidget):
             if current:
                 mapFromSource = self.treeWidget.model().mapFromSource
                 self.treeWidget.selectionModel().select(mapFromSource(model.index(current[0], 0)), QItemSelectionModel.Select | QItemSelectionModel.Rows)
-            
+
         self.updateInfo()
 
     def updateSelection(self, *args):
