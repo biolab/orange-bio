@@ -31,7 +31,7 @@ Example ::
 
 Low level Array Express query using REST services::
 
-    >>> from Orange.bioinformatics import obiArrayExpress
+    >>> from Orange.bio import obiArrayExpress
     >>> obiArrayExpress.query_experiments(accession='E-MEXP-31')
     {u'experiments': ...
 
@@ -51,12 +51,8 @@ Low level Array Express query using REST services::
 from __future__ import absolute_import
 
 import os
-import sys
 import urllib2
 import re
-
-from Orange.orng import orngServerFiles
-
 import warnings
 import shelve
 import shutil
@@ -68,6 +64,8 @@ from StringIO import StringIO
 from collections import defaultdict
 from functools import partial
 from contextlib import closing
+
+from Orange.orng import orngServerFiles
 
 parse_json = json.load
 
@@ -106,11 +104,31 @@ ARRAYEXPRESS_FIELDS = \
     ]
 
 
-class ArrayExpressConnection(object):
-    """ A connection to the ArrayExpress. Used to construct a REST query
-    and run it.
+def _open_shelve(filename, flag="r"):
+    dirname = os.path.dirname(filename)
+    if not os.path.isdir(dirname):
+        os.makedirs(dirname)
+    exists = os.path.exists(filename)
+    if flag in ["r", "w"] and not exists:
+        # needs to be created first
+        # XXX: Race condition
+        s = shelve.open(filename, "c")
+        s.close()
 
-    .. todo:: Implement user login.
+    return shelve.open(filename, flag)
+
+
+class ArrayExpressConnection(object):
+    """
+    A connection to the Array Express.
+
+    Used to construct a REST query and run it.
+
+    :param address: Address of the ArrayExpress API.
+    :param timeout: Timeout for the socket connection.
+
+    .. todo::
+        Implement user login (see Accessing Private Data in API docs)
 
     """
 
@@ -123,14 +141,6 @@ class ArrayExpressConnection(object):
 
     def __init__(self, address=None, timeout=30, cache=None,
                  username=None, password=None):
-        """ Initialize the connection object.
-
-        :param address: Address of the ArrayExpress API
-        :param timeout: Timeout for the socket connection
-
-        .. todo:: Implement user login (see Accessing Private Data in API docs)
-
-        """
         self.address = address if address is not None else self.DEFAULT_ADDRESS
         self.timeout = timeout
         self.cache = cache if cache is not None else self.DEFAULT_CACHE
@@ -285,30 +295,32 @@ class ArrayExpressConnection(object):
             
     def _cache_urlopen(self, url, timeout=30):
         if self.cache is not None:
-            with self.open_cache() as cache:
-                cached = url in cache
-            if not cached:
-                stream = urllib2.urlopen(url, timeout=timeout)
-                data = stream.read()
-                with self.open_cache() as cache:
-                    cache[url] = data
-            else:
-                with self.open_cache() as cache:
-                    data = cache[url]
+            with self.open_cache("r") as cache:
+                if url in cache:
+                    return StringIO(cache[url])
+
+            stream = urllib2.urlopen(url, timeout=timeout)
+            data = stream.read()
+            with self.open_cache("w") as cache:
+                cache[url] = data
+
             return StringIO(data)
         else:
             return urllib2.urlopen(url, timeout=timeout)
-        
-    def open_cache(self):
+
+    def open_cache(self, flag="r"):
         if isinstance(self.cache, basestring):
-            return closing(shelve.open(self.cache))
+            try:
+                return closing(_open_shelve(self.cache, flag))
+            except Exception:
+                return fake_closing({})
         elif hasattr(self.cache, "close"):
             return closing(self.cache)
         elif self.cache is None:
             return fake_closing({})
         else:
             return fake_closing(self.cache)
-        
+
 from contextlib import contextmanager
 
 @contextmanager
@@ -1249,29 +1261,38 @@ that are up regulated in the liver in at least three experiments) ::
     
 """
 
+
 class GeneExpressionAtlasConenction(object):
-    """ A connection to Gene Expression Atlas database.
     """
-    DEFAULT_ADDRESS = "http://www.ebi.ac.uk:80/gxa/"
-    try:
-        DEFAULT_CACHE = shelve.open(orngServerFiles.localpath("ArrayExpress", "GeneAtlasCache.shelve"))
-    except Exception, ex:
-        print ex
-        DEFAULT_CACHE = {}
+    A connection to Gene Expression Atlas database.
+
+    :param address:
+        Address of the GXA server (default: http://www.ebi.ac.uk/gxa/api/deprecated).
+    :param timeout:
+        Socket timeout (default 30).
+    :param cache:
+        A dict like object to use as a cache.
+
+    """
+    DEFAULT_ADDRESS = "http://www.ebi.ac.uk/gxa/api/deprecated"
+
+    DEFAULT_CACHE = orngServerFiles.localpath(
+        "ArrayExpress", "GeneAtlasCache.shelve")
+
     def __init__(self, address=None, timeout=30, cache=None):
-        """ Initialize the conenction.
-        
-        :param address: Address of the server.
-        :param timeout: Socket timeout.
-        :param cache : A dict like object to use as a cache.
-        
+        """
+        Initialize the connection.
+
         """
         self.address = address if address is not None else self.DEFAULT_ADDRESS
         self.timeout = timeout
-        self.cache = cache if cache is not None else self.DEFAULT_CACHE
-    
+        if cache is None:
+            cache = self.DEFAULT_CACHE
+
+        self.cache = cache
+
     def query(self, condition, format="json", start=None, rows=None, indent=False):
-        url = self.address + "api/vx?" + condition.rest()
+        url = self.address + "?" + condition.rest()
         if start is not None and rows is not None:
             url += "&start={0}&rows={1}".format(start, rows)
         url += "&format={0}".format(format)
@@ -1282,21 +1303,35 @@ class GeneExpressionAtlasConenction(object):
             return self._query_cached(url)
         else:
             return urllib2.urlopen(url)
-        return response
-    
+
     def _query_cached(self, url):
         if self.cache is not None:
-            if url not in self.cache:
-                response = urllib2.urlopen(url)
-                contents = response.read()
-                self.cache[url] = contents
-                if hasattr(self.cache, "sync"):
-                    self.cache.sync()
-            return StringIO(self.cache[url])
+            with self.open_cache("r") as cache:
+                if url in cache:
+                    return StringIO(cache[url])
+
+            response = urllib2.urlopen(url)
+            contents = response.read()
+            with self.open_cache("w") as cache:
+                cache[url] = contents
+
+            return StringIO(contents)
         else:
             return urllib2.urlopen(url)
-                
-    
+
+    def open_cache(self, flag="r"):
+        """
+        Return a context manager for a dict like object.
+        """
+        if isinstance(self.cache, basestring):
+            try:
+                return closing(_open_shelve(self.cache, flag))
+            except Exception:
+                return fake_closing({})
+        else:
+            return fake_closing(self.cache)
+
+
 # Names of all Gene Property filter names
 GENE_FILTERS = \
     ["Name", # Gene name
