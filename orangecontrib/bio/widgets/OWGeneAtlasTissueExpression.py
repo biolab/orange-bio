@@ -453,7 +453,12 @@ class StandardPyItem(QStandardItem):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     w = OWGeneAtlasTissueExpression()
-    data = Orange.data.Table("RUNX1.tab")
+
+    data = Orange.data.Table(
+        Orange.data.Domain([Orange.feature.String("Gene")], None),
+        [["RUNX1"]]
+    )
+
     w.show()
     w.set_data(data)
     app.exec_()

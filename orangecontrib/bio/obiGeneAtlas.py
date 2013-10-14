@@ -18,11 +18,11 @@ gene expression experiments in Array Express Archive.
 
 from __future__ import absolute_import
 
-import os, shelve, sys
+import os
+import shelve
 from collections import defaultdict, namedtuple
-from contextlib import closing
+from contextlib import closing, contextmanager
 
-from Orange.orng import orngServerFiles
 from Orange.utils import serverfiles
 
 from . import obiGene
@@ -43,17 +43,17 @@ CACHE_VERSION = 1
 def _cache(name="AtlasGeneResult.shelve"):
     """ Return a open cache instance (a shelve object).
     """
-    if not os.path.exists(orngServerFiles.localpath("GeneAtlas")):
+    if not os.path.exists(serverfiles.localpath("GeneAtlas")):
         try:
-            os.makedirs(orngServerFiles.localpath("GeneAtlas"))
+            os.makedirs(serverfiles.localpath("GeneAtlas"))
         except OSError:
             pass
-    cache = shelve.open(orngServerFiles.localpath("GeneAtlas", name))
+    cache = shelve.open(serverfiles.localpath("GeneAtlas", name))
     if cache.get(name + "__CACHE_VERSION__", None) == CACHE_VERSION:
         return cache
     else:
         cache.close()
-        cache = shelve.open(orngServerFiles.localpath("GeneAtlas", name), "n")
+        cache = shelve.open(serverfiles.localpath("GeneAtlas", name), "n")
         cache[name + "__CACHE_VERSION__"] = CACHE_VERSION
         return cache
 
@@ -151,15 +151,19 @@ def default_gene_matcher(organism):
     
     """
     taxid = to_taxid(organism)
-    matcher = obiGene.matcher([obiGene.GMEnsembl(taxid),
-                               obiGene.GMNCBI(taxid)])
+    matcher = obiGene.matcher(
+      [obiGene.GMEnsembl(taxid),
+       [obiGene.GMEnsembl(taxid),
+        obiGene.GMNCBI(taxid)]]
+    )
     matcher.set_targets(obiGene.EnsembleGeneInfo(taxid).keys())
     return matcher
 
 from Orange.utils import lru_cache
 
+
 @lru_cache(maxsize=3)
-def _cached_default_gene_matcher(organism): 
+def _cached_default_gene_matcher(organism):
     return default_gene_matcher(organism)
     
 
@@ -178,7 +182,7 @@ def get_atlas_summary(genes, organism, gene_matcher=None,
     
     Example ::
     
-        >>> get_atlas_summary(["RUNX1"], "Homo sapiens")
+        >>> get_atlas_summary(["ENSG00000159216"], "Homo sapiens")
         ({u'RUNX1': ...
         
     """
@@ -329,24 +333,29 @@ def parse_xml(stream):
 
 
 class GeneExpressionAtlasConenction(object):
-    """ A connection to Gene Expression Atlas database.
     """
-    DEFAULT_ADDRESS = "http://www.ebi.ac.uk:80/gxa/"
-    DEFAULT_CACHE = orngServerFiles.localpath("GeneAtlas", "GeneAtlasConnectionCache.shelve")
+    A connection to Gene Expression Atlas database.
+
+    :param address:
+        Address of the GXA server (default: http://www.ebi.ac.uk/gxa/api/deprecated).
+    :param timeout:
+        Socket timeout (default 30).
+    :param cache:
+        A dict like object to use as a cache.
+
+    """
+    DEFAULT_ADDRESS = "http://www.ebi.ac.uk/gxa/api/deprecated"
+    DEFAULT_CACHE = serverfiles.localpath(
+        "GeneAtlas", "GeneAtlasConnectionCache.shelve")
+
     def __init__(self, address=None, timeout=30, cache=None):
-        """ Initialize the conenction.
-        
-        :param address: Address of the server.
-        :param timeout: Socket timeout.
-        :param cache : A dict like object to use as a cache.
-        
-        """
+
         self.address = address if address is not None else self.DEFAULT_ADDRESS
         self.timeout = timeout
         self.cache = cache if cache is not None else self.DEFAULT_CACHE
-    
+
     def query(self, condition, format="json", start=None, rows=None, indent=False):
-        url = self.address + "api/vx?" + condition.rest()
+        url = self.address + "?" + condition.rest()
         if start is not None and rows is not None:
             url += "&start={0}&rows={1}".format(start, rows)
         url += "&format={0}".format(format)
@@ -358,47 +367,59 @@ class GeneExpressionAtlasConenction(object):
             return self._query_cached(url, format)
         else:
             return urllib2.urlopen(url)
-        return response
-    
+
     def _query_cached(self, url, format):
         if self.cache is not None:
-            with self.open_cache() as cache:
-                cached = url in cache
-            
-            if not cached:
-                response = urllib2.urlopen(url)
-                contents = response.read()
-                # Test if the contents is a valid json or xml string (some 
-                # times the stream just stops in the middle, so this makes
-                # sure we don't cache an invalid response
-                # TODO: what about errors (e.g. 'cannot handle the
-                # query in a timely fashion'
-                if format == "json":
-                    parse_json(StringIO(contents))
-                else:
-                    parse_xml(StringIO(contents))
-                    
-                with self.open_cache() as cache:
-                    cache[url] = contents
+            with self.open_cache("r") as cache:
+                if url in cache:
+                    return StringIO(cache[url])
+
+            response = urllib2.urlopen(url)
+            contents = response.read()
+            # Test if the contents is a valid json or xml string (some
+            # times the stream just stops in the middle, so this makes
+            # sure we don't cache an invalid response
+            # TODO: what about errors (e.g. 'cannot handle the
+            # query in a timely fashion'
+            if format == "json":
+                parse_json(StringIO(contents))
             else:
-                with self.open_cache() as cache:
-                    contents = cache[url]
+                parse_xml(StringIO(contents))
+
+            with self.open_cache("w") as cache:
+                cache[url] = contents
+
             return StringIO(contents)
         else:
             return urllib2.urlopen(url)
-        
-    def open_cache(self):
+
+    def open_cache(self, flag="r"):
+        """
+        Return a context manager for a dict like object.
+        """
         if isinstance(self.cache, basestring):
-            return closing(shelve.open(self.cache))
-        elif hasattr(self.cache, "close"):
-            return closing(self.cache)
-        elif self.cache is None:
-            return fake_closing({})
+            try:
+                return closing(_open_shelve(self.cache, flag))
+            except Exception:
+                return fake_closing({})
         else:
             return fake_closing(self.cache)
-        
-        
-from contextlib import contextmanager
+
+
+def _open_shelve(filename, flag="r"):
+    dirname = os.path.dirname(filename)
+    if not os.path.isdir(dirname):
+        os.makedirs(dirname)
+    exists = os.path.exists(filename)
+    if flag in ["r", "w"] and not exists:
+        # needs to be created first
+        # XXX: Race condition
+        s = shelve.open(filename, "c")
+        s.close()
+
+    return shelve.open(filename, flag)
+
+
 @contextmanager
 def fake_closing(obj):
     yield obj
