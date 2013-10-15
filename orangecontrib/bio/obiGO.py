@@ -920,6 +920,7 @@ class Annotations(object):
 ##                print >> sys.stderr, term, sorted(genes)
 ##                print >> sys.stderr, sorted(allAnnotatedGenes)
 ##                return
+            
             if len(reference) > len(allAnnotatedGenes):
                 mappedReferenceGenes = reference.intersection(allAnnotatedGenes)
             else:

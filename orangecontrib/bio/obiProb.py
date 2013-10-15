@@ -86,12 +86,23 @@ class Hypergeometric(LogBin):
             raise
 
     def p_value(self, k, N, m, n):
-        subtract = n - k + 1 > k
-##        result = sum([math.exp(self._logbin(m, i) + self._logbin(N - m, n - i)) for i in (range(k) if subtract else range(k, n+1))])
-        result = sum([self.__call__(i, N, m, n) for i in (range(k) if subtract else range(k, n+1))])
-##        result /= math.exp(self._logbin(N, n))
-        return max(1.0 - result if subtract else result, 0.0)
+        #From wolfram alpha:
+        #1-CDF[HypergeometricDistribution[80, 50, 2000], 20-1] = 1.75695e-16
+        #1-CDF[HypergeometricDistribution[80, 50, 2000], 40-1] = 9.92008e-52
 
+        if min(n,m) - k + 1 <= k:
+            #starting from k gives the shorter list of values
+            return sum(self.__call__(i, N, m, n) for i in range(k, min(n,m)+1))
+        else:
+            value = 1.0 - sum(self.__call__(i, N, m, n) for i in (range(k)))
+            #if the value is small it is probably inexact due to the limited
+            #precision of floats, as for example  (1-(1-10e-20)) -> 0
+            #if so, compute the result without substraction
+            if value < 1e-3: #arbitary threshold
+                #print "INEXACT", value, sum(self.__call__(i, N, m, n) for i in range(k, min(n,m)+1))
+                return sum(self.__call__(i, N, m, n) for i in range(k, min(n,m)+1))
+            else:
+                return value
 
 ## to speed-up FDR, calculate ahead sum([1/i for i in range(1, m+1)]), for m in [1,100000]. For higher values of m use an approximation, with error less or equal to 4.99999157277e-006. (sum([1/i for i in range(1, m+1)])  ~ log(m) + 0.5772..., 0.5572 is an Euler-Mascheroni constant) 
 c = [1.0]
