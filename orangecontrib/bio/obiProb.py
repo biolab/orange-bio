@@ -70,9 +70,19 @@ class Binomial(LogBin):
 ##        return math.exp(self._logbin(n, k) + math.log((p**k) * (1.0 - p)**(n - k)))
 
     def p_value(self, k, N, m, n):
-        subtract = n - k + 1 > k
-        result = sum([self.__call__(i, N, m, n) for i in (range(k) if subtract else range(k, n+1))])
-        return max(1.0 - result if subtract else result, 0.0)
+        if n - k + 1 <= k:
+            #starting from k gives the shorter list of values
+            return sum(self.__call__(i, N, m, n) for i in range(k, n+1))
+        else:
+            value = 1.0 - sum(self.__call__(i, N, m, n) for i in range(k))
+            #if the value is small it is probably inexact due to the limited
+            #precision of floats, as for example  (1-(1-1e-20)) -> 0
+            #if so, compute the result without substraction
+            if value < 1e-3: #arbitary threshold
+                #print "INEXACT", value, sum(self.__call__(i, N, m, n) for i in range(k, n+1))
+                return sum(self.__call__(i, N, m, n) for i in range(k, n+1))
+            else:
+                return value
 
 class Hypergeometric(LogBin):
 
@@ -96,7 +106,7 @@ class Hypergeometric(LogBin):
         else:
             value = 1.0 - sum(self.__call__(i, N, m, n) for i in (range(k)))
             #if the value is small it is probably inexact due to the limited
-            #precision of floats, as for example  (1-(1-10e-20)) -> 0
+            #precision of floats, as for example  (1-(1-1e-20)) -> 0
             #if so, compute the result without substraction
             if value < 1e-3: #arbitary threshold
                 #print "INEXACT", value, sum(self.__call__(i, N, m, n) for i in range(k, min(n,m)+1))
