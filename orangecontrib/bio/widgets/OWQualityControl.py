@@ -11,13 +11,14 @@ import sys
 from collections import defaultdict
 from contextlib import contextmanager
 from pprint import pprint
+from xml.sax.saxutils import escape
 
 import numpy
 
 import Orange
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
-from Orange.OrangeWidgets.OWItemModels import PyListModel, safe_text
+from Orange.OrangeWidgets.OWItemModels import PyListModel
 from Orange.OrangeWidgets.OWGraphics import GraphicsSimpleTextLayoutItem
 
 from .. import obiExperiments as exp
@@ -95,9 +96,9 @@ def experiment_description(feature):
     text = ""
     if feature.attributes:
         items = feature.attributes.items()
-        items = [(safe_text(key), safe_text(value)) for key, value in items]
+        items = [(escape(key), escape(value)) for key, value in items]
         labels = map("%s = %s".__mod__, items)
-        text += "<b>%s</b><br/>" % safe_text(feature.name)
+        text += "<b>%s</b><br/>" % escape(feature.name)
         text += "<br/>".join(labels)
     return text
 
