@@ -353,16 +353,26 @@ class Taxonomy(object):
             info(info_entry)
             if callback and i in milestones:
                 callback(i)
-    
+
+
+@pickled_cache(None, [("Taxonomy", "ncbi_taxonomy.tar.gz")], version=1)
 def name(taxid):
-    """ Return the scientific name for organism with taxid.
+    """
+    Return the scientific name for organism with taxid.
     """
     return Taxonomy()[taxid]
 
+
+@pickled_cache(None, [("Taxonomy", "ncbi_taxonomy.tar.gz")], version=1)
 def other_names(taxid):
-    """ Return a list of (name, name_type) tuples but exclude the scientific name.
+    """
+    Return a list of (name, name_type) tuples excluding the scientific name.
+
+    Use :func:`name` to retrieve the scientific name.
+
     """
     return  Taxonomy().other_names(taxid)
+
 
 @pickled_cache(None, [("Taxonomy", "ncbi_taxonomy.tar.gz")], version=1)
 def search(string, onlySpecies=True, exact=False):
