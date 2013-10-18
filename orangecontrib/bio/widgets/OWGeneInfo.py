@@ -11,11 +11,13 @@ from __future__ import absolute_import, with_statement
 from collections import defaultdict
 from functools import partial
 
-import orange
 from Orange.orng import orngServerFiles
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
+from Orange.utils import progress_bar_milestones
+
+import orange
 
 from .. import obiGene, obiTaxonomy
 
@@ -191,8 +193,12 @@ INFO_SOURCES = {"default": [("NCBI Info", ncbi_info)],
 
 class OWGeneInfo(OWWidget):
     settingsList = ["organismIndex", "geneAttr", "useAttr", "autoCommit"]
-    contextHandlers = {"":DomainContextHandler("", ["organismIndex",
-                                "geneAttr", "useAttr", "useAltSource"])}
+    contextHandlers = {
+        "": DomainContextHandler(
+            "", ["organismIndex", "geneAttr", "useAttr", "useAltSource"]
+        )
+    }
+
     def __init__(self, parent=None, signalManager=None, name="Gene Info"):
         OWWidget.__init__(self, parent, signalManager, name)
 
@@ -207,22 +213,23 @@ class OWGeneInfo(OWWidget):
         self.selectionChangedFlag = False
         self.useAltSource = 0
         self.loadSettings()
-        
-        self.infoLabel = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea,
-                                                    "Info", addSpace=True),
-                                           "No data on input\n")
-        self.organisms = sorted(set([name.split(".")[-2] for name in \
-                            orngServerFiles.listfiles("NCBI_geneinfo")] + \
-                            obiGene.NCBIGeneInfo.essential_taxids()))
-    
-        self.organismBox = OWGUI.widgetBox(self.controlArea, "Organism",
-                                           addSpace=True)
-        self.organismComboBox = OWGUI.comboBox(self.organismBox, self,
-                                "organismIndex", "Organism",
-                                items=[obiTaxonomy.name(id) for id in self.organisms],
-                                callback=self.setItems,
-                                debuggingEnabled=0)
-        
+
+        self.__initialized = False
+
+        self.infoLabel = OWGUI.widgetLabel(
+            OWGUI.widgetBox(self.controlArea, "Info", addSpace=True),
+            "Initializing\n"
+        )
+
+        self.organisms = None
+        self.organismBox = OWGUI.widgetBox(
+            self.controlArea, "Organism", addSpace=True)
+
+        self.organismComboBox = OWGUI.comboBox(
+            self.organismBox, self, "organismIndex",
+            callback=self.setItems,
+            debuggingEnabled=0)
+
         # For now only support one alt source, with a checkbox
         # In the future this can be extended to multiple selections
         self.altSourceCheck = OWGUI.checkBox(self.organismBox, self,
@@ -277,7 +284,7 @@ class OWGeneInfo(OWWidget):
         OWGUI.button(box, self, "Clear Selection",
                      callback=self.treeWidget.clearSelection)
         
-        self.resize(1000, 700)        
+        self.resize(1000, 700)
 
         self.geneinfo = []
         self.cells = []
@@ -285,8 +292,37 @@ class OWGeneInfo(OWWidget):
         self.data = None
         self.currentLoaded = None, None
         self.selectionUpdateInProgress = False
-        
+
+        self.setBlocking(True)
+        QTimer.singleShot(0, self.initialize)
+
+    def initialize(self):
+        if self.__initialized:
+            # Already initialized
+            return
+
+        self.organisms = sorted(
+            set([name.split(".")[-2] for name in
+                 orngServerFiles.listfiles("NCBI_geneinfo")] +
+                obiGene.NCBIGeneInfo.essential_taxids())
+        )
+
+        pb = OWGUI.ProgressBar(self, 100)
+        obiTaxonomy.ensure_downloaded(pb.advance)
+
+        self.organismComboBox.addItems(
+            [obiTaxonomy.name(tax_id) for tax_id in self.organisms]
+        )
+        pb.finish()
+
+        self.infoLabel.setText("No data on input\n")
+        self.__initialized = True
+        self.setBlocking(False)
+
     def setData(self, data=None):
+        if not self.__initialized:
+            raise Exception("Not initialized")
+
         self.closeContext()
         self.data = data
         if data:
@@ -361,7 +397,8 @@ class OWGeneInfo(OWWidget):
         self.geneinfo = geneinfo = list(zip(genes, geneinfo))
 
         self.progressBarInit()
-        milestones = set([i for i in range(0, len(geneinfo), max(len(geneinfo)/100, 1))])
+
+        milestones = progress_bar_milestones(len(geneinfo))
         self.cells = cells = []
         self.row2geneinfo = {}
         links = []
@@ -380,10 +417,10 @@ class OWGeneInfo(OWWidget):
 #                            gi.locus_tag or "", gi.chromosome or "", gi.description or "",
 #                            ", ".join(gi.synonyms), gi.symbol_from_nomenclature_authority or ""])
 #                links.append("http://www.ncbi.nlm.nih.gov/sites/entrez?Db=gene&Cmd=ShowDetailView&TermToSearch=%s" % gi.gene_id)
-                
 
             if i in milestones:
                 self.progressBarSet(100.0*i/len(geneinfo))
+
         model = TreeModel(cells, [str(col) for col in schema], self.treeWidget)
         
         model.setColumnLinks(0, links)
@@ -580,10 +617,8 @@ if __name__ == "__main__":
     data = orange.ExampleTable("brown-selected.tab")
     w = OWGeneInfo()
     w.show()
+    w.initialize()
+
     w.setData(data)
     app.exec_()
     w.saveSettings()
-        
-        
-        
-        

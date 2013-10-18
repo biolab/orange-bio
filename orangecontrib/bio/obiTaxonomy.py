@@ -425,8 +425,22 @@ def to_taxid(code, mapTo=None):
 
     return results
 
+
 def taxids():
     return Taxonomy().taxids()
+
+
+def ensure_downloaded(calback=None, verbose=True):
+    """
+    Retrieve the taxonomy database if not already downloaded.
+    """
+
+    try:
+        orngServerFiles.info("Taxonomy", "ncbi_taxonomy.tar.gz")
+    except IOError:
+        orngServerFiles.download("Taxonomy", "ncbi_taxonomy.tar.gz",
+                                 callback=calback, verbose=verbose)
+
 
 from . import obiGenomicsUpdate
 
