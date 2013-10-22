@@ -430,7 +430,7 @@ def taxids():
     return Taxonomy().taxids()
 
 
-def ensure_downloaded(calback=None, verbose=True):
+def ensure_downloaded(callback=None, verbose=True):
     """
     Retrieve the taxonomy database if not already downloaded.
     """
@@ -439,7 +439,7 @@ def ensure_downloaded(calback=None, verbose=True):
         orngServerFiles.info("Taxonomy", "ncbi_taxonomy.tar.gz")
     except IOError:
         orngServerFiles.download("Taxonomy", "ncbi_taxonomy.tar.gz",
-                                 callback=calback, verbose=verbose)
+                                 callback=callback, verbose=verbose)
 
 
 from . import obiGenomicsUpdate
