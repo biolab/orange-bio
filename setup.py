@@ -119,6 +119,8 @@ ENTRY_POINTS = {
     )
 }
 
+NAMESPACE_PACAKGES = ["orangecontrib", "orangecontrib.bio"]
+
 if __name__ == '__main__':
     setup(
         name = NAME,
@@ -140,6 +142,7 @@ if __name__ == '__main__':
         extras_require = EXTRAS_REQUIRE,
         dependency_links = DEPENDENCY_LINKS,
         entry_points = ENTRY_POINTS,
+        namespace_packages=NAMESPACE_PACAKGES,
         include_package_data = True,
         zip_safe = False,
     )
