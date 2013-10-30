@@ -20,7 +20,7 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from ..obiExperiments import separate_by, data_type, linearize, dist_pcorr, dist_eucl, dist_spearman
 
-NAME = "Genotype Distances"
+NAME = "Expression Profile Distances"
 DESCRIPTION = "Compute distances between expression profiles of different experimental factors."
 ICON = "icons/GenotypeDistances.svg"
 PRIORITY = 1050
@@ -98,7 +98,7 @@ class OWGenotypeDistances(OWWidget):
                           ("Euclidean distance", dist_eucl),
                           ("Distance from Spearman correlation", dist_spearman)]
     
-    def __init__(self, parent=None, signalManager=None, title="Genotype Distances"):
+    def __init__(self, parent=None, signalManager=None, title="Expression Profile Distances"):
         OWWidget.__init__(self, parent, signalManager, title)
         
         self.inputs = [("Example Table", ExampleTable, self.set_data)]

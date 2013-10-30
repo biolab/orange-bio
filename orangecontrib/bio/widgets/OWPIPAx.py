@@ -18,9 +18,6 @@ from Orange.OrangeWidgets.OWWidget import *
 
 from .. import obiDicty
 
-from .OWPIPA import (MyTreeWidgetItem, ListItemDelegate,
-                    SelectionSetsWidget, SortedListWidget)
-
 NAME = "PIPAx"
 DESCRIPTION = "Access data from PIPA RNA-Seq database."
 ICON = "icons/PIPA.svg"
@@ -117,6 +114,301 @@ class SelectionByKey(object):
     def __len__(self):
         return len(self._selected_keys)
 
+
+
+class ListItemDelegate(QStyledItemDelegate):
+    def sizeHint(self, option, index):
+        size = QStyledItemDelegate.sizeHint(self, option, index)
+        size = QSize(size.width(), size.height() + 4)
+        return size
+
+    def createEditor(self, parent, option, index):
+        return QLineEdit(parent)
+    
+    def setEditorData(self, editor, index):
+        editor.setText(index.data(Qt.DisplayRole).toString())
+        
+    def setModelData(self, editor, model, index):
+#        print index
+        model.setData(index, QVariant(editor.text()), Qt.EditRole)
+
+class SelectionSetsWidget(QFrame):
+    """ Widget for managing multiple stored item selections 
+    """
+    def __init__(self, parent):
+        QFrame.__init__(self, parent)
+        self.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(1)
+#        self._titleLabel = QLabel(self)
+#        self._titleLabel
+#        layout.addWidget(self._titleLabel)
+        self._setNameLineEdit = QLineEdit(self)
+        layout.addWidget(self._setNameLineEdit)
+        
+        self._setListView = QListView(self)
+        self._listModel = QStandardItemModel(self)
+        self._proxyModel = QSortFilterProxyModel(self)
+        self._proxyModel.setSourceModel(self._listModel)
+        
+        self._setListView.setModel(self._proxyModel)
+        self._setListView.setItemDelegate(ListItemDelegate(self))
+        
+        self.connect(self._setNameLineEdit, SIGNAL("textChanged(QString)"), self._proxyModel.setFilterFixedString)
+        
+        self._completer = QCompleter(self._listModel, self)
+        
+        self._setNameLineEdit.setCompleter(self._completer)
+        
+        self.connect(self._listModel, SIGNAL("itemChanged(QStandardItem *)"), self._onSetNameChange)
+        layout.addWidget(self._setListView)
+        buttonLayout = QHBoxLayout()
+        
+        self._addAction = QAction("+", self)
+        self._updateAction = QAction("Update", self)
+        self._removeAction = QAction("-", self)
+        
+        self._addToolButton = QToolButton(self)
+        self._updateToolButton = QToolButton(self)
+        self._removeToolButton = QToolButton(self)
+        self._updateToolButton.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
+        
+        self._addToolButton.setDefaultAction(self._addAction)
+        self._updateToolButton.setDefaultAction(self._updateAction)
+        self._removeToolButton.setDefaultAction(self._removeAction)
+         
+        buttonLayout.addWidget(self._addToolButton)
+        buttonLayout.addWidget(self._updateToolButton)
+        buttonLayout.addWidget(self._removeToolButton)
+        
+        layout.addLayout(buttonLayout)
+        self.setLayout(layout)
+        
+        self.connect(self._addAction, SIGNAL("triggered()"), self.addCurrentSelection)
+        self.connect(self._updateAction, SIGNAL("triggered()"), self.updateSelectedSelection)
+        self.connect(self._removeAction, SIGNAL("triggered()"), self.removeSelectedSelection)
+        
+        self.connect(self._setListView.selectionModel(), SIGNAL("selectionChanged(QItemSelection, QItemSelection)"), self._onListViewSelectionChanged)
+        self.selectionModel = None
+        self._selections = []
+        
+    def sizeHint(self):
+        size = QFrame.sizeHint(self)
+        return QSize(size.width(), 200)
+        
+    def _onSelectionChanged(self, selected, deselected):
+        self.setSelectionModified(True)
+        
+    def _onListViewSelectionChanged(self, selected, deselected):
+        try:
+            index= self._setListView.selectedIndexes()[0]
+        except IndexError:
+            return 
+        self.commitSelection(self._proxyModel.mapToSource(index).row())
+
+    def _onSetNameChange(self, item):
+        self.selections[item.row()].name = str(item.text())
+                
+    def _setButtonStates(self, val):
+        self._updateToolButton.setEnabled(val)
+        
+    def setSelectionModel(self, selectionModel):
+        if self.selectionModel:
+            self.disconnect(self.selectionModel, SIGNAL("selectionChanged(QItemSelection, QItemSelection)", self._onSelectionChanged))
+        self.selectionModel = selectionModel
+        self.connect(self.selectionModel, SIGNAL("selectionChanged(QItemSelection, QItemSelection)"), self._onSelectionChanged)
+        
+    def addCurrentSelection(self):
+        item = self.addSelection(SelectionByKey(self.selectionModel.selection(), name="New selection", key=(1, 2, 3 ,10)))
+        index = self._proxyModel.mapFromSource(item.index())
+        self._setListView.setCurrentIndex(index)
+        self._setListView.edit(index)
+        self.setSelectionModified(False)
+    
+    def removeSelectedSelection(self):
+        i = self._proxyModel.mapToSource(self._setListView.currentIndex()).row()
+        self._listModel.takeRow(i)
+        del self.selections[i]
+    
+    def updateCurentSelection(self):
+        i = self._proxyModel.mapToSource(self._setListView.selectedIndex()).row()
+        self.selections[i].setSelection(self.selectionModel.selection())
+        self.setSelectionModified(False)
+        
+    def addSelection(self, selection, name=""):
+        self._selections.append(selection)
+        item = QStandardItem(selection.name)
+        item.setFlags(item.flags() ^ Qt.ItemIsDropEnabled)
+        self._listModel.appendRow(item)
+        self.setSelectionModified(False)
+        return item
+        
+    def updateSelectedSelection(self):
+        i = self._proxyModel.mapToSource(self._setListView.currentIndex()).row()
+        self.selections[i].setSelection(self.selectionModel.selection())
+        self.setSelectionModified(False)
+        
+    def setSelectionModified(self, val):
+        self._selectionModified = val
+        self._setButtonStates(val)
+        self.emit(SIGNAL("selectionModified(bool)"), bool(val))
+        
+    def commitSelection(self, index):
+        selection = self.selections[index]
+        selection.select(self.selectionModel)
+        
+    def setSelections(self, selections):
+        self._listModel.clear()
+#        print selections
+        for selection in selections:
+            self.addSelection(selection)
+            
+    def selections(self):
+        return self._selections
+    
+    selections = property(selections, setSelections)
+    
+               
+class SortedListWidget(QWidget):
+    class _MyItemDelegate(QStyledItemDelegate):
+        def __init__(self, sortingModel, parent):
+            QStyledItemDelegate.__init__(self, parent)
+            self.sortingModel = sortingModel
+            
+        def sizeHint(self, option, index):
+            size = QStyledItemDelegate.sizeHint(self, option, index)
+            return QSize(size.width(), size.height() + 4)
+            
+        def createEditor(self, parent, option, index):
+            cb = QComboBox(parent)
+            cb.setModel(self.sortingModel)
+            cb.showPopup()
+            return cb
+        
+        def setEditorData(self, editor, index):
+            pass # TODO: sensible default 
+        
+        def setModelData(self, editor, model, index):
+            text = editor.currentText()
+            model.setData(index, QVariant(text))
+    
+    def __init__(self, *args):
+        QWidget.__init__(self, *args)
+        self.setContentsMargins(0, 0, 0, 0)
+        gridLayout = QGridLayout()
+        gridLayout.setContentsMargins(0, 0, 0, 0)
+        gridLayout.setSpacing(1)
+        self._listView = QListView(self)
+        self._listView.setModel(QStandardItemModel(self))
+#        self._listView.setDragEnabled(True)
+        self._listView.setDropIndicatorShown(True)
+        self._listView.viewport().setAcceptDrops(True)
+        self._listView.setDragDropMode(QAbstractItemView.InternalMove)
+        self._listView.setMinimumHeight(100)
+        
+        gridLayout.addWidget(self._listView, 0, 0, 2, 2)
+        
+        vButtonLayout = QVBoxLayout()
+        
+        self._upAction = QAction(QIcon(os.path.join(orngEnviron.widgetDir, "icons/Dlg_up3.png")), "Up", self)
+        
+        self._upButton = QToolButton(self)
+        self._upButton.setDefaultAction(self._upAction)
+        self._upButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.MinimumExpanding)
+
+        self._downAction = QAction(QIcon(os.path.join(orngEnviron.widgetDir, "icons/Dlg_down3.png")), "Down", self)
+        self._downButton = QToolButton(self)
+        self._downButton.setDefaultAction(self._downAction)
+        self._downButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.MinimumExpanding)
+        
+        vButtonLayout.addWidget(self._upButton)
+        vButtonLayout.addWidget(self._downButton)
+        
+        gridLayout.addLayout(vButtonLayout, 0, 2, 2, 1)
+        
+        hButtonLayout = QHBoxLayout()
+        
+        self._addAction = QAction("+", self)
+        self._addButton = QToolButton(self)
+        self._addButton.setDefaultAction(self._addAction)
+        
+        self._removeAction = QAction("-", self)
+        self._removeButton = QToolButton(self)
+        self._removeButton.setDefaultAction(self._removeAction)
+        hButtonLayout.addWidget(self._addButton)
+        hButtonLayout.addWidget(self._removeButton)
+        hButtonLayout.addStretch(10)
+        gridLayout.addLayout(hButtonLayout, 2, 0, 1, 2)
+        
+        self.setLayout(gridLayout)
+        
+        self.connect(self._addAction, SIGNAL("triggered()"), self._onAddAction)
+        self.connect(self._removeAction, SIGNAL("triggered()"), self._onRemoveAction)
+        self.connect(self._upAction, SIGNAL("triggered()"), self._onUpAction)
+        self.connect(self._downAction, SIGNAL("triggered()"), self._onDownAction)
+        
+    def sizeHint(self):
+        size = QWidget.sizeHint(self)
+        return QSize(size.width(), 100)
+        
+    def _onAddAction(self):
+        item = QStandardItem("")
+        item.setFlags(item.flags() ^ Qt.ItemIsDropEnabled)
+        self._listView.model().appendRow(item)
+        self._listView.setCurrentIndex(item.index())
+        self._listView.edit(item.index()) 
+    
+    def _onRemoveAction(self):
+        current = self._listView.currentIndex()
+        self._listView.model().takeRow(current.row())
+    
+    def _onUpAction(self):
+        row = self._listView.currentIndex().row()
+        model = self._listView.model()
+        if row > 0:
+            items = model.takeRow(row)
+            model.insertRow(row - 1, items)
+            self._listView.setCurrentIndex(model.index(row - 1, 0))
+    
+    def _onDownAction(self):
+        row = self._listView.currentIndex().row()
+        model = self._listView.model()
+        if row < model.rowCount() and row >= 0:
+            items = model.takeRow(row)
+            if row == model.rowCount():
+                model.appendRow(items)
+            else:
+                model.insertRow(row + 1, items)
+            self._listView.setCurrentIndex(model.index(row + 1, 0))
+    
+    def setModel(self, model):
+        """ Set a model to select items from
+        """
+        self._model  = model
+        self._listView.setItemDelegate(self._MyItemDelegate(self._model, self))
+        
+    def addItem(self, *args):
+        """ Add a new entry in the list 
+        """
+        item = QStandardItem(*args)
+        item.setFlags(item.flags() ^ Qt.ItemIsDropEnabled)
+        self._listView.model().appendRow(item)
+        
+    def setItems(self, items):
+        self._listView.model().clear()
+        for item in items:
+            self.addItem(item)
+         
+    def items(self):
+        order = []
+        for row in range(self._listView.model().rowCount()):
+             order.append(str(self._listView.model().item(row ,0).text()))
+        return order
+    
+    sortingOrder = property(items, setItems)
+        
+    
 
 # Mapping from PIPAx.results_list annotation keys to Header names.
 HEADER = [("_cached", ""),
