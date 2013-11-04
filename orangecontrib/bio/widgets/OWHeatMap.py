@@ -1424,7 +1424,7 @@ class GraphicsHeatmapWidget(QGraphicsWidget):
         pos = self.mapToItem(self.heatmap_item.pixmap_item, pos)
         x, y = pos.x(), pos.y()
         def clamp(i, m):
-            return int(min(max(i, 0), m))
+            return int(min(max(i, 0), m-1))
         return (clamp(math.floor(y / self.cell_height), self.heatmap.height),
                 clamp(math.floor(x / self.cell_width), self.heatmap.width))
     
@@ -1946,7 +1946,7 @@ class HeatmapSelectionManager(QObject):
             rows2hm = self.rows_to_heatmaps()
             selections = iter(selections)
             start = end = selections.next()
-            end_heatmaps= rows2hm[end]
+            end_heatmaps = rows2hm[end]
             try:
                 while True:
                     new_end = selections.next()
@@ -1968,7 +1968,7 @@ class HeatmapSelectionManager(QObject):
                 rect |= heatmap.mapToScene(heatmap.row_rect(start - h_start)).boundingRect()
                 rect |= heatmap.mapToScene(heatmap.row_rect(end - h_start)).boundingRect()
             return rect
-                 
+             
         self.selection_rects = []
         for start, end, heatmaps in group_selections(self.selections):
             rect = selection_rect(start, end, heatmaps)
