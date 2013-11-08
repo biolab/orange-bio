@@ -308,7 +308,7 @@ class OWSetEnrichment(OWWidget):
                 if value:
                     item.setFlags(item.flags() | Qt.ItemIsTristate)
 
-                item.setData(0, Qt.CheckStateRole, QVariant(self.categoriesCheckState.get(full_cat, Qt.Checked)))
+                item.setData(0, Qt.CheckStateRole, QVariant(self.categoriesCheckState.get((full_cat, org), Qt.Checked)))
                 item.setExpanded(True)
                 item.category = full_cat
                 item.organism = org
