@@ -37,11 +37,11 @@ OUTPUTS = [("Data", Orange.data.Table)]
 
 
 _InputData = namedtuple("_InputData", ["key", "name", "table"])
-_ItemSet = namedtuple("_ItemSet", ["key", "name", "items"])
+_ItemSet = namedtuple("_ItemSet", ["key", "name", "title", "items"])
 
 
 class OWVennDiagram(OWWidget):
-    settingsList = ["selection", "autocommit"]
+    settingsList = ["selection", "autocommit", "inputhints"]
 
     def __init__(self, parent=None, signalManager=None,
                  title="Venn Diagram"):
@@ -52,12 +52,18 @@ class OWVennDiagram(OWWidget):
         # Selected disjoint subset indices
         self.selection = []
 
+        # Stored input set hints
+        # {(index, inputname, attributes): (selectedattrname, itemsettitle)}
+        self.inputhints = {}
+
         self.loadSettings()
 
         # Output changed flag
         self._changed = False
         # Diagram update is in progress
         self._updating = False
+        # Input update is in progress
+        self._inputUpdate = False
 
         # Input datasets
         self.data = OrderedDict()
@@ -111,6 +117,10 @@ class OWVennDiagram(OWWidget):
 
     def setData(self, data, key=None):
         self.error(0)
+        if not self._inputUpdate:
+            self._storeHints()
+            self._inputUpdate = True
+
         if key in self.data:
             if data is None:
                 # Remove the input
@@ -118,7 +128,6 @@ class OWVennDiagram(OWWidget):
             else:
                 # Update existing item
                 self._update(key, data)
-                self._invalidate([key])
         else:
             # TODO: Allow setting more them 5 inputs and let the user
             # select the 5 to display.
@@ -129,6 +138,18 @@ class OWVennDiagram(OWWidget):
             self._add(key, data)
 
     def handleNewSignals(self):
+        self._inputUpdate = False
+        incremental = all(inc for _, inc in self._queue)
+
+        if incremental:
+            self._updateItemsets()
+        else:
+            self._createItemsets()
+            self._restoreHints()
+            self._updateItemsets()
+
+        del self._queue[:]
+
         self._createDiagram()
         if self.data:
             self.info.setText("{} datasets on input.\n".format(len(self.data)))
@@ -137,14 +158,14 @@ class OWVennDiagram(OWWidget):
 
         OWWidget.handleNewSignals(self)
 
-    def _invalidate(self, keys=None):
+    def _invalidate(self, keys=None, incremental=True):
         """
         Invalidate input for a list of input keys.
         """
         if keys is None:
             keys = self.data.keys()
 
-        self._queue.extend(keys)
+        self._queue.extend((key, incremental) for key in keys)
 
     def itemsetAttr(self, key):
         index = self.data.keys().index(key)
@@ -182,7 +203,7 @@ class OWVennDiagram(OWWidget):
         attrs = string_attributes(table.domain)
         self._setAttributes(index, attrs)
 
-        self._invalidate([key])
+        self._invalidate([key], incremental=False)
 
         item = self.inputsBox.layout().itemAt(index)
         box = item.widget()
@@ -208,7 +229,7 @@ class OWVennDiagram(OWWidget):
                 title = "Input {}".format(i)
             box.setTitle(title)
 
-        self._invalidate(None)
+        self._invalidate(None, incremental=False)
 
     def _update(self, key, table):
         name = table.name
@@ -224,31 +245,70 @@ class OWVennDiagram(OWWidget):
         box = item.widget()
         box.setTitle("Input: {}".format(name))
 
-    def _updateItemSets(self):
-        if self._queue:
-            # TODO: Update itemsets  only if changed.
-            self.itemsets.clear()
-            for key, input in self.data.items():
-                attr = self.itemsetAttr(key)
-                items = [str(inst[attr]) for inst in input.table
-                         if not inst[attr].is_special()]
+    def _updateItemsets(self):
+        assert self.data.keys() == self.itemsets.keys()
+        for key, input in self.data.items():
+            attr = self.itemsetAttr(key)
+            items = [str(inst[attr]) for inst in input.table
+                     if not inst[attr].is_special()]
 
-                if key in self.itemsets:
-                    item = self.itemsets[key]
-                    item = item._replace(items=items)
-                else:
-                    item = _ItemSet(key=key, name=input.name, items=items)
+            item = self.itemsets[key]
+            item = item._replace(items=items)
+            if item.name != input.name:
+                item = item._replace(name=input.name, title=input.name)
+            self.itemsets[key] = item
 
-                self.itemsets[key] = item
+    def _createItemsets(self):
+        olditemsets = dict(self.itemsets)
+        self.itemsets.clear()
+        for key, input in self.data.items():
+            attr = self.itemsetAttr(key)
+            items = [str(inst[attr]) for inst in input.table
+                     if not inst[attr].is_special()]
 
-            del self._queue[:]
+            title = input.name
+            if key in olditemsets and olditemsets[key].name == input.name:
+                title = olditemsets[key].title
+
+            itemset = _ItemSet(key=key, name=input.name, title=title,
+                               items=items)
+            self.itemsets[key] = itemset
+
+    def _storeHints(self):
+        if self.data:
+            self.inputhints.clear()
+            for i, (key, input) in enumerate(self.data.items()):
+                attrs = string_attributes(input.table.domain)
+                attrs = tuple(attr.name for attr in attrs)
+                selected = self.itemsetAttr(key)
+                itemset = self.itemsets[key]
+                self.inputhints[(i, input.name, attrs)] = \
+                    (selected.name, itemset.title)
+
+    def _restoreHints(self):
+        settings = []
+        for i, (key, input) in enumerate(self.data.items()):
+            attrs = string_attributes(input.table.domain)
+            attrs = tuple(attr.name for attr in attrs)
+            hint = self.inputhints.get((i, input.name, attrs), None)
+            if hint is not None:
+                attr, name = hint
+                attr_ind = attrs.index(attr)
+                settings.append((attr_ind, name))
+            else:
+                return
+
+        # all inputs match the stored hints
+        for i, key in enumerate(self.itemsets):
+            attr, itemtitle = settings[i]
+            self.itemsets[key] = self.itemsets[key]._replace(title=itemtitle)
+            _, cb = self._controlAtIndex(i)
+            cb.setCurrentIndex(attr)
 
     def _createDiagram(self):
         self._updating = True
 
         oldselection = list(self.selection)
-
-        self._updateItemSets()
 
         self.vennwidget.clear()
         n = len(self.itemsets)
@@ -258,7 +318,7 @@ class OWVennDiagram(OWWidget):
         colors = OWColorPalette.ColorPaletteHSV(n)
 
         for i, (key, item) in enumerate(self.itemsets.items()):
-            gr = VennSetItem(text=item.name, count=len(item.items))
+            gr = VennSetItem(text=item.title, count=len(item.items))
             color = colors[i]
             color.setAlpha(100)
             gr.setBrush(QBrush(color))
@@ -329,12 +389,13 @@ class OWVennDiagram(OWWidget):
         key, _ = inputs[index]
 
         self._invalidate([key])
+        self._updateItemsets()
         self._createDiagram()
 
     def _on_itemTextEdited(self, index, text):
         text = str(text)
         key = self.itemsets.keys()[index]
-        self.itemsets[key] = self.itemsets[key]._replace(name=text)
+        self.itemsets[key] = self.itemsets[key]._replace(title=text)
 
     def invalidateOutput(self):
         if self.autocommit:
@@ -375,6 +436,10 @@ class OWVennDiagram(OWWidget):
         from Orange.OrangeWidgets.OWDlgs import OWChooseImageSizeDlg
         dlg = OWChooseImageSizeDlg(self.scene, parent=self)
         dlg.exec_()
+
+    def getSettings(self, *args, **kwargs):
+        self._storeHints()
+        return OWWidget.getSettings(self, *args, **kwargs)
 
 
 def table_concat(tables):
