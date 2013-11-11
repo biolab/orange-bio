@@ -14,7 +14,8 @@ import numpy
 from PyQt4.QtGui import (
     QComboBox, QGraphicsScene, QGraphicsView, QGraphicsWidget,
     QGraphicsPathItem, QGraphicsTextItem, QPainterPath, QPainter,
-    QTransform, QColor, QBrush, QPen, QStyle, QPalette
+    QTransform, QColor, QBrush, QPen, QStyle, QPalette,
+    QApplication
 )
 
 from PyQt4.QtCore import Qt, QPointF, QRectF, QLineF
@@ -44,7 +45,8 @@ class OWVennDiagram(OWWidget):
 
     def __init__(self, parent=None, signalManager=None,
                  title="Venn Diagram"):
-        super(OWVennDiagram, self).__init__(parent, signalManager, title)
+        super(OWVennDiagram, self).__init__(parent, signalManager, title,
+                                            wantGraph=True)
 
         self.autocommit = False
         # Selected disjoint subset indices
@@ -96,6 +98,7 @@ class OWVennDiagram(OWWidget):
         self.mainArea.layout().addWidget(self.view)
         self.vennwidget = VennDiagram()
         self.vennwidget.resize(400, 400)
+        self.vennwidget.itemTextEdited.connect(self._on_itemTextEdited)
         self.scene.selectionChanged.connect(self._on_selectionChanged)
 
         self.scene.addItem(self.vennwidget)
@@ -104,6 +107,7 @@ class OWVennDiagram(OWWidget):
                     max(self.controlArea.sizeHint().height(), 550))
 
         self._queue = []
+        self.graphButton.clicked.connect(self.saveImage)
 
     def setData(self, data, key=None):
         self.error(0)
@@ -327,6 +331,11 @@ class OWVennDiagram(OWWidget):
         self._invalidate([key])
         self._createDiagram()
 
+    def _on_itemTextEdited(self, index, text):
+        text = str(text)
+        key = self.itemsets.keys()[index]
+        self.itemsets[key] = self.itemsets[key]._replace(name=text)
+
     def invalidateOutput(self):
         if self.autocommit:
             self.commit()
@@ -361,6 +370,11 @@ class OWVennDiagram(OWWidget):
             data = None
 
         self.send("Data", data)
+
+    def saveImage(self):
+        from Orange.OrangeWidgets.OWDlgs import OWChooseImageSizeDlg
+        dlg = OWChooseImageSizeDlg(self.scene, parent=self)
+        dlg.exec_()
 
 
 def table_concat(tables):
@@ -520,9 +534,55 @@ class VennIntersectionArea(QGraphicsPathItem):
         self._updateTextAnchor()
 
 
+class GraphicsTextEdit(QGraphicsTextItem):
+    #: Edit triggers
+    NoEditTriggers, DoubleClicked = 0, 1
+
+    editingFinished = Signal()
+    editingStarted = Signal()
+
+    documentSizeChanged = Signal()
+
+    def __init__(self, *args, **kwargs):
+        super(GraphicsTextEdit, self).__init__(*args, **kwargs)
+        self.setTabChangesFocus(True)
+        self._edittrigger = GraphicsTextEdit.DoubleClicked
+        self._editing = False
+        self.document().documentLayout().documentSizeChanged.connect(
+            self.documentSizeChanged
+        )
+
+    def mouseDoubleClickEvent(self, event):
+        super(GraphicsTextEdit, self).mouseDoubleClickEvent(event)
+        if self._edittrigger == GraphicsTextEdit.DoubleClicked:
+            self._start()
+
+    def focusOutEvent(self, event):
+        super(GraphicsTextEdit, self).focusOutEvent(event)
+
+        if self._editing:
+            self._end()
+
+    def _start(self):
+        self._editing = True
+        self.setTextInteractionFlags(Qt.TextEditorInteraction)
+        self.setFocus(Qt.MouseFocusReason)
+        self.editingStarted.emit()
+
+    def _end(self):
+        self._editing = False
+        self.setTextInteractionFlags(Qt.NoTextInteraction)
+        self.editingFinished.emit()
+
+
 class VennDiagram(QGraphicsWidget):
     # rect and petal are for future work
     Circle, Ellipse, Rect, Petal = 1, 2, 3, 4
+
+    TitleFormat = "<center><h4>{0}</h4>{1}</center>"
+
+    selectionChanged = Signal()
+    itemTextEdited = Signal(int, str)
 
     def __init__(self, parent=None):
         super(VennDiagram, self).__init__(parent)
@@ -554,20 +614,29 @@ class VennDiagram(QGraphicsWidget):
             item.setParentItem(self)
             item.setVisible(True)
 
-        fmt = '<center><h4>{0}</h4>{1}</center>'.format
+        fmt = self.TitleFormat.format
+
         font = self.font()
         font.setPixelSize(14)
 
         for item in items:
-            text = QGraphicsTextItem(self)
+            text = GraphicsTextEdit(self)
             text.setFont(font)
             text.setDefaultTextColor(QColor("#333"))
             text.setHtml(fmt(escape(item.text), item.count))
             text.adjustSize()
+            text.editingStarted.connect(self._on_editingStarted)
+            text.editingFinished.connect(self._on_editingFinished)
+            text.documentSizeChanged.connect(
+                self._on_itemTextSizeChanged
+            )
+
             self._textitems.append(text)
 
-        self._vennareas = [VennIntersectionArea(parent=self)
-                           for i in range(2 ** len(items))]
+        self._vennareas = [
+            VennIntersectionArea(parent=self)
+            for i in range(2 ** len(items))
+        ]
         self._subsettextitems = [
             QGraphicsTextItem(parent=self)
             for i in range(2 ** len(items))
@@ -578,6 +647,13 @@ class VennDiagram(QGraphicsWidget):
     def clear(self):
         scene = self.scene()
         items = self.vennareas() + self.items() + self._textitems
+
+        for item in self._textitems:
+            item.editingStarted.disconnect(self._on_editingStarted)
+            item.editingFinished.disconnect(self._on_editingFinished)
+            item.documentSizeChanged.disconnect(
+                self._on_itemTextSizeChanged
+            )
 
         self._items = []
         self._vennareas = []
@@ -685,6 +761,31 @@ class VennDiagram(QGraphicsWidget):
     def paint(self, painter, option, w):
         super(VennDiagram, self).paint(painter, option, w)
 #         painter.drawRect(self.boundingRect())
+
+    def _on_editingStarted(self):
+        item = self.sender()
+        index = self._textitems.index(item)
+        text = self._items[index].text
+        item.setTextWidth(-1)
+        item.setHtml(self.TitleFormat.format(escape(text), "<br/>"))
+
+    def _on_editingFinished(self):
+        item = self.sender()
+        index = self._textitems.index(item)
+        text = item.toPlainText()
+        if text != self._items[index].text:
+            self._items[index].text = text
+
+            self.itemTextEdited.emit(index, text)
+
+        item.setHtml(
+            self.TitleFormat.format(escape(text), self._items[index].count))
+        item.adjustSize()
+
+    def _on_itemTextSizeChanged(self):
+        item = self.sender()
+        index = self._textitems.index(item)
+        self._updateTextItemPos(index)
 
 
 def anchor_rect(rect, anchor_pos,
@@ -943,8 +1044,6 @@ def venn_intersection(paths, key):
 
     return path
 
-
-from PyQt4.QtGui import QApplication
 
 if __name__ == "__main__":
     app = QApplication([])
