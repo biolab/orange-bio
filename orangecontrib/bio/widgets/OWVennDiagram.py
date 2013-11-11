@@ -454,13 +454,22 @@ def table_concat(tables):
                         if f not in features_seen)
         features_seen.update(features)
 
-        if table.domain.class_var is not None and class_var is None:
-            class_var = table.domain.class_var
-            features_seen.add(class_var)
+        new_metas = {}
 
-        new_metas = {mid: meta
-                     for mid, meta in table.domain.getmetas().items()
-                     if meta not in metas_seen}
+        if table.domain.class_var is not None:
+            if class_var is not None and table.domain.class_var != class_var:
+                # Move the extra class variables to meta attributes
+                if table.domain.class_var not in metas_seen:
+                    new_metas[Orange.core.newmetaid()] = table.domain.class_var
+                    metas_seen.add(table.domain.class_var)
+            else:
+                class_var = table.domain.class_var
+                features_seen.add(class_var)
+
+        new_metas.update(
+            {mid: meta for mid, meta in table.domain.getmetas().items()
+             if meta not in metas_seen}
+        )
 
         metas_seen.update(new_metas.itervalues())
 
