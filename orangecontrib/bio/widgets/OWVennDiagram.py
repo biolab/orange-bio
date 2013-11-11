@@ -566,15 +566,22 @@ class VennIntersectionArea(QGraphicsPathItem):
     def paint(self, painter, option, widget=None):
         painter.save()
         path = self.path()
-        brush = self.brush()
+        brush = QBrush(self.brush())
         pen = QPen(self.pen())
+
         if option.state & QStyle.State_Selected:
             pen.setColor(Qt.red)
+            brush.setStyle(Qt.DiagCrossPattern)
+            brush.setColor(QColor(40, 40, 40, 100))
+
         elif option.state & QStyle.State_MouseOver:
             pen.setColor(Qt.blue)
 
         if option.state & QStyle.State_MouseOver:
-            brush = QBrush(QColor(100, 100, 100, 100))
+            brush.setColor(QColor(100, 100, 100, 100))
+            if brush.style() == Qt.NoBrush:
+                # Make sure the highlight is actually visible.
+                brush.setStyle(Qt.SolidPattern)
 
         painter.setPen(pen)
         painter.setBrush(brush)
