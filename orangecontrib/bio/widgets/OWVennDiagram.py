@@ -454,12 +454,9 @@ def table_concat(tables):
                         if f not in features_seen)
         features_seen.update(features)
 
-        if table.domain.class_var is not None:
-            if class_var is not None and table.domain.class_var != class_var:
-                raise ValueError("Tables contains mismatching class var.")
-            else:
-                class_var = table.domain.class_var
-                features_seen.add(class_var)
+        if table.domain.class_var is not None and class_var is None:
+            class_var = table.domain.class_var
+            features_seen.add(class_var)
 
         new_metas = {mid: meta
                      for mid, meta in table.domain.getmetas().items()
