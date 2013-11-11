@@ -128,7 +128,7 @@ class OWVennDiagram(OWWidget):
             else:
                 # Update existing item
                 self._update(key, data)
-        else:
+        elif data is not None:
             # TODO: Allow setting more them 5 inputs and let the user
             # select the 5 to display.
             if len(self.data) == 5:
@@ -229,7 +229,7 @@ class OWVennDiagram(OWWidget):
                 title = "Input {}".format(i)
             box.setTitle(title)
 
-        self._invalidate(None, incremental=False)
+        self._invalidate([key], incremental=False)
 
     def _update(self, key, table):
         name = table.name
