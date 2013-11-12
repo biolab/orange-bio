@@ -19,7 +19,7 @@ Construct an ontology from scratch with custom terms ::
     >>> ontology.add_header_tag("created-by", "ales") # add a header tag
     >>> from StringIO import StringIO
     >>> buffer = StringIO()
-    >>> ontology.dump(buffer) # Save the ontology to a file like object
+    >>> ontology.write(buffer) # Save the ontology to a file like object
     >>> print buffer.getvalue() # Print the contents of the buffer
     created-by: ales
     <BLANKLINE>
@@ -214,15 +214,14 @@ class OBOObject(object):
         Note the use of ``def_`` to define the 'def' tag. This is to
         avoid the name clash with the python's ``def`` keyword.
 
+    .. seealso:: :class:`Term` :class:`Typedef` :class:`Instance`
+
     """
     def __init__(self, stanza_type="Term", **kwargs):
         """
         Initialize from keyword arguments.
         """
         self.stanza_type = stanza_type
-
-        self.modifiers = []
-        self.comments = []
         self.tag_values = []
         self.values = {}
 
@@ -234,10 +233,10 @@ class OBOObject(object):
         for tag, value in sorted_tags:
             if isinstance(value, basestring):
                 tag, value, modifiers, comment = \
-                    self.parse_tag_value(self.name_demangle(tag), value)
+                    parse_tag_value(name_demangle(tag) + ": " + value)
             elif isinstance(value, tuple):
                 tag, value, modifiers, comment = \
-                    ((self.name_demangle(tag),) + value + (None, None))[:4]
+                    ((name_demangle(tag),) + value + (None, None))[:4]
             self.add_tag(tag, value, modifiers, comment)
 
         self.related = set()
@@ -247,32 +246,30 @@ class OBOObject(object):
         """
         Is this object anonymous.
         """
-        value = self.get_value("is_annonymous")
+        value = self.get_values("is_annonymous")
         return bool(value)
 
+    @property
+    def id(self):
+        """
+        The id of this object.
+        """
+        value = self.get_values("id")
+        return value[0] if value else None
+
+    @property
+    def name(self):
+        """
+        Name of this object
+        """
+        value = self.get_values("name")
+        return value[0] if value else None
+
     def name_mangle(self, tag):
-        """
-        Mangle tag name if it conflicts with python keyword.
-
-        Example::
-
-            >>> term.name_mangle("def"), term.name_mangle("class")
-            ('def_', 'class_')
-
-        """
-        if keyword.iskeyword(tag):
-            return tag + "_"
-        else:
-            return tag
+        return name_mangle(tag)
 
     def name_demangle(self, tag):
-        """
-        Reverse of `name_mangle`.
-        """
-        if tag.endswith("_") and keyword.iskeyword(tag[:-1]):
-            return tag[:-1]
-        else:
-            return tag
+        return name_demangle(tag)
 
     def add_tag(self, tag, value, modifiers=None, comment=None):
         """
@@ -289,19 +286,13 @@ class OBOObject(object):
 
         """
         tag = intern(tag)  # a small speed and memory benefit
-        self.tag_values.append((tag, value))
-        self.modifiers.append(modifiers)
-        self.comments.append(comment)
+        self.tag_values.append((tag, value, modifiers, comment))
         self.values.setdefault(tag, []).append(value)
 
-        #  TODO: fix multiple tags grouping
-        if hasattr(self, tag):
-            if isinstance(getattr(self, tag), list):
-                getattr(self, tag).append(value)
-            else:
-                setattr(self, tag, [getattr(self, tag)] + [value])
-        else:
-            setattr(self, self.name_mangle(tag), value)
+    def add_tags(self, tag_value_iter):
+        for tag, value, modifiers, comment in tag_value_iter:
+            self.tag_values.append((tag, value, modifiers, comment))
+            self.values.setdefault(tag, []).append(value)
 
     def update(self, other):
         """
@@ -310,21 +301,15 @@ class OBOObject(object):
         end except for the `id` tag.
 
         """
-        for (tag, value), modifiers, comment in \
-                zip(other.tag_values, other.modifiers, other.comments):
+        for tag, value, modifiers, comment in other.tag_values:
             if tag != "id":
                 self.add_tag(tag, value, modifiers, comment)
 
-    def get_value(self, tag, group=True):
-        if group:
-            pairs = [pair for pair in self.tag_values if pair[0] == tag]
-            return pairs
-        else:
-            tag = self.name_mangle(tag)
-            if tag in self.__dict__:
-                return self.__dict__[tag]
-            else:
-                raise ValueError("No value for tag: %s" % tag)
+    def get_values(self, tag):
+        try:
+            return self.values[tag]
+        except KeyError:
+            return []
 
     def tag_count(self):
         """
@@ -334,12 +319,11 @@ class OBOObject(object):
 
     def tags(self):
         """
-        Return an iterator over the (tag, value) pairs.
+        Return an list of all (tag, value, modifiers, comment) tuples.
         """
-        for i in range(self.tag_count()):
-            yield self.tag_values[i] + (self.modifiers[i], self.comments[i])
+        return list(self.tag_values)
 
-    def format_single_tag(self, index):
+    def _format_single_tag(self, index):
         """
         Return a formated string representing index-th tag pair value
 
@@ -349,18 +333,16 @@ class OBOObject(object):
             ...     "Term", id="FOO:001", name="bar",
             ...      def_="Example definition {modifier=frob} ! Comment")
             ...
-            >>> term.format_single_tag(0)
+            >>> term._format_single_tag(0)
             'id: FOO:001'
-            >>> term.format_single_tag(1)
+            >>> term._format_single_tag(1)
             'def: Example definition { modifier=frob } ! Comment'
 
         ..
-            Why by index, and not by tag?
+            Why by index, and not by tag? Multiple tags are allowed.
 
         """
-        tag, value = self.tag_values[index]
-        modifiers = self.modifiers[index]
-        comment = self.comments[index]
+        tag, value, modifiers, comment = self.tag_values[index]
         res = ["%s: %s" % (tag, value)]
         if modifiers:
             res.append("{ %s }" % modifiers)
@@ -374,7 +356,7 @@ class OBOObject(object):
         """
         stanza = ["[%s]" % self.stanza_type]
         for i in range(self.tag_count()):
-            stanza.append(self.format_single_tag(i))
+            stanza.append(self._format_single_tag(i))
         return "\n".join(stanza)
 
     @classmethod
@@ -391,98 +373,13 @@ class OBOObject(object):
         """
         lines = stanza.splitlines()
         stanza_type = lines[0].strip("[]")
-#        tag_values = []
-#        for line in lines[1:]:
-#            if ":" in line:
-#                tag_values.append(cls.parse_tag_value(line))
-        tag_values = [cls.parse_tag_value(line) for line in lines[1:]
+
+        tag_values = [parse_tag_value(line) for line in lines[1:]
                       if ":" in line]
 
         obo = OBOObject(stanza_type)
-        for tag, value, modifiers, comment in tag_values:
-            obo.add_tag(tag, value, modifiers, comment)
+        obo.add_tags(tag_values)
         return obo
-
-    @classmethod
-    def parse_tag_value(cls, tag_value_pair, *args):
-        """
-        Parse and return a four-tuple containing a tag, value, a
-        list of modifier pairs, comment. If no modifiers or comments
-        are present the corresponding entries will be ``None``.
-
-        Example::
-
-            >>> OBOObject.parse_tag_value("foo: bar {modifier=frob} ! Comment")
-            ('foo', 'bar', 'modifier=frob', 'Comment')
-            >>> OBOObject.parse_tag_value("foo: bar")
-            ('foo', 'bar', None, None)
-            >>> # Can also pass tag, value pair already split
-            >>> OBOObject.parse_tag_value("foo", "bar {modifier=frob} ! Comment")
-            ('foo', 'bar', 'modifier=frob', 'Comment')
-
-        """
-        if args and ":" not in tag_value_pair:
-            tag, rest = tag_value_pair, args[0]
-        else:
-            tag, rest = _split_and_strip(tag_value_pair, ":")
-        value, modifiers, comment = None, None, None
-
-        if "{" in rest:
-            value, rest = _split_and_strip(rest, "{",)
-            modifiers, rest = _split_and_strip(rest, "}")
-        if "!" in rest:
-            if value is None:
-                value, comment = _split_and_strip(rest, "!")
-            else:
-                _, comment = _split_and_strip(rest, "!")
-        if value is None:
-            value = rest
-
-        if modifiers is not None:
-            modifiers = modifiers  # TODO: split modifiers in a list
-
-        return tag, value, modifiers, comment
-
-    _RE_TAG_VALUE = re.compile(r"^(?P<tag>.+?[^\\])\s*:\s*(?P<value>.+?)\s*(?P<modifiers>[^\\]{.+?[^\\]})?\s*(?P<comment>[^\\]!.*)?$")
-    _RE_VALUE = re.compile(r"^\s*(?P<value>.+?)\s*(?P<modifiers>[^\\]{.+?[^\\]})?\s*(?P<comment>[^\\]!.*)?$")
-
-    _RE_TAG_VALUE = re.compile(
-        r"^(?P<tag>.+?)\s*(?<!\\):\s*(?P<value>.+?)\s*(?P<modifiers>(?<!//){.*?(?<!//)})?\s*(?P<coment>(?<!//)!.*)?$")
-    _RE_VALUE = re.compile(
-        r"^\s*(?P<value>.+?)\s*(?P<modifiers>(?<!//){.*?(?<!//)})?\s*(?P<coment>(?<!//)!.*)?$")
-
-    @classmethod
-    def parse_tag_value_1(cls, tag_value_pair, arg=None):
-        """
-        Parse and return a four-tuple containing a tag, value, a list
-        of modifier pairs, comment. If no modifiers or comments are
-        present the corresponding entries will be None.
-
-        Example::
-            >>> OBOObject.parse_tag_value("foo: bar {modifier=frob} ! Comment")
-            ('foo', 'bar', 'modifier=frob', 'Comment')
-            >>> OBOObject.parse_tag_value("foo: bar")
-            ('foo', 'bar', None, None)
-            >>> #  Can also pass tag, value pair already split
-            >>> OBOObject.parse_tag_value("foo", "bar {modifier=frob} ! Comment")
-            ('foo', 'bar', 'modifier=frob', 'Comment')
-
-        .. warning: This function assumes comment an modifiers are prefixed
-            with a whitespace i.e. 'tag: bla! comment' will be parsed
-            incorrectly!
-
-        """
-        if arg is not None:  # tag_value_pair is actually a tag only
-            tag = tag_value_pair
-            value, modifiers, comment = cls._RE_VALUE.findall(arg)[0]
-        else:
-            tag, value, modifiers, comment = \
-                cls._RE_TAG_VALUE.findall(tag_value_pair)[0]
-        none_if_empyt = lambda val: None if not val.strip() else val.strip()
-        modifiers = modifiers.strip(" {}")
-        comment = comment.lstrip(" !")
-        return (none_if_empyt(tag), none_if_empyt(value),
-                none_if_empyt(modifiers), none_if_empyt(comment))
 
     def related_objects(self):
         """
@@ -499,11 +396,15 @@ class OBOObject(object):
                            for r in self.values.get("relationship", [])]
         return result
 
-    def __repr__(self):
+    def __str__(self):
         """
         Return a string representation of the object in OBO format
         """
         return self.format_stanza()
+
+    def __repr__(self):
+        return ("{0.__name__}(id={1.id!r}, name={1.name}, ...)"
+                .format(type(self), self))
 
     def __iter__(self):
         """
@@ -576,7 +477,6 @@ class OBOParser(object):
         #  For speed make these functions local
         startswith = str.startswith
         endswith = str.endswith
-#        parse_tag_value = OBOObject.parse_tag_value
         parse_tag_value_ = parse_tag_value
 
         for line in body.splitlines():
@@ -602,7 +502,7 @@ class OBOParser(object):
 
 class OBOOntology(object):
     """
-    An class for representing OBO ontologies.
+    An class representing an OBO ontology.
 
     :param file-like file:
         A optional file like object describing the ontology in obo format.
@@ -612,9 +512,6 @@ class OBOOntology(object):
     BUILTINS = BUILTIN_OBO_OBJECTS
 
     def __init__(self, file=None):
-        """
-        Initialize an ontology instance from a file like object (.obo format)
-        """
         self.objects = []
         self.header_tags = []
         self.id2term = {}
@@ -661,14 +558,17 @@ class OBOOntology(object):
 
         parser = OBOParser(file)
         current = None
+        tag_values = []
         for event, value in parser.parse(progress_callback=progress_callback):
             if event == "TAG_VALUE":
-                current.add_tag(*value)
+                tag_values.append(value)
             elif event == "START_STANZA":
                 current = OBOObject(value)
             elif event == "CLOSE_STANZA":
+                current.add_tags(tag_values)
                 self.add_object(current)
                 current = None
+                tag_values = []
             elif event == "HEADER_TAG":
                 self.add_header_tag(*value)
             elif event != "COMMENT":
@@ -689,24 +589,28 @@ class OBOOntology(object):
 #                self._resolved_imports.append(uri)
 
     def dump(self, file):
+        # deprecated use write
+        self.write(file)
+
+    def write(self, stream):
         """
-        Dump the contents of the ontology to a `file` in .obo format.
+        Write the contents of the ontology to a `file` in .obo format.
 
         :param file-like file:
             A file like object.
 
         """
-        if isinstance(file, basestring):
-            file = open(file, "wb")
+        if isinstance(stream, basestring):
+            stream = open(file, "wb")
 
         for key, value in self.header_tags:
-            file.write(key + ": " + value + "\n")
+            stream.write(key + ": " + value + "\n")
 
         # Skip the builtins
-        for object in self.objects[len(self.BUILTINS):]:
-            file.write("\n")
-            file.write(object.format_stanza())
-            file.write("\n")
+        for obj in self.objects[len(self.BUILTINS):]:
+            stream.write("\n")
+            stream.write(obj.format_stanza())
+            stream.write("\n")
 
     def update(self, other):
         """
@@ -788,6 +692,12 @@ class OBOOntology(object):
         Return all :class:`Instance` instances in the ontology.
         """
         return [obj for obj in self.objects if obj.stanza_type == "Instance"]
+
+    def root_terms(self):
+        """
+        Return all root terms (terms without any parents).
+        """
+        return [term for term in self.terms() if not self.parent_terms(term)]
 
     def related_terms(self, term):
         """
@@ -888,22 +798,25 @@ class OBOOntology(object):
         return relations
 
     def __len__(self):
+        """
+        Return the number of all objects in the ontology.
+        """
         return len(self.objects)
 
     def __iter__(self):
+        """
+        Return an iterator over all objects in the ontology.
+        """
         return iter(self.objects)
 
-    def __contains__(self, obj):
-        if isinstance(obj, basestring):
-            return obj in self.id2term
-        else:
-            return obj in self.objects
+    def __contains__(self, oboid):
+        return oboid in self.id2term
 
-    def __getitem__(self, key):
-        return self.id2term[key]
-
-    def has_key(self, key):
-        return key in self.id2term
+    def __getitem__(self, oboid):
+        """
+        Get the object by it's id `oboid`
+        """
+        return self.id2term[oboid]
 
     def traverse_bf(self, term):
         """
@@ -1039,6 +952,30 @@ class OBOOntology(object):
                                    color=edge_colors.get(rel_type, "blue"))
 
         return graph
+
+
+def name_mangle(tag):
+    """
+    Mangle tag name if it conflicts with python keyword.
+
+    >>> term.name_mangle("def"), term.name_mangle("class")
+    ('def_', 'class_')
+
+    """
+    if keyword.iskeyword(tag):
+        return tag + "_"
+    else:
+        return tag
+
+
+def name_demangle(tag):
+    """
+    Reverse of `name_mangle`.
+    """
+    if tag.endswith("_") and keyword.iskeyword(tag[:-1]):
+        return tag[:-1]
+    else:
+        return tag
 
 
 def load(file):
