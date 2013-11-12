@@ -104,8 +104,87 @@ def _split_and_strip(string, sep):
     any whitespace between the inner parts.
 
     """
-    head, tail = string.split(sep, 1)
+    head, tail = _split_esc(string, sep)
     return head.rstrip(" "), tail.lstrip(" ")
+
+
+def _rsplit_and_strip(string, sep):
+    """
+    Right split the `string` by separator `sep` in to two parts and
+    strip any whitespace between the inner parts.
+
+    """
+    head, tail = _rsplit_esc(string, sep)
+    return head.rstrip(" "), tail.lstrip(" ")
+
+
+def _find_esc(string, char):
+    i = string.find(char)
+    while i != -1:
+        if (i > 0 and string[i - 1] != "\\") or string[i - 1] != "\\":
+            return i
+        else:
+            i = string.find(char, i + 1)
+    return i
+
+
+def _rfind_esc(string, char):
+    i = string.rfind(char)
+    while i != -1:
+        if (i > 0 and string[i - 1] != "\\") or string[i - 1] != "\\":
+            return i
+        else:
+            i = string.rfind(char, 0, i - 1)
+    return i
+
+
+def _split_esc(string, sep, _find_esc=_find_esc):
+    i = _find_esc(string, sep)
+    if i != -1:
+        return string[:i], string[i + 1:]
+    else:
+        return string, ""
+
+
+def _rsplit_esc(string, sep):
+    i = _rfind_esc(string, sep)
+    if i != -1:
+        return string[:i], string[i + 1:]
+    else:
+        return string, ""
+
+
+def parse_tag_value(tag_value_string):
+    """
+    Parse a tag value string and return a four-tuple containing
+    a (tag, value, modifiers, comment). If comment or modifiers are
+    not present the corresponding entry will be ``None``.
+
+    >>> parse_tag_value("foo: bar {modifier=frob} ! Comment")
+    ('foo', 'bar', 'modifier=frob', 'Comment')
+    >>> parse_tag_value("foo: bar")
+    ('foo', 'bar', None, None)
+    >>> parse_tag_value("foo: bar [baz:0] { fizz=buzz } ! Comment")
+    ('foo', 'bar [baz:0]', 'fizz=buzz', 'Comment')
+
+    """
+    comment = modifiers = None
+    # First get rid of the comment if present
+    if _rfind_esc(tag_value_string, "!") != -1:
+        tag_value_string, comment = _rsplit_and_strip(tag_value_string, "!")
+
+    # Split on the first unescaped ":"
+    tag, value = _split_and_strip(tag_value_string, ":")
+
+    # Split the value on { to get the modifiers if present
+    value = value.rstrip()
+    if value.endswith("}") and not value.endswith(r"\}") and \
+            _rfind_esc(value, "{") != -1:
+        value, modifiers = _rsplit_and_strip(value, "{")
+        # remove closing } and any whitespace
+        modifiers = modifiers[: -1].rstrip()
+
+    return tag, value, modifiers, comment
 
 
 class OBOObject(object):
@@ -312,10 +391,12 @@ class OBOObject(object):
         """
         lines = stanza.splitlines()
         stanza_type = lines[0].strip("[]")
-        tag_values = []
-        for line in lines[1:]:
-            if ":" in line:
-                tag_values.append(cls.parse_tag_value(line))
+#        tag_values = []
+#        for line in lines[1:]:
+#            if ":" in line:
+#                tag_values.append(cls.parse_tag_value(line))
+        tag_values = [cls.parse_tag_value(line) for line in lines[1:]
+                      if ":" in line]
 
         obo = OBOObject(stanza_type)
         for tag, value, modifiers, comment in tag_values:
@@ -323,7 +404,7 @@ class OBOObject(object):
         return obo
 
     @classmethod
-    def parse_tag_value_1(cls, tag_value_pair, *args):
+    def parse_tag_value(cls, tag_value_pair, *args):
         """
         Parse and return a four-tuple containing a tag, value, a
         list of modifier pairs, comment. If no modifiers or comments
@@ -365,8 +446,13 @@ class OBOObject(object):
     _RE_TAG_VALUE = re.compile(r"^(?P<tag>.+?[^\\])\s*:\s*(?P<value>.+?)\s*(?P<modifiers>[^\\]{.+?[^\\]})?\s*(?P<comment>[^\\]!.*)?$")
     _RE_VALUE = re.compile(r"^\s*(?P<value>.+?)\s*(?P<modifiers>[^\\]{.+?[^\\]})?\s*(?P<comment>[^\\]!.*)?$")
 
+    _RE_TAG_VALUE = re.compile(
+        r"^(?P<tag>.+?)\s*(?<!\\):\s*(?P<value>.+?)\s*(?P<modifiers>(?<!//){.*?(?<!//)})?\s*(?P<coment>(?<!//)!.*)?$")
+    _RE_VALUE = re.compile(
+        r"^\s*(?P<value>.+?)\s*(?P<modifiers>(?<!//){.*?(?<!//)})?\s*(?P<coment>(?<!//)!.*)?$")
+
     @classmethod
-    def parse_tag_value(cls, tag_value_pair, arg=None):
+    def parse_tag_value_1(cls, tag_value_pair, arg=None):
         """
         Parse and return a four-tuple containing a tag, value, a list
         of modifier pairs, comment. If no modifiers or comments are
@@ -490,7 +576,8 @@ class OBOParser(object):
         #  For speed make these functions local
         startswith = str.startswith
         endswith = str.endswith
-        parse_tag_value = OBOObject.parse_tag_value
+#        parse_tag_value = OBOObject.parse_tag_value
+        parse_tag_value_ = parse_tag_value
 
         for line in body.splitlines():
             if startswith(line, "[") and endswith(line, "]"):
@@ -499,7 +586,7 @@ class OBOParser(object):
             elif startswith(line, "!"):
                 yield "COMMENT", line[1:]
             elif line:
-                yield "TAG_VALUE", parse_tag_value(line)
+                yield "TAG_VALUE", parse_tag_value_(line)
             else:  # empty line is the end of a term
                 yield "CLOSE_STANZA", None
                 current = None
