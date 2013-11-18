@@ -1,5 +1,6 @@
 import re
 import unicodedata
+import operator
 from collections import defaultdict, namedtuple
 from xml.sax.saxutils import escape
 
@@ -9,10 +10,9 @@ from PyQt4.QtGui import (
     QFrame, QHBoxLayout, QPlainTextEdit, QSyntaxHighlighter, QTextCharFormat,
     QTextCursor, QCompleter, QStringListModel, QStandardItemModel,
     QStandardItem, QListView, QStyle, QStyledItemDelegate,
-    QStyleOptionViewItemV4, QPalette, QColor, QApplication,
-    QAction, QToolButton, QSizePolicy, QItemSelectionModel,
-    QPlainTextDocumentLayout, QTextDocument, QRadioButton,
-    QButtonGroup, QStyleOptionButton
+    QStyleOptionViewItemV4, QPalette, QColor, QApplication, QAction,
+    QToolButton, QItemSelectionModel, QPlainTextDocumentLayout, QTextDocument,
+    QRadioButton, QButtonGroup, QStyleOptionButton, QMenu, QDialog
 )
 
 from PyQt4.QtCore import Qt, QEvent, QVariant, pyqtSignal as Signal
@@ -24,6 +24,7 @@ from Orange.OrangeWidgets.OWWidget import \
 
 from Orange.OrangeWidgets.OWItemModels import VariableListModel
 from Orange.OrangeWidgets import OWGUI
+from Orange.orng.orngDataCaching import data_hints
 
 
 NAME = "Select Genes"
@@ -48,6 +49,13 @@ def toBool(variant):
         return bool(variant.toPyObject())
     else:
         return bool(variant)
+
+
+def toPyObject(variant):
+    if isinstance(variant, QVariant):
+        return variant.toPyObject()
+    else:
+        return variant
 
 
 class SaveSlot(QStandardItem):
@@ -109,7 +117,7 @@ class OWSelectGenes(OWWidget):
 
     contextHandlers = {
         "": DomainContextHandler(
-            "", ["geneIndex"]
+            "", ["geneIndex", "taxid"]
         ),
         "subset": DomainContextHandler(
             "subset", ["subsetGeneIndex"]
@@ -126,6 +134,7 @@ class OWSelectGenes(OWWidget):
                           wantMainArea=False)
 
         self.geneIndex = None
+        self.taxid = None
         self.autoCommit = False
         self.preserveOrder = True
         self.savedSelections = [
@@ -252,8 +261,16 @@ class OWSelectGenes(OWWidget):
             toolTip="Create a new saved selection")
 
         self.actionRemove = QAction(
-            "-", self,
+            u"\u2212", self,
             toolTip="Delete the current saved selection")
+
+        self.actionMore = QAction("More", self)
+
+        optionsmenu = QMenu()
+        action = optionsmenu.addAction("Import names from gene sets...")
+        action.triggered.connect(self.importGeneSet)
+
+        self.actionMore.setMenu(optionsmenu)
 
         toolbar = QFrame()
         layout = QHBoxLayout()
@@ -268,13 +285,17 @@ class OWSelectGenes(OWWidget):
         b = button(self.actionAdd)
         layout.addWidget(b)
 
-        b = button(self.actionSave)
-        b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        layout.addWidget(b, stretch=10)
-
         b = button(self.actionRemove)
         layout.addWidget(b)
 
+        b = button(self.actionSave)
+        layout.addWidget(b)
+
+        b = button(self.actionMore)
+        b.setPopupMode(QToolButton.InstantPopup)
+        layout.addWidget(b)
+
+        layout.addStretch(100)
         toolbar.setLayout(layout)
 
         box.layout().addWidget(toolbar)
@@ -292,6 +313,9 @@ class OWSelectGenes(OWWidget):
         button = OWGUI.button(box, self, "Commit", callback=self.commit)
 
         OWGUI.setStopper(self, button, cb, "_changedFlag", self.commit)
+
+        # Gene set import dialog (initialized when required)
+        self._genesetDialog = None
 
         # restore saved selections model.
         for name, names in self.savedSelections:
@@ -327,7 +351,7 @@ class OWSelectGenes(OWWidget):
 
         self._changedFlag = True
         self._updateCompletionModel()
-
+        self.taxid = data_hints.get_hint(data, "taxid", None)
         self.openContext("", data)
 
         self.commit()
@@ -534,6 +558,26 @@ class OWSelectGenes(OWWidget):
         item = self._selectedSaveSlot()
         if item:
             self.selectionsModel.removeRow(item.row())
+
+    def importGeneSet(self):
+        if self._genesetDialog is None:
+            self._genesetDialog = GeneSetDialog(
+                self, windowTitle="Import Gene Set Names")
+
+        dialog = self._genesetDialog
+
+        if self.taxid is not None:
+            dialog.setCurrentOrganism(self.taxid)
+
+        result = dialog.exec_()
+        if result == QDialog.Accepted:
+            gsets = dialog.selectedGeneSets()
+            genes = reduce(operator.ior, (gs.genes for gs in gsets), set())
+            text = " ".join(genes)
+            self.entryField.appendPlainText(text)
+            self.entryField.setFocus()
+            self.entryField.moveCursor(QTextCursor.End)
+            self.taxid = dialog.currentOrganism()
 
     def _onSelectedSaveSlotChanged(self):
         item = self._selectedSaveSlot()
@@ -973,6 +1017,222 @@ def is_printable(unichar):
     Return True if the unicode character `unichar` is a printable character.
     """
     return unicodedata.category(unichar) not in _control
+
+
+import itertools
+
+from PyQt4.QtGui import QVBoxLayout, QComboBox, QLineEdit, QTreeView, \
+        QDialogButtonBox, QSortFilterProxyModel
+
+from PyQt4.QtCore import QSize
+from Orange.bio import obiGeneSets as genesets
+from Orange.bio import obiTaxonomy as taxonomy
+from Orange.utils import serverfiles
+
+
+class GeneSetView(QFrame):
+    selectedOrganismChanged = Signal(str)
+    selectionChanged = Signal()
+
+    def __init__(self, *args, **kwargs):
+        super(GeneSetView, self).__init__(*args, **kwargs)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.orgcombo = QComboBox(minimumWidth=150)
+        self.orgcombo.addItem("Organism")
+        item = self.orgcombo.model().item(0)
+        item.setEnabled(False)
+        self.orgcombo.insertSeparator(1)
+        self.orgcombo.activated[int].connect(self._on_organismSelected)
+        layout.addWidget(self.orgcombo)
+
+        self.searchline = QLineEdit()
+        self.searchline.setPlaceholderText("Filter...")
+        completer = QCompleter()
+        self.searchline.setCompleter(completer)
+        layout.addWidget(self.searchline)
+
+        self.gsview = QTreeView()
+        self.gsview.setAlternatingRowColors(True)
+        self.gsview.setRootIsDecorated(False)
+        self.gsview.setSelectionMode(QTreeView.ExtendedSelection)
+        self.proxymodel = QSortFilterProxyModel(
+            filterKeyColumn=1, sortCaseSensitivity=Qt.CaseInsensitive
+        )
+
+        self.gsview.setModel(self.proxymodel)
+        self.gsview.selectionModel().selectionChanged.connect(
+            self._on_selectionChanged)
+
+        self.searchline.textChanged.connect(
+            self.proxymodel.setFilterFixedString)
+
+        layout.addWidget(self.gsview)
+        self.setLayout(layout)
+
+        self.initialize()
+
+    def sizeHint(self):
+        return QSize(500, 550)
+
+    def initialize(self):
+        self.gs_hierarchy = gs = genesets.list_all()
+        taxids = set(taxid for _, taxid, _ in gs)
+        self.organisms = [(taxid, taxonomy.name(taxid)) for taxid in taxids]
+        for taxid, name in self.organisms:
+            self.orgcombo.addItem(name, taxid)
+
+    def setCurrentOrganism(self, taxid):
+        taxids = [tid for tid, _ in self.organisms]
+        if taxid is not None and taxid not in taxids:
+            taxid = None
+
+        if taxid not in taxids:
+            taxid = None
+            index = 0
+        else:
+            index = taxid.index(taxid) + 2
+
+        if index != self.orgcombo.currentIndex():
+            if taxid is None:
+                self.orgcombo.setCurrentIndex(index)
+                self.gsmodel.clear()
+                self.proxymodel.setSourceModel(None)
+            else:
+                self.orgcombo.setCurrentIndex(index)
+
+                currentsets = [(hier, tid)
+                               for hier, tid, _ in self.gs_hierarchy
+                               if tid == taxid]
+
+                gs_ensure_downloaded([(hier, tid, local)
+                                      for hier, tid, local in self.gs_hierarchy
+                                      if tid == taxid and not local])
+
+                sets = [((hier, tid), genesets.load(hier, tid))
+                        for hier, tid in currentsets]
+
+                model = sets_to_model(sets)
+                self.proxymodel.setSourceModel(model)
+                self.gsview.resizeColumnToContents(0)
+                self.selectedOrganismChanged.emit(taxid)
+
+    def currentOrganism(self):
+        index = self.orgcombo.currentIndex()
+        if index > 1:
+            item = self.orgcombo.model().item(index)
+            return toString(item.data(Qt.UserRole))
+        else:
+            return None
+
+    def _on_organismSelected(self, index):
+        if index != -1:
+            item = self.orgcombo.model().item(index)
+            taxid = toString(item.data(Qt.UserRole))
+            self.setCurrentOrganism(taxid)
+
+    def _on_selectionChanged(self, *args):
+        self.selectionChanged.emit()
+
+    def selectedGeneSets(self):
+        selmod = self.gsview.selectionModel()
+        model = self.proxymodel.sourceModel()
+        rows = [self.proxymodel.mapToSource(row)
+                for row in selmod.selectedRows(1)]
+        gsets = [model.data(row, Qt.UserRole) for row in rows]
+        return map(toPyObject, gsets)
+
+
+def sets_to_model(gsets):
+    model = QStandardItemModel()
+    model.setHorizontalHeaderLabels(["Category", "Name"])
+
+    for (hier, tid), sets in gsets:
+        for gset in sets:
+            ngenes = len(gset.genes)
+            names = [escape(name) for name in list(gset.genes)[:30]]
+            names = ", ".join(names)
+            tooltip = "<p>{0}</p>{1}".format(escape(gset.name), names)
+            if ngenes > 30:
+                tooltip += ", ... ({0} names not shown)".format(ngenes - 30)
+
+            category = QStandardItem(" ".join(hier))
+            category.setData((hier, tid), Qt.UserRole)
+            category.setEditable(False)
+            category.setToolTip(tooltip)
+            name = QStandardItem(gset.name)
+            name.setData(gset, Qt.UserRole)
+            name.setEditable(False)
+            name.setToolTip(tooltip)
+            model.appendRow([category, name])
+
+    return model
+
+
+def gs_ensure_downloaded(gslist, progress_info=None):
+    hierlist = [(hier, taxid) for hier, taxid, local in gslist
+                if not local]
+
+    files = [(genesets.sfdomain, genesets.filename(hier, taxid))
+             for hier, taxid in hierlist]
+
+    download_list(files, progress_info)
+
+
+def download_list(files_list, progress_callback=None):
+    nfiles = len(files_list)
+    count = 100 * nfiles
+    counter = itertools.count()
+
+    def advance():
+        progress_callback(100.0 * next(counter) / count)
+
+    for domain, filename in files_list:
+        serverfiles.download(domain, filename,
+                             callback=advance if progress_callback else None)
+
+
+class GeneSetDialog(QDialog):
+    selectionChanged = Signal()
+
+    def __init__(self, *args, **kwargs):
+        super(GeneSetDialog, self).__init__(*args, **kwargs)
+        layout = QVBoxLayout()
+        layout.setContentsMargins(4, 4, 4, 4)
+        self.gsview = GeneSetView()
+        self.gsview.selectionChanged.connect(self.selectionChanged)
+
+        layout.addWidget(self.gsview)
+
+        buttonbox = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
+            Qt.Horizontal
+        )
+        buttonbox.accepted.connect(self.accept)
+        buttonbox.rejected.connect(self.reject)
+
+        layout.addWidget(buttonbox)
+
+        self.setLayout(layout)
+
+    def selectedGeneSets(self):
+        return self.gsview.selectedGeneSets()
+
+    def setCurrentOrganism(self, taxid):
+        self.gsview.setCurrentOrganism(taxid)
+
+    def currentOrganism(self):
+        return self.gsview.currentOrganism()
+
+
+def test1():
+    app = QApplication([])
+    dlg = GeneSetDialog()
+    dlg.exec_()
+    del dlg
+    app.processEvents()
 
 
 def test():
