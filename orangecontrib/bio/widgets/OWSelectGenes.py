@@ -1037,14 +1037,12 @@ class GeneSetView(QFrame):
     def __init__(self, *args, **kwargs):
         super(GeneSetView, self).__init__(*args, **kwargs)
 
+        self._taxid = None
+
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.orgcombo = QComboBox(minimumWidth=150)
-        self.orgcombo.addItem("Organism")
-        item = self.orgcombo.model().item(0)
-        item.setEnabled(False)
-        self.orgcombo.insertSeparator(1)
         self.orgcombo.activated[int].connect(self._on_organismSelected)
         layout.addWidget(self.orgcombo)
 
@@ -1074,9 +1072,6 @@ class GeneSetView(QFrame):
 
         self.initialize()
 
-    def sizeHint(self):
-        return QSize(500, 550)
-
     def initialize(self):
         self.gs_hierarchy = gs = genesets.list_all()
         taxids = set(taxid for _, taxid, _ in gs)
@@ -1084,48 +1079,56 @@ class GeneSetView(QFrame):
         for taxid, name in self.organisms:
             self.orgcombo.addItem(name, taxid)
 
+        self.orgcombo.setCurrentIndex(-1)
+
+    def sizeHint(self):
+        return QSize(500, 550)
+
     def setCurrentOrganism(self, taxid):
         taxids = [tid for tid, _ in self.organisms]
         if taxid is not None and taxid not in taxids:
             taxid = None
 
-        if taxid not in taxids:
-            taxid = None
-            index = 0
-        else:
-            index = taxid.index(taxid) + 2
-
-        if index != self.orgcombo.currentIndex():
+        if taxid != self._taxid:
+            self._taxid = taxid
             if taxid is None:
-                self.orgcombo.setCurrentIndex(index)
-                self.gsmodel.clear()
-                self.proxymodel.setSourceModel(None)
+                self.orgcombo.setCurrentIndex(-1)
             else:
+                index = taxids.index(taxid)
                 self.orgcombo.setCurrentIndex(index)
-
-                currentsets = [(hier, tid)
-                               for hier, tid, _ in self.gs_hierarchy
-                               if tid == taxid]
-
-                gs_ensure_downloaded([(hier, tid, local)
-                                      for hier, tid, local in self.gs_hierarchy
-                                      if tid == taxid and not local])
-
-                sets = [((hier, tid), genesets.load(hier, tid))
-                        for hier, tid in currentsets]
-
-                model = sets_to_model(sets)
-                self.proxymodel.setSourceModel(model)
-                self.gsview.resizeColumnToContents(0)
-                self.selectedOrganismChanged.emit(taxid)
+            self._updateGeneSetsModel()
 
     def currentOrganism(self):
-        index = self.orgcombo.currentIndex()
-        if index > 1:
-            item = self.orgcombo.model().item(index)
-            return toString(item.data(Qt.UserRole))
+        return self._taxid
+
+    def selectedGeneSets(self):
+        selmod = self.gsview.selectionModel()
+        model = self.proxymodel.sourceModel()
+        rows = [self.proxymodel.mapToSource(row)
+                for row in selmod.selectedRows(1)]
+        gsets = [model.data(row, Qt.UserRole) for row in rows]
+        return map(toPyObject, gsets)
+
+    def _updateGeneSetsModel(self):
+        taxid = self._taxid
+        if taxid is None:
+            self.proxymodel.setSourceModel(None)
         else:
-            return None
+            currentsets = [(hier, tid)
+                           for hier, tid, _ in self.gs_hierarchy
+                           if tid == taxid]
+
+            gs_ensure_downloaded([(hier, tid, local)
+                                  for hier, tid, local in self.gs_hierarchy
+                                  if tid == taxid and not local])
+
+            sets = [((hier, tid), genesets.load(hier, tid))
+                    for hier, tid in currentsets]
+
+            model = sets_to_model(sets)
+            self.proxymodel.setSourceModel(model)
+            self.gsview.resizeColumnToContents(0)
+            self.selectedOrganismChanged.emit(taxid)
 
     def _on_organismSelected(self, index):
         if index != -1:
@@ -1135,14 +1138,6 @@ class GeneSetView(QFrame):
 
     def _on_selectionChanged(self, *args):
         self.selectionChanged.emit()
-
-    def selectedGeneSets(self):
-        selmod = self.gsview.selectionModel()
-        model = self.proxymodel.sourceModel()
-        rows = [self.proxymodel.mapToSource(row)
-                for row in selmod.selectedRows(1)]
-        gsets = [model.data(row, Qt.UserRole) for row in rows]
-        return map(toPyObject, gsets)
 
 
 def sets_to_model(gsets):
