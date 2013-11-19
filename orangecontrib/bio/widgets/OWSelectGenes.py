@@ -1019,20 +1019,28 @@ def is_printable(unichar):
     return unicodedata.category(unichar) not in _control
 
 
+import sys
 import itertools
 
-from PyQt4.QtGui import QVBoxLayout, QComboBox, QLineEdit, QTreeView, \
-        QDialogButtonBox, QSortFilterProxyModel
+from PyQt4.QtGui import (
+    QVBoxLayout, QComboBox, QLineEdit, QTreeView, QDialogButtonBox,
+    QSortFilterProxyModel, QProgressBar, QStackedWidget, QSizePolicy
+)
 
 from PyQt4.QtCore import QSize
 from Orange.bio import obiGeneSets as genesets
 from Orange.bio import obiTaxonomy as taxonomy
 from Orange.utils import serverfiles
 
+from Orange.OrangeWidgets.OWConcurrent import (
+    ThreadExecutor, Task, methodinvoke
+)
+
 
 class GeneSetView(QFrame):
     selectedOrganismChanged = Signal(str)
     selectionChanged = Signal()
+    geneSetsLoaded = Signal()
 
     def __init__(self, *args, **kwargs):
         super(GeneSetView, self).__init__(*args, **kwargs)
@@ -1042,9 +1050,18 @@ class GeneSetView(QFrame):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
 
+        self._stack = QStackedWidget()
+        self._stack.setContentsMargins(0, 0, 0, 0)
+        self._stack.setSizePolicy(QSizePolicy.MinimumExpanding,
+                                  QSizePolicy.Fixed)
         self.orgcombo = QComboBox(minimumWidth=150)
         self.orgcombo.activated[int].connect(self._on_organismSelected)
-        layout.addWidget(self.orgcombo)
+        self._stack.addWidget(self.orgcombo)
+
+        self.progressbar = QProgressBar()
+        self._stack.addWidget(self.progressbar)
+
+        layout.addWidget(self._stack)
 
         self.searchline = QLineEdit()
         self.searchline.setPlaceholderText("Filter...")
@@ -1070,6 +1087,7 @@ class GeneSetView(QFrame):
         layout.addWidget(self.gsview)
         self.setLayout(layout)
 
+        self._executor = ThreadExecutor(self)
         self.initialize()
 
     def initialize(self):
@@ -1097,6 +1115,7 @@ class GeneSetView(QFrame):
                 index = taxids.index(taxid)
                 self.orgcombo.setCurrentIndex(index)
             self._updateGeneSetsModel()
+            self.selectedOrganismChanged.emit(taxid)
 
     def currentOrganism(self):
         return self._taxid
@@ -1118,17 +1137,46 @@ class GeneSetView(QFrame):
                            for hier, tid, _ in self.gs_hierarchy
                            if tid == taxid]
 
-            gs_ensure_downloaded([(hier, tid, local)
-                                  for hier, tid, local in self.gs_hierarchy
-                                  if tid == taxid and not local])
+            gsmissing = [(hier, tid, local)
+                         for hier, tid, local in self.gs_hierarchy
+                         if tid == taxid and not local]
 
-            sets = [((hier, tid), genesets.load(hier, tid))
-                    for hier, tid in currentsets]
+            self._stack.setCurrentWidget(self.progressbar)
 
-            model = sets_to_model(sets)
-            self.proxymodel.setSourceModel(model)
-            self.gsview.resizeColumnToContents(0)
-            self.selectedOrganismChanged.emit(taxid)
+            if gsmissing:
+                self.progressbar.setRange(0, 100)
+                progress_info = methodinvoke(
+                    self.progressbar, "setValue", (int,))
+            else:
+                self.progressbar.setRange(0, 0)
+                progress_info = None
+
+            def load():
+                gs_ensure_downloaded(
+                    gsmissing,
+                    progress_info=progress_info)
+
+                return [((hier, tid), genesets.load(hier, tid))
+                        for hier, tid in currentsets]
+
+            self._task = Task(function=load)
+            self._task.finished.connect(self._on_loadFinished)
+            self._executor.submit(self._task)
+
+    def _on_loadFinished(self):
+        self._stack.setCurrentWidget(self.orgcombo)
+
+        try:
+            sets = self._task.result()
+        except Exception:
+            # Should do something better here.
+            sys.excepthook(*sys.exc_info())
+            sets = []
+
+        model = sets_to_model(sets)
+        self.proxymodel.setSourceModel(model)
+        self.gsview.resizeColumnToContents(0)
+        self.geneSetsLoaded.emit()
 
     def _on_organismSelected(self, index):
         if index != -1:
