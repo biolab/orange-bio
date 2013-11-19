@@ -351,7 +351,11 @@ class OWSelectGenes(OWWidget):
 
         self._changedFlag = True
         self._updateCompletionModel()
-        self.taxid = data_hints.get_hint(data, "taxid", None)
+        if data is not None:
+            self.taxid = data_hints.get_hint(data, "taxid", None)
+        else:
+            self.taxid = None
+
         self.openContext("", data)
 
         self.commit()
