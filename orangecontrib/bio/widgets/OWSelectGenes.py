@@ -2,29 +2,36 @@ import re
 import unicodedata
 import operator
 from collections import defaultdict, namedtuple
+from operator import itemgetter
 from xml.sax.saxutils import escape
 
 from contextlib import contextmanager
 
 from PyQt4.QtGui import (
     QFrame, QHBoxLayout, QPlainTextEdit, QSyntaxHighlighter, QTextCharFormat,
-    QTextCursor, QCompleter, QStringListModel, QStandardItemModel,
-    QStandardItem, QListView, QStyle, QStyledItemDelegate,
+    QTextCursor, QCompleter, QStandardItemModel, QSortFilterProxyModel,
+    QStandardItem, QListView, QTreeView, QStyle, QStyledItemDelegate,
     QStyleOptionViewItemV4, QPalette, QColor, QApplication, QAction,
     QToolButton, QItemSelectionModel, QPlainTextDocumentLayout, QTextDocument,
     QRadioButton, QButtonGroup, QStyleOptionButton, QMenu, QDialog
 )
 
-from PyQt4.QtCore import Qt, QEvent, QVariant, pyqtSignal as Signal
+from PyQt4.QtCore import Qt, QEvent, QVariant, QThread, pyqtSignal as Signal
 
 import Orange
 
-from Orange.OrangeWidgets.OWWidget import \
+from Orange.OrangeWidgets.OWWidget import (
     OWWidget, DomainContextHandler, Default
+)
+
+from Orange.OrangeWidgets.OWConcurrent import (
+    ThreadExecutor, Task, methodinvoke
+)
 
 from Orange.OrangeWidgets.OWItemModels import VariableListModel
 from Orange.OrangeWidgets import OWGUI
 from Orange.orng.orngDataCaching import data_hints
+from Orange.bio import obiGene as geneinfo
 
 
 NAME = "Select Genes"
@@ -128,6 +135,7 @@ class OWSelectGenes(OWWidget):
                     "selectedSelectionIndex", "selectedSource"]
 
     SelectInput, SelectCustom = 0, 1
+    CompletionRole = Qt.UserRole + 1
 
     def __init__(self, parent=None, signalManager=None, title=NAME):
         OWWidget.__init__(self, parent, signalManager, title,
@@ -161,6 +169,9 @@ class OWSelectGenes(OWWidget):
         self.subsetVariables = VariableListModel()
         # Selected subset variable index
         self.subsetGeneIndex = -1
+        self.geneinfo = (None, None)
+        self._executor = ThreadExecutor()
+        self._infotask = None
 
         box = OWGUI.widgetBox(self.controlArea, "Gene Attribute")
         box.setToolTip("Column with gene names")
@@ -230,10 +241,22 @@ class OWSelectGenes(OWWidget):
 
         completer = ListCompleter()
         completer.setCompletionMode(QCompleter.PopupCompletion)
+#         completer.setCompletionRole(OWSelectGenes.CompletionRole)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setMaxVisibleItems(10)
-        completer.popup().setAlternatingRowColors(True)
-        completer.setModel(QStringListModel([], self))
+
+        popup = QTreeView()
+        popup.setSelectionMode(QTreeView.ExtendedSelection)
+        popup.setEditTriggers(QTreeView.NoEditTriggers)
+        popup.setRootIsDecorated(False)
+        popup.setAlternatingRowColors(True)
+        popup.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        popup.setMaximumWidth(500)
+        popup.header().setStretchLastSection(False)
+        popup.header().hide()
+
+        completer.setPopup(popup)
+        completer.setModel(SetFilterProxyModel(self))
 
         self.entryField.setCompleter(completer)
 
@@ -350,13 +373,28 @@ class OWSelectGenes(OWWidget):
             self.geneIndex = -1
 
         self._changedFlag = True
-        self._updateCompletionModel()
+
         if data is not None:
             self.taxid = data_hints.get_hint(data, "taxid", None)
         else:
             self.taxid = None
 
         self.openContext("", data)
+
+        if self.taxid is None:
+            self.geneinfo = (None, None)
+
+        if self.taxid != self.geneinfo[0]:  # and self.taxid in available_organisms
+            self.geneinfo = (self.taxid, None)
+            # TODO: cache the least recently used info objects.
+            # Or better yet, optimize the implementation of NCBIGeneInfo
+            task = Task(function=lambda taxid=self.taxid:
+                                    (taxid, geneinfo.NCBIGeneInfo(taxid)))
+            task.resultReady.connect(self._on_geneInfoReady)
+            self._infotask = task
+            self._executor.submit(task)
+
+        self._updateCompletionModel()
 
         self.commit()
 
@@ -467,8 +505,34 @@ class OWSelectGenes(OWWidget):
         else:
             names = []
 
+        infodict = {}
+
+        if self.geneinfo[1] is not None:
+            info = [(name, self.geneinfo[1].get_info(name, None))
+                    for name in names]
+            info = filter(itemgetter(1), info)
+            infodict = dict(info)
+
+        names = sorted(set(names))
+
+        model = QStandardItemModel()
+
+        def make_row(name):
+            if name in infodict:
+                info = infodict[name]
+                col1 = QStandardItem(name)
+                col1.setData(info.symbol, OWSelectGenes.CompletionRole)
+                return [col1,
+                        QStandardItem(info.symbol),
+                        QStandardItem(info.description)]
+            else:
+                return [QStandardItem(name)]
+
+        for name in names:
+            model.appendRow(make_row(name))
+
         self.geneNames = names
-        self.entryField.completer().model().setStringList(sorted(set(names)))
+        self.entryField.completer().model().setSourceModel(model)
         self.entryField.document().highlighter.setNames(names)
 
     def _onGeneIndexChanged(self):
@@ -488,11 +552,20 @@ class OWSelectGenes(OWWidget):
         if selection != curr_selection:
             self.invalidateOutput()
             to_complete = sorted(set(self.geneNames) - set(names))
-            self.entryField.completer().model().setStringList(to_complete)
+            self.entryField.completer().model().setFilterFixedSet(to_complete)
 
         item = self._selectedSaveSlot()
         if item:
             item.modified = item.savedata != names
+
+    def _on_geneInfoReady(self, geneinfo):
+        assert QThread.currentThread() is self.thread()
+        # Check if the gene info is for the correct (current requested)
+        # organism (we might receive a late response from a previous
+        # request)
+        if self.geneinfo[0] == geneinfo[0]:
+            self.geneinfo = geneinfo
+            self._updateCompletionModel()
 
     def _selectedSaveSlot(self):
         """
@@ -663,6 +736,13 @@ class OWSelectGenes(OWWidget):
             [("Preserve order", self.preserveOrder)]
         )
 
+    def onDeleteWidget(self):
+        if self._infotask:
+            self._infotask.future().cancel()
+
+        self._executor.shutdown()
+        OWWidget.onDeleteWidget(self)
+
 
 def is_string(feature):
     return isinstance(feature, Orange.feature.String)
@@ -783,7 +863,7 @@ class ListTextEdit(QPlainTextEdit):
         cursor = self.textCursor()
         pos = cursor.position()
 
-        if pos == len(text) or not(text[pos].strip()):
+        if pos == len(text) or not text[pos].strip():
             # cursor is at end of text or whitespace
             # find the beginning of the current word
             whitespace = " \t\n\r\f\v"
@@ -800,8 +880,8 @@ class ListTextEdit(QPlainTextEdit):
                 if popup.isVisible():
                     rect.setWidth(popup.width())
                 else:
-                    rect.setWidth(popup.sizeHintForColumn(0) +
-                                  popup.verticalScrollBar().sizeHint().width())
+                    view_adjust_size_to_contents(popup)
+                    rect.setWidth(popup.width())
 
                 # Popup the completer list
                 self._completer.complete(rect)
@@ -914,6 +994,32 @@ class ListTextEdit(QPlainTextEdit):
         return [item for item in text.split() if item.strip()]
 
 
+def view_adjust_column_sizes(view, maxWidth=None):
+    """
+    Adjust view's column sizes to to contents.
+    """
+    if maxWidth is None:
+        maxWidth = sys.maxint
+
+    for col in range(view.model().columnCount()):
+        width = min(view.sizeHintForColumn(col), maxWidth)
+        view.setColumnWidth(col, width)
+
+
+def view_adjust_size_to_contents(view):
+    """
+    Adjust the view to a reasonable size based in it's contents.
+    """
+    view_adjust_column_sizes(view)
+    w = sum([view.columnWidth(col)
+             for col in range(view.model().columnCount())])
+    w += view.verticalScrollBar().sizeHint().width()
+
+    h = view.sizeHintForRow(0) * 7
+    h += view.horizontalScrollBar().sizeHint().height()
+    view.resize(w, h)
+
+
 class NameHighlight(QSyntaxHighlighter):
     def __init__(self, parent=None, **kwargs):
         super(NameHighlight, self).__init__(parent, **kwargs)
@@ -999,17 +1105,41 @@ class ListCompleter(QCompleter):
         return QCompleter.eventFilter(self, receiver, event)
 
     def _complete(self):
-        selection = self.popup().selectionModel().selection()
-        indexes = selection.indexes()
+        column = self.completionColumn()
+        role = self.completionRole()
+        indexes = self.popup().selectionModel().selectedRows(column)
 
-        items = [toString(index.data(self.completionRole()))
-                 for index in indexes]
+        items = [toString(index.data(role)) for index in indexes]
 
         if self.popup().isVisible():
             self.popup().hide()
 
         if items:
             self.activated.emit(items)
+
+
+class SetFilterProxyModel(QSortFilterProxyModel):
+    def __init__(self, *args, **kwargs):
+        super(SetFilterProxyModel, self).__init__(*args, **kwargs)
+        self._filterFixedSet = None
+
+    def setFilterFixedSet(self, items):
+        if items is None:
+            self._filterFixedSet = None
+        else:
+            self._filterFixedSet = set(items)
+        self.invalidateFilter()
+
+    def filterAcceptsRow(self, row, parent):
+        if self._filterFixedSet is None:
+            return True
+
+        model = self.sourceModel()
+        col = self.filterKeyColumn()
+        var = model.data(model.index(row, col, parent),
+                         self.filterRole())
+        var = toString(var)
+        return var in self._filterFixedSet
 
 
 # All control character categories.
@@ -1027,18 +1157,14 @@ import sys
 import itertools
 
 from PyQt4.QtGui import (
-    QVBoxLayout, QComboBox, QLineEdit, QTreeView, QDialogButtonBox,
-    QSortFilterProxyModel, QProgressBar, QStackedWidget, QSizePolicy
+    QVBoxLayout, QComboBox, QLineEdit, QDialogButtonBox,
+    QProgressBar, QStackedWidget, QSizePolicy
 )
 
 from PyQt4.QtCore import QSize
 from Orange.bio import obiGeneSets as genesets
 from Orange.bio import obiTaxonomy as taxonomy
 from Orange.utils import serverfiles
-
-from Orange.OrangeWidgets.OWConcurrent import (
-    ThreadExecutor, Task, methodinvoke
-)
 
 
 class GeneSetView(QFrame):
@@ -1168,6 +1294,7 @@ class GeneSetView(QFrame):
             self._executor.submit(self._task)
 
     def _on_loadFinished(self):
+        assert QThread.currentThread() is self.thread()
         self._stack.setCurrentWidget(self.orgcombo)
 
         try:
