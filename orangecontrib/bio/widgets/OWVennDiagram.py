@@ -75,7 +75,7 @@ class OWVennDiagram(OWWidget):
         box = OWGUI.widgetBox(self.controlArea, "Info")
         self.info = OWGUI.widgetLabel(box, "No data on input\n")
 
-        self.inputsBox = OWGUI.widgetBox(self.controlArea, "Inputs")
+        self.inputsBox = OWGUI.widgetBox(self.controlArea, "Input data sets")
 
         for i in range(5):
             box = OWGUI.widgetBox(self.inputsBox, "Input %i" % i, flat=True)
@@ -153,7 +153,8 @@ class OWVennDiagram(OWWidget):
 
         self._createDiagram()
         if self.data:
-            self.info.setText("{} datasets on input.\n".format(len(self.data)))
+            self.info.setText(
+                "{} data sets on input.\n".format(len(self.data)))
         else:
             self.info.setText("No data on input\n")
 
