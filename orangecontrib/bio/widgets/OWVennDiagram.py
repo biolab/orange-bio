@@ -54,6 +54,7 @@ class OWVennDiagram(OWWidget):
 
         # Stored input set hints
         # {(index, inputname, attributes): (selectedattrname, itemsettitle)}
+        # The 'selectedattrname' can be None
         self.inputhints = {}
 
         self.loadSettings()
@@ -198,9 +199,13 @@ class OWVennDiagram(OWWidget):
     def _add(self, key, table):
         name = table.name
         index = len(self.data)
+        attrs = source_attributes(table.domain)
+        if not attrs:
+            self.warning(
+                index, "Input {} has no suitable attributes.".format(index))
+
         self.data[key] = _InputData(key, name, table)
 
-        attrs = string_attributes(table.domain)
         self._setAttributes(index, attrs)
 
         self._invalidate([key], incremental=False)
@@ -211,7 +216,10 @@ class OWVennDiagram(OWWidget):
 
     def _remove(self, key):
         index = self.data.keys().index(key)
-        box, combo = self._controlAtIndex(index)
+
+        # Clear possible warnings.
+        self.warning(index)
+
         self._setAttributes(index, None)
 
         del self.data[key]
@@ -234,9 +242,14 @@ class OWVennDiagram(OWWidget):
     def _update(self, key, table):
         name = table.name
         index = self.data.keys().index(key)
+        attrs = source_attributes(table.domain)
+        if not attrs:
+            self.warning(
+                index, "Input {} has no suitable attributes.".format(index))
+        else:
+            # Clear possible warnings.
+            self.warning(index)
         self.data[key] = self.data[key]._replace(name=name, table=table)
-
-        attrs = string_attributes(table.domain)
 
         self._setAttributes(index, attrs)
         self._invalidate([key])
@@ -249,8 +262,11 @@ class OWVennDiagram(OWWidget):
         assert self.data.keys() == self.itemsets.keys()
         for key, input in self.data.items():
             attr = self.itemsetAttr(key)
-            items = [str(inst[attr]) for inst in input.table
-                     if not inst[attr].is_special()]
+            if attr is not None:
+                items = [str(inst[attr]) for inst in input.table
+                         if not inst[attr].is_special()]
+            else:
+                items = []
 
             item = self.itemsets[key]
             item = item._replace(items=items)
@@ -263,11 +279,15 @@ class OWVennDiagram(OWWidget):
         self.itemsets.clear()
         for key, input in self.data.items():
             attr = self.itemsetAttr(key)
-            items = [str(inst[attr]) for inst in input.table
-                     if not inst[attr].is_special()]
+            if attr is not None:
+                items = [str(inst[attr]) for inst in input.table
+                         if not inst[attr].is_special()]
+            else:
+                items = []
 
             title = input.name
             if key in olditemsets and olditemsets[key].name == input.name:
+                # Reuse the title (which might have been changed by the user)
                 title = olditemsets[key].title
 
             itemset = _ItemSet(key=key, name=input.name, title=title,
@@ -278,22 +298,26 @@ class OWVennDiagram(OWWidget):
         if self.data:
             self.inputhints.clear()
             for i, (key, input) in enumerate(self.data.items()):
-                attrs = string_attributes(input.table.domain)
+                attrs = source_attributes(input.table.domain)
                 attrs = tuple(attr.name for attr in attrs)
                 selected = self.itemsetAttr(key)
+                if selected is not None:
+                    attr_name = selected.name
+                else:
+                    attr_name = None
                 itemset = self.itemsets[key]
                 self.inputhints[(i, input.name, attrs)] = \
-                    (selected.name, itemset.title)
+                    (attr_name, itemset.title)
 
     def _restoreHints(self):
         settings = []
         for i, (key, input) in enumerate(self.data.items()):
-            attrs = string_attributes(input.table.domain)
+            attrs = source_attributes(input.table.domain)
             attrs = tuple(attr.name for attr in attrs)
             hint = self.inputhints.get((i, input.name, attrs), None)
             if hint is not None:
                 attr, name = hint
-                attr_ind = attrs.index(attr)
+                attr_ind = attrs.index(attr) if attr is not None else -1
                 settings.append((attr_ind, name))
             else:
                 return
@@ -419,7 +443,11 @@ class OWVennDiagram(OWWidget):
 
         for key, input in self.data.items():
             attr = self.itemsetAttr(key)
-            mask = map(match, (inst[attr] for inst in input.table))
+            if attr is not None:
+                mask = map(match, (inst[attr] for inst in input.table))
+            else:
+                mask = [False] * len(input.table)
+
             subset = input.table.select(mask)
 
             if subset:
@@ -492,6 +520,21 @@ def string_attributes(domain):
     return [attr for attr in domain.variables +
                 domain.getmetas().values()
             if isinstance(attr, Orange.feature.String)]
+
+
+def discrete_attributes(domain):
+    """
+    Return all discrete attributes from the domain.
+    """
+    return filter(lambda attr: isinstance(attr, Orange.feature.Discrete),
+                  domain.variables + domain.getmetas().values())
+
+
+def source_attributes(domain):
+    """
+    Return all suitable attributes for the venn diagram.
+    """
+    return string_attributes(domain) + discrete_attributes(domain)
 
 
 def disjoint(sets):
