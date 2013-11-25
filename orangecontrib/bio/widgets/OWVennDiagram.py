@@ -5,7 +5,7 @@ from __future__ import division
 
 import math
 
-from collections import namedtuple, OrderedDict
+from collections import namedtuple, defaultdict, OrderedDict
 
 from xml.sax.saxutils import escape
 
@@ -442,20 +442,48 @@ class OWVennDiagram(OWWidget):
             else:
                 return str(val) in selected_items
 
-        for key, input in self.data.items():
+        source_mid = Orange.core.newmetaid()
+        source_var = Orange.feature.String("source")
+        item_mid = Orange.core.newmetaid()
+        item_id_var = Orange.feature.String("item_id")
+
+        for i, (key, input) in enumerate(self.data.items()):
             attr = self.itemsetAttr(key)
             if attr is not None:
                 mask = map(match, (inst[attr] for inst in input.table))
             else:
                 mask = [False] * len(input.table)
 
-            subset = input.table.select(mask)
+            subset = Orange.data.Table(input.table.domain.clone(),
+                                       input.table.select(mask))
+
+            assert subset.domain is not input.table.domain
+
+            # add a column with source table id to the data
+            subset.domain.add_meta(source_mid, source_var)
+            subset.add_meta_attribute(source_var,
+                                      "%s %i" % (str(input.name), i))
+            # add a column with instance set id
+            subset.domain.add_meta(item_mid, item_id_var)
+            subset.add_meta_attribute(item_mid)
+            for inst in subset:
+                inst[item_id_var] = str(inst[attr])
 
             if subset:
                 selected_subsets.append(subset)
 
         if selected_subsets:
             data = table_concat(selected_subsets)
+            # Get all variables which are not constant between the same
+            # item set
+            varying = varying_between(data, [item_id_var])
+            if source_var in varying:
+                varying.remove(source_var)
+
+            data = reshape_wide(data, varying, [item_id_var], [source_var])
+            # remove the temporary item set id column
+            data.remove_meta_attribute(item_id_var)
+            data.domain.remove_meta(item_id_var)
         else:
             data = None
 
@@ -472,6 +500,12 @@ class OWVennDiagram(OWWidget):
 
 
 def table_concat(tables):
+    """
+    Concatenate a list of tables.
+
+    The resulting table will have a union of all attributes of `tables`.
+
+    """
     features = []
     features_seen = set()
     class_var = None
@@ -512,6 +546,173 @@ def table_concat(tables):
         new_table.extend(table.translate(domain))
 
     return new_table
+
+
+def copy_descriptor(descriptor, newname=None):
+    """
+    Create a copy of the descriptor.
+
+    If newname is not None the new descriptor will have the same
+    name as the input.
+
+    """
+    if newname is None:
+        newname = descriptor.name
+
+    if isinstance(descriptor, Orange.feature.Discrete):
+        newf = Orange.feature.Discrete(
+            newname,
+            values=descriptor.values,
+            base_value=descriptor.base_value,
+            ordered=descriptor.ordered,
+            attributes=dict(descriptor.attributes))
+
+    elif isinstance(descriptor, Orange.feature.Continuous):
+        newf = Orange.feature.Continuous(
+            newname,
+            number_of_decimals=descriptor.number_of_decimals,
+            scientific_format=descriptor.scientific_format,
+            adjust_decimals=descriptor.adjust_decimals,
+            attributes=dict(descriptor.attributes))
+
+    else:
+        newf = type(descriptor)(
+            newname,
+            attributes=dict(descriptor.attributes))
+
+    return newf
+
+
+def reshape_wide(table, varlist, idvarlist, groupvarlist):
+    """
+    Reshape a data table into a wide format.
+
+    :param Orange.data.Table table:
+        Source data table in long format.
+    :param varlist:
+        A list of variables to reshape.
+    :param list idvarlist:
+        A list of variables in `table` uniquely identifying multiple
+        records in `table` (i.e. subject id).
+    :param groupvarlist:
+        A list of variables differentiating multiple records
+        (i.e. conditions).
+
+    """
+    def inst_key(inst, vars):
+        return tuple(str(inst[var]) for var in vars)
+
+    instance_groups = [inst_key(inst, groupvarlist) for inst in table]
+    # A list of groups (for each element in a group the varying variable
+    # will be duplicated)
+    groups = list(unique(instance_groups))
+    group_names = [", ".join(group) for group in groups]
+
+    # A list of instance ids (subject ids)
+    # Each instance in the output will correspond to one of these ids)
+    instance_ids = [inst_key(inst, idvarlist) for inst in table]
+    ids = list(unique(instance_ids))
+
+    # an mapping from ids to an list of input instance indices
+    # each instance in this list belongs to one group (but not all
+    # groups need to be present).
+    inst_by_id = defaultdict(list)
+
+    for i, inst in enumerate(table):
+        inst_id = instance_ids[i]
+        inst_by_id[inst_id].append(i)
+
+    newfeatures = []
+    newmetas = []
+    expanded_features = {}
+
+    def expanded(feat):
+        return [copy_descriptor(feat, newname="%s (%s)" %
+                                (feat.name, group_name))
+                for group_name in group_names]
+
+    for feat in table.domain.variables:
+        if feat in varlist:
+            features = expanded(feat)
+            newfeatures.extend(features)
+            expanded_features[feat] = dict(zip(groups, features))
+        elif feat not in groupvarlist:
+            newfeatures.append(feat)
+
+    for mid, meta in table.domain.getmetas().items():
+        if meta in varlist:
+            metas = expanded(meta)
+            newmetas.extend((Orange.core.newmetaid(), meta)
+                            for meta in metas)
+            expanded_features[meta] = dict(zip(groups, metas))
+        elif meta not in groupvarlist:
+            newmetas.append((mid, meta))
+
+    if table.domain.class_var and table.domain.class_var is newfeatures[-1]:
+        new_class_var = table.domain.class_var
+        newfeatures = newfeatures[:-1]
+    else:
+        new_class_var = None
+
+    domain = Orange.data.Domain(newfeatures, new_class_var)
+    domain.addmetas(dict(newmetas))
+
+    newtable = Orange.data.Table(domain)
+
+    for inst_id in ids:
+        indices = inst_by_id[inst_id]
+        inst = Orange.data.Instance(domain, table[indices[0]])
+        for index in indices:
+            source_inst = table[index]
+            group = instance_groups[index]
+            for source_var in varlist:
+                newf = expanded_features[source_var][group]
+                inst[newf] = source_inst[source_var].value
+        newtable.append(inst)
+
+    return newtable
+
+
+def unique(seq):
+    """
+    Return an iterator over unique items of `seq`.
+
+    .. note:: Items must be hashable.
+
+    """
+    seen = set()
+    for item in seq:
+        if item not in seen:
+            yield item
+            seen.add(item)
+
+
+def varying_between(table, idvarlist):
+    """
+    Return a list of all variables with non constant values between
+    groups defined by `idvarlist`.
+
+    """
+    def inst_key(inst, vars):
+        return tuple(str(inst[var]) for var in vars)
+
+    excluded = set(idvarlist)
+    all_possible = [var for var in (table.domain.variables +
+                                    table.domain.getmetas().values())
+                    if var not in excluded]
+    candidate_set = set(all_possible)
+
+    idmap = Orange.data.utils.table_map(table, idvarlist)
+    values = {}
+    varying = set()
+    for indices in idmap.values():
+        for var in list(candidate_set):
+            values = [table[i][var].native() for i in indices]
+            if len(set(values)) != 1:
+                varying.add(var)
+                candidate_set.remove(var)
+
+    return sorted(varying, key=all_possible.index)
 
 
 def string_attributes(domain):
@@ -1167,7 +1368,7 @@ def venn_intersection(paths, key):
     return path
 
 
-if __name__ == "__main__":
+def test():
     app = QApplication([])
     w = OWVennDiagram()
     data = Orange.data.Table("brown-selected")
@@ -1194,4 +1395,26 @@ if __name__ == "__main__":
     w.handleNewSignals()
     w.show()
     app.exec_()
-    w.saveSettings()
+
+    del w
+    app.processEvents()
+    return app
+
+
+def test1():
+    app = QApplication([])
+    w = OWVennDiagram()
+    data1 = Orange.data.Table("brown-selected")
+    data2 = Orange.data.Table("brown-selected")
+    w.setData(data1, 1)
+    w.setData(data2, 2)
+    w.handleNewSignals()
+
+    w.show()
+    app.exec_()
+
+    del w
+    return app
+
+if __name__ == "__main__":
+    test()
