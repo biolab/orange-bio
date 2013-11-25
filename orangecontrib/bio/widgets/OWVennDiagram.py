@@ -5,8 +5,8 @@ from __future__ import division
 
 import math
 
-from collections import namedtuple, defaultdict, OrderedDict
-
+from collections import namedtuple, defaultdict, OrderedDict, Counter
+from itertools import count
 from xml.sax.saxutils import escape
 
 import numpy
@@ -447,6 +447,9 @@ class OWVennDiagram(OWWidget):
         item_mid = Orange.core.newmetaid()
         item_id_var = Orange.feature.String("item_id")
 
+        names = [itemset.title.strip() for itemset in self.itemsets.values()]
+        names = uniquify(names)
+
         for i, (key, input) in enumerate(self.data.items()):
             attr = self.itemsetAttr(key)
             if attr is not None:
@@ -461,8 +464,7 @@ class OWVennDiagram(OWWidget):
 
             # add a column with source table id to the data
             subset.domain.add_meta(source_mid, source_var)
-            subset.add_meta_attribute(source_var,
-                                      "%s %i" % (str(input.name), i))
+            subset.add_meta_attribute(source_var, str(names[i]))
             # add a column with instance set id
             subset.domain.add_meta(item_mid, item_id_var)
             subset.add_meta_attribute(item_mid)
@@ -713,6 +715,29 @@ def varying_between(table, idvarlist):
                 candidate_set.remove(var)
 
     return sorted(varying, key=all_possible.index)
+
+
+def uniquify(strings):
+    """
+    Return a list of unique strings.
+
+    The string at i'th position will have the same prefix as strings[i]
+    with an appended suffix to make the item unique (if necessary).
+
+    >>> uniquify(["cat", "dog", "cat"])
+    ["cat 1", "dog", "cat 2"]
+
+    """
+    counter = Counter(strings)
+    counts = defaultdict(count)
+    newstrings = []
+    for string in strings:
+        if counter[string] > 1:
+            newstrings.append(string + (" %i" % (next(counts[string]) + 1)))
+        else:
+            newstrings.append(string)
+
+    return newstrings
 
 
 def string_attributes(domain):
