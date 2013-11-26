@@ -5,6 +5,7 @@
 from __future__ import absolute_import, with_statement
 
 import math
+import operator
 from collections import defaultdict
 
 from Orange.orng import orngEnviron, orngServerFiles
@@ -33,6 +34,23 @@ def gsname(geneset):
 
 fmtp = lambda score: "%0.5f" % score if score > 10e-4 else "%0.1e" % score
 fmtpdet = lambda score: "%0.9f" % score if score > 10e-4 else "%0.5e" % score
+
+
+def as_unicode(string):
+    if isinstance(string, str):
+        return string.decode("utf-8", errors="ignore")
+    else:
+        return string
+
+# A translation table mapping punctuation, ... to spaces
+_TR_TABLE = dict((ord(c), ord(" ")) for c in ".,!?()[]{}:;'\"<>")
+
+def word_split(string):
+    """
+    Split a string into a list of words.
+    """
+    return as_unicode(string).translate(_TR_TABLE).split()
+
 
 def _toPyObject(variant):
     val = variant.toPyObject()
@@ -507,9 +525,15 @@ class OWSetEnrichment(OWWidget):
         else:
             self.warning(0)
 
-        replace = lambda s:s.replace(",", " ").replace("(", " ").replace(")", " ")
-        self._completerModel = completerModel = QStringListModel(sorted(reduce(set.union, [[gsname(geneset)] + replace(gsname(geneset)).split() for geneset, (c, _, _, _) in results if c], set())))
-        self.filterCompleter.setModel(completerModel)
+        allnames = set(as_unicode(gsname(geneset))
+                       for geneset, (count, _, _, _) in results if count)
+
+        allnames |= reduce(operator.ior,
+                           (set(word_split(name)) for name in allnames),
+                           set())
+
+        self.completerModel = QStringListModel(sorted(allnames))
+        self.filterCompleter.setModel(self.completerModel)
 
         self.annotationsChartView.setItemDelegateForColumn(6, BarItemDelegate(self, scale=(0.0, max(t[1][3] for t in results))))
         self.annotationsChartView.setItemDelegateForColumn(1, LinkStyledItemDelegate(self.annotationsChartView))
