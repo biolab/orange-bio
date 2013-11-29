@@ -4,6 +4,7 @@
 from __future__ import division
 
 import math
+import unicodedata
 
 from collections import namedtuple, defaultdict, OrderedDict, Counter
 from itertools import count
@@ -352,26 +353,22 @@ class OWVennDiagram(OWWidget):
 
         self.vennwidget.setItems(vennitems)
 
-        def label_text(i):
-            return "".join(chr(ord("A") + i)
-                           for i, b in enumerate(setkey(i, n)) if b)
-
         for i, area in enumerate(self.vennwidget.vennareas()):
             area_items = list(self.disjoint[i])
             if i:
                 area.setText("{0}".format(len(area_items)))
 
-            label = label_text(i)
-            head = "<h4>|{}| = {}</h4>".format(label, len(area_items))
+            label = disjoint_set_label(i, n, simplify=False)
+            head = u"<h4>|{}| = {}</h4>".format(label, len(area_items))
             if len(area_items) > 32:
-                items_str = ", ".join(map(escape, area_items[:32]))
+                items_str = u", ".join(map(escape, area_items[:32]))
                 hidden = len(area_items) - 32
-                tooltip = ("{}<span>{}, ...</br>({} items not shown)<span>"
+                tooltip = (u"{}<span>{}, ...</br>({} items not shown)<span>"
                            .format(head, items_str, hidden))
             elif area_items:
-                tooltip = "{}<span>{}</span>".format(
+                tooltip = u"{}<span>{}</span>".format(
                     head,
-                    ", ".join(map(escape, area_items))
+                    u", ".join(map(escape, area_items))
                 )
             else:
                 tooltip = head
@@ -785,6 +782,29 @@ def disjoint(sets):
         disjoint_sets[i] = s
 
     return disjoint_sets
+
+
+def disjoint_set_label(i, n, simplify=False):
+    """
+    Return a html formated label for a disjoint set indexed by `i`.
+    """
+    intersection = unicodedata.lookup("INTERSECTION")
+    # comp = unicodedata.lookup("COMPLEMENT")  #
+    # This depends on the font but the unicode complement in
+    # general does not look nice in a super script so we use
+    # plain c instead.
+    comp = "c"
+
+    def label_for_index(i):
+        return chr(ord("A") + i)
+
+    if simplify:
+        return "".join(label_for_index(i) for i, b in enumerate(setkey(i, n))
+                       if b)
+    else:
+        return intersection.join(label_for_index(i) +
+                                 ("" if b else "<sup>" + comp + "</sup>")
+                                 for i, b in enumerate(setkey(i, n)))
 
 
 class VennSetItem(QGraphicsPathItem):
