@@ -1,3 +1,4 @@
+import sys
 import re
 import unicodedata
 import operator
@@ -13,10 +14,12 @@ from PyQt4.QtGui import (
     QStandardItem, QListView, QTreeView, QStyle, QStyledItemDelegate,
     QStyleOptionViewItemV4, QPalette, QColor, QApplication, QAction,
     QToolButton, QItemSelectionModel, QPlainTextDocumentLayout, QTextDocument,
-    QRadioButton, QButtonGroup, QStyleOptionButton, QMenu, QDialog
+    QRadioButton, QButtonGroup, QStyleOptionButton, QMenu, QDialog,
+    QStackedWidget, QComboBox
 )
 
-from PyQt4.QtCore import Qt, QEvent, QVariant, QThread, pyqtSignal as Signal
+from PyQt4.QtCore import Qt, QEvent, QVariant, QThread
+from PyQt4.QtCore import pyqtSignal as Signal
 
 import Orange
 
@@ -32,6 +35,7 @@ from Orange.OrangeWidgets.OWItemModels import VariableListModel
 from Orange.OrangeWidgets import OWGUI
 from Orange.orng.orngDataCaching import data_hints
 from Orange.bio import obiGene as geneinfo
+from Orange.bio import obiTaxonomy as taxonomy
 
 
 NAME = "Select Genes"
@@ -132,7 +136,8 @@ class OWSelectGenes(OWWidget):
     }
 
     settingsList = ["autoCommit", "preserveOrder", "savedSelections",
-                    "selectedSelectionIndex", "selectedSource"]
+                    "selectedSelectionIndex", "selectedSource",
+                    "completeOnSymbols"]
 
     SelectInput, SelectCustom = 0, 1
     CompletionRole = Qt.UserRole + 1
@@ -151,13 +156,18 @@ class OWSelectGenes(OWWidget):
 
         self.selectedSelectionIndex = -1
         self.selectedSource = OWSelectGenes.SelectCustom
+        self.completeOnSymbols = True
 
         self.loadSettings()
 
         # Input variables that could contain names
         self.variables = VariableListModel()
-        # All gene names from the input (in self.geneIndex column)
+        # All gene names and their symbols
         self.geneNames = []
+        # A list of (name, info) where name is from the input
+        # (geneVar column) and info is the NCBIGeneInfo object if available
+        # or None
+        self.genes = []
         # Output changed flag
         self._changedFlag = False
         # Current gene names
@@ -169,8 +179,11 @@ class OWSelectGenes(OWWidget):
         self.subsetVariables = VariableListModel()
         # Selected subset variable index
         self.subsetGeneIndex = -1
+        self.organisms = []
+        self.taxidindex = {}
         self.geneinfo = (None, None)
         self._executor = ThreadExecutor()
+
         self._infotask = None
 
         box = OWGUI.widgetBox(self.controlArea, "Gene Attribute")
@@ -231,6 +244,7 @@ class OWSelectGenes(OWWidget):
 
         box = OWGUI.widgetBox(self.entrybox, "Select Genes", flat=True)
         box.setToolTip("Enter gene names to select")
+        box.layout().setSpacing(1)
 
         self.entryField = ListTextEdit(box)
         self.entryField.setTabChangesFocus(True)
@@ -241,7 +255,9 @@ class OWSelectGenes(OWWidget):
 
         completer = ListCompleter()
         completer.setCompletionMode(QCompleter.PopupCompletion)
-#         completer.setCompletionRole(OWSelectGenes.CompletionRole)
+        completer.setCompletionRole(
+            self.CompletionRole if self.completeOnSymbols else Qt.DisplayRole
+        )
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setMaxVisibleItems(10)
 
@@ -259,6 +275,78 @@ class OWSelectGenes(OWWidget):
         completer.setModel(SetFilterProxyModel(self))
 
         self.entryField.setCompleter(completer)
+
+        toolbar = QFrame()
+        toolbar.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(1)
+
+        addaction = QAction("+", self)
+        addmenu = QMenu()
+
+        action = addmenu.addAction("Import names from gene sets...")
+        action.triggered.connect(self.importGeneSet)
+
+#         addmenu.addAction("Import names from text file...")
+        addaction.setMenu(addmenu)
+
+        def button(action, popupMode=None):
+            b = QToolButton()
+            b.setDefaultAction(action)
+            if popupMode is not None:
+                b.setPopupMode(QToolButton.InstantPopup)
+            return b
+
+        b = button(addaction, popupMode=QToolButton.InstantPopup)
+        layout.addWidget(b)
+
+        moreaction = QAction("More", self)
+
+        moremenu = QMenu()
+        self.completeOnSymbolsAction = QAction(
+            "Complete on gene symbol names", self,
+            toolTip="Use symbol names for auto completion.",
+            checkable=True,
+            checked=self.completeOnSymbols
+        )
+
+        self.completeOnSymbolsAction.toggled[bool].connect(
+            self._onToggleSymbolCompletion
+        )
+
+        moremenu.addAction(self.completeOnSymbolsAction)
+
+        self.translateAction = QAction(
+            "Translate all names to official symbol names", self,
+            enabled=False
+        )
+        self.translateAction.triggered.connect(self._onTranslate)
+
+        moremenu.addAction(self.translateAction)
+        moreaction.setMenu(moremenu)
+
+        b = button(moreaction, popupMode=QToolButton.InstantPopup)
+        layout.addWidget(b)
+
+        self.organismsCombo = QComboBox()
+        self.organismsCombo.addItem("...")
+        self.organismsCombo.model().item(0).setEnabled(False)
+        self.organismsCombo.setMinimumWidth(200)
+        self.organismsCombo.activated[int].connect(self._onOrganismActivated)
+
+        layout.addSpacing(10)
+        layout.addWidget(self.organismsCombo)
+        self.pb = QProgressBar()
+        self.pb.hide()
+        self.pbstack = QStackedWidget()
+        self.pbstack.addWidget(self.pb)
+
+        layout.addSpacing(10)
+        layout.addWidget(self.pbstack, 0, Qt.AlignRight | Qt.AlignVCenter)
+        toolbar.setLayout(layout)
+
+        box.layout().addWidget(toolbar)
 
         box = OWGUI.widgetBox(self.entrybox, "Saved Selections", flat=True)
         box.setToolTip("Save/Select/Update saved gene selections")
@@ -287,23 +375,10 @@ class OWSelectGenes(OWWidget):
             u"\u2212", self,
             toolTip="Delete the current saved selection")
 
-        self.actionMore = QAction("More", self)
-
-        optionsmenu = QMenu()
-        action = optionsmenu.addAction("Import names from gene sets...")
-        action.triggered.connect(self.importGeneSet)
-
-        self.actionMore.setMenu(optionsmenu)
-
         toolbar = QFrame()
         layout = QHBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(1)
-
-        def button(action):
-            b = QToolButton()
-            b.setDefaultAction(action)
-            return b
 
         b = button(self.actionAdd)
         layout.addWidget(b)
@@ -312,10 +387,6 @@ class OWSelectGenes(OWWidget):
         layout.addWidget(b)
 
         b = button(self.actionSave)
-        layout.addWidget(b)
-
-        b = button(self.actionMore)
-        b.setPopupMode(QToolButton.InstantPopup)
         layout.addWidget(b)
 
         layout.addStretch(100)
@@ -350,7 +421,65 @@ class OWSelectGenes(OWWidget):
                 self.selectionsModel.index(self.selectedSelectionIndex, 0),
                 QItemSelectionModel.Select
             )
+
         self._updateActions()
+
+        self._inittask = Task(
+            function=lambda:
+                [(taxid, taxonomy.name(taxid))
+                  for taxid in taxonomy.common_taxids()])
+
+        self._inittask.finished.connect(self._onInit)
+        self._executor.submit(self._inittask)
+        self.pb.show()
+        self.pb.setRange(0, 0)
+
+    def _onInit(self):
+        self.organisms = self._inittask.result()
+        self.organismsCombo.clear()
+        self.organismsCombo.addItems([name for _, name in self.organisms])
+
+        self.taxidindex = \
+            {taxid: i for i, (taxid, _) in enumerate(self.organisms)}
+
+        self.organismsCombo.setCurrentIndex(
+            self.taxidindex.get(self.taxid, -1))
+
+        self.pb.hide()
+
+    def _updateGeneInfo(self):
+        self.geneinfo = (self.taxid, None)
+        self.translateAction.setEnabled(False)
+
+        if self._infotask:
+            # Try to cancel existing pending task
+            self._infotask.future().cancel()
+            self._infotask.resultReady.disconnect(self._onGeneInfoReady)
+            self._infotask.exceptionReady.disconnect(self._onGeneInfoError)
+
+        def ncbi_gene_info(taxid=self.taxid):
+            try:
+                return (taxid, geneinfo.NCBIGeneInfo(taxid))
+            except BaseException:
+                sys.excepthook(*sys.exc_info())
+                raise
+
+        task = Task(function=ncbi_gene_info)
+        task.resultReady.connect(self._onGeneInfoReady)
+        task.exceptionReady.connect(self._onGeneInfoError)
+        self._infotask = task
+        self._executor.submit(task)
+        self.pb.show()
+
+    def _onOrganismActivated(self, index):
+        try:
+            taxid, _ = self.organisms[index]
+        except IndexError:
+            pass
+        else:
+            if taxid != self.taxid:
+                self.taxid = taxid
+                self._updateGeneInfo()
 
     def setData(self, data):
         """
@@ -374,6 +503,7 @@ class OWSelectGenes(OWWidget):
 
         self._changedFlag = True
 
+        oldtaxid = self.taxid
         if data is not None:
             self.taxid = data_hints.get_hint(data, "taxid", None)
         else:
@@ -384,15 +514,12 @@ class OWSelectGenes(OWWidget):
         if self.taxid is None:
             self.geneinfo = (None, None)
 
-        if self.taxid != self.geneinfo[0]:  # and self.taxid in available_organisms
-            self.geneinfo = (self.taxid, None)
-            # TODO: cache the least recently used info objects.
-            # Or better yet, optimize the implementation of NCBIGeneInfo
-            task = Task(function=lambda taxid=self.taxid:
-                                    (taxid, geneinfo.NCBIGeneInfo(taxid)))
-            task.resultReady.connect(self._on_geneInfoReady)
-            self._infotask = task
-            self._executor.submit(task)
+        if oldtaxid != self.taxid:
+            self.organismsCombo.setCurrentIndex(
+                self.taxidindex.get(self.taxid, -1))
+
+            if self.taxid in self.taxidindex:
+                self._updateGeneInfo()
 
         self._updateCompletionModel()
 
@@ -472,6 +599,13 @@ class OWSelectGenes(OWWidget):
         """
         selection = self.selectedGenes()
 
+        if self.geneinfo[1] is not None:
+            backmap = dict((info.symbol, name) for name, info in self.genes
+                           if info is not None)
+            names = set([name for name, _ in self.genes])
+            selection = [backmap.get(name, name) for name in selection
+                         and name not in names]
+
         if self.geneVar is not None:
             data = select_by_genes(self.data, self.geneVar,
                                    gene_list=selection,
@@ -514,26 +648,33 @@ class OWSelectGenes(OWWidget):
             infodict = dict(info)
 
         names = sorted(set(names))
+        genes = zip(names, map(infodict.get, names))
+
+        symbols = [info.symbol for _, info in genes if info is not None]
 
         model = QStandardItemModel()
 
-        def make_row(name):
-            if name in infodict:
-                info = infodict[name]
+        def make_row(name, info):
+            if info is not None:
                 col1 = QStandardItem(name)
                 col1.setData(info.symbol, OWSelectGenes.CompletionRole)
                 return [col1,
                         QStandardItem(info.symbol),
                         QStandardItem(info.description)]
             else:
-                return [QStandardItem(name)]
+                col1 = QStandardItem(name)
+                col1.setData(name, OWSelectGenes.CompletionRole)
+                return [col1]
 
-        for name in names:
-            model.appendRow(make_row(name))
+        for name, info in genes:
+            model.appendRow(make_row(name, info))
 
-        self.geneNames = names
+        self.geneNames = sorted(set(names) | set(symbols))
+        self.genes = genes
         self.entryField.completer().model().setSourceModel(model)
-        self.entryField.document().highlighter.setNames(names)
+        self.entryField.document().highlighter.setNames(names + symbols)
+
+        self._updatePopupSections()
 
     def _onGeneIndexChanged(self):
         self._updateCompletionModel()
@@ -558,14 +699,46 @@ class OWSelectGenes(OWWidget):
         if item:
             item.modified = item.savedata != names
 
-    def _on_geneInfoReady(self, geneinfo):
+    def _onToggleSymbolCompletion(self, state):
+        completer = self.entryField.completer()
+        completer.setCompletionRole(
+            self.CompletionRole if state else Qt.DisplayRole
+        )
+        self.completeOnSymbols = state
+        self._updatePopupSections()
+
+    def _onTranslate(self):
+        if self.geneinfo[1] is not None:
+            items = self.entryField.items()
+            entries = map(self.geneinfo[1].get_info, items)
+            items = [info.symbol if info is not None else item
+                     for item, info in zip(items, entries)]
+            self.entryField.selectAll()
+            self.entryField.insertPlainText(" ".join(items))
+
+    def _onGeneInfoReady(self, geneinfo):
         assert QThread.currentThread() is self.thread()
         # Check if the gene info is for the correct (current requested)
         # organism (we might receive a late response from a previous
         # request)
         if self.geneinfo[0] == geneinfo[0]:
             self.geneinfo = geneinfo
+            self.translateAction.setEnabled(True)
+            self.pb.hide()
             self._updateCompletionModel()
+
+    def _onGeneInfoError(self, exc):
+        self.error(0, str(exc))
+
+    def _updatePopupSections(self):
+        completer = self.entryField.completer()
+        popup = completer.popup()
+        assert isinstance(popup, QTreeView)
+        header = popup.header()
+        # The column in which the symbols should be
+        symbol_col = 0 if self.completeOnSymbols else 1
+        if symbol_col != header.sectionPosition(1):
+            header.moveSection(0, 1)
 
     def _selectedSaveSlot(self):
         """
@@ -654,7 +827,6 @@ class OWSelectGenes(OWWidget):
             self.entryField.appendPlainText(text)
             self.entryField.setFocus()
             self.entryField.moveCursor(QTextCursor.End)
-            self.taxid = dialog.currentOrganism()
 
     def _onSelectedSaveSlotChanged(self):
         item = self._selectedSaveSlot()
@@ -737,10 +909,12 @@ class OWSelectGenes(OWWidget):
         )
 
     def onDeleteWidget(self):
+        self._inittask.future().cancel()
+
         if self._infotask:
             self._infotask.future().cancel()
 
-        self._executor.shutdown()
+        self._executor.shutdown(wait=True)
         OWWidget.onDeleteWidget(self)
 
 
@@ -1157,13 +1331,12 @@ import sys
 import itertools
 
 from PyQt4.QtGui import (
-    QVBoxLayout, QComboBox, QLineEdit, QDialogButtonBox,
-    QProgressBar, QStackedWidget, QSizePolicy
+    QVBoxLayout, QLineEdit, QDialogButtonBox,
+    QProgressBar, QSizePolicy
 )
 
 from PyQt4.QtCore import QSize
 from Orange.bio import obiGeneSets as genesets
-from Orange.bio import obiTaxonomy as taxonomy
 from Orange.utils import serverfiles
 
 
