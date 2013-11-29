@@ -329,7 +329,7 @@ class OWSelectGenes(OWWidget):
         b = button(moreaction, popupMode=QToolButton.InstantPopup)
         layout.addWidget(b)
 
-        self.organismsCombo = QComboBox()
+        self.organismsCombo = ComboBox(focusPolicy=Qt.StrongFocus)
         self.organismsCombo.addItem("...")
         self.organismsCombo.model().item(0).setEnabled(False)
         self.organismsCombo.setMinimumWidth(200)
@@ -1316,6 +1316,14 @@ class SetFilterProxyModel(QSortFilterProxyModel):
         return var in self._filterFixedSet
 
 
+class ComboBox(QComboBox):
+    """
+    A combo box ignoring mouse wheel events.
+    """
+    def wheelEvent(self, event):
+        event.ignore()
+        return
+
 # All control character categories.
 _control = set(["Cc", "Cf", "Cs", "Co", "Cn"])
 
@@ -1357,7 +1365,7 @@ class GeneSetView(QFrame):
         self._stack.setContentsMargins(0, 0, 0, 0)
         self._stack.setSizePolicy(QSizePolicy.MinimumExpanding,
                                   QSizePolicy.Fixed)
-        self.orgcombo = QComboBox(minimumWidth=150)
+        self.orgcombo = ComboBox(minimumWidth=150, focusPolicy=Qt.StrongFocus)
         self.orgcombo.activated[int].connect(self._on_organismSelected)
         self._stack.addWidget(self.orgcombo)
 
