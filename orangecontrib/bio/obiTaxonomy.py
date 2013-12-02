@@ -399,21 +399,27 @@ def lineage(taxid):
             break
     result.reverse()
     return result
-    
+
+
 def to_taxid(code, mapTo=None):
-    """ See if the code is a valid code in any database and return a set of its taxids.
     """
-    from . import obiKEGG, obiGO
-    results = set()
-    for test in [obiKEGG.to_taxid, obiGO.to_taxid]:
-        try:
-            r = test(code)
-            if type(r) == set:
-                results.update(r)
-            else:
-                results.add(r)
-        except Exception, ex:
-            pass
+    See if the code is a valid code in any database and return a set of its taxids.
+    """
+    try:
+        name(code)
+        results = set([code])
+    except UnknownSpeciesIdentifier:
+        from . import obiKEGG, obiGO
+        results = set()
+        for test in [obiKEGG.to_taxid, obiGO.to_taxid]:
+            try:
+                r = test(code)
+                if type(r) == set:
+                    results.update(r)
+                else:
+                    results.add(r)
+            except Exception, ex:
+                pass
 
     if mapTo:
         mapped = [[parent_id for parent_id in mapTo if parent_id in lineage(r)].pop() for r in results if any(parent_id in lineage(r) for parent_id in mapTo)]
