@@ -245,6 +245,7 @@ class OWSetEnrichment(OWWidget):
         self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.onStateChange)
 
         self.updatingAnnotationsFlag = False
+        self.currentAnnotatedCategories = []
 
     def updateHierarchy(self):
         try:
@@ -361,12 +362,12 @@ class OWSetEnrichment(OWWidget):
     def subsetSelectionChanged(self, item, column):
         self.categoriesCheckState = self.getHierarchyCheckState()
         categories = self.selectedCategories()
-        
-        if not set(categories) <= set(self.currentAnnotatedCategories):
-            self.updateAnnotations()
-        else:
-            self.filterAnnotationsChartView()
-        
+
+        if self.data is not None:
+            if not set(categories) <= set(self.currentAnnotatedCategories):
+                self.updateAnnotations()
+            else:
+                self.filterAnnotationsChartView()
 
     def updateGeneMatcherSettings(self):
         from .OWGOEnrichmentAnalysis import GeneMatcherDialog
