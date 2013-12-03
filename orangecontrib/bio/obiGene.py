@@ -110,6 +110,11 @@ class NCBIGeneInfo(dict):
 
     @classmethod
     def organism_name_search(cls, org):
+        if org in cls.common_taxids():
+            return org
+        elif org in NCBIGeneInfo.TAX_MAP:
+            return NCBIGeneInfo.TAX_MAP[org]
+
         taxids = obiTaxonomy.to_taxid(org, mapTo=cls.common_taxids())
         if not taxids:
             taxids = obiTaxonomy.search(org, onlySpecies=False)
