@@ -427,10 +427,11 @@ class OWSelectGenes(OWWidget):
 
         self._updateActions()
 
-        self._inittask = Task(
-            function=lambda:
-                [(taxid, taxonomy.name(taxid))
-                  for taxid in taxonomy.common_taxids()])
+        def list_available_organisms():
+            return [(taxid, taxonomy.name(taxid))
+                    for taxid in taxonomy.common_taxids()]
+
+        self._inittask = Task(function=list_available_organisms)
 
         self._inittask.finished.connect(self._onInit)
         self._executor.submit(self._inittask)
@@ -449,6 +450,9 @@ class OWSelectGenes(OWWidget):
             self.taxidindex.get(self.taxid, -1))
 
         self.pb.hide()
+
+        if self.taxid in self.taxidindex:
+            self._updateGeneInfo()
 
     def _updateGeneInfo(self):
         self.geneinfo = (self.taxid, None)
