@@ -1,4 +1,5 @@
 import sys
+import os
 import re
 import unicodedata
 import operator
@@ -15,7 +16,7 @@ from PyQt4.QtGui import (
     QStyleOptionViewItemV4, QPalette, QColor, QApplication, QAction,
     QToolButton, QItemSelectionModel, QPlainTextDocumentLayout, QTextDocument,
     QRadioButton, QButtonGroup, QStyleOptionButton, QMenu, QDialog,
-    QStackedWidget, QComboBox
+    QStackedWidget, QComboBox, QFileDialog
 )
 
 from PyQt4.QtCore import Qt, QEvent, QVariant, QThread
@@ -288,7 +289,9 @@ class OWSelectGenes(OWWidget):
         action = addmenu.addAction("Import names from gene sets...")
         action.triggered.connect(self.importGeneSet)
 
-#         addmenu.addAction("Import names from text file...")
+        action = addmenu.addAction("Import names from text file...")
+        action.triggered.connect(self.importFromFile)
+
         addaction.setMenu(addmenu)
 
         def button(action, popupMode=None):
@@ -824,6 +827,18 @@ class OWSelectGenes(OWWidget):
             gsets = dialog.selectedGeneSets()
             genes = reduce(operator.ior, (gs.genes for gs in gsets), set())
             text = " ".join(genes)
+            self.entryField.appendPlainText(text)
+            self.entryField.setFocus()
+            self.entryField.moveCursor(QTextCursor.End)
+
+    def importFromFile(self):
+        filename = QFileDialog.getOpenFileName(
+            self, "Open File", os.path.expanduser("~/"))
+
+        if filename:
+            filename = unicode(filename)
+            with open(filename, "rU") as f:
+                text = f.read()
             self.entryField.appendPlainText(text)
             self.entryField.setFocus()
             self.entryField.moveCursor(QTextCursor.End)
