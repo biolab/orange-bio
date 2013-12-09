@@ -440,12 +440,8 @@ def ensure_downloaded(callback=None, verbose=True):
     """
     Retrieve the taxonomy database if not already downloaded.
     """
-
-    try:
-        orngServerFiles.info("Taxonomy", "ncbi_taxonomy.tar.gz")
-    except IOError:
-        orngServerFiles.download("Taxonomy", "ncbi_taxonomy.tar.gz",
-                                 callback=callback, verbose=verbose)
+    orngServerFiles.localpath_download("Taxonomy", "ncbi_taxonomy.tar.gz",
+                                       callback=callback, verbose=verbose)
 
 
 from . import obiGenomicsUpdate

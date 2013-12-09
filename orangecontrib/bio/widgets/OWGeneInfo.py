@@ -382,13 +382,15 @@ class OWGeneInfo(OWWidget):
                                if attr.varType in [orange.VarTypes.String,
                                                    orange.VarTypes.Discrete]]
             self.geneAttrComboBox.addItems([attr.name for attr in self.attributes])
+
+            self.taxid = data_hints.get_hint(self.data, "taxid", self.taxid)
+            self.useAttr = data_hints.get_hint(self.data, "genesinrows",  self.useAttr)
+
             self.openContext("", data)
             self.geneAttr = min(self.geneAttr, len(self.attributes) - 1)
 
-            taxid = data_hints.get_hint(self.data, "taxid", "")
-            if taxid in self.organisms:
-                self.organismIndex = self.organisms.index(taxid)
-                self.taxid = taxid
+            if self.taxid in self.organisms:
+                self.organismIndex = self.organisms.index(self.taxid)
 
             self.useAttr = data_hints.get_hint(self.data, "genesinrows",  self.useAttr)
 
