@@ -8,13 +8,20 @@
 
 from __future__ import absolute_import, with_statement
 
+import sys
 from collections import defaultdict
 from functools import partial
+
+from PyQt4.QtCore import pyqtSlot as Slot
 
 from Orange.orng import orngServerFiles
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
+
+from Orange.OrangeWidgets.OWConcurrent import \
+    ThreadExecutor, Task, methodinvoke
+
 from Orange.utils import progress_bar_milestones
 
 import orange
@@ -88,7 +95,7 @@ def lru_cache(maxsize=100):
         import functools
         cache = {}
         
-        functools.wraps(func)
+        @functools.wraps(func)
         def wrapped(*args, **kwargs):
             key = args + tuple(sorted(kwargs.items()))
             if key not in cache:
@@ -183,13 +190,14 @@ def dicty_info(taxid, genes):
             ret.append(None)
     
     return schema, ret
-    
-    
-INFO_SOURCES = {"default": [("NCBI Info", ncbi_info)],
-                "352472": [("NCBI Info", ncbi_info),
-                           ("Dicty Base", dicty_info)
-                           ]
-                }
+
+
+INFO_SOURCES = {
+    "default": [("NCBI Info", ncbi_info)],
+    "352472": [("NCBI Info", ncbi_info),
+               ("Dicty Base", dicty_info)]
+}
+
 
 class OWGeneInfo(OWWidget):
     settingsList = ["organismIndex", "geneAttr", "useAttr", "autoCommit"]
@@ -215,6 +223,8 @@ class OWGeneInfo(OWWidget):
         self.loadSettings()
 
         self.__initialized = False
+        self.initfuture = None
+        self.itemsfuture = None
 
         self.infoLabel = OWGUI.widgetLabel(
             OWGUI.widgetBox(self.controlArea, "Info", addSpace=True),
@@ -227,7 +237,7 @@ class OWGeneInfo(OWWidget):
 
         self.organismComboBox = OWGUI.comboBox(
             self.organismBox, self, "organismIndex",
-            callback=self.setItems,
+            callback=self.updateInfoItems,
             debuggingEnabled=0)
 
         # For now only support one alt source, with a checkbox
@@ -241,10 +251,10 @@ class OWGeneInfo(OWWidget):
         
         box = OWGUI.widgetBox(self.controlArea, "Gene names", addSpace=True)
         self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneAttr",
-                                "Gene atttibute", callback=self.setItems)
+                                "Gene atttibute", callback=self.updateInfoItems)
         
         c = OWGUI.checkBox(box, self, "useAttr", "Use attribute names",
-                           callback=self.setItems,
+                           callback=self.updateInfoItems,
                            disables=[(-1, self.geneAttrComboBox)])
         
         self.geneAttrComboBox.setDisabled(bool(self.useAttr))
@@ -294,12 +304,35 @@ class OWGeneInfo(OWWidget):
         self.selectionUpdateInProgress = False
 
         self.setBlocking(True)
-        QTimer.singleShot(0, self.initialize)
+        self.executor = ThreadExecutor(self)
+
+        self.progressBarInit()
+
+        task = Task(
+            function=partial(
+                obiTaxonomy.ensure_downloaded,
+                callback=methodinvoke(self, "advance", ())
+            )
+        )
+
+        task.resultReady.connect(self.initialize)
+        task.exceptionReady.connect(self._onInitializeError)
+
+        self.initfuture = self.executor.submit(task)
+
+    @Slot()
+    def advance(self):
+        assert self.thread() is QThread.currentThread()
+
+        self.progressBarSet(self.progressBarValue + 1,
+                            processEventsFlags=None)
 
     def initialize(self):
         if self.__initialized:
             # Already initialized
             return
+
+        self.progressBarFinished()
 
         self.organisms = sorted(
             set([name.split(".")[-2] for name in
@@ -307,24 +340,31 @@ class OWGeneInfo(OWWidget):
                 obiGene.NCBIGeneInfo.essential_taxids())
         )
 
-        pb = OWGUI.ProgressBar(self, 100)
-        obiTaxonomy.ensure_downloaded(pb.advance)
-
         self.organismComboBox.addItems(
             [obiTaxonomy.name(tax_id) for tax_id in self.organisms]
         )
-        pb.finish()
 
         self.infoLabel.setText("No data on input\n")
         self.__initialized = True
+        self.initfuture = None
+
         self.setBlocking(False)
+
+    def _onInitializeError(self, exc):
+        sys.excepthook(type(exc), exc.args, None)
+        self.error(0, "Could not download the necessary files.")
 
     def setData(self, data=None):
         if not self.__initialized:
-            raise Exception("Not initialized")
+            self.initfuture.result()
+            self.initialize()
+
+        if self.itemsfuture is not None:
+            raise Exception("Already processing")
 
         self.closeContext()
         self.data = data
+
         if data:
             self.geneAttrComboBox.clear()
             self.attributes = [attr for attr in self.data.domain.variables + \
@@ -334,14 +374,14 @@ class OWGeneInfo(OWWidget):
             self.geneAttrComboBox.addItems([attr.name for attr in self.attributes])
             self.openContext("", data)
             self.geneAttr = min(self.geneAttr, len(self.attributes) - 1)
-            
+
             taxid = data_hints.get_hint(self.data, "taxid", "")
             if taxid in self.organisms:
                 self.organismIndex = self.organisms.index(taxid)
-                
+
             self.useAttr = data_hints.get_hint(self.data, "genesinrows",  self.useAttr)
-            
-            self.setItems()
+
+            self.updateInfoItems()
         else:
             self.clear()
 
@@ -355,11 +395,23 @@ class OWGeneInfo(OWWidget):
         sources = INFO_SOURCES[org]
         name, func =  sources[min(self.useAltSource, len(sources) - 1)]
         return name, func
-        
-    def setItems(self):
+
+    def inputGenes(self):
+        if self.useAttr:
+            genes = [attr.name for attr in self.data.domain.attributes]
+        elif self.attributes:
+            attr = self.attributes[self.geneAttr]
+            genes = [str(ex[attr]) for ex in self.data if not ex[attr].isSpecial()]
+        else:
+            genes = []
+        return genes
+
+    def updateInfoItems(self):
         self.warning(0)
         if not self.data:
             return
+
+        genes = self.inputGenes()
         if self.useAttr:
             genes = [attr.name for attr in self.data.domain.attributes]
         elif self.attributes:
@@ -369,73 +421,72 @@ class OWGeneInfo(OWWidget):
             genes = []
         if not genes:
             self.warning(0, "Could not extract genes from input dataset.")
+
         self.warning(1)
         org = self.organisms[min(self.organismIndex, len(self.organisms) - 1)]
         source_name, info_getter = self.infoSource()
-        info , currorg = self.currentLoaded
+        info, currorg = self.currentLoaded
         self.error(0)
-        
+
         self.updateDictyExpressLink(genes, show=org == "352472")
         self.altSourceCheck.setVisible(org == "352472")
-        
-        # get the info for the genes in a separate thread
+
         self.progressBarInit()
-#        call = self.asyncCall(info_getter, (org, genes),
-#                              name="Load NCBI Gene Info",
-#                              blocking=False)
-#        call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet, Qt.QueuedConnection)
-#        with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
-#            call.__call__()
-#            schema, geneinfo = call.get_result()
-#        call.__call__()
-#        schema, geneinfo = call.get_result()
-        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            schema, geneinfo = info_getter(org, genes)
+        self.setBlocking(True)
+        self.setEnabled(False)
+        self.infoLabel.setText("Retrieving info records.\n")
+
+        self.genes = genes
+
+        task = Task(function=partial(info_getter, org, genes))
+        self.itemsfuture = self.executor.submit(task)
+        task.finished.connect(self._onItemsCompleted)
+
+    def _onItemsCompleted(self):
+        self.setBlocking(False)
         self.progressBarFinished()
-        # schema, geneinfo = info_getter(org, genes) 
+        self.setEnabled(True)
 
-        self.geneinfo = geneinfo = list(zip(genes, geneinfo))
+        try:
+            schema, geneinfo = self.itemsfuture.result()
+        finally:
+            self.itemsfuture = None
 
-        self.progressBarInit()
+        self.geneinfo = geneinfo = list(zip(self.genes, geneinfo))
 
-        milestones = progress_bar_milestones(len(geneinfo))
         self.cells = cells = []
         self.row2geneinfo = {}
         links = []
-        for i, (gene, gi) in enumerate(geneinfo):
+        for i, (_, gi) in enumerate(geneinfo):
             if gi:
                 row = []
-                for sch, item in zip(schema, gi):
-                    if isinstance(item, Link): # TODO: This should be handled by delegates 
+                for _, item in zip(schema, gi):
+                    if isinstance(item, Link):
+                        # TODO: This should be handled by delegates
                         row.append(item.text)
                         links.append(item.link)
                     else:
                         row.append(item)
                 cells.append(row)
                 self.row2geneinfo[len(cells) - 1] = i
-#                cells.append([gi.gene_id, gi.symbol + " (%s)" % gene if gene != gi.symbol else gi.symbol,
-#                            gi.locus_tag or "", gi.chromosome or "", gi.description or "",
-#                            ", ".join(gi.synonyms), gi.symbol_from_nomenclature_authority or ""])
-#                links.append("http://www.ncbi.nlm.nih.gov/sites/entrez?Db=gene&Cmd=ShowDetailView&TermToSearch=%s" % gi.gene_id)
 
-            if i in milestones:
-                self.progressBarSet(100.0*i/len(geneinfo))
+        model = TreeModel(cells, [str(col) for col in schema], None)
 
-        model = TreeModel(cells, [str(col) for col in schema], self.treeWidget)
-        
         model.setColumnLinks(0, links)
         proxyModel = QSortFilterProxyModel(self)
         proxyModel.setSourceModel(model)
         self.treeWidget.setModel(proxyModel)
-        self.connect(self.treeWidget.selectionModel(), SIGNAL("selectionChanged(QItemSelection , QItemSelection )"), self.commitIf)
+        self.connect(self.treeWidget.selectionModel(),
+                     SIGNAL("selectionChanged(QItemSelection , QItemSelection )"),
+                     self.commitIf)
+
         for i in range(7):
             self.treeWidget.resizeColumnToContents(i)
             self.treeWidget.setColumnWidth(i, min(self.treeWidget.columnWidth(i), 200))
-        self.treeWidget.update()
-        self.progressBarFinished()
 
-        self.infoLabel.setText("%i genes\n%i matched NCBI's IDs" % (len(genes), len(cells)))
-        self.matchedInfo = len(genes), len(cells)
+        self.infoLabel.setText("%i genes\n%i matched NCBI's IDs" %
+                               (len(self.genes), len(cells)))
+        self.matchedInfo = len(self.genes), len(cells)
 
     def clear(self):
         self.infoLabel.setText("No data on input\n")
@@ -590,8 +641,20 @@ class OWGeneInfo(OWWidget):
         QDesktopServices.openUrl(QUrl(url))
             
     def onAltSourceChange(self):
-        self.setItems()
-        
+        self.updateInfoItems()
+
+    def onDeleteWidget(self):
+        OWWidget.onDeleteWidget(self)
+
+        # try to cancel pending tasks
+        if self.initfuture:
+            self.initfuture.cancel()
+        if self.itemsfuture:
+            self.itemsfuture.cancel()
+
+        self.executor.shutdown()
+
+
 def reportItemView(view):
     model = view.model()
     return reportItemModel(view, model)
@@ -617,7 +680,6 @@ if __name__ == "__main__":
     data = orange.ExampleTable("brown-selected.tab")
     w = OWGeneInfo()
     w.show()
-    w.initialize()
 
     w.setData(data)
     app.exec_()
