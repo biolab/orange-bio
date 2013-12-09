@@ -200,10 +200,12 @@ INFO_SOURCES = {
 
 
 class OWGeneInfo(OWWidget):
-    settingsList = ["organismIndex", "geneAttr", "useAttr", "autoCommit"]
+    settingsList = ["organismIndex", "geneAttr", "useAttr", "autoCommit",
+                    "taxid"]
     contextHandlers = {
         "": DomainContextHandler(
-            "", ["organismIndex", "geneAttr", "useAttr", "useAltSource"]
+            "", ["organismIndex", "geneAttr", "useAttr", "useAltSource",
+                 "taxid"]
         )
     }
 
@@ -214,6 +216,7 @@ class OWGeneInfo(OWWidget):
         self.outputs = [("Selected Examples", ExampleTable)]
 
         self.organismIndex = 0
+        self.taxid = None
         self.geneAttr = 0
         self.useAttr = False
         self.autoCommit = False
@@ -237,7 +240,7 @@ class OWGeneInfo(OWWidget):
 
         self.organismComboBox = OWGUI.comboBox(
             self.organismBox, self, "organismIndex",
-            callback=self.updateInfoItems,
+            callback=self._onSelectedOrganismChanged,
             debuggingEnabled=0)
 
         # For now only support one alt source, with a checkbox
@@ -343,6 +346,8 @@ class OWGeneInfo(OWWidget):
         self.organismComboBox.addItems(
             [obiTaxonomy.name(tax_id) for tax_id in self.organisms]
         )
+        if self.taxid in self.organisms:
+            self.organismIndex = self.organisms.index(self.taxid)
 
         self.infoLabel.setText("No data on input\n")
         self.__initialized = True
@@ -353,6 +358,11 @@ class OWGeneInfo(OWWidget):
     def _onInitializeError(self, exc):
         sys.excepthook(type(exc), exc.args, None)
         self.error(0, "Could not download the necessary files.")
+
+    def _onSelectedOrganismChanged(self):
+        self.taxid = self.organisms[self.organismIndex]
+        if self.data is not None:
+            self.updateInfoItems()
 
     def setData(self, data=None):
         if not self.__initialized:
@@ -378,6 +388,7 @@ class OWGeneInfo(OWWidget):
             taxid = data_hints.get_hint(self.data, "taxid", "")
             if taxid in self.organisms:
                 self.organismIndex = self.organisms.index(taxid)
+                self.taxid = taxid
 
             self.useAttr = data_hints.get_hint(self.data, "genesinrows",  self.useAttr)
 
