@@ -247,13 +247,15 @@ class Organism(object):
         return KEGGPathway(pathway_id).compounds()
 
     def get_pathways_by_genes(self, gene_ids):
-        return self.api.get_pathways_by_genes(gene_ids)
+        """ Pathways that include all genes in gene_ids. """
+        l = self.api.get_genes_pathway_organism(self.org_code)
         gene_ids = set(gene_ids)
-        pathways = [self.genes[id].pathway for id in gene_ids
-                    if self.genes[id].pathway]
-        pathways = reduce(set.union, pathways, set())
-        return [id for id in pathways
-                if gene_ids.issubset(KEGGPathway(id).genes())]
+        gtp = defaultdict(set)
+        for a,b in l:
+            gtp[a].add(b)
+        pathways = [ gtp[g] for g in gene_ids ]
+        pathways = reduce(set.intersection, pathways)
+        return sorted(pathways)
 
     def get_pathways_by_enzymes(self, enzyme_ids):
         enzyme_ids = set(enzyme_ids)

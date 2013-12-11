@@ -289,6 +289,14 @@ class KeggApi(object):
     def get_kos_by_pathway(self, pathway_id):
         return _link_targets(self.link("ko", ids=[pathway_id]))
 
+    #############################################
+    # Pathways and genes of a specific organism #
+    #############################################
+
+    def get_genes_pathway_organism(self, organism):
+        l = self.link("pathway", organism)
+        return map(tuple, l)
+
     #####################
     # Pathways by objects
     #####################
@@ -629,6 +637,11 @@ class CachedKeggApi(KeggApi):
     @cached_method
     def get_kos_by_pathway(self, pathway_id):
         return KeggApi.get_kos_by_pathway(self, pathway_id)
+
+    @cached_method
+    def get_genes_pathway_organism(self, org):
+        return KeggApi.get_genes_pathway_organism(self, org)
+
 
 
 def match_by_ids(ids, entries):
