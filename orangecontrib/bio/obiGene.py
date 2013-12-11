@@ -422,7 +422,7 @@ def join_sets_l(lsets, lower=False):
 
 class Matcher(object):
     """
-    Gene matcher tries to match an input gene to some target.
+    Matches an input gene to some target gene (set in advance).
     """
 
     def copy(self):
@@ -433,26 +433,23 @@ class Matcher(object):
 
     def set_targets(self, targets):
         """
-        Set input list of gene names as targets. 
-        Abstract function.
+        Set input list of gene names (a list of strings) as target genes.
         """
         notImplemented()
 
     def match(self, gene):
-        """Returns a list of matching target gene names."""
+        """Return a list of target gene aliases which share a set of aliases with the input gene (can be empty)."""
         notImplemented()
 
     def umatch(self, gene):
-        """Returns an unique (only one matching target) target or None"""
+        """Return an the single (unique)  matching target gene or None, if there are no matches or multiple matches."""
         mat = self.match(gene)
         return mat[0] if len(mat) == 1 else None
 
     def explain(self, gene):
         """ 
-        Returns an gene matches with explanations as lists of tuples. 
-        Each tuple consists of a list of target genes in a set
-        of aliases matched to input gene, returned as a second part
-        of the tuple.
+        Return gene matches with explanations as lists of tuples:
+        a list of matched target genes and the corresponding set of gene aliases.
         """
         notImplemented()
 
@@ -650,6 +647,8 @@ class MatcherAliasesPickled(MatcherAliases):
 
 
 class MatcherAliasesKEGG(MatcherAliasesPickled):
+    """ Alias: GMKEGG. 
+    """
 
     def _organism_name(self, organism):
         return obiKEGG.organism_name_search(organism)
@@ -690,6 +689,8 @@ class MatcherAliasesFile(MatcherAliasesPickled):
 
 
 class MatcherAliasesGO(MatcherAliasesPickled):
+    """ Alias: GMGO.
+    """
 
     def _organism_name(self, organism):
         """ Returns internal GO organism name. Used to define file name. """
@@ -716,6 +717,8 @@ class MatcherAliasesGO(MatcherAliasesPickled):
         MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
 
 class MatcherAliasesDictyBase(MatcherAliasesPickled):
+    """ Alias: GMDicty.
+    """
 
     def create_aliases(self):
         from . import obiDicty
@@ -737,6 +740,8 @@ class MatcherAliasesDictyBase(MatcherAliasesPickled):
         MatcherAliasesPickled.__init__(self, ignore_case=ignore_case)
 
 class MatcherAliasesNCBI(MatcherAliasesPickled):
+    """ Alias: GMNCBI.
+    """
 
     def _organism_name(self, organism):
         return NCBIGeneInfo.organism_name_search(organism)
@@ -777,7 +782,7 @@ class MatcherAliasesAffy(MatcherAliasesPickled):
     
         
 class MatcherAliasesEnsembl(MatcherAliasesPickled):
-    """ A matcher for Ensemble ids
+    """ A matcher for Ensemble ids. Alias: GMEnsemble.
     """
     DEF_ATTRS = ["ensembl_gene_id", "external_gene_id", "entrezgene"]
     # taxid: (dataset_name, [name_attr1, name_attr2 ...])
@@ -907,7 +912,7 @@ class MatchSequence(Match):
 
 class MatcherDirect(Matcher):
     """
-    Direct matching to targets.
+    Directly match target names. Can ignore case. Alias: GMDirect.
     """
 
     def __init__(self, ignore_case=True):
@@ -941,11 +946,17 @@ def issequencens(x):
 
 def matcher(matchers, direct=True, ignore_case=True):
     """
-    Build a matcher from a sequence of matchers. If a sequence element is a
-    sequence, join matchers in the subsequence.
+    Builds a new matcher from a list of gene matchers. Apply matchers in
+    the input list successively until a match is found. If a list element
+    is a a list, join matchers in the list by joining overlapping sets
+    of aliases.
 
-    direct - if True, add a direct matcher to targets
-    ignore_case - if True, ignores case with optionally added direct matcher 
+    :param matchers: gene matchers.  
+    :param direct: If True, first try
+      to match gene directly (a :obj:`MatcherDirect` is inserted in front of the
+      gene matcher sequence).  
+    :param ignore_case: passed to the added
+      direct matcher.
     """
     seqmat = []
     if direct:

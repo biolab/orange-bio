@@ -26,6 +26,7 @@ Scripting Reference
    reference/kegg.rst
    reference/ontology.rst
    reference/dictybase.rst
+   reference/gene.rst
 
 Installation
 ------------
