@@ -26,4 +26,4 @@ data mining techniques from the Orange data mining framework.
 
 .. _Orange: http://orange.biolab.si/
 
-Documentation: http://orange-bioinformatics.readthedocs.org/
+Documentation: http://pythonhosted.org/Orange-Bioinformatics
