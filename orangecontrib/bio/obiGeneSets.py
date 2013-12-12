@@ -272,9 +272,9 @@ def list_serverfiles():
 
 def list_all():
     """
-    return a list of (hier, org, avalable_locally)
-    If something for a specific (hier, org) is not downloaded
-    yet, show it as not-local. """
+    Return gene sets available in the local and ServerFiles repositories. 
+    It returns a list of tuples of (hierarchy, organism, available_locally)
+    """
     flist = list_local() + list_serverfiles()
     d = {}
     for h,o,local in flist:
@@ -344,8 +344,11 @@ def _register_serverfiles(genesets, serverFiles):
     update_server_list(serverFiles)
 
 def register(genesets, serverFiles=None):
-    """
-    Hierarchy is induced from the gene set names.
+    """ Registers given :class:`GeneSets` locally.  The gene set is registered
+    by the common hierarchy or organism (None if organisms are different).
+
+    If :obj:`serverFiles` as a authenticated ServerFiles connection,
+    the given gene sets are uploaded to the ServerFiles repository.  
     """
     if serverFiles == None:
         _register_local(genesets)
@@ -383,7 +386,7 @@ def load_fn(hierarchy, organism, fnlist, fnget):
     return out
 
 def load(hierarchy, organism):
-    """ First try to load from the local registred folder. If the file
+    """ First try to load from the local registered folder. If the file
     is not available, load it from the server files. """
     try:
         return load_local(hierarchy, organism)
@@ -392,9 +395,14 @@ def load(hierarchy, organism):
 
 def collections(*args):
     """
-    Input is a list of collections.
-    Collection can either be a tuple (hierarchy, orgranism), where
-    hierarchy is a tuple also.
+    Load gene sets from various sources: GMT file, GO, KEGG, and others. 
+    Return an instance of :class:`GeneSets`. 
+    
+    Each arguments specifies a gene set and can be either:
+    
+    * a filename of a GMT file,
+    * a tuple (hierarchy, organism) (for example ``(("KEGG",), "10090")``), or
+    * an instance of :class:`GeneSets`
     """
     result = GeneSets()
 

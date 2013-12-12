@@ -73,7 +73,7 @@ class GeneSetTrans(object):
         gene_sets = select_genesets(nm, self.gene_sets, self.min_size, self.max_size, self.min_part)
 
         #build a new domain
-        print "WHOLE"
+        #print "WHOLE"
         newfeatures = self.build_features(data, gene_sets)
         newdomain = Orange.data.Domain(newfeatures, data.domain.class_var)
 
@@ -90,7 +90,7 @@ class GeneSetTrans(object):
                 cvi = self.cv(data)
             data_cv = [ [] for _ in range(len(data)) ]
             for f in set(cvi):
-                print "FOLD", f
+                #print "FOLD", f
                 learn = data.select(cvi, f, negate=True)
                 test = data.select(cvi, f)
                 lf = self.build_features(learn, gene_sets)
@@ -99,7 +99,6 @@ class GeneSetTrans(object):
                 for ex, pos in \
                     zip(trans_test, [ i for i,n in enumerate(cvi) if n == f ]):
                     data_cv[pos] = ex.native(0)
-            print data_cv[0]
             return Orange.data.Table(newdomain, data_cv)
 
     def build_features(self, data, gene_sets):

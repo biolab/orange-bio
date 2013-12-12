@@ -7,22 +7,36 @@ def only_option(a):
 class GenesetRegException(Exception): pass
 
 class GeneSet(object):
+    """ A single set of genes.
+    """
 
-    def __init__(self, genes=None, name=None, id=None, \
+    def __init__(self, genes=[], name=None, id=None, \
         description=None, link=None, organism=None, hierarchy=None, pair=None):
         """
-        pair can be (id, listofgenes) - it is used before anything else.
+        :param pair: Backward compatibility: convert a tuple (name, genes)
+            into this object.
         """
-        if genes == None:
-            genes = []
 
         self.hierarchy = hierarchy     
+        """ Hierarchy should be formated as a tuple, for example ``("GO", "biological_process")``"""
+
         self.genes = set(genes)
+        """ A set of genes. Genes are strings. """
+
         self.name = name
+        """ Gene set name. """
+
         self.id = id
+        """ Short gene set ID. """
+
         self.description = description
+        """ Gene set description. """
+
         self.link = link
+        """ Link to further information about this gene set. """
+
         self.organism = organism
+        """ Organism as a NCBI taxonomy ID. """
 
         if pair:
             self.id, self.genes = pair[0], set(pair[1])
@@ -48,7 +62,7 @@ class GeneSet(object):
         return len(self.genes)
 
     def cname(self, source=True, name=True):
-        """ Constructs a gene set name with the hierarchy. """
+        """ Return a gene set name with hieararchy. """
         oname = self.id
         if source and self.hierarchy:
             oname = "[ " + ", ".join(self.hierarchy) + " ] " + oname
@@ -58,7 +72,8 @@ class GeneSet(object):
 
     def to_odict(self, source=True, name=True):
         """
-        Returns a pair (id, listofgenes), like in old format.
+        Backward compatibility: returns a gene set as a tuple
+        (id, list of genes).
         """
         return self.cname(source=source, name=name), self.genes
 
@@ -75,11 +90,13 @@ class GeneSetIDException(Exception):
     pass
 
 class GeneSets(set):
+    """ A collection of gene sets: contains :class:`GeneSet` objects. 
+    It is a subclass of Python's :obj:`set`. 
+    """
     
     def __init__(self, input=None):
         """
-        odict are genesets in old dict format.
-        gs are genesets in new format
+        If input is a dictionary, the gene sets are converted to the current format.
         """
         if input != None and len(input) > 0:
             self.update(input)
@@ -109,7 +126,7 @@ class GeneSets(set):
         return dict(gs.to_odict() for gs in self)
 
     def set_hierarchy(self, hierarchy):
-        """ Sets hierarchy for all gene sets """
+        """ Sets hierarchy for all gene sets. """
         for gs in self:
             gs.hierarchy = hierarchy
 
@@ -117,7 +134,7 @@ class GeneSets(set):
         return "GeneSets(" + set.__repr__(self) + ")"
 
     def common_org(self):
-        """ Returns the common organism. """
+        """ Return a common organism. """
         if len(self) == 0:
             raise GenesetRegException("Empty gene sets.")
 
@@ -129,12 +146,13 @@ class GeneSets(set):
             raise GenesetRegException("multiple organisms: " + str(organisms))
 
     def hierarchies(self):
-        """ Returns all hierachies """
+        """ Return all hierarchies. """
         if len(self) == 0:
             raise GenesetRegException("Empty gene sets.")
         return set(a.hierarchy for a in self)
 
     def common_hierarchy(self):
+        """ Return a common hierarchy. """
         hierarchies = self.hierarchies()
 
         def common_hierarchy1(hierarchies):
@@ -147,7 +165,7 @@ class GeneSets(set):
         return common_hierarchy1(hierarchies)
 
     def split_by_hierarchy(self):
-        """ Splits gene sets by hierarchies. """
+        """ Split gene sets by hierarchies. Return a list of :class:`GeneSets` objects. """
         hd = dict((h,GeneSets()) for h in  self.hierarchies())
         for gs in self:
             hd[gs.hierarchy].add(gs)

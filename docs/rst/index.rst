@@ -27,6 +27,7 @@ Scripting Reference
    reference/ontology.rst
    reference/dictybase.rst
    reference/gene.rst
+   reference/genesets.rst
 
 Installation
 ------------
