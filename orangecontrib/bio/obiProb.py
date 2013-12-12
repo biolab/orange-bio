@@ -49,8 +49,18 @@ class LogBin(object):
             return _lngamma(n + 1)
 
 class Binomial(LogBin):
+    """ `Binomial distribution 
+    <http://en.wikipedia.org/wiki/Binomial_distribution>`_ is a discrete
+    probability distribution of the number of successes in a sequence
+    of n independent yes/no experiments, each of which yields success
+    with probability p. """
 
     def __call__(self, k, N, m, n):
+        """ If m out of N experiments are positive return the probability
+        that k out of n experiments are positive using the binomial
+        distribution: if p = m/N then return bin(n,k)*(p**k + (1-p)**(n-k))
+        where bin is the binomial coefficient. """
+
         p = 1.0 * m / N
         if p == 0.0:
             if k == 0:
@@ -70,6 +80,7 @@ class Binomial(LogBin):
 ##        return math.exp(self._logbin(n, k) + math.log((p**k) * (1.0 - p)**(n - k)))
 
     def p_value(self, k, N, m, n):
+        """ The probability that k or more tests are positive. """
         if n - k + 1 <= k:
             #starting from k gives the shorter list of values
             return sum(self.__call__(i, N, m, n) for i in range(k, n+1))
@@ -85,8 +96,20 @@ class Binomial(LogBin):
                 return value
 
 class Hypergeometric(LogBin):
+    """ `Hypergeometric distribution
+    <http://en.wikipedia.org/wiki/Hypergeometric_distribution>`_ is
+    a discrete probability distribution that describes the number of
+    successes in a sequence of n draws from a finite population without
+    replacement. 
+
+    """
 
     def __call__(self, k, N, m, n):
+        """If m out of N experiments are positive return the probability
+        that k out of n experiments are positive using the hypergeometric
+        distribution (i.e. return bin(m, k)*bin(N-m, n-k)/bin(N,n)
+        where bin is the binomial coefficient).
+        """
         if k < max(0, n + m - N) or k > min(n, m):
             return 0.0
         try:
@@ -96,9 +119,9 @@ class Hypergeometric(LogBin):
             raise
 
     def p_value(self, k, N, m, n):
-        #From wolfram alpha:
-        #1-CDF[HypergeometricDistribution[80, 50, 2000], 20-1] = 1.75695e-16
-        #1-CDF[HypergeometricDistribution[80, 50, 2000], 40-1] = 9.92008e-52
+        """ 
+        The probability that k or more tests are positive.
+        """
 
         if min(n,m) - k + 1 <= k:
             #starting from k gives the shorter list of values
@@ -124,8 +147,12 @@ def is_sorted(l):
 
 def FDR(p_values, dependent=False, m=None, ordered=False):
     """
-    If the user is sure that pvalues as already sorted nondescendingly
-    setting ordered=True will make the computation faster.
+    `False Discovery Rate <http://en.wikipedia.org/wiki/False_discovery_rate>`_ correction on a list of p-values.
+
+    :param p_values: a list of p-values.
+    :param dependent: use correction for dependent hypotheses (default False).
+    :param m: number of hypotheses tested (default ``len(p_values)``).
+    :param ordered: prevent sorting of p-values if they are already sorted (default False).
     """
 
     if not ordered:
@@ -163,6 +190,12 @@ def FDR(p_values, dependent=False, m=None, ordered=False):
     return fdrs
 
 def Bonferroni(p_values, m=None):
+    """
+    `Bonferroni correction <http://en.wikipedia.org/wiki/Bonferroni_correction>`_ correction on a list of p-values.
+
+    :param p_values: a list of p-values.
+    :param m: number of hypotheses tested (default ``len(p_values)``).
+    """
     if not m:
         m = len(p_values)
     if m == 0:

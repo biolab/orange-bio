@@ -28,6 +28,7 @@ Scripting Reference
    reference/dictybase.rst
    reference/gene.rst
    reference/genesets.rst
+   reference/prob.rst
 
 Installation
 ------------
