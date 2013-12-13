@@ -1,4 +1,4 @@
-import obiOMIM
+from Orange.bio import obiOMIM
 
 diseases = obiOMIM.diseases()
 genes = [obiOMIM.disease_genes(disease) for disease in diseases]

@@ -30,6 +30,7 @@ Scripting Reference
    reference/genesets.rst
    reference/prob.rst
    reference/geo.rst
+   reference/omim.rst
 
 Installation
 ------------

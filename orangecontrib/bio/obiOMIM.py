@@ -72,22 +72,22 @@ class OMIM(object):
         return d
 
 def diseases():
-    """ Return all disease objects
+    """ Return all disease descriptors.
     """
     return OMIM.get_instance().diseases()
 
 def genes():
-    """ Return a set of all genes referenced in OMIM 
+    """ Return a set of all genes referenced in OMIM.
     """
     return OMIM.get_instance().genes()
 
 def disease_genes(disease):
-    """ Return a set of all genes referenced by disease in OMIM 
+    """ Return a set of all genes referenced by disease in OMIM.
     """
     return OMIM.get_instance().disease_genes(disease)
 
 def gene_diseases():
-    """ Return a dictionary {gene: set(disease_objects for gene), ...}
+    """ Return a dictionary {gene: set(disease_objects for gene), ...}.
     """
     return OMIM.get_instance().gene_diseases()
 
