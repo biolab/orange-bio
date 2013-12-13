@@ -39,6 +39,24 @@ FTP_NCBI = "ftp.ncbi.nih.gov"
 FTP_DIR = "pub/geo/DATA/SOFT/GDS/"
 
 class GDSInfo:
+
+    """
+    Retreive the infomation about `GEO DataSets
+    <http://www.ncbi.nlm.nih.gov/sites/GDSbrowser>`_.  The class accesses
+    the Orange server file that either resides on the local computer or
+    is automatically retreived from Orange server. Notice that the call
+    of this class does not access any NCBI's servers directly.
+
+    Constructor returning the object with GEO DataSets information. If
+    :obj:`force_update` is True, the constructor will download GEO DataSets
+    information file (gds_info.pickled) from Orange server, otherwise,
+    it will first check if the local copy exists.
+
+    An instance behaves like a dictionary: the keys are GEO DataSets
+    IDs, and the dictionary values for is a dictionary providing various
+    information about the particular data set.
+    """
+
     def __init__(self, force_update=False):
         path = orngServerFiles.localpath(DOMAIN, GDS_INFO_FILENAME)
         if not os.path.exists(path) or force_update:
@@ -64,7 +82,27 @@ class GeneData:
         self.data = d
 
 class GDS():
-    """GEO DataSet class: read GEO datasets and convert them to ExampleTable."""
+    """ 
+    GDS is a class that
+    provides methods for retreival of a specific GEO DataSet. The data
+    is provided as a :obj:`Orange.data.Table`.
+
+    Constructor returning the object to be used to retreive
+    GEO DataSet table (samples and gene expressions). Checks
+    a local cache directory if the particular data file is
+    loaded locally, else it downloads it from `NCBI's GEO FTP site
+    <ftp://ftp.ncbi.nih.gov/pub/geo/DATA/SOFT/GDS/>`_.  The compressed
+    data file resides in the cache directory after the call of the
+    constructor (call to ``orngServerFiles.localpath("GEO")`` reveals
+    the path of this directory).
+
+    :param gdsname: an NCBI's ID for the data set in the form "GDSn"
+      where "n" is a GDS ID number.
+
+    :param force_download: force the download.
+
+    """
+
     def __init__(self, gdsname, verbose=False, force_download=False):
         self.gdsname = gdsname
         self.verbose = verbose
@@ -263,8 +301,31 @@ class GDS():
     def getdata(self, report_genes=True, merge_function=spots_mean,
                  sample_type=None, missing_class_value=None,
                  transpose=False, remove_unknown=None):
-        """Load GDS data and returns a corresponding orange data set,
-        spot<->gene mappings and subset info."""
+        """
+        Returns the data from GEO DataSet in
+        Orange format. 
+
+        :param report_genes: Micorarray spots reported in the GEO data set can
+          either be merged according to their gene id's
+          (if True) or can be left as spots. 
+
+        :param transpose: The data
+          table can have spots/genes in rows and samples in columns
+          (False, default) or samples in rows and  spots/genes in columns
+          (True). 
+
+        :param sample_type: the type of annotation, or (if :obj:`transpose` is True)
+          the type of class labels to be included in the data set.
+          The entire annotation of samples will
+          be included either in the class value or in
+          the ``.attributes`` field of each data set
+          attributes. 
+
+        :param remove_unknown: Remove spots with sample profiles that
+          include unknown values. They are removed if the proportion
+          of samples with unknown values is above the threshold set by
+          ``remove_unknown``. If None, nothing is removed.
+        """
         if self.verbose: print "Reading data ..."
 #        if not self.gdsdata:
         self._parse_soft(remove_unknown = remove_unknown)

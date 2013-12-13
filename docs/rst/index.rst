@@ -29,6 +29,7 @@ Scripting Reference
    reference/gene.rst
    reference/genesets.rst
    reference/prob.rst
+   reference/geo.rst
 
 Installation
 ------------

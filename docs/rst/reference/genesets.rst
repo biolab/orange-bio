@@ -8,7 +8,7 @@ Gene sets (:mod:`obiGeneSets`)
 ********************************************************
 
 :mod:`obiGeneSets` can load gene sets distributed with Orange (through ServerFiles) 
-and also in GMT file format.
+and also in `GMT file format <http://www.molmine.com/magma/fileformats.html>`_.
 
 Load gene sets from KEGG and GO for mouse::
 
