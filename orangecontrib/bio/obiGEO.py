@@ -93,7 +93,7 @@ class GDS():
     loaded locally, else it downloads it from `NCBI's GEO FTP site
     <ftp://ftp.ncbi.nih.gov/pub/geo/DATA/SOFT/GDS/>`_.  The compressed
     data file resides in the cache directory after the call of the
-    constructor (call to ``orngServerFiles.localpath("GEO")`` reveals
+    constructor (call to ``Orange.utils.serverfiles.localpath("GEO")`` reveals
     the path of this directory).
 
     :param gdsname: an NCBI's ID for the data set in the form "GDSn"
