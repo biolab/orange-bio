@@ -285,7 +285,7 @@ class OWGeneInfo(OWWidget):
         self.treeWidget.setRootIsDecorated(False)
         self.treeWidget.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.treeWidget.setItemDelegate(LinkStyledItemDelegate(self.treeWidget))
-        #self.connect(self.treeWidget, SIGNAL("itemSelectionChanged()"), self.commitIf)
+        self.treeWidget.setUniformRowHeights(True)
         self.treeWidget.viewport().setMouseTracking(True)
         self.treeWidget.setSortingEnabled(True)
         self.mainArea.layout().addWidget(self.treeWidget)
