@@ -6,11 +6,14 @@ import orange
 from Orange.orng import orngMisc, orngServerFiles
 
 from . import obiData, obiTaxonomy
+from collections import defaultdict
+import Orange
 
 def spots_mean(x):
     vs = [v for v in x if v and v<>"?"]
     if len(vs) == 0: return "?"
     return sum(vs)/len(vs)
+
 def spots_median(x):
     vs = [v for v in x if v and v<>"?"]
     if len(vs) == 0: return "?"
@@ -20,10 +23,12 @@ def spots_median(x):
         z = sorted(x)
         return (z[len(vs)/2-1] + z[len(vs)/2]) / 2. 
     return sum(vs)/len(vs)
+
 def spots_min(x):
     vs = [v for v in x if v and v<>"?"]
     if len(vs) == 0: return "?"
     return min(vs)/len(vs)
+
 def spots_max(x):
     vs = [v for v in x if v and v<>"?"]
     if len(vs) == 0: return "?"
@@ -204,16 +209,15 @@ class GDS():
         """Return a dictionary with sample annotation."""
         annotation = {}
         for info in self.info["subsets"]:
-            if sample_type and info["type"]<>sample_type:
-                continue
-            for id in info["sample_id"]:
-                annotation.setdefault(id, {})[info["type"]]=info["description"]
+            if not sample_type or info["type"] == sample_type:
+                for id in info["sample_id"]:
+                    annotation.setdefault(id, {})[info["type"]]=info["description"]
         return annotation
 
     def sample_to_class(self, sample_type=None, missing_class_value=None):
         """Return class values for GDS samples."""
         annotations = self.sample_annotations(sample_type)
-        return dict([(sample, "|".join([a for t,a in ann.items()])) for sample, ann in annotations.items()])
+        return dict([(sample, "|".join([a for t,a in sorted(ann.items())])) for sample, ann in annotations.items()])
         
     def sample_types(self):
         """Return a set of sample types."""
@@ -251,23 +255,43 @@ class GDS():
             cvalues = list(set(sample2class.values()))
             if None in cvalues:
                 cvalues.remove(None)
+
+            samp_ann = self.sample_annotations()
+
+            ad = defaultdict(set)
+            for d in samp_ann.values():
+                for n,v in d.items():
+                    ad[n].add(v)
+
+            #select sample type if there is only one
+            if len(ad) == 1: 
+                sample_type = ad.keys()[0]
+
             classvar = orange.EnumVariable(name=sample_type or "class", values=cvalues)
-            if report_genes: # save by genes
-                atts = [orange.FloatVariable(name=gene) for gene in self.gene2spots.keys()]
-                domain = orange.Domain(atts, classvar)
-                for (i, sampleid) in enumerate(self.info["samples"]):
-                    vals = [merge_function([self.gdsdata[spot].data[i] \
-                            for spot in self.gene2spots[gene]]) for gene in self.gene2spots.keys()]
-                    orng_data.append(vals + [sample2class[sampleid]])
-                
-            else: # save by spots
-                spots = self.spot2gene.keys()
-                atts = [orange.FloatVariable(name=id) for id in spots]
-                domain = orange.Domain(atts, classvar)
-                for (i, sampleid) in enumerate(self.info["samples"]):
-                    orng_data.append([self.gdsdata[spot].data[i] for spot in spots] + [sample2class[sampleid]])
+            spots = self.gene2spots.keys() if report_genes else self.spot2gene.keys()
+            atts = [orange.FloatVariable(name=gene) for gene in spots]
+
+            domain = orange.Domain(atts, classvar)
+
+            #meta attributes for sample types
+            mid = {}
+            for n,values in ad.items():
+                if n != sample_type:
+                    mid[n] = orange.newmetaid()
+                    domain.addmeta(mid[n], orange.EnumVariable(name=n, values=list(values)))
+
+            for (i, sampleid) in enumerate(self.info["samples"]):
+                vals = [ ( (merge_function([self.gdsdata[spot].data[i] for spot in self.gene2spots[gene]]) )
+                         if report_genes else self.gdsdata[gene].data[i] ) 
+                         for gene in spots ]
+                instance = Orange.data.Instance(domain, vals + [sample2class[sampleid]])
+                for n, v in samp_ann[sampleid].items():
+                    if n != sample_type:
+                        instance[mid[n]] = v
+                orng_data.append(instance)
+
             if missing_class_value == None:
-                orng_data = [example for example in orng_data if example[-1] != None]
+                orng_data = [example for example in orng_data if example[-1].value != '?']
     
             return orange.ExampleTable(domain, orng_data)
     

@@ -446,6 +446,7 @@ class OWGEODatasets(OWWidget):
         """
         samples = []
         unused_types = []
+        used_types = []
         for stype in childiter(self.annotationsTree.invisibleRootItem()): 
             selected_values = []
             all_values = []
@@ -456,12 +457,13 @@ class OWGEODatasets(OWWidget):
                 all_values.append(value)
             if selected_values:
                 samples.extend(selected_values)
+                used_types.append(str(stype.text(0)))
             else:
                 # If no sample of sample type is selected we don't filter on it.
                 samples.extend(all_values)
                 unused_types.append(str(stype.text(0)))
-                
-        return samples
+        
+        return samples, used_types
     
     def commitIf(self):
         if self.autoCommit:
@@ -481,10 +483,14 @@ class OWGEODatasets(OWWidget):
                 data = gds.getdata(**kwargs)
                 return data
             
+            _, groups = self.selectedSamples()
+            if len(groups) == 1 and self.outputRows:
+                sample_type = groups[0]
+
             self.setEnabled(False)
             call = self.asyncCall(getdata, (self.currentGds["dataset_id"],), dict(report_genes=self.mergeSpots,
                                            transpose=self.outputRows,
-                                           sample_type=sample_type if sample_type!="Include all" else None),
+                                           sample_type=sample_type),
                                   onResult=self.onData,
                                   onFinished=lambda: self.setEnabled(True),
                                   onError=self.onAsyncError,
@@ -506,16 +512,22 @@ class OWGEODatasets(OWWidget):
     def onData(self, data):
         self.progressBarSet(50)
         
-        samples = self.selectedSamples()
+        samples,_ = self.selectedSamples()
         
         self.warning(0)
         message = None
         if self.outputRows:
-            samples = set(s[1] for s in samples) # dont have info on sample types in the data class variable
-            select = [1 if samples.issuperset(str(ex.getclass()).split("|")) else 0 for ex in data]
+            def samplesinst(ex):
+                out = []
+                for i,a in data.domain.get_metas().items():
+                    out.append((a.name, ex[i].value))
+                if data.domain.class_var.name != 'class':
+                    out.append((data.domain.class_var.name, ex[-1].value))
+                return out
+            samples = set(samples)
+
+            select = [1 if samples.issuperset(samplesinst(ex)) else 0 for ex in data]
             data = data.select(select)
-            # TODO: add sample types as separate features  
-            data.domain.classVar.values = ["|".join([cl for cl in val.split("|") if cl in samples]) for val in data.domain.classVar.values]
             if len(data) == 0:
                 message = "No samples with selected sample annotations."
         else:
