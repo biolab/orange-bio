@@ -610,9 +610,8 @@ class OWSelectGenes(OWWidget):
             backmap = dict((info.symbol, name) for name, info in self.genes
                            if info is not None)
             names = set([name for name, _ in self.genes])
-            selection = [backmap.get(name, name) for name in selection
-                         and name not in names]
-
+            selection = [backmap.get(name, name) for name in selection]
+    
         if self.geneVar is not None:
             data = select_by_genes(self.data, self.geneVar,
                                    gene_list=selection,
