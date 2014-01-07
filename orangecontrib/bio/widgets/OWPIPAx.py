@@ -31,8 +31,8 @@ REPLACES = ["_bioinformatics.widgets.OWPIPAx.OWPIPAx"]
 try:
     from ast import literal_eval
 except ImportError:
-    # Compatibility with Python 2.5
-    literal_eval = eval
+    #avoid eval on older pythons: dates are of lower importance than safety
+    literal_eval = lambda x: None
 
 
 def tfloat(s):
@@ -743,19 +743,14 @@ class OWPIPAx(OWWidget):
         for r_annot in [ items_to_show[i] for i in add_items ]:
             d = defaultdict(lambda: "?", r_annot)
             row_items = [""] + [d.get(key, "?") for key, _ in HEADER[1:]]
-            date_string = row_items[DATE_INDEX]
             try:
-                time_dict = literal_eval(date_string)
-            except Exception:
-                time_dict = {}
-
-            if time_dict and "dateUTC" in time_dict and \
-                    "monthUTC" in time_dict and "fullYearUTC" in time_dict:
+                time_dict = literal_eval(row_items[DATE_INDEX])
                 date_rna = date(time_dict["fullYearUTC"],
                                 time_dict["monthUTC"] + 1,  # Why is month 0 based?
                                 time_dict["dateUTC"])
-
                 row_items[DATE_INDEX] = date_rna.strftime("%x")
+            except Exception:
+                row_items[DATE_INDEX] = ''
 
             row_items[ID_INDEX] = mapping_unique_id(r_annot)
             elements.append(row_items)
