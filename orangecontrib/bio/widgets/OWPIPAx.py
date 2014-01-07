@@ -684,6 +684,16 @@ class OWPIPAx(OWWidget):
         self.result_types = result_types
 
         self.UpdateExperimentTypes()
+        self.UpdateResultsList(reload=reload)
+
+        self.progressBarFinished()
+
+        if self.currentSelection:
+            self.currentSelection.select(self.experimentsWidget.selectionModel())
+
+        self.handle_commit_button()
+
+    def UpdateResultsList(self, reload=False):
 
         results_list = {}
         try:
@@ -696,7 +706,7 @@ class OWPIPAx(OWWidget):
 
         self.results_list = results_list
         mappings_key_dict = dict(((m["data_id"], m["id"]), key) \
-                                 for key, m in mappings.items())
+                                 for key, m in self.mappings.items())
 
         def mapping_unique_id(annot):
             """Map annotations dict from results_list to unique
@@ -706,10 +716,31 @@ class OWPIPAx(OWWidget):
             return mappings_key_dict[data_id, mappings_id]
 
         elements = []
-        pos = 0
 
-        for r_id, r_annot in self.results_list.items():
-            pos += 1
+        #softly change the view so that the selection stays the same
+
+        items_shown = {}
+        for i,item in enumerate(self.items):
+            c = str(item.text(10))
+            items_shown[c] = i
+
+        items_to_show = dict( (mapping_unique_id(annot), annot) for annot in self.results_list.values() )
+
+        add_items = set(items_to_show) - set(items_shown)
+        delete_items = set(items_shown) - set(items_to_show)
+
+        i = 0
+        while i < self.experimentsWidget.topLevelItemCount():
+            it = self.experimentsWidget.topLevelItem(i)
+            if str(it.text(10)) in delete_items:
+                self.experimentsWidget.takeTopLevelItem(i)
+            else:
+                i += 1
+
+        delete_ind = set([ items_shown[i] for i in delete_items ])
+        self.items = [ it for i, it in enumerate(self.items) if i not in delete_ind ]
+
+        for r_annot in [ items_to_show[i] for i in add_items ]:
             d = defaultdict(lambda: "?", r_annot)
             row_items = [""] + [d.get(key, "?") for key, _ in HEADER[1:]]
             date_string = row_items[DATE_INDEX]
@@ -746,21 +777,6 @@ class OWPIPAx(OWWidget):
 
         self.UpdateCached()
 
-        self.progressBarFinished()
-
-        if self.currentSelection:
-            self.currentSelection.select(self.experimentsWidget.selectionModel())
-
-        self.handle_commit_button()
-
-    def UpdateResultsList(self, reload=False):
-        results_list = {}
-        try:
-            results_list = self.dbc.results_list(self.rtype(), reload=reload)
-        except Exception:
-            results_list = self.dbc.results_list(self.rtype())
-        self.results_list = results_list
-        self.UpdateCached()
 
     def UpdateCached(self):
         if self.wantbufver and self.dbc:
