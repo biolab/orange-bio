@@ -303,7 +303,9 @@ class OWGeneInfo(OWWidget):
         self.cells = []
         self.row2geneinfo = {}
         self.data = None
-        self.currentLoaded = None, None
+
+        #: (# input genes, # matches genes)
+        self.matchedInfo = 0, 0
         self.selectionUpdateInProgress = False
 
         self.setBlocking(True)
@@ -438,7 +440,7 @@ class OWGeneInfo(OWWidget):
         self.warning(1)
         org = self.organisms[min(self.organismIndex, len(self.organisms) - 1)]
         source_name, info_getter = self.infoSource()
-        info, currorg = self.currentLoaded
+
         self.error(0)
 
         self.updateDictyExpressLink(genes, show=org == "352472")
@@ -466,7 +468,6 @@ class OWGeneInfo(OWWidget):
             self.itemsfuture = None
 
         self.geneinfo = geneinfo = list(zip(self.genes, geneinfo))
-
         self.cells = cells = []
         self.row2geneinfo = {}
         links = []
@@ -598,11 +599,29 @@ class OWGeneInfo(OWWidget):
     def sendReport(self):
         from Orange.OrangeWidgets import OWReport
         genes, matched = self.matchedInfo
-        info, org = self.currentLoaded
-        self.reportRaw("<p>Input: %i genes of which %i (%.1f%%) matched NCBI synonyms<br>Organism: %s<br>Filter: %s</p>" % (genes, matched, 100.0 * matched / genes, obiTaxonomy.name(org), self.searchString))
-        self.reportSubsection("Gene list")
-        self.reportRaw(reportItemView(self.treeWidget))
-        
+
+        if self.organisms:
+            org = self.organisms[min(self.organismIndex,
+                                     len(self.organisms) - 1)]
+            org_name = obiTaxonomy.name(org)
+        else:
+            org = None
+            org_name = None
+        if self.data is not None:
+            self.reportRaw(
+                "<p>Input: %i genes of which %i (%.1f%%) matched NCBI synonyms"
+                "<br>"
+                "Organism: %s"
+                "<br>"
+                "Filter: %s"
+                "</p>" % (genes, matched, 100.0 * matched / genes, org_name,
+                          self.searchString)
+            )
+            self.reportSubsection("Gene list")
+            self.reportRaw(reportItemView(self.treeWidget))
+        else:
+            self.reportRaw("<p>No input</p>")
+
     def updateDictyExpressLink(self, genes, show=False):
         def fix(ddb):
             if ddb.startswith("DDB"): 
