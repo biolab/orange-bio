@@ -1402,6 +1402,8 @@ class GeneSetView(QFrame):
         self.gsview.setAlternatingRowColors(True)
         self.gsview.setRootIsDecorated(False)
         self.gsview.setSelectionMode(QTreeView.ExtendedSelection)
+        self.gsview.setSortingEnabled(True)
+        self.gsview.setUniformRowHeights(True)
         self.proxymodel = QSortFilterProxyModel(
             filterKeyColumn=1, sortCaseSensitivity=Qt.CaseInsensitive
         )
@@ -1520,7 +1522,7 @@ class GeneSetView(QFrame):
 
 def sets_to_model(gsets):
     model = QStandardItemModel()
-    model.setHorizontalHeaderLabels(["Category", "Name"])
+    model.setHorizontalHeaderLabels(["Category", "Name", "#"])
 
     for (hier, tid), sets in gsets:
         for gset in sets:
@@ -1539,7 +1541,10 @@ def sets_to_model(gsets):
             name.setData(gset, Qt.UserRole)
             name.setEditable(False)
             name.setToolTip(tooltip)
-            model.appendRow([category, name])
+            count = QStandardItem()
+            count.setData(ngenes, Qt.DisplayRole)
+            count.setToolTip(tooltip)
+            model.appendRow([category, name, count])
 
     return model
 
