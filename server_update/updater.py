@@ -6,16 +6,21 @@ from datetime import datetime
 from common import *
 
 if not args:
+    #args = filter(lambda x: x.endswith('.py') and x.startswith('update') and not x.startswith('updater'), os.listdir('.'))
     args = ["updateTaxonomy.py", "updateGO.py", "updateMeSH.py", "updateNCBI_geneinfo.py",
-            "updateHomoloGene.py", "updateDictyBase.py", "updatePPI.py"]
+            "updateHomoloGene.py", "updateDictyBase.py", "updatePPI.py", "updateReactomePathways.py",
+            "updateGeneSets.py", "updateGEO.py", "updatemiRNA.py", "updateSTRING.py", "updateCytobands.py",
+            "updateMeSH.py" ]
     
 for script in args:
+    print script
     log = open(os.path.join(option.log_dir, script + ".log.txt"), "wb")
     p = subprocess.Popen([sys.executable, script, "-u", option.user, "-p", option.password], stdout=log, stderr=log)
     while p.poll() is None:
         time.sleep(3)
     log.write("\n" + script + " exited with exit status %s" % p.poll())
     log.close()
+    print "\n" + script + " exited with exit status %s" % p.poll()
     if option.mailto:
         fromaddr = "orange@fri.uni-lj.si"
         toaddr = option.mailto.split(",")
