@@ -5,17 +5,102 @@ import math
 from collections import defaultdict
 
 import scipy.stats
-
 import numpy
-
 import Orange, Orange.utils, statc
 
 if __name__ == "__main__":
     __package__ = "Orange.bio"
 
-from .obiGsea import takeClasses
-from .obiAssess import pca, PLSCall, corgs_activity_score
 from . import obiExpression, obiGene, obiGeneSets, obiGsea, stats
+
+
+def corgs_activity_score(ex, corg):
+    """ activity score for a sample for pathway given by corgs """
+    #print [ ex[i].value for i in corg ] #FIXME what to do with unknown values?
+    return sum(ex[i].value if ex[i].value != '?' else 0.0 for i in corg)/len(corg)**0.5
+
+
+def PLSCall(data, y=None, x=None, nc=None, weight=None, save_partial=False):
+
+    def normalize(vector):
+        return vector / numpy.linalg.norm(vector)
+
+    if y == None:
+        y = [ data.domain.classVar ]
+    if x == None:
+        x = [v for v in data.domain.variables if v not in y]
+
+    Ncomp = nc if nc is not None else len(x)
+        
+    dataX = Orange.data.Table(Orange.data.Domain(x, False), data)
+    dataY = Orange.data.Table(Orange.data.Domain(y, False), data)
+
+    # transformation to numpy arrays
+    X = dataX.toNumpy()[0]
+    Y = dataY.toNumpy()[0]
+
+    # data dimensions
+    n, mx = numpy.shape(X)
+    my = numpy.shape(Y)[1]
+
+    # Z-scores of original matrices
+    YMean = numpy.mean(Y, axis = 0)
+    XMean = numpy.mean(X, axis = 0)
+    
+    X = (X-XMean)
+    Y = (Y-YMean)
+
+    P = numpy.empty((mx,Ncomp))
+    T = numpy.empty((n,Ncomp))
+    W = numpy.empty((mx,Ncomp))
+    E,F = X,Y
+
+    dot = numpy.dot
+    norm = numpy.linalg.norm
+
+    #PLS1 - from Gutkin, shamir, Dror: SlimPLS
+
+    for i in range(Ncomp):
+        w = dot(E.T,F)
+        w = w/norm(w) #normalize w in Gutkin et al the do w*c, where c is 1/norm(w)
+        t = dot(E, w) #t_i -> a row vector
+        p = dot(E.T, t)/dot(t.T, t) #p_i t.T is a row vector - this is inner(t.T, t.T)
+        q = dot(F.T, t)/dot(t.T, t) #q_i
+            
+        E = E - dot(t, p.T)
+        F = F - dot(t, q.T)
+
+        T[:,i] = t.T
+        W[:,i] = w.T
+        P[:,i] = p.T
+
+    return XMean, W, P, T
+
+
+def pca(data, snapshot=0):
+    "Perform PCA on M, return eigenvectors and eigenvalues, sorted."
+    M = data.toNumpy("a")[0]
+    XMean = numpy.mean(M, axis = 0)
+    M = M - XMean
+
+    T, N = numpy.shape(M)
+    # if there are less rows T than columns N, use snapshot method
+    if (T < N) or snapshot:
+        C = numpy.dot(M, numpy.transpose(M))
+        evals, evecsC = numpy.linalg.eigh(C) #columns of evecsC are eigenvectors
+        evecs = numpy.dot(M.T, evecsC)/numpy.sqrt(numpy.abs(evals))
+    else:
+        K = numpy.dot(numpy.transpose(M), M)
+        evals, evecs = numpy.linalg.eigh(K)
+    
+    evecs = numpy.transpose(evecs)
+
+    # sort the eigenvalues and eigenvectors, decending order
+    order = (numpy.argsort(numpy.abs(evals))[::-1])
+    evecs = numpy.take(evecs, order, 0)
+    evals = numpy.take(evals, order)
+    return evals, evecs, XMean
+
 
 class GeneSetTrans(object):
 
@@ -68,7 +153,7 @@ class GeneSetTrans(object):
     def __call__(self, data, weight_id=None):
 
         #selection of classes and gene sets
-        data = takeClasses(data, classValues=self.class_values)
+        data = obiGsea.takeClasses(data, classValues=self.class_values)
         nm,_ =  self._mat_ni(data)
         gene_sets = select_genesets(nm, self.gene_sets, self.min_size, self.max_size, self.min_part)
 
@@ -906,7 +991,7 @@ if __name__ == "__main__":
         ol =  sorted(ar.items())
         print '\n'.join([ a + ": " +str(b) for a,b in ol])
 
-    ass = LLR(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, normalize=True)
+    #ass = LLR(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, normalize=True)
     #ass = LLR_slow(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
     ass = CORGs(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, cv=True)
     ar = to_old_dic(ass.domain, data[:5])
