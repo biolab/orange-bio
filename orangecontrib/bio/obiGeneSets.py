@@ -388,6 +388,18 @@ def load_fn(hierarchy, organism, fnlist, fnget):
 def load(hierarchy, organism):
     """ First try to load from the local registered folder. If the file
     is not available, load it from the server files. """
+    if organism != None:
+        try:
+            int(organism) #already a taxid
+        except:
+            organismc = obiTaxonomy.to_taxid(organism)
+            if len(organismc) == 1:
+                organism = organismc.pop()
+            else:
+                exstr = "Could not interpret organism " + str(organism) + \
+                      ". Possibilities: " + str(organismc) 
+                raise NoGenesetsException(exstr)
+
     try:
         return load_local(hierarchy, organism)
     except NoGenesetsException:
