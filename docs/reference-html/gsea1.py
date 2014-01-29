@@ -1,6 +1,7 @@
-import orange, obiGsea, obiGene
+import Orange
+from Orange.bio import obiGsea, obiGene
 
-data = orange.ExampleTable("iris")
+data = Orange.data.Table("iris")
 
 gen1 = dict([
     ("sepal",["sepal length", "sepal width"]), 
@@ -9,5 +10,5 @@ gen1 = dict([
 
 res = obiGsea.runGSEA(data, matcher=obiGene.matcher([]), minSize=2, geneSets=gen1)
 print "%5s  %6s %6s %s" % ("LABEL", "NES", "P-VAL", "GENES")
-for name,resu in res.items():
-    print "%5s  %6.3f %6.3f %s" % (name, resu["nes"], resu["p"], str(resu["genes"]))
+for gs,resu in res.items():
+    print "%5s  %6.3f %6.3f %s" % (gs.id, resu["nes"], resu["p"], str(resu["genes"]))

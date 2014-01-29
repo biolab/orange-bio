@@ -1,25 +1,20 @@
-import obiDicty
-import obiGeneSets
-import obiGsea
-import orange
-import obiGene
+import Orange
+from Orange.bio import obiDicty, obiGeneSets, obiGsea,obiGene
 
 dbc = obiDicty.DatabaseConnection()
-data = dbc.getData(sample='pkaC-', time="8")[0] #get first chip
+data = dbc.get_single_data(sample='pkaC-', time="8")
 
-print "First 10 examples"
-for ex in data[:10]:
-    print ex
+#select the first chip (the first attribute)
+data = data.translate([data.domain.attributes[0]], True)
 
-matcher=obiGene.matcher([[obiGene.GMKEGG("ddi"),obiGene.GMDicty()]])
+matcher = obiGene.matcher([[obiGene.GMKEGG("dicty"), obiGene.GMDicty()]])
+genesets =  obiGeneSets.collections((("KEGG",), "dicty"))
 
-genesets =  obiGeneSets.collections([":kegg:ddi"])
-res = obiGsea.runGSEA(data, matcher=matcher, minPart=0.05, geneSets=genesets, 
-    permutation="gene")
+res = obiGsea.runGSEA(data, matcher=matcher, minPart=0.05, 
+    geneSets=genesets, permutation="gene")
 
-print "GSEA results"
-print "%-40s %6s %6s %6s %7s" % ("LABEL", "NES", "P-VAL", "SIZE", "MATCHED") 
-for name,resu in res.items()[:10]: 
-    print "%-40s %6.3f %6.3f %6d %7d" % (name[:30], resu["nes"], resu["p"], 
-        resu["size"], resu["matched_size"]) 
+print "%-40s %6s %6s %6s %7s" % ("LABEL", "NES", "P-VAL", "SIZE", "MATCHED")
+for name,resu in sorted(res.items()[:10], key=lambda x: x[1]["p"]): 
+    print "%-40s %6.3f %6.3f %6d %7d" % (name.name[:35], resu["nes"],
+        resu["p"], resu["size"], resu["matched_size"]) 
 
