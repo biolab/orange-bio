@@ -13,7 +13,6 @@ if __name__ == "__main__":
 
 from . import obiExpression, obiGene, obiGeneSets, obiGsea, stats
 
-
 def corgs_activity_score(ex, corg):
     """ activity score for a sample for pathway given by corgs """
     #print [ ex[i].value for i in corg ] #FIXME what to do with unknown values?
@@ -77,31 +76,37 @@ def PLSCall(data, y=None, x=None, nc=None, weight=None, save_partial=False):
     return XMean, W, P, T
 
 
-def pca(data, snapshot=0):
+def pca(M, snapshot=None):
     "Perform PCA on M, return eigenvectors and eigenvalues, sorted."
-    M = data.toNumpy("a")[0]
     XMean = numpy.mean(M, axis = 0)
     M = M - XMean
-
-    T, N = numpy.shape(M)
-    # if there are less rows T than columns N, use snapshot method
-    if (T < N) or snapshot:
-        C = numpy.dot(M, numpy.transpose(M))
-        evals, evecsC = numpy.linalg.eigh(C) #columns of evecsC are eigenvectors
-        evecs = numpy.dot(M.T, evecsC)/numpy.sqrt(numpy.abs(evals))
-    else:
-        K = numpy.dot(numpy.transpose(M), M)
-        evals, evecs = numpy.linalg.eigh(K)
     
-    evecs = numpy.transpose(evecs)
+    if snapshot == None:
+        snapshot = M.shape[0] < M.shape[1]
+
+    if snapshot: #less columns than rows
+        evals, evecsC = numpy.linalg.eigh(M.dot(M.T)) #columns of evecsC are eigenvectors
+        evecs = M.T.dot(evecsC)/numpy.sqrt(numpy.abs(evals))
+    else:
+        evals, evecs = numpy.linalg.eigh(M.T.dot(M))
+    
+    evecs = evecs.T
 
     # sort the eigenvalues and eigenvectors, decending order
     order = (numpy.argsort(numpy.abs(evals))[::-1])
     evecs = numpy.take(evecs, order, 0)
     evals = numpy.take(evals, order)
+
     return evals, evecs, XMean
 
-
+def pca2(M):
+    """ Perform PCA on M, return eigenvectors and eigenvalues, sorted.
+    Mostly euivalent to pca(), slightly slower but more stable."""
+    XMean = numpy.mean(M, axis = 0)
+    M = M - XMean
+    U,s,Vt = numpy.linalg.svd(M, full_matrices=False)
+    return s*s, Vt, XMean
+    
 class GeneSetTrans(object):
 
     __new__ = Orange.utils._orange__new__(object)
@@ -439,6 +444,7 @@ def setSig_example_geneset(ex, data, no_unknowns, check_same=False):
     classValueMap = dict( [ (val,i) for i,val in enumerate(data.domain.class_var.values) ])
  
     #create distances to all learning data - save or other class
+
     for c in data:
         p = pearson(c, ex)
         if p != 10:
@@ -564,11 +570,27 @@ class PLS(ParametrizedTransformation):
            TR[:,i] = t
 
         return TR[0][0]
-        
+ 
+def eigvturn(A):
+    """ It multiplies rows (vectors of unit lengths) where 
+        sum < 0 with -1. """
+    turn = (numpy.sum(A, axis=1, keepdims=True) > 0)*2 - 1
+    return A*turn
+
 class PCA(ParametrizedTransformation):
 
+    def __init__(self, **kwargs):
+        self.turn = kwargs.pop("turn", False) #turn eigenvetors
+        if self.turn == True:
+            self.turn = eigvturn
+        super(PCA, self).__init__(**kwargs)
+
     def _get_par(self, datao):
-        return pca(datao)
+        M = datao.toNumpy("a")[0]
+        evals, evect, xmean = pca(M)
+        if self.turn:
+            evect = self.turn(evect)
+        return evals, evect, xmean
 
     def _use_par(self, arr, constructt):
         arr = [ arr[i].value for i in range(len(arr.domain.attributes)) ]
@@ -896,7 +918,7 @@ class SPCA(ParametrizedTransformation):
         if len(select) == 0:
             return select, None
         else:
-            return set(select), pca(datas)
+            return set(select), pca(datas.toNumpy("a")[0])
 
     def _use_par(self, arr, constructt):
         select, constructt = constructt
@@ -993,6 +1015,6 @@ if __name__ == "__main__":
 
     #ass = LLR(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, normalize=True)
     #ass = LLR_slow(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
-    ass = CORGs(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, cv=True)
+    ass = PCA(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, cv=True)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
