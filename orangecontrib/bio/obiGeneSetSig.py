@@ -5,13 +5,11 @@ import math
 from collections import defaultdict
 
 import scipy.stats
+import scipy.special
 import numpy
 import Orange, Orange.utils, statc
 
-if __name__ == "__main__":
-    __package__ = "Orange.bio"
-
-from . import obiExpression, obiGene, obiGeneSets, obiGsea, stats
+from . import obiExpression, obiGene, obiGeneSets, obiGsea
 
 def corgs_activity_score(ex, corg):
     """ activity score for a sample for pathway given by corgs """
@@ -195,7 +193,9 @@ class GeneSetTrans(object):
         return [ self.build_feature(data, gs) for gs in gene_sets ]
 
 def normcdf(x, mi, st):
-    return 0.5*(2. - stats.erfcc((x - mi)/(st*math.sqrt(2))))
+    #implementation with scipy is almost the same as from Gary's stats
+    #return 0.5*(2. - stats.erfcc((x - mi)/(st*math.sqrt(2))))
+    return 0.5*(2. - scipy.special.erfc((x - mi)/(st*math.sqrt(2))))
 
 class AT_edelmanParametric(object):
 
@@ -436,7 +436,7 @@ def setSig_example_geneset(ex, data, no_unknowns, check_same=False):
 
     def ttest(ex1, ex2):
         try:
-            return stats.lttest_ind(ex1, ex2)[0]
+            return float(scipy.stats.ttest_ind(ex1, ex2)[0])
         except:
             return 0.0
     
@@ -1015,6 +1015,6 @@ if __name__ == "__main__":
 
     #ass = LLR(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, normalize=True)
     #ass = LLR_slow(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
-    ass = PCA(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, cv=True)
+    ass = SetSig(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, cv=True)
     ar = to_old_dic(ass.domain, data[:5])
     pp2(ar)
