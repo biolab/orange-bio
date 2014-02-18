@@ -1,13 +1,13 @@
-.. py:currentmodule:: Orange.bio.obiProb
+.. py:currentmodule:: Orange.bio.utils.stats
 
 .. index:: binomial distribution
 .. index:: hypergeometric distribution
 .. index:: FDR
 .. index:: Bonferroni
 
-********************************************************
-Probability distributions and corrections (:mod:`obiProb`)
-********************************************************
+**************************************************************
+Probability distributions and corrections (:mod:`utils.stats`)
+**************************************************************
 
 
 .. autoclass:: Binomial

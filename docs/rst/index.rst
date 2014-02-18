@@ -28,7 +28,7 @@ Scripting Reference
    reference/dictybase.rst
    reference/gene.rst
    reference/genesets.rst
-   reference/prob.rst
+   reference/utils.stats.rst
    reference/geo.rst
    reference/omim.rst
 
