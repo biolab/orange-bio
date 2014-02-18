@@ -1,7 +1,6 @@
 import Orange
-from Orange.bio import obiGEO
 
-gds = obiGEO.GDS("GDS2960")
+gds = Orange.bio.geo.GDS("GDS2960")
 data = gds.getdata(sample_type="disease state", transpose=True)
 print "Samples: %d, Genes: %d" % (len(data), len(data.domain.attributes))
 

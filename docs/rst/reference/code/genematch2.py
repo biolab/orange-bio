@@ -1,10 +1,10 @@
-from Orange.bio import obiGene, obiKEGG
+import Orange
 
-targets = obiKEGG.KEGGOrganism("9606").get_genes() #KEGG gene IDs
+targets = Orange.bio.obiKEGG.KEGGOrganism("9606").get_genes() #KEGG gene IDs
 
-gmkegg = obiGene.GMKEGG("9606")
-gmgo = obiGene.GMGO("9606")
-gmkegggo = obiGene.matcher([[gmkegg, gmgo]], direct=False) #joined matchers
+gmkegg = Orange.bio.gene.GMKEGG("9606")
+gmgo = Orange.bio.gene.GMGO("9606")
+gmkegggo = Orange.bio.gene.matcher([[gmkegg, gmgo]], direct=False) #joined matchers
 
 gmkegg.set_targets(targets)
 gmgo.set_targets(targets)

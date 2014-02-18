@@ -1,4 +1,4 @@
-.. py:currentmodule:: Orange.bio.obiGEO
+.. py:currentmodule:: Orange.bio.geo
 
 .. index:: NCBI
 .. index:: GEO
@@ -6,7 +6,7 @@
 .. index:: microarray data sets
 
 **************************************************************
-NCBI's Gene Expression Omnibus interface (:mod:`obiGEO`)
+NCBI's Gene Expression Omnibus interface (:mod:`geo`)
 **************************************************************
 
 :obj:`obiGEO` provides an interface to `NCBI
@@ -22,8 +22,8 @@ in ``.attributes``.
 
 ::
 
-    >>> from Orange.bio import obiGEO
-    >>> gds = obiGEO.GDS("GDS1676")
+    >>> import Orange
+    >>> gds = Orange.bio.geo.GDS("GDS1676")
     >>> data = gds.getdata()
     >>> len(data)
     667
@@ -42,8 +42,8 @@ GDS classes
 
 An example that uses obj:`GDSInfo`::
 
-    >>> from Orage import obiGEO
-    >>> info = obiGEO.GDSInfo()
+    >>> import Orange
+    >>> info = Orange.bio.geo.GDSInfo()
     >>> info.keys()[:5]
     >>> ['GDS2526', 'GDS2524', 'GDS2525', 'GDS2522', 'GDS1618']
     >>> info['GDS2526']['title']

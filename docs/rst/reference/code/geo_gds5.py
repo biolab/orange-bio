@@ -5,7 +5,7 @@ when, for instance, filtering out the data sets that could be used for
 supervised machine learning.
 """
 
-from Orange.bio import obiGEO
+import Orange
 
 def valid(info, n=40):
     """Return a set of subset types containing more than n samples in every subset"""
@@ -26,7 +26,7 @@ def report(stypes, info):
             print ", ".join(["%s/%d" % (sinfo["description"], len(sinfo["sample_id"])) \
                              for sinfo in gds["subsets"] if sinfo["type"]==st])
 
-gdsinfo = obiGEO.GDSInfo()
+gdsinfo = Orange.bio.geo.GDSInfo()
 valid_subset_types = [(id, valid(info)) for id, info in gdsinfo.items() if valid(info)]
 report(valid_subset_types, gdsinfo)
 

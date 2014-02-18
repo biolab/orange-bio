@@ -1,4 +1,4 @@
-.. py:currentmodule:: Orange.bio.obiGene
+.. py:currentmodule:: Orange.bio.gene
 
 .. index:: gene matching
 .. index:: gene name matching
@@ -7,7 +7,7 @@
 .. index:: gene info
 
 ********************************************************
-Gene name matching (:mod:`obiGene`)
+Gene name matching (:mod:`gene`)
 ********************************************************
 
 To use gene matchers
