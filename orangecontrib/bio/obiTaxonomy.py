@@ -5,8 +5,6 @@ import cPickle, os, shutil, sys, StringIO, tarfile, urllib2
 
 from Orange.orng import orngEnviron, orngServerFiles
 
-from . import obiData, obiGenomicsUpdate
-
 # list of common organisms from http://www.ncbi.nlm.nih.gov/Taxonomy
 def common_taxids():
     """Return taxonomy IDs for common organisms."""
@@ -444,32 +442,7 @@ def ensure_downloaded(callback=None, verbose=True):
                                        callback=callback, verbose=verbose)
 
 
-from . import obiGenomicsUpdate
-
-class Update(obiGenomicsUpdate.Update):
-    def GetDownloadable(self):
-        return [Update.UpdateTaxonomy]
-    
-    def IsUpdatable(self, func, args):
-        from datetime import datetime
-        from . import obiData
-        if func == Update.UpdateTaxonomy:
-##            stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz")
-##            date = datetime.strptime(stream.headers.get("Last-Modified"), "%a, %d %b %Y %H:%M:%S %Z")
-            ftp = obiData.FtpWorker("ftp.ncbi.nih.gov")
-            size, date = ftp.statFtp("pub/taxonomy/taxdump.tar.gz")
-            return date > self.GetLastUpdateTime(func, args)
-
-    def UpdateTaxonomy(self):
-        Taxonomy.ParseTaxdumpFile(outputdir=self.local_database_path)
-        import tarfile
-        tFile = tarfile.open(os.path.join(self.local_database_path, "ncbi_taxonomy.tar.gz"), "w:gz")
-        tFile.add(os.path.join(self.local_database_path, "ncbi_taxonomy.db"), "ncbi_taxonomy.db")
-        tFile.add(os.path.join(self.local_database_path, "ncbi_taxonomy_inf.db"), "ncbi_taxonomy_inf.db")
-        tFile.close()
-
 if __name__ == "__main__":
     ids = search("Homo sapiens")
     print ids
     print other_names(ids[0])
-    
