@@ -5,8 +5,6 @@ import numpy
 import orange, statc
 import scipy.stats
 
-print dir(stats)
-
 def mean(l):
     return float(sum(l))/len(l)
 
