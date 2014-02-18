@@ -5,7 +5,7 @@ import cPickle, gzip, os.path, re
 import orange
 from Orange.orng import orngMisc, orngServerFiles
 
-from . import obiData, obiTaxonomy
+from . import obiTaxonomy
 from collections import defaultdict
 import Orange
 
@@ -126,12 +126,11 @@ class GDS():
         """Download GDS data file if not in local cache or forced download requested."""
         localpath = orngServerFiles.localpath(DOMAIN)
         if self.force_download or not os.path.exists(self.filename):
-            ftp = obiData.FtpDownloader(FTP_NCBI, localpath, FTP_DIR)
-            ftp.retrieve(self.gdsname + ".soft.gz", progressCallback=orngMisc.ConsoleProgressBar()
-                         if self.verbose else None)
-            if self.verbose:
-                # print "Downloading %s" % self.gdsname
-                print
+            base_url = ("ftp://{FTP_NCBI}/{FTP_DIR}"
+                        .format(FTP_NCBI=FTP_NCBI, FTP_DIR=FTP_DIR))
+
+            Orange.utils.wget(base_url + self.gdsname + ".soft.gz", localpath,
+                              progress=self.verbose)
 
     def _getinfo(self):
         """Parse GDS data file and return a dictionary with info."""
