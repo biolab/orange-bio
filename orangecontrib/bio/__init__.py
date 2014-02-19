@@ -17,6 +17,7 @@ def _import(name):
 
 _import("gene")
 _import("geo")
+_import("omim")
 _import("utils")
 
 del _import

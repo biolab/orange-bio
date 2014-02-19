@@ -1,7 +1,7 @@
-from Orange.bio import obiOMIM
+import Orange
 
-diseases = obiOMIM.diseases()
-genes = [obiOMIM.disease_genes(disease) for disease in diseases]
+diseases = Orange.bio.omim.diseases()
+genes = [Orange.bio.omim.disease_genes(disease) for disease in diseases]
 
 vertices = []
 edges = []
