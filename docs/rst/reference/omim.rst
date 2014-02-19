@@ -1,13 +1,13 @@
-.. py:currentmodule:: Orange.bio.obiOMIM
+.. py:currentmodule:: Orange.bio.omim
 
 .. index:: NCBI
 .. index:: OMIM
 
 **************************************************************
-OMIM: Online Mendelian Inheritance in Man (:mod:`obiOMIM`)
+OMIM: Online Mendelian Inheritance in Man (:mod:`omim`)
 **************************************************************
 
-:obj:`obiOMIM` provides an interface to 
+:obj:`omim` provides an interface to 
 `Online Mendelian Inheritance in Man <http://www.ncbi.nlm.nih.gov/omim>`_
 database. For now it only supports mapping genes to diseases.
 
