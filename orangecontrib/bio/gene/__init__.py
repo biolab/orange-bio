@@ -4,8 +4,10 @@ import os, time
 
 from Orange.orng import orngServerFiles
 
-from . import obiTaxonomy
-from . import obiKEGG
+from .. import obiTaxonomy
+from .. import obiKEGG
+
+from . import homology
 
 default_database_path = orngServerFiles.localpath("NCBI_geneinfo")
 
