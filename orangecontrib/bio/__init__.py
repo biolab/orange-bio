@@ -16,6 +16,7 @@ def _import(name):
         alreadyWarned = True
 
 _import("arrayexpress")
+_import("biomart")
 _import("gene")
 _import("geo")
 _import("go")
