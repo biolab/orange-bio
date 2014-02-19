@@ -23,6 +23,7 @@ _import("go")
 _import("mesh")
 _import("taxonomy")
 _import("omim")
+_import("ontology")
 _import("utils")
 
 del _import
