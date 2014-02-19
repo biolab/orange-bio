@@ -15,6 +15,7 @@ def _import(name):
             UserWarning, 2)
         alreadyWarned = True
 
+_import("arrayexpress")
 _import("gene")
 _import("geo")
 _import("go")
