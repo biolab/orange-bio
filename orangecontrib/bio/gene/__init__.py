@@ -7,6 +7,9 @@ from Orange.orng import orngServerFiles
 from .. import obiTaxonomy
 from .. import obiKEGG
 
+from .. import obiDicty
+from .. import obiBioMart
+
 from . import homology
 
 default_database_path = orngServerFiles.localpath("NCBI_geneinfo")
@@ -255,7 +258,6 @@ class EnsembleGeneInfo(object):
         return "ensembl_" + self.organism
     
     def create_info(self):
-        from . import obiBioMart
         if self.organism in self.BIOMART_CONF:
             dset_name, attrs = self.BIOMART_CONF[self.organism]
         else:
@@ -696,11 +698,11 @@ class MatcherAliasesGO(MatcherAliasesPickled):
 
     def _organism_name(self, organism):
         """ Returns internal GO organism name. Used to define file name. """
-        from . import obiGO
+        from .. import obiGO
         return obiGO.organism_name_search(self.organism)
 
     def create_aliases(self):
-        from . import obiGO
+        from .. import obiGO
         annotations = obiGO.Annotations(self.organism, genematcher=GMDirect())
         names = annotations.geneNamesDict
         return map(set, list(set([ \
@@ -711,7 +713,7 @@ class MatcherAliasesGO(MatcherAliasesPickled):
         return "go_" + self._organism_name(self.organism)
 
     def create_aliases_version(self):
-        from . import obiGO
+        from .. import obiGO
         return "v2." + obiGO.Annotations.organism_version(self.organism)
 
     def __init__(self, organism, ignore_case=True):
@@ -723,7 +725,6 @@ class MatcherAliasesDictyBase(MatcherAliasesPickled):
     """
 
     def create_aliases(self):
-        from . import obiDicty
         db = obiDicty.DictyBase()
         #db.info, db.mappings
         infoa = [ set([id,name]) | set(aliases) for id,(name,aliases,_) in db.info.items() ]
@@ -732,7 +733,6 @@ class MatcherAliasesDictyBase(MatcherAliasesPickled):
         return joineda
 
     def create_aliases_version(self):
-        from . import obiDicty
         return "v1." + obiDicty.DictyBase.version()
 
     def filename(self):
@@ -800,7 +800,7 @@ class MatcherAliasesEnsembl(MatcherAliasesPickled):
         return "v1"
     
     def create_aliases(self):
-        from . import obiBioMart
+        from .. import obiBioMart
         if self.organism in self.BIOMART_CONF:
             dset_name, attrs = self.BIOMART_CONF[self.organism]
         else:
@@ -989,7 +989,7 @@ if __name__ == '__main__':
     #dobim z joinom prave stvari?
 
     import time
-    from . import obiGeneSets
+    from .. import obiGeneSets
 
     def testsets():
         return obiGeneSets.collections([":kegg:hsa", ":go:hsa"])
