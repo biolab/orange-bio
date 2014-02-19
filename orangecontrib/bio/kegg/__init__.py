@@ -3,7 +3,7 @@
 KEGG - Kyoto Encyclopedia of Genes and Genomes
 ==============================================
 
-:mod:`obiKEGG` is a python module for accessing `KEGG (Kyoto Encyclopedia
+:mod:`kegg` is a python module for accessing `KEGG (Kyoto Encyclopedia
 of Genes and Genomes) <http://www.genome.jp/kegg/>`_ using its web services.
 
 .. note:: To use this module you need to have `slumber`_ and `requests`_
