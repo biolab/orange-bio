@@ -18,6 +18,7 @@ def _import(name):
 _import("gene")
 _import("geo")
 _import("go")
+_import("taxonomy")
 _import("omim")
 _import("utils")
 
