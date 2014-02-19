@@ -24,7 +24,7 @@ from Orange.orng import orngEnviron
 from Orange.orng import orngServerFiles
 from Orange.orng import orngMisc
 
-from . import obiProb, obiGene, obiTaxonomy
+from . import obiProb as obiProb, gene as obiGene, taxonomy as obiTaxonomy
 
 default_database_path = os.path.join(orngServerFiles.localpath(), "GO")
 
@@ -628,7 +628,7 @@ class Annotations(object):
     @classmethod
     def organism_name_search(cls, org):
         ids = to_taxid(org)
-        from . import obiTaxonomy as tax
+        from . import taxonomy as tax
         if not ids:
             ids = [org] if org in Taxonomy().common_org_map.keys() + \
                   Taxonomy().code_map.keys() else []
@@ -687,7 +687,7 @@ class Annotations(object):
             sf = orngServerFiles.ServerFiles()
             available = sf.listfiles("GO")
             if file not in available:
-                from . import obiKEGG
+                from . import kegg as obiKEGG
                 raise obiTaxonomy.UnknownSpeciesIdentifier(org + str(code))
             orngServerFiles.download("GO", file)
 
@@ -1105,7 +1105,7 @@ class Annotations(object):
 
         os.rename(filename + ".part", filename)
 
-from .obiTaxonomy import pickled_cache
+from .taxonomy import pickled_cache
 
 
 @pickled_cache(None, [("GO", "taxonomy.pickle"),

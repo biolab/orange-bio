@@ -6,7 +6,7 @@ import math, os, random, re, urllib
 from Orange.orng import orngServerFiles as osf
 import statc
 
-from . import obiGene as ge, obiGO as go, obiKEGG as kg, obiProb as op, obiTaxonomy
+from . import obiGene as ge, go, kegg as kg, obiProb as op, taxonomy as obiTaxonomy
 
 mirnafile = osf.localpath_download('miRNA','miRNA.txt')
 premirnafile = osf.localpath_download('miRNA','premiRNA.txt')

@@ -4,11 +4,11 @@ import os, time
 
 from Orange.orng import orngServerFiles
 
-from .. import obiTaxonomy
-from .. import obiKEGG
+from .. import taxonomy as obiTaxonomy
+from .. import kegg as obiKEGG
 
-from .. import obiDicty
-from .. import obiBioMart
+from .. import dicty as obiDicty
+from .. import biomart as obiBioMart
 
 from . import homology
 

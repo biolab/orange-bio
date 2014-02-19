@@ -14,7 +14,12 @@ import datetime
 import Orange.core as orange
 from Orange.orng import orngServerFiles
 
-from . import obiGO, obiKEGG, obiTaxonomy
+from . import go as obiGO, kegg as obiKEGG, taxonomy as obiTaxonomy
+from . import dicty 
+obiDictyMutants = dicty.phenotypes
+print obiDictyMutants
+from . import omim as obiOMIM
+from . import obimiRNA, go as obiGO
 
 sfdomain = "gene_sets"
 
@@ -67,7 +72,6 @@ def dictyMutantSets():
     """
     Return dicty mutant phenotype gene sets from Dictybase
     """
-    from . import obiDictyMutants
     link_fmt = "http://dictybase.org/db/cgi-bin/dictyBase/SC/scsearch.pl?searchdb=strains&search_term=%s&column=all&B1=Submit" 
     #genesets = [GeneSet(id=mutant.name, name=mutant.descriptor, genes=obiDictyMutants.mutant_genes(mutant), hierarchy=("Dictybase", "Mutants"), organism="352472", # 352472 gathered from obiGO.py code_map -> Dicty identifier
     #                    link=(link_fmt % mutant.name if mutant.name else None)) \
@@ -118,7 +122,6 @@ def omimGeneSets():
     """
     Return gene sets from OMIM (Online Mendelian Inheritance in Man) diseses
     """
-    from . import obiOMIM    
     genesets = [GeneSet(id=disease.id, name=disease.name, genes=obiOMIM.disease_genes(disease), hierarchy=("OMIM",), organism="9606",
                     link=("http://www.omim.org/entry/%s" % disease.id if disease.id else None)) \
                     for disease in obiOMIM.diseases()]
@@ -128,7 +131,6 @@ def miRNAGeneSets(org):
     """
     Return gene sets from miRNA targets
     """
-    from . import obimiRNA
     org_code = obiKEGG.from_taxid(org)
     link_fmt = "http://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=%s"
     mirnas = [(id, obimiRNA.get_info(id)) for id in obimiRNA.ids(org_code)]
@@ -137,7 +139,6 @@ def miRNAGeneSets(org):
     return GeneSets(genesets)
 
 def go_miRNASets(org, ontology=None, enrichment=True, pval=0.05, treshold=0.04):
-    from . import obimiRNA, obiGO
     mirnas = obimiRNA.ids(int(org))
     if ontology is None:
         ontology = obiGO.Ontology()

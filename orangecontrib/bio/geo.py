@@ -5,7 +5,7 @@ import cPickle, gzip, os.path, re
 import orange
 from Orange.orng import orngMisc, orngServerFiles
 
-from . import obiTaxonomy
+from . import taxonomy as obiTaxonomy
 from collections import defaultdict
 import Orange
 
