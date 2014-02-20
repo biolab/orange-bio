@@ -3,6 +3,7 @@ from __future__ import absolute_import, division
 from collections import defaultdict
 import cPickle, os, shutil, sys, StringIO, tarfile, urllib2
 
+
 from Orange.orng import orngEnviron, orngServerFiles
 
 # list of common organisms from http://www.ncbi.nlm.nih.gov/Taxonomy
@@ -407,9 +408,9 @@ def to_taxid(code, mapTo=None):
         name(code)
         results = set([code])
     except UnknownSpeciesIdentifier:
-        from . import obiKEGG, obiGO
         results = set()
-        for test in [obiKEGG.to_taxid, obiGO.to_taxid]:
+        from . import kegg, go
+        for test in [kegg.to_taxid, go.to_taxid]:
             try:
                 r = test(code)
                 if type(r) == set:

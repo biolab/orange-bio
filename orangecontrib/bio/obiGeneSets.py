@@ -17,7 +17,6 @@ from Orange.orng import orngServerFiles
 from . import go as obiGO, kegg as obiKEGG, taxonomy as obiTaxonomy
 from . import dicty 
 obiDictyMutants = dicty.phenotypes
-print obiDictyMutants
 from . import omim as obiOMIM
 from . import obimiRNA, go as obiGO
 
