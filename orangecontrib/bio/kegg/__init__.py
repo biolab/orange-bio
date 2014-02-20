@@ -68,7 +68,8 @@ from Orange.utils import (
     deprecated_keywords, deprecated_attribute, deprecated_function_name
 )
 
-from .. import obiProb, taxonomy as obiTaxonomy
+from .. import utils, taxonomy as obiTaxonomy
+obiProb = utils.stats
 
 from . import databases
 from . import entry

@@ -24,7 +24,10 @@ from Orange.orng import orngEnviron
 from Orange.orng import orngServerFiles
 from Orange.orng import orngMisc
 
-from . import obiProb as obiProb, gene as obiGene, taxonomy as obiTaxonomy
+from . import utils
+obiProb = utils.stats
+
+from . import gene as obiGene, taxonomy as obiTaxonomy
 
 default_database_path = os.path.join(orngServerFiles.localpath(), "GO")
 

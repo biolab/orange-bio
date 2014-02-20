@@ -6,7 +6,9 @@ import math, os, random, re, urllib
 from Orange.orng import orngServerFiles as osf
 import statc
 
-from . import obiGene as ge, go, kegg as kg, obiProb as op, taxonomy as obiTaxonomy
+from . import gene as ge, go, kegg as kg, utils, taxonomy as obiTaxonomy
+
+op = utils.stats
 
 mirnafile = osf.localpath_download('miRNA','miRNA.txt')
 premirnafile = osf.localpath_download('miRNA','premiRNA.txt')
@@ -301,7 +303,7 @@ def get_GO(mirna_list, annotations, enrichment=False, pval=0.1, goSwitch=True):
     in the other case it returns a dictionary with GO IDs as keys and miRNAs as values.
     """
     
-    from . import obiGene
+    from . import gene as obiGene
     genematcher = obiGene.matcher([obiGene.GMGO(annotations.taxid)] + \
         ([obiGene.GMDicty()] if annotations.taxid == "352472"  else []))
     genematcher.set_targets(annotations.geneNames)
