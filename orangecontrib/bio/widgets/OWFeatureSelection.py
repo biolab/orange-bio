@@ -22,7 +22,6 @@ from Orange.OrangeWidgets.OWHist import OWInteractiveHist
 from Orange.OrangeWidgets.OWToolbars import ZoomSelectToolbar
 from Orange.OrangeWidgets.OWWidget import *
 
-from ..obiDifscale import ExpressionSignificance_AREA, ExpressionSignificance_FCts
 from ..obiExpression import *
 from ..obiGEO import transpose
 
@@ -148,9 +147,7 @@ class OWFeatureSelection(OWWidget):
                              ("signal to noise ratio", ExpressionSignificance_SignalToNoise, twoTailTest, True),
                              ("info gain", ExpressionSignificance_Info, oneTailTestHi, True),
                              ("chi-square", ExpressionSignificance_ChiSquare, oneTailTestHi, True),
-                             ("mann-whitney", ExpressionSignigicance_MannWhitneyu_U, oneTailTestLow, True),
-                             ("AREA (timeseries)", ExpressionSignificance_AREA, oneTailTestHi, False),
-                             ("FC (timeseries)", ExpressionSignificance_FCts, oneTailTestHi, False)]
+                             ("mann-whitney", ExpressionSignigicance_MannWhitneyu_U, oneTailTestLow, True)]
 
         boxHistogram = OWGUI.widgetBox(self.mainArea)
         self.histogram = ScoreHist(self, boxHistogram)
