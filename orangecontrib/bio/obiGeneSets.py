@@ -25,7 +25,7 @@ sfdomain = "gene_sets"
 def nth(l,n):
     return [ a[n] for a in l]
 
-from Orange.bio.geneset import GeneSet, GeneSets, GenesetRegException
+from .geneset import GeneSet, GeneSets, GenesetRegException
 
 class NoGenesetsException(Exception): pass
 
