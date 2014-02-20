@@ -25,6 +25,7 @@ _import("mesh")
 _import("taxonomy")
 _import("omim")
 _import("ontology")
+_import("ppi")
 _import("utils")
 
 del _import
