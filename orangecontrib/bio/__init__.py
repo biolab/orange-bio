@@ -18,6 +18,7 @@ def _import(name):
 _import("arrayexpress")
 _import("biomart")
 _import("gene")
+_import("geneset")
 _import("geo")
 _import("go")
 _import("gsea")

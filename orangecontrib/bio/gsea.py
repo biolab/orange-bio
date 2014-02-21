@@ -9,7 +9,7 @@ import numpy
 import orange
 import Orange
 
-from . import obiGeneSets
+from . import geneset as obiGeneSets
 from .utils.expression import *
 from . import gene as obiGene
 
