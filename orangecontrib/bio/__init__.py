@@ -33,3 +33,4 @@ _import("utils")
 del _import
 del alreadyWarned
 del disabledMsg
+del warnings
