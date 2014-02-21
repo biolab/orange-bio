@@ -2,7 +2,7 @@ import doctest
 import unittest
 from StringIO import StringIO
 
-from .. import obiOntology as ontology
+from .. import ontology
 
 
 class TestOntology(unittest.TestCase):
