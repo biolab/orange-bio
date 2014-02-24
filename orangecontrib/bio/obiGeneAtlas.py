@@ -3,10 +3,18 @@
 Gene Expression Atlas (``obiGeneAtlas``)
 ========================================
 
+.. warning::
+
+    Deprecated!!!
+    Gene Expression Atlas REST api has been deprecated and will be removed
+    in the future.
+
+
 Interface to Gene Expression Atlas.
 
 `Gene Expression Atlas <http://www.ebi.ac.uk/gxa/>`_ is a curated subset of
 gene expression experiments in Array Express Archive.
+
 
 .. autofunction:: gene_expression_atlas
 
@@ -20,6 +28,7 @@ from __future__ import absolute_import
 
 import os
 import shelve
+import warnings
 from collections import defaultdict, namedtuple
 from contextlib import closing, contextmanager
 
@@ -196,7 +205,6 @@ def get_atlas_summary(genes, organism, gene_matcher=None,
         else:
             unmatched.append(gene)
     if unmatched:
-        import warnings
         warnings.warn("Unmatched genes " + "," .join(["%r" % g for g in unmatched]))
     
     results = gene_expression_atlas(matched, progress_callback=progress_callback)
@@ -337,14 +345,14 @@ class GeneExpressionAtlasConenction(object):
     A connection to Gene Expression Atlas database.
 
     :param address:
-        Address of the GXA server (default: http://www.ebi.ac.uk/gxa/api/deprecated).
+        Address of the GXA server (default: http://www-test.ebi.ac.uk/gxa/api/deprecated).
     :param timeout:
         Socket timeout (default 30).
     :param cache:
         A dict like object to use as a cache.
 
     """
-    DEFAULT_ADDRESS = "http://www.ebi.ac.uk/gxa/api/deprecated"
+    DEFAULT_ADDRESS = "http://www-test.ebi.ac.uk/gxa/api/deprecated"
     DEFAULT_CACHE = serverfiles.localpath(
         "GeneAtlas", "GeneAtlasConnectionCache.shelve")
 
@@ -355,6 +363,11 @@ class GeneExpressionAtlasConenction(object):
         self.cache = cache if cache is not None else self.DEFAULT_CACHE
 
     def query(self, condition, format="json", start=None, rows=None, indent=False):
+        warnings.warn(
+            "The Gene Expression Atlas REST api has been deprecated and " +
+            "will be removed in the future.",
+            UserWarning)
+
         url = self.address + "?" + condition.rest()
         if start is not None and rows is not None:
             url += "&start={0}&rows={1}".format(start, rows)

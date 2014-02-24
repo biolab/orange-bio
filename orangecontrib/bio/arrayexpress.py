@@ -1281,7 +1281,7 @@ class GeneExpressionAtlasConenction(object):
         A dict like object to use as a cache.
 
     """
-    DEFAULT_ADDRESS = "http://www.ebi.ac.uk/gxa/api/deprecated"
+    DEFAULT_ADDRESS = "http://www-test.ebi.ac.uk/gxa/api/deprecated"
 
     DEFAULT_CACHE = orngServerFiles.localpath(
         "ArrayExpress", "GeneAtlasCache.shelve")
