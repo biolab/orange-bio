@@ -572,7 +572,6 @@ class GeneSets(set):
                     prepared_genesets.append(GeneSet(pair=(i, g)))
             else:
                 for i in input:
-                    print type(i)
                     if isinstance(i, GeneSet):
                         prepared_genesets.append(i)
                     else:
