@@ -1,7 +1,7 @@
 """
-===========
-obiOntology
-===========
+==============================
+OBO Ontology (:mod:`ontology`)
+==============================
 
 This module provides an interface for parsing, creating and manipulating of
 OBO ontologies (http://www.obofoundry.org/)

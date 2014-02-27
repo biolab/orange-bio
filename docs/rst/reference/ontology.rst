@@ -1,8 +1,5 @@
-==========================
-Ontology (:mod:`ontology`)
-==========================
 
-.. automodule:: Orange.bio.obiOntology
+.. automodule:: Orange.bio.ontology
 
 
 .. autoclass:: OBOOntology
