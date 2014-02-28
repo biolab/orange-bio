@@ -601,7 +601,7 @@ class OBOOntology(object):
 
         """
         if isinstance(stream, basestring):
-            stream = open(file, "wb")
+            stream = open(stream, "wb")
 
         for key, value in self.header_tags:
             stream.write(key + ": " + value + "\n")
@@ -818,26 +818,6 @@ class OBOOntology(object):
         """
         return self.id2term[oboid]
 
-    def traverse_bf(self, term):
-        """
-        BF traverse of the ontology down from term.
-        """
-        queue = list(self.child_terms(term))
-        while queue:
-            term = queue.pop(0)
-            queue.extend(self.child_terms(term))
-            yield term
-
-    def traverse_df(self, term, depth=1e30):
-        """
-        DF traverse of the ontology down from term.
-        """
-        if depth >= 1:
-            for child in self.child_terms(term):
-                yield child
-                for t in self.traverse_df(child, depth - 1):
-                    yield t
-
     def to_network(self, terms=None):
         """
         Return an Orange.network.Network instance constructed from
@@ -942,7 +922,11 @@ class OBOOntology(object):
             terms = reduce(set.union, super_terms, set(terms))
 
         for term in terms:
-            graph.add_node(term.id, name=term.name)
+            graph.add_node(term.id, label=term.name)
+
+        for root in self.root_terms():
+            node = graph.get_node(root.id)
+            node.attr["rank"] = "max"
 
         for term in terms:
             for rel_type, rel_term in self.related_terms(term):
