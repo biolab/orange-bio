@@ -126,10 +126,6 @@ class OWSetEnrichment(OWWidget):
 
         self.loadSettings()
 
-        if self.signalManager:
-            self.signalManager.freeze(self).push()
-        QTimer.singleShot(50, self.updateHierarchy)
-
         box = OWGUI.widgetBox(self.controlArea, "Info")
         self.infoBox = OWGUI.widgetLabel(box, "Info")
         self.infoBox.setText("No data on input")
@@ -247,6 +243,9 @@ class OWSetEnrichment(OWWidget):
         self.updatingAnnotationsFlag = False
         self.currentAnnotatedCategories = []
 
+        self.setBlocking(True)
+        QTimer.singleShot(0, self.updateHierarchy)
+
     def updateHierarchy(self):
         try:
             self.progressBarInit()
@@ -264,8 +263,7 @@ class OWSetEnrichment(OWWidget):
             self.speciesComboBox.addItems([obiTaxonomy.name(id) for id in self.taxid_list])
             self.genesets = all
         finally:
-            if self.signalManager:
-                self.signalManager.freeze(self).pop() #setFreeze(self.signalManager.freezing - 1)
+            self.setBlocking(False)
 
     def setData(self, data=None):
         self.data = data

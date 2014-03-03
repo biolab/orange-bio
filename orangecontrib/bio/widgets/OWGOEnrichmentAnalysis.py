@@ -174,12 +174,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.annotationComboBox = OWGUI.comboBox(box, self, "annotationIndex",
                             items = self.annotationCodes, callback=self.Update,
                             tooltip="Select organism", debuggingEnabled=0)
-        
-        # freeze until annotation combo box is updateded with available annotations.
-        if self.signalManager:
-            self.signalManager.freeze(self).push()
-        QTimer.singleShot(0, self.UpdateOrganismComboBox)
-        
+
         self.geneAttrIndexCombo = OWGUI.comboBox(self.inputTab, self, "geneAttrIndex",
                             box="Gene names", callback=self.Update,
                             tooltip="Use this attribute to extract gene names from input data")
@@ -322,7 +317,10 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.selectedTerms = []
         
         self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.onStateChanged)
-        
+
+        self.setBlocking(True)
+        QTimer.singleShot(0, self.UpdateOrganismComboBox)
+
     def UpdateOrganismComboBox(self):
         try:
             if self.annotationCodes and len(self.annotationCodes) > self.annotationIndex:
@@ -338,8 +336,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.annotationComboBox.addItems(self.annotationCodes)
             self.annotationComboBox.setCurrentIndex(self.annotationIndex)
         finally:
-            if self.signalManager:
-                self.signalManager.freeze(self).pop()
+            self.setBlocking(False)
 
     def UpdateGeneMatcher(self):
         dialog = GeneMatcherDialog(self, defaults=self.geneMatcherSettings, modal=True)

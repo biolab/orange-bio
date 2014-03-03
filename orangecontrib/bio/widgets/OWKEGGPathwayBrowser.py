@@ -313,9 +313,6 @@ class OWKEGGPathwayBrowser(OWWidget):
             debuggingEnabled=0,
             tooltip="Select the organism of the input genes")
 
-        if self.signalManager:
-            self.signalManager.freeze(self).push()
-
         # Selection of genes attribute
         box = OWGUI.widgetBox(self.controlArea, "Gene attribute")
         self.geneAttrCombo = OWGUI.comboBox(box, self, "geneAttrIndex",
@@ -402,6 +399,8 @@ class OWKEGGPathwayBrowser(OWWidget):
 
         self.setEnabled(False)
         self.infoLabel.setText("Fetching organism definitions\n")
+
+        self.setBlocking(True)
         QTimer.singleShot(100, self.UpdateOrganismComboBox)
 
     def UpdateOrganismComboBox(self):
@@ -447,8 +446,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         finally:
             self.setEnabled(True)
             self.infoLabel.setText("No data on input\n")
-            if self.signalManager:
-                self.signalManager.freeze(self).pop()
+            self.setBlocking(False)
 
     def Clear(self):
         """

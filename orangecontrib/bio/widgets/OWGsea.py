@@ -289,8 +289,7 @@ class OWGsea(OWWidget):
             self.organismComboBox.clear()
             self.organismComboBox.addItems(items)
         finally:
-            if self.signalManager:
-                self.signalManager.freeze(self).pop()
+            self.setBlocking(False)
 
 
     def __init__(self, parent=None, signalManager = None, name='GSEA'):
@@ -338,10 +337,6 @@ class OWGsea(OWWidget):
         self.organismComboBox = cb = OWGUI.comboBox(box, self, "organismIndex", items=[], debuggingEnabled=0) #changed
         cb.setMaximumWidth(200)
 
-        if self.signalManager:
-            self.signalManager.freeze(self).push()
-        QTimer.singleShot(100, self.UpdateOrganismComboBox)
- 
         #OWGUI.checkBox(box, self, "csgm", "Case sensitive gene matching")
 
         box2 = OWGUI.widgetBox(ca, "Descriptors")
@@ -432,7 +427,10 @@ class OWGsea(OWWidget):
 
         self.gridSels = []
         self.loadSettings()
- 
+
+        self.setBlocking(True)
+        QTimer.singleShot(0, self.UpdateOrganismComboBox)
+
         def cleanInvalid(maxn):
             """
             Removes invalid gene set selection
