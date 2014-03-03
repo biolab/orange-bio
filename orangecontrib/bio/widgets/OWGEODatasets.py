@@ -7,17 +7,22 @@
 
 from __future__ import absolute_import, with_statement
 
+import sys
+import os
+import glob
+import string
 from collections import defaultdict
 from functools import partial
-import sys, os, glob
 
+from Orange.utils import lru_cache
 from Orange.orng import orngServerFiles
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI, OWGUIEx
 from Orange.OrangeWidgets.OWWidget import *
 
-from Orange.OrangeWidgets.OWConcurrent import ThreadExecutor
-from .utils.download import EnsureDownloaded
+from Orange.OrangeWidgets.OWConcurrent import (
+    ThreadExecutor, Task, methodinvoke
+)
 
 from .. import obiGEO
 
@@ -36,63 +41,6 @@ LOCAL_GDS_COLOR = Qt.darkGreen
 
 TextFilterRole = OWGUI.OrangeUserRole.next()
 
-class TreeModel(QAbstractItemModel):
-    def __init__(self, data, header, parent):
-        QAbstractItemModel.__init__(self, parent)
-        self._data = [[QVariant(s) for s in row] for row in data]
-        self._dataDict = {}
-        self._header = {Qt.Horizontal: dict([(i, {Qt.DisplayRole: h}) for i, h in enumerate(header)])}
-        self._roleData = {Qt.DisplayRole:self._data}
-        dataStore = partial(defaultdict, partial(defaultdict, partial(defaultdict, QVariant)))
-        self._roleData = dataStore(self._roleData)
-        self._header = dataStore(self._header)
-    
-    def setColumnLinks(self, column, links):
-        font =QFont()
-        font.setUnderline(True)
-        font = QVariant(font)
-        for i, link in enumerate(links):
-            self._roleData[LinkRole][i][column] = QVariant(link)
-            self._roleData[Qt.FontRole][i][column] = font
-            self._roleData[Qt.ForegroundRole][i][column] = QVariant(QColor(Qt.blue))
-    
-    def setRoleData(self, role, row, col, data):
-        self._roleData[role][row][col] = data
-        
-    def setData(self, index, value, role=Qt.EditRole):
-        self._roleData[role][index.row()][index.column()] = value
-        self.emit(SIGNAL("dataChanged(QModelIndex, QModelIndex)"), index, index)
-        
-    def data(self, index, role):
-        row, col = index.row(), index.column()
-        return self._roleData[role][row][col]
-        
-    def index(self, row, col, parent=QModelIndex()):
-        return self.createIndex(row, col, 0)
-    
-    def parent(self, index):
-        return QModelIndex()
-    
-    def rowCount(self, index=QModelIndex()):
-        if index.isValid():
-            return 0
-        else:
-            return len(self._data)
-        
-    def columnCount(self, index):
-        return len(self._header[Qt.Horizontal])
-
-    def headerData(self, section, orientation, role):
-        try:
-            return QVariant(self._header[orientation][section][role])
-        except KeyError, er:
-#            print >> sys.stderr, er
-            return QVariant()
-        
-    def setHeaderData(self, section, orientation, value, role=Qt.EditRole):
-        self._header[orientation][section][role] = value
-        
-from Orange.utils import lru_cache
 
 class MySortFilterProxyModel(QSortFilterProxyModel):    
     def __init__(self, parent=None):
@@ -260,10 +208,16 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.setSortingEnabled(True)
         self.treeWidget.setAlternatingRowColors(True)
         self.treeWidget.setUniformRowHeights(True)
-        self.treeWidget.setItemDelegate(LinkStyledItemDelegate(self.treeWidget))
+
+        linkdelegate = LinkStyledItemDelegate(self.treeWidget)
+        self.treeWidget.setItemDelegateForColumn(1, linkdelegate)
+        self.treeWidget.setItemDelegateForColumn(8, linkdelegate)
         self.treeWidget.setItemDelegateForColumn(0, OWGUI.IndicatorItemDelegate(self.treeWidget, role=Qt.DisplayRole))
-        
-        self.connect(self.treeWidget, SIGNAL("itemSelectionChanged ()"), self.updateSelection)
+
+        proxyModel = MySortFilterProxyModel(self.treeWidget)
+        self.treeWidget.setModel(proxyModel)
+        self.treeWidget.selectionModel().selectionChanged.connect(self.updateSelection)
+
         self.treeWidget.viewport().setMouseTracking(True)
         
         splitterH = QSplitter(Qt.Horizontal, splitter) 
@@ -286,110 +240,87 @@ class OWGEODatasets(OWWidget):
         
         for sp, setting in zip(self.splitters, self.splitterSettings):
             sp.restoreState(setting)
-            
+
         self.searchKeys = ["dataset_id", "title", "platform_organism", "description"]
-        self.cells = []
+
+        self.gds = []
+        self.gds_info = None
 
         self.resize(1000, 600)
 
         self.setBlocking(True)
         self.setEnabled(False)
+        self.progressBarInit()
 
-        self._init = EnsureDownloaded(
-            [(obiGEO.DOMAIN, obiGEO.GDS_INFO_FILENAME)]
-        )
         self._executor = ThreadExecutor()
-        self._executor.submit(self._init)
-        self._init.finished.connect(self.updateTable)
 
-    def updateInfo(self):
-        gds_info = self.gds_info #obiGEO.GDSInfo()
-        text = "%i datasets\n%i datasets cached\n" % (len(gds_info), len(glob.glob(orngServerFiles.localpath("GEO") + "/GDS*")))
-        filtered = self.treeWidget.model().rowCount()
-        if len(self.cells) != filtered:
-            text += ("%i after filtering") % filtered
-        self.infoBox.setText(text)
+        func = partial(get_gds_model,
+                       methodinvoke(self, "_setProgress", (float,)))
+        self._inittask = Task(function=func)
+        self._inittask.finished.connect(self._initializemodel)
+        self._executor.submit(self._inittask)
 
-    def updateTable(self):
+    @pyqtSlot(float)
+    def _setProgress(self, value):
+        self.progressBarValue = value
+
+    def _initializemodel(self):
         assert self.thread() is QThread.currentThread()
-        self._init.deleteLater()
+        model, self.gds_info, self.gds = self._inittask.result()
+        model.setParent(self)
 
+        proxy = self.treeWidget.model()
+        proxy.setFilterKeyColumn(0)
+        proxy.setFilterRole(TextFilterRole)
+        proxy.setFilterCaseSensitivity(False)
+        proxy.setFilterFixedString(self.filterString)
+
+        proxy.setSourceModel(model)
+        proxy.sort(0, Qt.DescendingOrder)
+
+        self.progressBarFinished()
         self.setBlocking(False)
         self.setEnabled(True)
 
-        self.progressBarInit()
+        filter_items = " ".join(gds[key] for gds in self.gds for key in self.searchKeys)
+        tr_chars = ",.:;!?(){}[]_-+\\|/%#@$^&*<>~`"
+        tr_table = string.maketrans(tr_chars, " " * len(tr_chars))
+        filter_items = filter_items.translate(tr_table)
 
-        self.treeItems = []
-        self.gds_info = info = obiGEO.GDSInfo()
+        filter_items = sorted(set(filter_items.split(" ")))
+        filter_items = [item for item in filter_items if len(item) > 3]
+        self.filterLineEdit.setItems(filter_items)
 
-        self.cells = cells = []
-        gdsLinks = []
-        pmLinks = []
-        localGDS = []
-        full_text_search_data = []
-        self.progressBarSet(10)
-        self.gds = []
-        for i, (name, gds) in enumerate(info.items()):
-            local = os.path.exists(orngServerFiles.localpath(obiGEO.DOMAIN, gds["dataset_id"] + ".soft.gz"))
-            cells.append([" " if local else "", gds["dataset_id"], gds["title"], gds["platform_organism"], len(gds["samples"]), gds["feature_count"],
-                          gds["gene_count"], len(gds["subsets"]), gds.get("pubmed_id", "")])
-
-            gdsLinks.append("http://www.ncbi.nlm.nih.gov/sites/GDSbrowser?acc=%s" % gds["dataset_id"])
-            pmLinks.append("http://www.ncbi.nlm.nih.gov/pubmed/%s" % gds.get("pubmed_id") if gds.get("pubmed_id") else QVariant())
-
-            if local:
-                localGDS.append(i)
-            self.gds.append(gds)
-
-            full_text_search_data.append(unicode(" | ".join([gds.get(key, "").lower() for key in self.searchKeys]), errors="ignore"))
-
-        self.progressBarSet(20)
-        model = TreeModel(cells, ["", "ID", "Title", "Organism", "Samples", "Features", "Genes", "Subsets", "PubMedID"], self.treeWidget)
-        model.setColumnLinks(1, gdsLinks)
-        model.setColumnLinks(8, pmLinks)
-
-        for i, text in enumerate(full_text_search_data):
-            model.setData(model.index(i, 0), QVariant(text), TextFilterRole)
-
-        proxyModel = MySortFilterProxyModel(self.treeWidget)
-        proxyModel.setSourceModel(model)
-        proxyModel.setFilterKeyColumn(0)
-        proxyModel.setFilterRole(TextFilterRole)
-        proxyModel.setFilterCaseSensitivity(False)
-        proxyModel.setFilterFixedString(self.filterString)
-
-        self.treeWidget.setModel(proxyModel)
-        self.connect(self.treeWidget.selectionModel(), SIGNAL("selectionChanged(QItemSelection , QItemSelection )"), self.updateSelection)
-        filterItems = " ".join([self.gds[i][key] for i in range(len(self.gds)) for key in self.searchKeys])
-        filterItems = reduce(lambda s, d: s.replace(d, " "),
-                             [",", ".", ":", ";", "!", "?", "(", ")", "{", "}"
-                              "[", "]", "_", "-", "+", "\\", "|", "/", "%", "#",
-                              "@", "$", "^", "&", "*", "<", ">", "~", "`"],
-                             filterItems.lower())
-        filterItems = sorted(set(filterItems.split(" ")))
-        filterItems = [item for item in filterItems if len(filterItems) > 3]
-        self.filterLineEdit.setItems(filterItems)
-
-        self.progressBarSet(40)
+        if self.currentGds:
+            gdss = [(i, proxy.data(proxy.index(i, 1), Qt.DisplayRole))
+                    for i in range(proxy.rowCount())]
+            current = [i for i, variant in gdss
+                       if variant.isValid() and
+                       str(variant.toString()) == self.currentGds["dataset_id"]]
+            if current:
+                self.treeWidget.selectionModel().select(
+                    proxy.index(current[0], 0),
+                    QItemSelectionModel.Select |
+                    QItemSelectionModel.Rows
+                )
 
         for i in range(8):
             self.treeWidget.resizeColumnToContents(i)
 
-        self.progressBarSet(70)
-
         self.treeWidget.setColumnWidth(1, min(self.treeWidget.columnWidth(1), 300))
         self.treeWidget.setColumnWidth(2, min(self.treeWidget.columnWidth(2), 200))
 
-        self.progressBarFinished()
-
-        if self.currentGds:
-            gdss = [(i, model.data(model.index(i,1), Qt.DisplayRole)) for i in range(model.rowCount())]
-            current = [i for i, variant in gdss if variant.isValid() and str(variant.toString()) == self.currentGds["dataset_id"]]
-            if current:
-                mapFromSource = self.treeWidget.model().mapFromSource
-                self.treeWidget.selectionModel().select(mapFromSource(model.index(current[0], 0)), QItemSelectionModel.Select | QItemSelectionModel.Rows)
-
         self.updateInfo()
+
+    def updateInfo(self):
+        gds_info = self.gds_info
+        text = ("%i datasets\n%i datasets cached\n" %
+                (len(gds_info),
+                 len(glob.glob(orngServerFiles.localpath("GEO") + "/GDS*"))))
+        filtered = self.treeWidget.model().rowCount()
+        if len(self.gds) != filtered:
+            text += ("%i after filtering") % filtered
+        self.infoBox.setText(text)
 
     def updateSelection(self, *args):
         current = self.treeWidget.selectedIndexes()
@@ -578,6 +509,80 @@ class OWGEODatasets(OWWidget):
         
     def splitterMoved(self, *args):
         self.splitterSettings = [str(sp.saveState()) for sp in self.splitters]
+
+
+def get_gds_model(progress=lambda val: None):
+    """
+    Initialize and return a GDS datasets model.
+
+    :param progress: A progress callback.
+    :rval tuple:
+        A tuple of (QStandardItemModel, obiGEO.GDSInfo, [obiGEO.GDS])
+
+    .. note::
+        The returned QStandardItemModel's thread affinity is set to
+        the GUI thread.
+
+    """
+    info = obiGEO.GDSInfo()
+    search_keys = ["dataset_id", "title", "platform_organism", "description"]
+    cache_dir = orngServerFiles.localpath(obiGEO.DOMAIN)
+    gds_link = "http://www.ncbi.nlm.nih.gov/sites/GDSbrowser?acc={0}"
+    pm_link = "http://www.ncbi.nlm.nih.gov/pubmed/{0}"
+    gds_list = []
+
+    def is_cached(gds):
+        return os.path.exists(os.path.join(cache_dir, gds["dataset_id"]) +
+                              ".soft.gz")
+
+    def item(displayvalue, item_values={}):
+        item = QStandardItem()
+        item.setData(displayvalue, Qt.DisplayRole)
+        for role, value in item_values.iteritems():
+            item.setData(value, role)
+        return item
+
+    def gds_to_row(gds):
+        #: Text for easier full search.
+        search_text = unicode(
+            " | ".join([gds.get(key, "").lower()
+                        for key in search_keys]),
+            errors="ignore"
+        )
+        row = [
+            item(" " if is_cached(gds) else "",
+                 {TextFilterRole: search_text}),
+            item(gds["dataset_id"],
+                 {LinkRole: gds_link.format(gds["dataset_id"])}),
+            item(gds["title"]),
+            item(gds["platform_organism"]),
+            item(len(gds["samples"])),
+            item(gds["feature_count"]),
+            item(gds["gene_count"]),
+            item(len(gds["subsets"])),
+            item(gds.get("pubmed_id", ""),
+                 {LinkRole: pm_link.format(gds["pubmed_id"])
+                            if gds.get("pubmed_id")
+                            else QVariant()})
+        ]
+        return row
+
+    model = QStandardItemModel()
+    model.setHorizontalHeaderLabels(
+        ["", "ID", "Title", "Organism", "Samples", "Features",
+         "Genes", "Subsets", "PubMedID"]
+    )
+    progress(20)
+    for gds in info.values():
+        model.appendRow(gds_to_row(gds))
+
+        gds_list.append(gds)
+
+    progress(50)
+
+    if QThread.currentThread() is not QCoreApplication.instance().thread():
+        model.moveToThread(QCoreApplication.instance().thread())
+    return model, info, gds_list
 
 
 if __name__ == "__main__":
