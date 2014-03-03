@@ -8,13 +8,16 @@
 from __future__ import absolute_import, with_statement
 
 from collections import defaultdict
-from functools import partial 
+from functools import partial
 import sys, os, glob
 
 from Orange.orng import orngServerFiles
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI, OWGUIEx
 from Orange.OrangeWidgets.OWWidget import *
+
+from Orange.OrangeWidgets.OWConcurrent import ThreadExecutor
+from .utils.download import EnsureDownloaded
 
 from .. import obiGEO
 
@@ -286,9 +289,18 @@ class OWGEODatasets(OWWidget):
             
         self.searchKeys = ["dataset_id", "title", "platform_organism", "description"]
         self.cells = []
-        
-        QTimer.singleShot(50, self.updateTable)
+
         self.resize(1000, 600)
+
+        self.setBlocking(True)
+        self.setEnabled(False)
+
+        self._init = EnsureDownloaded(
+            [(obiGEO.DOMAIN, obiGEO.GDS_INFO_FILENAME)]
+        )
+        self._executor = ThreadExecutor()
+        self._executor.submit(self._init)
+        self._init.finished.connect(self.updateTable)
 
     def updateInfo(self):
         gds_info = self.gds_info #obiGEO.GDSInfo()
@@ -297,12 +309,18 @@ class OWGEODatasets(OWWidget):
         if len(self.cells) != filtered:
             text += ("%i after filtering") % filtered
         self.infoBox.setText(text)
-        
+
     def updateTable(self):
-        self.treeItems = []
+        assert self.thread() is QThread.currentThread()
+        self._init.deleteLater()
+
+        self.setBlocking(False)
+        self.setEnabled(True)
+
         self.progressBarInit()
-        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-            self.gds_info = info = obiGEO.GDSInfo()
+
+        self.treeItems = []
+        self.gds_info = info = obiGEO.GDSInfo()
 
         self.cells = cells = []
         gdsLinks = []
@@ -560,6 +578,7 @@ class OWGEODatasets(OWWidget):
         
     def splitterMoved(self, *args):
         self.splitterSettings = [str(sp.saveState()) for sp in self.splitters]
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

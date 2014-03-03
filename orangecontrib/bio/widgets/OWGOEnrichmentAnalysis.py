@@ -18,8 +18,10 @@ from Orange.orng import orngServerFiles
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
+from Orange.OrangeWidgets.OWConcurrent import ThreadExecutor
 
 from .. import obiGene, obiGO, obiProb, obiTaxonomy
+from .utils.download import EnsureDownloaded
 
 NAME = "GO Browser"
 DESCRIPTION = "Enrichment analysis for Gene Ontology terms."
@@ -315,22 +317,21 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.treeStructRootKey = None
         self.probFunctions = [obiProb.Binomial(), obiProb.Hypergeometric()]
         self.selectedTerms = []
-        
+
         self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.onStateChanged)
 
         self.setBlocking(True)
-        QTimer.singleShot(0, self.UpdateOrganismComboBox)
+        self._executor = ThreadExecutor()
+        self._init = EnsureDownloaded(
+            [("Taxonomy", "ncbi_taxonomy.tar.gz"),
+             ("GO", "taxonomy.pickle")]
+        )
+        self._init.finished.connect(self.UpdateOrganismComboBox)
+        self._executor.submit(self._init)
 
     def UpdateOrganismComboBox(self):
         try:
-            if self.annotationCodes and len(self.annotationCodes) > self.annotationIndex:
-                currAnnotationCode = self.annotationCodes[self.annotationIndex]
-            else:
-                currAnnotationCode = None
-            self.progressBarInit()
-            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                self.annotationFiles = listAvailable()
-            self.progressBarFinished()
+            self.annotationFiles = listAvailable()
             self.annotationCodes = sorted(self.annotationFiles.keys())
             self.annotationComboBox.clear()
             self.annotationComboBox.addItems(self.annotationCodes)

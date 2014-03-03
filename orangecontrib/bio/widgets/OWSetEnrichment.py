@@ -15,6 +15,10 @@ from Orange.OrangeWidgets.OWGUI import LinkStyledItemDelegate, LinkRole
 from Orange.OrangeWidgets.OWGUI import BarItemDelegate
 from Orange.OrangeWidgets.OWWidget import *
 
+from Orange.OrangeWidgets.OWConcurrent import ThreadExecutor, Task
+
+from .utils.download import EnsureDownloaded
+
 from .. import obiGene, obiGeneSets, obiProb, obiTaxonomy
 
 NAME = "Gene Set Enrichment"
@@ -244,15 +248,20 @@ class OWSetEnrichment(OWWidget):
         self.currentAnnotatedCategories = []
 
         self.setBlocking(True)
-        QTimer.singleShot(0, self.updateHierarchy)
+
+        task = EnsureDownloaded(
+            [("Taxonomy", "ncbi_taxonomy.tar.gz"),
+             (obiGeneSets.sfdomain, "index.pck")]
+        )
+        task.finished.connect(self.updateHierarchy)
+
+        self._executor = ThreadExecutor()
+        self._executor.submit(task)
 
     def updateHierarchy(self):
         try:
-            self.progressBarInit()
-            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-                all, local = obiGeneSets.list_all(), obiGeneSets.list_local()
-                organisms = set(obiTaxonomy.essential_taxids() + filter(None, [t[1] for t in all]))
-            self.progressBarFinished()
+            all, local = obiGeneSets.list_all(), obiGeneSets.list_local()
+            organisms = set(obiTaxonomy.essential_taxids() + filter(None, [t[1] for t in all]))
 
             organism_names = map(name_or_none, organisms)
             organisms = [taxid for taxid, name in zip(organisms, organism_names) \
