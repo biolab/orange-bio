@@ -361,16 +361,18 @@ class OBOObject(object):
 
     @classmethod
     def parse_stanza(cls, stanza):
-        r"""
+        r'''
         Parse and return an OBOObject instance from a stanza string.
 
-        Example::
+        >>> term = OBOObject.parse_stanza("""\
+        ... [Term]
+        ... id: FOO:001
+        ... name: bar
+        ... """)
+        >>> print term.id, term.name
+        FOO:001 bar
 
-            >>> term = OBOObject.parse_stanza("[Term]\nid: FOO:001\nname:bar")
-            >>> print term.id, term.name
-            FOO:001 bar
-
-        """
+        '''
         lines = stanza.splitlines()
         stanza_type = lines[0].strip("[]")
 
@@ -438,24 +440,24 @@ class Instance(OBOObject):
 
 
 class OBOParser(object):
-    r""" A simple parser for .obo files (inspired by xml.dom.pulldom)
+    r''' A simple parser for .obo files (inspired by xml.dom.pulldom)
 
-    Example::
+    >>> from StringIO import StringIO
+    >>> file = StringIO("""\
+    ... header_tag: header_value
+    ... [Term]
+    ... id: FOO:001 { modifier=bar } ! comment
+    ... """)
+    >>> parser = OBOParser(file)
+    >>> for event, value in parser:
+    ...     print event, value
+    ...
+    HEADER_TAG ['header_tag', 'header_value']
+    START_STANZA Term
+    TAG_VALUE ('id', 'FOO:001', 'modifier=bar', 'comment')
+    CLOSE_STANZA None
 
-        >>> from StringIO import StringIO
-        >>> file = StringIO("header_tag: header_value\n[Term]\nid: "
-        ...                 "FOO { modifier=bar } ! comment\n\n")
-        ...
-        >>> parser = OBOParser(file)
-        >>> for event, value in parser:
-        ...     print event, value
-        ...
-        HEADER_TAG ['header_tag', 'header_value']
-        START_STANZA Term
-        TAG_VALUE ('id', 'FOO', 'modifier=bar', 'comment')
-        CLOSE_STANZA None
-
-    """
+    '''
     def __init__(self, file):
         self.file = file
 
@@ -526,15 +528,15 @@ class OBOOntology(object):
         if file:
             self.load(file)
 
-    def add_object(self, object):
+    def add_object(self, obj):
         """
         Add an :class:`OBOObject` instance to this ontology.
         """
-        if object.id in self.id2term:
+        if obj.id in self.id2term:
             raise ValueError("OBOObject with id: %s already in "
-                             "the ontology" % object.id)
-        self.objects.append(object)
-        self.id2term[object.id] = object
+                             "the ontology" % obj.id)
+        self.objects.append(obj)
+        self.id2term[obj.id] = obj
         self._invalid_cache_flag = True
 
     def add_header_tag(self, tag, value):
