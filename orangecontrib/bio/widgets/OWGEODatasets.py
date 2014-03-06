@@ -11,6 +11,7 @@ import sys
 import os
 import glob
 import string
+import urllib2
 from collections import defaultdict
 from functools import partial
 
@@ -182,7 +183,10 @@ class OWGEODatasets(OWWidget):
         self.loadSettings()
 
         ## GUI
-        self.infoBox = OWGUI.widgetLabel(OWGUI.widgetBox(self.controlArea, "Info", addSpace=True), "\n\n")
+        self.infoBox = OWGUI.widgetLabel(
+            OWGUI.widgetBox(self.controlArea, "Info", addSpace=True),
+            "Initializing\n\n"
+        )
 
         box = OWGUI.widgetBox(self.controlArea, "Output", addSpace=True)
         OWGUI.radioButtonsInBox(box, self, "outputRows", ["Genes or spots", "Samples"], "Rows", callback=self.commitIf)
@@ -259,6 +263,8 @@ class OWGEODatasets(OWWidget):
         self._inittask = Task(function=func)
         self._inittask.finished.connect(self._initializemodel)
         self._executor.submit(self._inittask)
+
+        self._datatask = None
 
     @pyqtSlot(float)
     def _setProgress(self, value):
@@ -422,47 +428,54 @@ class OWGEODatasets(OWWidget):
     
     def commit(self):
         if self.currentGds:
-            self.error(0) 
+            self.error(0)
             sample_type = None
             self.progressBarInit()
             self.progressBarSet(10)
-            
-            def getdata(gds_id, **kwargs):
-                gds = obiGEO.GDS(gds_id)
-                data = gds.getdata(**kwargs)
-                return data
-            
+
             _, groups = self.selectedSamples()
             if len(groups) == 1 and self.outputRows:
                 sample_type = groups[0]
 
             self.setEnabled(False)
-            call = self.asyncCall(getdata, (self.currentGds["dataset_id"],), dict(report_genes=self.mergeSpots,
-                                           transpose=self.outputRows,
-                                           sample_type=sample_type),
-                                  onResult=self.onData,
-                                  onFinished=lambda: self.setEnabled(True),
-                                  onError=self.onAsyncError,
-                                  threadPool=QThreadPool.globalInstance()
-                                 )
-            call.__call__() #invoke
+            self.setBlocking(True)
 
-    def onAsyncError(self, (exctype, value, tb)):
-        import ftplib
-        if issubclass(exctype, ftplib.error_temp):
-            self.error(0, "Can not download dataset from NCBI ftp server! Try again later.")
-        elif issubclass(exctype, ftplib.all_errors):
-            self.error(0, "Error while connecting to the NCBI ftp server! %s" % str(value))
-        else:
-            sys.excepthook(exctype, value, tb)
-            
-        self.progressBarFinished()
+            def get_data(gds_id, report_genes, transpose, sample_type):
+                gds = obiGEO.GDS(gds_id)
+                data = gds.getdata(
+                    report_genes=report_genes, transpose=transpose,
+                    sample_type=sample_type
+                )
+                return data
 
-    def onData(self, data):
+            get_data = partial(
+                get_data, self.currentGds["dataset_id"],
+                report_genes=self.mergeSpots,
+                transpose=self.outputRows,
+                sample_type=sample_type
+            )
+            self._datatask = Task(function=get_data)
+            self._datatask.finished.connect(self._on_dataready)
+            self._executor.submit(self._datatask)
+
+    def _on_dataready(self):
+        self.setEnabled(True)
+        self.setBlocking(False)
+
         self.progressBarSet(50)
-        
-        samples,_ = self.selectedSamples()
-        
+
+        try:
+            data = self._datatask.result()
+        except urllib2.URLError as error:
+            self.error(0, "Error while connecting to the NCBI ftp server! %r" %
+                       error)
+            self._datatask = None
+            self.progressBarFinished()
+            return
+        self._datatask = None
+
+        samples, _ = self.selectedSamples()
+
         self.warning(0)
         message = None
         if self.outputRows:
@@ -510,6 +523,17 @@ class OWGEODatasets(OWWidget):
     def splitterMoved(self, *args):
         self.splitterSettings = [str(sp.saveState()) for sp in self.splitters]
 
+    def onDeleteWidget(self):
+        if self._inittask:
+            self._inittask.future().cancel()
+            self._inittask.finished.disconnect(self._initializemodel)
+        if self._datatask:
+            self._datatask.future().cancel()
+            self._datatask.finished.disconnect(self._on_dataready)
+        self._executor.shutdown(wait=False)
+
+        super(OWGEODatasets, self).onDeleteWidget()
+
 
 def get_gds_model(progress=lambda val: None):
     """
@@ -524,6 +548,7 @@ def get_gds_model(progress=lambda val: None):
         the GUI thread.
 
     """
+    progress(1)
     info = obiGEO.GDSInfo()
     search_keys = ["dataset_id", "title", "platform_organism", "description"]
     cache_dir = orngServerFiles.localpath(obiGEO.DOMAIN)
