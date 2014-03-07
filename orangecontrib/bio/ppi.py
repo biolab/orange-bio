@@ -28,6 +28,7 @@ import zipfile
 import xml.dom.minidom as minidom
 import csv
 import sqlite3
+import errno
 
 from StringIO import StringIO
 from collections import defaultdict, namedtuple
@@ -39,6 +40,16 @@ from Orange.utils import ConsoleProgressBar, lru_cache, wget
 from . import taxonomy
 
 from .taxonomy import pickled_cache
+
+
+def mkdir_p(path, mode=0o777):
+    try:
+        os.makedirs(path, mode)
+    except OSError as err:
+        if err.errno == errno.EEXIST:
+            pass
+        else:
+            raise
 
 
 class PPIDatabase(object):
@@ -232,18 +243,16 @@ class BioGRID(PPIDatabase):
 
     def __init__(self):
         self.filename = orngServerFiles.localpath_download(self.DOMAIN, self.SERVER_FILE)
-#        info = orngServerFiles.info(self.DOMAIN, self.SERVER_FILE)
+
         # assert version matches
         self.db = sqlite3.connect(self.filename)
         self.init_db_index()
 
-    @lru_cache(1)
     def organisms(self):
         cur = self.db.execute("select distinct organism_interactor \n"
                               "from proteins")
         return cur.fetchall()
 
-    @lru_cache(3)
     def ids(self, taxid=None):
         """
         Return a list of all protein ids (biogrid_id_interactors).
@@ -391,15 +400,17 @@ class BioGRID(PPIDatabase):
         """
         stream = urllib2.urlopen(address)
         stream = StringIO(stream.read())
-        file = zipfile.ZipFile(stream)
-        filename = file.namelist()[0]
-        ppi_dir = orngServerFiles.localpath("PPI")
-        file.extract(filename, ppi_dir)
-        shutil.move(orngServerFiles.localpath("PPI", filename),
-                    orngServerFiles.localpath("PPI", "BIOGRID-ALL.tab2"))
+        zfile = zipfile.ZipFile(stream)
+        # Expecting only one file.
+        filename = zfile.namelist()[0]
+
         filepath = orngServerFiles.localpath("PPI", "BIOGRID-ALL.tab2")
+        mkdir_p(os.path.dirname(filepath))
+
+        with open(filepath, "wb") as f:
+            shutil.copyfileobj(zfile.open(filename, "r"), f)
+
         cls.init_db(filepath)
-        os.remove(filepath)
 
     @classmethod
     def init_db(cls, filepath):
@@ -409,8 +420,8 @@ class BioGRID(PPIDatabase):
 
         """
         dirname = os.path.dirname(filepath)
-        lineiter = iter(open(filepath, "rb"))
-        headers = lineiter.next()  # read the first line
+        rows = csv.reader(open(filepath, "rb"), delimiter="\t")
+        rows.next()  # read the header line
 
         con = sqlite3.connect(os.path.join(dirname, BioGRID.SERVER_FILE))
         con.execute("drop table if exists links")  # Drop old table
@@ -445,7 +456,7 @@ class BioGRID(PPIDatabase):
             )""")
 
         proteins = {}
-        nulls = lambda values: [val if val != "-" else None for val in values]
+
         # Values that go in the links table
         link_indices = [0, 3, 4, 11, 12, 13, 14, 17, 18, 19, 20, 21, 22, 23]
         # Values that go in the proteins table
@@ -453,19 +464,22 @@ class BioGRID(PPIDatabase):
         # Values that go in the proteins table
         interactor_b_indices = [4, 2, 6, 8, 10, 16]
 
-        def processlinks(file):
-            for line in file:
-                if line != "\n":
-                    fields = nulls(line.strip().split("\t"))
-                    yield [fields[i] for i in link_indices]
-                    interactor_a = [fields[i] for i in interactor_a_indices]
-                    interactor_b = [fields[i] for i in interactor_b_indices]
-                    proteins[interactor_a[0]] = interactor_a
-                    proteins[interactor_b[0]] = interactor_b
+        def to_none(val):
+            return None if val == "-" else val
 
-        con.executemany("""\
+        def processlinks(rowiter):
+            for row in rowiter:
+                fields = map(to_none, row)
+                yield [fields[i] for i in link_indices]
+
+                interactor_a = [fields[i] for i in interactor_a_indices]
+                interactor_b = [fields[i] for i in interactor_b_indices]
+                proteins[interactor_a[0]] = interactor_a
+                proteins[interactor_b[0]] = interactor_b
+
+        con.executemany("""
             insert into links values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, processlinks(lineiter))
+            """, processlinks(rows))
 
         con.executemany("""\
             insert into proteins values (?, ?, ?, ?, ?, ?)
