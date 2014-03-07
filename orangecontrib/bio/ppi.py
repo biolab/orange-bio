@@ -885,7 +885,7 @@ class STRING(PPIDatabase):
                         progress(100.0 * aliases_fileobj.tell() / filesize)
 
             con.executemany("insert into aliases values (?, ?, ?)",
-                            read_aliases(reader))
+                            read_aliases(reader, taxids, progress))
 
             progress.finish()
 
@@ -1080,7 +1080,7 @@ class STRINGDetailed(STRING):
                             split(p2, ".", 1)[0] in taxids:
                         yield intern(p1), intern(p2), n, f, c, cx, ex, db, t
 
-                    if i % 10000 == 0:
+                    if i % 100000 == 0:
                         progress(100.0 * links_fileobj.tell() / filesize)
 
             con.executemany("""
