@@ -38,12 +38,10 @@ OUTPUTS = [("Expression Data", Orange.data.Table)]
 REPLACES = ["_bioinformatics.widgets.OWGEODatasets.OWGEODatasets"]
 
 
-LOCAL_GDS_COLOR = Qt.darkGreen
-
 TextFilterRole = OWGUI.OrangeUserRole.next()
 
 
-class MySortFilterProxyModel(QSortFilterProxyModel):    
+class MySortFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent=None):
         QSortFilterProxyModel.__init__(self, parent)
         self._filter_strings = []
@@ -51,20 +49,20 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
         self._cache_fixed = {}
         self._cache_prefix = {}
         self._row_text = {}
-        
+
         # Create a cached version of _filteredRows
-        self._filteredRows = lru_cache(100)(self._filteredRows) 
+        self._filteredRows = lru_cache(100)(self._filteredRows)
 
     def setSourceModel(self, model):
-        """ Set the source model for the filter
-        """ 
+        """Set the source model for the filter.
+        """
         self._filter_strings = []
         self._cache = {}
         self._cache_fixed = {}
         self._cache_prefix = {}
         self._row_text = {}
         QSortFilterProxyModel.setSourceModel(self, model)
-        
+
     def addFilterFixedString(self, string, invalidate=True):
         """ Add `string` filter to the list of filters. If invalidate is
         True the filter cache will be recomputed.
@@ -76,51 +74,56 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
         if invalidate:
             self.updateCached()
             self.invalidateFilter()
-        
+
     def removeFilterFixedString(self, index=-1, invalidate=True):
         """ Remove the `index`-th filter string. If invalidate is True the
         filter cache will be recomputed.
         """
-        string = self._filter_strings.pop(index) 
-        del self._cache[string] 
+        string = self._filter_strings.pop(index)
+        del self._cache[string]
         if invalidate:
             self.updateCached()
             self.invalidateFilter()
-            
+
     def setFilterFixedStrings(self, strings):
-        """ Set a list of string to be the new filters.
+        """Set a list of string to be the new filters.
         """
-        s_time = time.time()
         to_remove = set(self._filter_strings) - set(strings)
         to_add = set(strings) - set(self._filter_strings)
         for str in to_remove:
-            self.removeFilterFixedString(self._filter_strings.index(str), invalidate=False)
-        
+            self.removeFilterFixedString(
+                self._filter_strings.index(str),
+                invalidate=False)
+
         for str in to_add:
             self.addFilterFixedString(str, invalidate=False)
         self.updateCached()
         self.invalidateFilter()
-            
+
     def _filteredRows(self, filter_strings):
-        """ Return a dictionary mapping row indexes to True False values.
-        .. note:: This helper function is wrapped in the __init__ method. 
+        """Return a dictionary mapping row indexes to True False values.
+
+        .. note:: This helper function is wrapped in the __init__ method.
+
         """
         all_rows = range(self.sourceModel().rowCount())
         cache = self._cache
-        return dict([(row, all([cache[str][row] for str in filter_strings])) for row in all_rows])
-    
+        return dict([(row, all([cache[str][row] for str in filter_strings]))
+                     for row in all_rows])
+
     def updateCached(self):
-        """ Update the combined filter cache.
+        """Update the combined filter cache.
         """
-        self._cache_fixed = self._filteredRows(tuple(sorted(self._filter_strings))) 
-        
+        self._cache_fixed = self._filteredRows(
+            tuple(sorted(self._filter_strings)))
+
     def setFilterFixedString(self, string):
         """Should this raise an error? It is not being used.
         """
         QSortFilterProxyModel.setFilterFixedString(self, string)
-        
+
     def rowFilterText(self, row):
-        """ Return text for `row` to filter on. 
+        """Return text for `row` to filter on.
         """
         f_role = self.filterRole()
         f_column = self.filterKeyColumn()
@@ -131,41 +134,43 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
         else:
             data = unicode(data, errors="ignore")
         return data
-        
-    def filterAcceptsRow(self, row, parent): 
+
+    def filterAcceptsRow(self, row, parent):
         return self._cache_fixed.get(row, True)
-    
+
     def lessThan(self, left, right):
-        if left.column() == 1 and right.column(): # TODO: Remove fixed column handling
+        # TODO: Remove fixed column handling
+        if left.column() == 1 and right.column():
             left_gds = str(left.data(Qt.DisplayRole).toString())
             right_gds = str(right.data(Qt.DisplayRole).toString())
             left_gds = left_gds.lstrip("GDS")
             right_gds = right_gds.lstrip("GDS")
             try:
                 return int(left_gds) < int(right_gds)
-            except Exception, ex:
+            except ValueError:
                 pass
         return QSortFilterProxyModel.lessThan(self, left, right)
-    
+
 from Orange.OrangeWidgets.OWGUI import LinkStyledItemDelegate, LinkRole
+
 
 def childiter(item):
     """ Iterate over the children of an QTreeWidgetItem instance.
     """
     for i in range(item.childCount()):
         yield item.child(i)
-                
-class OWGEODatasets(OWWidget):
-    settingsList = ["outputRows", "mergeSpots", "gdsSelectionStates", "splitterSettings", "currentGds", "autoCommit"]
 
-    def __init__(self, parent=None ,signalManager=None, name=" GEO Data Sets"):
-        OWWidget.__init__(self, parent ,signalManager, name)
+
+class OWGEODatasets(OWWidget):
+    settingsList = ["outputRows", "mergeSpots", "gdsSelectionStates",
+                    "splitterSettings", "currentGds", "autoCommit"]
+
+    def __init__(self, parent=None, signalManager=None, name=" GEO Data Sets"):
+        OWWidget.__init__(self, parent, signalManager, name)
 
         self.outputs = [("Expression Data", ExampleTable)]
 
         ## Settings
-#        self.selectedSubsets = []
-#        self.sampleSubsets = []
         self.selectedAnnotation = 0
         self.includeIf = False
         self.minSamples = 3
@@ -177,8 +182,10 @@ class OWGEODatasets(OWWidget):
         self.selectionChanged = False
         self.autoCommit = False
         self.gdsSelectionStates = {}
-        self.splitterSettings = ['\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xea\x00\x00\x00\xd7\x01\x00\x00\x00\x07\x01\x00\x00\x00\x02',
-                                 '\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xb5\x00\x00\x02\x10\x01\x00\x00\x00\x07\x01\x00\x00\x00\x01']
+        self.splitterSettings = [
+            '\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xea\x00\x00\x00\xd7\x01\x00\x00\x00\x07\x01\x00\x00\x00\x02',
+            '\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xb5\x00\x00\x02\x10\x01\x00\x00\x00\x07\x01\x00\x00\x00\x01'
+        ]
 
         self.loadSettings()
 
@@ -189,24 +196,29 @@ class OWGEODatasets(OWWidget):
         )
 
         box = OWGUI.widgetBox(self.controlArea, "Output", addSpace=True)
-        OWGUI.radioButtonsInBox(box, self, "outputRows", ["Genes or spots", "Samples"], "Rows", callback=self.commitIf)
-        OWGUI.checkBox(box, self, "mergeSpots", "Merge spots of same gene", callback=self.commitIf)
+        OWGUI.radioButtonsInBox(box, self, "outputRows",
+                                ["Genes or spots", "Samples"], "Rows",
+                                callback=self.commitIf)
+        OWGUI.checkBox(box, self, "mergeSpots", "Merge spots of same gene",
+                       callback=self.commitIf)
 
         box = OWGUI.widgetBox(self.controlArea, "Output", addSpace=True)
-        self.commitButton = OWGUI.button(box, self, "Commit", callback=self.commit)
+        self.commitButton = OWGUI.button(box, self, "Commit",
+                                         callback=self.commit)
         cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on any change")
-        OWGUI.setStopper(self, self.commitButton, cb, "selectionChanged", self.commit)
+        OWGUI.setStopper(self, self.commitButton, cb, "selectionChanged",
+                         self.commit)
         OWGUI.rubber(self.controlArea)
 
-        self.filterLineEdit = OWGUIEx.lineEditHint(self.mainArea, self, "filterString", "Filter",
-                                   caseSensitive=False, matchAnywhere=True, 
-                                   #listUpdateCallback=self.filter, callbackOnType=False, 
-                                   callback=self.filter,  delimiters=" ")
-        
+        self.filterLineEdit = OWGUIEx.lineEditHint(
+            self.mainArea, self, "filterString", "Filter",
+            caseSensitive=False, matchAnywhere=True,
+            callback=self.filter,  delimiters=" ")
+
         splitter = QSplitter(Qt.Vertical, self.mainArea)
         self.mainArea.layout().addWidget(splitter)
         self.treeWidget = QTreeView(splitter)
-        
+
         self.treeWidget.setSelectionMode(QAbstractItemView.SingleSelection)
         self.treeWidget.setRootIsDecorated(False)
         self.treeWidget.setSortingEnabled(True)
@@ -216,36 +228,43 @@ class OWGEODatasets(OWWidget):
         linkdelegate = LinkStyledItemDelegate(self.treeWidget)
         self.treeWidget.setItemDelegateForColumn(1, linkdelegate)
         self.treeWidget.setItemDelegateForColumn(8, linkdelegate)
-        self.treeWidget.setItemDelegateForColumn(0, OWGUI.IndicatorItemDelegate(self.treeWidget, role=Qt.DisplayRole))
+        self.treeWidget.setItemDelegateForColumn(
+            0, OWGUI.IndicatorItemDelegate(self.treeWidget,
+                                           role=Qt.DisplayRole))
 
         proxyModel = MySortFilterProxyModel(self.treeWidget)
         self.treeWidget.setModel(proxyModel)
-        self.treeWidget.selectionModel().selectionChanged.connect(self.updateSelection)
-
+        self.treeWidget.selectionModel().selectionChanged.connect(
+            self.updateSelection
+        )
         self.treeWidget.viewport().setMouseTracking(True)
-        
-        splitterH = QSplitter(Qt.Horizontal, splitter) 
-        
+
+        splitterH = QSplitter(Qt.Horizontal, splitter)
+
         box = OWGUI.widgetBox(splitterH, "Description")
         self.infoGDS = OWGUI.widgetLabel(box, "")
         self.infoGDS.setWordWrap(True)
         OWGUI.rubber(box)
-        
+
         box = OWGUI.widgetBox(splitterH, "Sample Annotations")
         self.annotationsTree = QTreeWidget(box)
-        self.annotationsTree.setHeaderLabels(["Type (Sample annotations)", "Sample count"])
+        self.annotationsTree.setHeaderLabels(
+            ["Type (Sample annotations)", "Sample count"]
+        )
         self.annotationsTree.setRootIsDecorated(True)
         box.layout().addWidget(self.annotationsTree)
-        self.connect(self.annotationsTree, SIGNAL("itemChanged(QTreeWidgetItem * , int)"), self.annotationSelectionChanged)
+        self.annotationsTree.itemChanged.connect(
+            self.annotationSelectionChanged
+        )
         self._annotationsUpdating = False
         self.splitters = splitter, splitterH
-        self.connect(splitter, SIGNAL("splitterMoved(int, int)"), self.splitterMoved)
-        self.connect(splitterH, SIGNAL("splitterMoved(int, int)"), self.splitterMoved)
-        
+
         for sp, setting in zip(self.splitters, self.splitterSettings):
+            sp.splitterMoved.connect(self.splitterMoved)
             sp.restoreState(setting)
 
-        self.searchKeys = ["dataset_id", "title", "platform_organism", "description"]
+        self.searchKeys = ["dataset_id", "title", "platform_organism",
+                           "description"]
 
         self.gds = []
         self.gds_info = None
@@ -288,7 +307,9 @@ class OWGEODatasets(OWWidget):
         self.setBlocking(False)
         self.setEnabled(True)
 
-        filter_items = " ".join(gds[key] for gds in self.gds for key in self.searchKeys)
+        filter_items = " ".join(
+            gds[key] for gds in self.gds for key in self.searchKeys
+        )
         tr_chars = ",.:;!?(){}[]_-+\\|/%#@$^&*<>~`"
         tr_table = string.maketrans(tr_chars, " " * len(tr_chars))
         filter_items = filter_items.translate(tr_table)
@@ -313,8 +334,10 @@ class OWGEODatasets(OWWidget):
         for i in range(8):
             self.treeWidget.resizeColumnToContents(i)
 
-        self.treeWidget.setColumnWidth(1, min(self.treeWidget.columnWidth(1), 300))
-        self.treeWidget.setColumnWidth(2, min(self.treeWidget.columnWidth(2), 200))
+        self.treeWidget.setColumnWidth(
+            1, min(self.treeWidget.columnWidth(1), 300))
+        self.treeWidget.setColumnWidth(
+            2, min(self.treeWidget.columnWidth(2), 200))
 
         self.updateInfo()
 
@@ -338,51 +361,52 @@ class OWGEODatasets(OWWidget):
             self.infoGDS.setText(self.currentGds.get("description", ""))
         else:
             self.currentGds = None
-#        self.commitButton.setDisabled(not bool(self.currentGds))
         self.commitIf()
-        
-    
+
     def setAnnotations(self, gds):
         self._annotationsUpdating = True
         self.annotationsTree.clear()
-        annotations = reduce(lambda d, info: d[info["type"]].add(info["description"]) or d, gds["subsets"], defaultdict(set))
-        subsetscount = dict([(s["description"], str(len(s["sample_id"]))) for s in gds["subsets"]])
+
+        annotations = defaultdict(set)
+        subsetscount = {}
+        for desc in gds["subsets"]:
+            annotations[desc["type"]].add(desc["description"])
+            subsetscount[desc["description"]] = str(len(desc["sample_id"]))
+
         for type, subsets in annotations.items():
             key = (gds["dataset_id"], type)
             subsetItem = QTreeWidgetItem(self.annotationsTree, [type])
-            subsetItem.setFlags(subsetItem.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsTristate)
-            subsetItem.setCheckState(0, self.gdsSelectionStates.get(key, Qt.Checked))
+            subsetItem.setFlags(subsetItem.flags() | Qt.ItemIsUserCheckable |
+                                Qt.ItemIsTristate)
+            subsetItem.setCheckState(
+                0, self.gdsSelectionStates.get(key, Qt.Checked)
+            )
             subsetItem.key = key
             for subset in subsets:
                 key = (gds["dataset_id"], type, subset)
-                item = QTreeWidgetItem(subsetItem, [subset, subsetscount.get(subset, "")])
+                item = QTreeWidgetItem(
+                    subsetItem, [subset, subsetscount.get(subset, "")]
+                )
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(0, self.gdsSelectionStates.get(key, Qt.Checked))
+                item.setCheckState(
+                    0, self.gdsSelectionStates.get(key, Qt.Checked)
+                )
                 item.key = key
         self._annotationsUpdating = False
         self.annotationsTree.expandAll()
         for i in range(self.annotationsTree.columnCount()):
             self.annotationsTree.resizeColumnToContents(i)
-                
+
     def annotationSelectionChanged(self, item, column):
         if self._annotationsUpdating:
-            return 
+            return
         for i in range(self.annotationsTree.topLevelItemCount()):
             item = self.annotationsTree.topLevelItem(i)
             self.gdsSelectionStates[item.key] = item.checkState(0)
             for j in range(item.childCount()):
                 child = item.child(j)
                 self.gdsSelectionStates[child.key] = child.checkState(0)
-        
-    def rowFiltered(self, row):
-        filterStrings = self.filterString.lower().split()
-        try:
-            string = " ".join([self.gds[row].get(key, "").lower() for key in self.searchKeys])
-            return not all([s in string for s in filterStrings])
-        except UnicodeDecodeError:
-            string = " ".join([unicode(self.gds[row].get(key, "").lower(), errors="ignore") for key in self.searchKeys])
-            return not all([s in string for s in filterStrings])
-    
+
     def filter(self):
         filter_string = unicode(self.filterLineEdit.text(), errors="ignore")
         proxyModel = self.treeWidget.model()
@@ -392,17 +416,20 @@ class OWGEODatasets(OWWidget):
             self.updateInfo()
 
     def selectedSamples(self):
-        """ Return the currently selected sample annotations (list of
-        sample type, sample value tuples).
-        
+        """
+        Return the currently selected sample annotations.
+
+        The return value is a list of selected (sample type, sample value)
+        tuples.
+
         .. note:: if some Sample annotation type has no selected values.
                   this method will return all values for it.
-        
+
         """
         samples = []
         unused_types = []
         used_types = []
-        for stype in childiter(self.annotationsTree.invisibleRootItem()): 
+        for stype in childiter(self.annotationsTree.invisibleRootItem()):
             selected_values = []
             all_values = []
             for sval in childiter(stype):
@@ -414,18 +441,19 @@ class OWGEODatasets(OWWidget):
                 samples.extend(selected_values)
                 used_types.append(str(stype.text(0)))
             else:
-                # If no sample of sample type is selected we don't filter on it.
+                # If no sample of sample type is selected we don't filter
+                # on it.
                 samples.extend(all_values)
                 unused_types.append(str(stype.text(0)))
-        
+
         return samples, used_types
-    
+
     def commitIf(self):
         if self.autoCommit:
             self.commit()
         else:
             self.selectionChanged = True
-    
+
     def commit(self):
         if self.currentGds:
             self.error(0)
@@ -481,45 +509,54 @@ class OWGEODatasets(OWWidget):
         if self.outputRows:
             def samplesinst(ex):
                 out = []
-                for i,a in data.domain.get_metas().items():
+                for i, a in data.domain.get_metas().items():
                     out.append((a.name, ex[i].value))
                 if data.domain.class_var.name != 'class':
                     out.append((data.domain.class_var.name, ex[-1].value))
                 return out
             samples = set(samples)
 
-            select = [1 if samples.issuperset(samplesinst(ex)) else 0 for ex in data]
+            select = [1 if samples.issuperset(samplesinst(ex)) else 0
+                      for ex in data]
             data = data.select(select)
             if len(data) == 0:
                 message = "No samples with selected sample annotations."
         else:
             samples = set(samples)
-            domain = orange.Domain([attr for attr in data.domain.attributes if samples.issuperset(attr.attributes.items())], data.domain.classVar)
+            domain = orange.Domain(
+                [attr for attr in data.domain.attributes
+                 if samples.issuperset(attr.attributes.items())],
+                data.domain.classVar
+            )
             domain.addmetas(data.domain.getmetas())
             if len(domain.attributes) == 0:
                 message = "No samples with selected sample annotations."
             stypes = set(s[0] for s in samples)
             for attr in domain.attributes:
-                attr.attributes = dict([(key, value) for key, value in attr.attributes.items() if key in stypes])
+                attr.attributes = dict(
+                    (key, value) for key, value in attr.attributes.items()
+                    if key in stypes
+                )
             data = orange.ExampleTable(domain, data)
-        
+
         if message is not None:
             self.warning(0, message)
-            
-        data_hints.set_hint(data, "taxid", self.currentGds.get("taxid", ""), 10.0)
+
+        data_hints.set_hint(data, "taxid", self.currentGds.get("taxid", ""),
+                            10.0)
         data_hints.set_hint(data, "genesinrows", self.outputRows, 10.0)
-        
+
         self.progressBarFinished()
         self.send("Expression Data", data)
 
         model = self.treeWidget.model().sourceModel()
         row = self.gds.index(self.currentGds)
-#            model._roleData[Qt.ForegroundRole][row].update(zip(range(1, 7), [QVariant(QColor(LOCAL_GDS_COLOR))] * 6))
-        model.setData(model.index(row, 0),  QVariant(" "), Qt.DisplayRole) 
-#            model.emit(SIGNAL("dataChanged(const QModelIndex &, const QModelIndex &)"), model.index(row, 0), model.index(row, 0))
+
+        model.setData(model.index(row, 0),  QVariant(" "), Qt.DisplayRole)
+
         self.updateInfo()
         self.selectionChanged = False
-        
+
     def splitterMoved(self, *args):
         self.splitterSettings = [str(sp.saveState()) for sp in self.splitters]
 
