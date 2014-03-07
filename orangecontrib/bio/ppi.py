@@ -764,22 +764,29 @@ class STRING(PPIDatabase):
                 yield i
                 i += 1
 
-        protein_ids = defaultdict(counter().next)
-        protein_taxid = {}
-
         dir = orngServerFiles.localpath(cls.DOMAIN)
 
-        links_filename = os.path.join(dir, "protein.links.{version}.txt.gz".format(version=version))
-        actions_filename = os.path.join(dir, "protein.actions.{version}.txt.gz".format(version=version))
-        aliases_filename = os.path.join(dir, "protein.aliases.{version}.txt.gz".format(version=version))
+        links_filename = os.path.join(
+            dir, "protein.links.{version}.txt.gz".format(version=version)
+        )
+        actions_filename = os.path.join(
+            dir, "protein.actions.{version}.txt.gz".format(version=version)
+        )
+        aliases_filename = os.path.join(
+            dir, "protein.aliases.{version}.txt.gz".format(version=version)
+        )
 
-        links_file = gzip.GzipFile(links_filename, "rb")
-        actions_file = gzip.GzipFile(actions_filename, "rb")
-        aliases_file = gzip.GzipFile(aliases_filename, "rb")
+        links_fileobj = open(links_filename, "rb")
+        actions_fileobj = open(actions_filename, "rb")
+        aliases_fileobj = open(aliases_filename, "rb")
+
+        links_file = gzip.GzipFile(fileobj=links_fileobj)
+        actions_file = gzip.GzipFile(fileobj=actions_fileobj)
+        aliases_file = gzip.GzipFile(fileobj=aliases_fileobj)
 
         progress = ConsoleProgressBar("Processing links:")
         progress(0.0)
-        filesize = os.stat(links_filename).st_size * 10  # not the correct size!
+        filesize = os.stat(links_filename).st_size
 
         if taxids:
             taxids = set(taxids)
@@ -834,7 +841,7 @@ class STRING(PPIDatabase):
                     i += 1
                     if i % 1000 == 0:
                         # Update the progress every 1000 lines
-                        progress(100.0 * links_file.tell() / filesize)
+                        progress(100.0 * links_fileobj.tell() / filesize)
                 if links:
                     yield links
 
@@ -862,7 +869,7 @@ class STRING(PPIDatabase):
 
             progress.finish()
 
-            filesize = os.stat(actions_filename).st_size * 10
+            filesize = os.stat(actions_filename).st_size
 
             actions_file.readline()  # read header
 
@@ -880,7 +887,7 @@ class STRING(PPIDatabase):
                                         int(score)))
                     i += 1
                     if i % 1000 == 0:
-                        progress(100.0 * actions_file.tell() / filesize)
+                        progress(100.0 * actions_fileobj.tell() / filesize)
                 actions.sort()
                 return actions
 
@@ -889,7 +896,7 @@ class STRING(PPIDatabase):
 
             progress.finish()
 
-            filesize = os.stat(aliases_filename).st_size * 10
+            filesize = os.stat(aliases_filename).st_size
             aliases_file.readline()  # read header
 
             progress = ConsoleProgressBar("Processing aliases:")
@@ -906,7 +913,7 @@ class STRING(PPIDatabase):
                                )
                     i += 1
                     if i % 1000 == 0:
-                        progress(100.0 * aliases_file.tell() / filesize)
+                        progress(100.0 * aliases_fileobj.tell() / filesize)
 
             con.executemany("insert into aliases values (?, ?, ?)",
                             read_aliases(reader))
@@ -1055,7 +1062,8 @@ class STRINGDetailed(STRING):
     def init_db(cls, version, taxids=None):
         dir = orngServerFiles.localpath(cls.DOMAIN)
 
-        links_filename = "protein.links.detailed.{version}.txt.gz".format(version=version)
+        links_filename = ("protein.links.detailed.{version}.txt.gz"
+                          .format(version=version))
         links_filename = os.path.join(dir, links_filename)
 
         if taxids:
@@ -1063,7 +1071,8 @@ class STRINGDetailed(STRING):
         else:
             taxids = set(cls.common_taxids())
 
-        links_file = gzip.GzipFile(links_filename, "rb")
+        links_fileobj = open(links_filename, "rb")
+        links_file = gzip.GzipFile(fileobj=links_fileobj)
 
         con = sqlite3.connect(os.path.join(dir, cls.FILENAME_DETAILED))
         with con:
@@ -1087,7 +1096,7 @@ class STRINGDetailed(STRING):
 
             links = csv.reader(links_file, delimiter=" ")
             links.next()  # Read header
-            filesize = os.stat(links_filename).st_size * 10  # not the correct size
+            filesize = os.stat(links_filename).st_size
 
             progress = ConsoleProgressBar("Processing links file:")
             progress(1.0)
@@ -1102,7 +1111,7 @@ class STRINGDetailed(STRING):
                             chunk.append((intern(p1), intern(p2), n, f,
                                           c, cx, ex, db, t))
 
-                    progress(100.0 * links_file.tell() / filesize)
+                    progress(100.0 * links_fileobj.tell() / filesize)
                     if chunk:
                         yield chunk
 
