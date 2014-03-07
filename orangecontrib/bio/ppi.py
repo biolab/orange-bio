@@ -34,8 +34,8 @@ from StringIO import StringIO
 from collections import defaultdict, namedtuple
 from operator import itemgetter
 
-from Orange.orng import orngServerFiles
-from Orange.utils import ConsoleProgressBar, lru_cache, wget
+from Orange.utils import serverfiles
+from Orange.utils import ConsoleProgressBar, wget
 
 from . import taxonomy
 
@@ -242,7 +242,8 @@ class BioGRID(PPIDatabase):
     SERVER_FILE = "BIOGRID-ALL.sqlite"
 
     def __init__(self):
-        self.filename = orngServerFiles.localpath_download(self.DOMAIN, self.SERVER_FILE)
+        self.filename = serverfiles.localpath_download(
+            self.DOMAIN, self.SERVER_FILE)
 
         # assert version matches
         self.db = sqlite3.connect(self.filename)
@@ -404,7 +405,7 @@ class BioGRID(PPIDatabase):
         # Expecting only one file.
         filename = zfile.namelist()[0]
 
-        filepath = orngServerFiles.localpath("PPI", "BIOGRID-ALL.tab2")
+        filepath = serverfiles.localpath("PPI", "BIOGRID-ALL.tab2")
         mkdir_p(os.path.dirname(filepath))
 
         with open(filepath, "wb") as f:
@@ -564,7 +565,7 @@ class STRING(PPIDatabase):
                  }
 
     def __init__(self):
-        self.filename = orngServerFiles.localpath_download(
+        self.filename = serverfiles.localpath_download(
             self.DOMAIN, self.FILENAME
         )
         self.db = sqlite3.connect(self.filename)
@@ -711,7 +712,7 @@ class STRING(PPIDatabase):
         be used).
 
         """
-        dir = orngServerFiles.localpath("PPI")
+        dir = serverfiles.localpath("PPI")
 
         base_url = "http://www.string-db.org/newstring_download/"
         links = "protein.links.{version}.txt.gz".format(version=version)
@@ -746,7 +747,7 @@ class STRING(PPIDatabase):
                 yield i
                 i += 1
 
-        dir = orngServerFiles.localpath(cls.DOMAIN)
+        dir = serverfiles.localpath(cls.DOMAIN)
 
         links_filename = os.path.join(
             dir, "protein.links.{version}.txt.gz".format(version=version)
@@ -775,8 +776,8 @@ class STRING(PPIDatabase):
         else:
             taxids = set(cls.common_taxids())
 
-        con = sqlite3.connect(orngServerFiles.localpath(cls.DOMAIN,
-                                                        cls.FILENAME))
+        con = sqlite3.connect(
+            serverfiles.localpath(cls.DOMAIN, cls.FILENAME))
 
         with con:
             con.execute("drop table if exists links")
@@ -980,8 +981,8 @@ class STRINGDetailed(STRING):
 
     def __init__(self):
         STRING.__init__(self)
-        db_file = orngServerFiles.localpath(self.DOMAIN, self.FILENAME)
-        db_detailed_file = orngServerFiles.localpath_download(
+        db_file = serverfiles.localpath(self.DOMAIN, self.FILENAME)
+        db_detailed_file = serverfiles.localpath_download(
             self.DOMAIN, self.FILENAME_DETAILED
         )
 
@@ -1018,7 +1019,7 @@ class STRINGDetailed(STRING):
         links_filename = ("protein.links.detailed.{version}.txt.gz"
                           .format(version=version))
 
-        dir = orngServerFiles.localpath(cls.DOMAIN)
+        dir = serverfiles.localpath(cls.DOMAIN)
         local_filename = os.path.join(dir, links_filename)
 
         if not os.path.exists(local_filename):
@@ -1030,7 +1031,7 @@ class STRINGDetailed(STRING):
 
     @classmethod
     def init_db(cls, version, taxids=None):
-        dir = orngServerFiles.localpath(cls.DOMAIN)
+        dir = serverfiles.localpath(cls.DOMAIN)
 
         links_filename = ("protein.links.detailed.{version}.txt.gz"
                           .format(version=version))
@@ -1159,7 +1160,7 @@ class MIPS(object):
 
             return interaction
 
-        document = minidom.parse(orngServerFiles.localpath_download("PPI", "allppis.xml"))
+        document = minidom.parse(serverfiles.localpath_download("PPI", "allppis.xml"))
         interactions = document.getElementsByTagName("interaction")
         self.interactions = [process(interaction) for interaction in interactions]
 
@@ -1177,7 +1178,7 @@ class MIPS(object):
     @classmethod
     def download(cls):
         src = urllib2.urlopen("http://mips.helmholtz-muenchen.de/proj/ppi/data/mppi.gz")
-        dest = orngServerFiles.localpath("PPI", "mppi.gz")
+        dest = serverfiles.localpath("PPI", "mppi.gz")
         shutil.copyfileobj(src, open(dest, "wb"))
 
     @classmethod
@@ -1243,7 +1244,7 @@ class _BioGRID_Old(object):
         self.load()
 
     def load(self):
-        text = open(orngServerFiles.localpath_download("PPI", "BIOGRID-ALL.tab"), "rb").read()
+        text = open(serverfiles.localpath_download("PPI", "BIOGRID-ALL.tab"), "rb").read()
         text = text.split("SOURCE\tPUBMED_ID\tORGANISM_A_ID\tORGANISM_B_ID\n", 1)[-1]
         self.interactions = [BioGRIDInteraction(line) for line in text.splitlines() if line.strip()]
 
