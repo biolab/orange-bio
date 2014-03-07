@@ -6,68 +6,65 @@ import cPickle, os, shutil, sys, StringIO, tarfile, urllib2
 
 from Orange.orng import orngEnviron, orngServerFiles
 
+_COMMON_NAMES = (
+    ("3702",   "Arabidopsis thaliana"),
+    ("9913",   "Bos taurus"),
+    ("6239",   "Caenorhabditis elegans"),
+    ("3055",   "Chlamydomonas reinhardtii"),
+    ("7955",   "Danio rerio"),
+    ("352472", "Dictyostelium discoideum AX4"),
+    ("7227",   "Drosophila melanogaster"),
+    ("562",    "Escherichia coli"),
+    ("11103",  "Hepatitis C virus"),
+    ("9606",   "Homo sapiens"),
+    ("10090",  "Mus musculus"),
+    ("2104",   "Mycoplasma pneumoniae"),
+    ("4530",   "Oryza sativa"),
+    ("5833",   "Plasmodium falciparum"),
+    ("4754",   "Pneumocystis carinii"),
+    ("10116",  "Rattus norvegicus"),
+    ("4932",   "Saccharomyces cerevisiae"),
+    ("4896",   "Schizosaccharomyces pombe"),
+    ("31033",  "Takifugu rubripes"),
+    ("8355",   "Xenopus laevis"),
+    ("4577",   "Zea mays")
+)
+
+_COMMON_NAMES_MAPPING = dict(_COMMON_NAMES)
+
+
 # list of common organisms from http://www.ncbi.nlm.nih.gov/Taxonomy
 def common_taxids():
     """Return taxonomy IDs for common organisms."""
-    return ["3702",  # Arabidopsis thaliana
-            "9913",  # Bos taurus
-            "6239",  # Caenorhabditis elegans
-            "3055",  # Chlamydomonas reinhardtii
-            "7955",  # Danio rerio (zebrafish)
-            "352472", # Dictyostelium discoideum
-            "7227",  # Drosophila melanogaster
-            "562",   # Escherichia coli
-            "11103", # Hepatitis C virus
-            "9606",  # Homo sapiens
-            "10090", # Mus musculus
-            "2104",  # Mycoplasma pneumoniae
-            "4530",  # Oryza sativa
-            "5833",  # Plasmodium falciparum
-            "4754",  # Pneumocystis carinii
-            "10116", # Rattus norvegicus
-            "4932",  # Saccharomyces cerevisiae
-            "4896",  # Schizosaccharomyces pombe
-            "31033", # Takifugu rubripes
-            "8355",  # Xenopus laevis
-            "4577",  # Zea mays
-             ] 
+    # Sorted lexicographically by names
+    return [taxid for taxid, _ in _COMMON_NAMES]
+
+
+def common_taxid_to_name(taxid):
+    """Return a name for a common organism taxonomy id."""
+    return _COMMON_NAMES_MAPPING[taxid]
+
 
 def taxname_to_taxid(name):
     """Return taxonomy ID for a taxonomy name"""
-    ids = {
-    "Arabidopsis thaliana": "3702",
-    "Bos taurus": "9913",
-    "Caenorhabditis elegans": "6239",  
-    "Chlamydomonas reinhardtii": "3055",
-    "Danio rerio": "7955",
-    "Dictyostelium discoideum": "352472", 
-    "Drosophila melanogaster": "7227",
-    "Escherichia coli": "562",
-    "Hepatitis C virus": "11103",
-    "Homo sapiens": "9606",
-    "Mus musculus": "10090", 
-    "Mycoplasma pneumoniae": "2104",
-    "Oryza sativa": "4530",  
-    "Plasmodium falciparum": "5833", 
-    "Pneumocystis carinii": "4754",
-    "Rattus norvegicus": "10116", 
-    "Saccharomyces cerevisiae": "4932",  
-    "Schizosaccharomyces pombe": "4896",  
-    "Takifugu rubripes": "31033",
-    "Xenopus laevis": "8355",
-    "Zea mays": "4577" }
-    if name in ids.keys():
-        return ids[name]
-    return []
+    name_to_taxid = dict(map(reversed, _COMMON_NAMES))
+
+    if name in name_to_taxid:
+        return name_to_taxid[name]
+    return None
+
 
 def essential_taxids():
-    """Return taxonomy IDs for organisms that are included in (default) Orange Bioinformatics installation."""
+    """Return taxonomy IDs for organisms that are included in (default)
+    Orange Bioinformatics installation.
+    """
     return ["352472", # Dictyostelium discoideum
             "7227",  # Drosophila melanogaster
             "9606",  # Homo sapiens
             "10090", # Mus musculus
             "4932",  # Saccharomyces cerevisiae
-            ] 
+            ]
+
 
 def shortname(taxid):
     """ Short names for common_taxids organisms """
@@ -359,7 +356,12 @@ def name(taxid):
     """
     Return the scientific name for organism with taxid.
     """
-    return Taxonomy()[taxid]
+    # Most of the lookups will be for the common names, so in most
+    # situations we can avoid loading the taxonomy.
+    if taxid in _COMMON_NAMES:
+        return _COMMON_NAMES[taxid]
+    else:
+        return Taxonomy()[taxid]
 
 
 @pickled_cache(None, [("Taxonomy", "ncbi_taxonomy.tar.gz")], version=1)
