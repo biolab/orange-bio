@@ -507,24 +507,6 @@ class BioGRID(PPIDatabase):
         """)
 
 
-def chainiter(iterable):
-    for sub_iter in iterable:
-        for obj in sub_iter:
-            yield obj
-
-
-def chunks(iter, chunk_size=1000):
-    chunk = []
-    for obj in iter:
-        chunk.append(obj)
-        if len(chunk) == chunk_size:
-            yield chunk
-            chunk = []
-    if chunk:
-        # The remaining items if any
-        yield chunk
-
-
 STRINGInteraction = namedtuple(
     "STRINGInteraciton",
     ["protein_id1",
@@ -827,26 +809,19 @@ class STRING(PPIDatabase):
 
             reader = csv.reader(links_file, delimiter=" ")
 
-            def read_links(reader, chunk_size=1000000):
-                links = []
-                i = 0
+            def read_links(reader, taxids, progress):
                 split = str.split
-                for p1, p2, score in reader:
+                for i, (p1, p2, score) in enumerate(reader):
                     if split(p1, ".", 1)[0] in taxids and \
                             split(p2, ".", 1)[0] in taxids:
-                        links.append((intern(p1), intern(p2), int(score)))
-                        if len(links) == chunk_size:
-                            yield links
-                            links = []
-                    i += 1
-                    if i % 1000 == 0:
-                        # Update the progress every 1000 lines
-                        progress(100.0 * links_fileobj.tell() / filesize)
-                if links:
-                    yield links
+                        yield intern(p1), intern(p2), int(score)
 
-            for chunk in read_links(reader):
-                con.executemany("insert into links values (?, ?, ?)", chunk)
+                    if i % 1000000 == 0:
+                        # Update the progress every 1000000 lines
+                        progress(100.0 * links_fileobj.tell() / filesize)
+
+            con.executemany("insert into links values (?, ?, ?)",
+                            read_links(reader, taxids, progress))
 
             progress.finish()
 
@@ -877,19 +852,15 @@ class STRING(PPIDatabase):
             reader = csv.reader(actions_file, delimiter="\t")
 
             def read_actions(reader):
-                actions = []
-                i = 0
                 split = str.split
-                for p1, p2, mode, action, a_is_acting, score in reader:
+                for i, (p1, p2, mode, action, a_is_acting, score) in \
+                        enumerate(reader):
                     if split(p1, ".", 1)[0] in taxids and \
                             split(p2, ".", 1)[0] in taxids:
-                        actions.append((intern(p1), intern(p2), mode, action,
-                                        int(score)))
-                    i += 1
-                    if i % 1000 == 0:
+                        yield intern(p1), intern(p2), mode, action, int(score)
+
+                    if i % 10000 == 0:
                         progress(100.0 * actions_fileobj.tell() / filesize)
-                actions.sort()
-                return actions
 
             con.executemany("insert into actions values (?, ?, ?, ?, ?)",
                             read_actions(reader))
@@ -903,16 +874,13 @@ class STRING(PPIDatabase):
 
             reader = csv.reader(aliases_file, delimiter="\t")
 
-            def read_aliases(reader):
-                i = 0
-                for taxid, name, alias, source in reader:
+            def read_aliases(reader, taxids, progress):
+                for i, (taxid, name, alias, source) in enumerate(reader):
                     if taxid in taxids:
                         yield (".".join([taxid, name]),
                                alias.decode("utf-8", errors="ignore"),
-                               source.decode("utf-8", errors="ignore"),
-                               )
-                    i += 1
-                    if i % 1000 == 0:
+                               source.decode("utf-8", errors="ignore"))
+                    if i % 10000 == 0:
                         progress(100.0 * aliases_fileobj.tell() / filesize)
 
             con.executemany("insert into aliases values (?, ?, ?)",
@@ -958,8 +926,6 @@ class STRING(PPIDatabase):
                 INSERT INTO version
                 VALUES (?, ?)""", (version, cls.VERSION))
 
-        progress.finish()
-
 
 STRINGDetailedInteraction = namedtuple(
     "STRINGDetailedInteraction",
@@ -984,8 +950,11 @@ class STRINGDetailed(STRING):
     Access `STRING <http://www.string-db.org/>`_ PPI database.
     This class also allows access to subscores per channel.
 
-    .. note:: This data is released under a
-        `Creative Commons Attribution-Noncommercial-Share Alike 3.0 License <http://creativecommons.org/licenses/by-nc-sa/3.0/>`_.
+    .. note::
+        This data is released under a `Creative Commons
+        Attribution-Noncommercial-Share Alike 3.0 License
+        <http://creativecommons.org/licenses/by-nc-sa/3.0/>`_.
+
         If you want to use this data for commercial purposes you must
         get a license from STRING.
 
@@ -1046,7 +1015,8 @@ class STRINGDetailed(STRING):
     @classmethod
     def download_data(cls, version, taxids=None):
         baseurl = "http://www.string-db.org/newstring_download/"
-        links_filename = "protein.links.detailed.{version}.txt.gz".format(version=version)
+        links_filename = ("protein.links.detailed.{version}.txt.gz"
+                          .format(version=version))
 
         dir = orngServerFiles.localpath(cls.DOMAIN)
         local_filename = os.path.join(dir, links_filename)
@@ -1101,26 +1071,21 @@ class STRINGDetailed(STRING):
             progress = ConsoleProgressBar("Processing links file:")
             progress(1.0)
 
-            def read_links(reader, chunk_size=100000):
+            def read_links(reader):
                 split = str.split
-                for links in chunks(reader, chunk_size):
-                    chunk = []
-                    for p1, p2, n, f, c, cx, ex, db, t, _ in links:
-                        if split(p1, ".", 1)[0] in taxids and \
-                                split(p2, ".", 1)[0] in taxids:
-                            chunk.append((intern(p1), intern(p2), n, f,
-                                          c, cx, ex, db, t))
+                for i, (p1, p2, n, f, c, cx, ex, db, t, _) in \
+                        enumerate(reader):
+                    if split(p1, ".", 1)[0] in taxids and \
+                            split(p2, ".", 1)[0] in taxids:
+                        yield intern(p1), intern(p2), n, f, c, cx, ex, db, t
 
-                    progress(100.0 * links_fileobj.tell() / filesize)
-                    if chunk:
-                        yield chunk
+                    if i % 10000 == 0:
+                        progress(100.0 * links_fileobj.tell() / filesize)
 
-            # The links are read in chunks for better performace
-            for chunk in read_links(links):
-                con.executemany("""
-                    INSERT INTO evidence
-                    VALUES  (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, chunk)
+            con.executemany("""
+                INSERT INTO evidence
+                VALUES  (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, read_links(links))
 
             progress.finish()
 
