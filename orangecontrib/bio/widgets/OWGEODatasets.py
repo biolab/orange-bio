@@ -16,7 +16,7 @@ from collections import defaultdict
 from functools import partial
 
 from Orange.utils import lru_cache
-from Orange.orng import orngServerFiles
+from Orange.utils import serverfiles
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI, OWGUIEx
 from Orange.OrangeWidgets.OWWidget import *
@@ -25,7 +25,7 @@ from Orange.OrangeWidgets.OWConcurrent import (
     ThreadExecutor, Task, methodinvoke
 )
 
-from .. import obiGEO
+from .. import geo
 
 NAME = "GEO Data Sets"
 DESCRIPTION = "Access to Gene Expression Omnibus data sets."
@@ -345,7 +345,7 @@ class OWGEODatasets(OWWidget):
         gds_info = self.gds_info
         text = ("%i datasets\n%i datasets cached\n" %
                 (len(gds_info),
-                 len(glob.glob(orngServerFiles.localpath("GEO") + "/GDS*"))))
+                 len(glob.glob(serverfiles.localpath("GEO") + "/GDS*"))))
         filtered = self.treeWidget.model().rowCount()
         if len(self.gds) != filtered:
             text += ("%i after filtering") % filtered
@@ -469,7 +469,7 @@ class OWGEODatasets(OWWidget):
             self.setBlocking(True)
 
             def get_data(gds_id, report_genes, transpose, sample_type):
-                gds = obiGEO.GDS(gds_id)
+                gds = geo.GDS(gds_id)
                 data = gds.getdata(
                     report_genes=report_genes, transpose=transpose,
                     sample_type=sample_type
@@ -578,7 +578,7 @@ def get_gds_model(progress=lambda val: None):
 
     :param progress: A progress callback.
     :rval tuple:
-        A tuple of (QStandardItemModel, obiGEO.GDSInfo, [obiGEO.GDS])
+        A tuple of (QStandardItemModel, geo.GDSInfo, [geo.GDS])
 
     .. note::
         The returned QStandardItemModel's thread affinity is set to
@@ -586,9 +586,9 @@ def get_gds_model(progress=lambda val: None):
 
     """
     progress(1)
-    info = obiGEO.GDSInfo()
+    info = geo.GDSInfo()
     search_keys = ["dataset_id", "title", "platform_organism", "description"]
-    cache_dir = orngServerFiles.localpath(obiGEO.DOMAIN)
+    cache_dir = serverfiles.localpath(geo.DOMAIN)
     gds_link = "http://www.ncbi.nlm.nih.gov/sites/GDSbrowser?acc={0}"
     pm_link = "http://www.ncbi.nlm.nih.gov/pubmed/{0}"
     gds_list = []
