@@ -28,4 +28,4 @@ class EnsureDownloaded(Task):
 
 
 def ensure_downloaded(domain, filename, advance=None):
-    serverfiles.localpath_download(domain, filename, callback=None)
+    serverfiles.localpath_download(domain, filename, callback=advance)

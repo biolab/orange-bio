@@ -30,6 +30,7 @@ from Orange.OrangeWidgets.OWConcurrent import \
 
 
 from .. import obiGene, obiTaxonomy
+from .utils import download
 
 
 NAME = "Gene Info"
@@ -123,8 +124,15 @@ def get_ncbi_info(taxid):
     return obiGene.NCBIGeneInfo(taxid)
 
 
-def ncbi_info(taxid, genes):
+def ncbi_info(taxid, genes, advance=None):
+    taxid = obiGene.NCBIGeneInfo.TAX_MAP.get(taxid, taxid)
+    download.ensure_downloaded(
+        "NCBI_geneinfo",
+        "gene_info.%s.db" % taxid,
+        advance
+    )
     info = get_ncbi_info(taxid)
+
     schema_link = LinkFmt(
         "http://www.ncbi.nlm.nih.gov/sites/entrez?Db=gene&Cmd=ShowDetailView&TermToSearch={gene_id}",
         name="NCBI ID")
@@ -148,12 +156,19 @@ def ncbi_info(taxid, genes):
     return schema, ret
 
 
-def dicty_info(taxid, genes):
+def dicty_info(taxid, genes, advance=None):
     from .. import obiDicty
+    download.ensure_downloaded(
+        obiDicty.DictyBase.domain,
+        obiDicty.DictyBase.filename,
+        advance
+    )
     info = obiDicty.DictyBase()
     name_matcher = obiGene.GMDicty()
     name_matcher.set_targets(info.info.keys())
-    schema_link = LinkFmt("http://dictybase.org/db/cgi-bin/gene_page.pl?dictybaseid={gene_id}", name="Dicty Base Id")
+    schema_link = LinkFmt(
+        "http://dictybase.org/db/cgi-bin/gene_page.pl?dictybaseid={gene_id}",
+        name="Dicty Base Id")
     schema = [schema_link, "Name", "Synonyms", "Gene Products"]
 
     ret = []
@@ -443,7 +458,11 @@ class OWGeneInfo(OWWidget):
 
         self.genes = genes
 
-        task = Task(function=partial(info_getter, org, genes))
+        task = Task(
+            function=partial(
+                info_getter, org, genes,
+                advance=methodinvoke(self, "advance", ()))
+        )
         self.itemsfuture = self.executor.submit(task)
         task.finished.connect(self._onItemsCompleted)
 
