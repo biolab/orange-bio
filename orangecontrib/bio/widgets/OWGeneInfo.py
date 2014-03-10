@@ -537,22 +537,26 @@ class OWGeneInfo(OWWidget):
         elif self.attributes:
             attr = self.attributes[self.geneAttr]
             examples = [ex for ex in self.data if str(ex[attr]) in selectedIds]
-            if True:  # Add gene info
-                domain = Orange.data.Domain(self.data.domain,
-                                       self.data.domain.classVar)
-                domain.addmetas(self.data.domain.getmetas())
-                n_columns = model.columnCount()
+            # Add gene info
+            domain = Orange.data.Domain(
+                self.data.domain, self.data.domain.classVar)
+            domain.addmetas(self.data.domain.getmetas())
+            n_columns = model.columnCount()
 
-                headers = [str(model.headerData(i, Qt.Horizontal, Qt.DisplayRole).toString())
-                           for i in range(n_columns)]
-                new_meta_attrs = [(Orange.feature.Descriptor.new_meta_id(), Orange.feature.String(name))
-                                  for name in headers]
-                domain.addmetas(dict(new_meta_attrs))
-                examples = [Orange.data.Instance(domain, ex) for ex in examples]
-                for ex in examples:
-                    for i, (_, meta) in enumerate(new_meta_attrs):
-                        row = gene2row[str(ex[attr])]
-                        ex[meta] = str(model.data(model.index(row, i), Qt.DisplayRole).toString())
+            headers = [str(model.headerData(i, Qt.Horizontal, Qt.DisplayRole)
+                           .toString())
+                       for i in range(n_columns)]
+            new_meta_attrs = [(Orange.feature.Descriptor.new_meta_id(),
+                               Orange.feature.String(name))
+                              for name in headers]
+            domain.addmetas(dict(new_meta_attrs))
+            examples = [Orange.data.Instance(domain, ex) for ex in examples]
+            for ex in examples:
+                for i, (_, meta) in enumerate(new_meta_attrs):
+                    index = model.index(gene2row[str(ex[attr])], i)
+                    ex[meta] = str(
+                        model.data(index, Qt.DisplayRole).toString()
+                    )
 
             if examples:
                 newdata = Orange.data.Table(examples)
