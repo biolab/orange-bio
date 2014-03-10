@@ -28,7 +28,6 @@ from Orange.OrangeWidgets.OWWidget import *
 from Orange.OrangeWidgets.OWConcurrent import \
     ThreadExecutor, Task, methodinvoke
 
-import orange
 
 from .. import obiGene, obiTaxonomy
 
@@ -194,8 +193,8 @@ class OWGeneInfo(OWWidget):
     def __init__(self, parent=None, signalManager=None, name="Gene Info"):
         OWWidget.__init__(self, parent, signalManager, name)
 
-        self.inputs = [("Examples", ExampleTable, self.setData)]
-        self.outputs = [("Selected Examples", ExampleTable)]
+        self.inputs = [("Examples", Orange.data.Table, self.setData)]
+        self.outputs = [("Selected Examples", Orange.data.Table)]
 
         self.organismIndex = 0
         self.taxid = None
@@ -365,10 +364,12 @@ class OWGeneInfo(OWWidget):
 
         if data:
             self.geneAttrComboBox.clear()
-            self.attributes = [attr for attr in data.domain.variables +
-                               data.domain.getmetas().values()
-                               if attr.varType in [orange.VarTypes.String,
-                                                   orange.VarTypes.Discrete]]
+            self.attributes = \
+                [attr for attr in (data.domain.variables +
+                                   data.domain.getmetas().values())
+                 if isinstance(attr, (Orange.feature.String,
+                                      Orange.feature.Discrete))]
+
             self.geneAttrComboBox.addItems(
                 [attr.name for attr in self.attributes]
             )
@@ -529,32 +530,32 @@ class OWGeneInfo(OWWidget):
                 return attr.name in selectedIds
             attrs = [attr for attr in self.data.domain.attributes
                      if is_selected(attr)]
-            domain = orange.Domain(attrs, self.data.domain.classVar)
+            domain = Orange.data.Domain(attrs, self.data.domain.classVar)
             domain.addmetas(self.data.domain.getmetas())
-            newdata = orange.ExampleTable(domain, self.data)
+            newdata = Orange.data.Table(domain, self.data)
             self.send("Selected Examples", newdata)
         elif self.attributes:
             attr = self.attributes[self.geneAttr]
             examples = [ex for ex in self.data if str(ex[attr]) in selectedIds]
             if True:  # Add gene info
-                domain = orange.Domain(self.data.domain,
+                domain = Orange.data.Domain(self.data.domain,
                                        self.data.domain.classVar)
                 domain.addmetas(self.data.domain.getmetas())
                 n_columns = model.columnCount()
 
                 headers = [str(model.headerData(i, Qt.Horizontal, Qt.DisplayRole).toString())
                            for i in range(n_columns)]
-                new_meta_attrs = [(orange.newmetaid(), orange.StringVariable(name))
+                new_meta_attrs = [(Orange.feature.Descriptor.new_meta_id(), Orange.feature.String(name))
                                   for name in headers]
                 domain.addmetas(dict(new_meta_attrs))
-                examples = [orange.Example(domain, ex) for ex in examples]
+                examples = [Orange.data.Instance(domain, ex) for ex in examples]
                 for ex in examples:
                     for i, (_, meta) in enumerate(new_meta_attrs):
                         row = gene2row[str(ex[attr])]
                         ex[meta] = str(model.data(model.index(row, i), Qt.DisplayRole).toString())
 
             if examples:
-                newdata = orange.ExampleTable(examples)
+                newdata = Orange.data.Table(examples)
             else:
                 newdata = None
             self.send("Selected Examples", newdata)
@@ -719,7 +720,7 @@ def reportItemModel(view, model, index=QModelIndex()):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    data = orange.ExampleTable("brown-selected.tab")
+    data = Orange.data.Table("brown-selected.tab")
     w = OWGeneInfo()
     w.show()
 
