@@ -29,7 +29,7 @@ from Orange.OrangeWidgets.OWConcurrent import \
     ThreadExecutor, Task, methodinvoke
 
 
-from .. import obiGene, obiTaxonomy
+from .. import gene, taxonomy
 from .utils import download
 
 
@@ -121,11 +121,11 @@ class Link(object):
 
 @lru_cache(maxsize=2)
 def get_ncbi_info(taxid):
-    return obiGene.NCBIGeneInfo(taxid)
+    return gene.NCBIGeneInfo(taxid)
 
 
 def ncbi_info(taxid, genes, advance=None):
-    taxid = obiGene.NCBIGeneInfo.TAX_MAP.get(taxid, taxid)
+    taxid = gene.NCBIGeneInfo.TAX_MAP.get(taxid, taxid)
     download.ensure_downloaded(
         "NCBI_geneinfo",
         "gene_info.%s.db" % taxid,
@@ -157,14 +157,14 @@ def ncbi_info(taxid, genes, advance=None):
 
 
 def dicty_info(taxid, genes, advance=None):
-    from .. import obiDicty
+    from .. import dicty
     download.ensure_downloaded(
-        obiDicty.DictyBase.domain,
-        obiDicty.DictyBase.filename,
+        dicty.DictyBase.domain,
+        dicty.DictyBase.filename,
         advance
     )
-    info = obiDicty.DictyBase()
-    name_matcher = obiGene.GMDicty()
+    info = dicty.DictyBase()
+    name_matcher = gene.GMDicty()
     name_matcher.set_targets(info.info.keys())
     schema_link = LinkFmt(
         "http://dictybase.org/db/cgi-bin/gene_page.pl?dictybaseid={gene_id}",
@@ -315,7 +315,7 @@ class OWGeneInfo(OWWidget):
 
         task = Task(
             function=partial(
-                obiTaxonomy.ensure_downloaded,
+                taxonomy.ensure_downloaded,
                 callback=methodinvoke(self, "advance", ())
             )
         )
@@ -342,11 +342,11 @@ class OWGeneInfo(OWWidget):
         self.organisms = sorted(
             set([name.split(".")[-2] for name in
                  serverfiles.listfiles("NCBI_geneinfo")] +
-                obiGene.NCBIGeneInfo.essential_taxids())
+                gene.NCBIGeneInfo.essential_taxids())
         )
 
         self.organismComboBox.addItems(
-            [obiTaxonomy.name(tax_id) for tax_id in self.organisms]
+            [taxonomy.name(tax_id) for tax_id in self.organisms]
         )
         if self.taxid in self.organisms:
             self.organismIndex = self.organisms.index(self.taxid)
@@ -625,7 +625,7 @@ class OWGeneInfo(OWWidget):
         if self.organisms:
             org = self.organisms[min(self.organismIndex,
                                      len(self.organisms) - 1)]
-            org_name = obiTaxonomy.name(org)
+            org_name = taxonomy.name(org)
         else:
             org = None
             org_name = None
