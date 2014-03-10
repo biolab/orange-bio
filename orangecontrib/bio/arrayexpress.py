@@ -1,16 +1,17 @@
 """
-===============
-obiArrayExpress
-===============
+===================================
+Array Express (:mod:`arrayexpress`)
+===================================
 
-A python module for accessing the ArrayExpress web services and database.
+Access the `ArrayExpress`_ web services and database.
 
-`Array Express Archive <http://www.ebi.ac.uk/arrayexpress/>`_ is a
-database of gene expression experiments that you can query and download.
+`ArrayExpress`_ is a database of gene expression experiments
+that you can query and download.
 
-Example ::
 
-    >>> # Retrieve the object representing experiment with accession E-TABM-25
+Retrieve the object representing experiment with accession E-TABM-25
+
+    >>> from Orange.bio import arrayexpress
     >>> experiment = ArrayExpressExperiment("E-TABM-25")
     >>> print experiment.accession
     E-TABM-25
@@ -31,20 +32,23 @@ Example ::
 
 Low level Array Express query using REST services::
 
-    >>> from Orange.bio import obiArrayExpress
-    >>> obiArrayExpress.query_experiments(accession='E-MEXP-31')
+    >>> from Orange.bio import arrayexpress
+    >>> arrayexpress.query_experiments(accession='E-MEXP-31')
     {u'experiments': ...
 
-    >>> obiArrayExpress.query_experiments(keywords='gliobastoma')
+    >>> arrayexpress.query_experiments(keywords='gliobastoma')
     {u'experiments': ...
 
-    >>> obiArrayExpress.query_files(accession='E-MEXP-32', format="xml")
+    >>> arrayexpress.query_files(accession='E-MEXP-32', format="xml")
     <xml.etree.ElementTree.ElementTree object ...
 
 .. note:: Currently querying ArrayExpress files only works with the xml format.
 
 .. note:: See the documentation of `query_experiments` for a full set of
           parameters that these functions accept.
+
+
+.. _`ArrayExpress`: http://www.ebi.ac.uk/arrayexpress/
 
 """
 
@@ -120,7 +124,6 @@ def _open_shelve(filename, flag="r"):
 
 
 class ArrayExpressConnection(object):
-
     """
     A connection to the Array Express.
 
@@ -425,7 +428,8 @@ def query_files(keywords=None, accession=None, array=None, ef=None,
 
     Example ::
 
-        >>> query_files(species="Mus musculus", ef="developmental_stage", efv="embryo", format="xml")
+        >>> query_files(species="Mus musculus", ef="developmental_stage",
+        ...             efv="embryo", format="xml")
         <xml.etree.ElementTree.ElementTree object ...
 
     .. todo:: why does the json interface not work.
@@ -498,15 +502,18 @@ def parse_sdrf(file):
 
 
 def parse_adf(file):
-    pass
+    raise NotImplementedError
 
 
 def parse_data_matrix(file):
     """Parse the MAGE-TAB processed data matrix. Return a tuple where the
     elements are:
-        - a (header REF, header values) tuple (e.g. ("Hybridization REF", ["Stage1", "Stage2", ...]) )
-        - a list of quantitation type for header values (e.g. ["log2 ratio", "log2 ratio", ...])
-        - a (row REF, row names list) tuple ("e.g. ("Reporter REF", ["Probe 1", "Probe 2", ...]) )
+        - a (header REF, header values) tuple (e.g.
+          ("Hybridization REF", ["Stage1", "Stage2", ...]) )
+        - a list of quantitation type for header values (e.g.
+          ["log2 ratio", "log2 ratio", ...])
+        - a (row REF, row names list) tuple ("e.g.
+          ("Reporter REF", ["Probe 1", "Probe 2", ...]) )
         - a list of list matrix with values (as strings)
 
     """
@@ -590,50 +597,59 @@ class SampleDataRelationship(object):
     """
 
     # Nodes an edges
-    NODES_EDGES = ["Source Name", "Sample Name", "Extract Name",
-                   "Labeled Extract Name", "Hybridization Name",
-                   "Assay Name", "Scan Name", "Normalization Name",
-                   "Array Data File", "Derived Array Data File",
-                   "Array Data Matrix File", "Derived Array Data Matrix File",
-                   "Image File", "Protocol REF"]
+    NODES_EDGES = [
+        "Source Name", "Sample Name", "Extract Name",
+        "Labeled Extract Name", "Hybridization Name",
+        "Assay Name", "Scan Name", "Normalization Name",
+        "Array Data File", "Derived Array Data File",
+        "Array Data Matrix File", "Derived Array Data Matrix File",
+        "Image File", "Protocol REF"]
 
     # Attributes for nodes and edges
-    NODE_EDGE_ATTRIBUTES = \
-        {"Source Name": ["Characteristics", "Provider", "Material Type", "Description", "Comment"],
-         "Sample Name": ["Characteristics", "Material Type", "Description", "Comment"],
-         "Extract Name": ["Characteristics", "Material Type", "Description", "Comment"],
-         "Labeled Extract Name": ["Characteristics", "Material Type", "Description", "Label", "Comment"],
-         "Hybridization Name": ["Array Design File", "Array Design REF", "Comment"],
-         "Assay Name": ["Technology Type", "Comment"],
-         "Scan Name": ["Comment"],
-         "Normalization Name": ["Comment"],
-         "Array Data File": ["Comment"],
-         "Derived Array Data File": ["Comment"],
-         "Array Data Matrix File": ["Comment"],
-         "Derived Array Data Matrix File": ["Comment"],
-         "Image File": ["Comment"],
-         "Protocol REF": ["Term Source REF", "Parameter", "Performer", "Date", "Comment"]
-         }
+    NODE_EDGE_ATTRIBUTES = {
+        "Source Name": [
+            "Characteristics", "Provider", "Material Type",
+            "Description", "Comment"],
+        "Sample Name": [
+            "Characteristics", "Material Type", "Description", "Comment"],
+        "Extract Name": [
+            "Characteristics", "Material Type", "Description", "Comment"],
+        "Labeled Extract Name": [
+            "Characteristics", "Material Type", "Description",
+            "Label", "Comment"],
+        "Hybridization Name": [
+            "Array Design File", "Array Design REF", "Comment"],
+        "Assay Name": ["Technology Type", "Comment"],
+        "Scan Name": ["Comment"],
+        "Normalization Name": ["Comment"],
+        "Array Data File": ["Comment"],
+        "Derived Array Data File": ["Comment"],
+        "Array Data Matrix File": ["Comment"],
+        "Derived Array Data Matrix File": ["Comment"],
+        "Image File": ["Comment"],
+        "Protocol REF": [
+            "Term Source REF", "Parameter", "Performer", "Date", "Comment"]
+    }
 
     # Attributes
-    ATTRIBUTE_COLUMNS = \
-        {"Characteristics []": ["Unit", "Term Source REF"],
-         "Provider": ["Comment"],
-         "Material Type": ["Term Source REF"],
-         "Label": ["Term Source REF"],
-         "Array Design File": ["Comment"],
-         "Array Design REF": ["Term Source REF", "Comment"],
-         "Technology Type": ["Term Source REF"],
-         "Factor Value [] ()": ["Unit", "Term Source REF"],
-         "Performer": ["Comment"],
-         "Date": [],
-         "Parameter Value []": ["Unit", "Comment"],
-         "Unit []": ["Term Source REF"],
-         "Description": [],
-         "Term Source REF": ["Term Accession Number"],
-         "Term Accession Number": [],
-         "Comment []": []
-         }
+    ATTRIBUTE_COLUMNS = {
+        "Characteristics []": ["Unit", "Term Source REF"],
+        "Provider": ["Comment"],
+        "Material Type": ["Term Source REF"],
+        "Label": ["Term Source REF"],
+        "Array Design File": ["Comment"],
+        "Array Design REF": ["Term Source REF", "Comment"],
+        "Technology Type": ["Term Source REF"],
+        "Factor Value [] ()": ["Unit", "Term Source REF"],
+        "Performer": ["Comment"],
+        "Date": [],
+        "Parameter Value []": ["Unit", "Comment"],
+        "Unit []": ["Term Source REF"],
+        "Description": [],
+        "Term Source REF": ["Term Accession Number"],
+        "Term Accession Number": [],
+        "Comment []": []
+    }
 
     def __init__(self, sdrf_file=None):
         header, rows = parse_sdrf(sdrf_file)
@@ -838,7 +854,7 @@ def _is_continuous(items, check_count=100):
 
 def processed_matrix_to_orange(matrix_file, sdrf=None):
     """ Load a single processed matrix file in to an Orange.data.Table
-    instance. 
+    instance.
     """
     import numpy
     import Orange
@@ -858,10 +874,13 @@ def processed_matrix_to_orange(matrix_file, sdrf=None):
     for header_name, quant, column in zip(header, quant_type, matrix.T):
         if _is_continuous(column):
             feature = Orange.feature.Continuous(header_name)
-            column[numpy.where(1 - is_float(column))] = "?"  # relace all non parsable floats with '?'
+            # relace all non parsable floats with '?'
+            column[numpy.where(1 - is_float(column))] = "?"
         else:
             values = set(column)
-            feature = Orange.feature.Discrete(header_name, values=sorted(values))
+            feature = Orange.feature.Discrete(
+                header_name, values=sorted(values)
+            )
         feature.attributes["quantitation type"] = quant
         features.append(feature)
 
@@ -876,7 +895,10 @@ def processed_matrix_to_orange(matrix_file, sdrf=None):
         instance[row_ref_feature] = row
 
     if sdrf is not None:
-        pattern = re.compile(r"((Characteristics)|(Factor Value)|(Parameter Value)) \[(?P<name>.*?)\].*")
+        pattern = re.compile(
+            r"((Characteristics)|(Factor Value)|(Parameter Value)) " +
+            r"\[(?P<name>.*?)\].*"
+        )
         # Row name in sdrf
         row_name = header_ref[:header_ref.find(" REF")] + " Name"
         # feature names as listed in sdrf
@@ -977,22 +999,36 @@ def _dictify(element):
 
 class ArrayExpressExperiment(object):
 
-    """An convinience class representing an Array Express Experiment.
+    """
+    An convinience class representing an Array Express Experiment.
 
     >>> ae = ArrayExpressExperiment("E-MEXP-2917")
     >>> print ae.name
     Characterization of Data Variation in Gene Expression Profiling of ...
-
     >>> for file in ae.files:
     ...     print file["name"], file["url"]
     E-MEXP-2917...
-
     >>> table = ae.fgem_to_table() # Retieve the experiment data table
+
+    :param str accession:
+        The experiment accession id.
 
     """
 
     def __init__(self, accession, connection=None):
+        #: Experiment accession id
         self.accession = accession
+        #: A list of all species subjugated to torture in this experiment
+        self.species = []
+        #: True if Array Express provides raw data files.
+        self.rawdatafiles = False
+        #: True if Array Express provides processed data files.
+        self.fgemdatafiles = False
+        #: A list of all sample attributes.
+        self.sampleattributes = []
+        #: A list of experimental factors
+        self.experimentalfactors = []
+
         self.connection = connection
         self._etree = tree = query_experiments(
             accession=accession, connection=self.connection, format="xml")
@@ -1003,18 +1039,19 @@ class ArrayExpressExperiment(object):
                        if e.find("accession").text.strip() == accession]
         self._experiment = experiment = experiments[0]
 
+        #: A list of all species subjugated to torture in this experiment
         self.species = [e.text for e in experiment.findall("species")]
         bool_values = {"true": True, "false": False}
-        self.rawdatafiles = bool_values[experiment.find("rawdatafiles").get("available", "false")]
-        self.fgemdatafiles = bool_values[experiment.find("processeddatafiles").get("available", "false")]
+        self.rawdatafiles = bool_values[experiment.find("rawdatafiles")
+                                        .get("available", "false")]
+        self.fgemdatafiles = bool_values[experiment.find("processeddatafiles")
+                                         .get("available", "false")]
 
-        self.sampleattributes = []
         for sa in experiment.findall("sampleattribute"):
             category = sa.find("category").text.strip()
             values = [val.text for val in sa.findall("value")]
             self.sampleattributes.append((category, values))
 
-        self.experimentalfactors = []
         for ef in experiment.findall("experimentalfactor"):
             name = ef.find("name").text.strip()
             values = [val.text.strip() for val in ef.findall("values")]
@@ -1023,75 +1060,47 @@ class ArrayExpressExperiment(object):
         self.miamescores = _dictify(experiment.find("miamescores"))
 
         self.id = experiment.find("id").text
-        self.secondaryaccession = getattr(experiment.find("secondaryaccession"), "text", None)
+        self.secondaryaccession = getattr(
+            experiment.find("secondaryaccession"), "text", None
+        )
         self.name = experiment.find("name").text
         self.experimenttype = experiment.find("experimenttype").text.strip()
         self.releasedate = experiment.find("releasedate").text
-        self.lastupdatedate = getattr(experiment.find("lastupdatedate"), "text", None)
+        self.lastupdatedate = getattr(
+            experiment.find("lastupdatedate"), "text", None
+        )
         self.samples = int(experiment.find("samples").text)
         self.assays = int(experiment.find("assays").text)
 
-        self.arraydesign = [_dictify(e) for e in experiment.findall("arraydesign")]
+        self.arraydesign = \
+            [_dictify(e) for e in experiment.findall("arraydesign")]
 
-        self.bioassaydatagroups = [_dictify(group) for group in experiment.findall("bioassaydatagroup")]
-        self.bibliography = [_dictify(e) for e in experiment.findall("bibliography")]
+        self.bioassaydatagroups = \
+            [_dictify(group)
+             for group in experiment.findall("bioassaydatagroup")]
+        self.bibliography = \
+            [_dictify(e) for e in experiment.findall("bibliography")]
         self.provider = [_dictify(e) for e in experiment.findall("provider")]
 
         self.experimentdesign = []
         for expd in experiment.findall("experimentdesign"):
             self.experimentdesign.append(expd.text)
 
-        self.description = [_dictify(e) for e in experiment.findall("description")]
+        self.description = \
+            [_dictify(e) for e in experiment.findall("description")]
 
-        tree = query_files(accession=self.accession, format="xml", connection=self.connection)
+        tree = query_files(accession=self.accession,
+                           format="xml",
+                           connection=self.connection)
         experiments = tree.findall("experiment")
-        experiments = [e for e in experiments if e.find("accession").text.strip() == accession]
+        experiments = [e for e in experiments
+                       if e.find("accession").text.strip() == accession]
         experiment = experiments[0]
         files = experiment.findall("file")
+
+        #: A list of file descriptions (dict instances) available provided
+        #: by Array Express
         self.files = [_dictify(file) for file in files]
-
-    def _download_processed(self):
-        """ Download the processed matrix file, and associated MAGE-TAB files (idf, sdrf, adf)
-
-        .. todo:: What about the raw data files (we need converters for other file types)
-
-        """
-        assert(self.fgemdatafiles)
-        exp_files = [(f["kind"], f) for f in self.files if f.get("kind") in ["idf", "sdrf"] and f.get("extension") == "txt"]
-        exp_files += [(f["kind"], f) for f in self.files if f.get("kind") == "fgem"]
-        array_files = [(f["kind"], f) for f in self.files if f.get("kind") == "adf" and f.get("extension") == "txt"]
-        assert(len(files) == 3)
-
-        for type, file in files.iteritems():
-            url = file["url"].strip()
-            rest, basename = os.path.split(url)
-            _, dirname = os.path.split(rest)
-
-            repo_dir = serverfiles.localpath("ArrayExpress", dirname)
-            try:
-                os.makedirs(repo_dir)
-            except OSError:
-                pass
-            local_filename = os.path.join(repo_dir, basename)
-            stream = urllib2.urlopen(url)
-            shutil.copyfileobj(stream, open(local_filename, "wb"))
-
-            if file["extension"] == "zip":
-                import zipfile
-                zfile = zlib.ZipFile(local_filename)
-                zfile.extractall(repo_dir)
-            elif file["extension"] == "gz":
-                import gzip
-                gzfile = gzip.open(local_filename)
-                gzfile.extractall(repo_dir)
-            elif file["extension"] in ["tgz", "tar"]:
-                import tarfile
-                tfile = tarfile.TarFile(local_filename)
-                tfile.extractall(repo_dir)
-            elif file["extension"] == "txt":
-                pass
-            else:
-                raise ValueError("Unknown extension ('{0}').".format(basename))
 
     def _download_file(self, url, extract=True):
         """ Download the `file` from the ArrayExpress saving it to a local
@@ -1138,7 +1147,8 @@ class ArrayExpressExperiment(object):
         """
         rest, basename = posixpath.split(url)
         dirname = posixpath.basename(rest)
-        return serverfiles.localpath("ArrayExpress", os.path.join(dirname, basename))
+        return serverfiles.localpath(
+                    "ArrayExpress", os.path.join(dirname, basename))
 
     def _open(self, url):
         """ Return an open file like handle to url (ArrayExpress file).
@@ -1156,7 +1166,8 @@ class ArrayExpressExperiment(object):
         res = []
         for file in self.files:
             kind_match = kind == file.get("kind") or kind is None
-            extension_match = extension == file.get("extension") or extension is None
+            extension_match = (extension == file.get("extension") or
+                               extension is None)
 
             if kind_match and extension_match:
                 res.append(file)
@@ -1165,7 +1176,7 @@ class ArrayExpressExperiment(object):
     def array_design(self):
         """ Return a list of `ArrayDesign` instances used in this experiment.
         """
-        files = [f for f in self.files if f.get("kind") == "adf" and \
+        files = [f for f in self.files if f.get("kind") == "adf" and
                  f.get("extension") == "txt"]
 
         array_design = []
@@ -1183,7 +1194,8 @@ class ArrayExpressExperiment(object):
                  f.get("extension") == "txt"]
         if not files:
             raise ValueError("The experiment '{0}' does not have an "
-                             "investigation design file".format(self.accession))
+                             "investigation design file"
+                             .format(self.accession))
         file = files[0]
         return InvestigationDesign(self._open(file.get("url")))
 
@@ -1195,7 +1207,8 @@ class ArrayExpressExperiment(object):
                  f.get("extension") == "txt"]
         if not files:
             raise ValueError("The experiment '{0}' does not have an sample "
-                             "and data relationship file".format(self.accession))
+                             "and data relationship file"
+                             .format(self.accession))
         file = files[0]
         return SampleDataRelationship(self._open(file.get("url")))
 
@@ -1214,10 +1227,11 @@ class ArrayExpressExperiment(object):
             if "Derived Array Data Matrix File" not in sdrf.header:
                 twocol = self._search_files("twocolumn", "txt")
                 if twocol:
-                    sdrf = SampleDataRelationship(self._open(twocol[0].get("url")))
+                    sdrf = SampleDataRelationship(
+                        self._open(twocol[0].get("url"))
+                    )
         matrix_file = self._search_files("fgem")[0]
         self._open(matrix_file.get("url"))
-        matrix_files = sorted(set(sdrf.derived_array_data_matrix_file()))
 
         idf_file = self._search_files("idf", "txt")[0]
         self._open(idf_file.get("url"))  # To download if not cached
@@ -1750,4 +1764,3 @@ def test():
 
 if __name__ == "__main__":
     test()
-
