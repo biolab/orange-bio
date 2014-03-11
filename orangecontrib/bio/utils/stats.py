@@ -1,4 +1,6 @@
-import math    
+import math
+import threading
+
 
 def _lngamma(z):
     x = 0
@@ -14,24 +16,28 @@ def _lngamma(z):
     
     return math.log(x) - 5.58106146679532777 - z + (z - 0.5) * math.log(z + 6.5)
         
+
 class LogBin(object):
     _max = 2
     _lookup = [0.0, 0.0]
     _max_factorial = 1
+    _lock = threading.Lock()
+
     def __init__(self, max=1000):
         self._extend(max)
 
     @staticmethod
     def _extend(max):
-        if max <= LogBin._max:
-            return
-        for i in range(LogBin._max, max):
-            if i > 1000: ## an arbitrary cuttof
-                LogBin._lookup.append(LogBin._logfactorial(i))
-            else:
-                LogBin._max_factorial *= i
-                LogBin._lookup.append(math.log(LogBin._max_factorial))
-        LogBin._max = max
+        with LogBin._lock:
+            if max <= LogBin._max:
+                return
+            for i in range(LogBin._max, max):
+                if i > 1000: ## an arbitrary cuttof
+                    LogBin._lookup.append(LogBin._logfactorial(i))
+                else:
+                    LogBin._max_factorial *= i
+                    LogBin._lookup.append(math.log(LogBin._max_factorial))
+            LogBin._max = max
 
     def _logbin(self, n, k):
         if n >= self._max:
