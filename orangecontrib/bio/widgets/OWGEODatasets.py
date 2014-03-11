@@ -83,7 +83,7 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
         del self._cache[string]
         if invalidate:
             self.updateCached()
-            self.invalidateFilter()
+            self.invalidate()
 
     def setFilterFixedStrings(self, strings):
         """Set a list of string to be the new filters.
@@ -98,7 +98,7 @@ class MySortFilterProxyModel(QSortFilterProxyModel):
         for str in to_add:
             self.addFilterFixedString(str, invalidate=False)
         self.updateCached()
-        self.invalidateFilter()
+        self.invalidate()
 
     def _filteredRows(self, filter_strings):
         """Return a dictionary mapping row indexes to True False values.
