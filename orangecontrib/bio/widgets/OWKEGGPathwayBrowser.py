@@ -36,7 +36,6 @@ from Orange.OrangeWidgets.OWConcurrent import \
     ThreadExecutor, Task, methodinvoke
 
 
-from .. import obiTaxonomy
 from .. import obiKEGG
 from .. import obiGeneSets
 
@@ -282,6 +281,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.loadSettings()
 
         self.organismCodes = []
+        self._changedFlag = False
 
         self.controlArea.setMaximumWidth(250)
         box = OWGUI.widgetBox(self.controlArea, "Info")
@@ -292,7 +292,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.organismComboBox = OWGUI.comboBox(
             box, self, "organismIndex",
             items=[],
-            callback=self.OrganismSelectionCallback,
+            callback=self.Update,
             addSpace=True,
             debuggingEnabled=0,
             tooltip="Select the organism of the input genes")
@@ -307,7 +307,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         OWGUI.checkBox(box, self, "useAttrNames",
                        "Use variable names",
                        disables=[(-1, self.geneAttrCombo)],
-                       callback=self.UseAttrNamesCallback)
+                       callback=self.Update)
 
         self.geneAttrCombo.setDisabled(bool(self.useAttrNames))
 
@@ -339,12 +339,18 @@ class OWKEGGPathwayBrowser(OWWidget):
         OWGUI.separator(self.controlArea)
 
         box = OWGUI.widgetBox(self.controlArea, "Selection")
-        OWGUI.checkBox(box, self, "autoCommit", "Commit on update")
-        OWGUI.button(box, self, "Commit", callback=self.Commit, default=True)
+        cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on update")
+        button = OWGUI.button(box, self, "Commit", callback=self.Commit,
+                              default=True)
+        OWGUI.setStopper(self, button, cb, "_changedFlag", self.Commit)
+
         OWGUI.rubber(self.controlArea)
 
         spliter = QSplitter(Qt.Vertical, self.mainArea)
         self.pathwayView = PathwayView(self, spliter)
+        self.pathwayView.scene().selectionChanged.connect(
+            self._onSelectionChanged
+        )
         self.mainArea.layout().addWidget(spliter)
 
         self.listView = QTreeWidget(spliter)
@@ -384,7 +390,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self._executor = ThreadExecutor()
         self.setEnabled(False)
         self.setBlocking(True)
-        QTimer.singleShot(5, self._initialize)
+        QTimer.singleShot(0, self._initialize)
         self.infoLabel.setText("Fetching organism definitions\n")
 
     def _initialize(self):
@@ -459,15 +465,21 @@ class OWKEGGPathwayBrowser(OWWidget):
         """
         Clear the widget state.
         """
+        self.queryGenes = []
+        self.referenceGenes = []
+        self.genes = {}
+        self.uniqueGenesDict = {}
+        self.revUniqueGenesDict = {}
+        self.pathways = {}
+        self.org = None
+        self.geneAttrCandidates[:] = []
+
         self.infoLabel.setText("No data on input\n")
         self.listView.clear()
-        self.ClearPathway()
+        self.pathwayView.SetPathway(None)
 
         self.send("Selected Examples", None)
         self.send("Unselected Examples", None)
-
-    def ClearPathway(self):
-        self.pathwayView.SetPathway(None)
 
     def SetData(self, data=None):
         self.closeContext()
@@ -477,13 +489,25 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.information(0)
 
         if data is not None:
-            self.SetGeneAttrCombo()
+            vars = data.domain.variables + data.domain.getmetas().values()
+            vars = [var for var in vars
+                    if isinstance(var, (Orange.feature.String,
+                                        Orange.feature.Discrete))]
+            self.geneAttrCandidates[:] = vars
+
+            # Try to guess the gene name variable
+            names_lower = [v.name.lower() for v in vars]
+            scores = [(name == "gene", "gene" in name)
+                      for name in names_lower]
+            imax, _ = max(enumerate(scores), key=itemgetter(1))
+            self.geneAttrIndex = imax
+
             taxid = data_hints.get_hint(data, "taxid", None)
             if taxid:
                 try:
                     code = obiKEGG.from_taxid(taxid)
                     self.organismIndex = self.organismCodes.index(code)
-                except Exception, ex:
+                except Exception as ex:
                     print ex, taxid
 
             self.useAttrNames = data_hints.get_hint(data, "genesinrows",
@@ -497,7 +521,6 @@ class OWKEGGPathwayBrowser(OWWidget):
 
     def SetRefData(self, data=None):
         self.refData = data
-
         self.information(1)
 
         self.has_new_reference_set = True
@@ -509,32 +532,6 @@ class OWKEGGPathwayBrowser(OWWidget):
 
             self.has_new_data = False
             self.has_new_reference_set = False
-
-    def UseAttrNamesCallback(self):
-        self.Update()
-
-    def OrganismSelectionCallback(self):
-        self.Update()
-
-    def SetGeneAttrCombo(self):
-        var_list = (self.data.domain.variables +
-                    self.data.domain.getmetas().values())
-
-        self.geneAttrCandidates = filter(
-            lambda v: isinstance(v, (Orange.feature.Discrete,
-                                     Orange.feature.String)),
-            var_list
-        )
-
-        model = self.geneAttrCombo.model()
-        model[:] = self.geneAttrCandidates
-
-        names_lower = [v.name.lower() for v in self.geneAttrCandidates]
-
-        scores = [(name == "gene", "gene" in name)
-                  for name in names_lower]
-        imax, _ = max(enumerate(scores), key=itemgetter(1))
-        self.geneAttrIndex = imax
 
     def UpdateListView(self):
         self.bestPValueItem = None
@@ -832,6 +829,13 @@ class OWKEGGPathwayBrowser(OWWidget):
         """
         return self.organismCodes[min(self.organismIndex,
                                       len(self.organismCodes) - 1)]
+
+    def _onSelectionChanged(self):
+        # Item selection in the pathwayView/scene has changed
+        if self.autoCommit:
+            self.Commit()
+        else:
+            self._changedFlag = True
 
     def Commit(self):
         if self.data:
