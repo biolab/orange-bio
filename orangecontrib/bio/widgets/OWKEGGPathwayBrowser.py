@@ -11,13 +11,14 @@ import sys
 import gc
 import webbrowser
 from operator import add, itemgetter
+from contextlib import contextmanager
 
 from PyQt4.QtGui import (
     QTreeWidget, QTreeWidgetItem, QItemSelectionModel, QSplitter,
     QAction, QMenu, QGraphicsView, QGraphicsScene, QFont,
     QBrush, QColor, QPen, QTransform, QPainter, QPainterPath,
     QGraphicsItem, QGraphicsPathItem, QGraphicsPixmapItem, QPixmap,
-    QMessageBox,
+    QMessageBox, QKeySequence
 )
 
 from PyQt4.QtCore import (
@@ -374,6 +375,13 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.connect(self.graphButton,
                      SIGNAL("clicked()"),
                      self.saveGraph)
+
+        select = QAction(
+            "Select All", self,
+            shortcut=QKeySequence.SelectAll
+        )
+        select.triggered.connect(self.selectAll)
+        self.addAction(select)
 
         self.data = None
         self.refData = None
@@ -830,6 +838,21 @@ class OWKEGGPathwayBrowser(OWWidget):
         return self.organismCodes[min(self.organismIndex,
                                       len(self.organismCodes) - 1)]
 
+    def selectAll(self):
+        """
+        Select all items in the pathway view.
+        """
+        changed = False
+        scene = self.pathwayView.scene()
+        with disconnected(scene.selectionChanged, self._onSelectionChanged):
+            for item in scene.items():
+                if item.flags() & QGraphicsItem.ItemIsSelectable and \
+                        not item.isSelected():
+                    item.setSelected(True)
+                    changed = True
+        if changed:
+            self._onSelectionChanged()
+
     def _onSelectionChanged(self):
         # Item selection in the pathwayView/scene has changed
         if self.autoCommit:
@@ -934,6 +957,25 @@ def pathway_enrichment(genesets, genes, reference, prob=None, callback=None):
 
     return dict([(id, (genes, p_val, len(ref)))
                  for (id, genes, ref), p_val in zip(result_sets, p_values)])
+
+
+@contextmanager
+def disconnected(signal, slot):
+    """
+    A context manager disconnecting a slot from a signal.
+    ::
+
+        with disconnected(scene.selectionChanged, self.onSelectionChanged):
+            # Can change item selection in a scene without
+            # onSelectionChanged being invoked.
+            do_something()
+
+    """
+    signal.disconnect(slot)
+    try:
+        yield
+    finally:
+        signal.connect(slot)
 
 
 if __name__ == "__main__":
