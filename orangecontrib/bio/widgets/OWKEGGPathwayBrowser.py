@@ -27,7 +27,7 @@ from PyQt4.QtCore import (
 
 import Orange
 
-from Orange.orng import orngMisc, orngServerFiles
+from Orange.utils import serverfiles
 from Orange.orng.orngDataCaching import data_hints
 
 from Orange.OrangeWidgets import OWGUI
@@ -37,8 +37,8 @@ from Orange.OrangeWidgets.OWConcurrent import \
     ThreadExecutor, Task, methodinvoke
 
 
-from .. import obiKEGG
-from .. import obiGeneSets
+from .. import kegg
+from .. import geneset
 
 
 NAME = "KEGG Pathways"
@@ -425,7 +425,7 @@ class OWKEGGPathwayBrowser(OWWidget):
 
         def get_genome():
             """Return a KEGGGenome with the common org entries precached."""
-            genome = obiKEGG.KEGGGenome()
+            genome = kegg.KEGGGenome()
 
             essential = genome.essential_organisms()
             common = genome.common_organisms()
@@ -513,7 +513,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             taxid = data_hints.get_hint(data, "taxid", None)
             if taxid:
                 try:
-                    code = obiKEGG.from_taxid(taxid)
+                    code = kegg.from_taxid(taxid)
                     self.organismIndex = self.organismCodes.index(code)
                 except Exception as ex:
                     print ex, taxid
@@ -548,16 +548,16 @@ class OWKEGGPathwayBrowser(OWWidget):
             return
 
         allPathways = self.org.pathways()
-        allRefPathways = obiKEGG.pathways("map")
+        allRefPathways = kegg.pathways("map")
 
         items = []
-        kegg_pathways = obiKEGG.KEGGPathways()
+        kegg_pathways = kegg.KEGGPathways()
 
         org_code = self.organismCodes[min(self.organismIndex,
                                           len(self.organismCodes) - 1)]
 
         if self.showOrthology:
-            self.koOrthology = obiKEGG.KEGGBrite("ko00001")
+            self.koOrthology = kegg.KEGGBrite("ko00001")
             self.listView.setRootIsDecorated(True)
             path_ids = set([s[-5:] for s in self.pathways.keys()])
 
@@ -659,7 +659,7 @@ class OWKEGGPathwayBrowser(OWWidget):
 
         def get_kgml_and_image(pathway_id):
             """Return an initialized KEGGPathway with pre-cached data"""
-            p = obiKEGG.KEGGPathway(pathway_id)
+            p = kegg.KEGGPathway(pathway_id)
             p._get_kgml()  # makes sure the kgml file is downloaded
             p._get_image_filename()  # makes sure the image is downloaded
             return (pathway_id, p)
@@ -726,7 +726,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         org_code = self.SelectedOrganismCode()
 
         def run_enrichment(org_code, genes, reference=None, progress=None):
-            org = obiKEGG.KEGGOrganism(org_code)
+            org = kegg.KEGGOrganism(org_code)
             if reference is None:
                 reference = org.get_genes()
 
@@ -734,21 +734,21 @@ class OWKEGGPathwayBrowser(OWWidget):
             unique_genes, _, _ = org.get_unique_gene_ids(set(genes))
             unique_ref_genes, _, _ = org.get_unique_gene_ids(set(reference))
 
-            taxid = obiKEGG.to_taxid(org.org_code)
+            taxid = kegg.to_taxid(org.org_code)
             # Map the taxid back to standard 'common' taxids
-            # (as used by obiGeneSets) if applicable
+            # (as used by 'geneset') if applicable
             r_tax_map = dict((v, k) for k, v in
-                             obiKEGG.KEGGGenome.TAXID_MAP.items())
+                             kegg.KEGGGenome.TAXID_MAP.items())
             if taxid in r_tax_map:
                 taxid = r_tax_map[taxid]
 
-            # We use the kegg pathway gene sets provided by obiGeneSets for
+            # We use the kegg pathway gene sets provided by 'geneset' for
             # the enrichment calculation.
 
             # Ensure we are using the latest genesets
             # TODO: ?? Is updating the index enough?
-            orngServerFiles.update(obiGeneSets.sfdomain, "index.pck")
-            kegg_gs_collections = obiGeneSets.collections(
+            serverfiles.update(geneset.sfdomain, "index.pck")
+            kegg_gs_collections = geneset.collections(
                 (("KEGG", "pathways"), taxid)
             )
 
@@ -759,7 +759,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             )
             # Ensure that pathway entries are pre-cached for later use in the
             # list/tree view
-            kegg_pathways = obiKEGG.KEGGPathways()
+            kegg_pathways = kegg.KEGGPathways()
             kegg_pathways.pre_cache(
                 pathways.keys(), progress_callback=progress
             )
@@ -903,7 +903,7 @@ class OWKEGGPathwayBrowser(OWWidget):
             self.send("Unselected Examples", None)
 
     def ClearCache(self):
-        from ..obiKEGG import caching
+        from ..kegg import caching
         try:
             caching.clear_cache()
         except Exception, ex:
@@ -929,14 +929,14 @@ class OWKEGGPathwayBrowser(OWWidget):
         self._executor.shutdown(wait=False)
 
 
-from .. import obiProb
+from ..utils import stats
 
 
 def pathway_enrichment(genesets, genes, reference, prob=None, callback=None):
     result_sets = []
     p_values = []
     if prob is None:
-        prob = obiProb.Hypergeometric()
+        prob = stats.Hypergeometric()
 
     for i, gs in enumerate(genesets):
         cluster = gs.genes.intersection(genes)
@@ -953,7 +953,7 @@ def pathway_enrichment(genesets, genes, reference, prob=None, callback=None):
             callback(100.0 * i / len(genesets))
 
     # FDR correction
-    p_values = obiProb.FDR(p_values)
+    p_values = stats.FDR(p_values)
 
     return dict([(id, (genes, p_val, len(ref)))
                  for (id, genes, ref), p_val in zip(result_sets, p_values)])
