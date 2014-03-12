@@ -33,6 +33,7 @@ from Orange.orng.orngDataCaching import data_hints
 
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
+from Orange.OrangeWidgets.OWItemModels import VariableListModel
 
 from .. import obiTaxonomy
 from .. import obiKEGG
@@ -71,9 +72,7 @@ def split_and_strip(string, sep=None):
 
 def path_from_graphics(graphics):
     """
-    Return a constructed `QPainterPath` for a KEGG pathway graphics
-    element.
-
+    Return a constructed `QPainterPath` for a KEGG pathway graphics element.
     """
     path = QPainterPath()
     x, y, w, h = [int(graphics.get(c, 0)) for c in
@@ -86,7 +85,7 @@ def path_from_graphics(graphics):
     elif type == "circle":
         path.addEllipse(QRectF(x - w / 2, y - h / 2, w, h))
     else:
-        ValueError("Unknown graphcis type %r." % type)
+        ValueError("Unknown graphics type %r." % type)
     return path
 
 
@@ -292,7 +291,7 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.useAttrNames = 0
         self.caseSensitive = True
         self.showOrthology = True
-        self.autoFindBestOrg = False
+
         self.loadSettings()
 
         self.controlArea.setMaximumWidth(250)
@@ -315,8 +314,10 @@ class OWKEGGPathwayBrowser(OWWidget):
 
         # Selection of genes attribute
         box = OWGUI.widgetBox(self.controlArea, "Gene attribute")
-        self.geneAttrCombo = OWGUI.comboBox(box, self, "geneAttrIndex",
-                                            callback=self.Update)
+        self.geneAttrCandidates = VariableListModel(parent=self)
+        self.geneAttrCombo = OWGUI.comboBox(
+            box, self, "geneAttrIndex", callback=self.Update)
+        self.geneAttrCombo.setModel(self.geneAttrCandidates)
 
         OWGUI.checkBox(box, self, "useAttrNames",
                        "Use variable names",
@@ -383,8 +384,6 @@ class OWKEGGPathwayBrowser(OWWidget):
                      SIGNAL("clicked()"),
                      self.saveGraph)
 
-        self.ctrlPressed = False
-        self.selectedObjects = defaultdict(list)
         self.data = None
         self.refData = None
 
@@ -461,12 +460,14 @@ class OWKEGGPathwayBrowser(OWWidget):
 
     def ClearPathway(self):
         self.pathwayView.SetPathway(None)
-        self.selectedObjects = defaultdict(list)
 
     def SetData(self, data=None):
         self.closeContext()
         self.data = data
         self.warning(0)
+        self.error(0)
+        self.information(0)
+
         if data is not None:
             self.SetGeneAttrCombo()
             taxid = data_hints.get_hint(data, "taxid", None)
@@ -488,6 +489,9 @@ class OWKEGGPathwayBrowser(OWWidget):
 
     def SetRefData(self, data=None):
         self.refData = data
+
+        self.information(1)
+
         self.has_new_reference_set = True
 
     def handleNewSignals(self):
@@ -505,17 +509,17 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.Update()
 
     def SetGeneAttrCombo(self):
-        self.geneAttrCandidates = self.data.domain.variables + \
-                                  self.data.domain.getmetas().values()
+        var_list = (self.data.domain.variables +
+                    self.data.domain.getmetas().values())
+
         self.geneAttrCandidates = filter(
             lambda v: isinstance(v, (Orange.feature.Discrete,
                                      Orange.feature.String)),
-            self.geneAttrCandidates)
+            var_list
+        )
 
-        self.geneAttrCombo.clear()
-
-        self.geneAttrCombo.addItems([var.name for var in
-                                     self.geneAttrCandidates])
+        model = self.geneAttrCombo.model()
+        model[:] = self.geneAttrCandidates
 
         names_lower = [v.name.lower() for v in self.geneAttrCandidates]
 
@@ -638,7 +642,6 @@ class OWKEGGPathwayBrowser(OWWidget):
         else:
             item = None
 
-        self.selectedObjects = defaultdict(list)
         self.Commit()
         item = item or self.bestPValueItem
         if not item or not item.pathway_id:
@@ -678,6 +681,9 @@ class OWKEGGPathwayBrowser(OWWidget):
         self.pathwayView.updateTransform()
 
     def Update(self):
+        """
+        Update (recompute enriched pathways) the widget state.
+        """
         if not self.data:
             return
         self.error(0)
