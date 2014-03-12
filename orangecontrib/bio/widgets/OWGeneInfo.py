@@ -140,11 +140,11 @@ def ncbi_info(taxid, genes, advance=None):
     schema = [schema_link, "Symbol", "Locus Tag", "Chromosome",
               "Description", "Synonyms", "Nomenclature"]
     ret = []
-    for gene in genes:
-        gi = info.get_info(gene)
+    for gene_name in genes:
+        gi = info.get_info(gene_name)
         if gi:
             ret.append([schema_link.format(gene_id=gi.gene_id, text=gi.gene_id),
-                        gi.symbol + " (%s)" % gene if gene != gi.symbol else gi.symbol,
+                        gi.symbol + " (%s)" % gene_name if gene_name != gi.symbol else gi.symbol,
                         gi.locus_tag or "",
                         gi.chromosome or "",
                         gi.description or "",
@@ -172,12 +172,12 @@ def dicty_info(taxid, genes, advance=None):
     schema = [schema_link, "Name", "Synonyms", "Gene Products"]
 
     ret = []
-    for gene in genes:
-        gene = name_matcher.umatch(gene)
-        gi = info.info.get(gene, None)
+    for gene_name in genes:
+        gene_name = name_matcher.umatch(gene_name)
+        gi = info.info.get(gene_name, None)
         if gi:
-            ret.append([schema_link.format(gene_id=gene, text=gene),
-                        gi[0] + " (%s)" % gene if gene != gi[0] else gi[0],  # Gene Name
+            ret.append([schema_link.format(gene_id=gene_name, text=gene_name),
+                        gi[0] + " (%s)" % gene_name if gene_name != gi[0] else gi[0],  # Gene Name
                         ", ".join(gi[1]),  # Synonyms
                         gi[2] or "",  # Gene Products
                         ])
