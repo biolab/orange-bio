@@ -36,6 +36,7 @@ Ensembl Gene ID...
 
 import os
 import urllib2
+import anydbm
 import shelve
 import itertools
 import warnings
@@ -43,6 +44,7 @@ import warnings
 from functools import wraps
 from collections import namedtuple
 from operator import itemgetter
+from contextlib import closing
 from xml.dom import pulldom
 from StringIO import StringIO
 
@@ -241,19 +243,8 @@ def drop_iter(generator):
 
 DEFAULT_ADDRESS = "http://www.biomart.org/biomart/martservice"
 
-try:
-    DEFAULT_DATA_CACHE = shelve.open(
-        os.path.join(environ.buffer_dir, "BioMartDataCache.pck"))
-except Exception, ex:
-    warnings.warn("Could not open BioMart data cache! %s" % str(ex))
-    DEFAULT_DATA_CACHE = {}
-
-try:
-    DEFAULT_META_CACHE = shelve.open(
-        os.path.join(environ.buffer_dir, "BioMartMetaCache.pck"))
-except Exception, ex:
-    warnings.warn("Could not open BioMart meta cache! %s" % str(ex))
-    DEFAULT_META_CACHE = {}
+DATA_CACHE = os.path.join(environ.buffer_dir, "biomart-data.cache.db")
+META_CACHE = os.path.join(environ.buffer_dir, "biomart-mata.cache.db")
 
 
 def checkBioMartServerError(response):
@@ -278,24 +269,36 @@ class BioMartConnection(object):
     """
     FOLLOW_REDIRECTS = False
 
-    def __init__(self, address=None, cache=None, metaCache=None,
-                 dataCache=None):
-        metaCache = cache if metaCache is None else metaCache
-        dataCache = cache if dataCache is None else dataCache
+    def __init__(self, address=None):
 
         self.address = address if address is not None else DEFAULT_ADDRESS
 
-        self.metaCache = metaCache if metaCache is not None \
-                         else DEFAULT_META_CACHE
-        self.dataCache = dataCache if dataCache is not None \
-                         else DEFAULT_DATA_CACHE
-        self.errorCache = {}
+        self._error_cache = {}
 
     def _get_cache_for_args(self, kwargs):
         if "type" in kwargs:
-            return self.metaCache
+            return self._open_meta_cache
         elif "query" in kwargs:
-            return self.dataCache
+            return self._open_data_cache
+        else:
+            raise ValueError
+
+    def _open_data_cache(self, flag="r"):
+        return self._open_cache(DATA_CACHE, flag=flag)
+
+    def _open_meta_cache(self, flag="r"):
+        return self._open_cache(META_CACHE, flag=flag)
+
+    def _open_cache(self, filename, flag="r"):
+        # Ensure the cache db actualy exists (r,w flags do not create it)
+        if flag in ["r", "w"]:
+            try:
+                return shelve.open(filename, flag)
+            except anydbm.error:
+                shelve.open(filename, "c").close()
+                return shelve.open(filename, flag)
+        else:
+            return shelve.open(filename, flag)
 
     def request_url(self, **kwargs):
         order = ["type", "dataset", "mart", "virtualSchema", "query"]
@@ -303,31 +306,39 @@ class BioMartConnection(object):
            kwargs.iteritems(),
            key=lambda item: order.index(item[0]) if item[0] in order else 10
         )
-        url = self.address + "?" + "&".join("%s=%s" % item for item in items
-                                            if item[0] != "POST")
-        return url.replace(" ", "%20")
+        query = "&".join("%s=%s" % (key, urllib2.quote(value))
+                         for key, value in items if key != "POST")
+
+        return self.address + "?" + query
+#         return url.replace(" ", "%20")
 
     def request(self, **kwargs):
         url = self.request_url(**kwargs)
+        cache_key = url
+        if isinstance(url, unicode):
+            cache_key = url.encode("utf-8")
 
-        cache = self._get_cache_for_args(kwargs)
+        if cache_key in self._error_cache:
+            raise self._error_cache[cache_key]
 
-        if url in self.errorCache:
-            raise self.errorCache[url]
+        cache_open = self._get_cache_for_args(kwargs)
 
-        if str(url) not in cache:
+        with closing(cache_open(flag="r")) as cache:
+            response_cached = cache_key in cache
+            response = cache[cache_key] if response_cached else None
+
+        if not response_cached:
             try:
                 response = urllib2.urlopen(url).read()
                 checkBioMartServerError(response)
             except Exception, ex:
-                self.errorCache[url] = ex
+                self._error_cache[url] = ex
                 raise ex
 
-            cache[str(url)] = response
-            if hasattr(cache, "sync"):
-                cache.sync()
+            with closing(cache_open(flag="w")) as cache:
+                cache[cache_key] = response
 
-        return StringIO(cache[str(url)])
+        return StringIO(response)
 
     def registry(self, **kwargs):
         return self.request(type="registry")
@@ -344,10 +355,17 @@ class BioMartConnection(object):
     def configuration(self, dataset="oanatinus_gene_ensembl", **kwargs):
         return self.request(type="configuration", dataset=dataset, **kwargs)
 
-    def clearCache(self):
-        self.dataCache.clear()
-        self.metaCache.clear()
-        self.errorCache.clear()
+    def clear_cache(self):
+        with closing(self._open_data_cache(flag="n")):
+            pass
+
+        with closing(self._open_meta_cache(flag="n")):
+            pass
+
+        self._error_cache.clear()
+
+    # Back compatibility
+    clearCache = clear_cache
 
 
 class BioMartRegistry(object):
