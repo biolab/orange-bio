@@ -1,11 +1,12 @@
 """
-`obiGO` is a Gene Ontology (GO) Handling Library.
+GO Ontology (:mod:`go`)
+=======================
 
 """
 
 from __future__ import absolute_import
+
 import os
-import sys
 import tarfile
 import gzip
 import re
@@ -23,6 +24,7 @@ from collections import defaultdict
 from Orange.orng import orngEnviron
 from Orange.orng import orngServerFiles
 from Orange.orng import orngMisc
+from Orange.utils import deprecated_keywords, deprecated_members
 
 from . import utils
 obiProb = utils.stats
@@ -171,6 +173,9 @@ domain: OBO:TERM
 definition: Indicates that a term is the intersection of several others [OBO:defs]"""]
 
 
+@deprecated_members({"ParseStanza": "parse_stanza",
+                     "GetRelatedObjcts": "related_objects",
+                     "relatedTo": "related_to"})
 class OBOObject(object):
     """Represents a generic OBO object (e.g. Term, Typedef, Instance, ...)
     Example:
@@ -185,11 +190,11 @@ class OBOObject(object):
         self._lines = []
         self.values = {}
         self.related = set()
-        self.relatedTo = set()
+        self.related_to = set()
         if stanza:
-            self.ParseStanza(stanza)
+            self.parse_stanza(stanza)
 
-    def ParseStanza(self, stanza):
+    def parse_stanza(self, stanza):
         intern_tags = set(self._INTERN_TAGS)
         for line in stanza.splitlines():
             if ":" not in line:
@@ -213,12 +218,12 @@ class OBOObject(object):
                 self.values.setdefault(tag, []).append(value)
             else:
                 self.values[tag] = value
-        self.related = set(self.GetRelatedObjects())
+        self.related = set(self.related_objects())
         self.__dict__.update(self.values)
         if "def" in self.__dict__:
             self.__dict__["def_"] = self.__dict__["def"]
 
-    def GetRelatedObjects(self):
+    def related_objects(self):
         """Return a list of tuple pairs where the first element is relationship
         typeId and the second id of object to whom the relationship applies to.
 
@@ -252,7 +257,7 @@ class OBOObject(object):
     def __iter__(self):
         """ Iterates over sub terms
         """
-        for typeId, id in self.relatedTo:
+        for typeId, id in self.related_to:
             yield (typeId, self.ontology[id])
 
 
@@ -268,8 +273,21 @@ class Instance(OBOObject):
     pass
 
 
+@deprecated_members(
+    {"ParseFile": "parse_file", "slimsSubset": "slims_subset",
+     "GetDefinedSlimsSubsets": "defined_slim_subsets",
+     "SetSlimSubsets": "set_slim_subsets",
+     "GetSlimsSubset": "named_slims_subset",
+     "GetSlimTerms": "slims_for_term",
+     "ExtractSuperGraph": "extract_super_graph",
+     "ExtractSubGraph": "extract_sub_graph",
+     "GetTermDepth": "term_depth",
+     "aliasMapper": "alias_mapper",
+     "reverseAliasMapper": "reverse_alias_mapper"},
+    wrap_methods=[])
 class Ontology(object):
-    """ Ontology is the main class representing a gene ontology.
+    """
+    Ontology is the main class representing a gene ontology.
 
     Example::
         >>> ontology = Ontology("my_gene_ontology.obo")
@@ -277,7 +295,8 @@ class Ontology(object):
     """
     version = 1
 
-    def __init__(self, file=None, progressCallback=None, rev=None):
+    @deprecated_keywords({"progressCallback": "progress_callback"})
+    def __init__(self, file=None, progress_callback=None, rev=None):
         """ Initialize the ontology from file (if `None` the default gene
         ontology will be loaded). The optional `progressCallback` will be
         called with a single argument to report on the progress.
@@ -286,31 +305,36 @@ class Ontology(object):
         self.terms = {}
         self.typedefs = {}
         self.instances = {}
-        self.slimsSubset = set()
+        self.slims_subset = set()
+        self.alias_mapper = {}
+        self.reverse_alias_mapper = defaultdict(set)
+        self.header = ""
 
         if file is not None:
-            self.ParseFile(file, progressCallback)
+            self.parse_file(file, progress_callback)
         elif rev is not None:
             if not _CVS_REVISION_RE.match(rev):
                 raise ValueError("Invalid revision format.")
             if rev.startswith("rev"):
                 rev = rev[3:]
-            pc = lambda v: progressCallback(v / 2.0) \
-                 if progressCallback else None
+            pc = lambda v: progress_callback(v / 2.0) \
+                 if progress_callback else None
             filename = os.path.join(default_database_path,
                                     "gene_ontology_edit@rev%s.obo" % rev)
             if not os.path.exists(filename):
-                self.DownloadOntologyAtRev(rev, filename, pc)
-            self.ParseFile(filename, lambda v: progressCallback(v / 2.0 + 50) \
-                                     if progressCallback else None)
+                self.download_ontology_at_rev(rev, filename, pc)
+            self.parse_file(filename,
+                            lambda v: progress_callback(v / 2.0 + 50)
+                            if progress_callback else None)
         else:
             # Load the default ontology file.
-            fool = self.Load(progressCallback)
+            fool = Ontology.load(progress_callback)
             # A fool and his attributes are soon parted
             self.__dict__ = fool.__dict__
 
     @classmethod
-    def Load(cls, progressCallback=None):
+    @deprecated_keywords({"progressCallback": "progress_callback"})
+    def load(cls, progress_callback=None):
         """ A class method that tries to load the ontology file from
         default_database_path. It looks for a filename starting with
         'gene_ontology'. If not found it will download it.
@@ -321,9 +345,12 @@ class Ontology(object):
         if not os.path.isfile(filename) and not os.path.isdir(filename):
             orngServerFiles.download("GO", "gene_ontology_edit.obo.tar.gz")
 
-        return cls(filename, progressCallback=progressCallback)
+        return cls(filename, progress_callback=progress_callback)
 
-    def ParseFile(self, file, progressCallback=None):
+    Load = load
+
+    @deprecated_keywords({"progressCallback": "progress_callback"})
+    def parse_file(self, file, progress_callback=None):
         """ Parse the file. file can be a filename string or an open filelike
         object. The optional progressCallback will be called with a single
         argument to report on the progress.
@@ -357,46 +384,65 @@ class Ontology(object):
             elif block.startswith("[Instance]"):
                 instance = Instance(block, self)
                 self.instances[instance.id] = instance
-            if progressCallback and i in milestones:
-                progressCallback(90.0 * i / len(data))
+            if progress_callback and i in milestones:
+                progress_callback(90.0 * i / len(data))
 
-        self.aliasMapper = {}
-        self.reverseAliasMapper = defaultdict(set)
+        self.alias_mapper = {}
+        self.reverse_alias_mapper = defaultdict(set)
         milestones = orngMisc.progressBarMilestones(len(self.terms), 10)
         for i, (id, term) in enumerate(self.terms.iteritems()):
             for typeId, parent in term.related:
-                self.terms[parent].relatedTo.add((typeId, id))
+                self.terms[parent].related_to.add((typeId, id))
             try:
-                self.aliasMapper.update([(alt_id, id)
-                                         for alt_id in term.alt_id])
-                self.reverseAliasMapper[id].union_update(term.alt_id)
+                self.alias_mapper.update([(alt_id, id)
+                                          for alt_id in term.alt_id])
+                self.reverse_alias_mapper[id].union_update(term.alt_id)
             except AttributeError:
                 pass
-            if progressCallback and i in milestones:
-                progressCallback(90.0 + 10.0 * i / len(self.terms))
+            if progress_callback and i in milestones:
+                progress_callback(90.0 + 10.0 * i / len(self.terms))
 
-    def GetDefinedSlimsSubsets(self):
-        """ Return a list of defined subsets.
+    def defined_slims_subsets(self):
+        """
+        Return a list of defined subsets in the ontology.
         """
         return [line.split()[1] for line in self.header.splitlines()
                 if line.startswith("subsetdef:")]
 
-    def SetSlimsSubset(self, subset):
-        """ Set the slims term subset to subset. If subset is a string it
-        must equal one of the defined subsetdef.
+    def named_slims_subset(self, subset):
         """
-        if type(subset) == str:
-            self.slimsSubset = [id for id, term in self.terms.items()
-                                if subset in getattr(term, "subset", set())]
-        else:
-            self.slimsSubset = set(subset)
+        Return all term IDs in a named `subset`.
 
-    def GetSlimsSubset(self, subset):
+        :param str subset: A string naming a subset in the ontology.
+
+        :seealso: definded_slims_subset
+
+        """
         return [id for id, term in self.terms.items()
                 if subset in getattr(term, "subset", set())]
 
-    def GetSlimTerms(self, termId):
-        """ Return a list of slim terms for termId.
+    def set_slims_subset(self, subset):
+        """
+        Set the `slims_subset` term subset to `subset`.
+
+        :param set subset: A subset of GO term IDs.
+
+        `subset` may also be a string, in which case the call is equivalent
+        to ``ont.set_slims_subsets(ont.named_slims_subset(name))``
+
+        """
+        if isinstance(subset, basestring):
+            self.slims_subset = set(self.named_slims_subset())
+        else:
+            self.slims_subset = set(subset)
+
+    def slims_for_term(self, termId):
+        """
+        Return a list of slim term IDs for term with `termId`.
+
+        This is a list of `most specific` slim terms to which `termId`
+        belongs.
+
         """
         queue = set([termId])
         visited = set()
@@ -404,15 +450,33 @@ class Ontology(object):
         while queue:
             term = queue.pop()
             visited.add(term)
-            if term in self.slimsSubset:
+            if term in self.slims_subset:
                 slims.add(term)
             else:
-                queue.update(set(id for typeId, id in self[term].related) -
+                queue.update(set(tid for _, tid in self[term].related) -
                              visited)
         return slims
 
-    def ExtractSuperGraph(self, terms):
-        """ Return all super terms of terms up to the most general one.
+    def extract_super_graph(self, terms):
+        """
+        Return all super terms of `terms` up to the most general one.
+
+        :param list terms: A list of terms.
+
+        """
+        terms = [terms] if isinstance(terms, basestring) else terms
+        visited = set()
+        queue = set(terms)
+        while queue:
+            term = queue.pop()
+            visited.add(term)
+            queue.update(set(tid for _, tid in self[term].related) -
+                         visited)
+        return visited
+
+    def extract_sub_graph(self, terms):
+        """
+        Return all sub terms of `terms`.
         """
         terms = [terms] if type(terms) == str else terms
         visited = set()
@@ -420,30 +484,20 @@ class Ontology(object):
         while queue:
             term = queue.pop()
             visited.add(term)
-            queue.update(set(id for typeId, id in self[term].related) -
+            queue.update(set(tid for _, tid in self[term].related_to) -
                          visited)
         return visited
 
-    def ExtractSubGraph(self, terms):
-        """ Return all sub terms of terms.
+    def term_depth(self, term, cache_={}):
         """
-        terms = [terms] if type(terms) == str else terms
-        visited = set()
-        queue = set(terms)
-        while queue:
-            term = queue.pop()
-            visited.add(term)
-            queue.update(set(id for typeId, id in self[term].relatedTo) -
-                         visited)
-        return visited
+        Return the minimum depth of a term.
 
-    def GetTermDepth(self, term, cache_={}):
-        """ Return the minimum depth of a term (length of the shortest
-        path to this term from the top level term).
+        (length of the shortest path to this term from the top level term).
+
         """
         if term not in cache_:
-            cache_[term] = min([self.GetTermDepth(parent) + 1
-                                for typeId, parent in self[term].related] or
+            cache_[term] = min([self.term_depth(parent) + 1
+                                for _, parent in self[term].related] or
                                [1])
         return cache_[term]
 
@@ -453,8 +507,8 @@ class Ontology(object):
         """
         if id in self.terms:
             return self.terms[id]
-        elif id in self.aliasMapper:
-            return self.terms[self.aliasMapper[id]]
+        elif id in self.alias_mapper:
+            return self.terms[self.alias_mapper[id]]
         else:
             raise KeyError(id)
 
@@ -474,10 +528,11 @@ class Ontology(object):
         """
         Return `True` if a term with `id` is present in the ontology.
         """
-        return id in self.terms or id in self.aliasMapper
+        return id in self.terms or id in self.alias_mapper
 
     @staticmethod
-    def DownloadOntology(file, progressCallback=None):
+    @deprecated_keywords({"progressCallback": "progress_callback"})
+    def download_ontology(file, progress_callback=None):
         tFile = tarfile.open(file, "w:gz") if isinstance(file, basestring) \
                 else file
         tmpDir = os.path.join(orngEnviron.bufferDir, "tmp_go/")
@@ -485,16 +540,20 @@ class Ontology(object):
             os.mkdir(tmpDir)
         except Exception:
             pass
+
         urlretrieve("http://www.geneontology.org/ontology/gene_ontology_edit.obo",
                     os.path.join(tmpDir, "gene_ontology_edit.obo"),
-                    progressCallback and __progressCallbackWrapper(progressCallback))
+                    progress_callback and __progressCallbackWrapper(progress_callback))
         tFile.add(os.path.join(tmpDir, "gene_ontology_edit.obo"),
                   "gene_ontology_edit.obo")
         tFile.close()
         os.remove(os.path.join(tmpDir, "gene_ontology_edit.obo"))
 
+    DownloadOntology = download_ontology
+
     @staticmethod
-    def DownloadOntologyAtRev(rev, filename=None, progressCallback=None):
+    @deprecated_keywords({"progressCallback": "progress_callback"})
+    def download_ontology_at_rev(rev, filename=None, progress_callback=None):
         url = "http://cvsweb.geneontology.org/cgi-bin/cvsweb.cgi/~checkout~/go/ontology/gene_ontology_edit.obo?rev=%s" % rev
         url += ";content-type=text%2Fplain"
         if filename is None:
@@ -507,6 +566,7 @@ class Ontology(object):
 
         os.rename(filename + ".part", filename)
 
+    DownloadOntologyAtRev = download_ontology_at_rev
 
 _re_obj_name_ = re.compile("([a-zA-z0-9-_]+)")
 
@@ -527,12 +587,13 @@ class AnnotationRecord(object):
                                     "aspect", "alias", "additionalAliases"]
 
     def __init__(self, fullText):
-        """\
+        """
         :param fulText: A single line from the annotation file.
 
         """
         for slot, val in zip(annotationFields, fullText.split("\t")):
             setattr(self, slot, intern(val))
+
         self.geneName = self.DB_Object_Symbol
         self.GOId = self.GO_ID
         self.evidence = self.Evidence_Code
@@ -550,26 +611,44 @@ class AnnotationRecord(object):
             raise AttributeError(name)
 
 
+@deprecated_members(
+    {"GetOntology": "get_ontology", "SetOntology": "set_ontology",
+     "ParseFile": "parse_file", "AddAnnotation": "add_annotation",
+     "GetGeneNamesTranslator": "get_gene_names_translator",
+     "GetAllAnnotations": "get_all_annotations",
+     "GetAllGenes": "get_all_genes",
+     "GetEnrichedTerms": "get_enriched_terms",
+     "GetAnnotatedTerms": "get_annotated_terms",
+     "DrawEnrichmentGraph": "draw_enrichment_graph",
+     "geneNamesDict": "gene_names_dict", "geneNames": "gene_names",
+     "aliasMapper": "alias_mapper",
+     "allAnnotations": "all_annotations",
+     "geneAnnotations": "gene_annotations",
+     "termAnnotations": "term_annotations"},
+    wrap_methods=[])
 class Annotations(object):
     """Annotations object holds the annotations.
     """
     version = 2
 
+    @deprecated_keywords({"progressCallback": "progress_callback"})
     def __init__(self, file=None, ontology=None, genematcher=None,
-                 progressCallback=None, rev=None):
-        """Initialize the annotations from file by calling ParseFile on it.
+                 progress_callback=None, rev=None):
+        """Initialize the annotations from file by calling `parse_file` on it.
         The ontology must be an instance of Ontology class.
         The optional progressCallback will be called with a single argument
         to report on the progress.
 
         """
         self.ontology = ontology
-        self.allAnnotations = defaultdict(list)
-        self.geneAnnotations = defaultdict(list)
-        self.termAnnotations = defaultdict(list)
-        self._geneNames = None
-        self._geneNamesDict = None
-        self._aliasMapper = None
+        self.all_annotations = defaultdict(list)
+        self.gene_annotations = defaultdict(list)
+        self.term_anotations = defaultdict(list)
+
+        self._gene_names = None
+        self._gene_names_dict = None
+        self._alias_mapper = None
+
         self.additionalAliases = {}
         self.annotations = []
         self.header = ""
@@ -578,12 +657,12 @@ class Annotations(object):
 
         if type(file) in [list, set, dict, Annotations]:
             for ann in file:
-                self.AddAnnotation(ann)
+                self.add_annotation(ann)
             if type(file, Annotations):
                 self.taxid = file.taxid
 
         elif isinstance(file, basestring) and os.path.exists(file):
-            self.ParseFile(file, progressCallback)
+            self.parse_file(file, progress_callback)
             try:
                 self.taxid = to_taxid(os.path.basename(file).split(".")[1]).pop()
             except IOError:
@@ -604,16 +683,16 @@ class Annotations(object):
 
                 if not os.path.exists(filename):
                     self.DownloadAnnotationsAtRev(
-                        code, rev, filename, progressCallback)
+                        code, rev, filename, progress_callback)
 
-                self.ParseFile(filename, progressCallback)
+                self.parse_file(filename, progress_callback)
                 self.taxid = to_taxid(code).pop()
             else:
-                a = self.Load(file, ontology, genematcher, progressCallback)
+                a = self.Load(file, ontology, genematcher, progress_callback)
                 self.__dict__ = a.__dict__
                 self.taxid = to_taxid(organism_name_search(file)).pop()
         elif file is not None:
-            self.ParseFile(file, progressCallback)
+            self.parse_file(file, progress_callback)
 
         if not self.genematcher and self.taxid:
             matchers = [obiGene.GMGO(self.taxid)]
@@ -626,7 +705,7 @@ class Annotations(object):
             self.genematcher = obiGene.matcher(matchers)
 
         if self.genematcher:
-            self.genematcher.set_targets(self.geneNames)
+            self.genematcher.set_targets(self.gene_names)
 
     @classmethod
     def organism_name_search(cls, org):
@@ -660,20 +739,22 @@ class Annotations(object):
         return ("v%i." % cls.version) + orngServerFiles.info("GO",
                         "gene_association.%s.tar.gz" % name)["datetime"]
 
-    def SetOntology(self, ontology):
-        """ Set the ontology to use in the annotations mapping.
+    def set_ontology(self, ontology):
+        """Set the ontology to use in the annotations mapping.
         """
-        self.allAnnotations = defaultdict(list)
+        self.all_annotations = defaultdict(list)
         self._ontology = ontology
 
-    def GetOntology(self):
+    def get_ontology(self):
         return self._ontology
 
-    ontology = property(GetOntology, SetOntology,
-                        doc="Ontology object for annotations")
+    ontology = property(get_ontology, set_ontology,
+                        doc=":class:`Ontology` object for annotations.")
 
     @classmethod
-    def Load(cls, org, ontology=None, genematcher=None, progressCallback=None):
+    @deprecated_keywords({"progressCallback": "progress_callback"})
+    def load(cls, org, ontology=None, genematcher=None,
+             progress_callback=None):
         """A class method that tries to load the association file for the
         given organism from default_database_path.
         """
@@ -682,29 +763,33 @@ class Annotations(object):
         print "CODE: %s" % code
         print "ORG: %s" % org
 
-        file = "gene_association.%s.tar.gz" % code
+        filename = "gene_association.%s.tar.gz" % code
 
-        path = os.path.join(orngServerFiles.localpath("GO"), file)
+        path = orngServerFiles.localpath("GO", filename)
 
         if not os.path.exists(path):
             sf = orngServerFiles.ServerFiles()
             available = sf.listfiles("GO")
-            if file not in available:
-                from . import kegg as obiKEGG
+            if filename not in available:
                 raise obiTaxonomy.UnknownSpeciesIdentifier(org + str(code))
-            orngServerFiles.download("GO", file)
+            orngServerFiles.download("GO", filename)
 
         return cls(path, ontology=ontology, genematcher=genematcher,
-                   progressCallback=progressCallback)
+                   progress_callback=progress_callback)
 
-    def ParseFile(self, file, progressCallback=None):
-        """ Parse and load the annotations from file. Report progress
-        with progressCallback.
-        File can be:
+    Load = load
+
+    @deprecated_keywords({"progressCallback": "progress_callback"})
+    def parse_file(self, file, progress_callback=None):
+        """Parse and load the annotations from file.
+
+        `file` can be:
             - a tarball containing the association file named gene_association
-            - a directory name containing the association file named gene_association
+            - a directory name containing the association file named
+              gene_association
             - a path to the actual association file
             - an open file-like object of the association file
+
         """
         if isinstance(file, basestring):
             if os.path.isfile(file) and tarfile.is_tarfile(file):
@@ -728,54 +813,53 @@ class Annotations(object):
                 continue
 
             a = AnnotationRecord(line)
-            self.AddAnnotation(a)
+            self.add_annotation(a)
 #            self.annotations.append(a)
-            if progressCallback and i in milestones:
-                progressCallback(100.0 * i / len(lines))
+            if progress_callback and i in milestones:
+                progress_callback(100.0 * i / len(lines))
 
-    def AddAnnotation(self, a):
-        """ Add a single `AnotationRecord` instance to this `Annotations`
-        object.
+    def add_annotation(self, a):
+        """Add a single `AnotationRecord` instance to this object.
         """
         if not isinstance(a, AnnotationRecord):
             a = AnnotationRecord(a)
         if not a.geneName or not a.GOId or a.Qualifier == "NOT":
             return
 
-        self.geneAnnotations[a.geneName].append(a)
+        self.gene_annotations[a.geneName].append(a)
         self.annotations.append(a)
-        self.termAnnotations[a.GOId].append(a)
-        self.allAnnotations = defaultdict(list)
+        self.term_anotations[a.GOId].append(a)
+        self.all_annotations = defaultdict(list)
 
-        self._geneNames = None
-        self._geneNamesDict = None
-        self._aliasMapper = None
-
-    @property
-    def geneNamesDict(self):
-        if getattr(self, "_geneNamesDict", None) is None:
-            self._geneNamesDict = defaultdict(set)
-            for alias, name in self.aliasMapper.iteritems():
-                self._geneNamesDict[name].add(alias)
-        return self._geneNamesDict
+        self._gene_names_dict = None
+        self._gene_names = None
+        self._alias_mapper = None
 
     @property
-    def geneNames(self):
-        if getattr(self, "_geneNames", None) is None:
-            self._geneNames = set([ann.geneName for ann in self.annotations])
-        return self._geneNames
+    def gene_names_dict(self):
+        if self._gene_names_dict is None:
+            self._gene_names_dict = defaultdict(set)
+            for alias, name in self.alias_mapper.iteritems():
+                self._gene_names_dict[name].add(alias)
+        return self._gene_names_dict
 
     @property
-    def aliasMapper(self):
-        if getattr(self, "_aliasMapper", None) is None:
-            self._aliasMapper = {}
+    def gene_names(self):
+        if self._gene_names is None:
+            self._gene_names = set([ann.geneName for ann in self.annotations])
+        return self._gene_names
+
+    @property
+    def alias_mapper(self):
+        if self._alias_mapper is None:
+            self._alias_mapper = {}
             for ann in self.annotations:
-                self._aliasMapper.update([(alias, ann.geneName)
-                                          for alias in ann.alias +
-                                           [ann.geneName, ann.DB_Object_ID]])
-        return self._aliasMapper
+                self._alias_mapper.update([(alias, ann.geneName)
+                                           for alias in ann.alias +
+                                            [ann.geneName, ann.DB_Object_ID]])
+        return self._alias_mapper
 
-    def GetGeneNamesTranslator(self, genes):
+    def get_gene_names_translator(self, genes):
         """ Return a dictionary mapping canonical names (DB_Object_Symbol)
         to `genes`.
 
@@ -784,91 +868,100 @@ class Annotations(object):
             if self.genematcher:
                 return self.genematcher.umatch(gene)
             else:
-                return gene if gene in self.geneNames else \
-                        self.aliasMapper.get(gene,
+                return gene if gene in self.gene_names else \
+                        self.alias_mapper.get(gene,
                              self.additionalAliases.get(gene, None))
 
         return dict([(alias(gene), gene) for gene in genes if alias(gene)])
 
-    def _CollectAnnotations(self, id, visited):
+    def _collect_annotations(self, id, visited):
         """ Recursive function collects and caches all annotations for id
         """
-        if id not in self.allAnnotations and id not in visited:
-            if id in self.ontology.reverseAliasMapper:
-                annotations = [self.termAnnotations.get(alt_id, [])
+        if id not in self.all_annotations and id not in visited:
+            if id in self.ontology.reverse_alias_mapper:
+                annotations = [self.term_anotations.get(alt_id, [])
                                for alt_id in
-                               self.ontology.reverseAliasMapper[id]] + \
-                              [self.termAnnotations[id]]
+                               self.ontology.reverse_alias_mapper[id]] + \
+                              [self.term_anotations[id]]
             else:
                 ## annotations for this term alone
-                annotations = [self.termAnnotations[id]]
+                annotations = [self.term_anotations[id]]
             visited.add(id)
-            for typeId, child in self.ontology[id].relatedTo:
-                aa = self._CollectAnnotations(child, visited)
+            for typeId, child in self.ontology[id].related_to:
+                aa = self._collect_annotations(child, visited)
                 if type(aa) == set:
-                    ## if it was already reduced in GetAllAnnotations
+                    ## if it was already reduced in get_all_annotations
                     annotations.append(aa)
                 else:
                     annotations.extend(aa)
-            self.allAnnotations[id] = annotations
-        return self.allAnnotations[id]
+            self.all_annotations[id] = annotations
+        return self.all_annotations[id]
 
-    def GetAllAnnotations(self, id):
-        """ Return a set of all annotations (instances if `AnnotationRectord`)
+    _CollectAnnotations = _collect_annotations
+
+    def get_all_annotations(self, id):
+        """ Return a set of all annotations (instances of `AnnotationRecord`)
         for GO term `id` and all it's subterms.
 
-        :param id: GO term id
-        :type id: str
+        :param str id: GO term id
 
         """
         visited = set()
-        id = self.ontology.aliasMapper.get(id, id)
-        if id not in self.allAnnotations or \
-                type(self.allAnnotations[id]) == list:
+        id = self.ontology.alias_mapper.get(id, id)
+        if id not in self.all_annotations or \
+                type(self.all_annotations[id]) == list:
             annot_set = set()
-            for annots in self._CollectAnnotations(id, set()):
+            for annots in self._collect_annotations(id, set()):
                 annot_set.update(annots)
-            self.allAnnotations[id] = annot_set
-        return self.allAnnotations[id]
+            self.all_annotations[id] = annot_set
+        return self.all_annotations[id]
 
-    def GetAllGenes(self, id, evidenceCodes=None):
-        """ Return a list of genes annotated by specified `evidenceCodes`
+    @deprecated_keywords({"evidenceCodes": "evidence_codes"})
+    def get_all_genes(self, id, evidence_codes=None):
+        """ Return a list of genes annotated by specified `evidence_codes`
         to GO term 'id' and all it's subterms."
 
-        :param id: GO term id
-        :type id: str
+        :param str id: GO term id
 
-        :param evidneceCodes: List of evidence codes to consider when
-                              matching annotations to terms.
-        :type evidenceCodes: list-of-strings
+        :param list-of-strings evidence_codes:
+            List of evidence codes to consider when matching annotations
+            to terms.
+
         """
-        evidenceCodes = set(evidenceCodes or evidenceDict.keys())
-        annotations = self.GetAllAnnotations(id)
+        evidence_codes = set(evidence_codes or evidenceDict.keys())
+        annotations = self.get_all_annotations(id)
         return list(set([ann.geneName for ann in annotations
-                         if ann.Evidence_Code in evidenceCodes]))
+                         if ann.Evidence_Code in evidence_codes]))
 
-    def GetEnrichedTerms(self, genes, reference=None, evidenceCodes=None,
-                         slimsOnly=False, aspect=None, prob=obiProb.Binomial(),
-                         useFDR=True, progressCallback=None):
+    @deprecated_keywords({
+        "evidenceCodes": "evidence_codes", "slimsOnly": "slims_only",
+        "useFDR": "use_fdr", "progressCallback": "progress_callback"})
+    def get_enriched_terms(self, genes, reference=None, evidence_codes=None,
+                           slims_only=False, aspect=None,
+                           prob=obiProb.Binomial(), use_fdr=True,
+                           progress_callback=None):
         """ Return a dictionary of enriched terms, with tuples of
         (list_of_genes, p_value, reference_count) for items and term
-        ids as keys. P-Values are FDR adjusted if useFDR is True (default).
+        ids as keys. P-Values are FDR adjusted if use_fdr is True (default).
 
         :param genes: List of genes
-        :param reference: list of genes (if None all genes included in the
-                          annotations will be used).
-        :param evidenceCodes: List of evidence codes to consider.
-        :param slimsOnly: If `True` return only slim terms
-        :param aspect: Which aspects to use. Use all by default. "P", "F", "C"
+        :param reference:
+            List of genes (if None all genes included in the annotations
+            will be used).
+        :param evidence_codes: List of evidence codes to consider.
+        :param slims_only: If `True` return only slim terms.
+        :param aspect:
+            Which aspects to use. Use all by default. "P", "F", "C"
             or a set containing these elements.
+
         """
-        revGenesDict = self.GetGeneNamesTranslator(genes)
+        revGenesDict = self.get_gene_names_translator(genes)
         genes = set(revGenesDict.keys())
         if reference:
-            refGenesDict = self.GetGeneNamesTranslator(reference)
+            refGenesDict = self.get_gene_names_translator(reference)
             reference = set(refGenesDict.keys())
         else:
-            reference = self.geneNames
+            reference = self.gene_names
 
         if aspect == None:
             aspects_set = set(["P", "C", "F"])
@@ -877,16 +970,16 @@ class Annotations(object):
         else:
             aspects_set = aspect
 
-        evidenceCodes = set(evidenceCodes or evidenceDict.keys())
+        evidence_codes = set(evidence_codes or evidenceDict.keys())
         annotations = [ann
-                       for gene in genes for ann in self.geneAnnotations[gene]
-                       if ann.Evidence_Code in evidenceCodes and
+                       for gene in genes for ann in self.gene_annotations[gene]
+                       if ann.Evidence_Code in evidence_codes and
                        ann.Aspect in aspects_set]
 
         refAnnotations = set(
             [ann
-             for gene in reference for ann in self.geneAnnotations[gene]
-             if ann.Evidence_Code in evidenceCodes and
+             for gene in reference for ann in self.gene_annotations[gene]
+             if ann.Evidence_Code in evidence_codes and
              ann.Aspect in aspects_set]
         )
 
@@ -894,7 +987,7 @@ class Annotations(object):
         for ann in annotations:
             annotationsDict[ann.GO_ID].add(ann)
 
-        if slimsOnly and not self.ontology.slimsSubset:
+        if slims_only and not self.ontology.slimsSubset:
             warnings.warn("Unspecified slims subset in the ontology! "
                           "Using 'goslim_generic' subset", UserWarning)
             self.ontology.SetSlimsSubset("goslim_generic")
@@ -913,17 +1006,13 @@ class Annotations(object):
 
         milestones = orngMisc.progressBarMilestones(len(terms), 100)
         for i, term in enumerate(terms):
-            if slimsOnly and term not in self.ontology.slimsSubset:
+            if slims_only and term not in self.ontology.slimsSubset:
                 continue
-            allAnnotations = self.GetAllAnnotations(term).intersection(refAnnotations)
+            allAnnotations = self.get_all_annotations(term).intersection(refAnnotations)
 ##            allAnnotations.intersection_update(refAnnotations)
             allAnnotatedGenes = set([ann.geneName for ann in allAnnotations])
             mappedGenes = genes.intersection(allAnnotatedGenes)
-##            if not mappedGenes:
-##                print >> sys.stderr, term, sorted(genes)
-##                print >> sys.stderr, sorted(allAnnotatedGenes)
-##                return
-            
+
             if len(reference) > len(allAnnotatedGenes):
                 mappedReferenceGenes = reference.intersection(allAnnotatedGenes)
             else:
@@ -932,29 +1021,33 @@ class Annotations(object):
                          prob.p_value(len(mappedGenes), len(reference),
                                       len(mappedReferenceGenes), len(genes)),
                          len(mappedReferenceGenes))
-            if progressCallback and i in milestones:
-                progressCallback(100.0 * i / len(terms))
-        if useFDR:
+            if progress_callback and i in milestones:
+                progress_callback(100.0 * i / len(terms))
+        if use_fdr:
             res = sorted(res.items(), key=lambda (_1, (_2, p, _3)): p)
             res = dict([(id, (genes, p, ref))
                         for (id, (genes, _, ref)), p in
                         zip(res, obiProb.FDR([p for _, (_, p, _) in res]))])
         return res
 
-    def GetAnnotatedTerms(self, genes, directAnnotationOnly=False,
-                          evidenceCodes=None, progressCallback=None):
-        """ Return all terms that are annotated by genes with evidenceCodes.
+    @deprecated_keywords(
+        {"directAnnotationOnly": "direct_annotation_only",
+         "evidenceCodes": "evidence_codes",
+         "progressCallback": "progress_callback"})
+    def get_annotated_terms(self, genes, direct_annotation_only=False,
+                            evidence_codes=None, progress_callback=None):
+        """Return all terms that are annotated by genes with evidence_codes.
         """
         genes = [genes] if type(genes) == str else genes
-        revGenesDict = self.GetGeneNamesTranslator(genes)
+        revGenesDict = self.get_gene_names_translator(genes)
         genes = set(revGenesDict.keys())
-        evidenceCodes = set(evidenceCodes or evidenceDict.keys())
-        annotations = [ann for gene in genes for ann in self.geneAnnotations[gene]
-                       if ann.Evidence_Code in evidenceCodes]
+        evidence_codes = set(evidence_codes or evidenceDict.keys())
+        annotations = [ann for gene in genes for ann in self.gene_annotations[gene]
+                       if ann.Evidence_Code in evidence_codes]
         dd = defaultdict(set)
         for ann in annotations:
             dd[ann.GO_ID].add(revGenesDict.get(ann.geneName, ann.geneName))
-        if not directAnnotationOnly:
+        if not direct_annotation_only:
             terms = dd.keys()
             filteredTerms = [term for term in terms if term in self.ontology]
             if len(terms) != len(filteredTerms):
@@ -966,22 +1059,24 @@ class Annotations(object):
 
             terms = self.ontology.ExtractSuperGraph(filteredTerms)
             for i, term in enumerate(terms):
-                termAnnots = self.GetAllAnnotations(term).intersection(annotations)
+                termAnnots = self.get_all_annotations(term).intersection(annotations)
 ##                termAnnots.intersection_update(annotations)
                 dd[term].update([revGenesDict.get(ann.geneName, ann.geneName)
                                  for ann in termAnnots])
         return dict(dd)
 
-    def DrawEnrichmentGraph(self, terms, clusterSize, refSize=None,
-                            file="graph.png", width=None, height=None,
-                            precison=3):
-        refSize = len(self.geneNames) if refSize == None else refSize
+    @deprecated_keywords(
+        {"clusterSize": "cluster_size", "refSize": "ref_size"})
+    def draw_enrichment_graph(self, terms, cluster_size, ref_size=None,
+                              file="graph.png", width=None, height=None,
+                              precison=3):
+        ref_size = len(self.gene_names) if ref_size == None else ref_size
         sortedterms = sorted(terms.items(), key=lambda term: term[1][1])
         fdr = dict(zip([t[0] for t in sortedterms],
                        obiProb.FDR([t[1][1] for t in sortedterms])))
         termsList = [(term,
-                      ((float(len(terms[term][0])) / clusterSize) /
-                       (float(terms[term][2]) / refSize)),
+                      ((float(len(terms[term][0])) / cluster_size) /
+                       (float(terms[term][2]) / ref_size)),
                       len(terms[term][0]),
                       terms[term][2],
                       terms[term][1],
@@ -1028,38 +1123,36 @@ class Annotations(object):
     def add(self, line):
         """ Add one annotation
         """
-        self.AddAnnotation(line)
+        self.add_annotation(line)
 
     def append(self, line):
         """ Add one annotation
         """
-        self.AddAnnotation(line)
+        self.add_annotation(line)
 
     def extend(self, lines):
         """ Add multiple annotations
         """
         for line in lines:
-            self.AddAnnotation(line)
+            self.add_annotation(line)
 
-    def RemapGenes(self, map):
-        """
-        """
+    def remap_genes(self, map):
         for gene in map:
-            annotations = self.geneAnnotations[gene]
+            annotations = self.gene_annotations[gene]
             for ann in annotations:
                 for name in map[gene]:
                     ann1 = copy.copy(ann)
                     ann1.geneName = name
                     self.add(ann1)
         self.genematcher = obiGene.GMDirect()
-        try:
-            del self._geneNames
-        except Exception:
-            pass
-        self.genematcher.set_targets(self.geneNames)
+        self._gene_names = None
+        self.genematcher.set_targets(self.gene_names)
+
+    RemapGenes = remap_genes
 
     @staticmethod
-    def DownloadAnnotations(org, file, progressCallback=None):
+    @deprecated_keywords({"progressCallback": "progress_callback"})
+    def download_annotations(org, file, progress_callback=None):
         if isinstance(file, basestring):
             tFile = tarfile.open(file, "w:gz")
         else:
@@ -1074,7 +1167,7 @@ class Annotations(object):
         urlretrieve(("http://www.geneontology.org/gene-associations/" +
                      fileName),
                     os.path.join(tmpDir, fileName),
-                    progressCallback and __progressCallbackWrapper(progressCallback))
+                    progress_callback and __progressCallbackWrapper(progress_callback))
         gzFile = GzipFile(os.path.join(tmpDir, fileName), "r")
         file = open(os.path.join(tmpDir, "gene_association." + org), "w")
         file.writelines(gzFile.readlines())
@@ -1084,16 +1177,19 @@ class Annotations(object):
         tFile.add(os.path.join(tmpDir, "gene_association." + org),
                   "gene_association")
         annotation = Annotations(os.path.join(tmpDir, "gene_association." + org),
-                    genematcher=obiGene.GMDirect(), progressCallback=progressCallback)
-        cPickle.dump(annotation.geneNames, open(os.path.join(tmpDir, "gene_names.pickle"), "wb"))
+                    genematcher=obiGene.GMDirect(), progress_callback=progress_callback)
+        cPickle.dump(annotation.gene_names, open(os.path.join(tmpDir, "gene_names.pickle"), "wb"))
         tFile.add(os.path.join(tmpDir, "gene_names.pickle"), "gene_names.pickle")
         tFile.close()
         os.remove(os.path.join(tmpDir, "gene_association." + org))
         os.remove(os.path.join(tmpDir, "gene_names.pickle"))
 
+    DownloadAnnotations = download_annotations
+
     @staticmethod
-    def DownloadAnnotationsAtRev(org, rev, filename=None,
-                                 progressCallback=None):
+    @deprecated_keywords({"progressCallback": "progress_callback"})
+    def download_annotations_at_rev(org, rev, filename=None,
+                                    progress_callback=None):
         if filename is None:
             filename = os.path.join(default_database_path,
                                     "gene_association.%s@rev%s.tar.gz" %
@@ -1108,6 +1204,8 @@ class Annotations(object):
 
         os.rename(filename + ".part", filename)
 
+    DownloadAnnotationsAtRev = download_annotations_at_rev
+
 from .taxonomy import pickled_cache
 
 
@@ -1117,38 +1215,49 @@ def organism_name_search(name):
     return Annotations.organism_name_search(name)
 
 
-def filterByPValue(terms, maxPValue=0.1):
-    """ Filters the terms by the p-value. Asumes terms is a dict with
-    the same structure as returned from GetEnrichedTerms.
+@deprecated_keywords({"maxPValue": "p_value"})
+def filter_by_p_value(terms, p_value=0.01):
+    """ Filters the terms by the p-value. Assumes terms is a dict with
+    the same structure as returned from get_enriched_terms.
 
     """
-    return dict(filter(lambda (k, e): e[1] <= maxPValue, terms.items()))
+    return dict(filter(lambda (k, e): e[1] <= p_value, terms.items()))
+
+filterByPValue = filter_by_p_value
 
 
-def filterByFrequency(terms, minF=2):
+@deprecated_keywords({"minF": "min_freq"})
+def filter_by_frequency(terms, min_freq=2):
     """ Filters the terms by the cluster frequency. Asumes terms is
-    a dict with the same structure as returned from GetEnrichedTerms.
+    a dict with the same structure as returned from get_enriched_terms.
 
     """
-    return dict(filter(lambda (k, e): len(e[0]) >= minF, terms.items()))
+    return dict(filter(lambda (k, e): len(e[0]) >= min_freq, terms.items()))
+
+filterByFrequency = filter_by_frequency
 
 
-def filterByRefFrequency(terms, minF=4):
-    """ Filters the terms by the reference frequency. Asumes terms is
-    a dict with the same structure as returned from GetEnrichedTerms.
+@deprecated_keywords({"minF": "min_freq"})
+def filter_by_ref_frequency(terms, min_freq=4):
+    """ Filters the terms by the reference frequency. Assumes terms is
+    a dict with the same structure as returned from get_enriched_terms.
 
     """
-    return dict(filter(lambda (k, e): e[2] >= minF, terms.items()))
+    return dict(filter(lambda (k, e): e[2] >= min_freq, terms.items()))
+
+filterByRefFrequency = filter_by_ref_frequency
 
 
-def drawEnrichmentGraph(enriched, file="graph.png", width=None, height=None,
-                        header=None, ontology=None, precison=3):
+def draw_enrichment_graph(enriched, file="graph.png", width=None, height=None,
+                          header=None, ontology=None, precison=3):
     file = open(file, "wb") if type(file) == str else file
-    drawEnrichmentGraph_tostreamMk2(enriched, file, width, height, header,
+    _draw_enrichment_graph_tostream(enriched, file, width, height, header,
                                     ontology, precison)
 
+drawEnrichmentGraph = draw_enrichment_graph
 
-def drawEnrichmentGraph_tostreamMk2(enriched, fh, width, height, header=None,
+
+def _draw_enrichment_graph_tostream(enriched, fh, width, height, header=None,
                                     ontology=None, precison=4):
     ontology = ontology if ontology else Ontology()
     header = header if header else ["List", "Total", "p-value", "FDR",
@@ -1192,10 +1301,13 @@ def drawEnrichmentGraph_tostreamMk2(enriched, fh, width, height, header=None,
                               entry[0],
                               ", ".join(entry[6])) + (None,))
 
-    drawEnrichmentGraphPIL_tostream(termsList, header, fh, width, height)
+    _draw_enrichment_graph_PIL_tostream(termsList, header, fh, width, height)
+
+drawEnrichmentGraph_tostreamMk2 = _draw_enrichment_graph_tostream
 
 
-def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=None):
+def _draw_enrichment_graph_PIL_tostream(termsList, headers, fh, width=None,
+                                        height=None):
     from PIL import Image, ImageDraw, ImageFont
     backgroundColor = (255, 255, 255)
     textColor = (0, 0, 0)
@@ -1294,6 +1406,8 @@ def drawEnrichmentGraphPIL_tostream(termsList, headers, fh, width=None, height=N
         draw.text((verticalMargin + i * maxFoldWidth / numOfLegendLabels - font.getsize(label)[0] / 2, horizontalMargin), label, font=font, fill=textColor)
 
     image.save(fh)
+
+drawEnrichmentGraphPIL_tostream = _draw_enrichment_graph_PIL_tostream
 
 
 def drawEnrichmentGraphPylab_tostream(termsList, headers, fh, width=None, height=None, show=True):
@@ -1416,52 +1530,35 @@ def to_taxid(db_code):
     return set(r)
 
 
-def _test1():
-##    Ontology.DownloadOntology("ontology_arch.tar.gz")
-##    Annotations.DownloadAnnotations("sgd", "annotations_arch.tar.gz")
-    def _print(f):
-        print f
-    o = Ontology("ontology_arch.tar.gz")
-    a = Annotations("annotations_arch.tar.gz", ontology=o)
-
-    a.GetEnrichedTerms(sorted(a.geneNames)[:100])  # , progressCallback=_print)
-##    profile.runctx("a.GetEnrichedTerms(sorted(a.geneNames)[:100])", {"a":a}, {})
-    a.GetEnrichedTerms(sorted(a.geneNames)[:100])  # , progressCallback=_print)
-    d1 = a.GetEnrichedTerms(sorted(a.geneNames)[:1000])  # , progressCallback=_print)
-
-##    print a.GetEnrichedTerms(sorted(a.geneNames)[:100])#, progressCallback=_print)
-
-
 def _test2():
     o = Ontology()
     a = Annotations("human", ontology=o)
-    clusterGenes = sorted(a.geneNames)[:100]
+    clusterGenes = sorted(a.gene_names)[:100]
     for i in range(10):
-        terms = a.GetEnrichedTerms(sorted(a.geneNames)[:200], aspect=["P"])
-        a.GetEnrichedTerms(sorted(a.geneNames)[:200], aspect=["C"])
-        a.GetEnrichedTerms(sorted(a.geneNames)[:200], aspect=["F"])
+        genes = clusterGenes[i * 10: (i + 1) * 10]
+        a.get_enriched_terms(genes, aspect=["P"])
+        a.get_enriched_terms(genes, aspect=["C"])
+        a.get_enriched_terms(genes, aspect=["F"])
         print i
-#    a.DrawEnrichmentGraph(filterByPValue(terms), len(clusterGenes), len(a.geneNames))
 
-##    drawEnrichmentGraph([("bal", 1.0, 5, 6, 0.1, 0.4, ["vv"]),
-##                        ("GO:0019079", 0.5, 5, 6, 0.1, 0.4, ["cc", "bb"]),
-##                        ("GO:0022415", 0.4, 5, 7, 0.11, 0.4, ["cc1", "bb"])], open("graph.png", "wb"), None, None)
+    terms = a.get_enriched_terms(clusterGenes, aspect=["P"])
+    a.get_annotated_terms(clusterGenes)
+
+    a.draw_enrichment_graph(filterByPValue(terms), len(clusterGenes), len(a.gene_names))
 
 
 def _test3():
     o = Ontology()
     a = Annotations("sgd", ontology=o)
-##    a = Annotations(list(a)[3:len(a)/3], ontology=o)
-    clusterGenes = sorted(a.geneNames)[:1] + sorted(a.geneNames)[-1:]
-##    clusterGenes = [g + "_" + str(i%5) for g in sorted(a.geneNames)[:2]]
-    exonMap = dict([(gene, [gene + "_E%i" % i for i in range(10)]) for gene in a.geneNames])
+    clusterGenes = sorted(a.gene_names)[:1] + sorted(a.gene_names)[-1:]
+    exonMap = dict([(gene, [gene + "_E%i" % i for i in range(10)]) for gene in a.gene_names])
     a.RemapGenes(exonMap)
-##    o.reverseAliasMapper = o.aliasMapper = {}
-    terms = a.GetEnrichedTerms(exonMap.values()[0][:2] + exonMap.values()[-1][2:])
-##    terms = a.GetEnrichedTerms(clusterGenes)
+
+    terms = a.get_enriched_terms(exonMap.values()[0][:2] + exonMap.values()[-1][2:])
+
     print terms
-##    a.DrawEnrichmentGraph(filterByPValue(terms), len(clusterGenes), len(a.geneNames))
-    a.DrawEnrichmentGraph(filterByPValue(terms, maxPValue=0.1), len(clusterGenes), len(a.geneNames))
+
+    a.draw_enrichment_graph(filterByPValue(terms, maxPValue=0.1), len(clusterGenes), len(a.gene_names))
 
 if __name__ == "__main__":
     _test2()
