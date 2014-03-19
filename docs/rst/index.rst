@@ -31,6 +31,7 @@ Scripting Reference
    reference/utils.stats.rst
    reference/geo.rst
    reference/omim.rst
+   reference/go.rst
 
 Installation
 ------------

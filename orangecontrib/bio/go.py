@@ -1,6 +1,6 @@
 """
-GO Ontology (:mod:`go`)
-=======================
+Gene Ontology (:mod:`go`)
+=========================
 
 """
 
@@ -14,10 +14,10 @@ import cPickle
 import shutil
 import urllib2
 import warnings
-import copy
 
 from gzip import GzipFile
 from collections import defaultdict
+from operator import attrgetter
 
 from Orange.utils import \
     deprecated_keywords, deprecated_members, progress_bar_milestones, \
@@ -30,7 +30,7 @@ from . import gene as obiGene, taxonomy as obiTaxonomy
 default_database_path = os.path.join(serverfiles.localpath(), "GO")
 
 
-_CVS_REVISION_RE = re.compile(r"^(rev)?\d+\.\d+$")
+_CVS_REVISION_RE = re.compile(r"^(rev)?(\d+\.\d+)+$")
 
 evidenceTypes = {
 # Experimental
@@ -99,31 +99,10 @@ multipleTagSet = multiplicitySet
 annotationFields = [
     "DB", "DB_Object_ID", "DB_Object_Symbol", "Qualifier", "GO_ID",
     "DB_Reference", "Evidence_Code", "With_From", "Aspect", "DB_Object_Name",
-    "DB_Object_Synonym", "DB_Object_Type", "Taxon", "Date", "Assigned_by"]
-
-annotationFieldsDict = {
-    "DB": 0,
-    "DB_Object_ID": 1,
-    "DB_Object_Symbol": 2,
-    "Qualifier": 3,
-    "GO_ID": 4,
-    "GO ID": 4,
-    "GOID": 4,
-    "DB_Reference": 5,
-    "DB:Reference": 5,
-    "Evidence_Code": 6,
-    "Evidence Code": 6,
-    "Evidence_code": 6,  # compatibility with  older revisions
-    "With_or_From": 7,
-    "With (or) From": 7,
-    "Aspect": 8,
-    "DB_Object_Name": 9,
-    "DB_Object_Synonym": 10,
-    "DB_Object_Type": 11,
-    "taxon": 12,
-    "Date": 13,
-    "Assigned_by": 14
-}
+    "DB_Object_Synonym", "DB_Object_Type", "Taxon", "Date", "Assigned_By",
+    # GAF v2.0
+    "Annotation_Extension", "Gene_Product_Form_ID"
+]
 
 builtinOBOObjects = ["""
 [Typedef]
@@ -283,21 +262,29 @@ class Instance(OBOObject):
     wrap_methods=[])
 class Ontology(object):
     """
-    Ontology is the main class representing a gene ontology.
+    :class:`Ontology` is the class representing a gene ontology.
+
+    :param str filename:
+        A filename of an .obo formated file.
+    :param progress_callback:
+        Optional `float -> None` function.
+    :param str rev:
+        An CVS revision specifier (see `GO web CVS interface
+        <http://cvsweb.geneontology.org/cgi-bin/cvsweb.cgi/go/ontology/>`_)
 
     Example::
-        >>> ontology = Ontology("my_gene_ontology.obo")
+        >>> # Load the current ontology (downloading it if necessary)
+        >>> ontology = Ontology()
+        >>> # Load the ontology at the specified CVS revision.
+        >>> ontology = Ontology(rev="5.2092")
+
+    
 
     """
     version = 1
 
     @deprecated_keywords({"progressCallback": "progress_callback"})
-    def __init__(self, file=None, progress_callback=None, rev=None):
-        """ Initialize the ontology from file (if `None` the default gene
-        ontology will be loaded). The optional `progressCallback` will be
-        called with a single argument to report on the progress.
-
-        """
+    def __init__(self, filename=None, progress_callback=None, rev=None):
         self.terms = {}
         self.typedefs = {}
         self.instances = {}
@@ -306,8 +293,8 @@ class Ontology(object):
         self.reverse_alias_mapper = defaultdict(set)
         self.header = ""
 
-        if file is not None:
-            self.parse_file(file, progress_callback)
+        if filename is not None:
+            self.parse_file(filename, progress_callback)
         elif rev is not None:
             if not _CVS_REVISION_RE.match(rev):
                 raise ValueError("Invalid revision format.")
@@ -323,10 +310,10 @@ class Ontology(object):
                             lambda v: progress_callback(v / 2.0 + 50)
                             if progress_callback else None)
         else:
-            # Load the default ontology file.
-            fool = Ontology.load(progress_callback)
-            # A fool and his attributes are soon parted
-            self.__dict__ = fool.__dict__
+            filename = serverfiles.localpath_download(
+                "GO", "gene_ontology_edit.obo.tar.gz"
+            )
+            self.parse_file(filename, progress_callback)
 
     @classmethod
     @deprecated_keywords({"progressCallback": "progress_callback"})
@@ -411,7 +398,7 @@ class Ontology(object):
 
         :param str subset: A string naming a subset in the ontology.
 
-        :seealso: definded_slims_subset
+        .. seealso:: :func:`defined_slims_subsets`
 
         """
         return [id for id, term in self.terms.items()
@@ -424,7 +411,7 @@ class Ontology(object):
         :param set subset: A subset of GO term IDs.
 
         `subset` may also be a string, in which case the call is equivalent
-        to ``ont.set_slims_subsets(ont.named_slims_subset(name))``
+        to ``ont.set_slims_subsets(ont.named_slims_subset(subset))``
 
         """
         if isinstance(subset, basestring):
@@ -432,15 +419,16 @@ class Ontology(object):
         else:
             self.slims_subset = set(subset)
 
-    def slims_for_term(self, termId):
+    def slims_for_term(self, term):
         """
-        Return a list of slim term IDs for term with `termId`.
+        Return a list of slim term IDs for `term`.
 
-        This is a list of `most specific` slim terms to which `termId`
-        belongs.
+        This is a list of `most specific` slim terms to which `term` belongs.
+
+        :param str term: Term ID.
 
         """
-        queue = set([termId])
+        queue = set([term])
         visited = set()
         slims = set()
         while queue:
@@ -457,7 +445,7 @@ class Ontology(object):
         """
         Return all super terms of `terms` up to the most general one.
 
-        :param list terms: A list of terms.
+        :param list terms: A list of term IDs.
 
         """
         terms = [terms] if isinstance(terms, basestring) else terms
@@ -473,6 +461,9 @@ class Ontology(object):
     def extract_sub_graph(self, terms):
         """
         Return all sub terms of `terms`.
+
+        :param list terms: A list of term IDs.
+
         """
         terms = [terms] if type(terms) == str else terms
         visited = set()
@@ -486,7 +477,7 @@ class Ontology(object):
 
     def term_depth(self, term, cache_={}):
         """
-        Return the minimum depth of a term.
+        Return the minimum depth of a `term`.
 
         (length of the shortest path to this term from the top level term).
 
@@ -567,40 +558,57 @@ class Ontology(object):
     DownloadOntologyAtRev = download_ontology_at_rev
 
 
-class AnnotationRecord(object):
-    """Holds the data for an annotation record read from the annotation file.
-    Fields can be accessed with the names: DB, DB_Object_ID, DB_Object_Symbol,
-    Qualifier, GO_ID, DB_Reference, Evidence_code, With_or_From, Aspect,
-    DB_Object_Name, DB_Object_Synonym, DB_Object_Type, taxon, Date,
-    Assigned_by (e.g. rec.GO_ID) or by supplying the original name of the
-    field (see http://geneontology.org/GO.annotation.shtml#file) to the get
-    method (e.g. rec.get("GO ID")) The object also provides the following
-    data members for quicker access: geneName, GOId, evidence, aspect and
-    alias(a list of aliases)
+from collections import namedtuple
+
+_AnnotationRecordBase = namedtuple(
+    "AnnotationRecord",
+    annotationFields
+)
+
+
+class AnnotationRecord(_AnnotationRecordBase):
+    """
+    An annotation record mapping a gene to a term.
+
+    See http://geneontology.org/GO.format.gaf-2_0.shtml for description
+    if individual fields.
 
     """
-    __slots__ = annotationFields + ["geneName", "GOId", "evidence",
-                                    "aspect", "alias"]
+    def __new__(cls, *args):
+        if len(args) == 1 and isinstance(args[0], basestring):
+            args = map(intern, args[0].split("\t"))
+        return super(AnnotationRecord, cls).__new__(cls, *args)
 
-    def __init__(self, fullText):
+    @classmethod
+    def from_string(cls, string):
         """
-        :param fulText: A single line from the annotation file.
-
+        Create an instance from a line in a annotations (GAF 2.0 format) file.
         """
-        for slot, val in zip(annotationFields, fullText.split("\t")):
-            setattr(self, slot, intern(val))
+        return AnnotationRecord._make(map(intern, string.split("\t")))
 
-        self.geneName = self.DB_Object_Symbol
-        self.GOId = self.GO_ID
-        self.evidence = self.Evidence_Code
-        self.aspect = self.Aspect
-        self.alias = list(map(intern, self.DB_Object_Synonym.split("|")))
+    gene_name = property(
+        attrgetter("DB_Object_Symbol"),
+        doc="Alias for DB_Object_Symbol"
+    )
+    geneName = gene_name
+    GOId = property(
+        attrgetter("GO_ID"),
+        doc="Alias for GO_ID"
+    )
+    go_id = GOId
 
-    def __getattr__(self, name):
-        if name in annotationFieldsDict:
-            return getattr(self, self.__slots__[annotationFieldsDict[name]])
-        else:
-            raise AttributeError(name)
+    evidence = property(
+        attrgetter("Evidence_Code"),
+        doc="Alias for Evidence_Code"
+    )
+    aspect = property(
+        attrgetter("Aspect"),
+        doc="Alias for Aspect"
+    )
+
+    @property
+    def alias(self):
+        return list(map(intern, self.DB_Object_Synonym.split("|")))
 
 
 @deprecated_members(
@@ -619,19 +627,30 @@ class AnnotationRecord(object):
      "termAnnotations": "term_annotations"},
     wrap_methods=[])
 class Annotations(object):
-    """Annotations object holds the annotations.
+    """
+    :class:`Annotations` object holds the annotations.
+
+    :param str filename_or_org:
+        A filename of a GAF formated annotations file (e.g.
+        gene_annotations.goa_human) or an organism specifier (e.g.
+        ``'goa_human'`` or ``'9606'``). In the later case the annotations
+        for that organism will be loaded.
+
+    :param ontology: :class:`Ontology` object for annotations
+    :type ontology: :class:`Ontology`
+
+    :param str rev:
+        An optional CVS revision string. If the `filename_or_org` is given an
+        organism code the annotations will be retrieved for that revision
+        (see `GO web CVS
+        <http://cvsweb.geneontology.org/cgi-bin/cvsweb.cgi/go/gene-associations/>`_)
+
     """
     version = 2
 
     @deprecated_keywords({"progressCallback": "progress_callback"})
-    def __init__(self, file=None, ontology=None, genematcher=None,
+    def __init__(self, filename_or_organism=None, ontology=None, genematcher=None,
                  progress_callback=None, rev=None):
-        """Initialize the annotations from file by calling `parse_file` on it.
-        The ontology must be an instance of Ontology class.
-        The optional progressCallback will be called with a single argument
-        to report on the progress.
-
-        """
         self.ontology = ontology
         self.all_annotations = defaultdict(list)
         self.gene_annotations = defaultdict(list)
@@ -646,20 +665,17 @@ class Annotations(object):
         self.genematcher = genematcher
         self.taxid = None
 
-        if type(file) in [list, set, dict, Annotations]:
-            for ann in file:
+        if type(filename_or_organism) in [list, set, dict, Annotations]:
+            for ann in filename_or_organism:
                 self.add_annotation(ann)
-            if type(file, Annotations):
-                self.taxid = file.taxid
+            if type(filename_or_organism, Annotations):
+                self.taxid = filename_or_organism.taxid
 
-        elif isinstance(file, basestring) and os.path.exists(file):
-            self.parse_file(file, progress_callback)
-            try:
-                self.taxid = to_taxid(os.path.basename(file).split(".")[1]).pop()
-            except IOError:
-                pass
+        elif isinstance(filename_or_organism, basestring) and \
+                os.path.exists(filename_or_organism):
+            self.parse_file(filename_or_organism, progress_callback)
 
-        elif isinstance(file, basestring):
+        elif isinstance(filename_or_organism, basestring):
             # Assuming organism code/name
             if rev is not None:
                 if not _CVS_REVISION_RE.match(rev):
@@ -667,7 +683,7 @@ class Annotations(object):
 
                 if rev.startswith("rev"):
                     rev = rev[3:]
-                code = self.organism_name_search(file)
+                code = self.organism_name_search(filename_or_organism)
                 filename = os.path.join(default_database_path,
                                         "gene_association.%s@rev%s.tar.gz" %
                                         (code, rev))
@@ -679,11 +695,11 @@ class Annotations(object):
                 self.parse_file(filename, progress_callback)
                 self.taxid = to_taxid(code).pop()
             else:
-                a = self.Load(file, ontology, genematcher, progress_callback)
+                a = self.Load(filename_or_organism, ontology, genematcher, progress_callback)
                 self.__dict__ = a.__dict__
-                self.taxid = to_taxid(organism_name_search(file)).pop()
-        elif file is not None:
-            self.parse_file(file, progress_callback)
+                self.taxid = to_taxid(organism_name_search(filename_or_organism)).pop()
+        elif filename_or_organism is not None:
+            self.parse_file(filename_or_organism, progress_callback)
 
         if not self.genematcher and self.taxid:
             matchers = [obiGene.GMGO(self.taxid)]
@@ -803,14 +819,14 @@ class Annotations(object):
                 self.header = self.header + line + "\n"
                 continue
 
-            a = AnnotationRecord(line)
+            a = AnnotationRecord.from_string(line)
             self.add_annotation(a)
-#            self.annotations.append(a)
+
             if progress_callback and i in milestones:
                 progress_callback(100.0 * i / len(lines))
 
     def add_annotation(self, a):
-        """Add a single `AnotationRecord` instance to this object.
+        """Add a single :class:`AnotationRecord` instance to this object.
         """
         if not isinstance(a, AnnotationRecord):
             a = AnnotationRecord(a)
@@ -1131,8 +1147,7 @@ class Annotations(object):
             annotations = self.gene_annotations[gene]
             for ann in annotations:
                 for name in map[gene]:
-                    ann1 = copy.copy(ann)
-                    ann1.geneName = name
+                    ann1 = ann._replace(DB_Object_Symbol=name)
                     self.add(ann1)
         self.genematcher = obiGene.GMDirect()
         self._gene_names = None
