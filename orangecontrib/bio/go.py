@@ -568,8 +568,6 @@ class Ontology(object):
 
     DownloadOntologyAtRev = download_ontology_at_rev
 
-_re_obj_name_ = re.compile("([a-zA-z0-9-_]+)")
-
 
 class AnnotationRecord(object):
     """Holds the data for an annotation record read from the annotation file.
@@ -584,7 +582,7 @@ class AnnotationRecord(object):
 
     """
     __slots__ = annotationFields + ["geneName", "GOId", "evidence",
-                                    "aspect", "alias", "additionalAliases"]
+                                    "aspect", "alias"]
 
     def __init__(self, fullText):
         """
@@ -599,10 +597,6 @@ class AnnotationRecord(object):
         self.evidence = self.Evidence_Code
         self.aspect = self.Aspect
         self.alias = list(map(intern, self.DB_Object_Synonym.split("|")))
-
-        self.additionalAliases = []
-        if ":" in self.DB_Object_Name:
-            self.additionalAliases = []  # _re_obj_name_.findall(self.DB_Object_Name.split(":")[0])
 
     def __getattr__(self, name):
         if name in annotationFieldsDict:
@@ -649,7 +643,6 @@ class Annotations(object):
         self._gene_names_dict = None
         self._alias_mapper = None
 
-        self.additionalAliases = {}
         self.annotations = []
         self.header = ""
         self.genematcher = genematcher
@@ -868,9 +861,8 @@ class Annotations(object):
             if self.genematcher:
                 return self.genematcher.umatch(gene)
             else:
-                return gene if gene in self.gene_names else \
-                        self.alias_mapper.get(gene,
-                             self.additionalAliases.get(gene, None))
+                return (gene if gene in self.gene_names
+                        else self.alias_mapper.get(gene, None))
 
         return dict([(alias(gene), gene) for gene in genes if alias(gene)])
 
