@@ -16,9 +16,7 @@ import urllib2
 import warnings
 import copy
 
-from urllib import urlretrieve
 from gzip import GzipFile
-from datetime import datetime
 from collections import defaultdict
 
 from Orange.orng import orngEnviron
@@ -541,9 +539,11 @@ class Ontology(object):
         except Exception:
             pass
 
-        urlretrieve("http://www.geneontology.org/ontology/gene_ontology_edit.obo",
-                    os.path.join(tmpDir, "gene_ontology_edit.obo"),
-                    progress_callback and __progressCallbackWrapper(progress_callback))
+        from Orange.utils import wget
+        wget("http://www.geneontology.org/ontology/gene_ontology_edit.obo",
+             tmpDir,
+             progress=progress_callback)
+
         tFile.add(os.path.join(tmpDir, "gene_ontology_edit.obo"),
                   "gene_ontology_edit.obo")
         tFile.close()
@@ -1156,10 +1156,12 @@ class Annotations(object):
         except Exception:
             pass
         fileName = "gene_association." + org + ".gz"
-        urlretrieve(("http://www.geneontology.org/gene-associations/" +
-                     fileName),
-                    os.path.join(tmpDir, fileName),
-                    progress_callback and __progressCallbackWrapper(progress_callback))
+
+        from Orange.utils import wget
+        wget("http://www.geneontology.org/gene-associations/" + fileName,
+             directory=tmpDir,
+             progress=progress_callback)
+
         gzFile = GzipFile(os.path.join(tmpDir, fileName), "r")
         file = open(os.path.join(tmpDir, "gene_association." + org), "w")
         file.writelines(gzFile.readlines())
