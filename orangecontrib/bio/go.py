@@ -19,17 +19,15 @@ import copy
 from gzip import GzipFile
 from collections import defaultdict
 
-from Orange.orng import orngEnviron
-from Orange.orng import orngServerFiles
-from Orange.orng import orngMisc
-from Orange.utils import deprecated_keywords, deprecated_members
+from Orange.utils import \
+    deprecated_keywords, deprecated_members, progress_bar_milestones, \
+    serverfiles, environ
 
-from . import utils
-obiProb = utils.stats
+from .utils import stats
 
 from . import gene as obiGene, taxonomy as obiTaxonomy
 
-default_database_path = os.path.join(orngServerFiles.localpath(), "GO")
+default_database_path = os.path.join(serverfiles.localpath(), "GO")
 
 
 _CVS_REVISION_RE = re.compile(r"^(rev)?\d+\.\d+$")
@@ -341,7 +339,7 @@ class Ontology(object):
         filename = os.path.join(default_database_path,
                                 "gene_ontology_edit.obo.tar.gz")
         if not os.path.isfile(filename) and not os.path.isdir(filename):
-            orngServerFiles.download("GO", "gene_ontology_edit.obo.tar.gz")
+            serverfiles.download("GO", "gene_ontology_edit.obo.tar.gz")
 
         return cls(filename, progress_callback=progress_callback)
 
@@ -371,7 +369,7 @@ class Ontology(object):
         c = re.compile("\[.+?\].*?\n\n", re.DOTALL)
         data = c.findall(data)
 
-        milestones = orngMisc.progressBarMilestones(len(data), 90)
+        milestones = progress_bar_milestones(len(data), 90)
         for i, block in enumerate(builtinOBOObjects + data):
             if block.startswith("[Term]"):
                 term = Term(block, self)
@@ -387,7 +385,7 @@ class Ontology(object):
 
         self.alias_mapper = {}
         self.reverse_alias_mapper = defaultdict(set)
-        milestones = orngMisc.progressBarMilestones(len(self.terms), 10)
+        milestones = progress_bar_milestones(len(self.terms), 10)
         for i, (id, term) in enumerate(self.terms.iteritems()):
             for typeId, parent in term.related:
                 self.terms[parent].related_to.add((typeId, id))
@@ -533,7 +531,7 @@ class Ontology(object):
     def download_ontology(file, progress_callback=None):
         tFile = tarfile.open(file, "w:gz") if isinstance(file, basestring) \
                 else file
-        tmpDir = os.path.join(orngEnviron.bufferDir, "tmp_go/")
+        tmpDir = os.path.join(environ.buffer_dir, "tmp_go/")
         try:
             os.mkdir(tmpDir)
         except Exception:
@@ -727,9 +725,9 @@ class Annotations(object):
     @classmethod
     def organism_version(cls, name):
         name = organism_name_search(name)
-        orngServerFiles.localpath_download(
+        serverfiles.localpath_download(
             "GO", "gene_association.%s.tar.gz" % name)
-        return ("v%i." % cls.version) + orngServerFiles.info("GO",
+        return ("v%i." % cls.version) + serverfiles.info("GO",
                         "gene_association.%s.tar.gz" % name)["datetime"]
 
     def set_ontology(self, ontology):
@@ -758,14 +756,14 @@ class Annotations(object):
 
         filename = "gene_association.%s.tar.gz" % code
 
-        path = orngServerFiles.localpath("GO", filename)
+        path = serverfiles.localpath("GO", filename)
 
         if not os.path.exists(path):
-            sf = orngServerFiles.ServerFiles()
+            sf = serverfiles.ServerFiles()
             available = sf.listfiles("GO")
             if filename not in available:
                 raise obiTaxonomy.UnknownSpeciesIdentifier(org + str(code))
-            orngServerFiles.download("GO", filename)
+            serverfiles.download("GO", filename)
 
         return cls(path, ontology=ontology, genematcher=genematcher,
                    progress_callback=progress_callback)
@@ -799,7 +797,7 @@ class Annotations(object):
             f = file
         lines = [line for line in f.read().splitlines() if line.strip()]
 
-        milestones = orngMisc.progressBarMilestones(len(lines), 100)
+        milestones = progress_bar_milestones(len(lines), 100)
         for i, line in enumerate(lines):
             if line.startswith("!"):
                 self.header = self.header + line + "\n"
@@ -930,7 +928,7 @@ class Annotations(object):
         "useFDR": "use_fdr", "progressCallback": "progress_callback"})
     def get_enriched_terms(self, genes, reference=None, evidence_codes=None,
                            slims_only=False, aspect=None,
-                           prob=obiProb.Binomial(), use_fdr=True,
+                           prob=stats.Binomial(), use_fdr=True,
                            progress_callback=None):
         """ Return a dictionary of enriched terms, with tuples of
         (list_of_genes, p_value, reference_count) for items and term
@@ -996,7 +994,7 @@ class Annotations(object):
         terms = self.ontology.ExtractSuperGraph(filteredTerms)
         res = {}
 
-        milestones = orngMisc.progressBarMilestones(len(terms), 100)
+        milestones = progress_bar_milestones(len(terms), 100)
         for i, term in enumerate(terms):
             if slims_only and term not in self.ontology.slimsSubset:
                 continue
@@ -1019,7 +1017,7 @@ class Annotations(object):
             res = sorted(res.items(), key=lambda (_1, (_2, p, _3)): p)
             res = dict([(id, (genes, p, ref))
                         for (id, (genes, _, ref)), p in
-                        zip(res, obiProb.FDR([p for _, (_, p, _) in res]))])
+                        zip(res, stats.FDR([p for _, (_, p, _) in res]))])
         return res
 
     @deprecated_keywords(
@@ -1065,7 +1063,7 @@ class Annotations(object):
         ref_size = len(self.gene_names) if ref_size == None else ref_size
         sortedterms = sorted(terms.items(), key=lambda term: term[1][1])
         fdr = dict(zip([t[0] for t in sortedterms],
-                       obiProb.FDR([t[1][1] for t in sortedterms])))
+                       stats.FDR([t[1][1] for t in sortedterms])))
         termsList = [(term,
                       ((float(len(terms[term][0])) / cluster_size) /
                        (float(terms[term][2]) / ref_size)),
@@ -1150,7 +1148,7 @@ class Annotations(object):
         else:
             tFile = file
 
-        tmpDir = os.path.join(orngEnviron.bufferDir, "tmp_go/")
+        tmpDir = os.path.join(environ.buffer_dir, "tmp_go/")
         try:
             os.mkdir(tmpDir)
         except Exception:
@@ -1496,11 +1494,11 @@ class Taxonomy(object):
     def __init__(self):
         self.__dict__ = self.__shared_state
         if not self.tax:
-            path = orngServerFiles.localpath_download("GO", "taxonomy.pickle")
+            path = serverfiles.localpath_download("GO", "taxonomy.pickle")
             if os.path.isfile(path):
                 self.tax = cPickle.load(open(path, "rb"))
             else:
-                orngServerFiles.download("GO", "taxonomy.pickle")
+                serverfiles.download("GO", "taxonomy.pickle")
                 self.tax = cPickle.load(open(path, "rb"))
 
     def __getitem__(self, key):
