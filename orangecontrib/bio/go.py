@@ -272,13 +272,12 @@ class Ontology(object):
         An CVS revision specifier (see `GO web CVS interface
         <http://cvsweb.geneontology.org/cgi-bin/cvsweb.cgi/go/ontology/>`_)
 
-    Example::
+    Example:
+
         >>> # Load the current ontology (downloading it if necessary)
         >>> ontology = Ontology()
         >>> # Load the ontology at the specified CVS revision.
         >>> ontology = Ontology(rev="5.2092")
-
-    
 
     """
     version = 1
@@ -388,6 +387,9 @@ class Ontology(object):
     def defined_slims_subsets(self):
         """
         Return a list of defined subsets in the ontology.
+
+        :rtype: list-of-str
+
         """
         return [line.split()[1] for line in self.header.splitlines()
                 if line.startswith("subsetdef:")]
@@ -397,6 +399,7 @@ class Ontology(object):
         Return all term IDs in a named `subset`.
 
         :param str subset: A string naming a subset in the ontology.
+        :rtype: list-of-str
 
         .. seealso:: :func:`defined_slims_subsets`
 
@@ -488,34 +491,38 @@ class Ontology(object):
                                [1])
         return cache_[term]
 
-    def __getitem__(self, id):
+    def __getitem__(self, termid):
         """
-        Return a object with id.
+        Return a :class:`Term` object with `termid`.
+
+        :param str term: An id of a 'Term' in the ontology.
+        :rtype: :class:`Term`
+
         """
-        if id in self.terms:
-            return self.terms[id]
-        elif id in self.alias_mapper:
-            return self.terms[self.alias_mapper[id]]
+        if termid in self.terms:
+            return self.terms[termid]
+        elif termid in self.alias_mapper:
+            return self.terms[self.alias_mapper[termid]]
         else:
-            raise KeyError(id)
+            raise KeyError(termid)
 
     def __iter__(self):
         """
-        Iterate over all ids in ontology.
+        Iterate over all term ids in ontology.
         """
         return iter(self.terms)
 
     def __len__(self):
         """
-        Return number of objects in ontology.
+        Return number of terms in ontology.
         """
         return len(self.terms)
 
-    def __contains__(self, id):
+    def __contains__(self, termid):
         """
-        Return `True` if a term with `id` is present in the ontology.
+        Return `True` if a term with `termid` is present in the ontology.
         """
-        return id in self.terms or id in self.alias_mapper
+        return termid in self.terms or termid in self.alias_mapper
 
     @staticmethod
     @deprecated_keywords({"progressCallback": "progress_callback"})
@@ -652,14 +659,22 @@ class Annotations(object):
     def __init__(self, filename_or_organism=None, ontology=None, genematcher=None,
                  progress_callback=None, rev=None):
         self.ontology = ontology
-        self.all_annotations = defaultdict(list)
+
+        #: A dictionary mapping a gene name (DB_Object_Symbol) to a
+        #: set of all annotations of that gene.
         self.gene_annotations = defaultdict(list)
+
+        #: A dictionary mapping a GO term id to a set of annotations that
+        #: are directly annotated to that term
         self.term_anotations = defaultdict(list)
+
+        self.all_annotations = defaultdict(list)
 
         self._gene_names = None
         self._gene_names_dict = None
         self._alias_mapper = None
 
+        #: A list of all :class:`AnnotationRecords` instances.
         self.annotations = []
         self.header = ""
         self.genematcher = genematcher
