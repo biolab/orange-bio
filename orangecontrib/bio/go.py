@@ -415,7 +415,7 @@ class Ontology(object):
 
         """
         if isinstance(subset, basestring):
-            self.slims_subset = set(self.named_slims_subset())
+            self.slims_subset = set(self.named_slims_subset(subset))
         else:
             self.slims_subset = set(subset)
 
