@@ -758,6 +758,10 @@ class Annotations(object):
     ontology = property(get_ontology, set_ontology,
                         doc=":class:`Ontology` object for annotations.")
 
+    def _ensure_ontology(self):
+        if self.ontology is None:
+            self.ontology = Ontology()
+
     @classmethod
     @deprecated_keywords({"progressCallback": "progress_callback"})
     def load(cls, org, ontology=None, genematcher=None,
@@ -912,7 +916,7 @@ class Annotations(object):
         :param str id: GO term id
 
         """
-        visited = set()
+        self._ensure_ontology()
         id = self.ontology.alias_mapper.get(id, id)
         if id not in self.all_annotations or \
                 type(self.all_annotations[id]) == list:
@@ -993,6 +997,7 @@ class Annotations(object):
         for ann in annotations:
             annotationsDict[ann.GO_ID].add(ann)
 
+        self._ensure_ontology()
         if slims_only and not self.ontology.slimsSubset:
             warnings.warn("Unspecified slims subset in the ontology! "
                           "Using 'goslim_generic' subset", UserWarning)
@@ -1054,6 +1059,7 @@ class Annotations(object):
         for ann in annotations:
             dd[ann.GO_ID].add(revGenesDict.get(ann.geneName, ann.geneName))
         if not direct_annotation_only:
+            self._ensure_ontology()
             terms = dd.keys()
             filteredTerms = [term for term in terms if term in self.ontology]
             if len(terms) != len(filteredTerms):
