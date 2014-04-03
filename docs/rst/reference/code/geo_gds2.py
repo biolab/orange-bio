@@ -1,4 +1,4 @@
-import Orange
+import Orange.bio.geo
 
 gds = Orange.bio.geo.GDS("GDS1210")
 

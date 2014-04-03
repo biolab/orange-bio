@@ -1,6 +1,7 @@
-import Orange
+import Orange.bio.kegg
+import Orange.bio.gene
 
-keggorg = Orange.bio.obiKEGG.KEGGOrganism("mmu")
+keggorg = Orange.bio.kegg.KEGGOrganism("mmu")
 kegg_genes = keggorg.get_genes() 
 
 query = [ "Fndc4", "Itgb8", "Cdc34", "Olfr1403" ] 
@@ -13,7 +14,7 @@ for name in query:
     if match:
     	pwys = keggorg.get_pathways_by_genes([match])
         print name, "is in"
-        pathways = [ Orange.bio.obiKEGG.KEGGPathway(p).title for p in pwys ]
+        pathways = [ Orange.bio.kegg.KEGGPathway(p).title for p in pwys ]
         if pathways:
             for a in pathways:
                 print ' ', a

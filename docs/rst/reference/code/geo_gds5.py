@@ -5,7 +5,7 @@ when, for instance, filtering out the data sets that could be used for
 supervised machine learning.
 """
 
-import Orange
+import Orange.bio.geo
 
 def valid(info, n=40):
     """Return a set of subset types containing more than n samples in every subset"""

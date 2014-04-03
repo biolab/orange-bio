@@ -1,4 +1,4 @@
-import Orange
+import Orange.bio.omim
 
 diseases = Orange.bio.omim.diseases()
 genes = [Orange.bio.omim.disease_genes(disease) for disease in diseases]

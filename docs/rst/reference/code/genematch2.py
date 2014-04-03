@@ -1,6 +1,7 @@
-import Orange
+import Orange.bio.kegg
+import Orange.bio.gene
 
-targets = Orange.bio.obiKEGG.KEGGOrganism("9606").get_genes() #KEGG gene IDs
+targets = Orange.bio.kegg.KEGGOrganism("9606").get_genes() #KEGG gene IDs
 
 gmkegg = Orange.bio.gene.GMKEGG("9606")
 gmgo = Orange.bio.gene.GMGO("9606")

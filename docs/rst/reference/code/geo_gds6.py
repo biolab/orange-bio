@@ -1,4 +1,4 @@
-import Orange
+import Orange.bio.geo
 
 gds = Orange.bio.geo.GDS("GDS2960")
 data = gds.getdata(sample_type="disease state", transpose=True)

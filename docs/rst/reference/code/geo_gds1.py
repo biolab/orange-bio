@@ -3,7 +3,7 @@ Print out some information on specific GEO's data set.
 Does not download the data set.
 """
 
-import Orange
+import Orange.bio.geo
 import textwrap
 
 gdsinfo = Orange.bio.geo.GDSInfo()

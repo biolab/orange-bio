@@ -1,4 +1,4 @@
-import Orange
+import Orange.bio.gene
 
 #matching targets are NCBI gene IDs
 targets = Orange.bio.gene.NCBIGeneInfo("Homo sapiens").keys()
