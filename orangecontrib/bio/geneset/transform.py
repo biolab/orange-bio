@@ -10,7 +10,7 @@ import numpy
 import Orange, Orange.utils, statc
 
 from .. import utils
-obiExpression = utils.stats
+obiExpression = utils.expression
 
 def corgs_activity_score(ex, corg):
     """ activity score for a sample for pathway given by corgs """
