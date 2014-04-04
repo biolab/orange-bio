@@ -726,7 +726,7 @@ def transform_data(data, phenVar, geneVar):
 
         #transpose is not needed if phenVar is classVar or phenVar is False
         #and there is only one sample
-        if phenVar == data.domain.classVar or \
+        if isinstance(phenVar, Orange.feature.Descriptor) or \
             (phenVar == False and len(data) == 1):
 
             if geneVar == None: #if not specified, set as true in this stage
@@ -749,7 +749,7 @@ def transform_data(data, phenVar, geneVar):
             dom = orange.Domain(floatvars, phenVar)
             return orange.ExampleTable(dom, data)
 
-        elif phenVar == False or phenVar != data.domain.classVar:
+        elif phenVar == False or isinstance(phenVar, basestring):
 
             cands = allgroups(data)
             pv = False
@@ -991,7 +991,34 @@ def runGSEA(data, organism=None, classValues=None, geneSets=None, n=100,
         matcher=None, geneVar=None, phenVar=None, caseSensitive=False, 
         **kwargs):
     """
-    phenVar and geneVar specify the phenotype and gene variable.
+    Run Gene Set Enrichment Analysis.
+
+    :param str organism: The organism taxonomy id (or name). Needed 
+       to build default gene sets and gene matcher.
+    :param Orange.data.Table data: Gene expression data.
+    :param Orange.bio.gene.Matcher matcher: Initialized gene matcher. If not given, a gene matcher is built with the KEGG database.
+    :param tuple classValues: A pair of values describing two distinct phenotypes. Each element can also be a list of values.
+       are computed. Only examples with a chosen phenotypes are analysised. Default: use all phenotypes in the data.
+    :param Orange.bio.geneset.GeneSets geneSets: Gene sets. Default: ???.
+    :param n: Number of permutations for significance computation. Default: 100.
+    :param str permutation: Permutation type, "class" (default) for phenotypes, "gene" for genes. We recommend "gene" permutations for data sets with less than 10 samples even though they ignore gene-gene interactions.
+    :param int minSize:
+    :param int maxSize: Minimum and maximum allowed number of genes from gene set also the data set. Defaults: 3 and 1000.
+    :param float minPart: Minimum fraction of genes from the gene set also in the data set. Default: 0.1.
+    :param int atLeast: Minimum number of valid gene values for each phenotype (the rest are ignored). Default: 3.
+    :param phenVar: Location of data on phenotypes. By default the `data.domain.class_var` is used if it exists. If :obj:`phenVar` is False, the genes are already taken as ranked. If string, the corresponding entry from ``attributes`` dictionary of individual features specifies the phenotype. In latter case, each attribute represents one sample.
+    :param geneVar: Locations of gene names. If True, gene names are attribute names. If a string, that entry of the individual features'``attributes`` dictionary is used. If each attribute specifies a sample, then the user should pass the meta variable containing the gene names. Defaults to attribute names if each example specifies one sample.
+    
+    :return: a dictionary where key is a gene set label and 
+        its value a dictionary of 
+        (1) enrichment score (es), 
+        (2) normalized enrichment score (nes), 
+        (3) P-value (p), 
+        (4) FDR (fdr), 
+        (5) whole gene set size (size), 
+        (6) number of matched genes from the gene set (matched_size), 
+        (7) gene names of matched genes in the data set (genes).
+
     """
     gso = GSEA(data, organism=organism, matcher=matcher, 
         classValues=classValues, atLeast=atLeast, caseSensitive=caseSensitive,

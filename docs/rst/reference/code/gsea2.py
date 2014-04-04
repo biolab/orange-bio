@@ -1,16 +1,16 @@
 import Orange
-from Orange.bio import obiDicty, obiGeneSets, obiGsea,obiGene
+from Orange.bio import dicty, geneset, gsea, gene
 
-dbc = obiDicty.DatabaseConnection()
+dbc = dicty.DatabaseConnection()
 data = dbc.get_single_data(sample='pkaC-', time="8")
 
 #select the first chip (the first attribute)
 data = data.translate([data.domain.attributes[0]], True)
 
-matcher = obiGene.matcher([[obiGene.GMKEGG("dicty"), obiGene.GMDicty()]])
-genesets =  obiGeneSets.collections((("KEGG",), "dicty"))
+matcher = gene.matcher([[gene.GMKEGG("dicty"), gene.GMDicty()]])
+genesets =  geneset.collections((("KEGG",), "dicty"))
 
-res = obiGsea.runGSEA(data, matcher=matcher, minPart=0.05, 
+res = gsea.runGSEA(data, matcher=matcher, minPart=0.05, 
     geneSets=genesets, permutation="gene")
 
 print "%-40s %6s %6s %6s %7s" % ("LABEL", "NES", "P-VAL", "SIZE", "MATCHED")

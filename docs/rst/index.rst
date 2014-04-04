@@ -32,6 +32,7 @@ Scripting Reference
    reference/geo.rst
    reference/omim.rst
    reference/go.rst
+   reference/gsea.rst
 
 Installation
 ------------
