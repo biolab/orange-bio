@@ -150,27 +150,27 @@ class InParanoid(object):
         return res
         
 def all_genes(taxid):
-    """ Return a set of all genes for organism with taxid
+    """ Return a set of all genes for organism taxid.
     """
     return HomoloGene.get_instance().all_genes(taxid)
 
 def homologs(genename, taxid):
-    """ Return a list of homologs (taxid, genename) for a homolog group that gene, taxid belong to 
+    """ Return a list of homologs (taxid, genename) for a homolog group of gene (organism taxid).
     """ 
     return HomoloGene.get_instance().homologs(genename, taxid)
 
 def homolog(genename, taxid, homolotaxid):
-    """ Return a homolog of genename, taxid in organism with holomotaxid or None if homolog does not exist.
+    """ Return a homolog of genename (for taxid) in organism holomotaxid. If the homolog does not exist, return None.
     """
     return HomoloGene.get_instance().homolog(genename, taxid, homolotaxid)
 
 def all_genes_inParanoid(taxid):
-    """ Return a set of all genes for organism with taxid in the InParanoid database
+    """ Return a set of all genes for organism with taxid in the InParanoid database.
     """
     return InParanoid().all_genes(taxid)
 
 def orthologs(genename, taxid, ortholog_taxid=None):
-    """ Return all orthologs of genename from organism with taxid. 
-    If ortholog_taxid is given limit to orthologs from that organism only
+    """ Return all InParanoid orthologs of genename from organism with taxid. 
+    If ortholog_taxid is given limit to orthologs from that organism only.
     """
     return InParanoid().orthologs(genename, taxid, ortholog_taxid)

@@ -34,6 +34,7 @@ Scripting Reference
    reference/go.rst
    reference/gsea.rst
    reference/taxonomy.rst
+   reference/gene.homology.rst
 
 Installation
 ------------
