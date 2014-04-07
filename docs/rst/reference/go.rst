@@ -1,10 +1,12 @@
 .. py:currentmodule:: Orange.bio.go
+.. py:module:: Orange.bio.go
 
 =========================
 Gene Ontology (:mod:`go`)
 =========================
 
-Provides access to `Gene Ontology`_ and it's gene annotations.
+
+Provides access to `Gene Ontology`_ and its gene annotations.
 
 .. _Gene Ontology: http://geneontology.org/
 

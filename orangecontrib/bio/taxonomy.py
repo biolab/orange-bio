@@ -377,11 +377,11 @@ def other_names(taxid):
 
 @pickled_cache(None, [("Taxonomy", "ncbi_taxonomy.tar.gz")], version=1)
 def search(string, onlySpecies=True, exact=False):
-    """ Search the NCBI taxonomy database for an organism
-    Arguments::
-            - *string*      Search string
-            - *onlySpecies* Return only taxids of species (and subspecies)
-            - *exact*       Return only taxids of organism that exactly match the string
+    """ Search the NCBI taxonomy database for an organism.
+
+    :param string: Search string.
+    :param onlySpecies: Return only taxids of species (and subspecies).
+    :param exact:  Return only taxids of organism that exactly match the string.
     """
     ids = Taxonomy().search(string, onlySpecies)
     if exact:
@@ -404,7 +404,7 @@ def lineage(taxid):
 
 def to_taxid(code, mapTo=None):
     """
-    See if the code is a valid code in any database and return a set of its taxids.
+    See if the code is a valid code in GO or KEGG and return a set of its taxids.
     """
     try:
         name(code)
@@ -434,6 +434,7 @@ def to_taxid(code, mapTo=None):
 
 
 def taxids():
+    """ Returns a list of all (about half a million!) NCBI's taxonomy ID's. """
     return Taxonomy().taxids()
 
 

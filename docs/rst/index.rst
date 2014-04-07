@@ -33,6 +33,7 @@ Scripting Reference
    reference/omim.rst
    reference/go.rst
    reference/gsea.rst
+   reference/taxonomy.rst
 
 Installation
 ------------
