@@ -217,7 +217,7 @@ def enrichmentScore(data, subset, rankingf):
     return es,l
 
 def gseaE(data, subsets, rankingf=None, \
-        n=100, permutation="class", **kwargs):
+        n=100, permutation="class", callback=None):
     """
     Run GSEA algorithm on an example table.
 
@@ -250,7 +250,7 @@ def gseaE(data, subsets, rankingf=None, \
         es = enrichmentScoreRanked(subset, lcor, ordered, rev2=rev2)[0]
         enrichmentScores.append(es)
 
-    runOptCallbacks(kwargs)
+    runOptCallbacks(callback)
 
     #print "PERMUTATION", permutation
 
@@ -261,7 +261,6 @@ def gseaE(data, subsets, rankingf=None, \
         if permutation == "class":
             d2 = shuffleClass(data, 2000+i) #fixed permutation
             r2 = rankingf(d2)
-
         else:
             r2 = shuffleList(lcor, random.Random(2000+i))
 
@@ -271,29 +270,22 @@ def gseaE(data, subsets, rankingf=None, \
             esn = enrichmentScoreRanked(subset, r2, ordered2, rev2=rev22)[0]
             enrichmentNulls[si].append(esn)
 
-        runOptCallbacks(kwargs)
+        runOptCallbacks(callback)
 
     return gseaSignificance(enrichmentScores, enrichmentNulls)
 
 
-def runOptCallbacks(rargs):
-    if "callback" in rargs:
+def runOptCallbacks(callback):
+    if callback is not None:
         try:
-            [ a() for a in rargs["callback"] ]
+            [ a() for a in callback ]
         except:
-            rargs["callback"]()
-            
+            callback()            
 
-def gseaR(rankings, subsets, n=100, **kwargs):
+def gseaR(rankings, subsets, n, callback=None):
     """
     """
-
-    if "permutation" in kwargs:
-        if kwargs["permutation"] == "class":
-            raise Exception("Only gene permutation possible")
-
     enrichmentScores = []
- 
     ordered = orderedPointersCorr(rankings)
     
     def rev(l):
@@ -306,7 +298,7 @@ def gseaR(rankings, subsets, n=100, **kwargs):
         es = enrichmentScoreRanked(subset, rankings, ordered, rev2=rev2)[0]
         enrichmentScores.append(es)
     
-    runOptCallbacks(kwargs)
+    runOptCallbacks(callback)
 
     enrichmentNulls = [ [] for a in range(len(subsets)) ]
 
@@ -321,7 +313,7 @@ def gseaR(rankings, subsets, n=100, **kwargs):
             esn = enrichmentScoreRanked(subset, r2, ordered2, rev2=rev22)[0]
             enrichmentNulls[si].append(esn)
 
-        runOptCallbacks(kwargs)
+        runOptCallbacks(callback)
 
     return gseaSignificance(enrichmentScores, enrichmentNulls)
 
@@ -932,25 +924,15 @@ class GSEA(object):
                 self.namesToIndices[at.name].append(i)
         return reduce(lambda x,y:x+y, [ self.namesToIndices[gname] for gname in genes ], [])
 
-    def compute_gene_weights(self, gsweights, gsetsnum, nattributes):
-        """
-        Computes gene set weights for all specified weights.
-        Expects gene sets in form { name: [ num_attributes ] }
-        GSWeights are 
-        """
-        pass
-
     def to_gsetsnum(self, gsets):
         """
         Returns a dictionary of given  gene sets in gsetnums format.
         """
-        return dict( (gs,self.genesIndices(nth(self.genesets[gs],1))) for gs in gsets)
+        return dict( (gs, self.genesIndices(nth(self.genesets[gs],1))) for gs in gsets)
 
-    def compute(self, minSize=3, maxSize=1000, minPart=0.1, n=100, **kwargs):
+    def compute(self, minSize=3, maxSize=1000, minPart=0.1, n=100, callback=None, rankingf=None, permutation="class"):
 
         subsetsok = self.selectGenesets(minSize=minSize, maxSize=maxSize, minPart=minPart)
-
-        geneweights = None
 
         gsetsnum = self.to_gsetsnum(subsetsok.keys())
         gsetsnumit = gsetsnum.items() #to fix order
@@ -961,15 +943,11 @@ class GSEA(object):
         if len(gsetsnum) == 0:
             return {} # quick return if no genesets
 
-        if len(self.gsweights) > 0:
-            #set geneset
-            geneweights = [1]*len(data.domain.attributes)
-
         if len(itOrFirst(self.data)) > 1:
-            gseal = gseaE(self.data, nth(gsetsnumit,1), n=n, geneweights=geneweights, **kwargs)
+            gseal = gseaE(self.data, nth(gsetsnumit,1), n=n, callback=callback, permutation=permutation, rankingf=rankingf)
         else:
             rankings = [ self.data[0][at].native() for at in self.data.domain.attributes ]
-            gseal = gseaR(rankings, nth(gsetsnumit,1), n=n, **kwargs)
+            gseal = gseaR(rankings, nth(gsetsnumit,1), n, callback=None)
 
         res = {}
 
@@ -986,46 +964,88 @@ class GSEA(object):
 
         return res
 
+def direct(data, gene_sets, matcher, min_size=3, max_size=1000, min_part=0.1,
+    gene_desc=None, n=100, callback=None):
+    """ Gene Set Enrichment analysis for pre-computed correlations
+    between genes and phenotypes. 
+    
+    :param Orange.data.Table: Precomputed correlations as a data set 
+        with a single continuous variable or a single 
+        :obj:`~Orange.data.Instance`.
+
+    See :obj:`run` for other parameters.
+
+    :return: See :obj:`run`. 
+    """
+
+    assert len(data.domain.attributes) == 1 or len(data) == 1
+    return runGSEA(data, geneSets=gene_sets, matcher=matcher, minSize=min_size, 
+        maxSize=max_size, minPart=min_part, n=n, geneVar=gene_desc, callback=callback)
+
+def run(data, gene_sets, matcher, min_size=3, max_size=1000, min_part=0.1,
+    at_least=3, phenotypes=None, gene_desc=None, phen_desc=None, n=100, 
+    permutation="phenotype", callback=None, rankingf=None):
+    """ Run Gene Set Enrichment Analysis.
+
+    :param Orange.data.Table data: Gene expression data.  
+    :param Orange.bio.geneset.GeneSets gene_sets: Gene sets.  
+    :param Orange.bio.gene.Matcher matcher: Initialized gene matcher.
+    :param tuple phenotypes: A pair describing two distinct phenotypes.
+        Each element can also be a list of values. Only examples with
+        a chosen phenotypes are analysed. Default: values phenotypes
+        of ``phen_desc``.
+    :param n: Number of permutations for significance computation. Default: 100.
+    :param str permutation: Permutation type, "phenotype" (default) for 
+        phenotypes, "gene" for genes.
+    :param int min_size:
+    :param int max_size: Minimum and maximum allowed number of genes from
+        gene set also the data set. Defaults: 3 and 1000.
+    :param float min_part: Minimum fraction of genes from the gene set
+        also in the data set. Default: 0.1.
+    :param int at_least: Minimum number of valid gene values for each 
+        phenotype (the rest are ignored). Default: 3.
+    :param phen_desc: Location of data on phenotypes. By default the
+        ``data.domain.class_var`` is used if it exists. If string, the
+        corresponding entry from ``attributes`` dictionary of individual
+        features specifies the phenotype. In latter case, each attribute
+        represents one sample.
+    :param gene_desc: Locations of gene names. If True, gene names
+        are attribute names. If a string, that entry of the individual
+        features'``attributes`` dictionary is used. If each attribute
+        specifies a sample, then the user should pass the meta variable
+        containing the gene names. Defaults to attribute names if each
+        example specifies one sample.
+
+    :return: | a dictionary where key is a gene set and values are:
+        | { es: enrichment score, 
+        | nes: normalized enrichment score, 
+        | p: P-value, 
+        | fdr: FDR, 
+        | size: gene set size,
+        | matched_size: genes matched to the data, 
+        | genes: gene names from the data set }
+
+    """
+    assert len(data.domain.attributes) > 1 or len(data) > 1
+    assert permutation in ["phenotype", "gene"]
+    if permutation == "phenotype":
+        permutation = "class"
+    return runGSEA(data, geneSets=gene_sets, matcher=matcher, minSize=min_size, 
+        maxSize=max_size, minPart=min_part, n=n, permutation=permutation, 
+        geneVar=gene_desc, callback=callback, phenVar=phen_desc, 
+        classValues=phenotypes)
+
 def runGSEA(data, organism=None, classValues=None, geneSets=None, n=100, 
         permutation="class", minSize=3, maxSize=1000, minPart=0.1, atLeast=3, 
         matcher=None, geneVar=None, phenVar=None, caseSensitive=False, 
-        **kwargs):
-    """
-    Run Gene Set Enrichment Analysis.
-
-    :param str organism: The organism taxonomy id (or name). Needed 
-       to build default gene sets and gene matcher.
-    :param Orange.data.Table data: Gene expression data.
-    :param Orange.bio.gene.Matcher matcher: Initialized gene matcher. If not given, a gene matcher is built with the KEGG database.
-    :param tuple classValues: A pair of values describing two distinct phenotypes. Each element can also be a list of values.
-       are computed. Only examples with a chosen phenotypes are analysised. Default: use all phenotypes in the data.
-    :param Orange.bio.geneset.GeneSets geneSets: Gene sets. Default: ???.
-    :param n: Number of permutations for significance computation. Default: 100.
-    :param str permutation: Permutation type, "class" (default) for phenotypes, "gene" for genes. We recommend "gene" permutations for data sets with less than 10 samples even though they ignore gene-gene interactions.
-    :param int minSize:
-    :param int maxSize: Minimum and maximum allowed number of genes from gene set also the data set. Defaults: 3 and 1000.
-    :param float minPart: Minimum fraction of genes from the gene set also in the data set. Default: 0.1.
-    :param int atLeast: Minimum number of valid gene values for each phenotype (the rest are ignored). Default: 3.
-    :param phenVar: Location of data on phenotypes. By default the `data.domain.class_var` is used if it exists. If :obj:`phenVar` is False, the genes are already taken as ranked. If string, the corresponding entry from ``attributes`` dictionary of individual features specifies the phenotype. In latter case, each attribute represents one sample.
-    :param geneVar: Locations of gene names. If True, gene names are attribute names. If a string, that entry of the individual features'``attributes`` dictionary is used. If each attribute specifies a sample, then the user should pass the meta variable containing the gene names. Defaults to attribute names if each example specifies one sample.
-    
-    :return: a dictionary where key is a gene set label and 
-        its value a dictionary of 
-        (1) enrichment score (es), 
-        (2) normalized enrichment score (nes), 
-        (3) P-value (p), 
-        (4) FDR (fdr), 
-        (5) whole gene set size (size), 
-        (6) number of matched genes from the gene set (matched_size), 
-        (7) gene names of matched genes in the data set (genes).
-
-    """
+        rankingf=None, callback=None):
     gso = GSEA(data, organism=organism, matcher=matcher, 
         classValues=classValues, atLeast=atLeast, caseSensitive=caseSensitive,
         geneVar=geneVar, phenVar=phenVar)
     gso.addGenesets(geneSets)
     res1 = gso.compute(n=n, permutation=permutation, minSize=minSize,
-        maxSize=maxSize, minPart=minPart, **kwargs)
+        maxSize=maxSize, minPart=minPart, rankingf=rankingf,
+        callback=callback)
     return res1
 
 def etForAttribute(datal,a):

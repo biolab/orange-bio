@@ -5,10 +5,12 @@ Gene Set Enrichment Analysis (GSEA, :mod:`gsea`)
 .. py:currentmodule:: Orange.bio.gsea
 
 
-Gene Set Enrichment Analysis (GSEA) aims to identify enriched gene sets
+Gene Set Enrichment Analysis (GSEA) [GSEA]_ aims to identify enriched gene sets
 given gene expression data for multiple samples with their phenotypes.
 
-.. autofunction:: Orange.bio.gsea.runGSEA
+.. autofunction:: Orange.bio.gsea.run
+
+.. autofunction:: Orange.bio.gsea.direct
 
 Examples: gene expression data
 ------------------------------
@@ -18,11 +20,11 @@ We show the same analysis on two formats of data.
 
 With samples as instances (in rows):
 
-.. literalinclude:: code/gsea4.py
+.. literalinclude:: code/gsea_instances.py
 
 With samples as features (in columns):
 
-.. literalinclude:: code/gsea3.py
+.. literalinclude:: code/gsea_genes.py
 
 Both scripts output::
 
@@ -80,4 +82,4 @@ The output::
     RNA polymerase                            0.550  0.943     24       7
     Glycosylphosphatidylinositol(GPI)-a      -0.540  0.946     19       4
 
-
+.. [GSEA] Subramanian, Aravind et al. Gene set enrichment analysis: A knowledge-based approach for interpreting genome-wide expression profiles. PNAS, 2005.

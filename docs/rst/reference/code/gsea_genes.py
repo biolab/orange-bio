@@ -8,9 +8,9 @@ matcher = gene.matcher([gene.GMKEGG("Homo sapiens")])
 genesets = geneset.collections((("KEGG",), "Homo sapiens"))
 
 #the number of permutations (n) should be much higher
-res = gsea.runGSEA(data, matcher=matcher, minPart=0.05, 
-    geneSets=genesets, permutation="class", n=10, 
-    phenVar="tissue", geneVar="gene") 
+res = gsea.run(data, gene_sets=genesets, matcher=matcher, 
+    min_part=0.05, permutation="phenotype", n=10, 
+    phen_desc="tissue", gene_desc="gene") 
 
 print
 print "GSEA results (descriptor: tissue)"
