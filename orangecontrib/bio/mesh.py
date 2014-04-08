@@ -16,6 +16,8 @@ from Orange.orng import orngServerFiles
 
 FUZZYMETAID = -12
 
+import Orange.bio.utils.stats
+HYPERG = Orange.bio.utils.stats.Hypergeometric()
 
 class obiMeSH(object):
 
@@ -25,14 +27,6 @@ class obiMeSH(object):
         """
         # print "SVN version"
         # we check if all files from MeSH directory are localy present. if not, download them
-        d = orngServerFiles.ServerFiles()
-        f = d.listfiles('MeSH')
-        l = orngServerFiles.listfiles('MeSH')
-        for i in f:
-            if not i in l:
-                orngServerFiles.download('MeSH', i)
-                print 'Downloading MeSH ontology and chemical annotation. Please wait.', i
-
         self.reference = None
         self.cluster = None
         self.ratio = 1
@@ -44,9 +38,6 @@ class obiMeSH(object):
         self.solo_att = "Unknown"
 
         # we calculate log(i!)
-        self.lookup = [0]
-        for i in range(1, 8000):
-            self.lookup.append(self.lookup[-1] + log(i))
         self.dataLoaded = self.__loadOntologyFromDisk()
 
     def expandToFuzzyExamples(self, examples, att, a, b):
@@ -553,29 +544,9 @@ class obiMeSH(object):
         self.ratio = float(cln) / float(n)
         # enrichment
         for i in self.statistics.iterkeys():
-            self.statistics[i][2] = self.__calcEnrichment(int(n), int(cln), int(self.statistics[i][0]), int(self.statistics[i][1])) 	# p enrichment
+            self.statistics[i][2] = HYPERG.p_value(int(self.statistics[i][1]), int(n), int(cln), int(self.statistics[i][0]))
             self.statistics[i][3] = float(self.statistics[i][1]) / float(self.statistics[i][0]) / self.ratio   # fold enrichment
         self.calculated = True
-
-    def __calcEnrichment(self, n, c, t, tc):
-        """
-        Function calculates hypergeometric distribution based on the input parameters.
-        n - total number of items ie. size(cluster + reference)
-        c - cluster size ie. size(cluster)
-        t - number of all items in observed MeST term group
-        tc - number of cluster chemicals in observed term group
-        """
-
-        # FIXME: Popravi cudno racunanje enrichmenta v mejnih primerih.
-
-        result = 0
-        for i in range(0, tc):
-            result = result + exp(self.log_comb(t, i) + self.log_comb(n - t, c - i))
-        result = result * 1.0 / exp(self.log_comb(n, c))
-        return (1.0 - result)
-
-    def log_comb(self, n, m):  # it returns log(nCr(n,m))
-        return self.lookup[n] - self.lookup[n - m] - self.lookup[m]
 
     def __loadOntologyFromDisk(self):
         """
@@ -587,19 +558,9 @@ class obiMeSH(object):
         self.fromCID = dict()  # cid -> term id
         self.fromPMID = dict()  # pmid -> term id
 
-        __dataPath = orngServerFiles.localpath('MeSH')
-        try:
-            # reading graph structure from file
-            d = file(os.path.join(__dataPath, 'mesh-ontology.dat'))
-        except IOError:
-            print os.path.join(__dataPath, 'mesh-ontology.dat') + " does not exist!"
-            return False
-        try:
-            # reading cid annotation from file
-            f = file(os.path.join(__dataPath, 'cid-annotation.dat'))
-        except IOError:
-            print os.path.join(__dataPath, 'cid-annotation.dat') + " does not exist!"
-            # return False
+        d = file(orngServerFiles.localpath_download('MeSH', 'mesh-ontology.dat'))
+        f = file(orngServerFiles.localpath_download('MeSH', 'cid-annotation.dat'))
+
         # loading ontology graph
         t = 0
         for i in d:
@@ -614,17 +575,17 @@ class obiMeSH(object):
             for r in ids:
                 self.toName[r] = parts[0]
             # loading cid -> mesh
-            for i in f:
-                parts = i.split(";")		# delimiters are tabs
-                if(len(parts) != 2):
-                    print "error reading ontology ", parts[0]
-                parts[1] = parts[1].rstrip("\n\r")
-                cid = int(parts[0])
-                if self.fromCID.has_key(cid):
-                    self.fromCID[cid].append(parts[1])
-                else:
-                    self.fromCID[cid] = [parts[1]]
-            # loading pmid -> mesh, TODO
+        for i in f:
+            parts = i.split(";")		# delimiters are tabs
+            if(len(parts) != 2):
+                print "error reading ontology ", parts[0]
+            parts[1] = parts[1].rstrip("\n\r")
+            cid = int(parts[0])
+            if self.fromCID.has_key(cid):
+                self.fromCID[cid].append(parts[1])
+            else:
+                self.fromCID[cid] = [parts[1]]
+        # loading pmid -> mesh, TODO
         # print "Current MeSH ontology contains ", t, " mesh terms."
         return True
 
