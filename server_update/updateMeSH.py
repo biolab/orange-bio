@@ -4,7 +4,7 @@
 from common import *
 from urllib import urlopen
 
-ontology = urlopen("ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2012.bin")
+ontology = urlopen("ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d2014.bin")
 size = int(ontology.info().getheader("Content-Length"))
 rsize = 0
 results = list()
