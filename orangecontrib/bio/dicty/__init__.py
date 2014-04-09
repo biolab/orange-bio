@@ -1119,10 +1119,15 @@ chips chips""")
 
     def annotations(self, type, ids=None, all=False):
         """
-        Returns a generator returning annotations for specified type and ids. 
-        If ids are left blank, all annotations are outputed. Annotations are in the same order
-        as input ids.
-        If all is True, all annotations are kept, else keep only "meaningful".
+        Return annotations for specified type and ids.
+
+        :param type: Object type (:obj:`DictyExpress.objects`). 
+        :param ids: If set, only annotations corresponding to the given
+          ids are returned. Annotations are in the same order as
+          input ids.
+        :param all: If False (default), only annotations for "meaningful"
+          annotation types are returned. If True,
+          return annotations for all annotation types.
         """
         
         inputids = False
@@ -1284,7 +1289,7 @@ chips chips""")
 
     def objects(self):
         """
-        Returns all objects.
+        Return all objects types.
         """
         return self.obids.keys()
 
@@ -1321,20 +1326,25 @@ chips chips""")
     def get_data(self, type="norms", exclude_constant_labels=False, average=median, 
         ids=None, callback=None, format="short", transform=None, allowed_labels=None, **kwargs):
         """
-        Get data in a single example table with labels of individual attributes
-        set to annotations for query and post-processing
-        instructions.
+        Return data in a single table. Each feature represents a chip
+        and each sample is a gene. The ``.attributes`` dictionaries of
+        the features contain annotations.
 
-        Parameters: 
-            average: function used for combining multiple reading of the same spot on
-                a chip. If None, no averaging is done. Fuction should take a list
-                of floats and return an "averaged" float.
-            ids: a list of chip ids. If absent, make a search
-            exclude_constant_labels: if a label has the same value in whole 
-                example table, remove it
-            format: if short, use short format for chip download
+        :param average: A function that combines multiple reading of the same spot on
+          a chip. If None, no averaging is done. Fuction should take a list
+          of floats and return an "averaged" float. Default: median.
+        :param ids: A list of chip ids. If absent, make a search. In this case
+          any additional parameters are threated as in :obj:`DictyExpress.search`.
+        :param exclude_constant_labels: Remove labels if they have the  same value 
+          for the whole table. 
+        :param str format: If "short", use short format for downloads.
+        :param transform: A function that transforms individual values: it should take
+          a float and return a float. An example use would be a logarithmic 
+          transformation. Default: None.
 
-        Defaults: Median averaging.
+        :returns: Chips with given ids in a single data table.
+        :rtype: :obj:`Orange.data.Table`
+
         """
 
         def optcb():

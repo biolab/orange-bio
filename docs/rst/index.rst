@@ -25,6 +25,7 @@ Scripting Reference
 
    reference/kegg.rst
    reference/ontology.rst
+   reference/dicty.rst
    reference/dictybase.rst
    reference/gene.rst
    reference/genesets.rst
