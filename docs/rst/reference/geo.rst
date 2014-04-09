@@ -11,11 +11,11 @@ NCBI's Gene Expression Omnibus interface (:mod:`geo`)
 
 :obj:`obiGEO` provides an interface to `NCBI
 <http://www.ncbi.nlm.nih.gov/>`_'s `Gene Expression Omnibus
-<http://www.ncbi.nlm.nih.gov/geo/>`_ repository. Currently, it only
+<http://www.ncbi.nlm.nih.gov/geo/>`_ repository. It 
 supports `GEO DataSets <http://www.ncbi.nlm.nih.gov/sites/GDSbrowser>`_
 information querying and retrieval.
 
-The following illustrates how :obj:`GDS.getdata` is used to
+In the following example :obj:`GDS.getdata`
 construct a data set with genes in rows and samples in
 columns. Notice that the annotation about each sample is retained
 in ``.attributes``.
@@ -58,7 +58,7 @@ An example that uses obj:`GDSInfo`::
 Examples
 ========
 
-The following script prints out some information about a specific data
+The following script prints out information about a specific data
 set. It does not download the data set, just uses the (local) GEO data
 sets information file (:download:`geo_gds1.py <code/geo_gds1.py>`).
 
@@ -83,18 +83,16 @@ The output of this script is::
     two nondiabetic control strains.
 
 
-GEO data sets provide a sort of mini ontology for sample labeling. Samples
-belong to sample subsets, which in turn belong to specific types. Like
-above GDS10, which has three sample types, of which the subsets for
-the tissue type are spleen and thymus. For supervised data mining it
-would be useful to find out which data sets provide enough samples for
-each label. It is (semantically) convenient to perform classification
-within sample subsets of the same type. We therefore need a script
-that goes through the entire set of data sets and finds those, where
-there are enough samples within each of the subsets for a specific
-type. The following script does the work. The function ``valid``
-determines which subset types (if any) satisfy our criteria. The
-number of requested samples in the subset is by default set to ``n=40``
+Samples in GEO data sets belong to sample subsets, which in turn belong
+to specific types.  The above GDS10 has three sample types, of which the
+subsets for the tissue type are spleen and thymus. For supervised data
+mining it would be useful to find out which data sets provide enough
+samples for each label. It is (semantically) convenient to perform
+classification within sample subsets of the same type. The following
+scripts therefore goes through all data sets and finds those with enough
+samples within each of the subsets for a specific type. The function
+``valid`` determines which subset types (if any) satisfy our criteria. The
+minimum number of samples in the subset was set to ``n=40``
 (:download:`geo_gds5.py <code/geo_gds5.py>`).
 
 .. literalinclude:: code/geo_gds5.py
