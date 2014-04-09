@@ -38,6 +38,9 @@ def goGeneSets(org):
 
     return GeneSets(genesets)
 
+def strornone(x):
+    return str(x) if x != None else x
+
 def keggGeneSets(org):
     """
     Returns gene sets from KEGG pathways.
@@ -265,16 +268,24 @@ def list_serverfiles():
     flist = pickle.load(open(fname, 'r'))
     return list_serverfiles_from_flist(flist)
 
-def list_all():
+def list_all(org=None, local=None):
     """
     Return gene sets available in the local and ServerFiles repositories. 
     It returns a list of tuples of (hierarchy, organism, available_locally)
+
+    Results can be filtered with the following parameters.
+
+    :param str org: Organism tax id.
+    :param bool local: Available locally.
     """
     flist = list_local() + list_serverfiles()
     d = {}
-    for h,o,local in flist:
-        d[h,o] = min(local, d.get((h,o),True))
-    return [ (h,o,local) for (h,o),local in d.items() ]
+    for h,o,l in flist:
+        d[h,o] = min(l, d.get((h,o),True))
+    return [ (h,o,l) for (h,o),l in d.items() \
+            if (local == None or l == local) and \
+               (org == None or o == str(org))
+        ]
 
 def update_server_list(serverfiles_upload, serverfiles_list=None):
     if serverfiles_list == None:
@@ -387,7 +398,7 @@ def load(hierarchy, organism):
         try:
             int(organism) #already a taxid
         except:
-            organismc = obiTaxonomy.to_taxid(organism)
+            organismc = obiTaxonomy.to_taxid(strornone(organism))
             if len(organismc) == 1:
                 organism = organismc.pop()
             else:
@@ -396,9 +407,9 @@ def load(hierarchy, organism):
                 raise NoGenesetsException(exstr)
 
     try:
-        return load_local(hierarchy, organism)
+        return load_local(hierarchy, strornone(organism))
     except NoGenesetsException:
-        return load_serverfiles(hierarchy, organism)
+        return load_serverfiles(hierarchy, strornone(organism))
 
 def collections(*args):
     """

@@ -9,7 +9,7 @@
 NCBI's Gene Expression Omnibus interface (:mod:`geo`)
 **************************************************************
 
-:obj:`obiGEO` provides an interface to `NCBI
+This module provides an interface to `NCBI
 <http://www.ncbi.nlm.nih.gov/>`_'s `Gene Expression Omnibus
 <http://www.ncbi.nlm.nih.gov/geo/>`_ repository. It 
 supports `GEO DataSets <http://www.ncbi.nlm.nih.gov/sites/GDSbrowser>`_

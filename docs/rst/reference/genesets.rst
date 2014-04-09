@@ -1,44 +1,58 @@
-.. py:currentmodule:: Orange.bio.obiGeneSets
+.. py:currentmodule:: Orange.bio.geneset
+.. py:module:: Orange.bio.geneset
 
 .. index:: gene set
 .. index:: gene sets
 
 ********************************************************
-Gene sets (:mod:`obiGeneSets`)
+Gene sets (:mod:`geneset`)
 ********************************************************
 
-:mod:`obiGeneSets` can load gene sets distributed with Orange (through ServerFiles) 
-and also in `GMT file format <http://www.molmine.com/magma/fileformats.html>`_.
+This module can load either gene sets distributed with Orange (through ServerFiles) 
+or custom gene sets in the `GMT file format <http://www.molmine.com/magma/fileformats.html>`_.
 
-Load gene sets from KEGG and GO for mouse::
+The available gene set collection can be listed with :obj:`list_all`.
 
-    obiGeneSets.collections((("KEGG",), "10090"), (("GO",), "10090"))
+:obj:`collections` loads gene sets. Gene sets provided with Orange are
+organized hierarchically. Although the ``GO`` hierarchy includes subsets,
+all of them can be loaded with (the organism here is a mouse)::
 
-Open gene sets from ``specific.gmt`` file in the current working directory::
+    Orange.bio.geneset.collections((("GO",), "10090"))
 
-    obiGeneSets.collections("specific.gmt")
+To open multiple gene set collections at once, for example, KEGG and GO, try::
+
+    Orange.bio.geneset.collections((("KEGG",), "10090"), (("GO",), "10090"))
+
+You could also open a file with gene sets. The following line would open ``specific.gmt`` from the current working directory::
+
+    Orange.bio.geneset.collections("specific.gmt")
 
 The above examples combined::
 
-    obiGeneSets.collections((("KEGG",), "10090"), (("GO",), "10090"), "specific.gmt")
+    Orange.bio.geneset.collections((("KEGG",), "10090"), (("GO",), "10090"), "specific.gmt")
+
+Furthermore, all gene sets for a specific organism can be opened with an empty
+hierarchy::
+
+    Orange.bio.geneset.collections((tuple(), "10090"))
 
 
 Loading gene sets
 =================
 
-.. autofunction:: list_all
+.. autofunction:: Orange.bio.geneset.list_all
 
-.. autofunction:: collections
+.. autofunction:: Orange.bio.geneset.collections
 
 
 Supporting functionality
 ========================
 
-.. autoclass:: GeneSets
+.. autoclass:: Orange.bio.geneset.GeneSets
    :members:
 
-.. autoclass:: GeneSet
+.. autoclass:: Orange.bio.geneset.GeneSet
    :members:
 
-.. autofunction:: register
+.. autofunction:: Orange.bio.geneset.register
 
