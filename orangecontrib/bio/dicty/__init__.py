@@ -555,11 +555,11 @@ def bufferkeypipa(command, data):
 
 class PIPA(DBCommon):
 
-    def __init__(self, address=defaddresspipa, buffer=None, username=None, password=None):
+    def __init__(self, address=defaddresspipa, cache=None, username=None, password=None):
         self.address = address
         self.db=DBInterface(address)
         self.db_coverage=DBInterface(defaddresspipa_coverage) #temporary
-        self.buffer = buffer
+        self.buffer = cache
         self.username = None
         if username != None:
             self.username = username
@@ -731,11 +731,11 @@ class PIPAx(PIPA):
 
     API_ADDRESS = "https://pipa.biolab.si/pipax/api.py"
 
-    def __init__(self, address=API_ADDRESS, buffer=None,
+    def __init__(self, address=API_ADDRESS, cache=None,
                  username=None, password=None):
         self.address = address
         self.db = DBInterface(address)
-        self.buffer = buffer
+        self.buffer = cache
         self.username = username
         self.password = password
 
@@ -1025,10 +1025,10 @@ experiments experiments
 extractions extractions
 chips chips""")
 
-    def __init__(self, address=defaddress, buffer=None):
+    def __init__(self, address=defaddress, cache=None):
         self.address = address
         self.db = DBInterface(address)
-        self.buffer = buffer
+        self.buffer = cache
         self.preload()
 
     def preload(self):
@@ -1566,16 +1566,25 @@ class CallBack():
             self.fn()
             self.cbs += 1
 
-class BufferSQLite(object):
+class CacheSQLite(object):
+    """
+    An SQLite-based cache. 
+    """
 
     def __init__(self, filename, compress=True):
+        """
+        Creates a new buffer.
+
+        :param str filename: The filename.
+        :param bool compress: Whether to use on-the-fly compression.
+        """
         self.compress = compress
         self.filename = filename
         self.conn = self.connect()
 
     def clear(self):
         """
-        Removes all entries in the buffer
+        Remove all entries in the buffer.
         """
         self.conn.close()
         os.remove(self.filename)
@@ -1592,7 +1601,10 @@ class BufferSQLite(object):
         return conn
 
     def contains(self, addr):
-        """ Returns version or False, if it does not exists """
+        """ Return the element's version or False, if the element does not exists. 
+
+        :param addr: Element address.
+        """
         c = self.conn.cursor()
         c.execute('select time from buf where address=?', (addr,))
         lc = list(c)
@@ -1603,11 +1615,18 @@ class BufferSQLite(object):
             return lc[0][0]
 
     def list(self):
+        """ List all element addresses in the cache. """
         c = self.conn.cursor()
         c.execute('select address from buf')
         return nth(list(c), 0)
 
     def add(self, addr, con, version="0", autocommit=True):
+        """ Inserts an element into the cache. 
+        
+        :param addr: Element address.
+        :param con: Contents.
+        :param version: Version.
+        """
         import cPickle, zlib, sqlite3
         if verbose:
             print "Adding", addr
@@ -1622,9 +1641,15 @@ class BufferSQLite(object):
             self.commit()
 
     def commit(self):
+        """ Commit the changes. Run only if previous :obj:`~CacheSQLite.add`
+        was called without autocommit."""
         self.conn.commit()
 
     def get(self, addr):
+        """ Loads an element from the cache.
+
+        :param addr: Element address.
+        """
         import cPickle, zlib
         if verbose:
             print "getting from buffer", addr
@@ -1844,7 +1869,7 @@ if __name__=="__main__":
     a = DictyBase()
     print len(a.info)
 
-    dbc = DictyExpress(buffer=BufferSQLite("../tmpbufnew"))
+    dbc = DictyExpress(cache=CacheSQLite("../tmpbufnew"))
 
     print dbc.annotationOptions()
 
@@ -1860,7 +1885,7 @@ if __name__=="__main__":
     printet(et)
     """
 
-    d = PIPA(buffer=BufferSQLite("../tmpbufnewpipa"))
+    d = PIPA(cache=CacheSQLite("../tmpbufnewpipa"))
 
     print d.gene_expression_types()
 

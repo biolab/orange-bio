@@ -459,7 +459,7 @@ class OWPIPAx(OWWidget):
         self.rtypei = 5 #hardcoded rpkm mapability polya
 
         self.selectedExperiments = []
-        self.buffer = obiDicty.BufferSQLite(bufferfile)
+        self.buffer = obiDicty.CacheSQLite(bufferfile)
 
         self.searchString = ""
         self.excludeconstant = False
@@ -608,7 +608,7 @@ class OWPIPAx(OWWidget):
         def en(x):
             return x if len(x) else None
 
-        self.dbc = obiDicty.PIPAx(buffer=self.buffer,
+        self.dbc = obiDicty.PIPAx(cache=self.buffer,
                                   username=en(self.username),
                                   password=self.password)
 

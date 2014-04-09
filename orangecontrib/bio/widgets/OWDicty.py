@@ -52,7 +52,7 @@ class OWDicty(OWWidget):
         self.platform = None
 
         self.selectedExperiments = []
-        self.buffer = obiDicty.BufferSQLite(bufferfile)
+        self.buffer = obiDicty.CacheSQLite(bufferfile)
 
         self.searchString = ""
         self.excludeconstant = False
@@ -97,7 +97,7 @@ class OWDicty(OWWidget):
             address += "token="+self.serverToken+"&"
         try:
             #obiDicty.verbose = 1
-            self.dbc = obiDicty.DatabaseConnection(address, buffer=self.buffer)
+            self.dbc = obiDicty.DatabaseConnection(address, cache=self.buffer)
         except Exception, ex:
             from traceback import print_exception
             print_exception(*sys.exc_info())
