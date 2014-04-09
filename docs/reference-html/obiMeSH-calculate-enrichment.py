@@ -1,9 +1,9 @@
-import obiMeSH
-import orange
+from Orange.bio import obiMeSH
+import Orange
 
 # load datasets
-reference = orange.ExampleTable('obiMeSH-reference-dataset.tab')
-cluster = orange.ExampleTable('obiMeSH-cluster-dataset.tab')
+reference = Orange.data.Table('obiMeSH-reference-dataset.tab')
+cluster = Orange.data.Table('obiMeSH-cluster-dataset.tab')
 
 # find and print enriched MeSH terms with p-value < 0.1
 d = obiMeSH.obiMeSH()
