@@ -1,30 +1,31 @@
-.. py:currentmodule:: Orange.bio.obiDictyMutants
+.. py:currentmodule:: Orange.bio.dicty.phenotypes
 
 .. index:: mutant phenotypes
 .. index:: phenotypes
 .. index::
    single: D. dictyostelium; mutants
 
-********************************************************
-D. discoideum Mutant Phenotypes (:mod:`obiDictyMutants`)
-********************************************************
+*********************************************************
+D. discoideum Mutant Phenotypes (:mod:`dicty.phenotypes`)
+*********************************************************
 
-Module :mod:`obiDictyMutants` provides interface to `Dictyostelium mutant phenotypes
-<http://dictybase.org/Downloads/>`_ data from the dictyBase_.
-The mutants are presented as `DictyMutant` objects with their respective name,
-strain descriptor, associated genes and associated phenotypes.
+This modules provides an interface to `Dictyostelium mutant
+phenotypes <http://dictybase.org/Downloads/>`_ data from the
+`dictyBase <http://dictybase.org/>`_.  The mutants are presented as
+:obj:`DictyMutant` objects with their respective name, strain descriptor,
+associated genes and associated phenotypes.
 
 Classes and Functions
 =====================
 
-.. automodule:: Orange.bio.obiDictyMutants
+.. automodule:: Orange.bio.dicty.phenotypes
    :members:
    :member-order: bysource
 
 Examples
 ========
 
-   >>> from Orange.bio.obiDictyMutants import *
+   >>> from Orange.bio.dicty.phenotypes import *
    >>> # Create a set of all mutant objects
    >>> dicty_mutants = mutants()
    >>> # List a set of all genes referenced by a single mutant
