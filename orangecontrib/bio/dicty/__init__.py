@@ -726,13 +726,18 @@ def bufferkeypipax(command, data):
 
 
 class PIPAx(PIPA):
-    """`PIPAx <http://pipa.biolab.si/?page_id=23>` api interface.
+    """ An interface to `PIPAx API <http://pipa.biolab.si/hp/api.html>`_.
     """
 
     API_ADDRESS = "https://pipa.biolab.si/pipax/api.py"
 
     def __init__(self, address=API_ADDRESS, cache=None,
                  username=None, password=None):
+        """
+        :param address: The address of the API. 
+        :param username:
+        :param password: Your login details, leave None for default settings.
+        """
         self.address = address
         self.db = DBInterface(address)
         self.buffer = cache
@@ -742,10 +747,6 @@ class PIPAx(PIPA):
     def genomes(self, reload=False, bufver="0"):
         """Return a list of available genomes as a list of
         (genome_id, genome_name) tuples.
-
-        >>> pipax.genomes()
-        [('dd', 'Dictyostelium discoideum'), ('dp', 'Dictyostelium purpureum')]
-
         """
         data = {"action": "genomes"}
         res, _ = self.sq("", data=data, reload=reload, bufver=bufver)
@@ -755,9 +756,6 @@ class PIPAx(PIPA):
         """Return a dictionary of {unique_id: dictionary_of_annotations}
         where the keys for dictionary_of_annotations are
         ["id", data_id", "data_name", "genomes_id"]
-
-        >>> mappings = pipax.mappings()
-
         """
         data = self.add_auth({"action": "mappings"})
         res, legend = self.sq("", data=data, reload=reload,
@@ -1573,7 +1571,7 @@ class CacheSQLite(object):
 
     def __init__(self, filename, compress=True):
         """
-        Creates a new buffer.
+        Opens an existing cache or creates a new one if it does not exist.
 
         :param str filename: The filename.
         :param bool compress: Whether to use on-the-fly compression.
@@ -1584,7 +1582,7 @@ class CacheSQLite(object):
 
     def clear(self):
         """
-        Remove all entries in the buffer.
+        Remove all entries.
         """
         self.conn.close()
         os.remove(self.filename)
