@@ -16,6 +16,7 @@ Widgets
    :maxdepth: 1
  
    PIPA.rst
+   databases.rst
 
 Scripting Reference
 -------------------

@@ -1161,13 +1161,17 @@ chips chips""")
         List of searchable annotation types: self.saoids.keys()
 
         example usage:
-        search("norms", platform='minichip', sample='abcC3-') 
-            finds all ids of normalized entries where platform is minchip and 
-            sample is abcC3-
-        search("norms", platform='minichip', sample=[ 'abcC3-', 'abcG15-']) 
-            finds all ids of normalized entries where platform is minichip and 
-            sample is abcC3- or those where platform is minichip and sample
-            is abcG15-
+
+        search("norms", platform='minichip', sample='abcC3-')
+
+        finds all ids of normalized entries where platform is minchip and
+        sample is abcC3-
+
+        search("norms", platform='minichip', sample=[ 'abcC3-', 'abcG15-'])
+
+        finds all ids of normalized entries where platform is minichip and
+        sample is abcC3- or those where platform is minichip and sample
+        is abcG15-
         """
         
         #search for all combinations of values - this is slow!

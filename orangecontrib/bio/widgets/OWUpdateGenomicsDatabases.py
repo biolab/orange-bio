@@ -9,7 +9,7 @@
 from Orange.OrangeWidgets.OWDatabasesUpdate import *
 
 NAME = "Databases"
-DESCRIPTION = "Update of systems biology data and knowledge bases."
+DESCRIPTION = "Updates local system biology databases."
 ICON = "icons/Databases.svg"
 PRIORITY = 10
 
