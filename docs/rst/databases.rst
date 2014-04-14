@@ -1,4 +1,4 @@
-.. _Paint Data:
+.. _Databases:
 
 Databases
 =========

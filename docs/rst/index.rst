@@ -17,6 +17,7 @@ Widgets
  
    PIPA.rst
    databases.rst
+   geodatasets.rst
 
 Scripting Reference
 -------------------
