@@ -5,7 +5,7 @@ Databases
 
 .. image:: ../../orangecontrib/bio/widgets/icons/Databases.svg
    :alt: Databases widget icon
-   :class: widget-category-data widget-icon
+   :class: widget-category-bioinformatics widget-icon
 
 Updates local systems biology databases, like gene ontologies, annotations,
 gene names, protein interaction networks, and similar.
