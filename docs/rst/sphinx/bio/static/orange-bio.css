@@ -1,0 +1,67 @@
+@import url("nature.css");
+
+
+/* Stamped lists for enumerated descriptions of widgets
+   (using stamp-list rst class)
+*/
+
+.stamp-list {
+    padding-left:20px;
+}
+
+.stamp-list li:nth-child(1) {
+	list-style-image: url(./images/1.png);
+}
+
+.stamp-list li:nth-child(2) {
+	list-style-image: url(./images/2.png)
+}
+
+.stamp-list li:nth-child(3) {
+	list-style-image: url(./images/3.png)
+}
+
+.stamp-list li:nth-child(4) {
+	list-style-image: url(./images/4.png)
+}
+
+.stamp-list li:nth-child(5) {
+	list-style-image: url(./images/5.png)
+}
+
+.stamp-list li:nth-child(6) {
+	list-style-image: url(./images/6.png)
+}
+
+.stamp-list li:nth-child(7) {
+	list-style-image: url(./images/7.png)
+}
+
+.stamp-list li:nth-child(8) {
+	list-style-image: url(./images/8.png)
+}
+
+.stamp-list li:nth-child(9) {
+	list-style-image: url(./images/9.png)
+}
+
+.stamp-list li:nth-child(10) {
+	list-style-image: url(./images/10.png)
+}
+
+/* Widget icon styling */
+table.widget-catalog-table img,
+img.widget-icon,
+table.widget-catalog-table object,
+object.widget-icon {
+    border-radius: 100%;
+    padding: 6px;
+    box-shadow: 0px 0px 5px #888888;
+}
+
+/* Bioinformatics widget category */
+table.widget-catalog-table.widget-category-bioinformatics img,
+img.widget-category-bioinformatics.widget-icon {
+    background: #DFECB0;
+    background: radial-gradient(#E6ECCE 0%, #E5ECCC 50%, #DFECB3 100%);
+}
