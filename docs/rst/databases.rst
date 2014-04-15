@@ -38,7 +38,7 @@ online data sets. Databases widget can update the data on your local machine,
 and can also be used to manage (remove or add) any locally stored
 systems biology data set.
 
-.. image:: images/Databases-stamped.png
+.. image:: images/databases-stamped.png
    :alt: Databases widget
 
 .. rst-class:: stamp-list
