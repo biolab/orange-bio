@@ -1,11 +1,24 @@
 ============================================================
-Dictyostelium discoideum data bases (:mod:`dicty`)
+Dictyostelium discoideum databases (:mod:`dicty`)
 ============================================================
 
 .. py:currentmodule:: Orange.bio.dicty
 
-.. autoclass:: Orange.bio.dicty.PIPAx
+The following example download experiment from the PIPA
+database, specifically "RPKM + mapability expression (polyA)"
+results for all public experiments on Dictyostelium discoideum (dd)
+at timepoint 16.
+
+.. literalinclude:: code/pipax1.py
+
+PIPAx database
+--------------
+
+.. autoclass:: Orange.bio.dicty.PIPA
    :members: __init__, genomes, get_data, mappings, result_types, results_list
+
+DictyExpress database
+---------------------
 
 .. autoclass:: Orange.bio.dicty.DictyExpress
    :members: __init__, objects, annotationTypes, annotations, get_data, search
