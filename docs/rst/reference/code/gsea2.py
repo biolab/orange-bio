@@ -1,8 +1,8 @@
 import Orange
 from Orange.bio import dicty, geneset, gsea, gene
 
-dbc = dicty.DatabaseConnection()
-data = dbc.get_single_data(sample='pkaC-', time="8")
+dbc = dicty.DictyExpress()
+data = dbc.get_data(sample='pkaC-', time="8")
 
 #select the first chip (the first attribute)
 data = data.translate([data.domain.attributes[0]], True)

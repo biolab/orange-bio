@@ -1,57 +1,3 @@
-"""
-===================================
-Array Express (:mod:`arrayexpress`)
-===================================
-
-Access the `ArrayExpress`_ web services and database.
-
-`ArrayExpress`_ is a database of gene expression experiments
-that you can query and download.
-
-
-Retrieve the object representing experiment with accession E-TABM-25
-
-    >>> from Orange.bio import arrayexpress
-    >>> experiment = ArrayExpressExperiment("E-TABM-25")
-    >>> print experiment.accession
-    E-TABM-25
-
-    >>> print experiment.name
-    Transcription profiling of aging in the primate brain
-
-    >>> print experiment.species
-    ['Pan troglodytes']
-
-    >>> print experiment.files
-    [{'kind': ...
-
-    >>> # Retrieve the data matrix for experiment 'E-MEXP-2917'
-    >>> experiment = ArrayExpressExperiment("E-MEXP-2917")
-    >>> table = experiment.fgem_to_table()
-
-
-Low level Array Express query using REST services::
-
-    >>> from Orange.bio import arrayexpress
-    >>> arrayexpress.query_experiments(accession='E-MEXP-31')
-    {u'experiments': ...
-
-    >>> arrayexpress.query_experiments(keywords='gliobastoma')
-    {u'experiments': ...
-
-    >>> arrayexpress.query_files(accession='E-MEXP-32', format="xml")
-    <xml.etree.ElementTree.ElementTree object ...
-
-.. note:: Currently querying ArrayExpress files only works with the xml format.
-
-.. note:: See the documentation of `query_experiments` for a full set of
-          parameters that these functions accept.
-
-
-.. _`ArrayExpress`: http://www.ebi.ac.uk/arrayexpress/
-
-"""
-
 from __future__ import absolute_import
 
 import os
@@ -130,9 +76,6 @@ class ArrayExpressConnection(object):
 
     :param address: Address of the ArrayExpress API.
     :param timeout: Timeout for the socket connection.
-
-    .. todo::
-        Implement user login (see Accessing Private Data in API docs)
 
     """
 
@@ -237,7 +180,7 @@ class ArrayExpressConnection(object):
         return "&".join(parts)
 
     def query_url(self, what="experiments", **kwargs):
-        """Return a formated query URL for the query arguments
+        """Return a formated query URL for the query arguments.
 
         >>> conn.query_url(accession="E-MEXP-31")
         'http://www.ebi.ac.uk/arrayexpress/json/v2/experiments?accession=E-MEXP-31'
@@ -261,11 +204,8 @@ class ArrayExpressConnection(object):
         return self.query_url("files", **kwargs)
 
     def query_experiment(self, **kwargs):
-        """Return an open stream to the experiments query results.
-
-        .. note:: This member function takes the same arguments as the module
-                  level `query_experiemnts` function.
-
+        """Return an open stream to the experiments query results. 
+           Takes the same arguments as the :obj:`query_experiments` function.
         """
         url = self.query_url_experiments(**kwargs)
         stream = self._cache_urlopen(url, timeout=self.timeout)
@@ -273,9 +213,7 @@ class ArrayExpressConnection(object):
 
     def query_files(self, **kwargs):
         """Return an open stream to the files query results.
-
-        .. note:: This member function takes the same arguments as the module
-                  level `query_files` function.
+           Takes the same arguments as the :obj:`query_experiments` function.
         """
         url = self.query_url_files(**kwargs)
         stream = self._cache_urlopen(url, timeout=self.timeout)
@@ -283,6 +221,7 @@ class ArrayExpressConnection(object):
 
     def open_file(self, accession, kind="raw", ext=None):
         """ Return a file handle to experiment data.
+        
         Possible values for kind:
             - raw: return the raw data if available
             - processed: return the processed data if available
@@ -291,7 +230,7 @@ class ArrayExpressConnection(object):
             - adf: array design description
             - mageml: MAGE-ML file
 
-        Example ::
+        Example::
 
             >>> raw_file = conn.open_file("E-TABM-1087", kind="raw")
             >>> processed_file = conn.open_file("E-TABM-1087", kind="processed")
@@ -423,15 +362,13 @@ def query_files(keywords=None, accession=None, array=None, ef=None,
                 format="json", wholewords=None, connection=None):
     """Query Array Express files.
 
-    This function accepts the same arguments as `query_experiments`.
+    Accepts the same arguments as :obj:`query_experiments`.
 
     Example ::
 
         >>> query_files(species="Mus musculus", ef="developmental_stage",
         ...             efv="embryo", format="xml")
         <xml.etree.ElementTree.ElementTree object ...
-
-    .. todo:: why does the json interface not work.
 
     """
     if connection is None:
@@ -735,7 +672,7 @@ class SampleDataRelationship(object):
         return self._subsection("Hybridization Name")
 
     def hybridization_name(self):
-        """ Return the Hibridization Name subsection.
+        """ Return the Hybridization Name subsection.
         """
         return self._column("Hybridization Name")
 
@@ -745,17 +682,17 @@ class SampleDataRelationship(object):
         return self._subsection("Assay Name")
 
     def assay_name(self):
-        """ Return the Assay Name subsection
+        """ Return the Assay Name subsection.
         """
         return self._column("Assay Name")
 
     def scan(self):
-        """ Return the Scan subsection
+        """ Return the Scan subsection.
         """
         return self._subsection("Scan Name")
 
     def scan_name(self):
-        """ Return the Scan name subsection
+        """ Return the Scan name subsection.
         """
         return self._column("Scan Name")
 
@@ -770,22 +707,22 @@ class SampleDataRelationship(object):
         return self._column("Normalization Name")
 
     def array_data(self):
-        """ Return the Array Data subsection
+        """ Return the Array Data subsection.
         """
         return self._subsection("Array Data File")
 
     def array_data_file(self):
-        """ Return the Array Data File subsection
+        """ Return the Array Data File subsection.
         """
         return self._column("Array Data File")
 
     def derived_array_data(self):
-        """ Return the Derived Array Data subsection
+        """ Return the Derived Array Data subsection.
         """
         return self._subsection("Derived Array Data File")
 
     def derived_array_data_file(self):
-        """ Return the Derived Array Data File subsection
+        """ Return the Derived Array Data File subsection.
         """
         return self._column("Derived Array Data File")
 
@@ -822,7 +759,7 @@ class SampleDataRelationship(object):
 
 class ArrayDesign(object):
 
-    """ Arary design (contains the contents of the .adf file).
+    """ Array design (contains the contents of the .adf file).
     """
 
     def __init__(self, adf_file=None):
@@ -839,7 +776,7 @@ def _is_float(str):
 
 
 def _is_continuous(items, check_count=100):
-    """ Are the strings in items continous numbers. 
+    """ Are the strings in items continuous numbers. 
     """
     count = 0
     i = 0
@@ -852,7 +789,7 @@ def _is_continuous(items, check_count=100):
 
 
 def processed_matrix_to_orange(matrix_file, sdrf=None):
-    """ Load a single processed matrix file in to an Orange.data.Table
+    """ Load a single processed matrix file into an Orange.data.Table
     instance.
     """
     import numpy

@@ -1,23 +1,3 @@
-"""\
-Protein-protein interactions
-============================
-
-:class:`PPIDatabse` is an abstract class defining a common interface
-for accessing protein-protein interaction databases.
-
-Classes implementing this interface are:
-
-    - :class:`BioGRID` for accessing `BioGRID <http://thebiogrid.org>`_
-    - :class:`STRING` for accessing `CC`_ licensed `STRING`_
-    - :class:`STRINGDetailed` for accessing `CC-NC-SA`_ licensed `STRING`_
-    - :class:`Orange.bio.obiGeneMania.GeneManiaDatabase`
-
-.. _`CC`: http://creativecommons.org/licenses/by/3.0/
-
-.. _`CC-NC-SA`: http://creativecommons.org/licenses/by-nc-sa/3.0/
-
-"""
-
 from __future__ import absolute_import
 
 import os
@@ -123,7 +103,7 @@ class PPIDatabase(object):
 
     def edges_annotated(self, id=None):
         """
-        Return a list of all edges annotated
+        Return a list of all edges annotated.
         """
         raise NotImplementedError
 
@@ -664,19 +644,12 @@ class STRING(PPIDatabase):
         return cur.fetchall()
 
     def all_edges_annotated(self, taxid=None):
-        """
-        Return a list of all edges annotated. If taxid is not None
-        return the edges for this organism only.
-
-        """
         res = []
         for id in self.ids(taxid):
             res.extend(self.edges_annotated(id))
         return res
 
     def edges_annotated(self, id):
-        """ Return a list of all edges annotated.
-        """
         cur = self.db.execute("""\
             select links.protein_id1, links.protein_id2, links.score,
                    actions.action, actions.mode, actions.score
@@ -990,9 +963,6 @@ class STRINGDetailed(STRING):
         self.db_detailed.execute("ATTACH DATABASE ? as string", (db_file,))
 
     def edges_annotated(self, id):
-        """
-        Return a list of all edges annotated.
-        """
         edges = STRING.edges_annotated(self, id)
         edges_nc = []
         for edge in edges:

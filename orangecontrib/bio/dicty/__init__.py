@@ -1734,7 +1734,7 @@ if __name__=="__main__":
         count += 1
         #print "CBBB", count
 
-    et = dbc.get_single_data(sample=[ "tagA-", "pkaC-"], callback=cb, exclude_constant_labels=True, allowed_labels=["sample"])
+    et = dbc.get_data(sample=[ "tagA-", "pkaC-"], callback=cb, exclude_constant_labels=True, allowed_labels=["sample"])
     print et.domain
     print et.domain[0].attributes
     printet(et)

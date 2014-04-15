@@ -1,39 +1,3 @@
-"""
-=========================
-Bio Mart (:mod:`biomart`)
-=========================
-
-Access BioMart MartService
-
->>> connection = BioMartConnection(
-...     "http://www.biomart.org/biomart/martservice")
-...
->>> reg = BioMartRegistry(connection)
->>> for mart in reg.marts():
-...    print mart.name
-...
-ensembl...
->>> dataset = BioMartDataset(
-...     mart="ensembl", internalName="hsapiens_gene_ensembl",
-...     virtualSchema="default", connection=connection)
-...
->>> for attr in dataset.attributes()[:10]:
-...    print attr.name
-...
-Ensembl Gene ID...
->>> data = dataset.get_data(
-...    attributes=["ensembl_gene_id", "ensembl_peptide_id"],
-...    filters=[("chromosome_name", "1")])
-...
->>> query = BioMartQuery(reg.connection, virtualSchema="default")
->>> query.set_dataset("hsapiens_gene_ensembl")
->>> query.add_attribute("ensembl_gene_id")
->>> query.add_attribute("ensembl_peptide_id")
->>> query.add_filter("chromosome_name", "1")
->>> count = query.get_count()
-
-"""
-
 import os
 import urllib2
 import anydbm
@@ -261,6 +225,7 @@ class BioMartConnection(object):
     """ A connection to a BioMart martservice server.
 
     Example::
+
         >>> connection = BioMartConnection(
         ...     "http://www.biomart.org/biomart/martservice")
         >>> response = connection.registry()
@@ -370,17 +335,18 @@ class BioMartConnection(object):
 
 class BioMartRegistry(object):
 
-    """ A class representing a BioMart registry
-    Arguments:
+    """ A class representing a BioMart registry. Arguments:
+
         - stream: A file like object with xml registry or a
           BioMartConnection instance
 
     Example::
-    >>> registry = BioMartRegistry(connection)
-    >>> for schema in registry.virtual_schemas():
-    ...    print schema.name
-    ...
-    default
+
+        >>> registry = tioMartRegistry(connection)
+        >>> for schema in registry.virtual_schemas():
+        ...    print schema.name
+        ...
+        default
     """
 
     def __init__(self, stream):

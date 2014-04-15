@@ -25,19 +25,22 @@ Scripting Reference
 .. toctree::
    :maxdepth: 1
 
-   reference/kegg.rst
-   reference/ontology.rst
+   reference/arrayexpress.rst
+   reference/biomart.rst
    reference/dicty.rst
    reference/dictybase.rst
    reference/gene.rst
+   reference/gene.homology.rst
    reference/genesets.rst
-   reference/utils.stats.rst
    reference/geo.rst
-   reference/omim.rst
    reference/go.rst
    reference/gsea.rst
+   reference/kegg.rst
+   reference/omim.rst
+   reference/ontology.rst
+   reference/ppi.rst
    reference/taxonomy.rst
-   reference/gene.homology.rst
+   reference/utils.stats.rst
 
 Installation
 ------------
