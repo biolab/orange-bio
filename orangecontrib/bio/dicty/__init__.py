@@ -725,7 +725,7 @@ def bufferkeypipax(command, data):
         return command
 
 
-class PIPAx(PIPA):
+class PIPAx(DBCommon):
     """ An interface to `PIPAx API <http://pipa.biolab.si/hp/api.html>`_.
     """
 
@@ -734,15 +734,23 @@ class PIPAx(PIPA):
     def __init__(self, address=API_ADDRESS, cache=None,
                  username=None, password=None):
         """
-        :param address: The address of the API. 
-        :param username:
-        :param password: Your login details, leave None for default settings.
+        :param str address: The address of the API. 
+        :param str username:
+        :param str password: Your login details; None for public access.
         """
         self.address = address
         self.db = DBInterface(address)
         self.buffer = cache
         self.username = username
         self.password = password
+
+    def add_auth(self, data=None):
+        if self.username == None:
+            return data
+        authdic = { pipaparuser: self.username, pipaparpass: self.password }
+        if data != None:
+            authdic.update(data)
+        return authdic
 
     def genomes(self, reload=False, bufver="0"):
         """Return a list of available genomes as a list of
@@ -753,28 +761,30 @@ class PIPAx(PIPA):
         return [tuple(r) for r in res]
 
     def mappings(self, reload=False, bufver="0"):
-        """Return a dictionary of {unique_id: dictionary_of_annotations}
+        """Return available mappings as dictionary of 
+        {mapping_id: dictionary_of_annotations}
         where the keys for dictionary_of_annotations are
-        ["id", data_id", "data_name", "genomes_id"]
+        "id", data_id", "data_name", "genomes_id".
         """
         data = self.add_auth({"action": "mappings"})
         res, legend = self.sq("", data=data, reload=reload,
                               bufferkey=bufferkeypipax,
                               bufver=bufver)
-
         return dict((sa[0], dict(zip(legend[1:], sa[1:]))) for sa in res)
 
     def result_types(self, reload=False, bufver="0"):
-        """Return a list of available result type templates.
+        """Return a list of available result types.
         """
         data = {"action": "results_templates"}
         res, _ = self.sq("", data=data, reload=reload, bufver=bufver)
         return sorted(tuple(a) for a in res)
 
     def results_list(self, rtype, reload=False, bufver="0"):
-        """Return a list of available results for a result type template
-        `rtype` (a key from the `result_types` return value).
+        """Return a list of available gene expressions for a specific
+        result type. Returns a dictionary, where the key is the ID
+        and values are a dictionary of sample annotations.
 
+        :param str rtype: Result type to use (see :obj:`result_types`).
         """
         data = {"action": "results",
                 "results_templates_id": rtype}
@@ -805,25 +815,24 @@ class PIPAx(PIPA):
         attributes set to annotations for query and post-processing
         instructions.
 
-        :param ids: If `result_type` is specified then this must
-            be a list of  `unique_id`s or (id, data_id) tuples as
-            returned by `mappings`. Else the `ids` must be a list
-            of `unique_id`s as returned by `results_list`.
-        :type ids: list
+        :param list ids: List of ids as returned by :obj:`results_list`
+            if `result_type` is None; list of ids as returned by :obj:`mappings` 
+            if `result_type` is set.
 
-        :param result_type: Result template type id as returned by
-             `result_types`. Not specified by default (see `ids`.)
-        :type result_type: str
+        :param str result_type: Result template type id as returned by
+             :obj:`result_types`.
 
-        :param exclude_constant_labels: If a label has the same value
+        :param bool exclude_constant_labels: If a label has the same value
             in whole example table, remove it.
-        :type exclude_constant_labels: bool
 
-        :param average: Function used for combining multiple reading of
-            the same spot on a chip. If None, no averaging is done.
+        :param function average: Function that combines multiple reading of
+            the same gene on a chip. If None, no averaging is done.
             Function should take a list of floats and return an "averaged"
-            float (default `median`).
-        :type average: function
+            float (the default functions returns the median).
+
+        :param function transform: A function that transforms individual values.
+            It should take and return a float. Example use: logarithmic 
+            transformation. Default: None.
 
         """
 
