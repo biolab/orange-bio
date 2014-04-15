@@ -566,6 +566,8 @@ class PIPAx(DBCommon):
         :param str address: The address of the API. 
         :param str username:
         :param str password: Your login details; None for public access.
+        :param CacheSQLite cache: A cache that stores results locally (an
+            instance of :obj:`CacheSQLite`).
         """
         self.address = address
         self.db = DBInterface(address)
@@ -610,8 +612,8 @@ class PIPAx(DBCommon):
 
     def results_list(self, rtype, reload=False, bufver="0"):
         """Return a list of available gene expressions for a specific
-        result type. Returns a dictionary, where the key is the ID
-        and values are a dictionary of sample annotations.
+        result type. Returns a dictionary, where the keys are ID
+        and values are dictionaries of sample annotations.
 
         :param str rtype: Result type to use (see :obj:`result_types`).
         """
@@ -640,9 +642,9 @@ class PIPAx(DBCommon):
                  callback=None, bufver="0", transform=None,
                  allowed_labels=None, reload=False):
         """
-        Get data in a single example table with labels of individual
-        attributes set to annotations for query and post-processing
-        instructions.
+        Return data in a single table. Each feature represents a chip
+        and each sample is a gene. The ``.attributes`` dictionaries of
+        the features contain annotations.
 
         :param list ids: List of ids as returned by :obj:`results_list`
             if `result_type` is None; list of ids as returned by :obj:`mappings` 
@@ -841,7 +843,8 @@ Can only retrieve a single result_template_type at a time"""
 
 class DictyExpress(DBCommon):
     """
-    Type is object id
+    Access the `DictyExpress data API 
+    <http://bcm.fri.uni-lj.si/microarray/api/index.php>`_.
     """
     
     aoidPairs = txt2ll("""time extractions.developmental_time_point
@@ -862,6 +865,12 @@ extractions extractions
 chips chips""")
 
     def __init__(self, address=defaddress, cache=None):
+        """
+        :param str address: The address of the API. 
+        :param cache: A cache that stores results locally (an instance
+            of :obj:`CacheSQLite`).
+        """
+        
         self.address = address
         self.db = DBInterface(address)
         self.buffer = cache
@@ -957,7 +966,7 @@ chips chips""")
         """
         Return annotations for specified type and ids.
 
-        :param type: Object type (:obj:`DictyExpress.objects`). 
+        :param type: Object type (see :obj:`objects`). 
         :param ids: If set, only annotations corresponding to the given
           ids are returned. Annotations are in the same order as
           input ids.
@@ -993,23 +1002,24 @@ chips chips""")
 
     def search(self, type, **kwargs):
         """
-        Break search for multiple values of one attribute to independant searches.
-        Search is case insensitive.
+        Search the database. Search is case insensitive.
         
-        List of searchable annotation types: self.saoids.keys()
+        :param type: Annotation type (list them
+                with ``DictyExpress().saoids.keys()``).
 
-        example usage:
+        All the other parameters are in form ``annotation=values``. Values
+        can are either strings or a list of strings (interpreted as
+        an OR operator between list elements).
 
-        search("norms", platform='minichip', sample='abcC3-')
+        The following example lists ids of normalized entries where platform 
+        is minchip and sample is abcC3-::
 
-        finds all ids of normalized entries where platform is minchip and
-        sample is abcC3-
+            search("norms", platform='minichip', sample='abcC3-')
 
-        search("norms", platform='minichip', sample=[ 'abcC3-', 'abcG15-'])
+        The following example lists ids of normalized entries where platform 
+        is minichip and sample is abcC3- or abcG15-::
 
-        finds all ids of normalized entries where platform is minichip and
-        sample is abcC3- or those where platform is minichip and sample
-        is abcG15-
+            search("norms", platform='minichip', sample=[ 'abcC3-', 'abcG15-'])
         """
         
         #search for all combinations of values - this is slow!
@@ -1170,17 +1180,23 @@ chips chips""")
         and each sample is a gene. The ``.attributes`` dictionaries of
         the features contain annotations.
 
-        :param average: A function that combines multiple reading of the same spot on
-          a chip. If None, no averaging is done. Fuction should take a list
-          of floats and return an "averaged" float. Default: median.
-        :param ids: A list of chip ids. If absent, make a search. In this case
-          any additional parameters are threated as in :obj:`DictyExpress.search`.
+        :param list ids: A list of chip ids. If absent, make a search. In this case
+          any additional parameters are threated as in :obj:`search`.
+
         :param exclude_constant_labels: Remove labels if they have the  same value 
           for the whole table. 
+        
         :param str format: If "short", use short format for downloads.
-        :param transform: A function that transforms individual values: it should take
-          a float and return a float. An example use would be a logarithmic 
-          transformation. Default: None.
+
+        :param function average: Function that combines multiple reading of
+            the same gene on a chip. If None, no averaging is done.
+            Function should take a list of floats and return an "averaged"
+            float (the default functions returns the median).
+
+        :param function transform: A function that transforms individual values.
+            It should take and return a float. Example use: logarithmic 
+            transformation. Default: None.
+
 
         :returns: Chips with given ids in a single data table.
         :rtype: :obj:`Orange.data.Table`

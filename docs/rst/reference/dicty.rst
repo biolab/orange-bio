@@ -14,7 +14,7 @@ at timepoint 16.
 PIPAx database
 --------------
 
-.. autoclass:: Orange.bio.dicty.PIPA
+.. autoclass:: Orange.bio.dicty.PIPAx
    :members: __init__, genomes, get_data, mappings, result_types, results_list
 
 DictyExpress database
