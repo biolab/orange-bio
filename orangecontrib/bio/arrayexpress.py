@@ -70,12 +70,10 @@ def _open_shelve(filename, flag="r"):
 
 class ArrayExpressConnection(object):
     """
-    A connection to the Array Express.
-
-    Used to construct a REST query and run it.
+    Constructs and runs REST query on ArrayExpress.
 
     :param address: Address of the ArrayExpress API.
-    :param timeout: Timeout for the socket connection.
+    :param timeout: Timeout for the connection.
 
     """
 
@@ -180,7 +178,7 @@ class ArrayExpressConnection(object):
         return "&".join(parts)
 
     def query_url(self, what="experiments", **kwargs):
-        """Return a formated query URL for the query arguments.
+        """Return a formatted query URL for the query arguments.
 
         >>> conn.query_url(accession="E-MEXP-31")
         'http://www.ebi.ac.uk/arrayexpress/json/v2/experiments?accession=E-MEXP-31'
@@ -194,12 +192,12 @@ class ArrayExpressConnection(object):
         return url
 
     def query_url_experiments(self, **kwargs):
-        """Return a formated experiments query URL for the query arguments
+        """Return query URL of formatted experiments for the query arguments.
         """
         return self.query_url("experiments", **kwargs)
 
     def query_url_files(self, **kwargs):
-        """ Return a formated experiments query URL for the query arguments
+        """ Return query URL of formatted experiments for the query arguments.
         """
         return self.query_url("files", **kwargs)
 
@@ -213,7 +211,7 @@ class ArrayExpressConnection(object):
 
     def query_files(self, **kwargs):
         """Return an open stream to the files query results.
-           Takes the same arguments as the :obj:`query_experiments` function.
+           Takes the same arguments as the :obj:`query_files` function.
         """
         url = self.query_url_files(**kwargs)
         stream = self._cache_urlopen(url, timeout=self.timeout)
@@ -222,7 +220,10 @@ class ArrayExpressConnection(object):
     def open_file(self, accession, kind="raw", ext=None):
         """ Return a file handle to experiment data.
         
-        Possible values for kind:
+        :param str accession:
+        :param str kind: Experiment data type.
+        
+        Possible values for the parameter `kind`:
             - raw: return the raw data if available
             - processed: return the processed data if available
             - biosamples: a png or svg design image
@@ -296,40 +297,36 @@ def query_experiments(keywords=None, accession=None, array=None, ef=None,
                       format="json", wholewords=None, connection=None):
     """ Query Array Express experiments.
 
-    :param keywords: A list of keywords to search (e.g. ['gliobastoma']
-    :param accession: Search by experiment accession (e.g. 'E-MEXP-31')
-    :param array: Search by array design name or accession (e.g. 'A-AFFY-33')
-    :param ef: Experimental factor (names of main variables of experiments)
-    :param efv: Experimental factor value (Has EFO expansion)
-    :param expdesign: Experiment design type. (e.g. ["dose", "response"])
-    :param exptype: Experiment type (e.g. 'RNA-Seq', has EFO expansion)
-    :param gxa: If True limit the results to experiments from the Gene
-        Expreission Atlas only.
-    :param pmid: Search by PubMed identifier
-    :param sa: Sample attribute values (e.g. 'fibroblast', has EFO expansion)
-    :param species: Search by species (e.g. 'Homo sapiens', has EFO expansion)
-
+    :param keywords: A list of keywords to search (e.g. ``['gliobastoma']``).
+    :param accession: Search by experiment accession (e.g. ``'E-MEXP-31'``).
+    :param array: Search by array design name or accession (e.g. ``'A-AFFY-33'``).
+    :param ef: Experimental factor (names of main variables of experiments).
+    :param efv: Experimental factor value (Has EFO expansion).
+    :param expdesign: Experiment design type (e.g. ``["dose", "response"]``).
+    :param exptype: Experiment type (e.g. 'RNA-Seq', has EFO expansion).
+    :param gxa: If True limit the results to the Gene Expression Atlas only.
+    :param pmid: Search by PubMed identifier.
+    :param sa: Sample attribute values (e.g. ``'fibroblast'``, has EFO expansion).
+    :param species: Search by species (e.g. ``'Homo sapiens'``, has EFO expansion)
     :param expandefo: If True expand the search terms with all its child terms
-        in the Experimental Factor Ontology (EFO_) (e.g. keywords="cancer"
+        in the Experimental Factor Ontology (EFO_) (e.g. ``keywords="cancer"``
         will be expanded to include for synonyms and sub types of cancer).
-    :param directsub: If True return only experiments submited directly to
-        Array Express else if False return only experiments imported from GEO
-        database (default None, return both)
+    :param directsub: If True return only experiments submitted directly to
+        Array Express; if False return only experiments imported from GEO
+        database; if None (default) return both.
     :param assaycount: A two tuple (min, max) for filter on the number of
-        assays (e.g. (1, 5) will return only experiments with at least one
+        assays (e.g. (1, 5) will return only experiments with at least 1
         and no more then 5 assays).
-    :param efcount: Filter on the number of experimental factors (e.g. (1, 5))
-    :param sacount: Filter on the number of sample attribute categories
-    :param rawcount: Filter on the number or raw files
+    :param efcount: Filter on the number of experimental factors (e.g. (1, 5)).
+    :param sacount: Filter on the number of sample attribute categories.
+    :param rawcount: Filter on the number or raw files.
     :param fgemcount: Filter on the number of final gene expression matrix
-        (processed data) files
-    :param miamescore: Filter on the MIAME complience score (max 5)
-    :param date: Filter by release date
+        (processed data) files.
+    :param miamescore: Filter on the MIAME complience score (max 5).
+    :param date: Filter by release date.
 
-    Example ::
-
-        >>> query_experiments(species="Homo sapiens", ef="organism_part", efv="liver")
-        {u'experiments': ...
+    >>> query_experiments(species="Homo sapiens", ef="organism_part", efv="liver")
+    {u'experiments': ...
 
     .. _EFO: http://www.ebi.ac.uk/efo/
 
@@ -360,15 +357,12 @@ def query_files(keywords=None, accession=None, array=None, ef=None,
                 efcount=None, samplecount=None, rawcount=None,
                 fgemcount=None, miamescore=None, date=None,
                 format="json", wholewords=None, connection=None):
-    """Query Array Express files.
+    """Query Array Express files. See :obj:`query_experiments` for the
+    arguments.
 
-    Accepts the same arguments as :obj:`query_experiments`.
-
-    Example ::
-
-        >>> query_files(species="Mus musculus", ef="developmental_stage",
-        ...             efv="embryo", format="xml")
-        <xml.etree.ElementTree.ElementTree object ...
+    >>> query_files(species="Mus musculus", ef="developmental_stage",
+    ...             efv="embryo", format="xml")
+    <xml.etree.ElementTree.ElementTree object ...
 
     """
     if connection is None:
@@ -391,8 +385,8 @@ def query_files(keywords=None, accession=None, array=None, ef=None,
 
 
 """
-MAGE-TAB convinence functions, classes
-======================================
+MAGE-TAB convenience functions, classes
+=======================================
 """
 
 IDF_SINGLE_TAGS = \
@@ -477,20 +471,18 @@ def parse_data_matrix(file):
 class InvestigationDesign(dict):
     r"""Investigation design (contains the contents of the .idf).
 
-    Example ::
-
-        >>> idf_file = StringIO(
-        ...     'Investigation Title\tfoo investigation\n' +
-        ...     'Experimental Design\tfubar\tsnafu\n' +
-        ...     'SDRF File\tfoobar.sdrf\n'
-        ... )
-        >>> idf = InvestigationDesign(idf_file)
-        >>> print idf.investigation_title
-        foo investigation
-        >>> print idf.experimental_design
-        ['fubar', 'snafu']
-        >>> print idf.sdrf_file
-        ['foobar.sdrf']
+    >>> idf_file = StringIO(
+    ...     'Investigation Title\tfoo investigation\n' +
+    ...     'Experimental Design\tfubar\tsnafu\n' +
+    ...     'SDRF File\tfoobar.sdrf\n'
+    ... )
+    >>> idf = InvestigationDesign(idf_file)
+    >>> print idf.investigation_title
+    foo investigation
+    >>> print idf.experimental_design
+    ['fubar', 'snafu']
+    >>> print idf.sdrf_file
+    ['foobar.sdrf']
 
     """
 
@@ -530,6 +522,7 @@ class InvestigationDesign(dict):
 
 class SampleDataRelationship(object):
     """Sample-Data Relationship (contains the contents of the .sdrf file).
+
     """
 
     # Nodes an edges
@@ -593,7 +586,7 @@ class SampleDataRelationship(object):
         self.rows = rows
 
     def transform_tag(self, tag):
-        """ Transform the tag into a proper python attribute name by
+        """ Transform the tag into a proper Python attribute name by
         replacing all spaces and special characters (e.g '[', ']' into
         underscores).
 
@@ -627,17 +620,17 @@ class SampleDataRelationship(object):
         return [r[index] for r in self.rows]
 
     def source(self):
-        """ Return the Source subsection
+        """ Return the Source subsection.
         """
         return self._subsection("Source Name")
 
     def source_name(self):
-        """ Return the Source Name subsection
+        """ Return the Source Name subsection.
         """
         return self._column("Source Name")
 
     def sample(self):
-        """ Return the Sample subsection
+        """ Return the Sample subsection.
         """
         return self._subsection("Sample Name")
 
@@ -647,22 +640,22 @@ class SampleDataRelationship(object):
         return self._column("Sample Name")
 
     def extract(self):
-        """ Return the Extract subsection
+        """ Return the Extract subsection.
         """
         return self._subsection("Extract Name")
 
     def extract_name(self):
-        """ Return the Extract Name subsection
+        """ Return the Extract Name subsection.
         """
         return self._column("Extract Name")
 
     def labeled_extract(self):
-        """ Return the Labeled Extract subsection
+        """ Return the Labeled Extract subsection.
         """
         return self._subsection("Labeled Extract Name")
 
     def labeled_extract_name(self):
-        """ Return the Labeled Extract Name subsection
+        """ Return the Labeled Extract Name subsection.
         """
         return self._column("Labeled Extract Name")
 
@@ -677,7 +670,7 @@ class SampleDataRelationship(object):
         return self._column("Hybridization Name")
 
     def assay(self):
-        """ Return the Assay subsection
+        """ Return the Assay subsection.
         """
         return self._subsection("Assay Name")
 
@@ -758,8 +751,8 @@ class SampleDataRelationship(object):
 
 
 class ArrayDesign(object):
-
     """ Array design (contains the contents of the .adf file).
+
     """
 
     def __init__(self, adf_file=None):
@@ -789,8 +782,7 @@ def _is_continuous(items, check_count=100):
 
 
 def processed_matrix_to_orange(matrix_file, sdrf=None):
-    """ Load a single processed matrix file into an Orange.data.Table
-    instance.
+    """ Load a single processed matrix file into an :obj:`Orange.data.Table`.
     """
     import numpy
     import Orange
@@ -860,9 +852,9 @@ def processed_matrix_to_orange(matrix_file, sdrf=None):
 
 
 def mage_tab_to_orange(idf_filename):
-    """Convert an MAGE-TAB annotated experiment into an Orange.data.Table
-    instance (assumes all the associated MAGE-TAB files are in the same
-    directory.
+    """Convert an MAGE-TAB annotated experiment into an 
+    :obj:`Orange.data.Table` (assumes all the associated MAGE-TAB 
+    files are in the same directory.
 
     """
     dirname = os.path.dirname(idf_filename)
@@ -885,7 +877,7 @@ def mage_tab_to_orange(idf_filename):
 
 
 def hstack_tables(tables):
-    """ Stack the tables horizontaly.
+    """ Stack the tables horizontally.
     """
     import Orange
     max_len = max([len(table) for table in tables])
@@ -936,7 +928,7 @@ def _dictify(element):
 class ArrayExpressExperiment(object):
 
     """
-    An convinience class representing an Array Express Experiment.
+    An convenience class representing an Array Express Experiment.
 
     >>> ae = ArrayExpressExperiment("E-MEXP-2917")
     >>> print ae.name
@@ -944,7 +936,7 @@ class ArrayExpressExperiment(object):
     >>> for file in ae.files:
     ...     print file["name"], file["url"]
     E-MEXP-2917...
-    >>> table = ae.fgem_to_table() # Retieve the experiment data table
+    >>> table = ae.fgem_to_table() # Retrieve the experiment data table
 
     :param str accession:
         The experiment accession id.
@@ -1039,7 +1031,7 @@ class ArrayExpressExperiment(object):
         self.files = [_dictify(file) for file in files]
 
     def _download_file(self, url, extract=True):
-        """ Download the `file` from the ArrayExpress saving it to a local
+        """ Download the `file` from the ArrayExpress into a local
         repository directory.
 
         """
@@ -1074,7 +1066,7 @@ class ArrayExpressExperiment(object):
                 raise ValueError("Unknown extension ('{0}').".format(basename))
 
     def _is_local(self, url):
-        """ Is the `url` stored in the local repository.
+        """ Is the `url` stored in the local repository?
         """
         return os.path.exists(self._local_filepath(url))
 
@@ -1110,7 +1102,7 @@ class ArrayExpressExperiment(object):
         return res
 
     def array_design(self):
-        """ Return a list of `ArrayDesign` instances used in this experiment.
+        """ Return a list of :obj:`ArrayDesign` instances used in this experiment.
         """
         files = [f for f in self.files if f.get("kind") == "adf" and
                  f.get("extension") == "txt"]
@@ -1124,7 +1116,7 @@ class ArrayExpressExperiment(object):
         return array_design
 
     def investigation_design(self):
-        """ Return an `InvestigationDesgin` instance for this experiment
+        """ Return an :obj:`InvestigationDesign` for this experiment.
         """
         files = [f for f in self.files if f.get("kind") == "idf" and \
                  f.get("extension") == "txt"]
@@ -1137,7 +1129,7 @@ class ArrayExpressExperiment(object):
 
     def sample_data_relationship(self):
         """
-        Return an `SampleDataRelationship` instance describing this experiment.
+        Return an :obj:`SampleDataRelationship` instance describing this experiment.
         """
         files = [f for f in self.files if f.get("kind") == "sdrf" and \
                  f.get("extension") == "txt"]
@@ -1149,8 +1141,8 @@ class ArrayExpressExperiment(object):
         return SampleDataRelationship(self._open(file.get("url")))
 
     def fgem_to_table(self):
-        """ Retrieve the processed matrix from the Array Express ftp
-        server and convert it to an :class:`Orange.data.Table` instance.
+        """ Retrieve the processed matrix from the Array Express FTP
+        server and convert it to a :class:`Orange.data.Table`.
 
         """
         assert(self.fgemdatafiles)
