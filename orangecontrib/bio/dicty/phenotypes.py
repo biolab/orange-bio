@@ -16,17 +16,15 @@ tags = ["Dictyostelium discoideum", "mutant", "dictyBase", "phenotype"]
 
 class DictyMutant(object):
     """
-    A class representing a single Dictyostelium discoideum mutant 
-    from Dictybase
+    A single Dictyostelium discoideum mutant from the Dictybase.
    
-    :param mutant_entry: A single mutant entry from 
-        dictyBase's `all curated mutants file <http://dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=mutant_phenotypes&ID=all-mutants.txt>`_ (updated monthly)
-    :type mutant_entry: str
+    :param str mutant_entry: A single mutant entry from 
+        `curated mutants file <http://dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=mutant_phenotypes&ID=all-mutants.txt>`_.
 
-    :ivar DictyMutant.name: dictyBase ID for a mutant
-    :ivar DictyMutant.descriptor: dictyBase strain descriptor of a mutant
-    :ivar DictyMutant.genes: all of the mutant's associated genes
-    :ivar DictyMutant.phenotypes: all of the mutant's associated phenotypes
+    :ivar DictyMutant.name: dictyBase ID.
+    :ivar DictyMutant.descriptor: dictyBase strain descriptor.
+    :ivar DictyMutant.genes: all associated genes.
+    :ivar DictyMutant.phenotypes: all associated phenotypes.
 
     """
     def __init__(self, mutant_entry):
@@ -44,10 +42,12 @@ class DictyMutant(object):
 
 class DictyMutants(object):
     """
-    A class representing the collection of all Dictybase mutants as 
-    a dictionary of `DictyMutant` objects
-    
-    :param local_database_path: A user defined path for storing D. dictyostelium mutants objects in a file. If `None` then a default database path is used.
+    A collection of Dictybase mutants as a dictionary of
+    :obj:`DictyMutant` objects.
+
+    :param local_database_path: A path for storing
+        D. dictyostelium mutants objects. If `None` then 
+        a default database path is used.
     
     """
     
@@ -160,43 +160,43 @@ class DictyMutants(object):
 
 
 def mutants():
-    """ Return all mutant objects
+    """ Return all :obj:`DictyMutant` objects.
     """
     return DictyMutants.get_instance().mutants()
 
 
 def genes():
-    """ Return a set of all genes referenced in dictybase
+    """ Return a set of all genes referenced in the Dictybase.
     """
     return DictyMutants.get_instance().genes()
 
 
 def phenotypes():
-    """ Return a set of all phenotypes referenced in dictybase
+    """ Return a set of all phenotypes referenced in Dictybase.
     """
     return DictyMutants.get_instance().phenotypes()
 
 
 def mutant_genes(mutant):
-    """ Return a set of all genes referenced by a mutant in dictybase
+    """ Return a set of all genes referenced by a `mutant` in Dictybase.
     """
     return DictyMutants.get_instance().mutant_genes(mutant)
 
 
 def mutant_phenotypes(mutant):   
-    """ Return a set of all phenotypes referenced by a mutant in dictybase
+    """ Return a set of all phenotypes referenced by a `mutant` in Dictybase.
     """
     return DictyMutants.get_instance().mutant_phenotypes(mutant)
 
 
 def gene_mutants():
-    """ Return a dictionary {gene: set(mutant_objects for mutant), ...}
+    """ Return a dictionary { gene: set(mutant_objects for mutant), ... }.
     """
     return DictyMutants.get_instance().gene_mutants()
 
 
 def phenotype_mutants():
-    """ Return a dictionary {phenotype: set(mutant_objects for mutant), ...}
+    """ Return a dictionary { phenotype: set(mutant_objects for mutant), ... }.
     """
     return DictyMutants.get_instance().phenotype_mutants()
 

@@ -565,9 +565,9 @@ class PIPAx(DBCommon):
         """
         :param str address: The address of the API. 
         :param str username:
-        :param str password: Your login details; None for public access.
+        :param str password: Login info; None for public access.
         :param CacheSQLite cache: A cache that stores results locally (an
-            instance of :obj:`CacheSQLite`).
+            :obj:`CacheSQLite`).
         """
         self.address = address
         self.db = DBInterface(address)
@@ -593,7 +593,7 @@ class PIPAx(DBCommon):
 
     def mappings(self, reload=False, bufver="0"):
         """Return available mappings as dictionary of 
-        {mapping_id: dictionary_of_annotations}
+        { mapping_id: dictionary_of_annotations }
         where the keys for dictionary_of_annotations are
         "id", data_id", "data_name", "genomes_id".
         """
@@ -642,9 +642,9 @@ class PIPAx(DBCommon):
                  callback=None, bufver="0", transform=None,
                  allowed_labels=None, reload=False):
         """
-        Return data in a single table. Each feature represents a chip
-        and each sample is a gene. The ``.attributes`` dictionaries of
-        the features contain annotations.
+        Return data in a :obj:`Orange.data.Table`. Each feature represents 
+        a sample and each row is a gene. The feature's ``.attributes`` 
+        contain annotations.
 
         :param list ids: List of ids as returned by :obj:`results_list`
             if `result_type` is None; list of ids as returned by :obj:`mappings` 
@@ -917,10 +917,10 @@ chips chips""")
 
     def annotationOptions(self, ao=None, onlyDiff=False, **kwargs):
         """
-        Returns annotation options for given query. Returns all possible 
+        Return annotation options for given query. Return all possible 
         annotations if the query is omitted.
 
-        If ao is choosen, only result
+        If `ao` is chosen, only return options for that object id.
         """
         params = ""
         if len(kwargs) > 0: params += "&query=" + self.pq(kwargs)
@@ -1006,13 +1006,12 @@ chips chips""")
         
         :param type: Annotation type (list them
                 with ``DictyExpress().saoids.keys()``).
-
-        All the other parameters are in form ``annotation=values``. Values
-        can are either strings or a list of strings (interpreted as
-        an OR operator between list elements).
+        :param kwargs: In the form ``annotation=values``. Values
+            can are either strings or a list of strings (interpreted as
+            an OR operator between list elements).
 
         The following example lists ids of normalized entries where platform 
-        is minchip and sample is abcC3-::
+        is minichip and sample is abcC3-::
 
             search("norms", platform='minichip', sample='abcC3-')
 
@@ -1053,7 +1052,7 @@ chips chips""")
   
     def chipNs(self, ids, remove_bad=True):
         """
-        If removebad = True removes those with weights 0.
+        If removebad == True removes those with weights 0.
         """
           
         def sel(res, legend):
@@ -1145,7 +1144,7 @@ chips chips""")
 
     def __annotationTypes(self):
         """
-        Returns list of [ annotation_object_id, name ]
+        Return a list of [ annotation_object_id, name ].
         """
         res, legend = self.sq("action=get_annotation_types")
         res2 = onlyColumns(res, legend, ["annotation_object_id", 'name'])
@@ -1176,12 +1175,12 @@ chips chips""")
     def get_data(self, type="norms", exclude_constant_labels=False, average=median, 
         ids=None, callback=None, format="short", transform=None, allowed_labels=None, **kwargs):
         """
-        Return data in a single table. Each feature represents a chip
-        and each sample is a gene. The ``.attributes`` dictionaries of
-        the features contain annotations.
+        Return data in a :obj:`Orange.data.Table`. Each feature is a sample
+        and each row(:obj:`Orange.data.Instance` is a gene. 
+        The feature's ``.attributes`` contain annotations.
 
         :param list ids: A list of chip ids. If absent, make a search. In this case
-          any additional parameters are threated as in :obj:`search`.
+          any additional keyword arguments are threated as in :obj:`search`.
 
         :param exclude_constant_labels: Remove labels if they have the  same value 
           for the whole table. 
