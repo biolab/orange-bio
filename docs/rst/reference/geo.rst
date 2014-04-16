@@ -13,26 +13,24 @@ This module provides an interface to `NCBI
 <http://www.ncbi.nlm.nih.gov/>`_'s `Gene Expression Omnibus
 <http://www.ncbi.nlm.nih.gov/geo/>`_ repository. It 
 supports `GEO DataSets <http://www.ncbi.nlm.nih.gov/sites/GDSbrowser>`_
-information querying and retrieval.
+query and retrieval.
 
 In the following example :obj:`GDS.getdata`
 construct a data set with genes in rows and samples in
 columns. Notice that the annotation about each sample is retained
 in ``.attributes``.
 
-::
-
-    >>> import Orange
-    >>> gds = Orange.bio.geo.GDS("GDS1676")
-    >>> data = gds.getdata()
-    >>> len(data)
-    667
-    >>> data[0]
-    [?, ?, -0.803, 0.128, 0.110, -2.000, -1.000, -0.358], {"gene":'EXO1'}
-    >>> data.domain.attributes[0]
-    FloatVariable 'GSM63816'
-    >>> data.domain.attributes[0].attributes
-    Out[191]: {'dose': '20 U/ml IL-2', 'infection': 'acute ', 'time': '1 d'}
+>>> import Orange.bio.geo
+>>> gds = Orange.bio.geo.GDS("GDS1676")
+>>> data = gds.getdata()
+>>> len(data)
+667
+>>> data[0]
+[?, ?, -0.803, 0.128, 0.110, -2.000, -1.000, -0.358], {"gene":'EXO1'}
+>>> data.domain.attributes[0]
+FloatVariable 'GSM63816'
+>>> data.domain.attributes[0].attributes
+Out[191]: {'dose': '20 U/ml IL-2', 'infection': 'acute ', 'time': '1 d'}
 
 GDS classes
 ===========
@@ -40,7 +38,7 @@ GDS classes
 .. autoclass:: GDSInfo
    :members:
 
-An example that uses obj:`GDSInfo`::
+An example with obj:`GDSInfo`::
 
     >>> import Orange
     >>> info = Orange.bio.geo.GDSInfo()
@@ -89,7 +87,7 @@ subsets for the tissue type are spleen and thymus. For supervised data
 mining it would be useful to find out which data sets provide enough
 samples for each label. It is (semantically) convenient to perform
 classification within sample subsets of the same type. The following
-scripts therefore goes through all data sets and finds those with enough
+script goes through all data sets and finds those with enough
 samples within each of the subsets for a specific type. The function
 ``valid`` determines which subset types (if any) satisfy our criteria. The
 minimum number of samples in the subset was set to ``n=40``
@@ -99,7 +97,7 @@ minimum number of samples in the subset was set to ``n=40``
    :lines: 8-
 
 The requested number of samples, ``n=40``, seems to be a quite
-a stringent criteria met - at the time of writing of this documentation -
+a stringent criteria met - at the time of writing this -
 by 35 sample subsets. The output starts with::
 
     GDS1611
@@ -121,10 +119,9 @@ by 35 sample subsets. The output starts with::
 
 Let us now pick data set GDS2960 and see if we can predict the disease
 state. We will use logistic regression, and within 10-fold cross
-validation measure AUC, the area under ROC. AUC is the probably for
-correctly distinguishing between two classes if picking the sample from
-target (e.g., the disease) and non-target class (e.g., control). From
-(:download:`geo_gds6.py <code/geo_gds6.py>`)
+validation measure AUC, the area under ROC. AUC is the probability of
+correctly distinguishing the two classes, (e.g., the disease and control). 
+From (:download:`geo_gds6.py <code/geo_gds6.py>`):
 
 .. literalinclude:: code/geo_gds6.py
 

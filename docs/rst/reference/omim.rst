@@ -19,8 +19,10 @@ database. For now it only supports mapping genes to diseases.
 
 .. autofunction:: gene_diseases
 
-The following example creates a network of connected diseases and save it in pajek .net format 
-sets information file (:download:`omim_disease_network.py <code/omim_disease_network.py>`).
+The following example creates a network of connected diseases and
+save it in `Pajek <http://vlado.fmf.uni-lj.si/pub/networks/pajek/>`_
+.net format sets information file (:download:`omim_disease_network.py
+<code/omim_disease_network.py>`).
 
 .. literalinclude:: code/omim_disease_network.py
 

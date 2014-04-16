@@ -6,14 +6,14 @@ KEGG - Kyoto Encyclopedia of Genes and Genomes
 :mod:`kegg` is a python module for accessing `KEGG (Kyoto Encyclopedia
 of Genes and Genomes) <http://www.genome.jp/kegg/>`_ using its web services.
 
-.. note:: To use this module you need to have `slumber`_ and `requests`_
-          package installed.
+.. note:: This module requires `slumber`_ and `requests`_ packages.
 
 .. _`slumber`: https://pypi.python.org/pypi/slumber/
 
 .. _`requests`: https://pypi.python.org/pypi/requests
 
 
+>>> from Orange.bio.kegg import *
 >>> # Create a KEGG Genes database interface
 >>> genome = KEGGGenome()
 >>> # List all available entry ids
@@ -32,7 +32,7 @@ NAME        hsa, HUMAN, 9606
 DEFINITION  Homo sapiens (human)
 ...
 
-The :class:`Organism` class can be used as a convenient starting point
+The :class:`Organism` class can be a convenient starting point
 for organism specific databases.
 
 >>> organism = Organism("Homo sapiens")  # searches for the organism by name
@@ -100,10 +100,9 @@ class Organism(object):
     A convenience class for retrieving information regarding an
     organism in the KEGG Genes database.
 
-    :param org: KEGG organism code (e.g. "hsa", "sce"). Can also be a
+    :param str org: KEGG organism code (e.g. "hsa", "sce"). Can also be a
         descriptive name (e.g. 'yeast', "homo sapiens") in which case the
         organism code will be searched for by using KEGG `find` api.
-    :type org: str
 
     .. seealso::
 

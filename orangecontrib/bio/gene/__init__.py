@@ -436,8 +436,7 @@ class Matcher(object):
         return self.set_targets(targets)
 
     def set_targets(self, targets):
-        """
-        Set input list of gene names (a list of strings) as target genes.
+        """ Set input list of gene names (a list of strings) as target genes.
         """
         notImplemented()
 
@@ -446,7 +445,7 @@ class Matcher(object):
         notImplemented()
 
     def umatch(self, gene):
-        """Return an the single (unique)  matching target gene or None, if there are no matches or multiple matches."""
+        """Return a single (unique) matching target gene or None, if there are no matches or multiple matches."""
         mat = self.match(gene)
         return mat[0] if len(mat) == 1 else None
 
@@ -567,8 +566,8 @@ class MatchAliases(Match):
 
     def match(self, gene):
         """
-        Input gene is first mapped to ids of sets of aliases which contain
-        it. Target genes belonding to the same sets of aliases are returned
+        The `gene` is first mapped to ids of sets of aliases which contain
+        it. Target genes from the same sets of aliases are returned
         as input's match.
         """
         inputgeneids = self.parent.to_ids(gene)
@@ -949,15 +948,15 @@ def issequencens(x):
 def matcher(matchers, direct=True, ignore_case=True):
     """
     Builds a new matcher from a list of gene matchers. Apply matchers in
-    the input list successively until a match is found. If a list element
-    is a a list, join matchers in the list by joining overlapping sets
-    of aliases.
+    the input list successively until a match is found. If an element of
+    `matchers` is a list, combine matchers in the sublist by joining overlapping 
+    sets of aliases.
 
-    :param matchers: gene matchers.  
-    :param direct: If True, first try
+    :param list matchers: Gene matchers. 
+    :param bool direct: If True, first try
       to match gene directly (a :obj:`MatcherDirect` is inserted in front of the
       gene matcher sequence).  
-    :param ignore_case: passed to the added
+    :param bool ignore_case: passed to the added
       direct matcher.
     """
     seqmat = []

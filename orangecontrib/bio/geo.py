@@ -46,16 +46,16 @@ FTP_DIR = "pub/geo/DATA/SOFT/GDS/"
 class GDSInfo:
 
     """
-    Retreive the infomation about `GEO DataSets
+    Retrieve infomation about `GEO DataSets
     <http://www.ncbi.nlm.nih.gov/sites/GDSbrowser>`_.  The class accesses
     the Orange server file that either resides on the local computer or
-    is automatically retreived from Orange server. Notice that the call
-    of this class does not access any NCBI's servers directly.
+    is automatically retrieved from Orange server. Calls to 
+    this class do not access any NCBI's servers.
 
     Constructor returning the object with GEO DataSets information. If
-    :obj:`force_update` is True, the constructor will download GEO DataSets
-    information file (gds_info.pickled) from Orange server, otherwise,
-    it will first check if the local copy exists.
+    `force_update` is True, the constructor will download GEO DataSets
+    information file (gds_info.pickled) from Orange server, otherwise
+    it will first check the local copy.
 
     An instance behaves like a dictionary: the keys are GEO DataSets
     IDs, and the dictionary values for is a dictionary providing various
@@ -88,23 +88,21 @@ class GeneData:
 
 class GDS():
     """ 
-    GDS is a class that
-    provides methods for retreival of a specific GEO DataSet. The data
-    is provided as a :obj:`Orange.data.Table`.
+    Retrieval of a specific GEO DataSet as a :obj:`Orange.data.Table`.
 
-    Constructor returning the object to be used to retreive
-    GEO DataSet table (samples and gene expressions). Checks
+    Constructor returns the object that can retrieve
+    GEO DataSet (samples and gene expressions). It first checks
     a local cache directory if the particular data file is
     loaded locally, else it downloads it from `NCBI's GEO FTP site
     <ftp://ftp.ncbi.nih.gov/pub/geo/DATA/SOFT/GDS/>`_.  The compressed
-    data file resides in the cache directory after the call of the
-    constructor (call to ``Orange.utils.serverfiles.localpath("GEO")`` reveals
+    data file resides in the cache directory afterwards 
+    (call to ``Orange.utils.serverfiles.localpath("GEO")`` reveals
     the path of this directory).
 
-    :param gdsname: an NCBI's ID for the data set in the form "GDSn"
+    :param gdsname: An NCBI's ID for the data set in the form "GDSn"
       where "n" is a GDS ID number.
 
-    :param force_download: force the download.
+    :param force_download: Force the download.
 
     """
 
@@ -325,14 +323,13 @@ class GDS():
                  sample_type=None, missing_class_value=None,
                  transpose=False, remove_unknown=None):
         """
-        Returns the data from GEO DataSet in
-        Orange format. 
+        Returns the GEO DataSet as an :obj:`Orange.data.Table`.
 
-        :param report_genes: Micorarray spots reported in the GEO data set can
-          either be merged according to their gene id's
+        :param report_genes: Microarray spots reported in the GEO data set can
+          either be merged according to their gene ids
           (if True) or can be left as spots. 
 
-        :param transpose: The data
+        :param transpose: The output
           table can have spots/genes in rows and samples in columns
           (False, default) or samples in rows and  spots/genes in columns
           (True). 
@@ -342,7 +339,7 @@ class GDS():
           The entire annotation of samples will
           be included either in the class value or in
           the ``.attributes`` field of each data set
-          attributes. 
+          attribute. 
 
         :param remove_unknown: Remove spots with sample profiles that
           include unknown values. They are removed if the proportion
@@ -442,7 +439,7 @@ def transpose_labels_to_class(data, class_label=None, gene_label="gene"):
     return new
 
 def transpose(data):
-    """Transposes data matrix, converts class information to attribute label and back"""
+    """ Transposes data matrix, converts class information to attribute label and back. """
     if data.domain.classVar:
         return transpose_class_to_labels(data)
     else:

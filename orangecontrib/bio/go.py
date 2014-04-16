@@ -925,7 +925,7 @@ class Annotations(object):
     _CollectAnnotations = _collect_annotations
 
     def get_all_annotations(self, id):
-        """ Return a set of all annotations (instances of `AnnotationRecord`)
+        """ Return a set of all annotations (instances of :obj:`AnnotationRecord`)
         for GO term `id` and all it's subterms.
 
         :param str id: GO term id
@@ -1491,7 +1491,7 @@ def drawEnrichmentGraphPylab_tostream(termsList, headers, fh, width=None, height
 
 
 class Taxonomy(object):
-    """Maps NCBI taxonomy ids to corresponding GO organism codes
+    """Maps NCBI taxonomy ids to corresponding GO organism codes.
     """
     common_org_map = {"297284": "9913", "30523": "9913",  # Bos taurus
                       "5782": "352472", "44689": "352472", "366501": "352472",  # Dictyostelium discoideum
@@ -1546,13 +1546,13 @@ class Taxonomy(object):
 
 
 def from_taxid(id):
-    """ Return a set of GO organism codes that correspond to NCBI taxonomy id
+    """ Return a set of GO organism codes that correspond to NCBI taxonomy id.
     """
     return Taxonomy()[id]
 
 
 def to_taxid(db_code):
-    """ Return a set of NCBI taxonomy ids from db_code GO organism annotations
+    """ Return a set of NCBI taxonomy ids from db_code GO organism annotations.
     """
     r = [key for key, val in Taxonomy().code_map.items() if db_code == val]
     return set(r)

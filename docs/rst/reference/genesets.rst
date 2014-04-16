@@ -8,7 +8,7 @@
 Gene sets (:mod:`geneset`)
 ********************************************************
 
-This module can load either gene sets distributed with Orange (through ServerFiles) 
+This module can load either gene sets distributed with Orange
 or custom gene sets in the `GMT file format <http://www.molmine.com/magma/fileformats.html>`_.
 
 The available gene set collection can be listed with :obj:`list_all`.
@@ -23,7 +23,8 @@ To open multiple gene set collections at once, for example, KEGG and GO, try::
 
     Orange.bio.geneset.collections((("KEGG",), "10090"), (("GO",), "10090"))
 
-You could also open a file with gene sets. The following line would open ``specific.gmt`` from the current working directory::
+You could also open a file with gene sets. The following line would open
+``specific.gmt`` from the current working directory::
 
     Orange.bio.geneset.collections("specific.gmt")
 
@@ -50,6 +51,7 @@ Supporting functionality
 
 .. autoclass:: Orange.bio.geneset.GeneSets
    :members:
+   :show-inheritance:
 
 .. autoclass:: Orange.bio.geneset.GeneSet
    :members:

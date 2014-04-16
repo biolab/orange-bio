@@ -10,9 +10,15 @@
 Gene name matching (:mod:`gene`)
 ********************************************************
 
-To use gene matchers
-first set the target gene names with :obj:`~Matcher.set_targets` and then
-match  with :obj:`~Matcher.match` or :obj:`~Matcher.umatch` functions. The
+Genes can have multiple aliases. When we combine data from different
+sources, for example expression data with GO gene sets, we have to
+match gene aliases representing the same genes. All implemented matching
+methods are based on sets of gene aliases.
+
+Gene matchers in this module match genes to a user-specified set of target
+gene names. For gene matching, initialize a gene matcher (:obj:`Matcher`),
+set the target gene names with :obj:`~Matcher.set_targets`, and then
+match with :obj:`~Matcher.match` or :obj:`~Matcher.umatch` functions. The
 following example (:download:`genematch1.py <code/genematch1.py>`)
 matches gene names to NCBI gene IDs:
 
@@ -21,10 +27,7 @@ matches gene names to NCBI gene IDs:
 Gene name matching
 ==================
 
-Genes can have multiple aliases. When we combine data from different
-sources, for example expression data with GO gene sets, we have to
-match gene aliases representing the same genes. All implemented matching
-methods are based on sets of gene aliases for one gene.
+The base class for all the following gene matcher is :obj:`Matcher`.
 
 .. autoclass:: Matcher
    :members:
@@ -43,15 +46,19 @@ This modules provides the following gene matchers:
 
 .. autoclass:: MatcherDirect
 
-Gene name matchers can applied in sequence (until the first match) or combined (overlapping sets of gene aliases of multiple gene matchers are combined) with the :obj:`matcher` function.
+Gene name matchers can be applied in sequence (until the first match) or
+combined (overlapping sets of gene aliases of multiple gene matchers
+are combined) with the :obj:`matcher` function.
 
 .. autofunction:: matcher
 
-The following example tries to match input genes onto KEGG gene aliases (:download:`genematch2.py <code/genematch2.py>`).
+The following example tries to match input genes onto KEGG gene aliases
+(:download:`genematch2.py <code/genematch2.py>`).
 
 .. literalinclude:: code/genematch2.py
 
-Results show that GO aliases can not match onto KEGG gene IDs. For the last gene only joined GO and KEGG aliases produce a match::
+Results show that GO aliases can not match onto KEGG gene IDs. For the
+last gene only joined GO and KEGG aliases produce a match::
 
         gene         KEGG           GO      KEGG+GO
         cct7    hsa:10574         None    hsa:10574
@@ -61,7 +68,8 @@ Results show that GO aliases can not match onto KEGG gene IDs. For the last gene
       a2a299         None         None     hsa:7052
 
 
-The following example finds KEGG pathways with given genes (:download:`genematch_path.py <code/genematch_path.py>`).
+The following example finds KEGG pathways with given genes
+(:download:`genematch_path.py <code/genematch_path.py>`).
 
 .. literalinclude:: code/genematch_path.py
 
@@ -83,5 +91,4 @@ Output::
       Herpes simplex infection
     Olfr1403 is in
       Olfactory transduction
-
 

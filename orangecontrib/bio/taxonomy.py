@@ -46,7 +46,7 @@ def common_taxid_to_name(taxid):
 
 
 def taxname_to_taxid(name):
-    """Return taxonomy ID for a taxonomy name"""
+    """Return taxonomy ID for a taxonomy name."""
     name_to_taxid = dict(map(reversed, _COMMON_NAMES))
 
     if name in name_to_taxid:

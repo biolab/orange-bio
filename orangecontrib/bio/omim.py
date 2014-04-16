@@ -7,7 +7,7 @@ import Orange
 from collections import defaultdict
 
 class disease(object):
-    """ A class representing a disease in the OMIM database
+    """ A disease in the OMIM database.
     """
     regex = re.compile(r'(?P<name>.*?),? (?P<id>[0-9]{3,6} )?(?P<m1>\([123?]\) )?(?P<m2>\([123?]\) )? *$')
     __slots__ = ["name", "id", "mapping"]

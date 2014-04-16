@@ -4,7 +4,7 @@ OBO Ontology (:mod:`ontology`)
 ==============================
 
 This module provides an interface for parsing, creating and manipulating of
-OBO ontologies (http://www.obofoundry.org/)
+`OBO ontologies <http://www.obofoundry.org/>`_.
 
 Construct an ontology from scratch with custom terms ::
 
@@ -28,7 +28,7 @@ Construct an ontology from scratch with custom terms ::
     name: Foo bar
     <BLANKLINE>
 
-To load an ontology from a file pass the file or filename to the
+To load an ontology from a file, pass the file or filename to the
 :class:`OBOOntology` constructor or call its load method ::
 
     >>> buffer.seek(0) # rewind
@@ -39,8 +39,7 @@ To load an ontology from a file pass the file or filename to the
     >>> ontology.load(buffer)
 
 
-See http://www.geneontology.org/GO.format.obo-1_2.shtml for the definition
-of the .obo file format.
+See the definition of the `.obo file format <http://www.geneontology.org/GO.format.obo-1_2.shtml>`_.
 
 """
 
@@ -189,7 +188,7 @@ def parse_tag_value(tag_value_string):
 
 class OBOObject(object):
     """
-    Represents a generic OBO object (e.g. Term, Typedef, Instance, ...)
+    A generic OBO object (e.g. Term, Typedef, Instance, ...).
     Example::
 
         >>> term = OBOObject(stanza_type="Term", id="FOO:001", name="bar")
@@ -325,7 +324,7 @@ class OBOObject(object):
 
     def _format_single_tag(self, index):
         """
-        Return a formated string representing index-th tag pair value
+        Return a formated string representing index-th tag pair value.
 
         Example::
 
@@ -638,7 +637,7 @@ class OBOOntology(object):
     def _cache_relations(self):
         """
         Collect all relations from parent to a child and store it in
-        `self._related_to` member.
+        ``self._related_to`` member.
 
         """
         related_to = defaultdict(list)
@@ -780,7 +779,7 @@ class OBOOntology(object):
 
     def parent_terms(self, term):
         """
-        Return a set of all parent terms for this `term`
+        Return a set of all parent terms for this `term`.
         """
         term = self.term(term)
         parents = []
@@ -966,7 +965,7 @@ def name_demangle(tag):
 
 def load(file):
     """
-    Load an ontology from a .obo file
+    Load an ontology from a .obo file.
     """
     return OBOOntology(file)
 

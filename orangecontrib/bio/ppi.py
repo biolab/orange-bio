@@ -36,7 +36,7 @@ class PPIDatabase(object):
     """
     A general interface for protein-protein interaction database access.
 
-    An example usage::
+    An example::
 
         >>> ppidb = MySuperPPIDatabase()
         >>> ppidb.organisms() # List all organisms (taxids)
@@ -1178,6 +1178,7 @@ def mips_proteins():
 class BioGRIDInteraction(object):
     """ An object representing a BioGRID interaction. Each member of this object
     represents a data from a single column of BIOGRID-ALL.tab file.
+
     Attributes:
         - *interactor_a*    - BioGRID identifier
         - *interactor_b*    - BioGRID identifier
@@ -1240,17 +1241,17 @@ class _BioGRID_Old(object):
             del self.protein_names[case("N/A")]
 
     def proteins(self):
-        """ Return all protein names in BioGRID (from INTERACTOR_A, and INTERACTOR_B columns)
+        """ Return all protein names in BioGRID (from INTERACTOR_A, and INTERACTOR_B columns).
         """
         return self.protein_interactions.keys()
 
     def __iter__(self):
-        """ Iterate over all BioGRIDInteraction objects
+        """ Iterate over all BioGRIDInteraction objects.
         """
         return iter(self.interactions)
 
     def __getitem__(self, key):
-        """ Return a list of protein interactions that a protein is a part of
+        """ Return a list of protein interactions that a protein is a part of.
         """
         key = self._case(key)
 #        keys = self.protein_alias_matcher.match(key)
@@ -1264,7 +1265,7 @@ class _BioGRID_Old(object):
             raise KeyError(key)
 
     def get(self, key, default=None):
-        """ Return a list of protein interactions that a protein is a part of
+        """ Return a list of protein interactions that a protein is a part of.
         """
         key = self._case(key)
 #        keys = self.protein_alias_matcher.match(key)
@@ -1285,7 +1286,7 @@ class _BioGRID_Old(object):
 
 
 def biogrid_interactions(name=None):
-    """Return a list of protein interactions (BioGRIDInteraction objects) that a protein is a part of
+    """Return a list of protein interactions (BioGRIDInteraction objects) that a protein is a part of.
     """
     if name:
         return list(_BioGRID_Old.get_instance().get(name, set()))
@@ -1294,7 +1295,7 @@ def biogrid_interactions(name=None):
 
 
 def biogrid_proteins():
-    """ Return all protein names in BioGRID (from INTERACTOR_A, and INTERACTOR_B columns)
+    """ Return all protein names in BioGRID (from INTERACTOR_A, and INTERACTOR_B columns).
     """
     return _BioGRID_Old.get_instance().proteins()
 

@@ -350,11 +350,12 @@ def _register_serverfiles(genesets, serverFiles):
     update_server_list(serverFiles)
 
 def register(genesets, serverFiles=None):
-    """ Registers given :class:`GeneSets` locally.  The gene set is registered
+    """ Registers given genesets locally.  The gene set is registered
     by the common hierarchy or organism (None if organisms are different).
 
-    If :obj:`serverFiles` as a authenticated ServerFiles connection,
-    the given gene sets are uploaded to the ServerFiles repository.  
+    :param GeneSets genesets:
+    :param serverFiles: If `serverFiles` is an authenticated ServerFiles connection,
+        the input gene sets are uploaded to the repository.  
     """
     if serverFiles == None:
         _register_local(genesets)
@@ -484,7 +485,7 @@ class GeneSet(object):
     def __init__(self, genes=[], name=None, id=None, \
         description=None, link=None, organism=None, hierarchy=None, pair=None):
         """
-        :param pair: Backward compatibility: convert a tuple (name, genes)
+        :param pair: Only for backward compatibility: convert a tuple (name, genes)
             into this object.
         """
 
@@ -543,7 +544,7 @@ class GeneSet(object):
 
     def to_odict(self, source=True, name=True):
         """
-        Backward compatibility: returns a gene set as a tuple
+        For backward compatibility. Return a gene set as a tuple
         (id, list of genes).
         """
         return self.cname(source=source, name=name), self.genes
@@ -562,12 +563,11 @@ class GeneSetIDException(Exception):
 
 class GeneSets(set):
     """ A collection of gene sets: contains :class:`GeneSet` objects. 
-    It is a subclass of Python's :obj:`set`. 
     """
     
     def __init__(self, input=None):
         """
-        If input is a dictionary, the gene sets are converted to the current format.
+        If `input` is a dictionary, the gene sets are converted to the current format.
         """
         if input != None and len(input) > 0:
             self.update(input)
