@@ -569,8 +569,11 @@ class OWFeatureSelection(OWWidget):
         if self.data and self.genes_in_columns:
             selected = sorted(selected)
             if selected:
-                newdata = orange.ExampleTable(orange.Domain(self.data.domain),
-                                        [self.data[int(i)] for i in selected])
+                newdata = orange.ExampleTable(
+                    orange.Domain(self.data.domain),
+                    [self.data[int(i)] for i in selected],
+                    name=self.data.name
+                )
             else:
                 newdata = None
             if self.add_scores_to_output:
@@ -586,7 +589,11 @@ class OWFeatureSelection(OWWidget):
             
             remaining = sorted(remaining)
             if remaining:
-                newdata = orange.ExampleTable(orange.Domain(self.data.domain), [self.data[int(i)] for i in remaining])
+                newdata = orange.ExampleTable(
+                    orange.Domain(self.data.domain),
+                    [self.data[int(i)] for i in remaining],
+                    name=self.data.name
+                )
             else:
                 newdata = None
             
@@ -607,8 +614,9 @@ class OWFeatureSelection(OWWidget):
                 for attr in newdomain.attributes:
                     attr.attributes[self.score_methods[self.method_index][0]] = str(self.scores[attr])
             newdomain.addmetas(self.data.domain.getmetas())
-            newdata = orange.ExampleTable(newdomain, self.data)
-            
+            newdata = orange.ExampleTable(
+                newdomain, self.data, name=self.data.name
+            )
             self.send("Example table with selected genes", newdata if selected_attrs else None)
             
             remaining_attrs = [attr for attr in self.data.domain.attributes if attr in remaining]
@@ -617,8 +625,9 @@ class OWFeatureSelection(OWWidget):
                 for attr in newdomain.attributes:
                     attr.attributes[self.score_methods[self.method_index][0]] = str(self.scores[attr])
             newdomain.addmetas(self.data.domain.getmetas())
-            newdata = orange.ExampleTable(newdomain, self.data)
-            
+            newdata = orange.ExampleTable(
+                newdomain, self.data, name=self.data.name
+            )
             self.send("Example table with remaining genes", newdata if remaining_attrs else None)
             
             domain = orange.Domain([orange.StringVariable("label"),
