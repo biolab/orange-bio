@@ -93,7 +93,8 @@ class OWVennDiagram(OWWidget):
 
         box = OWGUI.widgetBox(self.controlArea, "Output")
         cb = OWGUI.checkBox(box, self, "autocommit", "Commit on any change")
-        b = OWGUI.button(box, self, "Commit", default=True)
+        b = OWGUI.button(box, self, "Commit", callback=self.commit,
+                         default=True)
         OWGUI.setStopper(self, b, cb, "_changed", callback=self.commit)
 
         # Main area view
