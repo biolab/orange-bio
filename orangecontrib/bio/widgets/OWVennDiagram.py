@@ -3,6 +3,19 @@
 """
 from __future__ import division
 
+# Venn Diagram widget in orange-bioinformatics has been superseded by
+# Venn Diagram in Orange (in Visualize category). However until there is
+# a stable release of Orange (on which we can depend) we leave this widget
+# in palace and only allow it's use if the Orange installation does not yet
+# have the replacement.
+
+try:
+    from Orange.OrangeWidgets.Visualize import OWVennDiagram
+except ImportError:
+    pass
+else:
+    raise ImportError
+
 import math
 import unicodedata
 
