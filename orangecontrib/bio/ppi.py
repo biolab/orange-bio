@@ -232,7 +232,7 @@ class BioGRID(PPIDatabase):
     def organisms(self):
         cur = self.db.execute("select distinct organism_interactor \n"
                               "from proteins")
-        return cur.fetchall()
+        return map(itemgetter(0), cur.fetchall())
 
     def ids(self, taxid=None):
         """
