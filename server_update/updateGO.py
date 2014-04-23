@@ -76,6 +76,7 @@ def web_ontology_mtime():
 
 
 if web_ontology_mtime() > sf_ontology_mtime():
+    print "donwloading ontology"
     filename = os.path.join(tmp_path, "gene_ontology_edit.obo.tar.gz")
     obiGO.Ontology.DownloadOntology(filename)
 
@@ -112,6 +113,7 @@ updatedTaxonomy = defaultdict(set)
 
 
 for org in list_available_organisms():
+
     if org in exclude or org not in commonOrgs:
         continue
 
@@ -119,12 +121,15 @@ for org in list_available_organisms():
         # Skip update
         continue
 
+    print "Updating", org
+
     filename = os.path.join(tmp_path, "gene_association." + org + ".tar.gz")
     obiGO.Annotations.DownloadAnnotations(org, filename)
 
     ## Load the annotations to test them and collect all taxon ids from them
+    print filename
     a = obiGO.Annotations(filename, genematcher=obiGene.GMDirect())
-    taxons = set([ann.taxon for ann in a.annotations])
+    taxons = set([ann.Taxon for ann in a.annotations])
     ## exclude taxons with cardinality 2
     taxons = [tax for tax in taxons if "|" not in tax]
     for tax in taxons:
