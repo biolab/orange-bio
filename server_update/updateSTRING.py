@@ -1,7 +1,7 @@
 ##!interval=7
 ##!contact=ales.erjavec@fri.uni-lj.si
 
-from Orange.bio import obiPPI
+from Orange.bio import ppi, taxonomy
 import urllib2, gzip
 
 from common import *
@@ -17,33 +17,53 @@ def get_version():
 version = get_version()
 version_id = "#dbversion:%s" % version
 
-force = False # force update
+force = False  # force update
 
-for cl,desc,sfn in [ (obiPPI.STRING, 
-                    "STRING Protein interactions (Creative Commons Attribution 3.0 License)", 
-                    obiPPI.STRING.FILENAME),
-                    (obiPPI.STRINGDetailed, 
-                    "STRING Protein interactions (Creative Commons Attribution-Noncommercial-Share Alike 3.0 License)", 
-                    obiPPI.STRINGDetailed.FILENAME_DETAILED) ]:
+taxids = ppi.STRING.common_taxids()
+desc = "STRING Protein interactions for {name} (Creative Commons Attribution 3.0 License)"
 
-    print cl
-    print "current info", sf_server.info("PPI", sfn)
+for taxid in taxids:
+    dbfilename = ppi.STRING.default_db_filename(taxid)
+    basename = os.path.basename(dbfilename)
 
-    if force or version_id not in sf_server.info("PPI", sfn)["tags"]:
+    if not force and version_id in sf_server.info("PPI", basename)["tags"]:
+        continue
 
-        filename = sf_local.localpath("PPI",  sfn)
+    ppi.STRING.init_db(version, taxid, dbfilename=dbfilename)
+    gzfile = gzip.GzipFile(dbfilename + ".gz", "wb")  # gzip the database
+    shutil.copyfileobj(open(dbfilename, "rb"), gzfile)
+    sf_server.upload(
+        "PPI", basename, dbfilename + ".gz",
+        desc.format(name=taxonomy.name(taxid)),
+        tags=["protein interaction", "STRING",
+              "#compression:gz",
+              "#version:%s" % ppi.STRING.VERSION,
+              version_id]
+    )
+    sf_server.unprotect("PPI", basename)
 
-        if os.path.exists(filename): #remvoe prebuilt sqlite database
-            os.remove(filename)
 
-        cl.download_data(version)
+desc_detailed = "STRING Protein interactions for {name} (Creative Commons Attribution-Noncommercial-Share Alike 3.0 License)"
 
-        gzfile = gzip.GzipFile(filename + ".gz", "wb") #gzip the database
-        shutil.copyfileobj(open(filename, "rb"), gzfile)
+for taxid in taxids:
+    dbfilename = sf_local.localpath(
+        ppi.STRINGDetailed.DOMAIN,
+        ppi.STRINGDetailed.FILENAME_DETAILED.format(taxid=taxid)
+    )
+    basename = os.path.basename(dbfilename)
 
-        sf_server.upload("PPI", sfn, filename + ".gz", 
-                       desc,
-                       tags=["protein interaction", "STRING", 
-                             "#compression:gz", "#version:%s" % cl.VERSION, version_id]
-                       )
-        sf_server.unprotect("PPI", sfn)
+    if not force and version_id in sf_server.info("PPI", basename)["tags"]:
+        continue
+
+    ppi.STRINGDetailed.init_db(version, taxid, dbfilename=dbfilename)
+    gzfile = gzip.GzipFile(dbfilename + ".gz", "wb")  # gzip the database
+    shutil.copyfileobj(open(dbfilename, "rb"), gzfile)
+    sf_server.upload(
+        "PPI", basename, dbfilename + ".gz",
+        desc_detailed.format(name=taxonomy.name(taxid)),
+        tags=["protein interaction", "STRING",
+              "#compression:gz",
+              "#version:%s" % ppi.STRING.VERSION,
+              version_id]
+    )
+    sf_server.unprotect("PPI", basename)
