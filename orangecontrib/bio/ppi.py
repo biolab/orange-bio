@@ -9,6 +9,8 @@ import xml.dom.minidom as minidom
 import csv
 import sqlite3
 import errno
+import posixpath
+import textwrap
 
 from StringIO import StringIO
 from collections import defaultdict, namedtuple
@@ -220,6 +222,16 @@ class BioGRID(PPIDatabase):
 
     DOMAIN = "PPI"
     SERVER_FILE = "BIOGRID-ALL.sqlite"
+
+    TAXID_MAP = {
+        "4530": "39947",
+        "4932": "559292",
+        "562": "511145",
+        "5833": "36329",
+        "2104": None,
+        "4754": None,
+        "31033": None
+    }
 
     def __init__(self):
         self.filename = serverfiles.localpath_download(
@@ -530,8 +542,8 @@ class STRING(PPIDatabase):
 
     """
     DOMAIN = "PPI"
-    FILENAME = "string-protein.sqlite"
-    VERSION = "2.0"
+    FILENAME = "string.protein.{taxid}.sqlite"
+    VERSION = "3.0"
 
     # Mapping from taxonomy.common_taxids() to taxids in STRING.
 
@@ -541,14 +553,40 @@ class STRING(PPIDatabase):
                  "4530": "39947",    # Oryza sativa Japonica Group
                  "4754": None,
                  "8355": None,
-                 "4577": None
-                 }
+                 "4577": None,
+                 "11103": None}
 
-    def __init__(self):
-        self.filename = serverfiles.localpath_download(
-            self.DOMAIN, self.FILENAME
-        )
-        self.db = sqlite3.connect(self.filename)
+    def __init__(self, taxid=None, database=None):
+        if taxid is not None and database is not None:
+            raise ValueError("taxid and database parameters are exclusive.")
+
+        self.db = None
+
+        if taxid is None and database is not None:
+            if isinstance(database, sqlite3.Connection):
+                self.db = database
+                self.filename = None
+            else:
+                self.filename = database
+                self.db = sqlite3.connect(database)
+        elif taxid is not None and database is None:
+            self.filename = serverfiles.localpath_download(
+                self.DOMAIN, self.FILENAME.format(taxid=taxid)
+            )
+        elif taxid is None and database is None:
+            # Back compatibility
+            self.filename = serverfiles.localpath_download(
+                "PPI", "string-protein.sqlite")
+        else:
+            assert False, "Not reachable"
+
+        if self.db is None:
+            self.db = sqlite3.connect(self.filename)
+
+    @classmethod
+    def default_db_filename(cls, taxid):
+        return serverfiles.localpath(
+            cls.DOMAIN, cls.FILENAME.format(taxid=taxid))
 
     @classmethod
     def common_taxids(cls):
@@ -679,218 +717,148 @@ class STRING(PPIDatabase):
     def download_data(cls, version, taxids=None):
         """
         Download the  PPI data for local work (this may take some time).
-        Pass the version of the  STRING release e.g. v8.3.
-        The resulting sqlite database will only contain the protein
-        interactions for `taxids` (if None taxonomy.common_taxids() will
-        be used).
-
+        Pass the version of the  STRING release e.g. v9.1.
         """
-        dir = serverfiles.localpath("PPI")
+        if taxids is None:
+            taxids = cls.common_taxids()
 
-        base_url = "http://www.string-db.org/newstring_download/"
-        links = "protein.links.{version}.txt.gz".format(version=version)
-        actions = "protein.actions.{version}.txt.gz".format(version=version)
-        aliases = "protein.aliases.{version}.txt.gz".format(version=version)
-
-        def wgeti(f, dir, progress):
-            if not os.path.exists(os.path.join(dir, f)):
-                print "Downloading:", f
-                wget(base_url + f, dir, progress=progress)
-            else:
-                print "Already downloaded - skiping:", f
-
-        wgeti(links, dir, progress=True)
-        wgeti(actions, dir, progress=True)
-        wgeti(aliases, dir, progress=True)
-
-        cls.init_db(version, taxids)
+        for taxid in taxids:
+            cls.init_db(version, taxid)
 
     @classmethod
-    def init_db(cls, version, taxids=None):
-        """
-        Initialize the sqlite3 data base. `version` must contain a
-        STRING release version e.g 'v8.3'. If `taxids` is not `None` it
-        must contain a list of tax-ids in the STRING database for which
-        to extract the interactions for.
+    def init_db(cls, version, taxid, cache_dir=None, dbfilename=None):
+        if cache_dir is None:
+            cache_dir = serverfiles.localpath(cls.DOMAIN)
 
-        """
-        def counter():
-            i = 0
-            while True:
-                yield i
-                i += 1
+        if dbfilename is None:
+            dbfilename = cls.default_db_filename(taxid)
 
-        dir = serverfiles.localpath(cls.DOMAIN)
+        pjoin = os.path.join
 
-        links_filename = os.path.join(
-            dir, "protein.links.{version}.txt.gz".format(version=version)
-        )
-        actions_filename = os.path.join(
-            dir, "protein.actions.{version}.txt.gz".format(version=version)
-        )
-        aliases_filename = os.path.join(
-            dir, "protein.aliases.{version}.txt.gz".format(version=version)
-        )
+        base_url = "http://www.string-db.org/newstring_download/"
 
-        links_fileobj = open(links_filename, "rb")
-        actions_fileobj = open(actions_filename, "rb")
-        aliases_fileobj = open(aliases_filename, "rb")
+        def paths(flatfile):
+            url = "{flatfile}.{version}/{taxid}.{flatfile}.{version}.txt.gz"
+            url = url.format(flatfile=flatfile, version=version, taxid=taxid)
+            return posixpath.basename(url), base_url + url
+
+        def ffname(pattern):
+            return pattern.format(taxid=taxid, version=version)
+
+        links_filename, links_url = paths("protein.links")
+
+        actions_filename, actions_url = paths("protein.actions")
+
+        aliases_filename, aliases_url = paths("protein.aliases")
+
+        def download(filename, url):
+            with open(pjoin(cache_dir, filename + ".tmp"), "wb") as dest:
+                wget(url, dst_obj=dest, progress=True)
+
+            shutil.move(pjoin(cache_dir, filename + ".tmp"),
+                        pjoin(cache_dir, filename))
+
+        for fname, url in [(links_filename, links_url),
+                           (actions_filename, actions_url),
+                           (aliases_filename, aliases_url)]:
+            if not os.path.exists(pjoin(cache_dir, fname)):
+                download(fname, url)
+
+        links_fileobj = open(pjoin(cache_dir, links_filename), "rb")
+        actions_fileobj = open(pjoin(cache_dir, actions_filename), "rb")
+        aliases_fileobj = open(pjoin(cache_dir, aliases_filename), "rb")
 
         links_file = gzip.GzipFile(fileobj=links_fileobj)
         actions_file = gzip.GzipFile(fileobj=actions_fileobj)
         aliases_file = gzip.GzipFile(fileobj=aliases_fileobj)
 
-        progress = ConsoleProgressBar("Processing links:")
+        progress = ConsoleProgressBar("Processing {}:".format(links_filename))
         progress(0.0)
-        filesize = os.stat(links_filename).st_size
 
-        if taxids:
-            taxids = set(taxids)
-        else:
-            taxids = set(cls.common_taxids())
+        def st_size(filename):
+            return os.stat(pjoin(cache_dir, filename)).st_size
 
-        con = sqlite3.connect(
-            serverfiles.localpath(cls.DOMAIN, cls.FILENAME))
+        filesize = st_size(links_filename)
+
+        con = sqlite3.connect(dbfilename)
 
         with con:
-            con.execute("drop table if exists links")
-            con.execute("drop table if exists proteins")
-            con.execute("drop table if exists actions")
-            con.execute("drop table if exists aliases")
+            cls.clear_db(con)
 
-            con.execute("""
-                create table links
-                    (protein_id1 text, protein_id2 text, score int)
-            """)
-
-            con.execute("""
-                create table proteins
-                    (protein_id text, taxid text)
-            """)
-
-            con.execute("""
-                create table actions
-                    (protein_id1 text, protein_id2 text, mode text,
-                     action text, score int)
-            """)
-
-            con.execute("""
-                create table aliases
-                    (protein_id text, alias text, source text)
-            """)
-
-            links_file.readline()  # read the header
+            links_file.readline()  # read the header line
 
             reader = csv.reader(links_file, delimiter=" ")
 
-            def read_links(reader, taxids, progress):
-                split = str.split
+            def read_links(reader, progress):
                 for i, (p1, p2, score) in enumerate(reader):
-                    if split(p1, ".", 1)[0] in taxids and \
-                            split(p2, ".", 1)[0] in taxids:
-                        yield intern(p1), intern(p2), int(score)
+                    yield p1, p2, int(score)
 
-                    if i % 1000000 == 0:
-                        # Update the progress every 1000000 lines
+                    if i % 100000 == 0:
+                        # Update the progress every 100000 lines
                         progress(100.0 * links_fileobj.tell() / filesize)
 
-            con.executemany("insert into links values (?, ?, ?)",
-                            read_links(reader, taxids, progress))
+            con.executemany("INSERT INTO links VALUES (?, ?, ?)",
+                            read_links(reader, progress))
 
             progress.finish()
 
-            proteins = con.execute("select distinct protein_id1 from links")
-            proteins = [res[0] for res in proteins]
-            progress = ConsoleProgressBar("Processing proteins:")
+            def part(string, sep, part):
+                return string.split(sep)[part]
 
-            def protein_taxids(proteins):
-                protein_taxids = []
-                for i, prot in enumerate(proteins):
-                    taxid = prot.split(".", 1)[0]
-                    protein_taxids.append((prot, taxid))
-                    if i % 1000 == 0:
-                        progress(100.0 * i / len(proteins))
-                protein_taxids.sort()
-                return protein_taxids
+            con.create_function("part", 3, part)
+            con.execute("""
+                INSERT INTO proteins
+                SELECT protein_id1, part(protein_id1, '.', 0)
+                FROM (SELECT DISTINCT(protein_id1)
+                     FROM links
+                     ORDER BY protein_id1)
+            """)
 
-            con.executemany("insert into proteins values (?, ?)",
-                            protein_taxids(proteins))
+            filesize = st_size(actions_filename)
 
-            progress.finish()
-
-            filesize = os.stat(actions_filename).st_size
-
-            actions_file.readline()  # read header
+            actions_file.readline()  # read header line
 
             progress = ConsoleProgressBar("Processing actions:")
             reader = csv.reader(actions_file, delimiter="\t")
 
             def read_actions(reader):
-                split = str.split
                 for i, (p1, p2, mode, action, a_is_acting, score) in \
                         enumerate(reader):
-                    if split(p1, ".", 1)[0] in taxids and \
-                            split(p2, ".", 1)[0] in taxids:
-                        yield intern(p1), intern(p2), mode, action, int(score)
+                    yield p1, p2, mode, action, int(score)
 
                     if i % 10000 == 0:
                         progress(100.0 * actions_fileobj.tell() / filesize)
 
-            con.executemany("insert into actions values (?, ?, ?, ?, ?)",
+            con.executemany("INSERT INTO actions VALUES (?, ?, ?, ?, ?)",
                             read_actions(reader))
 
             progress.finish()
 
-            filesize = os.stat(aliases_filename).st_size
-            aliases_file.readline()  # read header
+            filesize = st_size(aliases_filename)
+            aliases_file.readline()  # read header line
 
             progress = ConsoleProgressBar("Processing aliases:")
 
             reader = csv.reader(aliases_file, delimiter="\t")
 
-            def read_aliases(reader, taxids, progress):
+            def read_aliases(reader, progress):
                 for i, (taxid, name, alias, source) in enumerate(reader):
-                    if taxid in taxids:
-                        yield (".".join([taxid, name]),
-                               alias.decode("utf-8", errors="ignore"),
-                               source.decode("utf-8", errors="ignore"))
+                    yield (".".join([taxid, name]),
+                           alias.decode("utf-8", errors="ignore"),
+                           source.decode("utf-8", errors="ignore"))
                     if i % 10000 == 0:
                         progress(100.0 * aliases_fileobj.tell() / filesize)
 
-            con.executemany("insert into aliases values (?, ?, ?)",
-                            read_aliases(reader, taxids, progress))
+            con.executemany("INSERT INTO aliases VALUES (?, ?, ?)",
+                            read_aliases(reader, progress))
 
             progress.finish()
 
             print "Indexing the database"
-
-            con.execute("""\
-            create index if not exists index_link_protein_id1
-                on links (protein_id1)""")
-
-            con.execute("""\
-                create index if not exists index_action_protein_id1
-                    on actions (protein_id1)""")
-
-            con.execute("""\
-                create index if not exists index_proteins_id
-                    on proteins (protein_id)""")
-
-            con.execute("""\
-                create index if not exists index_taxids
-                    on proteins (taxid)""")
-
-            con.execute("""\
-                create index if not exists index_aliases_id
-                    on aliases (protein_id)""")
-
-            con.execute("""\
-                create index if not exists index_aliases_alias
-                    on aliases (alias)""")
+            cls.create_db_index(con)
 
             con.executescript("""
                 DROP TABLE IF EXISTS version;
-
                 CREATE TABLE version (
                      string_version text,
                      api_version text
@@ -899,6 +867,52 @@ class STRING(PPIDatabase):
             con.execute("""
                 INSERT INTO version
                 VALUES (?, ?)""", (version, cls.VERSION))
+
+    @classmethod
+    def clear_db(cls, dbcon):
+        dbcon.executescript(textwrap.dedent("""
+            DROP TABLE IF EXISTS links;
+            DROP TABLE IF EXISTS proteins;
+            DROP TABLE IF EXISTS actions;
+            DROP TABLE IF EXISTS aliases;
+        """))
+
+        dbcon.executescript(textwrap.dedent("""
+            CREATE TABLE links
+                (protein_id1 TEXT, protein_id2 TEXT, score INT);
+
+            CREATE TABLE proteins
+                (protein_id TEXT, taxid TEXT);
+
+            CREATE TABLE actions
+                (protein_id1 TEXT, protein_id2 TEXT, mode TEXT,
+                 action TEXT, score INT);
+
+            CREATE TABLE aliases
+                (protein_id TEXT, alias TEXT, source TEXT);
+        """))
+
+    @classmethod
+    def create_db_index(cls, dbcon):
+        dbcon.executescript(textwrap.dedent("""
+            CREATE INDEX IF NOT EXISTS index_link_protein_id1
+                ON links (protein_id1);
+
+            CREATE INDEX IF NOT EXISTS index_action_protein_id1
+                ON actions (protein_id1);
+
+            CREATE INDEX IF NOT EXISTS index_proteins_id
+                ON proteins (protein_id);
+
+            CREATE INDEX IF NOT EXISTS index_taxids
+                ON proteins (taxid);
+
+            CREATE INDEX IF NOT EXISTS index_aliases_id
+                ON aliases (protein_id);
+
+            CREATE INDEX IF NOT EXISTS index_aliases_alias
+                ON aliases (alias);
+        """))
 
 
 STRINGDetailedInteraction = namedtuple(
@@ -950,16 +964,27 @@ class STRINGDetailed(STRING):
         - `textmining`: score (int)
 
     """
-    FILENAME_DETAILED = "string-protein-detailed.sqlite"
+    FILENAME_DETAILED = "string.protein.detailed.{taxid}.sqlite"
 
-    def __init__(self):
-        STRING.__init__(self)
+    def __init__(self, taxid=None, database=None, detailed_database=None):
+        STRING.__init__(self, taxid, database)
+        if taxid is not None and detailed_database is not None:
+            raise ValueError("taxid and detailed_database are exclusive")
+
         db_file = serverfiles.localpath(self.DOMAIN, self.FILENAME)
-        db_detailed_file = serverfiles.localpath_download(
-            self.DOMAIN, self.FILENAME_DETAILED
-        )
+        if taxid is not None and detailed_database is None:
+            detailed_database = serverfiles.localpath_download(
+                self.DOMAIN,
+                self.FILENAME_DETAILED.format(taxid=taxid)
+            )
+        elif taxid is None and detailed_database is not None:
+            detailed_database = detailed_database
+        elif taxid is None and detailed_database is None:
+            # Back compatibility
+            detailed_database = serverfiles.localpath_download(
+                "PPI", "string-protein-detailed.sqlite")
 
-        self.db_detailed = sqlite3.connect(db_detailed_file)
+        self.db_detailed = sqlite3.connect(detailed_database)
         self.db_detailed.execute("ATTACH DATABASE ? as string", (db_file,))
 
     def edges_annotated(self, id):
@@ -967,7 +992,7 @@ class STRINGDetailed(STRING):
         edges_nc = []
         for edge in edges:
             id1, id2 = edge.protein_id1, edge.protein_id2
-            cur = self.db_detailed.execute("""\
+            cur = self.db_detailed.execute("""
                 SELECT neighborhood, fusion, cooccurence, coexpression,
                        experimental, database, textmining
                 FROM evidence
@@ -984,44 +1009,36 @@ class STRINGDetailed(STRING):
         return edges_nc
 
     @classmethod
-    def download_data(cls, version, taxids=None):
-        baseurl = "http://www.string-db.org/newstring_download/"
-        links_filename = ("protein.links.detailed.{version}.txt.gz"
-                          .format(version=version))
+    def init_db(cls, version, taxid, cache_dir=None, dbfilename=None):
+        if cache_dir is None:
+            cache_dir = serverfiles.localpath(cls.DOMAIN)
+        if dbfilename is None:
+            dbfilename = serverfiles.localpath(
+                cls.DOMAIN,
+                "string-protein-detailed.{taxid}.sqlite".format(taxid=taxid)
+            )
 
-        dir = serverfiles.localpath(cls.DOMAIN)
-        local_filename = os.path.join(dir, links_filename)
+        pjoin = os.path.join
 
-        if not os.path.exists(local_filename):
-            wget(baseurl + links_filename, dir, progress=True)
-        else:
-            print "Already downloaded - skiping"
+        base_url = "http://www.string-db.org/newstring_download/"
+        filename = "{taxid}.protein.links.detailed.{version}.txt.gz"
+        filename = filename.format(version=version, taxid=taxid)
+        url = base_url + "protein.links.detailed.{version}/" + filename
+        url = url.format(version=version)
 
-        cls.init_db(version, taxids)
+        if not os.path.exists(pjoin(cache_dir, filename)):
+            wget(url, cache_dir, progress=True)
 
-    @classmethod
-    def init_db(cls, version, taxids=None):
-        dir = serverfiles.localpath(cls.DOMAIN)
-
-        links_filename = ("protein.links.detailed.{version}.txt.gz"
-                          .format(version=version))
-        links_filename = os.path.join(dir, links_filename)
-
-        if taxids:
-            taxids = set(taxids)
-        else:
-            taxids = set(cls.common_taxids())
-
-        links_fileobj = open(links_filename, "rb")
+        links_fileobj = open(pjoin(cache_dir, filename), "rb")
         links_file = gzip.GzipFile(fileobj=links_fileobj)
 
-        con = sqlite3.connect(os.path.join(dir, cls.FILENAME_DETAILED))
+        con = sqlite3.connect(dbfilename)
         with con:
-            con.execute("""\
+            con.execute("""
                 DROP TABLE IF EXISTS evidence
             """)
 
-            con.execute("""\
+            con.execute("""
                 CREATE TABLE evidence(
                      protein_id1 TEXT,
                      protein_id2 TEXT,
@@ -1037,20 +1054,17 @@ class STRINGDetailed(STRING):
 
             links = csv.reader(links_file, delimiter=" ")
             links.next()  # Read header
-            filesize = os.stat(links_filename).st_size
+            filesize = os.stat(pjoin(cache_dir, filename)).st_size
 
             progress = ConsoleProgressBar("Processing links file:")
             progress(1.0)
 
             def read_links(reader):
-                split = str.split
                 for i, (p1, p2, n, f, c, cx, ex, db, t, _) in \
                         enumerate(reader):
-                    if split(p1, ".", 1)[0] in taxids and \
-                            split(p2, ".", 1)[0] in taxids:
-                        yield intern(p1), intern(p2), n, f, c, cx, ex, db, t
+                    yield p1, p2, n, f, c, cx, ex, db, t
 
-                    if i % 100000 == 0:
+                    if i % 10000 == 0:
                         progress(100.0 * links_fileobj.tell() / filesize)
 
             con.executemany("""
@@ -1078,6 +1092,14 @@ class STRINGDetailed(STRING):
             con.execute("""
                 INSERT INTO version
                 VALUES (?, ?)""", (version, cls.VERSION))
+
+    @classmethod
+    def download_data(cls, version, taxids=None):
+        if taxids is None:
+            taxids = cls.common_taxids()
+
+        for taxid in taxids:
+            cls.init_db(version, taxid)
 
 
 ##########
