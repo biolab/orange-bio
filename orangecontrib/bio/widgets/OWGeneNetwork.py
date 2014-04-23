@@ -1,15 +1,16 @@
 from collections import namedtuple
 
-from PyQt4.QtCore import QTimer, pyqtSlot as Slot
+from PyQt4.QtCore import QTimer, QThread, pyqtSlot as Slot
 
 import Orange.data
-import Orange.network
 import Orange.feature
+import Orange.network
+from Orange.orng.orngDataCaching import data_hints
 
 from Orange.OrangeWidgets import OWWidget
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets import OWItemModels
-from Orange.OrangeWidgets.OWConcurrent import ThreadExecutor, Future
+from Orange.OrangeWidgets.OWConcurrent import ThreadExecutor, Task, methodinvoke
 
 from .. import ppi, taxonomy, gene
 
@@ -22,23 +23,35 @@ OUTPUTS = [("Network", Orange.network.Graph),
            ("Items", Orange.data.Table)]
 
 
+TAX_MAPPING_BIOGRID = {
+    "4530": "39947",
+    "4932": "559292",
+    "562": "511145",
+    "5833": "36329",
+    "2104": None,
+    "4754": None,
+    "31033": None
+}
+
 Source = namedtuple(
     "Source",
-    ["name", "constructor", "sf_domain", "sf_filename"]
+    ["name", "constructor", "tax_mapping", "sf_domain", "sf_filename"]
 )
 
 SOURCES = [
-    Source("BioGRID", ppi.BioGRID, "PPI", ppi.BioGRID.SERVER_FILE),
-#     Source("STRING", ppi.STRING, "PPI", ppi.STRING.FILENAME)
+    Source("BioGRID", ppi.BioGRID, ppi.BioGRID.TAXID_MAP,
+           "PPI", ppi.BioGRID.SERVER_FILE),
+    Source("STRING", ppi.STRING, ppi.STRING.TAXID_MAP,
+           "PPI", "string.protein.{taxid}.sqlite")
 ]
 
 
 class OWGeneNetwork(OWWidget.OWWidget):
-    settingsList = ["taxid", "genes_in_row", "network_source",
+    settingsList = ["taxid", "use_attr_names", "network_source",
                     "include_neighborhood"]
     contextHandlers = {
         "": OWWidget.DomainContextHandler(
-            "", ["taxid", "gene_var_index", "genes_in_row"]
+            "", ["taxid", "gene_var_index", "use_attr_names"]
         )
     }
 
@@ -48,7 +61,7 @@ class OWGeneNetwork(OWWidget.OWWidget):
 
         self.taxid = "9606"
         self.gene_var_index = -1
-        self.genes_in_rows = False
+        self.use_attr_names = False
         self.network_source = 0
         self.include_neighborhood = True
         self.autocommit = False
@@ -58,20 +71,14 @@ class OWGeneNetwork(OWWidget.OWWidget):
         self.taxids = taxonomy.common_taxids()
         self.current_taxid_index = self.taxids.index(self.taxid)
 
-        self.db = None
         self.data = None
         self.geneinfo = None
+        self.nettask = None
         self._invalidated = False
 
         box = OWGUI.widgetBox(self.controlArea, "Info")
-        self.info = OWGUI.widgetLabel(box, "No input\n")
+        self.info = OWGUI.widgetLabel(box, "No data on input\n")
 
-        box = OWGUI.widgetBox(self.controlArea, "Network Source")
-        OWGUI.comboBox(
-            box, self, "network_source",
-            items=[s.name for s in SOURCES],
-            callback=self._update_source_db
-        )
         box = OWGUI.widgetBox(self.controlArea, "Organism")
         self.organism_cb = OWGUI.comboBox(
             box, self, "current_taxid_index",
@@ -86,46 +93,51 @@ class OWGeneNetwork(OWWidget.OWWidget):
         self.genes_cb.setModel(self.varmodel)
 
         OWGUI.checkBox(
-            box, self, "genes_in_rows",
+            box, self, "use_attr_names",
             "Use attribute names",
             callback=self._update_query_genes
         )
-        box = OWGUI.widgetBox(self.controlArea, "Neighborhood")
+
+        box = OWGUI.widgetBox(self.controlArea, "Network")
+        OWGUI.comboBox(
+            box, self, "network_source",
+            items=[s.name for s in SOURCES],
+            callback=self._update_source_db
+        )
         OWGUI.checkBox(
             box, self, "include_neighborhood",
-            "Include immediate neighborers",
+            "Include immediate gene neighbors",
             callback=self.invalidate
         )
         box = OWGUI.widgetBox(self.controlArea, "Commit")
 #         cb = OWGUI.checkBox(box, self, "autocommit")
-        OWGUI.button(box, self, "Commit", callback=self.commit, default=True)
+        OWGUI.button(box, self, "Commit", callback=self.commit_, default=True)
 
         self.executor = ThreadExecutor()
-
-#         QTimer.singleShot(0, self.initialize)
-        self._update_source_db()
-        self._update_organism()
-
-    @Slot()
-    def initialize(self):
-        if self.db is None:
-            self.db = ppi.BioGRID()
 
     def set_data(self, data):
         self.closeContext()
         self.data = data
         if data is not None:
             self.varmodel[:] = string_variables(data.domain)
+            taxid = data_hints.get_hint(data, "taxid", default=self.taxid)
+
+            if taxid in self.taxids:
+                self.set_organism(self.taxids.index(taxid))
+
+            self.use_attr_names = data_hints.get_hint(
+                data, "genesinrows", default=self.use_attr_names
+            )
+
             self.openContext("", data)
-#             self._update_info()
-            self.commit()
+            self._update_info()
+            self.invalidate()
+            self.commit_()
         else:
             self.varmodel[:] = []
 
     def set_source_db(self, dbindex):
         self.network_source = dbindex
-        # by taxid??
-        self.db = SOURCES[self.network_source]()
         self.invalidate()
 
     def set_organism(self, index):
@@ -138,9 +150,14 @@ class OWGeneNetwork(OWWidget.OWWidget):
         self.invalidate()
 
     def query_genes(self):
-        if self.gene_var_index >= 0:
+        if self.use_attr_names:
+            if self.data is not None:
+                return [var.name for var in self.data.domain.attributes]
+            else:
+                return []
+        elif self.gene_var_index >= 0:
             var = self.varmodel[self.gene_var_index]
-            genes = [unicode(inst[var]) for inst in self.data
+            genes = [str(inst[var]) for inst in self.data
                      if not inst[var].isSpecial()]
             return list(unique(genes))
         else:
@@ -148,20 +165,28 @@ class OWGeneNetwork(OWWidget.OWWidget):
 
     def invalidate(self):
         self._invalidated = True
+
+        if self.nettask is not None:
+            self.nettask.finished.disconnect(self._on_result_ready)
+            self.nettask.future().cancel()
+            self.nettask = None
+
         if self.autocommit:
-            QTimer.singleShot(0, self._maybe_commit)
+            QTimer.singleShot(10, self._maybe_commit)
 
     @Slot()
     def _maybe_commit(self):
         if self._invalidated:
-            self.commit()
+            self.commit_()
 
-    def commit(self):
-        gene_var = self.varmodel[self.gene_var_index]
+    def _commit(self):
         query_genes = self.query_genes()
         geneinfo = self.geneinfo.result()
+        ppidb = self.ppidb.result()
+        source = SOURCES[self.network_source]
+        ppidb = source.constructor()
 
-        ppidb = self._db
+#         ppidb = self._db
         tax_map = self._tax_mapping
         taxid = tax_map.get(self.taxid, None)
         if taxid is None:
@@ -185,6 +210,7 @@ class OWGeneNetwork(OWWidget.OWWidget):
         # then nodes not contained in the query will have instances with all
         # unknown values
 
+        gene_var = self.varmodel[self.gene_var_index]
         data_by_query_name = {str(inst[gene_var]): inst
                               for inst in self.data}
         items = Orange.data.Table(self.data.domain)
@@ -197,40 +223,83 @@ class OWGeneNetwork(OWWidget.OWWidget):
         self.send("Items", items)
         self._invalidated = False
 
-    def fetch_db(self, which):
-        pass
+    def commit_(self):
+        include_neighborhood = self.include_neighborhood
+        query_genes = self.query_genes()
+        source = SOURCES[self.network_source]
+        taxid = self.taxid
+
+        if self.geneinfo is None:
+            self.geneinfo = self.executor.submit(gene.NCBIGeneInfo, taxid)
+
+        geneinfo_f = self.geneinfo
+        taxmap = source.tax_mapping
+        db_taxid = taxmap.get(taxid, taxid)
+
+        if db_taxid is None:
+            raise ValueError("invalid taxid")
+
+        def takes_taxid(s):
+            return "{taxid}" in source.sf_filename
+
+        if takes_taxid(source):
+            constructor = lambda: source.constructor(db_taxid)
+        else:
+            constructor = source.constructor
+
+        self.nettask = Task(function=
+            lambda: get_gene_network(
+                constructor(), geneinfo_f.result(),
+                db_taxid, query_genes,
+                include_neighborhood=include_neighborhood
+            )
+        )
+        self.nettask.finished.connect(self._on_result_ready)
+        self.executor.submit(self.nettask)
+
+        self.setBlocking(True)
+        self.progressBarInit()
+        self._invalidated = False
+        self._update_info()
+
+    @Slot()
+    def _on_result_ready(self):
+        net = self.nettask.result()
+        self.progressBarFinished()
+        self.setBlocking(False)
+        self.send("Network", net)
+        self._update_info()
 
     def _update_source_db(self):
-        source = ppi.BioGRID()
-        orgs = map(str, source.organisms())
-
-        tax_mapping = taxonomy_match(orgs, self.taxids)
-        tax_mapping = {common_tax: db_tax
-                       for db_tax, common_tax in tax_mapping.items()
-                       if common_tax is not None}
-
-        # TODO: Disable the items in Organism combo box that are not
-        # in this list.
-#         model = self.organism_cb.model()
-#         for i, taxid in self.taxids:
-#             enabled = taxid in tax_mapping
-
-        self._db = source
-        self._tax_mapping = tax_mapping
         self.invalidate()
 
     def _update_organism(self):
         self.taxid = self.taxids[self.current_taxid_index]
         if self.geneinfo is not None:
             self.geneinfo.cancel()
-
-        self.geneinfo = self.executor.submit(
-            lambda: gene.NCBIGeneInfo(self.taxid)
-        )
+        self.geneinfo = None
         self.invalidate()
 
     def _update_query_genes(self):
         self.invalidate()
+
+    def _update_info(self):
+        if self.data is None:
+            self.info.setText("No data on input\n")
+        else:
+            names = self.query_genes()
+            lines = ["%i unique genes on input" % len(set(names))]
+            if self.nettask is not None:
+                if not self.nettask.future().done():
+                    lines.append("Retrieving ...")
+                else:
+                    net = self.nettask.result()
+                    lines.append("%i nodes %i edges" %
+                                 (len(net.nodes()), len(net.edges())))
+            else:
+                lines.append("")
+
+            self.info.setText("\n".join(lines))
 
 
 def unique(seq):
@@ -287,15 +356,33 @@ def taxid_map(query, targets):
 from Orange.utils import serverfiles as sf
 
 
-def fetch_ppidb(ppidb, progress=None):
+def fetch_ppidb(ppidb, taxid, progress=None):
+    fname = ppidb.SERVER_FILE
+    if "{taxid}" in fname:
+        fname = fname.format(taxid=taxid)
+
     sf.localpath_download(
-        ppidb.DOMAIN, ppidb.SERVER_FILE,
+        ppidb.DOMAIN, fname,
         callback=progress, verbose=True
     )
-    db = ppidb()
 
-    mapping = taxonomy_match(db.organisms(), taxonomy.common_taxids())
-    return db, mapping
+
+def get_gene_network(ppidb, geneinfo, taxid, query_genes,
+                     include_neighborhood=True, progress=None):
+    # Normalize the names to ppidb primary keys
+
+    matcher = geneinfo.matcher
+    query_genes = zip(query_genes, map(matcher.umatch, query_genes))
+    synonyms = ppidb_synonym_mapping(ppidb, taxid)
+
+    query_genes = [(query_gene, geneid,
+                    synonyms.get(query_gene, synonyms.get(geneid)))
+                    for query_gene, geneid in query_genes]
+
+    query = [(syn[0], query_gene)
+             for query_gene, _, syn in query_genes if syn]
+    net = extract_network(ppidb, dict(query), geneinfo, include_neighborhood)
+    return net
 
 
 def extract_network(ppidb, query, geneinfo, include_neighborhood=True):
@@ -347,8 +434,7 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True):
          Orange.feature.String("id"),          # ppidb primary key
          Orange.feature.String("Synonyms"),    # ppidb synonyms
          Orange.feature.String("Symbol"),      # ncbi gene name ??
-         Orange.feature.Discrete("source", values=["false", "true"])
-         ],
+         Orange.feature.Discrete("source", values=["false", "true"])],
         None
     )
 
