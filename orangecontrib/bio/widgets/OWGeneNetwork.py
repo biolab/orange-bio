@@ -19,19 +19,7 @@ DESCRIPTION = "Extract a gene network for a set of genes."
 ICON = "icons/GeneNetwork.svg"
 
 INPUTS = [("Data", Orange.data.Table, "set_data")]
-OUTPUTS = [("Network", Orange.network.Graph),
-           ("Items", Orange.data.Table)]
-
-
-TAX_MAPPING_BIOGRID = {
-    "4530": "39947",
-    "4932": "559292",
-    "562": "511145",
-    "5833": "36329",
-    "2104": None,
-    "4754": None,
-    "31033": None
-}
+OUTPUTS = [("Network", Orange.network.Graph)]
 
 Source = namedtuple(
     "Source",
@@ -42,7 +30,7 @@ SOURCES = [
     Source("BioGRID", ppi.BioGRID, ppi.BioGRID.TAXID_MAP,
            "PPI", ppi.BioGRID.SERVER_FILE),
     Source("STRING", ppi.STRING, ppi.STRING.TAXID_MAP,
-           "PPI", "string.protein.{taxid}.sqlite")
+           "PPI", ppi.STRING.FILENAME)
 ]
 
 
@@ -56,8 +44,10 @@ class OWGeneNetwork(OWWidget.OWWidget):
     }
 
     def __init__(self, parent=None, signalManager=None, title="Gene Network"):
-        super(OWGeneNetwork, self).__init__(parent, signalManager, title,
-                                            wantMainArea=False)
+        super(OWGeneNetwork, self).__init__(
+            parent, signalManager, title, wantMainArea=False,
+            resizingEnabled=False
+        )
 
         self.taxid = "9606"
         self.gene_var_index = -1
@@ -111,7 +101,7 @@ class OWGeneNetwork(OWWidget.OWWidget):
         )
         box = OWGUI.widgetBox(self.controlArea, "Commit")
 #         cb = OWGUI.checkBox(box, self, "autocommit")
-        OWGUI.button(box, self, "Commit", callback=self.commit_, default=True)
+        OWGUI.button(box, self, "Commit", callback=self.commit, default=True)
 
         self.executor = ThreadExecutor()
 
@@ -129,12 +119,15 @@ class OWGeneNetwork(OWWidget.OWWidget):
                 data, "genesinrows", default=self.use_attr_names
             )
 
+            if self.gene_var_index >= len(self.varmodel):
+                self.gene_var_index = len(self.varmodel) - 1
+
             self.openContext("", data)
-            self._update_info()
             self.invalidate()
-            self.commit_()
+            self.commit()
         else:
             self.varmodel[:] = []
+            self.send("Network", None)
 
     def set_source_db(self, dbindex):
         self.network_source = dbindex
@@ -177,98 +170,55 @@ class OWGeneNetwork(OWWidget.OWWidget):
     @Slot()
     def _maybe_commit(self):
         if self._invalidated:
-            self.commit_()
+            self.commit()
 
-    def _commit(self):
-        query_genes = self.query_genes()
-        geneinfo = self.geneinfo.result()
-        ppidb = self.ppidb.result()
-        source = SOURCES[self.network_source]
-        ppidb = source.constructor()
+    @Slot()
+    def advance(self):
+        self.progressBarValue = (self.progressBarValue + 1) % 100
 
-#         ppidb = self._db
-        tax_map = self._tax_mapping
-        taxid = tax_map.get(self.taxid, None)
-        if taxid is None:
-            raise ValueError
-
-        # Normalize the names to ppidb primary keys
-        matcher = geneinfo.matcher
-        query_genes = zip(query_genes, map(matcher.umatch, query_genes))
-        synonyms = ppidb_synonym_mapping(ppidb, taxid)
-
-        query_genes = [(query_gene, geneid, synonyms.get(geneid, None))
-                        for query_gene, geneid in query_genes]
-
-        query = [(syn[0], query_gene)
-                 for query_gene, _, syn in query_genes if syn]
-        net = extract_network(ppidb, dict(query), geneinfo,
-                              self.include_neighborhood)
-
-        # Items has the same domain as the input with query instances
-        # corresponding to nodes where applicable (if include_neighborhood
-        # then nodes not contained in the query will have instances with all
-        # unknown values
-
-        gene_var = self.varmodel[self.gene_var_index]
-        data_by_query_name = {str(inst[gene_var]): inst
-                              for inst in self.data}
-        items = Orange.data.Table(self.data.domain)
-        for nodeid, node in sorted(net.nodes(data=True)):
-            if "query_name" in node:
-                items.append(data_by_query_name[node["query_name"]])
-            else:
-                items.append(Orange.data.Instance(self.data.domain))
-        self.send("Network", net)
-        self.send("Items", items)
-        self._invalidated = False
-
-    def commit_(self):
+    def commit(self):
         include_neighborhood = self.include_neighborhood
         query_genes = self.query_genes()
         source = SOURCES[self.network_source]
         taxid = self.taxid
-
+        progress = methodinvoke(self, "advance")
         if self.geneinfo is None:
-            self.geneinfo = self.executor.submit(gene.NCBIGeneInfo, taxid)
+            self.geneinfo = self.executor.submit(
+                fetch_ncbi_geneinfo, taxid, progress
+            )
 
         geneinfo_f = self.geneinfo
         taxmap = source.tax_mapping
         db_taxid = taxmap.get(taxid, taxid)
 
         if db_taxid is None:
-            raise ValueError("invalid taxid")
+            raise ValueError("invalid taxid for this network")
 
-        def takes_taxid(s):
-            return "{taxid}" in source.sf_filename
+        def fetch_network():
+            geneinfo = geneinfo_f.result()
+            ppidb = fetch_ppidb(source, db_taxid, progress)
+            return get_gene_network(ppidb, geneinfo, db_taxid, query_genes,
+                                    include_neighborhood=include_neighborhood)
 
-        if takes_taxid(source):
-            constructor = lambda: source.constructor(db_taxid)
-        else:
-            constructor = source.constructor
-
-        self.nettask = Task(function=
-            lambda: get_gene_network(
-                constructor(), geneinfo_f.result(),
-                db_taxid, query_genes,
-                include_neighborhood=include_neighborhood
-            )
-        )
+        self.nettask = Task(function=fetch_network)
         self.nettask.finished.connect(self._on_result_ready)
+
         self.executor.submit(self.nettask)
 
         self.setBlocking(True)
+        self.setEnabled(False)
         self.progressBarInit()
         self._invalidated = False
         self._update_info()
 
-    @Slot()
-    def _on_result_ready(self):
-        net = self.nettask.result()
+    @Slot(object)
+    def _on_result_ready(self,):
         self.progressBarFinished()
         self.setBlocking(False)
-        self.send("Network", net)
+        self.setEnabled(True)
+        net = self.nettask.result()
         self._update_info()
+        self.send("Network", net)
 
     def _update_source_db(self):
         self.invalidate()
@@ -356,15 +306,33 @@ def taxid_map(query, targets):
 from Orange.utils import serverfiles as sf
 
 
-def fetch_ppidb(ppidb, taxid, progress=None):
-    fname = ppidb.SERVER_FILE
+def fetch_ppidb(ppisource, taxid, progress=None):
+    fname = ppisource.sf_filename
+
     if "{taxid}" in fname:
+        if taxid in ppisource.tax_mapping:
+            taxid_m = ppisource.tax_mapping[taxid]
+            if taxid_m is None:
+                raise ValueError(taxid)
+            taxid = taxid_m
         fname = fname.format(taxid=taxid)
+        constructor = lambda: ppisource.constructor(taxid)
+    else:
+        constructor = ppisource.constructor
 
     sf.localpath_download(
-        ppidb.DOMAIN, fname,
-        callback=progress, verbose=True
+        ppisource.sf_domain, fname, callback=progress, verbose=True
     )
+    return constructor()
+
+
+def fetch_ncbi_geneinfo(taxid, progress=None):
+    taxid = gene.NCBIGeneInfo.TAX_MAP.get(taxid, taxid)
+    sf.localpath_download(
+        "NCBI_geneinfo", "gene_info.{taxid}.db".format(taxid=taxid),
+        callback=progress, verbose=True,
+    )
+    return gene.NCBIGeneInfo(taxid)
 
 
 def get_gene_network(ppidb, geneinfo, taxid, query_genes,
@@ -428,7 +396,6 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True):
                 else:
                     graph.add_edge(nodeid1, nodeid2)
 
-    # The "items" should table should contain the query name (if
     nodedomain = Orange.data.Domain(
         [Orange.feature.String("Query name"),  # if applicable
          Orange.feature.String("id"),          # ppidb primary key
