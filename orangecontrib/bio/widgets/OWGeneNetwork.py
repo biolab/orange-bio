@@ -119,7 +119,7 @@ class OWGeneNetwork(OWWidget.OWWidget):
                 data, "genesinrows", default=self.use_attr_names
             )
 
-            if self.gene_var_index >= len(self.varmodel):
+            if not (0 <= self.gene_var_index < len(self.varmodel)):
                 self.gene_var_index = len(self.varmodel) - 1
 
             self.openContext("", data)
