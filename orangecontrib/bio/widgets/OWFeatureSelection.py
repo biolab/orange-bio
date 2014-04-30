@@ -23,7 +23,6 @@ from Orange.OrangeWidgets.OWToolbars import ZoomSelectToolbar
 from Orange.OrangeWidgets.OWWidget import *
 
 from ..obiExpression import *
-from ..obiGEO import transpose
 
 
 NAME = "Differential expression"
@@ -106,6 +105,7 @@ from Orange.orng.orngDataCaching import data_hints
 
 from .OWGenotypeDistances import SetContextHandler
 from .OWVulcanoPlot import LabelSelectionWidget
+
 
 class OWFeatureSelection(OWWidget):
     settingsList = ["method_index", "dataLabelIndex", "compute_null",
@@ -605,31 +605,42 @@ class OWFeatureSelection(OWWidget):
             self.send("Example table with remaining genes", newdata)
             
         elif self.data and not self.genes_in_columns:
-            
-            selected_attrs = [attr for attr in self.data.domain.attributes \
-                             if attr in selected or \
-                                attr.varType == orange.VarTypes.String]
+            method_name = self.score_methods[self.method_index][0]
+            selected_attrs = [attr for attr in self.data.domain.attributes
+                              if attr in selected or
+                              attr.varType == orange.VarTypes.String]  # ?? why strings
+            if self.add_scores_to_output:
+                scores = [self.scores[attr] for attr in selected_attrs]
+                attrs = [copy_descriptor(attr) for attr in selected_attrs]
+                for attr, score in zip(attrs, scores):
+                    attr.attributes[method_name] = str(score)
+                selected_attrs = attrs
+
             newdomain = orange.Domain(selected_attrs, self.data.domain.classVar)
-            if self.add_scores_to_output:
-                for attr in newdomain.attributes:
-                    attr.attributes[self.score_methods[self.method_index][0]] = str(self.scores[attr])
             newdomain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(
                 newdomain, self.data, name=self.data.name
             )
-            self.send("Example table with selected genes", newdata if selected_attrs else None)
-            
-            remaining_attrs = [attr for attr in self.data.domain.attributes if attr in remaining]
+            self.send("Example table with selected genes",
+                      newdata if selected_attrs else None)
+
+            remaining_attrs = [attr for attr in self.data.domain.attributes
+                               if attr in remaining]
+            if self.add_scores_to_output:
+                scores = [self.scores[attr] for attr in remaining_attrs]
+                attrs = [copy_descriptor(attr) for attr in remaining_attrs]
+                for attr, score in zip(attrs, scores):
+                    attr.attributes[method_name] = str(scores)
+                remaining_attrs = attrs
+
             newdomain = orange.Domain(remaining_attrs, self.data.domain.classVar)
-            if self.add_scores_to_output:
-                for attr in newdomain.attributes:
-                    attr.attributes[self.score_methods[self.method_index][0]] = str(self.scores[attr])
             newdomain.addmetas(self.data.domain.getmetas())
             newdata = orange.ExampleTable(
                 newdomain, self.data, name=self.data.name
             )
-            self.send("Example table with remaining genes", newdata if remaining_attrs else None)
-            
+            self.send("Example table with remaining genes",
+                      newdata if remaining_attrs else None)
+
             domain = orange.Domain([orange.StringVariable("label"),
                                     orange.FloatVariable(self.score_methods[self.method_index][0])],
                                     False)
@@ -695,17 +706,23 @@ class OWFeatureSelection(OWWidget):
     def settingsToWidgetCallbackTargetSelection(self, handler, context):
         self.target_selections = getattr(context, "target_selections", self.target_selections)
         self.current_target_selection = getattr(context, "current_target_selection", self.current_target_selection)
-    
+
+
+def copy_descriptor(desc):
+    d = desc.clone()
+    d.attributes = dict(desc.attributes)
+    c = Orange.core.ClassifierFromVar()
+    c.whichVar = desc
+    d.get_value_from = c
+    return d
+
+
 if __name__=="__main__":
     import sys
     app = QApplication(sys.argv)
-#    data = orange.ExampleTable("/home/marko/t2.tab")
-#    data = orange.ExampleTable("../../../doc/datasets/brown-selected")
     data = orange.ExampleTable(os.path.expanduser("~/Documents/GDS636"))
     w = OWFeatureSelection()
     w.show()
     w.set_data(data)
-#    w.set_data(None)
-#    w.set_data(data)
     app.exec_()
     w.saveSettings()
