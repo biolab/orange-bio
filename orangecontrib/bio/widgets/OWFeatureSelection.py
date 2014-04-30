@@ -484,8 +484,6 @@ class OWFeatureSelection(OWWidget):
     def on_boundary_change(self, low, high):
         stype = self.score_methods[self.method_index][0]
         self.thresholds[stype] = (low, high)
-        print stype, low, high
-        print self.thresholds
         self.update_selected_info_label(low, high)
         self.commit_if()
 
