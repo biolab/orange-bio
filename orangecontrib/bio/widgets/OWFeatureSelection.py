@@ -84,8 +84,7 @@ class ScoreHist(OWInteractiveHist):
 
     def setBoundary(self, low, hi):
         OWInteractiveHist.setBoundary(self, low, hi)
-        self.master.update_selected_info_label(low, hi)
-        self.master.commit_if()
+        self.master.on_boundary_change(low, hi)
 
 
 def disable_controls(method):
@@ -108,19 +107,23 @@ from .OWVulcanoPlot import LabelSelectionWidget
 
 
 class OWFeatureSelection(OWWidget):
-    settingsList = ["method_index", "dataLabelIndex", "compute_null",
-                    "permutations_count", "selectPValue", "auto_commit"]
-    contextHandlers={"Data": DomainContextHandler("Data", ["genes_in_columns"]),
-                     "TargetSelection": SetContextHandler("TargetSelection",
-                                                          findImperfect=False)}
-    
+    settingsList = [
+        "method_index", "dataLabelIndex", "compute_null",
+        "permutations_count", "selectPValue", "auto_commit",
+        "thresholds"]
+
+    contextHandlers = {
+        "Data": DomainContextHandler("Data", ["genes_in_columns"]),
+        "TargetSelection":
+            SetContextHandler("TargetSelection", findImperfect=False)
+    }
+
     def __init__(self, parent=None, signalManager=None, name="Gene selection"):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True, showSaveGraph=True)
         self.inputs = [("Examples", ExampleTable, self.set_data)]
         self.outputs = [("Example table with selected genes", ExampleTable), ("Example table with remaining genes", ExampleTable), ("Selected genes", ExampleTable)]
 
         self.method_index = 0
-#        self.dataLabelIndex = 0
         self.genes_in_columns = False
         self.compute_null = False
         self.permutations_count = 10
@@ -129,6 +132,12 @@ class OWFeatureSelection(OWWidget):
         self.selectPValue = 0.01
         self.data_changed_flag = False
         self.add_scores_to_output = True
+        self.thresholds = {
+            "fold change": (0.5, 2.),
+            "log2 fold change": (-1, 1),
+            "t-test": (-2, 2),
+            "t-test p-value": (0.01, 0.01),
+        }
 
         self.oneTailTestHi = oneTailTestHi = lambda array, low, hi: array >= hi
         self.oneTailTestLow = oneTailTestLow = lambda array, low, hi: array <= low
@@ -179,25 +188,20 @@ class OWFeatureSelection(OWWidget):
         self.genes_in_columns_check = OWGUI.checkBox(box, self, "genes_in_columns",
                                                   "Genes in columns",
                                                   callback=self.on_genes_in_columns_change)
-    
-#        ZoomSelectToolbar(self, self.controlArea, self.histogram,
-#                          buttons=[ZoomSelectToolbar.IconSelect,
-#                                   ZoomSelectToolbar.IconZoom,
-#                                   ZoomSelectToolbar.IconPan])
-        
+
         box = OWGUI.widgetBox(self.controlArea, "Selection")
         box.layout().setSpacing(0)
-        callback = self.update_boundary
+
         self.upperBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.upperBoundary",
                                                   min=-1e6, max=1e6, step= 1e-6,
                                                   label="Upper threshold:", 
-                                                  callback=callback, 
+                                                  callback=self.update_boundary, 
                                                   callbackOnReturn=True)
         
         self.lowerBoundarySpin = OWGUI.doubleSpin(box, self, "histogram.lowerBoundary", 
                                                   min=-1e6, max=1e6, step= 1e-6, 
                                                   label="Lower threshold:", 
-                                                  callback=callback, 
+                                                  callback=self.update_boundary, 
                                                   callbackOnReturn=True)
         
         check = OWGUI.checkBox(box, self, "compute_null", "Compute null distribution",
@@ -236,7 +240,6 @@ class OWFeatureSelection(OWWidget):
         self.scoreCache = {}
         self.nullDistCache = {}
         self.cuts = {}
-        self.discretizer = orange.EquiNDiscretization(numberOfIntervals=5)
         self.null_dist = []
         self.targets = []
         self.scores = {}
@@ -409,32 +412,47 @@ class OWFeatureSelection(OWWidget):
         else:
             self.null_dist = []
         pb.advance()
-        self.histogram.type = self.histType[self.score_methods[self.method_index][2]]
+        htype = self.histType[self.score_methods[self.method_index][2]]
+        score_type = self.score_methods[self.method_index][0]
+        self.histogram.type = htype
         if self.scores:
             self.histogram.setValues(self.scores.values())
-            self.histogram.setBoundary(self.histogram.minx if self.histogram.type in ["lowTail", "twoTail"] else self.histogram.maxx,
-                                       self.histogram.maxx if self.histogram.type in ["hiTail", "twoTail"] else self.histogram.minx)
+            low, high = self.thresholds.get(score_type, (float("-inf"), float("inf")))
+            minx, maxx = self.histogram.minx, self.histogram.maxx
+            low, high = max(low, minx), min(high, maxx)
+
+            if htype == "hiTail":
+                low = high
+            if htype == "lowTail":
+                high = low
+
+            self.histogram.setBoundary(low, high)
+
             if self.compute_null and self.null_dist:
                 nullY, nullX = numpy.histogram(self.null_dist, bins=self.histogram.xData)
-                self.histogram.nullCurve = self.histogram.addCurve("nullCurve",
-                        Qt.black, Qt.black, 6, symbol=QwtSymbol.NoSymbol,
-                        style=QwtPlotCurve.Steps, xData = nullX,
-                        yData = nullY/self.permutations_count)
-                
-                minx = min(min(nullX), self.histogram.minx)
-                maxx = max(max(nullX), self.histogram.maxx)
-                miny = min(min(nullY/self.permutations_count), self.histogram.miny)
-                maxy = max(max(nullY/self.permutations_count), self.histogram.maxy)
+                nullY = nullY / self.permutations_count
+                self.histogram.nullCurve = self.histogram.addCurve(
+                    "nullCurve", Qt.black, Qt.black, 6,
+                    symbol=QwtSymbol.NoSymbol, style=QwtPlotCurve.Steps,
+                    xData=nullX, yData=nullY)
 
-                self.histogram.setAxisScale(QwtPlot.xBottom, minx - (0.05 * (maxx - minx)), maxx + (0.05 * (maxx - minx)))
-                self.histogram.setAxisScale(QwtPlot.yLeft, miny - (0.05 * (maxy - miny)), maxy + (0.05 * (maxy - miny)))
+                minx = min(min(nullX), minx)
+                maxx = max(max(nullX), maxx)
+                miny = min(min(nullY), self.histogram.miny)
+                maxy = max(max(nullY), self.histogram.maxy)
+                spanx, spany = maxx - minx, maxy - miny
+                self.histogram.setAxisScale(
+                    QwtPlot.xBottom, minx - 0.05 * spanx, maxx + 0.05 * spanx)
+                self.histogram.setAxisScale(
+                    QwtPlot.yLeft, miny - 0.05 * spany, maxy + 0.05 * spany)
+
             state = dict(hiTail=(False, True), lowTail=(True, False), twoTail=(True, True))
             for spin, visible in zip((self.upperBoundarySpin, self.lowerBoundarySpin), state[self.histogram.type]):
                 spin.setVisible(visible)
-            
+
             # If this is a two sample test add markers to the left and right
             # plot indicating which target group is over-expressed in that
-            # part  
+            # part
             if self.method_index in [0, 2, 6]:
                 if self.method_index == 0: ## fold change is centered on 1.0
                     x1, y1 = (self.histogram.minx + 1) / 2 , self.histogram.maxy
@@ -462,7 +480,15 @@ class OWFeatureSelection(OWWidget):
         pb.advance()
         pb.finish()
         self.update_data_info_label()
-            
+
+    def on_boundary_change(self, low, high):
+        stype = self.score_methods[self.method_index][0]
+        self.thresholds[stype] = (low, high)
+        print stype, low, high
+        print self.thresholds
+        self.update_selected_info_label(low, high)
+        self.commit_if()
+
     def update_data_info_label(self):
         if self.data:
             samples, genes = len(self.data), len(self.data.domain.attributes)
