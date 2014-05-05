@@ -176,6 +176,10 @@ class OWGeneNetwork(OWWidget.OWWidget):
     def advance(self):
         self.progressBarValue = (self.progressBarValue + 1) % 100
 
+    @Slot(float)
+    def set_progress(self, value):
+        self.progressBarValue = value
+
     def commit(self):
         include_neighborhood = self.include_neighborhood
         query_genes = self.query_genes()
@@ -198,7 +202,8 @@ class OWGeneNetwork(OWWidget.OWWidget):
             geneinfo = geneinfo_f.result()
             ppidb = fetch_ppidb(source, db_taxid, progress)
             return get_gene_network(ppidb, geneinfo, db_taxid, query_genes,
-                                    include_neighborhood=include_neighborhood)
+                                    include_neighborhood=include_neighborhood,
+                                    progress=methodinvoke(self, "set_progress", (float,)))
 
         self.nettask = Task(function=fetch_network)
         self.nettask.finished.connect(self._on_result_ready)
@@ -337,8 +342,10 @@ def fetch_ncbi_geneinfo(taxid, progress=None):
 
 def get_gene_network(ppidb, geneinfo, taxid, query_genes,
                      include_neighborhood=True, progress=None):
-    # Normalize the names to ppidb primary keys
+    if progress is not None:
+        progress(1.0)
 
+    # Normalize the names to ppidb primary keys
     matcher = geneinfo.matcher
     query_genes = zip(query_genes, map(matcher.umatch, query_genes))
     synonyms = ppidb_synonym_mapping(ppidb, taxid)
@@ -349,11 +356,14 @@ def get_gene_network(ppidb, geneinfo, taxid, query_genes,
 
     query = [(syn[0], query_gene)
              for query_gene, _, syn in query_genes if syn]
-    net = extract_network(ppidb, dict(query), geneinfo, include_neighborhood)
+
+    net = extract_network(ppidb, dict(query), geneinfo, include_neighborhood,
+                          progress=progress)
     return net
 
 
-def extract_network(ppidb, query, geneinfo, include_neighborhood=True):
+def extract_network(ppidb, query, geneinfo, include_neighborhood=True,
+                    progress=None):
     """
     include neighborhood
     """
@@ -399,11 +409,13 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True):
             symbol=entry.symbol if entry is not None else ""
         )
 
-    for key in query:
-        edges = ppidb.edges(key)
+    for i, key in enumerate(query):
+        if progress is not None:
+            progress(100.0 * i / len(query))
 
+        edges = ppidb.edges(key)
         for id1, id2, score in edges:
-            if include_neighborhood or id1 in query and id2 in query:
+            if include_neighborhood or (id1 in query and id2 in query):
                 nodeid1 = nodeids[id1]
                 nodeid2 = nodeids[id2]
 
