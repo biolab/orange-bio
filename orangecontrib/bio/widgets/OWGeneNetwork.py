@@ -368,13 +368,35 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True):
     # node ids in Orange.network.Graph need to be in [0 .. n-1]
     nodeids = defaultdict(partial(next, count()))
 
+    def gi_info(names):
+        mapping = [(name, geneinfo.matcher.umatch(name)) for name in names]
+        mapping = [(name, match) for name, match in mapping if match]
+        entries = [(name, geneinfo[match]) for name, match in mapping]
+
+        if len(entries) > 1:
+            # try to resolve conflicts by prioritizing entries whose
+            # symbol/gene_id/locus_tag exactly matches the synonym name.
+            entries_ = [(name, entry) for name, entry in entries
+                        if name in [entry.gene_id, entry.symbol, entry.locus_tag]]
+            if len(entries_) == 1:
+                entries = entries_
+
+        if len(entries) == 0:
+            return None
+        elif len(entries) >= 1:
+            # Need to report multiple mappings
+            return entries[0][1]
+
     for key, query_name in query.items():
         nodeid = nodeids[key]
+        synonyms = ppidb.synonyms(key)
+        entry = gi_info(synonyms)
         graph.add_node(
             nodeid,
             key=key,
-            synonyms=ppidb.synonyms(key),
-            query_name=query_name
+            synonyms=synonyms,
+            query_name=query_name,
+            symbol=entry.symbol if entry is not None else ""
         )
 
     for key in query:
@@ -384,12 +406,24 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True):
             if include_neighborhood or id1 in query and id2 in query:
                 nodeid1 = nodeids[id1]
                 nodeid2 = nodeids[id2]
+
                 if nodeid1 not in graph:
+                    synonyms1 = ppidb.synonyms(id1)
+                    entry1 = gi_info(synonyms1)
+                    symbol1 = entry1.symbol if entry1 is not None else ""
                     graph.add_node(
-                        nodeid1, key=id1, synonyms=ppidb.synonyms(id1))
+                        nodeid1, key=id1, synonyms=synonyms1,
+                        symbol=symbol1
+                    )
+
                 if nodeid2 not in graph:
+                    synonyms2 = ppidb.synonyms(id2)
+                    entry2 = gi_info(synonyms2)
+                    symbol2 = entry2.symbol if entry2 is not None else ""
                     graph.add_node(
-                        nodeid2, key=id1, synonyms=ppidb.synonyms(id2))
+                        nodeid2, key=id2, synonyms=synonyms2,
+                        symbol=symbol2
+                    )
 
                 if score is not None:
                     graph.add_edge(nodeid1, nodeid2, weight=score)
@@ -412,7 +446,7 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True):
         [[str(node.get("query_name", "")),
           str(node.get("key", "")),
           str(", ".join(node.get("synonyms", []))),
-          str(node.get("query_name", nodeid)),
+          str(node.get("symbol", nodeid)),
           "true" if "query_name" in node else "false"]
          for nodeid, node in node_items]
     )
