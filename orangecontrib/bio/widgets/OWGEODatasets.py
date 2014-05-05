@@ -163,7 +163,8 @@ def childiter(item):
 
 class OWGEODatasets(OWWidget):
     settingsList = ["outputRows", "mergeSpots", "gdsSelectionStates",
-                    "splitterSettings", "currentGds", "autoCommit"]
+                    "splitterSettings", "currentGds", "autoCommit",
+                    "datasetNames"]
 
     def __init__(self, parent=None, signalManager=None, name=" GEO Data Sets"):
         OWWidget.__init__(self, parent, signalManager, name)
@@ -186,8 +187,10 @@ class OWGEODatasets(OWWidget):
             '\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xea\x00\x00\x00\xd7\x01\x00\x00\x00\x07\x01\x00\x00\x00\x02',
             '\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xb5\x00\x00\x02\x10\x01\x00\x00\x00\x07\x01\x00\x00\x00\x01'
         ]
-
+        self.datasetNames = {}
         self.loadSettings()
+
+        self.datasetName = ""
 
         ## GUI
         self.infoBox = OWGUI.widgetLabel(
@@ -202,7 +205,15 @@ class OWGEODatasets(OWWidget):
         OWGUI.checkBox(box, self, "mergeSpots", "Merge spots of same gene",
                        callback=self.commitIf)
 
-        box = OWGUI.widgetBox(self.controlArea, "Output", addSpace=True)
+        OWGUI.separator(box)
+        self.nameEdit = OWGUI.lineEdit(
+            box, self, "datasetName", "Data set name",
+            tooltip="Override the default output data set name",
+            callback=self.onNameEdited
+        )
+        self.nameEdit.setPlaceholderText("")
+
+        box = OWGUI.widgetBox(self.controlArea, "Commit", addSpace=True)
         self.commitButton = OWGUI.button(box, self, "Commit",
                                          callback=self.commit)
         cb = OWGUI.checkBox(box, self, "autoCommit", "Commit on any change")
@@ -359,8 +370,14 @@ class OWGEODatasets(OWWidget):
             self.currentGds = self.gds[current[0]]
             self.setAnnotations(self.currentGds)
             self.infoGDS.setText(self.currentGds.get("description", ""))
+            self.nameEdit.setPlaceholderText(self.currentGds["title"])
+            self.datasetName = \
+                self.datasetNames.get(self.currentGds["dataset_id"], "")
         else:
             self.currentGds = None
+            self.nameEdit.setPlaceholderText("")
+            self.datasetName = ""
+
         self.commitIf()
 
     def setAnnotations(self, gds):
@@ -482,7 +499,7 @@ class OWGEODatasets(OWWidget):
                 report_genes=self.mergeSpots,
                 transpose=self.outputRows,
                 sample_type=sample_type,
-                title=self.currentGds["title"]
+                title=self.datasetName or self.currentGds["title"]
             )
             self._datatask = Task(function=get_data)
             self._datatask.finished.connect(self._on_dataready)
@@ -576,6 +593,11 @@ class OWGEODatasets(OWWidget):
 
         super(OWGEODatasets, self).onDeleteWidget()
 
+    def onNameEdited(self):
+        if self.currentGds:
+            gds_id = self.currentGds["dataset_id"]
+            self.datasetNames[gds_id] = unicode(self.nameEdit.text())
+            self.commitIf()
 
 def get_gds_model(progress=lambda val: None):
     """
