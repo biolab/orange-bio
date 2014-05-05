@@ -103,7 +103,10 @@ def name_or_none(id):
         return None
 
 class OWSetEnrichment(OWWidget):
-    settingsList = ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState", "useMinCountFilter", "useMaxPValFilter", "useMaxFDRFilter", "minClusterCount", "maxPValue", "maxFDR" ]
+    settingsList = ["speciesIndex", "genesinrows", "geneattr",
+                    "categoriesCheckState", "useMinCountFilter",
+                    "useMaxPValFilter", "useMaxFDRFilter", "minClusterCount",
+                    "maxPValue", "maxFDR", "autocommit"]
     contextHandlers = {"":DomainContextHandler("", ["speciesIndex", "genesinrows", "geneattr", "categoriesCheckState"])}
 
     def refreshHierarchy(self):
@@ -125,10 +128,11 @@ class OWSetEnrichment(OWWidget):
         self.minClusterCount = 3
         self.maxPValue = 0.01
         self.maxFDR = 0.01
-
+        self.autocommit = False
         self.categoriesCheckState = {}
 
         self.loadSettings()
+        self._changed = False
 
         box = OWGUI.widgetBox(self.controlArea, "Info")
         self.infoBox = OWGUI.widgetLabel(box, "Info")
@@ -222,7 +226,7 @@ class OWSetEnrichment(OWWidget):
         self.annotationsChartView.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.annotationsChartView.setRootIsDecorated(False)
         self.annotationsChartView.viewport().setMouseTracking(True)
-#        self.annotationsChartView.viewport().setAttribute(Qt.WA_Hover)
+        self.annotationsChartView.itemSelectionChanged.connect(self.invalidate)
         self.mainArea.layout().addWidget(self.annotationsChartView)
 
         contextEventFilter = OWGUI.VisibleHeaderSectionContextEventFilter(self.annotationsChartView)
@@ -232,8 +236,11 @@ class OWSetEnrichment(OWWidget):
 
         self.connect(self.groupsWidget, SIGNAL("itemClicked(QTreeWidgetItem *, int)"), self.subsetSelectionChanged)
 
-        OWGUI.button(self.controlArea, self, "Commit", callback=self.commit)
-
+        box = OWGUI.widgetBox(self.controlArea, "Commit")
+        cb = OWGUI.checkBox(box, self, "autocommit", "Commit on any change")
+        b = OWGUI.button(box, self, "Commit", callback=self.commit,
+                         default=True)
+        OWGUI.setStopper(self, b, cb, "_changed", callback=self.commit)
         self.loadedGenematcher = "None"
         self.referenceData = None
         self.data = None
@@ -602,6 +609,11 @@ class OWSetEnrichment(OWWidget):
         else:
             self.information(0)
 
+    def invalidate(self):
+        if self.autocommit:
+            self.commit()
+        else:
+            self._changed = True
 
     def commit(self):
         selected = self.annotationsChartView.selectedItems()
@@ -615,18 +627,12 @@ class OWSetEnrichment(OWWidget):
             data = orange.ExampleTable(newdomain, self.data)
         else:
             geneattr = self.geneAttrs[self.geneattr]
-            selected = [1 if self.genematcher.umatch(str(ex[geneattr])) in mappedNames else 0 for ex in self.data]
+            selected = [1 if self.genematcher.umatch(str(ex[geneattr])) in mappedNames else 0
+                        for ex in self.data]
             data = self.data.select(selected)
 
-#            if self.appendAnnotations:
-#                meta = orange.StringVariable("Annotations")
-#                data.domain.addmeta(orange.newmetaid(), meta)
-#                for ex in data:
-#                    geneattr = self.geneAttrs[self.geneattr]
-#                    gene = str(ex[geneattr])
-#                    annotations = getgene
-
-        self.send("Selected Examples", data)
+        self.send("Data subset", data)
+        self._changed = False
 
     def sendReport(self):
         self.reportSettings("Settings", [("Organism", obiTaxonomy.name(self.taxid_list[self.speciesIndex]))])
