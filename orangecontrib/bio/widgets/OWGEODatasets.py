@@ -468,19 +468,21 @@ class OWGEODatasets(OWWidget):
             self.setEnabled(False)
             self.setBlocking(True)
 
-            def get_data(gds_id, report_genes, transpose, sample_type):
+            def get_data(gds_id, report_genes, transpose, sample_type, title):
                 gds = geo.GDS(gds_id)
                 data = gds.getdata(
                     report_genes=report_genes, transpose=transpose,
                     sample_type=sample_type
                 )
+                data.name = title
                 return data
 
             get_data = partial(
                 get_data, self.currentGds["dataset_id"],
                 report_genes=self.mergeSpots,
                 transpose=self.outputRows,
-                sample_type=sample_type
+                sample_type=sample_type,
+                title=self.currentGds["title"]
             )
             self._datatask = Task(function=get_data)
             self._datatask.finished.connect(self._on_dataready)
@@ -500,8 +502,10 @@ class OWGEODatasets(OWWidget):
             self._datatask = None
             self.progressBarFinished()
             return
+
         self._datatask = None
 
+        data_name = data.name
         samples, _ = self.selectedSamples()
 
         self.warning(0)
@@ -547,6 +551,7 @@ class OWGEODatasets(OWWidget):
         data_hints.set_hint(data, "genesinrows", self.outputRows, 10.0)
 
         self.progressBarFinished()
+        data.name = data_name
         self.send("Expression Data", data)
 
         model = self.treeWidget.model().sourceModel()
