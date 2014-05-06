@@ -53,7 +53,7 @@ class OWGeneNetwork(OWWidget.OWWidget):
         self.taxid = "9606"
         self.gene_var_index = -1
         self.use_attr_names = False
-        self.network_source = 0
+        self.network_source = 1
         self.include_neighborhood = True
         self.autocommit = False
         self.min_score = 0.9
@@ -392,6 +392,15 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True,
     if not isinstance(query, dict):
         query = {name: name for name in query}
 
+    report_weights = True
+    if isinstance(ppidb, ppi.BioGRID):
+        # BioGRID scores are not comparable (they can be p values,
+        # confidence scores, ..., i.e. whatever was reported in the source
+        # publication)
+        report_weights = False
+        if min_score is not None:
+            raise ValueError("min_score used with BioGrid")
+
     graph = Orange.network.Graph()
     # node ids in Orange.network.Graph need to be in [0 .. n-1]
     nodeids = defaultdict(partial(next, count()))
@@ -463,11 +472,10 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True,
                 nodeid1 = nodeids[id1]
                 nodeid2 = nodeids[id2]
                 assert nodeid1 in graph and nodeid2 in graph
-                if score is not None:
+                if score is not None and report_weights:
                     graph.add_edge(nodeid1, nodeid2, weight=score)
                 else:
                     graph.add_edge(nodeid1, nodeid2)
-
 
     nodedomain = Orange.data.Domain(
         [Orange.feature.String("Query name"),  # if applicable
