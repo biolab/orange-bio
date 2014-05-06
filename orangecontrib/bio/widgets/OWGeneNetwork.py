@@ -23,20 +23,21 @@ OUTPUTS = [("Network", Orange.network.Graph)]
 
 Source = namedtuple(
     "Source",
-    ["name", "constructor", "tax_mapping", "sf_domain", "sf_filename"]
+    ["name", "constructor", "tax_mapping", "sf_domain", "sf_filename",
+     "score_filter"]
 )
 
 SOURCES = [
     Source("BioGRID", ppi.BioGRID, ppi.BioGRID.TAXID_MAP,
-           "PPI", ppi.BioGRID.SERVER_FILE),
+           "PPI", ppi.BioGRID.SERVER_FILE, False),
     Source("STRING", ppi.STRING, ppi.STRING.TAXID_MAP,
-           "PPI", ppi.STRING.FILENAME)
+           "PPI", ppi.STRING.FILENAME, True)
 ]
 
 
 class OWGeneNetwork(OWWidget.OWWidget):
     settingsList = ["taxid", "use_attr_names", "network_source",
-                    "include_neighborhood"]
+                    "include_neighborhood", "min_score"]
     contextHandlers = {
         "": OWWidget.DomainContextHandler(
             "", ["taxid", "gene_var_index", "use_attr_names"]
@@ -55,7 +56,7 @@ class OWGeneNetwork(OWWidget.OWWidget):
         self.network_source = 0
         self.include_neighborhood = True
         self.autocommit = False
-
+        self.min_score = 0.9
         self.loadSettings()
 
         self.taxids = taxonomy.common_taxids()
@@ -92,15 +93,21 @@ class OWGeneNetwork(OWWidget.OWWidget):
         OWGUI.comboBox(
             box, self, "network_source",
             items=[s.name for s in SOURCES],
-            callback=self._update_source_db
+            callback=self._on_source_db_changed
         )
         OWGUI.checkBox(
             box, self, "include_neighborhood",
             "Include immediate gene neighbors",
             callback=self.invalidate
         )
+        self.score_spin = OWGUI.doubleSpin(
+            box, self, "min_score", 0.0, 1.0, step=0.001,
+            label="Minimal edge score",
+            callback=self.invalidate
+        )
+        self.score_spin.setEnabled(SOURCES[self.network_source].score_filter)
+
         box = OWGUI.widgetBox(self.controlArea, "Commit")
-#         cb = OWGUI.checkBox(box, self, "autocommit")
         OWGUI.button(box, self, "Commit", callback=self.commit, default=True)
 
         self.executor = ThreadExecutor()
@@ -184,6 +191,13 @@ class OWGeneNetwork(OWWidget.OWWidget):
         include_neighborhood = self.include_neighborhood
         query_genes = self.query_genes()
         source = SOURCES[self.network_source]
+        if source.score_filter:
+            min_score = self.min_score
+            assert source.name == "STRING"
+            min_score = min_score * 1000
+        else:
+            min_score = None
+
         taxid = self.taxid
         progress = methodinvoke(self, "advance")
         if self.geneinfo is None:
@@ -203,6 +217,7 @@ class OWGeneNetwork(OWWidget.OWWidget):
             ppidb = fetch_ppidb(source, db_taxid, progress)
             return get_gene_network(ppidb, geneinfo, db_taxid, query_genes,
                                     include_neighborhood=include_neighborhood,
+                                    min_score=min_score,
                                     progress=methodinvoke(self, "set_progress", (float,)))
 
         self.nettask = Task(function=fetch_network)
@@ -225,7 +240,9 @@ class OWGeneNetwork(OWWidget.OWWidget):
         self._update_info()
         self.send("Network", net)
 
-    def _update_source_db(self):
+    def _on_source_db_changed(self):
+        source = SOURCES[self.network_source]
+        self.score_spin.setEnabled(source.score_filter)
         self.invalidate()
 
     def _update_organism(self):
@@ -341,7 +358,8 @@ def fetch_ncbi_geneinfo(taxid, progress=None):
 
 
 def get_gene_network(ppidb, geneinfo, taxid, query_genes,
-                     include_neighborhood=True, progress=None):
+                     include_neighborhood=True, min_score=None,
+                     progress=None):
     if progress is not None:
         progress(1.0)
 
@@ -358,12 +376,12 @@ def get_gene_network(ppidb, geneinfo, taxid, query_genes,
              for query_gene, _, syn in query_genes if syn]
 
     net = extract_network(ppidb, dict(query), geneinfo, include_neighborhood,
-                          progress=progress)
+                          min_score, progress=progress)
     return net
 
 
 def extract_network(ppidb, query, geneinfo, include_neighborhood=True,
-                    progress=None):
+                    min_score=None, progress=None):
     """
     include neighborhood
     """
@@ -415,7 +433,8 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True,
 
         edges = ppidb.edges(key)
         for id1, id2, score in edges:
-            if include_neighborhood or (id1 in query and id2 in query):
+            if (include_neighborhood or (id1 in query and id2 in query)) and \
+                    (min_score is None or score >= min_score):
                 nodeid1 = nodeids[id1]
                 nodeid2 = nodeids[id2]
 
