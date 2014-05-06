@@ -415,6 +415,7 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True,
             # Need to report multiple mappings
             return entries[0][1]
 
+    # Add query nodes.
     for key, query_name in query.items():
         nodeid = nodeids[key]
         synonyms = ppidb.synonyms(key)
@@ -427,17 +428,13 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True,
             symbol=entry.symbol if entry is not None else ""
         )
 
-    for i, key in enumerate(query):
-        if progress is not None:
-            progress(100.0 * i / len(query))
-
-        edges = ppidb.edges(key)
-        for id1, id2, score in edges:
-            if (include_neighborhood or (id1 in query and id2 in query)) and \
-                    (min_score is None or score >= min_score):
+    if include_neighborhood:
+        # extend the set of nodes in the network with immediate neighborers
+        edges_iter = (edge for key in query for edge in ppidb.edges(key))
+        for id1, id2, score in edges_iter:
+            if min_score is None or score >= min_score:
                 nodeid1 = nodeids[id1]
                 nodeid2 = nodeids[id2]
-
                 if nodeid1 not in graph:
                     synonyms1 = ppidb.synonyms(id1)
                     entry1 = gi_info(synonyms1)
@@ -456,10 +453,21 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True,
                         symbol=symbol2
                     )
 
+    # add edges between nodes
+    for i, id1 in enumerate(nodeids.keys()):
+        if progress is not None:
+            progress(100.0 * i / len(nodeids))
+
+        for _, id2, score in ppidb.edges(id1):
+            if id2 in nodeids and (min_score is None or score >= min_score):
+                nodeid1 = nodeids[id1]
+                nodeid2 = nodeids[id2]
+                assert nodeid1 in graph and nodeid2 in graph
                 if score is not None:
                     graph.add_edge(nodeid1, nodeid2, weight=score)
                 else:
                     graph.add_edge(nodeid1, nodeid2)
+
 
     nodedomain = Orange.data.Domain(
         [Orange.feature.String("Query name"),  # if applicable
