@@ -336,11 +336,13 @@ class OWGEODatasets(OWWidget):
                        if variant.isValid() and
                        str(variant.toString()) == self.currentGds["dataset_id"]]
             if current:
+                current_index = proxy.index(current[0], 0)
                 self.treeWidget.selectionModel().select(
-                    proxy.index(current[0], 0),
+                    current_index,
                     QItemSelectionModel.Select |
                     QItemSelectionModel.Rows
                 )
+                self.treeWidget.scrollTo(current_index)
 
         for i in range(8):
             self.treeWidget.resizeColumnToContents(i)
