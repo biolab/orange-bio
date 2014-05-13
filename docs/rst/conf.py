@@ -222,5 +222,6 @@ man_pages = [
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
     'python': ('http://python.readthedocs.org/en/latest/', None),
+    'orange': ('http://docs.orange.biolab.si/', None),
 }
 
