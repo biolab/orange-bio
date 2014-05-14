@@ -25,8 +25,8 @@ from Orange.OrangeWidgets.OWWidget import *
 from ..obiExpression import *
 
 
-NAME = "Differential expression"
-DESCRIPTION = "Gene differential expression scoring and selection."
+NAME = "Differential Expression"
+DESCRIPTION = "Gene selection by differential expression analysis."
 ICON = "icons/GeneSelection.svg"
 PRIORITY = 1010
 

@@ -3,10 +3,9 @@
 GEO Data Sets
 =============
 
-
 .. image:: ../../orangecontrib/bio/widgets/icons/GEODataSets.svg
    :alt: GEO Data Sets widget icon
-   :class: widget-category-data widget-icon
+   :class: widget-category-bioinformatics widget-icon
 
 Provides access to data sets from gene expression omnibus
 (`GEO DataSets <http://www.ncbi.nlm.nih.gov/geo/>`_).
