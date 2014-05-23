@@ -8,15 +8,12 @@
 
 from __future__ import absolute_import
 
-import itertools
 from operator import add
 from collections import defaultdict
-from math import log
 
 import numpy
 
 import orange
-from statc import mean, ttest_ind
 
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets.OWToolbars import ZoomSelectToolbar
@@ -25,7 +22,6 @@ from Orange.OrangeWidgets.OWGraph import *
 from Orange.OrangeWidgets import OWGUI
 
 from .. import obiExpression
-from ..obiGEO import transpose
 
 NAME = "Vulcano Plot"
 DESCRIPTION = "Plots fold change vs. p-value.)"
@@ -145,8 +141,15 @@ class SymetricSelections(GraphSelections):
         cutoffX = self.selection[1][1].x()
         cutoffY = self.selection[1][1].y()
         return (numpy.abs(data[:, 0]) >= cutoffX) & (data[:, 1] >= cutoffY)
-    
+
+    def cuttoff(self):
+        """
+        Return the absolute x, y cutoff values.
+        """
+        return (self.selection[1][1].x(), self.selection[1][1].y())
+
 from Orange.OrangeWidgets.OWItemModels import PyListModel
+
 
 def item_selection(indices, model, selection=None, column=0):
     """ Create an QItemSelection for indices in model.
@@ -307,46 +310,64 @@ class LabelSelectionWidget(QWidget):
                 
     def sizeHint(self):
         return QSize(100, 200)
-            
-        
+
+
 class VulcanoGraph(OWGraph):
-    def __init__(self, master, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         OWGraph.__init__(self, *args, **kwargs)
-        self.master = master
+        # Absolute cutoff values for symmetric selection mode.
         self.cutoffX = 2.0
-        self.cutoffY = 3.0
+        self.cutoffY = 2.0
+        # maximum absolute x, y values.
         self.maxX, self.maxY = 10, 10
         self.symbolSize = 5
         self.symetricSelections = True
-        
+
         self.selectedCurve = self.addCurve("", brushColor=Qt.red)
         self.unselectedCurve = self.addCurve("", brushColor=Qt.blue)
-        
+
         self.plotValues = {}
 
         self.setAxisAutoScale(QwtPlot.xBottom)
         self.setAxisAutoScale(QwtPlot.yLeft)
-        
-        self.reselect(replot=False)
-        
+
+        self.setSelection(
+            SymetricSelections(
+                self,
+                x=min(self.maxX, self.cutoffX),
+                y=min(self.maxY, self.cutoffY))
+        )
+
     def setSelection(self, selection):
         self.selection = selection
         self.connect(self.selection, SIGNAL("selectionGeometryChanged()"), self.onSelectionChanged)
         if self.plotValues:
             self.updateSelectionArea()
-            
+
     def onSelectionChanged(self):
+        if self.symetricSelections:
+            self.cutoffX, self.cutoffY = self.selection.cuttoff()
+
         self.replot_()
         self.emit(SIGNAL("selectionChanged()"))
-        
+
     def splitSelected(self):
         test =  self.selection.testSelection(self.plotData)
         return (self.plotData[numpy.nonzero(test)], self.plotData[numpy.nonzero(~test)])
-    
+
     def setPlotValues(self, values):
         self.plotValues = values
         self.plotData = numpy.array(values.values())
-        self.replot_(setScale=True)
+        if self.plotData.size:
+            self.maxX = numpy.max(numpy.abs(self.plotData[:, 0]))
+            self.maxY = numpy.max(self.plotData[:, 1])
+        else:
+            self.maxX, self.maxY = 10, 10
+
+        self.setAxisScale(QwtPlot.xBottom, -self.maxX, self.maxX)
+        self.setAxisScale(QwtPlot.yLeft, 0.0, self.maxY)
+        self.replot_()
+        self.emit(SIGNAL("selectionChanged()"))
 
     def createSelectionRectCurve(self, p1, p2):
         curve = self.addCurve("selection", style=QwtPlotCurve.Lines, penColor=Qt.red, symbol=QwtSymbol.NoSymbol)
@@ -363,42 +384,23 @@ class VulcanoGraph(OWGraph):
         for p1, p2 in self.selection.selection:
             self.createSelectionRectCurve(p1, p2)
 
-    def replot_(self, setScale=False):
+    def replot_(self):
         if self.plotValues:
-            data = self.plotData
-            self.maxX = numpy.max(numpy.abs(data[:,0]))
-            self.maxY = numpy.max(data[:, 1])
-            if setScale:
-                self.setAxisScale(QwtPlot.xBottom, -self.maxX, self.maxX)
-                self.setAxisScale(QwtPlot.yLeft, 0.0, self.maxY)
-            
             selected, unselected = self.splitSelected()
-            
-            self.selectedCurve.setData(selected[:,0], selected[:,1])
-            self.selectedCurve.setBrush(QBrush(Qt.blue))
+            self.selectedCurve.setData(selected[:, 0], selected[:, 1])
             self.unselectedCurve.setData(unselected[:, 0], unselected[:, 1])
             self.updateSelectionArea()
-            self.master.infoLabel2.setText("%i selected genes" % len(selected))
         else:
             for curve in [self.selectedCurve, self.unselectedCurve]:
-                curve.setData([],[])
-            self.master.infoLabel2.setText("0 selected genes")
+                curve.setData([], [])
         self.replot()
 
-    def updateCutoff(self, axis, pos):
-        if axis == QwtPlot.xBottom:
-            self.cutoffX = abs(self.invTransform(axis, self.canvas().mapFrom(self, pos).x()))
-        elif axis == QwtPlot.yLeft:
-            self.cutoffY = self.invTransform(axis, self.canvas().mapFrom(self, pos).y())
-        else:
-            self.cutoffX = abs(self.invTransform(QwtPlot.xBottom, self.canvas().mapFrom(self, pos).x()))
-            self.cutoffY = self.invTransform(QwtPlot.yLeft, self.canvas().mapFrom(self, pos).y())
-        self.replot_()
-
     def mousePressEvent(self, event):
-        if self.state == SELECT:
-            if event.button() == Qt.LeftButton:
-                self.selection.start(event)
+        canvas = self.canvas()
+        canvasPos = canvas.mapFrom(self, event.pos())
+        if canvas.contentsRect().contains(canvasPos) and \
+                self.state == SELECT and event.button() == Qt.LeftButton:
+            self.selection.start(event)
         else:
             OWGraph.mousePressEvent(self, event)
 
@@ -420,10 +422,15 @@ class VulcanoGraph(OWGraph):
                 self.selection.end(event)
         else:
             OWGraph.mouseReleaseEvent(self, event)
-            
+
     def reselect(self, replot=True):
         if self.symetricSelections:
-            self.setSelection(SymetricSelections(self, x=self.maxX*0.80, y=self.maxY*0.80))
+            self.setSelection(
+                SymetricSelections(
+                    self,
+                    x=min(self.maxX, self.cutoffX),
+                    y=min(self.maxY, self.cutoffY))
+            )
         else:
             self.setSelection(GraphSelections(self))
             self.canvas().setCursor(self._cursor)
@@ -439,20 +446,25 @@ class VulcanoGraph(OWGraph):
         setSize(self.selectedCurve, self.symbolSize)
         setSize(self.unselectedCurve, self.symbolSize)
         self.replot()
-        
+
+
 from .OWGenotypeDistances import SetContextHandler
 from .OWFeatureSelection import disable_controls
 
+
 class OWVulcanoPlot(OWWidget):
-    settingsList = ["graph.cutoffX", "graph.cutoffY", "graph.symbolSize", "graph.symetricSelections", "showXTitle", "showYTitle"]
-    contextHandlers = {"":DomainContextHandler("", [ContextField("graph.symbolSize"), ContextField("graph.cutoffX"),
-                                                    ContextField("graph.cutoffY")]),
-                       "targets": SetContextHandler("targets")}
+    settingsList = ["graph.cutoffX", "graph.cutoffY", "graph.symbolSize",
+                    "graph.symetricSelections", "showXTitle", "showYTitle"]
+
+    contextHandlers = {
+        "targets": SetContextHandler("targets")
+    }
+
     def __init__(self, parent=None, signalManager=None, name="Vulcano Plot"):
         OWWidget.__init__(self, parent, signalManager, name, wantGraph=True)
-        
+
         self.inputs = [("Examples", ExampleTable, self.setData)]
-        self.outputs =[("Examples with selected attributes", ExampleTable)]
+        self.outputs = [("Examples with selected attributes", ExampleTable)]
 
         self.genes_in_columns = False
 
@@ -465,11 +477,12 @@ class OWVulcanoPlot(OWWidget):
         self.label_selections = []
 
         self.graph = VulcanoGraph(self)
-        self.connect(self.graph, SIGNAL("selectionChanged()"), self.on_selection_changed)
+        self.connect(self.graph, SIGNAL("selectionChanged()"),
+                     self.on_selection_changed)
         self.mainArea.layout().addWidget(self.graph)
-        
+
         self.loadSettings()
-        
+
         ## GUI
         box = OWGUI.widgetBox(self.controlArea, "Info")
         self.infoLabel = OWGUI.label(box, self, "")
@@ -524,7 +537,8 @@ class OWVulcanoPlot(OWWidget):
         self.data = None
         self.target_group = None, []
         self.current_selection = []
-        
+
+        self.graph.reselect(True)
         self.resize(800, 600)
 
     def clear(self):
@@ -538,27 +552,27 @@ class OWVulcanoPlot(OWWidget):
         self.values = {}
         self.graph.setPlotValues({})
         self.updateTooltips()
-        
+
     def setData(self, data=None):
-        self.closeContext("")
+#         self.closeContext("")
         self.closeContext("targets")
         self.clear()
         self.data = data
         self.error(0)
-        self.warning([0,1])
+        self.warning([0, 1])
         if data:
             self.genes_in_columns = not bool(data.domain.classVar)
             self.genesInColumnsCheck.setDisabled(not bool(data.domain.classVar))
             if self.genes_in_columns:
                 self.genes_in_columns = not data_hints.get_hint(data, "genesinrows", not self.genes_in_columns)
-            self.openContext("", data)
+#             self.openContext("", data)
         else:
             self.infoLabel.setText("No data on input.")
         self.init_from_data()
-            
+
     def init_from_data(self):
         """ Init widget state from the data.
-        """ 
+        """
         self.update_target_labels()
         self.error(0)
         if self.data:
@@ -696,23 +710,26 @@ class OWVulcanoPlot(OWWidget):
         for key, (logratio, logpval) in self.values.items():
             self.graph.tips.addToolTip(logratio, logpval, "<b>%s</b><hr>log<sub>2</sub>(ratio): %.5f<br>p-value: %.5f" \
                                        %(str(key) if self.genes_in_columns else key.name, logratio, math.pow(10, -logpval)))
-            
+
     def selection(self, items=None):
-        """ Return the current selection.
+        """
+        Return the current selection.
         """
         if items is None:
             items = sorted(self.values.items())
         values = [val for key, val in items]
         test = self.graph.selection.testSelection(values)
         return test
-    
+
     def on_selection_changed(self):
-        """ Called when user changes the selection area on the plot.
-        """
+        # Selection area on the plot has changed.
+        nselected = self.graph.selectedCurve.data().size()
+        self.infoLabel2.setText("%i selected genes" % nselected)
+
         if self.auto_commit:
             selection = list(self.selection())
             # Did the selection actually change
-            if selection != self.current_selection: 
+            if selection != self.current_selection:
                 self.current_selection = selection
                 self.commit()
         else:
@@ -756,17 +773,13 @@ class OWVulcanoPlot(OWWidget):
     def settingsFromWidgetCallbacktargets(self, handler, context):
         context.label_selections = list(self.label_selections)
         context.target_group = self.target_group
-        
+
+
 if __name__ == "__main__":
     ap = QApplication(sys.argv)
     w = OWVulcanoPlot()
-##    d = orange.ExampleTable("E:\\affy(HD-CC)_GS_C2cpC5.tab")
-#    d = orange.ExampleTable("E:\\steroltalk-smallchip.tab")
-    d = orange.ExampleTable("../../../doc/datasets/brown-selected.tab")
+    d = orange.ExampleTable("brown-selected.tab")
     w.setData(d)
     w.show()
     ap.exec_()
     w.saveSettings()
-
-                
-        
