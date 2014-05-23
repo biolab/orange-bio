@@ -7,6 +7,7 @@
 """
 
 from __future__ import absolute_import, with_statement
+import os
 
 from exceptions import Exception
 import cPickle as pickle
@@ -421,7 +422,7 @@ class OWGsea(OWWidget):
         self.addComment("Computation was not started.")
 
         if sys.platform == "darwin":
-            self.loadFileName = user.home
+            self.loadFileName = os.path.expanduser("~/")
         else:
             self.loadFileName = "."
 
@@ -494,7 +495,7 @@ class OWGsea(OWWidget):
         self.loadFileName = str(QFileDialog.getOpenFileName(self, 'Open GSEA data', self.loadFileName, "GSEA files (*.gsea)"))
         if self.loadFileName == "": 
             if sys.platform == "darwin":
-                self.loadFileName = user.home
+                self.loadFileName = os.path.expanduser("~/")
             else:
                 self.loadFileName = "."
             return
