@@ -1,20 +1,23 @@
-============================================================
+===================================
 Organism Taxonomy (:mod:`taxonomy`)
-============================================================
+===================================
 
 .. py:currentmodule:: Orange.bio.taxonomy
 
-This module provides access to the `NCBI's organism taxonomy information <http://www.ncbi.nlm.nih.gov/Taxonomy/>`_ and organism name unification across different modules. The taxonomy information is pre-loaded, that is, becomes available with installation. The list of names of the organisms are also updated with information from :obj:`Orange.bio.kegg` and :obj:`Orange.bio.go`, so that you can use organism aliases from these databases.
+This module provides access to the `NCBI's organism taxonomy information
+<http://www.ncbi.nlm.nih.gov/Taxonomy/>`_ and organism name unification
+across different modules.
 
-.. autofunction:: Orange.bio.taxonomy.name
+.. autofunction:: Orange.bio.taxonomy.name(taxid)
 
-.. autofunction:: Orange.bio.taxonomy.other_names
+.. autofunction:: Orange.bio.taxonomy.other_names(taxid)
 
-.. autofunction:: Orange.bio.taxonomy.search
+.. autofunction:: Orange.bio.taxonomy.search(string, onlySpecies=True, exact=False)
 
-.. autofunction:: Orange.bio.taxonomy.lineage
+.. autofunction:: Orange.bio.taxonomy.lineage(taxid)
    
-.. autofunction:: Orange.bio.taxonomy.to_taxid
+..
+   ..autofunction:: Orange.bio.taxonomy.to_taxid
 
 .. autofunction:: Orange.bio.taxonomy.taxids
 
