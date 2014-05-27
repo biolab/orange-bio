@@ -15,7 +15,7 @@ from setuptools import setup, find_packages
 NAME = 'Orange-Bioinformatics'
 DOCUMENTATION_NAME = 'Orange Bioinformatics'
 
-VERSION = '2.5.27'
+VERSION = '2.5.28'
 
 DESCRIPTION = 'Orange Bioinformatics add-on for Orange data mining software package.'
 LONG_DESCRIPTION = open(os.path.join(os.path.dirname(__file__), 'README.rst')).read()
@@ -74,6 +74,7 @@ INSTALL_REQUIRES = (
     'Orange',
     'setuptools',
     'numpy',
+    'GenAPI',
     # Dependencies which are problematic to install automatically
     #'openbabel-python', # You get bindings together with the openbabel library and not stand-alone
     #'scipy', # Requires Fortran compiler
