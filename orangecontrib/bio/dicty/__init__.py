@@ -440,107 +440,113 @@ class DBCommon(object):
                 yield antss[ci], legend
 
     def exampleTables(self, ids, chipsm=None, spotmap={}, callback=None, exclude_constant_labels=False, annots={}, chipfn=None, allowed_labels=None):
-        """
-        Create example tables from chip readings, spot mappings and 
-        group specifications.
+        return example_tables(ids, chipsm=chipsm, spotmap=spotmap, 
+            callback=callback, exclude_constant_labels=exclude_constant_labels, 
+            annots=annots, chipfn=chipfn, allowed_labels=allowed_labels)
 
-        group is the output from "sortAnnotations" function. 
-        spotmap is a dictionary of { spotid: gene }
-        chipsm is a dictionary of chip readings
 
-        Callback: number of chipids + 2
-        """
+def example_tables(ids, chipsm=None, spotmap={}, callback=None, exclude_constant_labels=False, annots={}, chipfn=None, allowed_labels=None):
+    """
+    Create example tables from chip readings, spot mappings and 
+    group specifications.
 
-        if verbose:
-            print "Creating example table"
+    group is the output from "sortAnnotations" function. 
+    spotmap is a dictionary of { spotid: gene }
+    chipsm is a dictionary of chip readings
+
+    Callback: number of chipids + 2
+    """
+
+    if verbose:
+        print "Creating example table"
+
+    if callback: callback()
+
+    amap = {}
+    amapnext = 0
+
+    togen = []
+
+    groupnames = []
+    groupvals = []
+    groupannots = []
+
+    if chipsm == None:
+        chipdl = chipfn(ids)
+
+    for chipid in ids:
+
+        if chipsm != None:
+            chipdata = chipsm[chipid]
+        else:
+            chipdata = chipdl.next()
 
         if callback: callback()
 
-        amap = {}
-        amapnext = 0
+        #add to current position mapping
+        repeats = {}
+        for id,_ in chipdata:
+            rep = repeats.get(id, 0)
+            repeats[id] = rep+1
+            key = (id, rep)
+            if key not in amap:
+                amap[key] = amapnext
+                amapnext += 1
 
-        togen = []
+        vals = [ None ] * len(amap)
 
-        groupnames = []
-        groupvals = []
-        groupannots = []
+        repeats = {}
+        for id,v in chipdata:
+            rep = repeats.get(id, 0)
+            repeats[id] = rep+1
+            key = (id, rep)
+            putind = amap[key]
+            vals[putind] = v
+        groupvals.append(vals)
 
-        if chipsm == None:
-            chipdl = chipfn(ids)
+        groupnames.append(chipid) 
 
-        for chipid in ids:
+        newannots = [['id', str(chipid)]] #add chipid to annotations
+        if annots:
+            newannots += annots[chipid]
+        groupannots.append(newannots)
 
-            if chipsm != None:
-                chipdata = chipsm[chipid]
-            else:
-                chipdata = chipdl.next()
-
-            if callback: callback()
-
-            #add to current position mapping
-            repeats = {}
-            for id,_ in chipdata:
-                rep = repeats.get(id, 0)
-                repeats[id] = rep+1
-                key = (id, rep)
-                if key not in amap:
-                    amap[key] = amapnext
-                    amapnext += 1
-
-            vals = [ None ] * len(amap)
-
-            repeats = {}
-            for id,v in chipdata:
-                rep = repeats.get(id, 0)
-                repeats[id] = rep+1
-                key = (id, rep)
-                putind = amap[key]
-                vals[putind] = v
-            groupvals.append(vals)
-
-            groupnames.append(chipid) 
-
-            newannots = [['id', str(chipid)]] #add chipid to annotations
-            if annots:
-                newannots += annots[chipid]
-            groupannots.append(newannots)
-
-        togen = (groupnames, groupvals, groupannots)
-        
-        if callback: callback()
-
-        ddb = [ None ]*len(amap)
-        for (a,rep),pos in amap.items():
-            if len(spotmap):
-                ddb[pos] = spotmap.get(a, "#"+a)
-            else:
-                ddb[pos] = a
-
-        #this is sorted position mapping: key -> sortedind
-        posMap = dict( (k,i) for i,k in enumerate(sorted(amap.keys())) )
-        revmap = dict( ( (i,k) for k,i in amap.items() ) )
-        #permutation[i] holds target of current [i]
-        permutation = [ posMap[revmap[i]] for i in range(len(amap)) ]
-
-        def enlength(a, tlen):
-            """ Adds Nones to the end of the list """
-            if len(a) < tlen:
-                return a + [ "None" ]*(tlen-len(a))
-            else:
-                return a
-
-        def enlengthl(l, tlen):
-            return [ enlength(a, tlen) for a in l ]
+    togen = (groupnames, groupvals, groupannots)
     
-        groupnames, groupvals, groupannots = togen
+    if callback: callback()
 
-        et = createExampleTable(groupnames, 
-            enlengthl(groupvals, len(ddb)),
-            groupannots, ddb, exclude_constant_labels=exclude_constant_labels, permutation=permutation, allowed_labels=allowed_labels)
+    ddb = [ None ]*len(amap)
+    for (a,rep),pos in amap.items():
+        if len(spotmap):
+            ddb[pos] = spotmap.get(a, "#"+a)
+        else:
+            ddb[pos] = a
 
-        if callback: callback()
+    #this is sorted position mapping: key -> sortedind
+    posMap = dict( (k,i) for i,k in enumerate(sorted(amap.keys())) )
+    revmap = dict( ( (i,k) for k,i in amap.items() ) )
+    #permutation[i] holds target of current [i]
+    permutation = [ posMap[revmap[i]] for i in range(len(amap)) ]
 
-        return et
+    def enlength(a, tlen):
+        """ Adds Nones to the end of the list """
+        if len(a) < tlen:
+            return a + [ "None" ]*(tlen-len(a))
+        else:
+            return a
+
+    def enlengthl(l, tlen):
+        return [ enlength(a, tlen) for a in l ]
+
+    groupnames, groupvals, groupannots = togen
+
+    et = createExampleTable(groupnames, 
+        enlengthl(groupvals, len(ddb)),
+        groupannots, ddb, exclude_constant_labels=exclude_constant_labels, permutation=permutation, allowed_labels=allowed_labels)
+
+    if callback: callback()
+
+    return et
 
 def bufferkeypipax(command, data):
     """ Do not save password to the buffer! """
