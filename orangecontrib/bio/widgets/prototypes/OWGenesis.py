@@ -82,23 +82,35 @@ class Genesis(object):
         self.username = username
 
         self.gen = genapi.GenCloud(username, password, address)
-        self.project = None
+        self._project = None
+        self.projectid = None
 
-    def projects(self):
-        return self.gen.projects()
+    @property
+    def project(self):
+        if not self._project or self._project.id != self.projectid:
+            self._project = self.gen.projects()[self.projectid]
+            #print "LOADED PROJECT", str(self._project)
+        return self._project
+
+    def projects(self, reload=False, bufver="0"):
+        def a(self):
+            return { k:str(p) for k,p in self.gen.projects().items() }
+        return self._buffer_fn("projects" + "|||" + self.username, bufver, reload, a, self)
 
     def result_types(self, reload=False, bufver="0"):
         """Return a list of available result types.
         """
-        objects = self.project.objects(type__startswith='data:expression').values()
-        types = set()
-        for o in objects:
-            an = o.annotation
-            for path, a in an.iteritems():
-                if path.startswith('output') and a['type'] == 'basic:file:' \
-                    and not path.startswith('output.proc.'):
-                        types.add(a["name"])
-        return sorted(types)
+        def a(self):
+            objects = self.project.objects(type__startswith='data:expression').values()
+            types = set()
+            for o in objects:
+                an = o.annotation
+                for path, a in an.iteritems():
+                    if path.startswith('output') and a['type'] == 'basic:file:' \
+                        and not path.startswith('output.proc.'):
+                            types.add(a["name"])
+            return sorted(types)
+        return self._buffer_fn(self.projectid + "|||" + self.username + "|||" + "result_types", bufver, reload, a, self)
 
     def results_list(self, rtype, reload=False, bufver="0"):
         """Return a list of available gene expressions for a specific
@@ -107,15 +119,17 @@ class Genesis(object):
 
         :param str rtype: Result type to use (see :obj:`result_types`).
         """
-        objects = self.project.objects(type__startswith='data:expression').values()
-        rdict = {}
-        for o in objects:
-            an = o.annotation
-            for path, a in an.iteritems():
-                if path.startswith('output') and a['type'] == 'basic:file:' \
-                    and a["name"] == rtype:
-                    rdict[o.id] = an
-        return rdict
+        def a(self):
+            objects = self.project.objects(type__startswith='data:expression').values()
+            rdict = {}
+            for o in objects:
+                an = o.annotation
+                for path, a in an.iteritems():
+                    if path.startswith('output') and a['type'] == 'basic:file:' \
+                        and a["name"] == rtype:
+                        rdict[o.id] = an
+            return rdict
+        return self._buffer_fn(self.projectid + "|||" + self.username + "|||" + "results_list"  + "|||" + str(rtype), bufver, reload, a, self)
 
     def _from_buffer(self, addr):
         return self.buffer.get(self.address + "|||" + addr)
@@ -128,17 +142,19 @@ class Genesis(object):
         if self.buffer:
             self.buffer.commit()
 
-    def _bufferFun(self, bufkey, bufver, reload, fn, *args, **kwargs):
+    def _buffer_fn(self, bufkey, bufver, reload, fn, *args, **kwargs):
         """
         If bufkey is already present in buffer, return its contents.
         If not, run function with arguments and save its result
         into the buffer.
         """
-        if self.inBuffer(bufkey) == bufver and reload == False:
-            res = self.fromBuffer(bufkey)
+        if self._in_buffer(bufkey) == bufver and reload == False:
+            #print "IN", bufkey
+            res = self._from_buffer(bufkey)
         else:
+            #print "NOT IN", bufkey
             res = fn(*args, **kwargs)
-            self.toBuffer(bufkey, res, bufver)
+            self._to_buffer(bufkey, res, bufver)
         return res
 
     def _in_buffer(self, addr):
@@ -147,18 +163,23 @@ class Genesis(object):
         else:
             return False
 
+    def objects(self, reload=False, bufver="0"):
+        def a(self):
+            return { id: o.annotation for id, o in self.project.objects().items() }
+        return self._buffer_fn(self.projectid + "|||" + self.username + "|||" + "objects", bufver, reload, a, self)
+
     def download(self, ids, rtype, reload=False, bufver="0"):
-        objdic = self.project.objects()
+        objdic = self.objects(reload, bufver)
 
         downloads = [] #what to download
         for id in ids:
             o = objdic[id]
             field = None
-            for path, a in o.annotation.iteritems():
+            for path, a in o.iteritems():
                 if path.startswith('output') and a['type'] == 'basic:file:' \
                     and not path.startswith('output.proc.'):
                         if a["name"] == rtype:
-                            field = path
+                            field = a["value"]["file"]
             downloads.append((id, field))
 
         unbuffered = [] #what is missing
@@ -217,7 +238,7 @@ class Genesis(object):
 
         cbc = CallBack(len(ids), optcb, callbacks=10)
 
-        res_list = self.results_list(result_type)
+        res_list = self.results_list(result_type, reload=reload, bufver=bufver)
 
         #annotations
         read = {}
@@ -483,7 +504,7 @@ class OWGenesis(OWWidget):
 
     def ConnectAndUpdate(self):
         self.Connect()
-        self.UpdateExperiments(reload=True)
+        self.UpdateExperiments(reload=False)
 
     def Connect(self):
         self.error(1)
@@ -512,7 +533,7 @@ class OWGenesis(OWWidget):
         self.UpdateExperimentTypes()
 
         if self.dbc:
-            self.projects = sorted(self.dbc.projects().values(), key=lambda x: str(x))
+            self.projects = sorted(self.dbc.projects().items(), key=lambda x: x[1])
             self.UpdateProjects()
             self.ProjectChosen()
             self.UpdateExperimentTypes()
@@ -540,7 +561,7 @@ class OWGenesis(OWWidget):
 
     def UpdateProjects(self):
         self.projectCB.clear()
-        items = [str(desc) for desc in self.projects]
+        items = [desc for pid,desc in self.projects]
         self.projectCB.addItems(items)
         self.projecti = max(0, min(self.projecti, len(self.projects) - 1))
 
@@ -549,7 +570,7 @@ class OWGenesis(OWWidget):
 
         self.experimentsWidget.clear()
 
-        if not self.dbc or not self.dbc.project: #the connection did not succeed
+        if not self.dbc or not self.dbc.projectid: #the connection did not succeed
             return 
 
         self.items = []
@@ -588,7 +609,7 @@ class OWGenesis(OWWidget):
 
     def ProjectChosen(self, reload=False):
         if self.projects:
-            self.dbc.project = self.projects[self.projecti]
+            self.dbc.projectid = self.projects[self.projecti][0]
             self.UpdateExperiments(reload=reload)
 
     def UpdateResultsList(self, reload=False):
