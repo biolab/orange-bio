@@ -117,10 +117,40 @@ class Genesis(object):
                     rdict[o.id] = an
         return rdict
 
+    def _from_buffer(self, addr):
+        return self.buffer.get(self.address + "|||" + addr)
+
+    def _to_buffer(self, addr, cont, version="0", autocommit=True):
+        if self.buffer:
+            return self.buffer.add(self.address + "|||" + addr, cont, version=version, autocommit=autocommit)
+
+    def _buffer_commit(self):
+        if self.buffer:
+            self.buffer.commit()
+
+    def _bufferFun(self, bufkey, bufver, reload, fn, *args, **kwargs):
+        """
+        If bufkey is already present in buffer, return its contents.
+        If not, run function with arguments and save its result
+        into the buffer.
+        """
+        if self.inBuffer(bufkey) == bufver and reload == False:
+            res = self.fromBuffer(bufkey)
+        else:
+            res = fn(*args, **kwargs)
+            self.toBuffer(bufkey, res, bufver)
+        return res
+
+    def _in_buffer(self, addr):
+        if self.buffer:
+            return self.buffer.contains(self.address + "|||" + addr)
+        else:
+            return False
+
     def download(self, ids, rtype, reload=False, bufver="0"):
         objdic = self.project.objects()
 
-        downloads = []
+        downloads = [] #what to download
         for id in ids:
             o = objdic[id]
             field = None
@@ -131,26 +161,25 @@ class Genesis(object):
                             field = path
             downloads.append((id, field))
 
-        #FIXME buffering
+        unbuffered = [] #what is missing
+        for id,field in downloads:
+            if not self._in_buffer(id + "|||" + rtype) or reload:
+                unbuffered.append((id, field))
+        unbufferedset = set(unbuffered)
 
-        for response in self.gen.download(downloads):
-            out = []
-            for l in response.text.split('\n')[1:]:
-                if l:
-                    gene, val = l.split('\t')
-                    out.append((str(gene), str(val)))
-            yield out
-            #object.download('output.rpkum')
-
-    def download_key_function(self):
-        return
-        data = self.add_auth({"action": "download",
-                              "ids": "$MULTI$"}
-                                )
-        keynamingfn, _ = self.downloadMulti_bufcommand_replace_multi("",
-                         data=data, chunk=100, bufferkey=bufferkeypipax,
-                         transformfn=None)
-        return keynamingfn
+        newgen = self.gen.download(unbuffered)
+        for id,field in downloads:
+            if (id, field) in unbufferedset:
+                response = newgen.next()
+                out = []
+                for l in response.text.split('\n')[1:]:
+                    if l:
+                        gene, val = l.split('\t')
+                        out.append((str(gene), str(val)))
+                self._to_buffer(id + "|||" + rtype, out, autocommit=True)
+                yield out
+            else:
+                yield self._from_buffer(id + "|||" + rtype)
 
     def get_data(self, ids=None, result_type=None,
                  exclude_constant_labels=False, average=median,
@@ -324,9 +353,9 @@ class OWGenesis(OWWidget):
         """
         OWGUI.button(self.controlArea, self, "Reload",
                      callback=self.Reload)
+        """
         OWGUI.button(self.controlArea, self, "Clear cache",
                      callback=self.clear_cache)
-        """
 
         box = OWGUI.widgetBox(self.controlArea, 'Project')
         self.projectCB = OWGUI.comboBox(box, self, "projecti",
@@ -617,20 +646,13 @@ class OWGenesis(OWWidget):
 
 
     def UpdateCached(self):
-        return #FIXME
+
         if self.wantbufver and self.dbc:
-            fn = self.dbc.download_key_function()
-            result_id_key = dict(((m["data_id"], m["mappings_id"]), key) \
-                                 for key, m in self.results_list.items())
 
             for item in self.items:
-                c = str(item.text(ID_INDEX))
-                mapping = self.mappings[c]
-                data_id, mappings_id = mapping["data_id"], mapping["id"]
-                r_id = result_id_key[data_id, mappings_id]
-                # Get the buffered version
-                buffered = self.dbc.inBuffer(fn(r_id))
-                value = " " if buffered == self.wantbufver(r_id) else ""
+                id = str(item.text(ID_INDEX))
+                version = self.dbc._in_buffer(id + "|||" + self.rtype())
+                value = " " if version == self.wantbufver(id) else ""
                 item.setData(0, Qt.DisplayRole, QVariant(value))
 
     def SearchUpdate(self, string=""):
