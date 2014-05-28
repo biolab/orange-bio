@@ -226,13 +226,14 @@ class OWHeatMap(OWWidget):
         self.selection_changed_flag = False
 
         self.palette = self.ColorPalettes[0]
-        
+
+        self.SortExamples = 0
+        self.SortAttributes = 0
+
         self.loadSettings()
         self.data = []
         self.maxHSize = 30; self.maxVSize = 15
 
-        self.SortExamples = 0
-        self.SortAttributes = 0
         
 
         # GUI definition
