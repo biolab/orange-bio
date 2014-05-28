@@ -1251,7 +1251,7 @@ class OWHeatMap(OWWidget):
                     hm = h.heatmap
                     examples.extend(hm.examples[hm.exampleIndices[row-begin] : hm.exampleIndices[row+1-begin]])
                     
-                data = orange.ExampleTable(examples)
+                data = orange.ExampleTable(examples, name=self.data.name)
 
             else:
                 data = None
