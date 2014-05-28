@@ -1,8 +1,8 @@
 """
-<name>Genesis</name>
-<description>Access expression data the Genesis platform</description>
-<icon>icons/PIPA.svg</icon>
-<priority>35</priority>
+<name>GenCloud</name>
+<description>Access expression data from the GenCloud platform.</description>
+<icon>icons/GenCloud.svg</icon>
+<priority>36</priority>
 """
 
 from __future__ import absolute_import
@@ -24,10 +24,10 @@ import orangecontrib.bio.widgets.OWPIPAx as OWPIPAx
 
 from orangecontrib.bio import obiDicty
 
-NAME = "Genesis"
-DESCRIPTION = "Access expression data form the Genesis platform."
-ICON = "icons/PIPA.svg"
-PRIORITY = 35
+NAME = "GenCloud"
+DESCRIPTION = "Access expression data from the GenCloud platform."
+ICON = "icons/GenCloud.svg"
+PRIORITY = 36
 
 INPUTS = []
 OUTPUTS = [("Example table", Orange.data.Table)]
@@ -338,7 +338,7 @@ SORTING_MODEL_LIST = \
      "ID", "Name", "Replicate"]
 
 
-class OWGenesis(OWWidget):
+class OWGenCloud(OWWidget):
     settingsList = ["server", "excludeconstant", "username", "password",
                     "joinreplicates", "selectionSetsWidget.selections",
                     "columnsSortingWidget.sortingOrder", "currentSelection",
@@ -673,6 +673,7 @@ class OWGenesis(OWWidget):
             for item in self.items:
                 id = str(item.text(ID_INDEX))
                 version = self.dbc._in_buffer(id + "|||" + self.rtype())
+                #print self.results_list
                 value = " " if version == self.wantbufver(id) else ""
                 item.setData(0, Qt.DisplayRole, QVariant(value))
 
@@ -810,7 +811,7 @@ fdsfd
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     obiDicty.verbose = True
-    w = OWGenesis()
+    w = OWGenCloud()
     w.show()
     app.exec_()
     w.saveSettings()
