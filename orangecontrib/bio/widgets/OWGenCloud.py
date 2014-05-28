@@ -797,17 +797,6 @@ class OWGenCloud(OWWidget):
             hview.setSectionHidden(i, state.get(label, True))
             self.experimentsWidget.resizeColumnToContents(i)
 
-"""
-g = Genesis('http://cloud.genialis.com/', username="admin", password="dictyosteliumdiscoideum")
-print g.projects()
-ffsdfd
-g.project = g.projects().values()[0]
-objects = g.project.objects(type__startswith='data:expression')
-object = g.project.objects()["534f723d5d7bfe67ea630b35"]
-print g.download(["534f723d5d7bfe67ea630b35"], "rc")
-fdsfd
-"""
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     obiDicty.verbose = True
