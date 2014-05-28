@@ -124,19 +124,23 @@ class Genesis(object):
             rdict = {}
             for o in objects:
                 an = o.annotation
+                ok = False
                 for path, a in an.iteritems():
                     if path.startswith('output') and a['type'] == 'basic:file:' \
                         and a["name"] == rtype:
-                        rdict[o.id] = an
+                            ok = True  
+                if ok:
+                    rdict[o.id] = an
+                    rdict[o.id]["date_modified"] = o.date_modified
             return rdict
         return self._buffer_fn(self.projectid + "|||" + self.username + "|||" + "results_list"  + "|||" + str(rtype), bufver, reload, a, self)
 
     def _from_buffer(self, addr):
-        return self.buffer.get(self.address + "|||" + addr)
+        return self.buffer.get(self.address + "|v1||" + addr)
 
     def _to_buffer(self, addr, cont, version="0", autocommit=True):
         if self.buffer:
-            return self.buffer.add(self.address + "|||" + addr, cont, version=version, autocommit=autocommit)
+            return self.buffer.add(self.address + "|v1||" + addr, cont, version=version, autocommit=autocommit)
 
     def _buffer_commit(self):
         if self.buffer:
@@ -159,17 +163,12 @@ class Genesis(object):
 
     def _in_buffer(self, addr):
         if self.buffer:
-            return self.buffer.contains(self.address + "|||" + addr)
+            return self.buffer.contains(self.address + "|v1||" + addr)
         else:
             return False
 
-    def objects(self, reload=False, bufver="0"):
-        def a(self):
-            return { id: o.annotation for id, o in self.project.objects().items() }
-        return self._buffer_fn(self.projectid + "|||" + self.username + "|||" + "objects", bufver, reload, a, self)
-
     def download(self, ids, rtype, reload=False, bufver="0"):
-        objdic = self.objects(reload, bufver)
+        objdic = self.results_list(rtype)
 
         downloads = [] #what to download
         for id in ids:
@@ -182,9 +181,11 @@ class Genesis(object):
                             field = a["value"]["file"]
             downloads.append((id, field))
 
+        bufverfn = (lambda x: bufver) if isinstance(bufver, basestring) else bufver
+
         unbuffered = [] #what is missing
         for id,field in downloads:
-            if not self._in_buffer(id + "|||" + rtype) or reload:
+            if not self._in_buffer(id + "|||" + rtype) == bufverfn(id) or reload:
                 unbuffered.append((id, field))
         unbufferedset = set(unbuffered)
 
@@ -197,7 +198,7 @@ class Genesis(object):
                     if l:
                         gene, val = l.split('\t')
                         out.append((str(gene), str(val)))
-                self._to_buffer(id + "|||" + rtype, out, autocommit=True)
+                self._to_buffer(id + "|||" + rtype, out, version=bufverfn(id), autocommit=True)
                 yield out
             else:
                 yield self._from_buffer(id + "|||" + rtype)
@@ -238,7 +239,7 @@ class Genesis(object):
 
         cbc = CallBack(len(ids), optcb, callbacks=10)
 
-        res_list = self.results_list(result_type, reload=reload, bufver=bufver)
+        res_list = self.results_list(result_type, reload=reload)
 
         #annotations
         read = {}
@@ -660,8 +661,7 @@ class OWGenCloud(OWWidget):
         for i in range(len(self.headerLabels)):
             self.experimentsWidget.resizeColumnToContents(i)
 
-        # FIXME: what attribute to use for version?
-        self.wantbufver = lambda x: "0"
+        self.wantbufver = lambda x: self.results_list[x]["date_modified"]
 
         self.UpdateCached()
 
@@ -673,7 +673,6 @@ class OWGenCloud(OWWidget):
             for item in self.items:
                 id = str(item.text(ID_INDEX))
                 version = self.dbc._in_buffer(id + "|||" + self.rtype())
-                #print self.results_list
                 value = " " if version == self.wantbufver(id) else ""
                 item.setData(0, Qt.DisplayRole, QVariant(value))
 
@@ -718,7 +717,7 @@ class OWGenCloud(OWWidget):
             table = self.dbc.get_data(ids=ids, result_type=self.rtype(),
                           callback=pb.advance,
                           exclude_constant_labels=self.excludeconstant,
-#                          bufver=self.wantbufver,
+                          bufver=self.wantbufver,
                           transform=transfn,
                           allowed_labels=allowed_labels)
 
