@@ -235,6 +235,7 @@ class OWGEODatasets(OWWidget):
         self.treeWidget.setSortingEnabled(True)
         self.treeWidget.setAlternatingRowColors(True)
         self.treeWidget.setUniformRowHeights(True)
+        self.treeWidget.setEditTriggers(QTreeView.NoEditTriggers)
 
         linkdelegate = LinkStyledItemDelegate(self.treeWidget)
         self.treeWidget.setItemDelegateForColumn(1, linkdelegate)
