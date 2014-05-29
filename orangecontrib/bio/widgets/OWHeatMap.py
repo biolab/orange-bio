@@ -410,7 +410,8 @@ class OWHeatMap(OWWidget):
         self.heatmaps = []
         
         self.selection_rects = []
-        
+        self.selected_rows = []
+
         self.attr_cluster = None
         self.data_clusters = []
         self.sorted_data = None
@@ -583,12 +584,14 @@ class OWHeatMap(OWWidget):
         
     def clear(self):
         self.data = None
+        self.sorted_data = None
         self.spotCombo.clear()
         self.annotationCombo.clear()
         self.splitLB.clear()
         self.meta = []
         self.clear_scene()
-        
+        self.selected_rows = []
+
     def clear_scene(self):
         self.selection_manager.set_heatmap_widgets([[]])
         self.heatmap_scene.clear()
@@ -610,7 +613,6 @@ class OWHeatMap(OWWidget):
         
     def set_dataset(self, data=None, id=None):
         self.closeContext("Selection")
-        
         self._ordering_cache.clear()
         
         self.clear()
@@ -624,7 +626,6 @@ class OWHeatMap(OWWidget):
         self.groupClusters = None
         
     def handleNewSignals(self):
-        self.send('Examples', None)
         if self.data:
             self.update_heatmaps()
         else:
@@ -632,7 +633,12 @@ class OWHeatMap(OWWidget):
 
         if self.data:
             self.openContext("Selection", self.data)
-            
+
+        if self.selected_rows:
+            self.commit()
+        else:
+            self.send('Examples', None)
+
     def construct_heatmaps(self, data, split_label=None):
         if split_label is not None:
             groups = split_domain(data.domain, split_label)
@@ -1267,12 +1273,9 @@ class OWHeatMap(OWWidget):
     def settingsToWidgetCallbackSelection(self, handler, context):
         selection = getattr(context, "selection", None)
         if selection:
-            try:
-                self.selection_manager.select_rows(selection)
-            except Exception, ex:
-                pass
-#                self.warning(3, "Could not restore selection")
-                
+            self.selection_manager.select_rows(selection)
+            self.selected_rows = selection
+
     def split_changed(self):
         if self.data:
             self.clear_scene()
@@ -1841,6 +1844,7 @@ class HeatmapSelectionManager(QObject):
             self.selections = rows
         else:
             self.selections = sorted(set(self.selections + rows))
+
         if self.selections != old_selection:
             self.update_selection_rects()
             self.emit(SIGNAL("selection_changed()"))
