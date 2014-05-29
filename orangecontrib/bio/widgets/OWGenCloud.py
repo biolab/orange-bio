@@ -21,7 +21,7 @@ from Orange.OrangeWidgets.OWWidget import *
 
 import orangecontrib.bio.widgets.OWPIPAx as OWPIPAx
 
-
+import requests
 from orangecontrib.bio import obiDicty
 
 NAME = "GenCloud"
@@ -43,6 +43,9 @@ def to_text(x):
         return str(x["value"])
     else:
         return x
+
+class GenCountConnectionException(Exception):
+    pass
 
 class Genesis(object):
 
@@ -68,7 +71,7 @@ class Genesis(object):
           ("shearing", "Shearing")]
 
     def __init__(self, address, cache=None,
-                 username=None, password=None):
+                 username="", password="", connect=True):
 
         """
         :param str address: The address of the API. 
@@ -80,10 +83,21 @@ class Genesis(object):
         self.address = address
         self.buffer = cache
         self.username = username
-
-        self.gen = genapi.GenCloud(username, password, address)
+        self.password = password
+        self._gen = None
+        if connect:
+            self._gen = genapi.GenCloud(username, password, address)
         self._project = None
         self.projectid = None
+
+    @property
+    def gen(self):
+        if not self._gen:
+            try:
+                self._gen = genapi.GenCloud(self.username, self.password, self.address)
+            except:
+                raise GenCountConnectionException("Connection needed")
+        return self._gen
 
     @property
     def project(self):
@@ -189,7 +203,9 @@ class Genesis(object):
                 unbuffered.append((id, field))
         unbufferedset = set(unbuffered)
 
-        newgen = self.gen.download(unbuffered)
+        newgen = [].__iter__()
+        if unbuffered:
+            newgen = self.gen.download(unbuffered)
         for id,field in downloads:
             if (id, field) in unbufferedset:
                 response = newgen.next()
@@ -526,9 +542,16 @@ class OWGenCloud(OWWidget):
                                   username=username,
                                   password=password,
                                   cache=self.buffer)
-        except Exception:
-            self.error(1, "Wrong username or password")
-            self.dbc = None
+        except requests.exceptions.ConnectionError:
+            self.dbc = Genesis(address="http://cloud.genialis.com/", 
+                                  username=username,
+                                  password=password,
+                                  connect=False,
+                                  cache=self.buffer)
+
+            self.warning(1, "Could not connect to server, working from cache.")
+        except Exception, ex:
+            self.error(1, "Wrong username or password.")
 
         self.UpdateProjects()
         self.UpdateExperimentTypes()
