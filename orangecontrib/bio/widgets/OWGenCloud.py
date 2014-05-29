@@ -379,6 +379,8 @@ class OWGenCloud(OWWidget):
         self.excludeconstant = False
         self.joinreplicates = False
         self.currentSelection = None
+    
+        self.items = []
 
         self.experimentsHeaderState = \
                 dict(((name, False) for _, name in HEADER[:ID_INDEX + 1]))
