@@ -110,12 +110,6 @@ class GeneSetTrans(object):
 
     __new__ = Orange.utils._orange__new__(object)
 
-    def _mat_ni(self, data):
-        """ With cached gene matchers. """
-        if data.domain not in self._cache:
-            self._cache[data.domain] = mat_ni(data, self.matcher)
-        return self._cache[data.domain]
-
     def _match_instance(self, instance, geneset, takegenes=None):
         """
         Return
@@ -126,14 +120,14 @@ class GeneSetTrans(object):
         If takegenes is a list of indices, use only genes from
         the gene set with specified indices.
         """
-        nm, name_ind = self._mat_ni(instance)
+        nm, name_ind = mat_ni(instance.domain, self.matcher)
         genes = [ nm.umatch(gene) for gene in geneset ]
         if takegenes:
             genes = [ genes[i] for i in takegenes ]
         return nm, name_ind, genes
 
     def _match_data(self, data, geneset, odic=False):
-        nm, name_ind = self._mat_ni(data)
+        nm, name_ind = mat_ni(data.domain, self.matcher)
         genes = [ nm.umatch(gene) for gene in geneset ]
         if odic:
             to_geneset = dict(zip(genes, geneset))
@@ -159,7 +153,7 @@ class GeneSetTrans(object):
         from .. import gsea as obiGsea
         #selection of classes and gene sets
         data = obiGsea.takeClasses(data, classValues=self.class_values)
-        nm,_ =  self._mat_ni(data)
+        nm,_ =  mat_ni(data.domain, self.matcher)
         gene_sets = select_genesets(nm, self.gene_sets, self.min_size, self.max_size, self.min_part)
 
         #build a new domain
@@ -383,7 +377,7 @@ class Assess(GeneSetTrans):
         attransv = self.attransv
         self.attransv += 1
 
-        nm_all, _ =  self._mat_ni(data)
+        nm_all, _ =  mat_ni(data.domain, self.matcher)
 
         for gs in gene_sets:
 
@@ -457,13 +451,14 @@ def setSig_example_geneset(ex, data, no_unknowns, check_same=False):
 
     return ttest(distances[0], distances[1])
 
-def mat_ni(data, matcher):
+@Orange.utils.lru_cache(maxsize=10)
+def mat_ni(domain, matcher):
     """ Return (in a tuple):
         - a gene matcher that matches to the attribute names of data
         - a dictionary attribute names -> indices in the data set.
     """
-    nm = matcher([at.name for at in data.domain.attributes])
-    name_ind = dict((n.name,i) for i,n in enumerate(data.domain.attributes))
+    nm = matcher([at.name for at in domain.attributes])
+    name_ind = dict((n.name,i) for i,n in enumerate(domain.attributes))
     return nm, name_ind
 
 def select_genesets(nm, gene_sets, min_size=3, max_size=1000, min_part=0.1):
