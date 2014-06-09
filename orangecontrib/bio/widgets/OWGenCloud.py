@@ -295,13 +295,6 @@ class Genesis(object):
         return et
 
 
-try:
-    from ast import literal_eval
-except ImportError:
-    #avoid eval on older pythons: dates are of lower importance than safety
-    literal_eval = lambda x: None
-
-
 def tfloat(s):
     try:
         return float(s)
@@ -548,7 +541,6 @@ class OWGenCloud(OWWidget):
                                   password=password,
                                   connect=False,
                                   cache=self.buffer)
-
             self.warning(1, "Could not connect to server, working from cache.")
         except Exception, ex:
             self.error(1, "Wrong username or password.")
