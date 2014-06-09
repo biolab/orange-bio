@@ -103,7 +103,6 @@ class Genesis(object):
     def project(self):
         if not self._project or self._project.id != self.projectid:
             self._project = self.gen.projects()[self.projectid]
-            #print "LOADED PROJECT", str(self._project)
         return self._project
 
     def projects(self, reload=False, bufver="0"):
@@ -359,7 +358,7 @@ class OWGenCloud(OWWidget):
     settingsList = ["server", "excludeconstant", "username", "password",
                     "joinreplicates", "selectionSetsWidget.selections",
                     "columnsSortingWidget.sortingOrder", "currentSelection",
-                    "log2", "experimentsHeaderState", "rtypei" ]
+                    "log2", "experimentsHeaderState", "rtypei", "projecti" ]
 
     def __init__(self, parent=None, signalManager=None, name="Genesis"):
         OWWidget.__init__(self, parent, signalManager, name)
@@ -368,8 +367,7 @@ class OWGenCloud(OWWidget):
         self.username = ""
         self.password = ""
         self.log2 = False
-        self.rtypei = 5 #hardcoded rpkm mapability polya
-
+        self.rtypei = 0
         self.projecti = 0
 
         self.selectedExperiments = []
@@ -583,14 +581,17 @@ class OWGenCloud(OWWidget):
         self.expressionTypesCB.clear()
         items = [desc for desc  in self.result_types]
         self.expressionTypesCB.addItems(items)
-        self.rtypei = max(0, min(self.rtypei, len(self.result_types) - 1))
+        #do not update anything if the list is empty
+        if len(self.result_types):
+            self.rtypei = max(0, min(self.rtypei, len(self.result_types) - 1))
 
     def UpdateProjects(self):
         self.projectCB.clear()
         items = [desc for pid,desc in self.projects]
         self.projectCB.addItems(items)
-        self.projecti = max(0, min(self.projecti, len(self.projects) - 1))
-
+        #do not update anathing if the list if empty
+        if len(self.projects) > 0:
+            self.projecti = max(0, min(self.projecti, len(self.projects) - 1))
 
     def UpdateExperiments(self, reload=False):
 
