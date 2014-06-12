@@ -514,7 +514,11 @@ class OWGenCloud(OWWidget):
 
     def ConnectAndUpdate(self):
         self.Connect()
-        self.UpdateExperiments(reload=False)
+        if self.dbc:
+            self.projects = sorted(self.dbc.projects().items(), key=lambda x: x[1])
+            self.UpdateProjects()
+            self.ProjectChosen()
+            self.UpdateExperimentTypes()
 
     def Connect(self):
         self.error(1)
@@ -546,14 +550,7 @@ class OWGenCloud(OWWidget):
             self.error(1, "Wrong username or password.")
 
         self.UpdateProjects()
-        self.UpdateExperimentTypes()
-
-        if self.dbc:
-            self.projects = sorted(self.dbc.projects().items(), key=lambda x: x[1])
-            self.UpdateProjects()
-            self.ProjectChosen()
-            self.UpdateExperimentTypes()
-
+        self.UpdateExperimentTypes() #clear lists
 
     def Reload(self):
         self.UpdateExperiments(reload=True)
@@ -620,7 +617,7 @@ class OWGenCloud(OWWidget):
         self.UpdateResultsList(reload=reload)
 
         self.progressBarFinished()
-
+        
         if self.currentSelection:
             self.currentSelection.select(self.experimentsWidget.selectionModel())
 
