@@ -170,7 +170,7 @@ def loadGMT(contents, name):
     def hline(s):
         tabs = [tab.strip() for tab in s.split("\t")]
         return GeneSet(id=tabs[0], description=tabs[1],
-                                   hierarchy=("Custom Gene Sets",name), genes=tabs[2:])
+                                   hierarchy=("Custom",name), genes=tabs[2:])
 
     def handleNELines(s, fn):
         """

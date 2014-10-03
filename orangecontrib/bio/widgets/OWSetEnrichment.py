@@ -1,4 +1,4 @@
-"""<name>Gene Set Enrichment</name>
+"""<name>Set Enrichment</name>
 <icon>icons/GeneSetEnrichment.svg</icon>
 """
 
@@ -21,7 +21,7 @@ from .utils.download import EnsureDownloaded
 
 from .. import obiGene, obiGeneSets, obiProb, obiTaxonomy
 
-NAME = "Gene Set Enrichment"
+NAME = "Set Enrichment"
 DESCRIPTION = ""
 ICON = "icons/GeneSetEnrichment.svg"
 PRIORITY = 5000
@@ -140,32 +140,33 @@ class OWSetEnrichment(OWWidget):
 
         self.speciesComboBox = OWGUI.comboBox(self.controlArea, self,
                       "speciesIndex", "Species",
-                      callback=lambda: (self.refreshHierarchy(), self.data and self.updateAnnotations()),
+                      callback=lambda: (
+                        self.refreshHierarchy(), self.data and self.updateAnnotations()),
                       debuggingEnabled=0)
 
-        box = OWGUI.widgetBox(self.controlArea, "Gene names")
+        box = OWGUI.widgetBox(self.controlArea, "Entity names")
         self.geneAttrComboBox = OWGUI.comboBox(box, self, "geneattr",
-                                "Gene attribute",
+                                "Entity feature",
                                 sendSelectedValue=0,
                                 callback=self.updateAnnotations)
 
-        cb = OWGUI.checkBox(box, self, "genesinrows", "Use attribute names",
+        cb = OWGUI.checkBox(box, self, "genesinrows", "Use feature names",
                             callback=lambda :self.data and self.updateAnnotations(),
                             disables=[(-1, self.geneAttrComboBox)])
         cb.makeConsistent()
 
-        OWGUI.button(box, self, "Gene matcher settings",
+        self.gm_button = OWGUI.button(box, self, "Gene matcher settings",
                      callback=self.updateGeneMatcherSettings,
                      tooltip="Open gene matching settings dialog",
                      debuggingEnabled=0)
 
         self.referenceRadioBox = OWGUI.radioButtonsInBox(self.controlArea,
-                    self, "useReferenceData", ["Entire genome", "Reference set (input)"],
-                    tooltips=["Use entire genome for reference",
-                              "Use genes from Referece Examples input signal as reference"],
+                    self, "useReferenceData", ["All entities", "Reference set (input)"],
+                    tooltips=["Use entire genome (for gene set enrichment) or all available entities for reference",
+                              "Use entities from Reference Examples input signal as reference"],
                     box="Reference", callback=self.updateAnnotations)
 
-        box = OWGUI.widgetBox(self.controlArea, "Gene Sets")
+        box = OWGUI.widgetBox(self.controlArea, "Entity Sets")
         self.groupsWidget = QTreeWidget(self)
         self.groupsWidget.setHeaderLabels(["Category"])
         box.layout().addWidget(self.groupsWidget)
@@ -265,6 +266,9 @@ class OWSetEnrichment(OWWidget):
         self._executor = ThreadExecutor()
         self._executor.submit(task)
 
+    def no_gene_matching(self):
+        return isinstance(self.genematcher, obiGene.GMDirect)
+
     def updateHierarchy(self):
         try:
             all, local = obiGeneSets.list_all(), obiGeneSets.list_local()
@@ -274,9 +278,11 @@ class OWSetEnrichment(OWWidget):
             organisms = [taxid for taxid, name in zip(organisms, organism_names) \
                          if name is not None]
 
-            self.taxid_list = list(organisms)
             self.speciesComboBox.clear()
+            self.speciesComboBox.addItems(["None"])
+            self.taxid_list = list(organisms)
             self.speciesComboBox.addItems([obiTaxonomy.name(id) for id in self.taxid_list])
+            self.taxid_list.insert(0, -1)
             self.genesets = all
         finally:
             self.setBlocking(False)
@@ -314,8 +320,9 @@ class OWSetEnrichment(OWWidget):
             self.updateAnnotations()
 
     def setReference(self, data=None):
+        print "blalba"
         self.referenceData = data
-        self.referenceRadioBox.setEnabled(bool(data))
+        self.useReferenceData = bool(data)
 
     def getHierarchy(self, taxid):
         def recursive_dict():
@@ -401,13 +408,12 @@ class OWSetEnrichment(OWWidget):
             with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
 #            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
                 matchers = [obiGene.GMGO, obiGene.GMKEGG, obiGene.GMNCBI, obiGene.GMAffy]
-                if any(self.geneMatcherSettings):
+                if any(self.geneMatcherSettings) and taxid != -1:
                     call.__call__([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
                     self.genematcher = call.get_result()
 #                    self.genematcher = obiGene.matcher([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
                 else:
                     self.genematcher = obiGene.GMDirect()
-#                self.genematcher.set_targets(self.referenceGenes())
                 self.loadedGenematcher = taxid
             self.progressBarFinished()
 
@@ -422,16 +428,13 @@ class OWSetEnrichment(OWWidget):
     def clusterGenes(self):
         return self.genesFromExampleTable(self.data)
 
-    def referenceGenes(self):
-        if self.referenceData and self.useReferenceData:
-            return self.genesFromExampleTable(self.referenceData)
-        else:
-            taxid = self.taxid_list[self.speciesIndex]
-            call = self.asyncCall(obiGene.NCBIGeneInfo, (taxid,), name="Load reference genes", blocking=True, thread=self.thread())
-            call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
-            with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
-                call.__call__()
-                return call.get_result()
+    def reference_from_ncbi(self):
+        taxid = self.taxid_list[self.speciesIndex]
+        call = self.asyncCall(obiGene.NCBIGeneInfo, (taxid,), name="Load reference genes", blocking=True, thread=self.thread())
+        call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
+        with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+            call.__call__()
+            return call.get_result()
 
     def _cached_name_lookup(self, func, cache):
         def f(name, cache=cache):
@@ -477,20 +480,36 @@ class OWSetEnrichment(OWWidget):
             call.__call__()
             collections = list(call.get_result())
 
-#        with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
-#            collections = list(obiGeneSets.collections(*categories))
-        clusterGenes, referenceGenes = self.clusterGenes(), self.referenceGenes()
+        clusterGenes = self.clusterGenes()
         cache = {}
 
-        self.genematcher.set_targets(referenceGenes)
+        print "reference", self.referenceData, self.useReferenceData
+
+        referenceGenes = self.genesFromExampleTable(self.referenceData) \
+            if (self.referenceData and self.useReferenceData) else None
+
+        if self.no_gene_matching():
+            self.genematcher.set_targets(clusterGenes)
+            if referenceGenes == None:
+                referenceGenes = set()
+                for g in collections:
+                    referenceGenes.update(set(g.genes))
+        else:
+            if referenceGenes == None:
+                referenceGenes = self.reference_from_ncbi()
+            self.genematcher.set_targets(referenceGenes)
+            referenceGenes = set(self.mapGeneNames(referenceGenes, cache, passUnknown=False))
 
         countAll = len(set(clusterGenes))
-        infoText = "%i unique gene names on input\n" % countAll
-        referenceGenes = set(self.mapGeneNames(referenceGenes, cache, passUnknown=False))
+        infoText = "%i unique names on input\n" % countAll
         self.progressBarSet(1)
         clusterGenes = set(self.mapGeneNames(clusterGenes, cache, passUnknown=False))
-        self.progressBarSet(2)
-        infoText += "%i (%.1f) gene names matched" % (len(clusterGenes), 100.0 * len(clusterGenes) / countAll)
+
+        if self.no_gene_matching():
+            pass
+        else:
+            self.progressBarSet(2)
+            infoText += "%i (%.1f) gene names matched" % (len(clusterGenes), 100.0 * len(clusterGenes) / countAll)
         self.infoBox.setText(infoText)
 
         results = []
@@ -517,7 +536,7 @@ class OWSetEnrichment(OWWidget):
         self.treeItems = []
         for i, (geneset, (cmapped, rmapped, p_val, enrichment)) in enumerate(results):
             if len(cmapped) > 0:
-                item = MyTreeWidgetItem(self.annotationsChartView, [" ".join(geneset.hierarchy), gsname(geneset)])
+                item = MyTreeWidgetItem(self.annotationsChartView, [", ".join(geneset.hierarchy), gsname(geneset)])
                 item.setData(2, Qt.DisplayRole, QVariant(countFmt % (len(cmapped), 100.0*len(cmapped)/countAll)))
                 item.setData(2, Qt.ToolTipRole, QVariant(len(cmapped))) # For filtering
                 item.setData(3, Qt.DisplayRole, QVariant(refFmt % (len(rmapped), 100.0*len(rmapped)/len(referenceGenes))))
@@ -550,7 +569,9 @@ class OWSetEnrichment(OWWidget):
         self.completerModel = QStringListModel(sorted(allnames))
         self.filterCompleter.setModel(self.completerModel)
 
-        self.annotationsChartView.setItemDelegateForColumn(6, BarItemDelegate(self, scale=(0.0, max(t[1][3] for t in results))))
+        
+        if results:
+            self.annotationsChartView.setItemDelegateForColumn(6, BarItemDelegate(self, scale=(0.0, max(t[1][3] for t in results))))
         self.annotationsChartView.setItemDelegateForColumn(1, LinkStyledItemDelegate(self.annotationsChartView))
 
         for i in range(self.annotationsChartView.columnCount()):
@@ -564,7 +585,7 @@ class OWSetEnrichment(OWWidget):
     def filterAnnotationsChartView(self, filterString=""):
         if self.updatingAnnotationsFlag:
             return
-        categories = set(" ".join(cat) for cat, taxid in self.selectedCategories())
+        categories = set(", ".join(cat) for cat, taxid in self.selectedCategories())
 
     
         filterString = str(self.filterLineEdit.text()).lower()
@@ -676,11 +697,13 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     w = OWSetEnrichment()
-    data = orange.ExampleTable("yeast-class-RPR.tab")
-    #data = orange.ExampleTable("/home/marko/Downloads/tmp.tab")
+    #data = orange.ExampleTable("yeast-class-RPR.tab")
+    data = orange.ExampleTable("/home/marko/orange-pubchem-data/pug/chems_matrix.tab")
+    w.loadSettings()
 #    data = orange.ExampleTable("../human")
 #    print cProfile.runctx("w.setData(data)", globals(), locals())
     w.setData(data)
+    w.setReference(data)
     w.show()
     app.exec_()
     w.saveSettings()
