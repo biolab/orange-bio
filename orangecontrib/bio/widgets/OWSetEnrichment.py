@@ -112,7 +112,7 @@ class OWSetEnrichment(OWWidget):
     def refreshHierarchy(self):
         self.setHierarchy(*self.getHierarchy(taxid=self.taxid_list[self.speciesIndex]))
 
-    def __init__(self, parent=None, signalManager=None, name="Gene Set Enrichment Analysis", **kwargs):
+    def __init__(self, parent=None, signalManager=None, name="Set Enrichment", **kwargs):
         OWWidget.__init__(self, parent, signalManager, name, **kwargs)
         self.inputs = [("Data", ExampleTable, self.setData, Default), ("Reference", ExampleTable, self.setReference)]
         self.outputs = [("Data subset", ExampleTable)]
@@ -320,9 +320,9 @@ class OWSetEnrichment(OWWidget):
             self.updateAnnotations()
 
     def setReference(self, data=None):
-        print "blalba"
         self.referenceData = data
         self.useReferenceData = bool(data)
+        self.updateAnnotations()
 
     def getHierarchy(self, taxid):
         def recursive_dict():
@@ -482,8 +482,6 @@ class OWSetEnrichment(OWWidget):
 
         clusterGenes = self.clusterGenes()
         cache = {}
-
-        print "reference", self.referenceData, self.useReferenceData
 
         referenceGenes = self.genesFromExampleTable(self.referenceData) \
             if (self.referenceData and self.useReferenceData) else None
