@@ -140,8 +140,7 @@ class OWSetEnrichment(OWWidget):
 
         self.speciesComboBox = OWGUI.comboBox(self.controlArea, self,
                       "speciesIndex", "Species",
-                      callback=lambda: (
-                        self.refreshHierarchy(), self.data and self.updateAnnotations()),
+                      callback=lambda: (self.refreshHierarchy(), self.data and self.updateAnnotations()),
                       debuggingEnabled=0)
 
         box = OWGUI.widgetBox(self.controlArea, "Entity names")
@@ -155,7 +154,7 @@ class OWSetEnrichment(OWWidget):
                             disables=[(-1, self.geneAttrComboBox)])
         cb.makeConsistent()
 
-        self.gm_button = OWGUI.button(box, self, "Gene matcher settings",
+        OWGUI.button(box, self, "Gene matcher settings",
                      callback=self.updateGeneMatcherSettings,
                      tooltip="Open gene matching settings dialog",
                      debuggingEnabled=0)
@@ -267,7 +266,8 @@ class OWSetEnrichment(OWWidget):
         self._executor.submit(task)
 
     def no_gene_matching(self):
-        return isinstance(self.genematcher, obiGene.GMDirect)
+        #only direct gene matching
+        return True if len(self.genematcher.matchers) == 1 else False
 
     def updateHierarchy(self):
         try:
@@ -275,14 +275,11 @@ class OWSetEnrichment(OWWidget):
             organisms = set(obiTaxonomy.essential_taxids() + filter(None, [t[1] for t in all]))
 
             organism_names = map(name_or_none, organisms)
-            organisms = [taxid for taxid, name in zip(organisms, organism_names) \
+            organisms = [-1] +  [taxid for taxid, name in zip(organisms, organism_names) \
                          if name is not None]
-
             self.speciesComboBox.clear()
-            self.speciesComboBox.addItems(["None"])
             self.taxid_list = list(organisms)
-            self.speciesComboBox.addItems([obiTaxonomy.name(id) for id in self.taxid_list])
-            self.taxid_list.insert(0, -1)
+            self.speciesComboBox.addItems(["None" if id < 0 else obiTaxonomy.name(id) for id in self.taxid_list])
             self.genesets = all
         finally:
             self.setBlocking(False)
@@ -321,8 +318,7 @@ class OWSetEnrichment(OWWidget):
 
     def setReference(self, data=None):
         self.referenceData = data
-        self.useReferenceData = bool(data)
-        self.updateAnnotations()
+        self.referenceRadioBox.setEnabled(bool(data))
 
     def getHierarchy(self, taxid):
         def recursive_dict():
@@ -385,7 +381,7 @@ class OWSetEnrichment(OWWidget):
         categories = self.selectedCategories()
 
         if self.data is not None:
-            if not set(categories) <= set(self.currentAnnotatedCategories):
+            if self.no_gene_matching() or not set(categories) <= set(self.currentAnnotatedCategories):
                 self.updateAnnotations()
             else:
                 self.filterAnnotationsChartView()
@@ -413,7 +409,8 @@ class OWSetEnrichment(OWWidget):
                     self.genematcher = call.get_result()
 #                    self.genematcher = obiGene.matcher([gm(taxid) for gm, use in zip(matchers, self.geneMatcherSettings) if use])
                 else:
-                    self.genematcher = obiGene.GMDirect()
+                    call.__call__([])
+                    self.genematcher = call.get_result()
                 self.loadedGenematcher = taxid
             self.progressBarFinished()
 
@@ -461,11 +458,14 @@ class OWSetEnrichment(OWWidget):
         return (cmapped, rmapped, pval.p_value(len(cmapped), len(reference), len(rmapped), len(cluster)), float(len(cmapped)) / (len(cluster) or 1) / (float(len(rmapped) or 1) / (len(reference) or 1))) # TODO: compute all statistics here
 
     def updateAnnotations(self):
+        if not self.taxid_list:
+            return
         self.updatingAnnotationsFlag = True
         self.annotationsChartView.clear()
         self.error([0, 1])
         if not self.genesinrows and len(self.geneAttrs) == 0:
             self.error(0, "Input data contains no attributes with gene names")
+            self.updatingAnnotationsFlag = False
             return
 
         self.updateGenematcher()
@@ -502,7 +502,8 @@ class OWSetEnrichment(OWWidget):
         infoText = "%i unique names on input\n" % countAll
         self.progressBarSet(1)
         clusterGenes = set(self.mapGeneNames(clusterGenes, cache, passUnknown=False))
-
+        
+        self.progressBarSet(2)
         if self.no_gene_matching():
             pass
         else:
@@ -577,8 +578,8 @@ class OWSetEnrichment(OWWidget):
 
         self.annotationsChartView.setColumnWidth(1, min(self.annotationsChartView.columnWidth(1), 300))
         self.progressBarFinished()
-        QTimer.singleShot(10, self.filterAnnotationsChartView)
         self.updatingAnnotationsFlag = False
+        QTimer.singleShot(50, self.filterAnnotationsChartView)
 
     def filterAnnotationsChartView(self, filterString=""):
         if self.updatingAnnotationsFlag:
@@ -701,7 +702,7 @@ if __name__ == "__main__":
 #    data = orange.ExampleTable("../human")
 #    print cProfile.runctx("w.setData(data)", globals(), locals())
     w.setData(data)
-    w.setReference(data)
+    #w.setReference(data)
     w.show()
     app.exec_()
     w.saveSettings()
