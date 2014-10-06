@@ -487,11 +487,11 @@ class OWSetEnrichment(OWWidget):
             if (self.referenceData and self.useReferenceData) else None
 
         if self.no_gene_matching():
-            self.genematcher.set_targets(clusterGenes)
             if referenceGenes == None:
                 referenceGenes = set()
                 for g in collections:
                     referenceGenes.update(set(g.genes))
+            self.genematcher.set_targets(referenceGenes)
         else:
             if referenceGenes == None:
                 referenceGenes = self.reference_from_ncbi()
@@ -697,7 +697,8 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     w = OWSetEnrichment()
     #data = orange.ExampleTable("yeast-class-RPR.tab")
-    data = orange.ExampleTable("/home/marko/orange-pubchem-data/pug/chems_matrix.tab")
+    #data = orange.ExampleTable("/home/marko/orange-pubchem-data/pug/chems_matrix.tab")
+    data = orange.ExampleTable("/home/marko/comp81_master.tab")
     w.loadSettings()
 #    data = orange.ExampleTable("../human")
 #    print cProfile.runctx("w.setData(data)", globals(), locals())

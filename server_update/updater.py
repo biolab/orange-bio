@@ -8,9 +8,8 @@ from common import *
 if not args:
     #args = filter(lambda x: x.endswith('.py') and x.startswith('update') and not x.startswith('updater'), os.listdir('.'))
     args = ["updateTaxonomy.py", "updateGO.py", "updateMeSH.py", "updateNCBI_geneinfo.py",
-            "updateHomoloGene.py", "updateDictyBase.py", "updatePPI.py", "updateReactomePathways.py",
-            "updateGeneSets.py", "updateGEO.py", "updatemiRNA.py", "updateSTRING.py", "updateCytobands.py",
-            "updateMeSH.py" ]
+            "updateHomoloGene.py", "updateDictyBase.py", "updateReactomePathways.py",
+            "updateGeneSets.py", "updateGEO.py", "updatemiRNA.py", "updateSTRING.py", "updateCytobands.py", "updatePPI.py" ]
     
 for script in args:
     print script
