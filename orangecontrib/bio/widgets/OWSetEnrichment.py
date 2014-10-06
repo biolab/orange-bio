@@ -174,8 +174,8 @@ class OWSetEnrichment(OWWidget):
         hLayout.setSpacing(10)
         hWidget = OWGUI.widgetBox(self.mainArea, orientation=hLayout)
         sb, sbcb = OWGUI.spin(hWidget, self, "minClusterCount",
-                              0, 100, label="Genes",
-                              tooltip="Minimum gene count",
+                              0, 100, label="Entities",
+                              tooltip="Minimum entity count",
                               callback=self.filterAnnotationsChartView,
                               callbackOnReturn=True,
                               checked="useMinCountFilter",

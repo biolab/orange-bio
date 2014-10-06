@@ -152,6 +152,10 @@ def go_miRNASets(org, ontology=None, enrichment=True, pval=0.05, treshold=0.04):
     gset = GeneSets(gsets)
     return gset
 
+import re
+
+linkre = re.compile("(.*?)\s?(?:\[(https?://[^[^\]]*)\])?$")
+
 def loadGMT(contents, name):
     """
     Eech line consists of tab separated elements. First is
@@ -169,7 +173,8 @@ def loadGMT(contents, name):
 
     def hline(s):
         tabs = [tab.strip() for tab in s.split("\t")]
-        return GeneSet(id=tabs[0], description=tabs[1],
+        groups = linkre.match(tabs[1]).groups()
+        return GeneSet(id=tabs[0], description=groups[0], link=groups[1],
                                    hierarchy=("Custom",name), genes=tabs[2:])
 
     def handleNELines(s, fn):
