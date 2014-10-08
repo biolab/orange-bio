@@ -256,9 +256,10 @@ def modification_date(file):
 
 def list_serverfiles_from_flist(flist):
     gs_files = filter(is_genesets_file, flist)
-    localfiles = set(orngServerFiles.listfiles(sfdomain))
+    localfiles = os.listdir(orngServerFiles.localpath(sfdomain))
+    localfiles = set(filter(is_genesets_file, localfiles))
     return [ filename_parse(fn) + \
-        ((True,) if fn in localfiles else (False,)) for fn in gs_files ]
+        ((True,) if fn in localfiles else (False,)) for fn in set(gs_files) | localfiles ]
 
 def list_serverfiles_conn(serverfiles=None):
     """ Returns available gene sets from the server files
@@ -342,10 +343,11 @@ def _register_serverfiles(genesets, serverFiles):
     tfname = pickle_temp(genesets)
 
     try:
-        taxname = obiTaxonomy.name(org)
+        if org != None:
+            taxname = obiTaxonomy.name(org)
         title = "Gene sets: " + ", ".join(hierarchy) + \
             ((" (" + taxname + ")") if org != None else "")
-        tags = list(hierarchy) + [ "gene sets", taxname ] + obiTaxonomy.shortname(org) +\
+        tags = list(hierarchy) + [ "gene sets" ] + ([ taxname ] if org != None else [])  + obiTaxonomy.shortname(org) +\
             ([ "essential" ] if org in obiTaxonomy.essential_taxids() else [] )
         serverFiles.upload(sfdomain, fn, tfname, title, tags)
         serverFiles.unprotect(sfdomain, fn)
