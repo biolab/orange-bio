@@ -101,8 +101,8 @@ EXTRAS_REQUIRE = {
 DEPENDENCY_LINKS = (
 #    'http://bkchem.zirael.org/download/bkchem-0.13.0.tar.gz',
 #    'http://orange.biolab.si/download/bkchem-0.13.0.tar.gz',
-    'http://bkchem.zirael.org/download/oasa-0.13.1.tar.gz',
     'http://orange.biolab.si/download/oasa-0.13.1.tar.gz',
+    'http://bkchem.zirael.org/download/oasa-0.13.1.tar.gz',
 )
 
 ENTRY_POINTS = {
