@@ -260,7 +260,13 @@ class OWSetEnrichment(OWWidget):
             [("Taxonomy", "ncbi_taxonomy.tar.gz"),
              (obiGeneSets.sfdomain, "index.pck")]
         )
-        task.finished.connect(self.updateHierarchy)
+
+        def a1():
+            oldi = self.speciesIndex
+            self.updateHierarchy()
+            self.speciesIndex = max(min(oldi, len(self.taxid_list)-1),0)
+
+        task.finished.connect(a1)
 
         self._executor = ThreadExecutor()
         self._executor.submit(task)
