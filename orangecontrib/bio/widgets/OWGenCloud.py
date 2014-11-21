@@ -524,7 +524,7 @@ class OWGenCloud(OWWidget):
         self.error(1)
         self.warning(1)
 
-        username = "anonymous"
+        username = "anonymous@genialis.com"
         password = "anonymous"
         if self.username:
             username = self.username
