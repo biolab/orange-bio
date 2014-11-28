@@ -1,5 +1,4 @@
 """
-==============================
 Server files (``serverfiles``)
 ==============================
 
@@ -116,18 +115,22 @@ import socket
 # default socket timeout in seconds
 timeout = 120
 
-import urllib
-import urllib2
 import base64
 import functools
 
 from contextlib import contextmanager
 
-from Orange.utils import ConsoleProgressBar
-from . import environ
+try:
+    from Orange.utils import ConsoleProgressBar
+except:
+    ConsoleProgressBar = False
+
+try:
+    from Orange.utils import environ
+except ImportError:
+    from Orange.canvas.utils import environ
 
 import time, threading
-
 import os
 import shutil
 import tarfile
@@ -136,6 +139,8 @@ import bz2
 import glob
 import datetime
 import tempfile
+
+import six
 
 #defserver = "localhost:9999/"
 defserver = "asterix.fri.uni-lj.si/orngServerFiles/"
@@ -229,20 +234,16 @@ class ServerFiles(object):
         self.access_code = access_code
         self.searchinfo = None
 
-    def _getOpener(self, multipart=False):
-        opener = urllib2.build_opener()
-        return opener
- 
     def upload(self, domain, filename, file, title="", tags=[]):
         """ Uploads a file "file" to the domain where it is saved with filename
         "filename". If file does not exist yet, set it as protected. Parameter
         file can be a file handle open for reading or a file name.
         """
-        if isinstance(file, basestring):
+        if isinstance(file, six.string_types):
             file = open(file, 'rb')
 
-        data = {'filename': filename, 'domain': domain, 'title':title, 'tags': ";".join(tags), 'data':  file}
-        return self._open('upload', data)
+        data = {'filename': filename, 'domain': domain, 'title':title, 'tags': ";".join(tags)}
+        return self._open('upload', data, files={'data': file})
 
     def create_domain(self, domain):
         """Create a server domain."""
@@ -285,11 +286,6 @@ class ServerFiles(object):
         """List all domains on repository."""
         return _parseList(self._open('listdomains', {}))
 
-    def downloadFH(self, *args, **kwargs):
-        """Return open file handle of requested file from the server repository given the domain and the filename."""
-        if self._authen(): return self.secdownloadFH(*args, **kwargs)
-        else: return self.pubdownloadFH(*args, **kwargs)
-
     def download(self, domain, filename, target, callback=None):
         """
         Downloads file from the repository to a given target name. Callback
@@ -299,7 +295,7 @@ class ServerFiles(object):
         _create_path_for_file(target)
 
         fdown = self.downloadFH(domain, filename)
-        size = int(fdown.headers.getheader('content-length'))
+        size = int(fdown.getheader('content-length'))
 
         f = tempfile.TemporaryFile()
  
@@ -358,7 +354,7 @@ class ServerFiles(object):
 
     def downloadFH(self, domain, filename):
         """Return a file handle to the file that we would like to download."""
-        return self._handle('download', { 'domain': domain, 'filename': filename })
+        return self._handle('download', { 'domain': domain, 'filename': filename }, raw=True)
 
     def list(self, domain):
         return _parseList(self._open('list', { 'domain': domain }))
@@ -385,52 +381,33 @@ class ServerFiles(object):
         else:
             return False
 
-    def _server_request(self, root, command, data, repeat=2):
-        def do():
-            opener = self._getOpener()
-            
-            if data:
-                if command == "upload":
-                    # Need to use poster to handle multipart post
-                    try:
-                        import poster.streaminghttp as psh
-                        import poster.encode
-                    except ImportError:
-                        raise ImportError("You need to install 'poster' (http://pypi.python.org/pypi/poster) to be able to upload files.")
-                
-                    handlers = [psh.StreamingHTTPHandler, psh.StreamingHTTPRedirectHandler, psh.StreamingHTTPSHandler]
-                    opener = urllib2.build_opener(*handlers)
-                    datagen, headers = poster.encode.multipart_encode(data)
-                    request = urllib2.Request(root+command, datagen, headers)
-                else:
-                    request = urllib2.Request(root+command, urllib.urlencode(data))
-            else:
-                request = urllib2.Request(root+command)
+    def _server_request(self, root, command, data, files, repeat=2, raw=False):
+        import requests
+        req = requests.Session()
+        a = requests.adapters.HTTPAdapter(max_retries=repeat)
+        req.mount('https://', a)
+        req.mount('http://', a)
 
-            #directy add authorization headers
-            if self._authen():
-                auth = base64.encodestring('%s:%s' % (self.username, self.password))[:-1] 
-                request.add_header('Authorization', 'Basic %s' % auth ) # Add Auth header to request
+        auth = None
+        if self._authen():
+            auth = (self.username, self.password)
 
-            return opener.open(request, timeout=timeout)
-
-        if repeat <= 0:
-            return do()
+        if data:
+            ans = req.post(root+command, data=data, files=files, auth=auth, verify=False, timeout=timeout, stream=True)
         else:
-            try:
-                return do()
-            except:
-                return self._server_request(root, command, data, repeat=repeat-1)
+            ans = req.get(root+command, auth=auth, verify=False, timeout=timeout, stream=True)
+
+        return str(ans.text) if not raw else ans.raw
     
-    def _handle(self, command, data):
+    def _handle(self, command, data, files=None, raw=False):
         data2 = self._addAccessCode(data)
         addr = self.publicroot
         if self._authen():
             addr = self.secureroot
-        return self._server_request(addr, command, data)
+        return self._server_request(addr, command, data, files, raw=raw)
 
-    def _open(self, command, data):
-        return self._handle(command, data).read()
+    def _open(self, command, data, files=None):
+        return self._handle(command, data, files)
 
     def _addAccessCode(self, data):
         if self.access_code != None:
@@ -533,7 +510,8 @@ def download(domain, filename, serverfiles=None, callback=None,
     specialtags = dict([tag.split(":") for tag in info["tags"] if tag.startswith("#") and ":" in tag])
     extract = extract and ("#uncompressed" in specialtags or "#compression" in specialtags)
     target = localpath(domain, filename)
-    callback = DownloadProgress(filename, int(info["size"])) if verbose and not callback else callback    
+    if ConsoleProgressBar:
+        callback = DownloadProgress(filename, int(info["size"])) if verbose and not callback else callback    
     serverfiles.download(domain, filename, target + ".tmp" if extract else target, callback=callback)
     
     #file saved, now save info file
@@ -562,7 +540,7 @@ def download(domain, filename, serverfiles=None, callback=None,
         f.close()
         os.remove(target + ".tmp")
 
-    if type(callback) == DownloadProgress:
+    if ConsoleProgressBar and type(callback) == DownloadProgress:
         callback.finish()
 
 
@@ -616,8 +594,8 @@ def remove(domain, filename):
                 shutil.rmtree(path)
             elif os.path.isfile(path):
                 os.remove(path)
-        except OSError, ex:
-            print "Failed to delete", path, "due to:", ex
+        except OSError as ex:
+            print("Failed to delete", path, "due to:", ex)
     
 def remove_domain(domain, force=False):
     """Remove a domain. If force is True, domain is removed even 
@@ -744,59 +722,61 @@ def sizeformat(size):
     return "%.1f PB" % size
 
 
-class DownloadProgress(ConsoleProgressBar):
-    redirect = None
-    lock = threading.RLock()
+if ConsoleProgressBar:
 
-    def __init__(self, filename, size):
-        print "Downloading", filename
-        ConsoleProgressBar.__init__(self, "progress:", 20)
-        self.size = size
-        self.starttime = time.time()
-        self.speed = 0.0
+    class DownloadProgress(ConsoleProgressBar):
+        redirect = None
+        lock = threading.RLock()
 
-    def sizeof_fmt(self, num):
-        return sizeformat(num)
+        def __init__(self, filename, size):
+            print("Downloading", filename)
+            ConsoleProgressBar.__init__(self, "progress:", 20)
+            self.size = size
+            self.starttime = time.time()
+            self.speed = 0.0
 
-    def getstring(self):
-        elapsed = max(time.time() - self.starttime, 0.1)
-        speed = max(int(self.state * self.size / 100.0 / elapsed), 1)
-        eta = (100 - self.state) * self.size / 100.0 / speed
-        return ConsoleProgressBar.getstring(self) + \
-               "  %s  %12s/s  %3i:%02i ETA" % (self.sizeof_fmt(self.size),
-                                               self.sizeof_fmt(speed),
-                                               eta / 60, eta % 60)
+        def sizeof_fmt(self, num):
+            return sizeformat(num)
 
-    def __call__(self, *args, **kwargs):
-        ret = ConsoleProgressBar.__call__(self, *args, **kwargs)
-        if self.redirect:
-            self.redirect(self.state)
-        return ret
+        def getstring(self):
+            elapsed = max(time.time() - self.starttime, 0.1)
+            speed = max(int(self.state * self.size / 100.0 / elapsed), 1)
+            eta = (100 - self.state) * self.size / 100.0 / speed
+            return ConsoleProgressBar.getstring(self) + \
+                   "  %s  %12s/s  %3i:%02i ETA" % (self.sizeof_fmt(self.size),
+                                                   self.sizeof_fmt(speed),
+                                                   eta / 60, eta % 60)
 
-    class RedirectContext(object):
-        def __enter__(self):
-            DownloadProgress.lock.acquire()
-            return DownloadProgress
+        def __call__(self, *args, **kwargs):
+            ret = ConsoleProgressBar.__call__(self, *args, **kwargs)
+            if self.redirect:
+                self.redirect(self.state)
+            return ret
 
-        def __exit__(self, ex_type, value, tb):
-            DownloadProgress.redirect = None
-            DownloadProgress.lock.release()
+        class RedirectContext(object):
+            def __enter__(self):
+                DownloadProgress.lock.acquire()
+                return DownloadProgress
+
+            def __exit__(self, ex_type, value, tb):
+                DownloadProgress.redirect = None
+                DownloadProgress.lock.release()
+                return False
+
+        @classmethod
+        def setredirect(cls, redirect):
+            cls.redirect = staticmethod(redirect)
+            return cls.RedirectContext()
+
+        @classmethod
+        def __enter__(cls):
+            cls.lock.acquire()
+            return cls
+
+        @classmethod
+        def __exit__(cls, exc_type, exc_value, traceback):
+            cls.lock.release()
             return False
-
-    @classmethod
-    def setredirect(cls, redirect):
-        cls.redirect = staticmethod(redirect)
-        return cls.RedirectContext()
-
-    @classmethod
-    def __enter__(cls):
-        cls.lock.acquire()
-        return cls
-
-    @classmethod
-    def __exit__(cls, exc_type, exc_value, traceback):
-        cls.lock.release()
-        return False
 
 
 def consoleupdate(domains=None, searchstr="essential"):
@@ -805,47 +785,47 @@ def consoleupdate(domains=None, searchstr="essential"):
     info = dict((d, sf.allinfo(d)) for d in domains)
     def searchmenu():
         def printmenu():
-            print "\tSearch tags:", search
-            print "\t1. Add tag."
-            print "\t2. Clear tags."
-            print "\t0. Return to main menu."
-            return raw_input("\tSelect option:")
+            print("\tSearch tags:", search)
+            print("\t1. Add tag.")
+            print("\t2. Clear tags.")
+            print("\t0. Return to main menu.")
+            return six.input("\tSelect option:")
         search = searchstr
         while True:
             response = printmenu().strip()
             if response == "1":
-                search += " " + raw_input("\tType new tag/tags:")
+                search += " " + six.input("\tType new tag/tags:")
             elif response == "2":
                 search = ""
             elif response == "0":
                 break
             else:
-                print "\tUnknown option!"
+                print("\tUnknown option!")
         return search
 
     def filemenu(searchstr=""):
         files = [None]
         for i, (dom, file) in enumerate(sf.search(searchstr.split())):
-            print "\t%i." % (i + 1), info[dom][file]["title"]
+            print("\t%i." % (i + 1), info[dom][file]["title"])
             files.append((dom, file))
-        print "\t0. Return to main menu."
-        print "\tAction: d-download (e.g. 'd 1' downloads first file)"
+        print("\t0. Return to main menu.")
+        print("\tAction: d-download (e.g. 'd 1' downloads first file)")
         while True:
-            response = raw_input("\tAction:").strip()
+            response = six.input("\tAction:").strip()
             if response == "0":
                 break
             try:
                 action, num = response.split(None, 1)
                 num = int(num)
-            except Exception, ex:
+            except Exception as ex:
                 print("Unknown option!")
                 continue
             try:
                 if action.lower() == "d":
                     download(*(files[num]))
-                    print "\tSuccsessfully downloaded", files[num][-1]
-            except Exception, ex:
-                print "Error occured!", ex
+                    print("\tSuccsessfully downloaded", files[num][-1])
+            except Exception as ex:
+                print("Error occured!", ex)
 
     def printmenu():
         print("Update database main menu:")
@@ -854,7 +834,7 @@ def consoleupdate(domains=None, searchstr="essential"):
         print("3. Print all available files.")
         print("4. Update all local files.")
         print("0. Exit.")
-        return raw_input("Select option:")
+        return six.input("Select option:")
     
     while True:
         try:
@@ -870,9 +850,9 @@ def consoleupdate(domains=None, searchstr="essential"):
             elif response == "0":
                 break
             else:
-                print "Unknown option!"
-        except Exception, ex:
-            print "Error occured:", ex
+                print("Unknown option!")
+        except Exception as ex:
+            print("Error occured:", ex)
 
 def update_local_files(verbose=True):
     sf = ServerFiles()
@@ -881,7 +861,7 @@ def update_local_files(verbose=True):
         if not uptodate:
             download(domain, filename, sf)
         if verbose:
-            print filename, "Ok" if uptodate else "Updated"
+            print(filename, "Ok" if uptodate else "Updated")
 
 def update_by_tags(tags=["essential"], domains=[], verbose=True):
     sf = ServerFiles()
@@ -895,18 +875,18 @@ def update_by_tags(tags=["essential"], domains=[], verbose=True):
         if not uptodate:
             download(domain, filename, sf)
         if verbose:
-            print filename, "Ok" if uptodate else "Updated"
+            print(filename, "Ok" if uptodate else "Updated")
             
 def _example(myusername, mypassword):
 
     locallist = listfiles('test')
     for l in locallist:
-        print info('test', l)
+        print(info('test', l))
 
     s = ServerFiles()
 
-    print "testing connection - public"
-    print "AN", s.index()
+    print("testing connection - public")
+    print("AN", s.index())
 
     #login as an authenticated user
     s = ServerFiles(username=myusername, password=mypassword)
@@ -923,20 +903,23 @@ def _example(myusername, mypassword):
     print time.time() - t 
     """
 
-    print "testing connection - private"
-    print "AN", s.index()
+    print("testing connection - private")
+    print("AN", s.index())
+
+    print("domains")
+    print(s.listdomains())
 
     #create domain
     try: 
         s.create_domain("test") 
     except:
-        print "Failed to create the domain"
+        print("Failed to create the domain")
         pass
 
     files = s.listfiles('test')
-    print "Files in test", files
+    print("Files in test", files)
 
-    print "uploading"
+    print("uploading")
 
     #upload this file - save it by a different name
     s.upload('test', 'osf-test.py', 'serverfiles.py', title="NT", tags=["fkdl","fdl"])
@@ -948,26 +931,27 @@ def _example(myusername, mypassword):
 
     #list files in the domain "test"
     files = s.listfiles('test')
-    print "ALL FILES:", files
+    print("ALL FILES:", files)
 
     for f in files:
         fi = s.info('test', f) 
-        print "--------------------------------------", f
-        print "INFO", fi
-        print s.downloadFH('test', f).read()[:100] #show first 100 characters
-        print "--------------------------------------"
+        print("--------------------------------------", f)
+        print("INFO", fi)
+        print(s.downloadFH('test', f).read()[:100]) #show first 100 characters
+        print("--------------------------------------")
 
     #login as an authenticated user
     s = ServerFiles(username=myusername, password=mypassword)
 
-    print s.listdomains()
+    print(s.listdomains())
 
     s.remove('test', 'osf-test.py')
 
     s = ServerFiles()
 
-    print s.listdomains()
+    print(s.listdomains())
 
 
 if __name__ == '__main__':
-    _example(sys.argv[1], sys.argv[2])
+    #_example(sys.argv[1], sys.argv[2])
+    _example("osf", "edit123p")

@@ -1,10 +1,26 @@
 from __future__ import absolute_import, division
 
 from collections import defaultdict
-import cPickle, os, shutil, sys, StringIO, tarfile, urllib2
 
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
-from Orange.orng import orngEnviron, orngServerFiles
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from io import StringIO
+
+import  os, shutil, sys, tarfile
+
+try:
+    from Orange.utils import environ
+except ImportError:
+    from Orange.canvas.utils import environ
+
+from .utils import serverfiles
+
 
 _COMMON_NAMES = (
     ("3702",   "Arabidopsis thaliana"),
@@ -91,11 +107,9 @@ def shortname(taxid):
     "8355"  : ["frog", "african clawed frog"],
     "4577"  : ["corn", "cereal grain", "plant"]
     }
-    if taxid in names.keys():
+    if taxid in names:
         return names[taxid]
     return []
-
-default_database_path = os.path.join(orngEnviron.bufferDir, "bigfiles", "Taxonomy")
 
 class MultipleSpeciesException(Exception):
     pass
@@ -108,19 +122,19 @@ def pickled_cache(filename=None, dependencies=[], version=1, maxSize=30):
     """
     def datetime_info(domain, filename):
         try:
-            return orngServerFiles.info(domain, filename)["datetime"]
+            return serverfiles.info(domain, filename)["datetime"]
         except IOError:
-            return orngServerFiles.ServerFiles().info(domain, filename)["datetime"]
+            return serverfiles.ServerFiles().info(domain, filename)["datetime"]
             
     def cached(func):
-        default_filename = os.path.join(orngEnviron.bufferDir, func.__module__ + "_" + func.__name__ + "_cache.pickle")
+        default_filename = os.path.join(environ.buffer_dir, func.__module__ + "_" + func.__name__ + "_cache.pickle")
         def f(*args, **kwargs):
             currentVersion = tuple([datetime_info(domain, file) for domain, file in dependencies]) + (version,)
             try:
-                cachedVersion, cache = cPickle.load(open(filename or default_filename, "rb"))
+                cachedVersion, cache = pickle.load(open(filename or default_filename, "rb"))
                 if cachedVersion != currentVersion:
                     cache = {}
-            except IOError, er:
+            except IOError as er:
                 cacheVersion, cache = "no version", {}
             allArgs = args + tuple([(key, tuple(value) if type(value) in [set, list] else value)\
                                      for key, value in kwargs.items()])
@@ -129,9 +143,9 @@ def pickled_cache(filename=None, dependencies=[], version=1, maxSize=30):
             else:
                 res = func(*args, **kwargs)
                 if len(cache) > maxSize:
-                    del cache[iter(cache).next()]
+                    del cache[next(iter(cache))]
                 cache[allArgs] = res
-                cPickle.dump((currentVersion, cache), open(filename or default_filename, "wb"), protocol=cPickle.HIGHEST_PROTOCOL)
+                pickle.dump((currentVersion, cache), open(filename or default_filename, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
                 return res
         return f
 
@@ -193,9 +207,9 @@ class TextDB(object):
     @cached
     def get_entry(self, id):
         try:
-            index = self._find_all(self.entry_start_string + id + self.entry_separator_string).next()
+            index = next(self._find_all(self.entry_start_string + id + self.entry_separator_string))
         except StopIteration:
-            raise KeyError, id
+            raise KeyError(id)
         return self._get_entry_at(index)
                 
     def search(self, string):
@@ -239,19 +253,9 @@ class Taxonomy(object):
             self.Load()
             
     def Load(self):
-        try:
-            self._text = TextDB(os.path.join(default_database_path, "ncbi_taxonomy.tar.gz", "ncbi_taxonomy.db"))
-            self._info = TextDB(os.path.join(default_database_path, "ncbi_taxonomy.tar.gz", "ncbi_taxonomy_inf.db"))
-            return
-        except Exception, ex:
-            pass
-        try:
-            orngServerFiles.download("Taxonomy", "ncbi_taxonomy.tar.gz")
-            self._text = TextDB(os.path.join(default_database_path, "ncbi_taxonomy.tar.gz", "ncbi_taxonomy.db"))
-            self._info = TextDB(os.path.join(default_database_path, "ncbi_taxonomy.tar.gz", "ncbi_taxonomy_inf.db"))
-            return
-        except Exception, ex:
-            raise
+        path = serverfiles.localpath_download("Taxonomy", "ncbi_taxonomy.tar.gz")
+        self._text = TextDB(os.path.join(path, "ncbi_taxonomy.db"))
+        self._info = TextDB(os.path.join(path, "ncbi_taxonomy_inf.db"))
 
     def get_entry(self, id):
         try:
@@ -300,7 +304,6 @@ class Taxonomy(object):
     
     @staticmethod
     def ParseTaxdumpFile(file=None, outputdir=None, callback=None):
-        from cStringIO import StringIO
         import Orange.utils
         if file == None:
             so = StringIO()
@@ -330,10 +333,8 @@ class Taxonomy(object):
             id, parent, rank = line
             nodesDict[id] = (parent, rank)
         
-        name_class_codes = defaultdict(iter(range(255)).next)
-        name_class_codes["scientific name"] ## Force scientific name to be first
         if outputdir == None:
-            outputdir = default_database_path
+            outputdir = serverfiles.localpath("Taxonomy")
         text = TextDB().create(os.path.join(outputdir, "ncbi_taxonomy.db"))
         info = TextDB().create(os.path.join(outputdir, "ncbi_taxonomy_inf.db"))
         milestones = set(range(0, len(namesDict), max(int(len(namesDict)/100), 1)))
@@ -342,7 +343,8 @@ class Taxonomy(object):
             ## id, parent and rank go first
             entry = [id, parent, rank]
             ## all names and name class codes pairs follow ordered so scientific name is first
-            names = sorted(names, key=lambda (name, class_): name_class_codes[class_])
+            names = sorted(names, key=lambda x: (not x[1] == "scientific name", x[1], x[0]))
+            print(names)
             entry.extend([name for name ,class_ in names])
             info_entry = [id] + [class_ for name, class_ in names]
             text(entry)
@@ -419,7 +421,7 @@ def to_taxid(code, mapTo=None):
                     results.update(r)
                 else:
                     results.add(r)
-            except Exception, ex:
+            except Exception as ex:
                 pass
 
     if mapTo:
@@ -442,11 +444,11 @@ def ensure_downloaded(callback=None, verbose=True):
     """
     Retrieve the taxonomy database if not already downloaded.
     """
-    orngServerFiles.localpath_download("Taxonomy", "ncbi_taxonomy.tar.gz",
-                                       callback=callback, verbose=verbose)
+    serverfiles.localpath_download("Taxonomy", "ncbi_taxonomy.tar.gz",
+                                   callback=callback, verbose=verbose)
 
 
 if __name__ == "__main__":
     ids = search("Homo sapiens")
-    print ids
-    print other_names(ids[0])
+    print(ids)
+    print(other_names(ids[0]))

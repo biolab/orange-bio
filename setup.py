@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 try:
-    import distribute_setup
-    distribute_setup.use_setuptools()
+    #import distribute_setup
+    #distribute_setup.use_setuptools()
+    pass
 except ImportError:
     # For documentation we load setup.py to get version
     # so it does not matter if importing fails
