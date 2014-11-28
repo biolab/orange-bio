@@ -1,5 +1,6 @@
 import math
 import threading
+import six
 
 
 def _lngamma(z):
@@ -80,8 +81,8 @@ class Binomial(LogBin):
                 return 0.0
         try:
             return min(math.exp(self._logbin(n, k) + k * math.log(p) + (n - k) * math.log(1.0 - p)), 1.0)
-        except (OverflowError, ValueError), er:
-            print k, N, m, n
+        except (OverflowError, ValueError) as er:
+            print(k, N, m, n)
             raise
 ##        return math.exp(self._logbin(n, k) + math.log((p**k) * (1.0 - p)**(n - k)))
 
@@ -120,8 +121,8 @@ class Hypergeometric(LogBin):
             return 0.0
         try:
             return min(math.exp(self._logbin(m, k) + self._logbin(N - m, n - k) - self._logbin(N, n)), 1.0)
-        except (OverflowError, ValueError), er:
-            print k, N, m, n
+        except (OverflowError, ValueError) as er:
+            print(k, N, m, n)
             raise
 
     def p_value(self, k, N, m, n):
@@ -149,7 +150,7 @@ for m in range(2, 100000):
     c.append( c[-1] + 1.0/m)
 
 def is_sorted(l):
-    return all(l[i] <= l[i+1] for i in xrange(len(l)-1))
+    return all(l[i] <= l[i+1] for i in  six.range(len(l)-1))
 
 def FDR(p_values, dependent=False, m=None, ordered=False):
     """
