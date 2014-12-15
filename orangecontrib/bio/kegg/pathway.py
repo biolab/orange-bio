@@ -7,14 +7,12 @@ KEGG Pathway
 from __future__ import absolute_import
 
 import os
-import urllib2
+import requests
 
 import xml.parsers
 from xml.dom import minidom
 
 from contextlib import closing
-
-from Orange.utils import deprecated_attribute
 
 from . import conf
 from . import caching
@@ -69,6 +67,7 @@ class Pathway(object):
         valid = False
         local_filename = os.path.join(self.local_cache,
                                       self.pathway_id + ".xml")
+ 
         if os.path.exists(local_filename):
             mtime = os.stat(local_filename).st_mtime
             mtime = datetime.fromtimestamp(mtime)
@@ -86,11 +85,9 @@ class Pathway(object):
 
         if not valid:
             url = self.KGML_URL_FORMAT.format(pathway_id=self.pathway_id)
-            s = urllib2.urlopen(url)
-            contents = s.read()
-
-            with open(local_filename, "wb") as f:
-                f.write(contents)
+            r = requests.get(url, stream=True)
+            with open(local_filename, 'wb') as f:
+                f.write(r.raw.read())
 
         return open(local_filename, "rb")
 
@@ -107,24 +104,18 @@ class Pathway(object):
                                       self.pathway_id + ".png")
 
         if not os.path.exists(local_filename):
-            response = urllib2.urlopen(url)
-            modified_since = response.headers.get("last-modified")
-            image = response.read()
+            r = requests.get(url, stream=True)
+            modified_since = r.headers['last-modified']
+            image = r.raw.read()
         else:
-            request = urllib2.Request(url)
             with closing(self._open_last_modified_store()) as store:
                 modified_since = store.get(url, None)
 
-            request.add_header("If-Modified-Since", modified_since)
-            try:
-                response = urllib2.urlopen(request)
-            except urllib2.HTTPError, ex:
-                if ex.code == 304:
-                    return local_filename
-                else:
-                    raise
-            modified_since = response.headers.get("last-modified")
-            image = response.read()
+            r = requests.get(url, headers=dict([("If-Modified-Since", modified_since)]), stream=True)
+            if r.status_code == 304:
+                return local_filename
+            modified_since = r.headers["last-modified"]
+            image = r.raw.read()
 
         with open(local_filename, "wb") as f:
             f.write(image)
@@ -229,8 +220,6 @@ class Pathway(object):
             return [self.entry(e) for e in dom.getElementsByTagName("entry")]
         else:
             return []
-
-    entrys = deprecated_attribute("entrys", "entries")
 
     @cached_method
     def reactions(self):

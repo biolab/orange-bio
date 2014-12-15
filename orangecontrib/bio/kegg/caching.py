@@ -3,15 +3,21 @@ Caching framework for cached kegg api calls.
 
 """
 import os
-import UserDict
 import sqlite3
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 from contextlib import closing
 
 from datetime import datetime, date, timedelta
 from . import conf
 
+try:
+    from UserDict import DictMixin
+except ImportError:
+    from collections import MutableMapping as DictMixin
 
 class Store(object):
     def __init__(self):
@@ -27,7 +33,8 @@ class Store(object):
         pass
 
 
-class Sqlite3Store(Store, UserDict.DictMixin):
+class Sqlite3Store(Store, DictMixin):
+
     def __init__(self, filename):
         self.filename = filename
         self.con = sqlite3.connect(filename)
@@ -85,13 +92,27 @@ class Sqlite3Store(Store, UserDict.DictMixin):
     def close(self):
         pass
 
+    def __len__(self):
+        return None
 
-class DictStore(Store, UserDict.DictMixin):
+    def __iter__(self):
+        return None
+
+
+
+class DictStore(Store, DictMixin):
     def __init__(self):
         Store.__init__(self)
 
     def close(self):
         pass
+
+    def __len__(self):
+        return None
+
+    def __iter__(self):
+        return None
+
 
 
 class cache_entry(object):
@@ -139,7 +160,7 @@ class cached_wrapper(object):
     def invalidate_all(self):
         prefix = self.key_from_args(()).rstrip(",)")
         with self.cache_store() as store:
-            for key in store.keys():
+            for key in store:
                 if key.startswith(prefix):
                     del store[key]
 
@@ -188,7 +209,7 @@ class cached_wrapper(object):
         if isinstance(last_modified, date):
             last_modified = datetime(last_modified.year, last_modified.month,
                                      last_modified.day, 1, 1, 1)
-        elif isinstance(last_modified, basestring):
+        elif isinstance(last_modified, str):
             # Could have different format
             mtime = mtime.strftime("%Y %m %d %H %M %S")
 

@@ -4,11 +4,17 @@ obiKEGG2 configuration
 mostly just caching settings
 
 """
+from __future__ import absolute_import
 
 import os
-import ConfigParser
-from StringIO import StringIO
-from Orange.utils import serverfiles
+
+try:
+    import ConfigParser as configparser
+except ImportError:
+    import configparser
+
+from six import StringIO
+from ..utils import serverfiles
 kegg_dir = serverfiles.localpath("KEGG2")
 
 default = """
@@ -29,7 +35,7 @@ transport = urllib2
 env = dict(os.environ)
 env["kegg_dir"] = kegg_dir
 
-parser = ConfigParser.ConfigParser(env)
+parser = configparser.ConfigParser(env)
 
 
 parser.readfp(StringIO(default), "default")

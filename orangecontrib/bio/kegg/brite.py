@@ -6,9 +6,11 @@ from __future__ import absolute_import
 
 import os
 import re
-import urllib2
 
-from Orange.utils import deprecated_attribute
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
 
 from . import conf
 
@@ -30,8 +32,6 @@ class BriteEntry(object):
     def __iter__(self):
         return iter(self.entries)
 
-    entrys = deprecated_attribute("entrys", "entries")
-
 
 class Brite(BriteEntry):
     VERSION = "v1.0"
@@ -50,7 +50,7 @@ class Brite(BriteEntry):
         url = self.BRITE_URL_FORMAT.format(brite_id=brite_id)
         local_filename = os.path.join(self.local_cache, brite_id + ".keg")
         if not os.path.exists(local_filename):
-            brite = urllib2.urlopen(url).read()
+            brite = urlopen(url).read()
             with open(local_filename, "wb") as f:
                 f.write(brite)
 

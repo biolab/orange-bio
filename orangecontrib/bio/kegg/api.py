@@ -88,7 +88,7 @@ class KeggApi(object):
 
         """
         result = self.service.info(db).get()
-        return BInfo.from_text(str(result))
+        return BInfo.from_text(str(result.decode("ascii")))
 
     def find(self, db, keywords):
         """

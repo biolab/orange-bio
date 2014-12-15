@@ -150,7 +150,7 @@ for m in range(2, 100000):
     c.append( c[-1] + 1.0/m)
 
 def is_sorted(l):
-    return all(l[i] <= l[i+1] for i in  six.range(len(l)-1))
+    return all(l[i] <= l[i+1] for i in range(len(l)-1))
 
 def FDR(p_values, dependent=False, m=None, ordered=False):
     """

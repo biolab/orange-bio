@@ -54,7 +54,6 @@ from __future__ import absolute_import
 
 import os
 import sys
-import urllib2
 import threading
 
 from collections import defaultdict
@@ -62,15 +61,7 @@ from itertools import chain
 from datetime import datetime
 from contextlib import contextmanager
 
-from Orange.utils import lru_cache
-from Orange.utils import progress_bar_milestones
-from Orange.utils import (
-    deprecated_keywords, deprecated_attribute, deprecated_function_name
-)
-
-from .. import utils, taxonomy as obiTaxonomy
-obiProb = utils.stats
-
+from .. import utils, taxonomy
 from . import databases
 from . import entry
 
@@ -79,6 +70,8 @@ from .brite import BriteEntry, Brite
 from . import api
 from . import conf
 from . import pathway
+
+from functools import reduce
 
 KEGGGenome = databases.Genome
 KEGGGenes = databases.Genes
@@ -192,7 +185,7 @@ class Organism(object):
         raise NotImplementedError()
 
     def get_enriched_pathways(self, genes, reference=None,
-                              prob=obiProb.Binomial(), callback=None):
+                              prob=utils.stats.Binomial(), callback=None):
         """
         Return a dictionary with enriched pathways ids as keys
         and (list_of_genes, p_value, num_of_reference_genes) tuples
@@ -204,7 +197,7 @@ class Organism(object):
         reference = set(reference)
 
         allPathways = defaultdict(lambda: [[], 1.0, []])
-        milestones = progress_bar_milestones(len(genes), 100)
+        milestones = Orange.utils.progress_bar_milestones(len(genes), 100)
         pathways_db = KEGGPathways()
 
         pathways_for_gene = []
@@ -280,7 +273,6 @@ class Organism(object):
     def get_compounds_by_enzyme(self, enzyme_id):
         return self._enzymes_to_compounds.get(enzyme_id)
 
-    @deprecated_keywords({"caseSensitive": "case_sensitive"})
     def get_unique_gene_ids(self, genes, case_sensitive=True):
         """
         Return a tuple with three elements. The first is a dictionary
@@ -300,7 +292,6 @@ class Organism(object):
                 conflicting.append(gene)
         return unique, conflicting, unknown
 
-    @deprecated_function_name
     def get_genes(self):
         return self.genes
 
@@ -354,12 +345,12 @@ def organism_name_search(name):
             if ids:
                 name = ids.pop(0) if ids else name
             else:
-                raise obiTaxonomy.UnknownSpeciesIdentifier(name)
+                raise taxonomy.UnknownSpeciesIdentifier(name)
 
         try:
             return genome[name].organism_code
         except KeyError:
-            raise obiTaxonomy.UnknownSpeciesIdentifier(name)
+            raise taxonomy.UnknownSpeciesIdentifier(name)
 
 
 def pathways(org):

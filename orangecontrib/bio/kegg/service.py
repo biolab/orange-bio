@@ -3,8 +3,6 @@
 """
 from __future__ import absolute_import
 
-KEGG_WDSL = "http://soap.genome.jp/KEGG.wsdl"
-
 REST_API = "http://rest.kegg.jp/"
 
 

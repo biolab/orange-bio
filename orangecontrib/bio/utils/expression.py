@@ -2,8 +2,20 @@ from __future__ import absolute_import
 
 import numpy
 
-import orange, statc
+import Orange
 import scipy.stats
+
+try:
+    from Orange.data import Variable, ContinuousVariable, DiscreteVariable
+except ImportError:
+    Variable = Orange.feature.Descriptor
+    DiscreteVariable = Orange.feature.Discrete
+    ContinuousVariable = Orange.feature.Continuous
+   
+from numpy import median
+from functools import reduce
+
+#import statc #was used for betai and mannwhhithenyu
 
 def mean(l):
     return float(sum(l))/len(l)
@@ -14,8 +26,8 @@ class MA_pearsonCorrelation:
     attributes against class.
     """
     def __call__(self, i, data):
-        dom2 = orange.Domain([data.domain.attributes[i]], data.domain.classVar)
-        data2 = orange.ExampleTable(dom2, data)
+        dom2 = Orange.data.Domain([data.domain.attributes[i]], data.domain.class_var)
+        data2 = Orange.data.Table(dom2, data)
         a,c = data2.toNumpy("A/C")
         return numpy.corrcoef(c,a[:,0])[0,1]
 
@@ -43,17 +55,17 @@ class MA_signalToNoise:
         self.b = b
 
     def __call__(self, i, data):
-        cv = data.domain.classVar
+        cv = data.domain.class_var
         #print data.domain
 
         if self.a == None: self.a = cv.values[0]
         if self.b == None: self.b = cv.values[1]
 
         def stdev(l):
-            return statc.std(l)
+            return numpy.std(l, ddof=1)
 
         def mean(l):
-            return statc.mean(l)
+            return numpy.mean(l)
 
         def stdevm(l):
             m = mean(l)
@@ -81,12 +93,12 @@ class MA_t_test(object):
         self.b = b
         self.prob = prob
     def __call__(self, i, data):
-        cv = data.domain.classVar
+        cv = data.domain.class_var
         #print data.domain
 
         #for faster computation. to save dragging many attributes along
-        dom2 = orange.Domain([data.domain[i]], data.domain.classVar)
-        data = orange.ExampleTable(dom2, data)
+        dom2 = Orange.data.Domain([data.domain[i]], data.domain.class_var)
+        data = Orange.data.Table(dom2, data)
         i = 0
 
         if self.a == None: self.a = cv.values[0]
@@ -109,12 +121,12 @@ class MA_fold_change(object):
         self.a = a
         self.b = b
     def __call__(self, i, data):
-        cv = data.domain.classVar
+        cv = data.domain.class_var
         #print data.domain
 
         #for faster computation. to save dragging many attributes along
-        dom2 = orange.Domain([data.domain[i]], data.domain.classVar)
-        data = orange.ExampleTable(dom2, data)
+        dom2 = Orange.data.Domain([data.domain[i]], data.domain.class_var)
+        data = Orange.data.Table(dom2, data)
         i = 0
 
         if self.a == None: self.a = cv.values[0]
@@ -135,12 +147,12 @@ class MA_anova(object):
     def __init__(self, prob=False):
         self.prob = prob
     def __call__(self, i, data):
-        cv = data.domain.classVar
+        cv = data.domain.class_var
         #print data.domain
 
         #for faster computation. to save dragging many attributes along
-        dom2 = orange.Domain([data.domain[i]], data.domain.classVar)
-        data = orange.ExampleTable(dom2, data)
+        dom2 = Orange.data.Domain([data.domain[i]], data.domain.class_var)
+        data = Orange.data.Table(dom2, data)
         i = 0
 
         def avWCVal(value):
@@ -170,9 +182,10 @@ class ExpressionSignificance_Test(object):
         self.data = data
         self.useAttributeLabels = useAttributeLabels
         self.attr_labels, self.data_classes = self._data_info(data)
-        self.attributes = [attr for attr in self.data.domain.attributes if attr.varType in [orange.VarTypes.Continuous, orange.VarTypes.Discrete]]
+        self.attributes = [attr for attr in self.data.domain.attributes \
+            if isinstance(attr, (ContinuousVariable, DiscreteVariable))]
         self.classes = np.array(self.attr_labels if useAttributeLabels else self.data_classes)
-        self.keys = range(len(data)) if useAttributeLabels else self.attributes
+        self.keys = list(range(len(data))) if useAttributeLabels else self.attributes
         self.array, _, _ = data.toNumpyMA()
         if self.useAttributeLabels:
             self.array = ma.transpose(self.array)
@@ -180,7 +193,7 @@ class ExpressionSignificance_Test(object):
         self.dim = 0
         
     def _data_info(self, data):
-        return [set(attr.attributes.items()) for attr in data.domain.attributes], [ex.getclass() for ex in data] if data.domain.classVar else [None]*len(data)
+        return [set(attr.attributes.items()) for attr in data.domain.attributes], [ex.getclass() for ex in data] if data.domain.class_var else [None]*len(data)
         
     def test_indices(self, target, classes=None):
         classes = self.classes if classes is None else classes
@@ -205,7 +218,7 @@ class ExpressionSignificance_Test(object):
             if isinstance(target, list):
                 ind = [ma.nonzero(self.classes == t)[0] for t in target]
             else:
-                if isinstance(target, (basestring, orange.Variable)):
+                if isinstance(target, (str, Variable)):
                     target = set([target])
                 else:
                     assert(isinstance(target, set))
@@ -238,21 +251,21 @@ class ExpressionSignificance_TTest(ExpressionSignificance_Test):
     def __call__(self, target):
         ind1, ind2 = self.test_indices(target)
         t, pval = attest_ind(self.array[ind1, :], self.array[ind2, :], dim=self.dim)
-        return zip(self.keys,  zip(t, pval))
+        return list(zip(self.keys,  zip(t, pval)))
         
 class ExpressionSignificance_FoldChange(ExpressionSignificance_Test):
     def __call__(self, target):
         ind1, ind2 = self.test_indices(target)
         a1, a2 = self.array[ind1, :], self.array[ind2, :]
         fold = ma.mean(a1, self.dim)/ma.mean(a2, self.dim)
-        return zip(self.keys, fold)
+        return list(zip(self.keys, fold))
     
 class ExpressionSignificance_SignalToNoise(ExpressionSignificance_Test):
     def __call__(self, target):
         ind1, ind2 = self.test_indices(target)
         a1, a2 = self.array[ind1, :], self.array[ind2, :]
         stn = (ma.mean(a1, self.dim) - ma.mean(a2, self.dim)) / (ma.sqrt(ma.var(a1, self.dim)) + ma.sqrt(ma.var(a2, self.dim)))
-        return zip(self.keys, stn)
+        return list(zip(self.keys, stn))
     
 class ExpressionSignificance_ANOVA(ExpressionSignificance_Test):
     def __call__(self, target=None):
@@ -261,7 +274,7 @@ class ExpressionSignificance_ANOVA(ExpressionSignificance_Test):
         else:
             indices = []
         f, prob = aF_oneway(*[self.array[ind, :] for ind in indices], **dict(dim=0))
-        return zip(self.keys, zip(f, prob))
+        return list(zip(self.keys, zip(f, prob)))
         
 class ExpressionSignificance_ChiSquare(ExpressionSignificance_Test):
     def __call__(self, target):
@@ -275,7 +288,7 @@ class ExpressionSignificance_ChiSquare(ExpressionSignificance_Test):
             dist2.append(ma.sum(ma.ones(a2.shape) * (a2 == i), 0))
             dist[:, 0, i] = dist1[-1]
             dist[:, 1, i] = dist2[-1] 
-        return zip(self.keys, achisquare_indtest(np.array(dist), dim=1))
+        return list(zip(self.keys, achisquare_indtest(np.array(dist), dim=1)))
         
 class ExpressionSignificance_Info(ExpressionSignificance_Test):
     def __call__(self, target):
@@ -292,16 +305,17 @@ class ExpressionSignificance_Info(ExpressionSignificance_Test):
             dist[:, 1, i] = dist2[-1]
         classinfo = entropy(np.array([len(ind1), len(ind2)]))
         E = ma.sum(entropy(dist, dim=1) * ma.sum(dist, 1), 1) / ma.sum(ma.sum(dist, 1), 1)
-        return zip(self.keys, classinfo - E)
+        return list(zip(self.keys, classinfo - E))
     
 class ExpressionSignificance_MannWhitneyu(ExpressionSignificance_Test):
     def __call__(self, target):
         ind1, ind2 = self.test_indices(target)
         a, b = self.array[ind1, :], self.array[ind2, :]
 #        results = [amannwhitneyu(a[:, i],b[:, i]) for i in range(a.shape[1])]
-        results = [statc.mannwhitneyu(list(a[:, i]),list(b[:, i])) for i in range(a.shape[1])]
+        #statc version was faster
+        results = [scipy.stats.mannwhitneyu(list(a[:, i]),list(b[:, i])) for i in range(a.shape[1])]
         
-        return zip(self.keys, results)
+        return list(zip(self.keys, results))
 
 def attest_ind(a, b, dim=None):
     """ Return the t-test statistics on arrays a and b over the dim axis.
@@ -315,9 +329,9 @@ def attest_ind(a, b, dim=None):
     svar = ((n1-1)*v1+(n2-1)*v2) / df
     t = (x1-x2)/ma.sqrt(svar*(1.0/n1 + 1.0/n2))
     if t.ndim == 0:
-        return (t, statc.betai(0.5*df,0.5,df/(df+t**2)) if t is not ma.masked and df/(df+t**2) <= 1.0 else ma.masked)
+        return (t, scipy.stats.betai(0.5*df,0.5,df/(df+t**2)) if t is not ma.masked and df/(df+t**2) <= 1.0 else ma.masked)
     else:
-        prob = [statc.betai(0.5*df,0.5,df/(df+tsq)) if tsq is not ma.masked and df/(df+tsq) <= 1.0 else ma.masked  for tsq in t*t]
+        prob = [scipy.stats.betai(0.5*df,0.5,df/(df+tsq)) if tsq is not ma.masked and df/(df+tsq) <= 1.0 else ma.masked  for tsq in t*t]
         return t, prob
 
 def aF_oneway(*args, **kwargs):
@@ -337,10 +351,10 @@ def aF_oneway(*args, **kwargs):
     dfwn = bign - len(args) # + 1.0
     F = (ssbn / dfbn) / (sswn / dfwn)
     if F.ndim == 0 and dfwn.ndim == 0:
-        return (F,statc.betai(0.5 * dfwn, 0.5 * dfnum, dfwn/float(dfwn+dfnum*F)) if F is not ma.masked and dfwn/float(dfwn+dfnum*F) <= 1.0 \
+        return (F,scipy.stats.betai(0.5 * dfwn, 0.5 * dfnum, dfwn/float(dfwn+dfnum*F)) if F is not ma.masked and dfwn/float(dfwn+dfnum*F) <= 1.0 \
                 and dfwn/float(dfwn+dfnum*F) >= 0.0 else ma.masked)
     else:
-        prob = [statc.betai(0.5 * dfden, 0.5 * dfnum, dfden/float(dfden+dfnum*f)) if f is not ma.masked and dfden/float(dfden+dfnum*f) <= 1.0 \
+        prob = [scipy.stats.betai(0.5 * dfden, 0.5 * dfnum, dfden/float(dfden+dfnum*f)) if f is not ma.masked and dfden/float(dfden+dfnum*f) <= 1.0 \
             and dfden/float(dfden+dfnum*f) >= 0.0 else ma.masked for dfden, f in zip (dfwn, F)]
         return F, prob
     
@@ -372,9 +386,9 @@ def equi_n_discretization(array, intervals=5, dim=1):
     for i in range(intervals):
         cutend = cut + count / intervals + numpy.ones(len(r)) * (r > i)
         if dim == 1:
-            p = sarray[range(len(cutend)), numpy.array(cutend, dtype=int) -1]
+            p = sarray[list(range(len(cutend))), numpy.array(cutend, dtype=int) -1]
         else:
-            p = sarray[numpy.array(cutend, dtype=int) -1, range(len(cutend))]
+            p = sarray[numpy.array(cutend, dtype=int) -1, list(range(len(cutend)))]
         points.append(p.reshape(pointsshape))
         cut = cutend
     darray = ma.array(ma.zeros(array.shape) - 1, mask=array.mask)
@@ -401,7 +415,7 @@ MA - Plots
 
 Example::
     ## Load data from GEO
-    >>> data = orange.ExampleTable("GDS1210.tab")
+    >>> data = Orange.data.Table("GDS1210.tab")
     ## Split data by columns into normal and cancer subsets
     >>> cancer, normal = data_split(data, [("disease state", "cancer"), ("disease state", "normal")])
     ## Convert to numpy MaskedArrays
@@ -414,8 +428,6 @@ Example::
     
 """
 
-from Orange.orng import orngMisc
-from numpy import median
 def lowess(x, y, f=2./3., iter=3, progressCallback=None):
     """ Lowess taken from Bio.Statistics.lowess, modified to compute pairwise 
     distances inplace.
@@ -479,9 +491,9 @@ def lowess(x, y, f=2./3., iter=3, progressCallback=None):
     w **= 3
     yest = numpy.zeros(n)
     delta = numpy.ones(n)
-    milestones = orngMisc.progressBarMilestones(iter*n)
+    milestones = Orange.utils.progress_bar_milestones(iter*n)
     for iteration in range(iter):
-        for i in xrange(n):
+        for i in range(n):
             weights = delta * w[:,i]
             weights_mul_x = weights * x
             b1 = numpy.ma.dot(weights,y)
@@ -564,7 +576,7 @@ def lowess2(x, y, xest, f=2./3., iter=3, progressCallback=None):
     yest2 = numpy.zeros(nest,'f')
     delta = numpy.ones(n,'f')
     iter_count = iter*(nest + n) if iter > 1 else nest
-    milestones = orngMisc.progressBarMilestones(iter_count)
+    milestones = Orange.utils.progress_bar_milestones(iter_count)
     curr_iter = 0
     for iteration in range(iter):
         # fit xest
@@ -615,7 +627,7 @@ def example_group_indices(data, attr, values):
     the example value at `attr` attribute
     
     Example::
-        cls_ind1, cls_ind2 = example_group_indices(data, data.domain.classVar, ["Class 1", "Class 2"])
+        cls_ind1, cls_ind2 = example_group_indices(data, data.domain.class_var, ["Class 1", "Class 2"])
     """
     ret = [[] for _ in values]
     values_id = dict([(str(value), i) for i, value in enumerate(values)])
@@ -638,9 +650,9 @@ def data_group_split(data, label_groups):
     group_indices = attr_group_indices(data, label_groups)
     for indices in group_indices:
         attrs = [data.domain[i] for i in indices]
-        domain = orange.Domain(attrs, data.domain.classVar)
+        domain = Orange.data.Domain(attrs, data.domain.class_var)
         domain.addmetas(data.domain.getmetas())
-        ret.append(orange.ExampleTable(domain, data))
+        ret.append(Orange.data.Table(domain, data))
     return ret
     
     
@@ -678,12 +690,12 @@ def select_data(data, key, value, axis=1):
     indices = select_indices(data, key, value, axis)
     if axis == 0:
         examples = [data[i] for i in indices]
-        return orange.ExampleTable(data.domain, examples)
+        return Orange.data.Table(data.domain, examples)
     else:
         attrs = [data.domain[i] for i in indices]
-        domain = orange.Domain(attrs, False)
+        domain = Orange.data.Domain(attrs, False)
         domain.addmetas(data.domain.getmetas())
-        return orange.ExampleTable(domain, data)
+        return Orange.data.Table(domain, data)
     
     
 def split_data(data, groups, axis=1):
@@ -788,7 +800,7 @@ def normalize_expression_data(data, groups, axis=1, merge_function=numpy.ma.aver
     """ A helper function that normalizes expression array example table, by centering the MA plot.
     
     """
-    if isinstance(data, orange.ExampleTable):
+    if isinstance(data, Orange.data.Table):
         label_groups = [select_indices(data, key, value, axis) for key, value in groups]
         array, _, _ = data.toNumpyMA()
     
@@ -801,9 +813,9 @@ def normalize_expression_data(data, groups, axis=1, merge_function=numpy.ma.aver
     G, R = merged
     Gc, Rc = center_function(G, R)
     
-    domain = orange.Domain(data.domain.attributes, data.domain.classVar)
+    domain = Orange.data.Domain(data.domain.attributes, data.domain.class_var)
     domain.addmetas(data.domain.getmetas())
-    data = orange.ExampleTable(domain, data)
+    data = Orange.data.Table(domain, data)
     
     GFactors = Gc/G
     
@@ -849,7 +861,7 @@ def MA_zscore(G, R, window=1./5., padded=False, progressCallback=None):
         else:
             return sorted[start:end]
     
-    milestones = orngMisc.progressBarMilestones(len(sorted))
+    milestones = Orange.utils.progress_bar_milestones(len(sorted))
     for i in range(len(sorted)):
         indices = local_indices(i, sorted)
         localRatio = numpy.take(ratio, indices)
