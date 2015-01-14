@@ -50,6 +50,7 @@ OrganismSummary = namedtuple(
 
 
 def OrganismSummary_from_str(string):
+    #string = string.decode("utf8")
     return OrganismSummary(*string.split("\t"))
 
 OrganismSummary.from_str = staticmethod(OrganismSummary_from_str)

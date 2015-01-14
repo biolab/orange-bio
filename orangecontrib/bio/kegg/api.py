@@ -8,6 +8,7 @@ from datetime import datetime
 from contextlib import closing
 from operator import itemgetter
 import warnings
+import six
 
 from .service import web_service
 from .types import OrganismSummary, Definition, BInfo, Link
@@ -54,8 +55,8 @@ class KeggApi(object):
         [OrganismSummary(entry_id=T0..
 
         """
-        return map(OrganismSummary.from_str,
-                   self.service.list.organism.get().splitlines())
+        return list(map(OrganismSummary.from_str,
+                   self.service.list.organism.get().splitlines()))
 
     def list_pathways(self, organism):
         """
@@ -88,13 +89,13 @@ class KeggApi(object):
 
         """
         result = self.service.info(db).get()
-        return BInfo.from_text(str(result.decode("ascii")))
+        return BInfo.from_text(result)
 
     def find(self, db, keywords):
         """
         Search database 'db' for keywords.
         """
-        if isinstance(keywords, basestring):
+        if isinstance(keywords, six.string_types):
             keywords = [keywords]
 
         return self.service.find(db)("+".join(keywords)).get()
@@ -103,7 +104,7 @@ class KeggApi(object):
         """
         Retrieve database entries for `ids` list.
         """
-        if not isinstance(ids, basestring):
+        if not isinstance(ids, six.string_types):
             # Sequence of ids
             ids = "+".join(ids)
 
@@ -115,7 +116,7 @@ class KeggApi(object):
         tuples [(source_id, target_id), ...].
 
         """
-        if not isinstance(source, basestring):
+        if not isinstance(source, six.string_types):
             source = "+".join(source)
 
         res = self.service.conv(target_db)(source).get()
@@ -392,7 +393,7 @@ class CachedKeggApi(KeggApi):
 
     @cached_method
     def get(self, ids):
-        if not isinstance(ids, basestring):
+        if not isinstance(ids, six.string_types):
             return self._batch_get(ids)
         else:
             return KeggApi.get(self, ids)

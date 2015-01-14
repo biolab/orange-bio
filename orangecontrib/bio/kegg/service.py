@@ -12,7 +12,18 @@ def slumber_service():
     """
     import slumber
     if not hasattr(slumber_service, "_cached"):
-        slumber_service._cached = slumber.API(REST_API)
+
+        class DecodeSerializer(slumber.serialize.BaseSerializer):
+            key = "decode"
+            content_types = ["text/plain"]
+
+            def loads(self, data):
+                return str(data.decode("utf8"))
+
+        # for python 2/3 compatibility
+        serializer = slumber.serialize.Serializer(
+            default="decode", serializers=[DecodeSerializer()])
+        slumber_service._cached = slumber.API(REST_API, serializer=serializer)
     return slumber_service._cached
 
 

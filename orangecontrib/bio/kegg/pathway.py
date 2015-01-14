@@ -161,7 +161,10 @@ class Pathway(object):
 
     @cached_method
     def pathway_attributes(self):
-        return dict(self.pathway_dom().attributes.items())
+        if self.pathway_dom():
+            return dict(self.pathway_dom().attributes.items())
+        else:
+            return None
 
     @property
     def name(self):

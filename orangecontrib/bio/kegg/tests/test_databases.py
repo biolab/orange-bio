@@ -1,4 +1,5 @@
 import unittest
+import six
 
 from .. import databases
 from .. import pathway
@@ -41,7 +42,7 @@ class TestGenes(unittest.TestCase):
             self.assertIsInstance(entry, genes.ENTRY_TYPE)
             self.assertIsInstance(entry.aliases(), list)
 
-            self.assertTrue(all(isinstance(a, basestring)
+            self.assertTrue(all(isinstance(a, six.string_types)
                                 for a in entry.aliases()))
             all_entries.append(entry)
 
