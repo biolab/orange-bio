@@ -50,16 +50,16 @@ def keggGeneSets(org):
 
     genesets = []
     for id in kegg.pathways():
-        print id
         pway = obiKEGG.KEGGPathway(id)
         hier = ("KEGG","pathways")
-        gs = GeneSet(id=id,
+        if pway.pathway_attributes():
+            gs = GeneSet(id=id,
                                  name=pway.title,
                                  genes=kegg.get_genes_by_pathway(id),
                                  hierarchy=hier,
                                  organism=org,
                                  link=pway.link)
-        genesets.append(gs)
+            genesets.append(gs)
 
     return GeneSets(genesets)
 
