@@ -735,7 +735,7 @@ class STRING(PPIDatabase):
 
         pjoin = os.path.join
 
-        base_url = "http://www.string-db.org/newstring_download/"
+        base_url = "http://string-db.org/newstring_download/"
 
         def paths(flatfile):
             url = "{flatfile}.{version}/{taxid}.{flatfile}.{version}.txt.gz"
@@ -1020,7 +1020,7 @@ class STRINGDetailed(STRING):
 
         pjoin = os.path.join
 
-        base_url = "http://www.string-db.org/newstring_download/"
+        base_url = "http://string-db.org/newstring_download/"
         filename = "{taxid}.protein.links.detailed.{version}.txt.gz"
         filename = filename.format(version=version, taxid=taxid)
         url = base_url + "protein.links.detailed.{version}/" + filename
