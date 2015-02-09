@@ -20,17 +20,17 @@ construct a data set with genes in rows and samples in
 columns. Notice that the annotation about each sample is retained
 in ``.attributes``.
 
->>> import Orange.bio.geo
->>> gds = Orange.bio.geo.GDS("GDS1676")
+>>> import orangecontrib.bio.geo
+>>> gds = orangecontrib.bio.geo.GDS("GDS1676")
 >>> data = gds.getdata()
 >>> len(data)
-667
->>> data[0]
-[?, ?, -0.803, 0.128, 0.110, -2.000, -1.000, -0.358], {"gene":'EXO1'}
+717
+>>> data[200]
+[1.407, 1.268, 1.969, 1.516, 1.697, 1.609, 0.760, 0.073], {"gene":'CD70'}
 >>> data.domain.attributes[0]
-FloatVariable 'GSM63816'
+Orange.feature.Continuous 'GSM63816'
 >>> data.domain.attributes[0].attributes
-Out[191]: {'dose': '20 U/ml IL-2', 'infection': 'acute ', 'time': '1 d'}
+{'dose': '20 U/ml IL-2', 'infection': 'acute ', 'time': '1 d'}
 
 GDS classes
 ===========
@@ -38,10 +38,10 @@ GDS classes
 .. autoclass:: GDSInfo
    :members:
 
-An example with obj:`GDSInfo`::
+An example with :obj:`GDSInfo`::
 
-    >>> import Orange
-    >>> info = Orange.bio.geo.GDSInfo()
+    >>> import orangecontrib.bio.geo
+    >>> info = orangecontrib.bio.geo.GDSInfo()
     >>> info.keys()[:5]
     >>> ['GDS2526', 'GDS2524', 'GDS2525', 'GDS2522', 'GDS1618']
     >>> info['GDS2526']['title']
@@ -65,15 +65,20 @@ sets information file (:download:`geo_gds1.py <code/geo_gds1.py>`).
 
 The output of this script is::
 
-    ID: GDS10
-    Features: 39114
-    Genes: 19883
-    Organism: Mus musculus
-    PubMed ID: 11827943
+    ID:
+    GDS10
+    Features:
+    39114
+    Genes:
+    29822
+    Organism:
+    Mus musculus
+    PubMed ID:
+    11827943
     Sample types:
+      tissue (spleen, thymus)
       disease state (diabetic, diabetic-resistant, nondiabetic)
       strain (NOD, Idd3, Idd5, Idd3+Idd5, Idd9, B10.H2g7, B10.H2g7 Idd3)
-      tissue (spleen, thymus)
 
     Description:
     Examination of spleen and thymus of type 1 diabetes nonobese diabetic
@@ -89,8 +94,7 @@ samples for each label. It is (semantically) convenient to perform
 classification within sample subsets of the same type. The following
 script goes through all data sets and finds those with enough
 samples within each of the subsets for a specific type. The function
-``valid`` determines which subset types (if any) satisfy our criteria. The
-minimum number of samples in the subset was set to ``n=40``
+``valid`` determines which subset types (if any) satisfy our criteria
 (:download:`geo_gds5.py <code/geo_gds5.py>`).
 
 .. literalinclude:: code/geo_gds5.py
@@ -98,24 +102,22 @@ minimum number of samples in the subset was set to ``n=40``
 
 The requested number of samples, ``n=40``, seems to be a quite
 a stringent criteria met - at the time of writing this -
-by 35 sample subsets. The output starts with::
+by 40 data sets with 48 sample subsets. The output starts with::
 
-    GDS1611
-      genotype/variation: wild type/48, upf1 null mutant/48
-    GDS3553
-      cell type: macrophage/48, monocyte/48
-    GDS3953
-      protocol: training set/46, validation set/47
-    GDS3704
-      protocol: PUFA consumption/42, SFA consumption/42
-    GDS3890
-      agent: vehicle, control/46, TCE/48
+    GDS1292
+      tissue:raphe magnus/40, somatomotor cortex/43
+    GDS1293
+      tissue:raphe magnus/40, somatomotor cortex/41
+    GDS1412
+      protocol:no treatment/47, hormone replacement therapy/42
     GDS1490
-      other: non-neural/50, neural/100
-    GDS3622
-      genotype/variation: wild type/56, Nrf2 null/54
-    GDS3715
-      agent: untreated/55, insulin/55
+      other:non-neural/50, neural/100
+    GDS1611
+      genotype/variation:wild type/48, upf1 null mutant/48
+    GDS2373
+      gender:male/82, female/48
+    GDS2808
+      protocol:training set/44, validation set/50
 
 Let us now pick data set GDS2960 and see if we can predict the disease
 state. We will use logistic regression, and within 10-fold cross
@@ -128,7 +130,7 @@ From (:download:`geo_gds6.py <code/geo_gds6.py>`):
 The output of this script is::
     
     Samples: 101, Genes: 4068
-    AUC = 0.960
+    AUC = 0.983
 
 The AUC for this data set is very high, indicating that using these gene
 expression data it is almost trivial to separate the two classes.
