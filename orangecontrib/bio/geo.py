@@ -167,6 +167,9 @@ class GDS():
         self.verbose = verbose
         self.force_download = force_download
         self.filename = serverfiles.localpath(DOMAIN, self.gdsname + ".soft.gz")
+        d = os.path.dirname(self.filename)
+        if not os.path.exists(d):
+            os.makedirs(d)
         self._getinfo() # to get the info
         taxid = taxonomy.search(self.info["sample_organism"], exact=True)
         self.info["taxid"] = taxid[0] if len(taxid)==1 else None
