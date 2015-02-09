@@ -318,7 +318,7 @@ class GDS():
         """Convert parsed GEO format to orange, save by genes or by spots."""
         if transpose: # samples in rows
             sample2class = self.sample_to_class(sample_type)
-            cvalues = list(set(sample2class.values()))
+            cvalues = sorted(set(sample2class.values()))
             if None in cvalues:
                 cvalues.remove(None)
 
@@ -337,7 +337,7 @@ class GDS():
             spots = self.genes if report_genes else self.spots
             atts = [ContinuousVariable(name=gene) for gene in spots]
     
-            metasvar = [ DiscreteVariable(name=n, values=list(values)) 
+            metasvar = [ DiscreteVariable(name=n, values=sorted(values)) 
                 for n,values in ad.items() if n != sample_type ]
 
             X = []
