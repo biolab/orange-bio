@@ -1,22 +1,46 @@
 from __future__ import absolute_import
 
-import cPickle, gzip, os.path, re
+try:
+    import cPickle as pickle
+except:
+    import pickle
 
-import orange
-from Orange.orng import orngMisc, orngServerFiles
+import gzip, os.path, re
 
-from . import taxonomy as obiTaxonomy
+import Orange
+from .utils import serverfiles
+
+from . import taxonomy
 from collections import defaultdict
 import Orange
 
+import six
+
+import Orange.data
+
+if six.PY3:
+   from Orange.data import DiscreteVariable, ContinuousVariable, StringVariable
+else:
+    from Orange.feature import Discrete as DiscreteVariable
+    from Orange.feature import Continuous as ContinuousVariable
+    from Orange.feature import String as StringVariable
+
+OR3 = True if Orange.__version__ >= "3" else False
+
+if OR3:
+    NAN = float("nan")
+    import numpy
+else:
+    NAN = '?'
+
 def spots_mean(x):
-    vs = [v for v in x if v and v<>"?"]
-    if len(vs) == 0: return "?"
+    vs = [v for v in x if v and v!=NAN]
+    if len(vs) == 0: return NAN
     return sum(vs)/len(vs)
 
 def spots_median(x):
-    vs = [v for v in x if v and v<>"?"]
-    if len(vs) == 0: return "?"
+    vs = [v for v in x if v and v!=NAN]
+    if len(vs) == 0: return NAN
     if len(vs) % 2:
         return sorted(vs)/(len(vs)/2)
     else:
@@ -25,13 +49,13 @@ def spots_median(x):
     return sum(vs)/len(vs)
 
 def spots_min(x):
-    vs = [v for v in x if v and v<>"?"]
-    if len(vs) == 0: return "?"
+    vs = [v for v in x if v and v!=NAN]
+    if len(vs) == 0: return NAN
     return min(vs)/len(vs)
 
 def spots_max(x):
-    vs = [v for v in x if v and v<>"?"]
-    if len(vs) == 0: return "?"
+    vs = [v for v in x if v and v!=NAN]
+    if len(vs) == 0: return NAN
     return max(vs)/len(vs)
 
 p_assign = re.compile(" = (.*$)")
@@ -42,6 +66,37 @@ DOMAIN = "GEO"
 GDS_INFO_FILENAME = "gds_info.pickled"
 FTP_NCBI = "ftp.ncbi.nih.gov"
 FTP_DIR = "pub/geo/DATA/SOFT/GDS/"
+
+def create_domain(at, cl, metas):
+    if OR3:
+        return Orange.data.Domain(at, cl, metas=metas)
+    else:
+        domain  = Orange.data.Domain(at, cl)
+        if metas:
+            domain.add_metas(dict((StringVariable.new_meta_id(), ma) for ma in  metas))
+        return domain
+
+def create_table(atts, classvar, metaatts, X, Y, metas):
+    domain = create_domain(atts, classvar, metas=metaatts)
+    if OR3:
+        if Y:
+            Y = [ [ classvar.to_val(l) ] for l in Y ]
+        if metas:
+            metas = [ [ c.to_val(v) for c,v in zip(metaatts, l) ] for l in metas ]
+        data = Orange.data.Table(domain, numpy.asarray(X), Y=Y, metas=metas)
+    else:
+        insts = []
+        for i in range(len(X)):
+            if Y:
+                inst = Orange.data.Instance(domain, X[i] + [ Y[i] ])
+            else:
+                inst = Orange.data.Instance(domain, X[i])
+            if metaatts:
+                for ma,mv in zip(metaatts, metas[i]):
+                    inst[ma] = mv
+            insts.append(inst)
+        data = Orange.data.Table(domain, insts)
+    return data
 
 class GDSInfo:
 
@@ -63,11 +118,15 @@ class GDSInfo:
     """
 
     def __init__(self, force_update=False):
-        path = orngServerFiles.localpath(DOMAIN, GDS_INFO_FILENAME)
+        path = serverfiles.localpath(DOMAIN, GDS_INFO_FILENAME)
         if not os.path.exists(path) or force_update:
-            orngServerFiles.download(DOMAIN, GDS_INFO_FILENAME)
-        f = file(path, "rb")
-        self.info, self.excluded = cPickle.load(f)
+            serverfiles.download(DOMAIN, GDS_INFO_FILENAME)
+        f = open(path, "rb")
+        if six.PY3:
+            self.info, self.excluded = pickle.load(f,  encoding='latin1')
+        else:
+            self.info, self.excluded = pickle.load(f)
+
     def keys(self): return self.info.keys()
     def items(self): return self.info.items()
     def values(self): return self.info.values()
@@ -94,10 +153,7 @@ class GDS():
     GEO DataSet (samples and gene expressions). It first checks
     a local cache directory if the particular data file is
     loaded locally, else it downloads it from `NCBI's GEO FTP site
-    <ftp://ftp.ncbi.nih.gov/pub/geo/DATA/SOFT/GDS/>`_.  The compressed
-    data file resides in the cache directory afterwards 
-    (call to ``Orange.utils.serverfiles.localpath("GEO")`` reveals
-    the path of this directory).
+    <ftp://ftp.ncbi.nih.gov/pub/geo/DATA/SOFT/GDS/>`_.
 
     :param gdsname: An NCBI's ID for the data set in the form "GDSn"
       where "n" is a GDS ID number.
@@ -110,32 +166,42 @@ class GDS():
         self.gdsname = gdsname
         self.verbose = verbose
         self.force_download = force_download
-        self.filename = orngServerFiles.localpath(DOMAIN, self.gdsname + ".soft.gz")
+        self.filename = serverfiles.localpath(DOMAIN, self.gdsname + ".soft.gz")
         self._getinfo() # to get the info
-        taxid = obiTaxonomy.search(self.info["sample_organism"], exact=True)
+        taxid = taxonomy.search(self.info["sample_organism"], exact=True)
         self.info["taxid"] = taxid[0] if len(taxid)==1 else None
         self._getspotmap() # to get gene->spot and spot->gene mapping
-        self.genes = self.gene2spots.keys()
+        self.genes = sorted(self.gene2spots.keys())        
+        self.spots = sorted(self.spot2gene.keys())        
         self.info["gene_count"] = len(self.genes)
         self.gdsdata = None
         self.data = None
         
     def _download(self):
         """Download GDS data file if not in local cache or forced download requested."""
-        localpath = orngServerFiles.localpath(DOMAIN)
+        localpath = serverfiles.localpath(DOMAIN)
         if self.force_download or not os.path.exists(self.filename):
             base_url = ("ftp://{FTP_NCBI}/{FTP_DIR}"
                         .format(FTP_NCBI=FTP_NCBI, FTP_DIR=FTP_DIR))
-
-            Orange.utils.wget(base_url + self.gdsname + ".soft.gz", localpath,
-                              progress=self.verbose)
+            url = base_url + self.gdsname + ".soft.gz"
+            if six.PY2:
+                Orange.utils.wget(url, localpath, progress=self.verbose)
+            else:
+                targetfn = os.path.join(localpath, self.gdsname + ".soft.gz")
+                import urllib.request
+                r = urllib.request.urlopen(url)
+                with open(targetfn + "2", 'wb') as f:
+                     f.write(r.read())
+                with gzip.open(targetfn + "2") as f:
+                    f.read() #verify the download
+                os.rename(targetfn + "2", targetfn)
 
     def _getinfo(self):
         """Parse GDS data file and return a dictionary with info."""
         getstate = lambda x: x.split(" ")[0][1:] 
         getid = lambda x: x.rstrip().split(" ")[2]
         self._download()
-        f = gzip.open(self.filename)
+        f = gzip.open(self.filename, "rt")
         state = None; previous_state = None
     
         info = {"subsets" : []}
@@ -178,12 +244,11 @@ class GDS():
                 break
             if line.startswith("!dataset_table_begin"):
                 state = "header"
-
         self.info = info
 
     def _getspotmap(self, include_spots=None):
         """Return gene to spot and spot to genes mapings."""
-        f = gzip.open(self.filename)
+        f = gzip.open(self.filename, "rt")
         for line in f:
             if line.startswith("!dataset_table_begin"):
                 break
@@ -205,13 +270,15 @@ class GDS():
     def sample_annotations(self, sample_type=None):
         """Return a dictionary with sample annotation."""
         annotation = {}
+        for a in self.info["samples"]:
+            annotation[a] = {}
         for info in self.info["subsets"]:
             if not sample_type or info["type"] == sample_type:
                 for id in info["sample_id"]:
-                    annotation.setdefault(id, {})[info["type"]]=info["description"]
+                    annotation[id][info["type"]]=info["description"]
         return annotation
 
-    def sample_to_class(self, sample_type=None, missing_class_value=None):
+    def sample_to_class(self, sample_type=None):
         """Return class values for GDS samples."""
         annotations = self.sample_annotations(sample_type)
         return dict([(sample, "|".join([a for t,a in sorted(ann.items())])) for sample, ann in annotations.items()])
@@ -222,8 +289,8 @@ class GDS():
     
     def _parse_soft(self, remove_unknown=None):
         """Parse GDS data, returns data dictionary."""
-        f = gzip.open(self.filename)
-        mfloat = lambda x: float(x) if x<>'null' else '?'
+        f = gzip.open(self.filename, "rt")
+        mfloat = lambda x: float(x) if x!='null' else NAN
     
         data = {}
         # find the start of the data part
@@ -244,11 +311,10 @@ class GDS():
         self.gdsdata = data
     
     def _to_ExampleTable(self, report_genes=True, merge_function=spots_mean,
-                                sample_type=None, missing_class_value=None, transpose=False):
+                                sample_type=None, transpose=False):
         """Convert parsed GEO format to orange, save by genes or by spots."""
-        orng_data = []
         if transpose: # samples in rows
-            sample2class = self.sample_to_class(sample_type, missing_class_value)
+            sample2class = self.sample_to_class(sample_type)
             cvalues = list(set(sample2class.values()))
             if None in cvalues:
                 cvalues.remove(None)
@@ -260,68 +326,53 @@ class GDS():
                 for n,v in d.items():
                     ad[n].add(v)
 
-            #select sample type if there is only one
+            #auto-select sample type if there is only one
             if len(ad) == 1: 
-                sample_type = ad.keys()[0]
+                sample_type = list(ad.keys())[0]
 
-            classvar = orange.EnumVariable(name=sample_type or "class", values=cvalues)
-            spots = self.gene2spots.keys() if report_genes else self.spot2gene.keys()
-            atts = [orange.FloatVariable(name=gene) for gene in spots]
+            classvar = DiscreteVariable(name=sample_type or "class", values=cvalues)
+            spots = self.genes if report_genes else self.spots
+            atts = [ContinuousVariable(name=gene) for gene in spots]
+    
+            metasvar = [ DiscreteVariable(name=n, values=list(values)) 
+                for n,values in ad.items() if n != sample_type ]
 
-            domain = orange.Domain(atts, classvar)
-
-            #meta attributes for sample types
-            mid = {}
-            for n,values in ad.items():
-                if n != sample_type:
-                    mid[n] = orange.newmetaid()
-                    domain.addmeta(mid[n], orange.EnumVariable(name=n, values=list(values)))
-
+            X = []
+            Y = []
+            metas = []
             for (i, sampleid) in enumerate(self.info["samples"]):
                 vals = [ ( (merge_function([self.gdsdata[spot].data[i] for spot in self.gene2spots[gene]]) )
                          if report_genes else self.gdsdata[gene].data[i] ) 
                          for gene in spots ]
-                instance = Orange.data.Instance(domain, vals + [sample2class[sampleid]])
-                for n, v in samp_ann[sampleid].items():
-                    if n != sample_type:
-                        instance[mid[n]] = v
-                orng_data.append(instance)
-
-            if missing_class_value == None:
-                orng_data = [example for example in orng_data if example[-1].value != '?']
+                X.append(vals)
+                Y.append(sample2class.get(sampleid, None))
+                metas.append([samp_ann[sampleid].get(n, None) for n,_ in ad.items() if n != sample_type ])
     
-            return orange.ExampleTable(domain, orng_data)
-    
+            return create_table(atts, classvar, metasvar, X, Y, metas)
+            
         else: # genes in rows
             annotations = self.sample_annotations(sample_type)
-            atts = [orange.FloatVariable(name=ss) for ss in self.info["samples"]]
+            atts = [ContinuousVariable(name=ss) for ss in self.info["samples"]]
             for i, a in enumerate(atts):
-                a.setattr("attributes", annotations[self.info["samples"][i]])
-            domain  = orange.Domain(atts, False)
-    
-            if report_genes: # save by genes
-                domain.addmeta(orange.newmetaid(), orange.StringVariable("gene"))
-                for g in self.gene2spots.keys():
-                    orng_data.append(map(lambda *x: merge_function(x),
-                                         *[self.gdsdata[spot].data for spot in self.gene2spots[g]]))
-            else: # save by spots
-                domain.addmeta(orange.newmetaid(), orange.StringVariable("spot"))
-                spots = self.spot2gene.keys()
-                orng_data = [self.gdsdata[spot].data for spot in spots]
-    
-            data = orange.ExampleTable(domain, orng_data)
+                setattr(a, "attributes", annotations[self.info["samples"][i]])
 
-            if report_genes:
-                for i, g in enumerate(self.gene2spots.keys()):
-                    data[i]["gene"] = g
-            else:
-                for i, s in enumerate(spots):
-                    data[i]["spot"] = s
-            return data
+            geneatname = "gene" if report_genes else "spot"
+            metasvar = [ StringVariable(geneatname) ]
+            nameval = self.genes if report_genes else self.spots
+
+            X = []
+            metas = []
+            for g in nameval:
+                if report_genes:
+                    X.append(list(map(lambda *x: merge_function(x),
+                        *[self.gdsdata[spot].data for spot in self.gene2spots[g]])))
+                else:
+                    X.append(self.gdsdata[g].data)
+            metas = [ [a] for a in nameval]
+            return create_table(atts, None, metasvar, X, None, metas)
         
     def getdata(self, report_genes=True, merge_function=spots_mean,
-                 sample_type=None, missing_class_value=None,
-                 transpose=False, remove_unknown=None):
+                 sample_type=None, transpose=False, remove_unknown=None):
         """
         Returns the GEO DataSet as an :obj:`Orange.data.Table`.
 
@@ -346,13 +397,13 @@ class GDS():
           of samples with unknown values is above the threshold set by
           ``remove_unknown``. If None, nothing is removed.
         """
-        if self.verbose: print "Reading data ..."
+        if self.verbose: print("Reading data ...")
 #        if not self.gdsdata:
         self._parse_soft(remove_unknown = remove_unknown)
 #        if remove_unknown:
             # some spots were filtered out, need to revise spot<>gene mappings
         self._getspotmap(include_spots=set(self.gdsdata.keys()))
-        if self.verbose: print "Converting to example table ..."
+        if self.verbose: print("Converting to example table ...")
         self.data = self._to_ExampleTable(merge_function=merge_function,
                                           sample_type=sample_type, transpose=transpose,
                                           report_genes=report_genes)
@@ -371,26 +422,26 @@ class GDS():
 
 def _float_or_na(x):
     if x.isSpecial():
-        return "?"
+        return NAN
     return float(x)
 
 def transpose_class_to_labels(data, attcol="sample"):
     """Converts data with genes as attributes to data with genes in rows."""
     if attcol in [v.name for v in data.domain.getmetas().values()]:
-        atts = [orange.FloatVariable(str(d[attcol])) for d in data]
+        atts = [ContinuousVariable(str(d[attcol])) for d in data]
     else:
-        atts = [orange.FloatVariable("S%d" % i) for i in range(len(data))]
+        atts = [ContinuousVariable("S%d" % i) for i in range(len(data))]
     for i, d in enumerate(data):
         atts[i].setattr("class", str(d.getclass()))
-    domain = orange.Domain(atts, False)
+    domain = Orange.data.Domain(atts, None)
     
     newdata = []
     for a in data.domain.attributes:
         newdata.append([_float_or_na(d[a]) for d in data])
 
-    gene = orange.StringVariable("gene")
-    id = orange.newmetaid()
-    new = orange.ExampleTable(domain, newdata)
+    gene = StringVariable("gene")
+    id = StringVariable.new_meta_id()
+    new = Orange.data.Table(domain, newdata)
     new.domain.addmeta(id, gene)
     for i, d in enumerate(new):
         d[gene] = data.domain.attributes[i].name
@@ -403,7 +454,7 @@ def transpose_labels_to_class(data, class_label=None, gene_label="gene"):
     if not class_label:
         l = []
         for a in data.domain.attributes:
-            l.extend(a.attributes.keys())
+            l.extend(list(a.attributes.keys()))
         l = list(set(l))
         class_label = l[0]
         if len(set(l)) > 1:
@@ -412,26 +463,26 @@ def transpose_labels_to_class(data, class_label=None, gene_label="gene"):
                           % (", ".join(l), class_label))
 
     if gene_label in [v.name for v in data.domain.getmetas().values()]:
-        atts = [orange.FloatVariable(str(d[gene_label])) for d in data]
+        atts = [ContinuousVariable(str(d[gene_label])) for d in data]
     else:
-        atts = [orange.FloatVariable("A%d" % i) for i in range(len(data))]
+        atts = [ContinuousVariable("A%d" % i) for i in range(len(data))]
         
     classvalues = list(set([a.attributes[class_label] for a in data.domain.attributes]))
     
-    if all(map(lambda x: isinstance(x, (int, long, float, complex)), classvalues)):
-        classvar = orange.FloatVariable(class_label)
+    if all([isinstance(x, (int, float, complex)) for x in classvalues]):
+        classvar = ContinuousVariable(class_label)
     else:
-        classvar = orange.EnumVariable(class_label, values=classvalues)
+        classvar = DiscreteVariable(class_label, values=classvalues)
         
-    domain = orange.Domain(atts + [classvar])
+    domain = Orange.data.Domain(atts, classvar)
     
     newdata = []
     for a in data.domain.attributes:
         newdata.append([_float_or_na(d[a]) for d in data] + [a.attributes[class_label]])
 
-    sample = orange.StringVariable("sample")
-    id = orange.newmetaid()
-    new = orange.ExampleTable(domain, newdata)
+    sample = StringVariable("sample")
+    id = StringVariable.new_meta_id()
+    new = Orange.data.Table(domain, newdata)
     new.domain.addmeta(id, sample)
     for i, d in enumerate(new):
         d[sample] = data.domain.attributes[i].name
@@ -440,7 +491,7 @@ def transpose_labels_to_class(data, class_label=None, gene_label="gene"):
 
 def transpose(data):
     """ Transposes data matrix, converts class information to attribute label and back. """
-    if data.domain.classVar:
+    if data.domain.class_var:
         return transpose_class_to_labels(data)
     else:
         return transpose_labels_to_class(data)

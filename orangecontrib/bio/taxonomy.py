@@ -21,6 +21,7 @@ except ImportError:
 
 from .utils import serverfiles
 
+import six
 
 _COMMON_NAMES = (
     ("3702",   "Arabidopsis thaliana"),
@@ -166,7 +167,7 @@ class TextDB(object):
     entry_start_string = chr(255)
     entry_end_string = chr(254)+"\n"
     entry_separator_string = chr(253)
-    
+
     @property
     def _text_lower(self):
         if id(self._text) == self._lower_text_id:
@@ -183,7 +184,10 @@ class TextDB(object):
         self.__dict__.update(kwargs)
         
         if file != None:
-            self._text = open(file, "rb").read()
+            if six.PY3:
+                self._text = open(file, "rt", encoding="latin1").read()
+            else:
+                self._text = open(file, "rb").read()
 
     def _find_all(self, string, start=0, text=None, unique=True):
         text = text if text != None else self._text_lower
