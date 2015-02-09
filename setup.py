@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
+import sys
+
 try:
-    #import distribute_setup
-    #distribute_setup.use_setuptools()
-    pass
+    if sys.version < '3':
+        import distribute_setup
+        distribute_setup.use_setuptools()
 except ImportError:
     # For documentation we load setup.py to get version
     # so it does not matter if importing fails
