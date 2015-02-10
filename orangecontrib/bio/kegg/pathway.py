@@ -69,6 +69,10 @@ class Pathway(object):
                                       self.pathway_id + ".xml")
  
         if os.path.exists(local_filename):
+            #TODO always return the item in cache
+            #the whole expiration mechanism would have to be updateda
+            valid = True
+            """
             mtime = os.stat(local_filename).st_mtime
             mtime = datetime.fromtimestamp(mtime)
             now = datetime.now()
@@ -82,6 +86,7 @@ class Pathway(object):
                 valid = (now - mtime) < timedelta(7)
             else:
                 valid = False
+            """
 
         if not valid:
             url = self.KGML_URL_FORMAT.format(pathway_id=self.pathway_id)
@@ -95,9 +100,6 @@ class Pathway(object):
         """
         Return a filename of a local copy of the pathway image
         """
-        # TODO: keep-alive (using httplib if it supports it)
-        # better to move all code to use requests package
-
         url = str(self.image)
 
         local_filename = os.path.join(self.local_cache,
@@ -108,6 +110,10 @@ class Pathway(object):
             modified_since = r.headers['last-modified']
             image = r.raw.read()
         else:
+            return local_filename
+
+            #TODO always return the item in cache
+            #the whole expiration mechanism would have to be updated
             with closing(self._open_last_modified_store()) as store:
                 modified_since = store.get(url, None)
 

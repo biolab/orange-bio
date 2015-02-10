@@ -72,10 +72,17 @@ class DBDataBase(object):
                             "class %r." % type(self).__name__)
 
         self.api = api.CachedKeggApi()
-        self.info = self.api.info(self.DB)
-        release = self.info.release
-        self.api.set_default_release(release)
+        self._info = None
+        #TODO invalidate cache by KEGG release
+        #self.api.set_default_release(self.info.release)
         self._keys = []
+
+    @property
+    def info(self): #lazy info loading
+        if not self._info:
+            self._info = self.api.info(self.DB)
+        return self._info
+
 
     def keys(self):
         """

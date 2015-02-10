@@ -14,6 +14,8 @@ from contextlib import closing
 from datetime import datetime, date, timedelta
 from . import conf
 
+import six
+
 try:
     from UserDict import DictMixin
 except ImportError:
@@ -57,11 +59,12 @@ class Sqlite3Store(Store, DictMixin):
             WHERE key=?
         """, (key,))
         r = cur.fetchall()
-
         if not r:
             raise KeyError(key)
         else:
-            pickle_str = str(r[0][0])
+            pickle_str = r[0][0]
+            if not six.PY3:
+                pickle_str = str(pickle_str)
             try:
                 return pickle.loads(pickle_str)
             except Exception:
