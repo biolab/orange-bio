@@ -35,7 +35,7 @@ Orange.feature.Continuous 'GSM63816'
 GDS classes
 ===========
 
-.. autoclass:: GDSInfo
+.. autoclass:: orangecontrib.bio.geo.GDSInfo
    :members:
 
 An example with :obj:`GDSInfo`::
@@ -49,7 +49,7 @@ An example with :obj:`GDSInfo`::
     >>> info['GDS2526']['platform_organism']
     'Homo sapiens'
 
-.. autoclass:: GDS
+.. autoclass:: orangecontrib.bio.geo.GDS
    :members:
 
 
