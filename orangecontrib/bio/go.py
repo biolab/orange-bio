@@ -786,9 +786,6 @@ class Annotations(object):
         """
         code = organism_name_search(org)
 
-        print "CODE: %s" % code
-        print "ORG: %s" % org
-
         filename = "gene_association.%s.tar.gz" % code
 
         path = serverfiles.localpath("GO", filename)
