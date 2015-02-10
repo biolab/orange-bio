@@ -1,4 +1,4 @@
-.. py:currentmodule:: Orange.bio.geo
+.. py:currentmodule:: orangecontrib.bio.geo
 
 .. index:: NCBI
 .. index:: GEO
