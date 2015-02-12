@@ -17,7 +17,7 @@ import  os, shutil, sys, tarfile
 try:
     from Orange.utils import environ
 except ImportError:
-    from Orange.canvas.utils import environ
+    from .utils import environ
 
 from .utils import serverfiles
 
