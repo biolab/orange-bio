@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division
 
+import warnings
 from collections import defaultdict
 
 try:
@@ -118,25 +119,47 @@ class MultipleSpeciesException(Exception):
 class UnknownSpeciesIdentifier(Exception):
     pass
 
-def pickled_cache(filename=None, dependencies=[], version=1, maxSize=30):
-    """ Return a cache function decorator. 
+
+def pickled_cache(filename=None, dependencies=[], version=1, maxSize=30,
+                  pickleprotocol=pickle.HIGHEST_PROTOCOL):
+    """Return a persistent cache function decorator.
     """
     def datetime_info(domain, filename):
         try:
             return serverfiles.info(domain, filename)["datetime"]
         except IOError:
             return serverfiles.ServerFiles().info(domain, filename)["datetime"]
-            
+
     def cached(func):
-        default_filename = os.path.join(environ.buffer_dir, func.__module__ + "_" + func.__name__ + "_cache.pickle")
+        pytag = "py{0}.{1}".format(*sys.version_info[:2])
+        if filename is None:
+            cache_filename = os.path.join(
+                environ.buffer_dir, func.__module__ + "_" + func.__name__ +
+                "_" + pytag + "_cache.pickle")
+        else:
+            cache_filename = filename
+
         def f(*args, **kwargs):
-            currentVersion = tuple([datetime_info(domain, file) for domain, file in dependencies]) + (version,)
+            currentVersion = tuple([datetime_info(domain, file)
+                                    for domain, file in dependencies] +
+                                    [version, pytag])
             try:
-                cachedVersion, cache = pickle.load(open(filename or default_filename, "rb"))
+                with open(cache_filename, "rb") as f:
+                    cachedVersion, cache = pickle.load(f)
+            except (OSError, IOError) as er:
+                cachedVersion, cache = "no version", {}
+            except ValueError as er:
+                # unknown pickle format
+                cachedVersion, cache = "no version", {}
+            except Exception as er:
+                warnings.warn(
+                    "An error occurred while reading cache, using empty cache",
+                    UserWarning)
+                cachedVersion, cache = "no version", {}
+            else:
                 if cachedVersion != currentVersion:
-                    cache = {}
-            except IOError as er:
-                cacheVersion, cache = "no version", {}
+                    cachedVersion, cache = "no version", {}
+
             allArgs = args + tuple([(key, tuple(value) if type(value) in [set, list] else value)\
                                      for key, value in kwargs.items()])
             if allArgs in cache:
@@ -146,11 +169,18 @@ def pickled_cache(filename=None, dependencies=[], version=1, maxSize=30):
                 if len(cache) > maxSize:
                     del cache[next(iter(cache))]
                 cache[allArgs] = res
-                pickle.dump((currentVersion, cache), open(filename or default_filename, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+                try:
+                    with open(cache_filename, "wb") as f:
+                        pickle.dump((currentVersion, cache), f,
+                                    protocol=pickleprotocol)
+                except (OSError, IOError) as err:
+                    pass
+
                 return res
         return f
 
     return cached
+
 
 def cached(func):
     """Cached one arg method
