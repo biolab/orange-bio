@@ -10,25 +10,42 @@ import os
 import tarfile
 import gzip
 import re
-import cPickle
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 import shutil
-import urllib2
+
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
+    
 import warnings
 
 from gzip import GzipFile
 from collections import defaultdict
 from operator import attrgetter
 
-from Orange.utils import \
-    deprecated_keywords, deprecated_members, progress_bar_milestones, \
-    serverfiles, environ
+try:
+    from Orange.utils import progress_bar_milestones
+except ImportError:
+    progress_bar_milestones = False
 
+try:
+    from Orange.utils import environ
+except ImportError:
+    from .utils import environ
+
+
+from .utils import serverfiles
 from .utils import stats
 
 from . import gene as obiGene, taxonomy as obiTaxonomy
 
 default_database_path = os.path.join(serverfiles.localpath(), "GO")
-
 
 _CVS_REVISION_RE = re.compile(r"^(rev)?(\d+\.\d+)+$")
 
@@ -148,9 +165,6 @@ domain: OBO:TERM
 definition: Indicates that a term is the intersection of several others [OBO:defs]"""]
 
 
-@deprecated_members({"ParseStanza": "parse_stanza",
-                     "GetRelatedObjcts": "related_objects",
-                     "relatedTo": "related_to"})
 class OBOObject(object):
     """Represents a generic OBO object (e.g. Term, Typedef, Instance, ...)
     Example:
@@ -248,18 +262,6 @@ class Instance(OBOObject):
     pass
 
 
-@deprecated_members(
-    {"ParseFile": "parse_file", "slimsSubset": "slims_subset",
-     "GetDefinedSlimsSubsets": "defined_slim_subsets",
-     "SetSlimSubsets": "set_slim_subsets",
-     "GetSlimsSubset": "named_slims_subset",
-     "GetSlimTerms": "slims_for_term",
-     "ExtractSuperGraph": "extract_super_graph",
-     "ExtractSubGraph": "extract_sub_graph",
-     "GetTermDepth": "term_depth",
-     "aliasMapper": "alias_mapper",
-     "reverseAliasMapper": "reverse_alias_mapper"},
-    wrap_methods=[])
 class Ontology(object):
     """
     :class:`Ontology` is the class representing a gene ontology.
@@ -282,7 +284,6 @@ class Ontology(object):
     """
     version = 1
 
-    @deprecated_keywords({"progressCallback": "progress_callback"})
     def __init__(self, filename=None, progress_callback=None, rev=None):
         self.terms = {}
         self.typedefs = {}
@@ -315,7 +316,6 @@ class Ontology(object):
             self.parse_file(filename, progress_callback)
 
     @classmethod
-    @deprecated_keywords({"progressCallback": "progress_callback"})
     def load(cls, progress_callback=None):
         """ A class method that tries to load the ontology file from
         default_database_path. It looks for a filename starting with
@@ -331,7 +331,6 @@ class Ontology(object):
 
     Load = load
 
-    @deprecated_keywords({"progressCallback": "progress_callback"})
     def parse_file(self, file, progress_callback=None):
         """ Parse the file. file can be a filename string or an open filelike
         object. The optional progressCallback will be called with a single
@@ -525,7 +524,6 @@ class Ontology(object):
         return termid in self.terms or termid in self.alias_mapper
 
     @staticmethod
-    @deprecated_keywords({"progressCallback": "progress_callback"})
     def download_ontology(file, progress_callback=None):
         tFile = tarfile.open(file, "w:gz") if isinstance(file, basestring) \
                 else file
@@ -548,14 +546,13 @@ class Ontology(object):
     DownloadOntology = download_ontology
 
     @staticmethod
-    @deprecated_keywords({"progressCallback": "progress_callback"})
     def download_ontology_at_rev(rev, filename=None, progress_callback=None):
         url = "http://cvsweb.geneontology.org/cgi-bin/cvsweb.cgi/~checkout~/go/ontology/gene_ontology_edit.obo?rev=%s" % rev
         url += ";content-type=text%2Fplain"
         if filename is None:
             filename = os.path.join(default_database_path,
                                     "gene_ontology_edit@rev%s.obo" % rev)
-        r = urllib2.urlopen(url)
+        r = urlopen(url)
 
         with open(filename + ".part", "wb") as f:
             shutil.copyfileobj(r, f)
@@ -618,21 +615,6 @@ class AnnotationRecord(_AnnotationRecordBase):
         return list(map(intern, self.DB_Object_Synonym.split("|")))
 
 
-@deprecated_members(
-    {"GetOntology": "get_ontology", "SetOntology": "set_ontology",
-     "ParseFile": "parse_file", "AddAnnotation": "add_annotation",
-     "GetGeneNamesTranslator": "get_gene_names_translator",
-     "GetAllAnnotations": "get_all_annotations",
-     "GetAllGenes": "get_all_genes",
-     "GetEnrichedTerms": "get_enriched_terms",
-     "GetAnnotatedTerms": "get_annotated_terms",
-     "DrawEnrichmentGraph": "draw_enrichment_graph",
-     "geneNamesDict": "gene_names_dict", "geneNames": "gene_names",
-     "aliasMapper": "alias_mapper",
-     "allAnnotations": "all_annotations",
-     "geneAnnotations": "gene_annotations",
-     "termAnnotations": "term_annotations"},
-    wrap_methods=[])
 class Annotations(object):
     """
     :class:`Annotations` object holds the annotations.
@@ -655,7 +637,6 @@ class Annotations(object):
     """
     version = 2
 
-    @deprecated_keywords({"progressCallback": "progress_callback"})
     def __init__(self, filename_or_organism=None, ontology=None, genematcher=None,
                  progress_callback=None, rev=None):
         self.ontology = ontology
@@ -778,7 +759,6 @@ class Annotations(object):
             self.ontology = Ontology()
 
     @classmethod
-    @deprecated_keywords({"progressCallback": "progress_callback"})
     def load(cls, org, ontology=None, genematcher=None,
              progress_callback=None):
         """A class method that tries to load the association file for the
@@ -802,7 +782,6 @@ class Annotations(object):
 
     Load = load
 
-    @deprecated_keywords({"progressCallback": "progress_callback"})
     def parse_file(self, file, progress_callback=None):
         """Parse and load the annotations from file.
 
@@ -938,7 +917,6 @@ class Annotations(object):
             self.all_annotations[id] = annot_set
         return self.all_annotations[id]
 
-    @deprecated_keywords({"evidenceCodes": "evidence_codes"})
     def get_all_genes(self, id, evidence_codes=None):
         """ Return a list of genes annotated by specified `evidence_codes`
         to GO term 'id' and all it's subterms."
@@ -955,9 +933,6 @@ class Annotations(object):
         return list(set([ann.geneName for ann in annotations
                          if ann.Evidence_Code in evidence_codes]))
 
-    @deprecated_keywords({
-        "evidenceCodes": "evidence_codes", "slimsOnly": "slims_only",
-        "useFDR": "use_fdr", "progressCallback": "progress_callback"})
     def get_enriched_terms(self, genes, reference=None, evidence_codes=None,
                            slims_only=False, aspect=None,
                            prob=stats.Binomial(), use_fdr=True,
@@ -1047,16 +1022,12 @@ class Annotations(object):
             if progress_callback and i in milestones:
                 progress_callback(100.0 * i / len(terms))
         if use_fdr:
-            res = sorted(res.items(), key=lambda (_1, (_2, p, _3)): p)
+            res = sorted(res.items(), key=lambda x: x[1][1])
             res = dict([(id, (genes, p, ref))
                         for (id, (genes, _, ref)), p in
                         zip(res, stats.FDR([p for _, (_, p, _) in res]))])
         return res
 
-    @deprecated_keywords(
-        {"directAnnotationOnly": "direct_annotation_only",
-         "evidenceCodes": "evidence_codes",
-         "progressCallback": "progress_callback"})
     def get_annotated_terms(self, genes, direct_annotation_only=False,
                             evidence_codes=None, progress_callback=None):
         """Return all terms that are annotated by genes with evidence_codes.
@@ -1089,8 +1060,6 @@ class Annotations(object):
                                  for ann in termAnnots])
         return dict(dd)
 
-    @deprecated_keywords(
-        {"clusterSize": "cluster_size", "refSize": "ref_size"})
     def draw_enrichment_graph(self, terms, cluster_size, ref_size=None,
                               file="graph.png", width=None, height=None,
                               precison=3):
@@ -1174,7 +1143,6 @@ class Annotations(object):
     RemapGenes = remap_genes
 
     @staticmethod
-    @deprecated_keywords({"progressCallback": "progress_callback"})
     def download_annotations(org, file, progress_callback=None):
         if isinstance(file, basestring):
             tFile = tarfile.open(file, "w:gz")
@@ -1203,7 +1171,7 @@ class Annotations(object):
                   "gene_association")
         annotation = Annotations(os.path.join(tmpDir, "gene_association." + org),
                     genematcher=obiGene.GMDirect(), progress_callback=progress_callback)
-        cPickle.dump(annotation.gene_names, open(os.path.join(tmpDir, "gene_names.pickle"), "wb"))
+        pickle.dump(annotation.gene_names, open(os.path.join(tmpDir, "gene_names.pickle"), "wb"))
         tFile.add(os.path.join(tmpDir, "gene_names.pickle"), "gene_names.pickle")
         tFile.close()
         os.remove(os.path.join(tmpDir, "gene_association." + org))
@@ -1212,7 +1180,6 @@ class Annotations(object):
     DownloadAnnotations = download_annotations
 
     @staticmethod
-    @deprecated_keywords({"progressCallback": "progress_callback"})
     def download_annotations_at_rev(org, rev, filename=None,
                                     progress_callback=None):
         if filename is None:
@@ -1222,7 +1189,7 @@ class Annotations(object):
         url = ("http://cvsweb.geneontology.org/cgi-bin/cvsweb.cgi/~checkout~/go/gene-associations/gene_association.%s.gz?rev=%s" %
                (org, rev))
         url += ";content-type=application%2Fx-gzip"
-        r = urllib2.urlopen(url)
+        r = urlopen(url)
 
         with open(filename + ".part", "wb") as f:
             shutil.copyfileobj(r, f)
@@ -1240,35 +1207,32 @@ def organism_name_search(name):
     return Annotations.organism_name_search(name)
 
 
-@deprecated_keywords({"maxPValue": "p_value"})
 def filter_by_p_value(terms, p_value=0.01):
     """ Filters the terms by the p-value. Assumes terms is a dict with
     the same structure as returned from get_enriched_terms.
 
     """
-    return dict(filter(lambda (k, e): e[1] <= p_value, terms.items()))
+    return dict(filter(lambda x: x[1][1] <= p_value, terms.items()))
 
 filterByPValue = filter_by_p_value
 
 
-@deprecated_keywords({"minF": "min_freq"})
 def filter_by_frequency(terms, min_freq=2):
     """ Filters the terms by the cluster frequency. Asumes terms is
     a dict with the same structure as returned from get_enriched_terms.
 
     """
-    return dict(filter(lambda (k, e): len(e[0]) >= min_freq, terms.items()))
+    return dict(filter(lambda x: x[1][0] >= min_freq, terms.items()))
 
 filterByFrequency = filter_by_frequency
 
 
-@deprecated_keywords({"minF": "min_freq"})
 def filter_by_ref_frequency(terms, min_freq=4):
     """ Filters the terms by the reference frequency. Assumes terms is
     a dict with the same structure as returned from get_enriched_terms.
 
     """
-    return dict(filter(lambda (k, e): e[2] >= min_freq, terms.items()))
+    return dict(filter(lambda x: x[1][2] >= min_freq, terms.items()))
 
 filterByRefFrequency = filter_by_ref_frequency
 
@@ -1529,10 +1493,10 @@ class Taxonomy(object):
         if not self.tax:
             path = serverfiles.localpath_download("GO", "taxonomy.pickle")
             if os.path.isfile(path):
-                self.tax = cPickle.load(open(path, "rb"))
+                self.tax = pickle.load(open(path, "rb"))
             else:
                 serverfiles.download("GO", "taxonomy.pickle")
-                self.tax = cPickle.load(open(path, "rb"))
+                self.tax = pickle.load(open(path, "rb"))
 
     def __getitem__(self, key):
         key = self.common_org_map.get(key, key)
@@ -1564,7 +1528,7 @@ def _test2():
         a.get_enriched_terms(genes, aspect=["P"])
         a.get_enriched_terms(genes, aspect=["C"])
         a.get_enriched_terms(genes, aspect=["F"])
-        print i
+        print(i)
 
     terms = a.get_enriched_terms(clusterGenes, aspect=["P"])
     a.get_annotated_terms(clusterGenes)
@@ -1581,7 +1545,7 @@ def _test3():
 
     terms = a.get_enriched_terms(exonMap.values()[0][:2] + exonMap.values()[-1][2:])
 
-    print terms
+    print(terms)
 
     a.draw_enrichment_graph(filterByPValue(terms, maxPValue=0.1), len(clusterGenes), len(a.gene_names))
 

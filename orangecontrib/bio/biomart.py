@@ -24,7 +24,10 @@ from operator import itemgetter
 from contextlib import closing
 from xml.dom import pulldom
 
-from Orange.utils import environ
+try:
+    from Orange.utils import environ
+except ImportError:
+    from .utils import environ
 
 class BioMartError(Exception):
     pass
@@ -220,7 +223,6 @@ DEFAULT_ADDRESS = "http://www.biomart.org/biomart/martservice"
 
 DATA_CACHE = os.path.join(environ.buffer_dir, "biomart-data.cache.db")
 META_CACHE = os.path.join(environ.buffer_dir, "biomart-mata.cache.db")
-print(DATA_CACHE, META_CACHE)
 
 def checkBioMartServerError(response):
     if response.strip().startswith("Mart name conflict"):

@@ -12,7 +12,25 @@ from .. import biomart as obiBioMart
 
 #from . import homology
 
-default_database_path = orngServerFiles.localpath("NCBI_geneinfo")
+#python3
+try:
+    basestring
+except NameError:
+    basestring = str
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
+try:
+    from Orange.utils import environ
+except ImportError:
+    from ..utils import environ
+
+from functools import reduce
+
+default_database_path = serverfiles.localpath("NCBI_geneinfo")
 
 class GeneInfo(object):
     """ An object representing the NCBI information for a gene.
@@ -55,8 +73,8 @@ class GeneHistory(object):
     def __init__(self, line):
         for attr, value in zip(self.__slots__, line.split("\t")):
             setattr(self, attr, value)
-            
-            
+
+
 class NCBIGeneInfo(dict):
     TAX_MAP = {
             "2104": "272634",  # Mycoplasma pneumoniae
@@ -77,13 +95,9 @@ class NCBIGeneInfo(dict):
         self.taxid = self.organism_name_search(organism)
 
 
-        fname = orngServerFiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)
-        file = open(fname, "rb")
+        fname = serverfiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)
+        file = open(fname, "rt")
         self.update(dict([(line.split("\t", 3)[1], line) for line in file.read().splitlines() if line.strip() and not line.startswith("#")]))
-
-        # NOTE orig init time for gene matcher: 2.5s, new 4s: investigate the slowdown
-        # NOTE matches are not the same because aliases are build a bit
-        # differently (main name versus old aliases conflict!)
 
         self.matcher = genematcher
         if self.matcher == None:
@@ -97,7 +111,7 @@ class NCBIGeneInfo(dict):
         
     def history(self):
         if getattr(self, "_history", None) is None:
-            fname = orngServerFiles.localpath_download("NCBI_geneinfo", "gene_history.%s.db" % self.taxid)
+            fname = serverfiles.localpath_download("NCBI_geneinfo", "gene_history.%s.db" % self.taxid)
             try:
                 self._history = dict([(line.split("\t")[2], GeneHistory(line)) for line in open(fname, "rb").read().splitlines()])
                 
@@ -110,8 +124,8 @@ class NCBIGeneInfo(dict):
     def organism_version(cls, name):
         oname = cls.organism_name_search(name)
         #FIXME, dirty hack to ensure file id downloaded
-        orngServerFiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % oname) 
-        return orngServerFiles.info("NCBI_geneinfo", "gene_info.%s.db" % oname)["datetime"]
+        serverfiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % oname) 
+        return serverfiles.info("NCBI_geneinfo", "gene_info.%s.db" % oname)["datetime"]
 
     @classmethod
     def organism_name_search(cls, org):
@@ -280,18 +294,17 @@ class EnsembleGeneInfo(object):
         return dset_name, self.DEF_ATTRS
     
     def load(self):
-        import cPickle
-        dir = orngServerFiles.localpath("EnsembleGeneInfo")
+        dir = serverfiles.localpath("EnsembleGeneInfo")
         if not os.path.exists(dir):
             os.makedirs(dir)
         
         try:
-            filename = orngServerFiles.localpath_download("EnsembleGeneInfo", self.filename())
-            info = cPickle.load(open(filename, "rb"))
+            filename = serverfiles.localpath_download("EnsembleGeneInfo", self.filename())
+            info = pickle.load(open(filename, "rb"))
         except Exception as ex:    
-            filename = orngServerFiles.localpath("EnsembleGeneInfo", self.filename())
+            filename = serverfiles.localpath("EnsembleGeneInfo", self.filename())
             info = self.create_info()
-            cPickle.dump(info, open(filename, "wb"))
+            pickle.dump(info, open(filename, "wb"))
             
         self.info = info
         
@@ -459,9 +472,7 @@ def buffer_path():
     """ Returns buffer path from Orange's setting folder if not 
     defined differently (in gene_matcher_path). """
     if  gene_matcher_path == None:
-        from Orange.orng import orngEnviron
-        pth = os.path.join(orngEnviron.directoryNames["bufferDir"], 
-            "gene_matcher")
+        pth = os.path.join(environ.buffer_dir, "gene_matcher")
         try:
             os.makedirs(pth)
         except:
@@ -476,8 +487,6 @@ def auto_pickle(filename, version, func, *args, **kwargs):
     a file named filename. If results for a given filename AND
     version were already saved, just read and return them.
     """
-
-    import cPickle as pickle
 
     output = None
     outputOk = False
@@ -765,16 +774,15 @@ class MatcherAliasesNCBI(MatcherAliasesPickled):
         
 class MatcherAliasesAffy(MatcherAliasesPickled):
     def create_aliases(self):
-        filename = orngServerFiles.localpath_download("Affy", self.organism + ".pickle")
-        import cPickle
-        return cPickle.load(open(filename, "rb"))
+        filename = serverfiles.localpath_download("Affy", self.organism + ".pickle")
+        return pickle.load(open(filename, "rb"))
     
     def filename(self):
         return "affy_" + self.organism
     
     def create_aliases_version(self):
-        orngServerFiles.localpath_download("Affy", self.organism + ".pickle")
-        return orngServerFiles.info("Affy", self.organism + ".pickle")["datetime"]
+        serverfiles.localpath_download("Affy", self.organism + ".pickle")
+        return serverfiles.info("Affy", self.organism + ".pickle")["datetime"]
         
     def __init__(self, organism, **kwargs):
         self.organism = organism

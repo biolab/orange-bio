@@ -42,7 +42,7 @@ An example with :obj:`GDSInfo`::
 
     >>> import orangecontrib.bio.geo
     >>> info = orangecontrib.bio.geo.GDSInfo()
-    >>> info.keys()[:5]
+    >>> list(info.keys())[:5]
     >>> ['GDS2526', 'GDS2524', 'GDS2525', 'GDS2522', 'GDS1618']
     >>> info['GDS2526']['title']
     'c-MYC depletion effect on carcinoma cell lines'
