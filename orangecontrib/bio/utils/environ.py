@@ -5,7 +5,7 @@ import sys
 
 
 def _settings_dir():
-    name = "Orange"
+    name = "Orange3"
     if sys.platform == "darwin":
         return os.path.join(
             os.path.expanduser("~/Library/Application Support/"), name)
@@ -18,7 +18,7 @@ def _settings_dir():
 
 
 def _cache_dir():
-    name = "Orange"
+    name = "Orange3"
     if sys.platform == "darwin":
         return os.path.join(os.path.expanduser("~/Library/Caches"), name)
     else:
