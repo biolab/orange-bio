@@ -711,7 +711,7 @@ class MatcherAliasesGO(MatcherAliasesPickled):
     def create_aliases(self):
         from .. import obiGO
         annotations = obiGO.Annotations(self.organism, genematcher=GMDirect())
-        names = annotations.geneNamesDict
+        names = annotations.gene_names_dict
         return map(set, list(set([ \
             tuple(sorted(set([name]) | set(genes))) \
             for name,genes in names.items() ])))
@@ -977,26 +977,18 @@ def matcher(matchers, direct=True, ignore_case=True):
             seqmat.append(mat)
     return MatcherSequence(seqmat)
 
-if __name__ == '__main__':
+def _test1():
 
-    #m1 = matcher([[GMNCBI('44689'), GMDicty()]])
-    #print m1.matchers[1].aliases[:100]
-
-    #m2 = GMNCBI('Dictyostelium discoideum')
-    #print m2.aliases
-
-    """
-    gi = info(list(info)[0])
-    print gi.tax_id, gi.synonyms, gi.dbXrefs, gi.symbol_from_nomenclature_authority, gi.full_name_from_nomenclature_authority
-    """
-
-    #dobim z joinom prave stvari?
+    m1 = matcher([[GMNCBI('44689'), GMDicty()]])
+    print(m1)
+    m2 = GMNCBI('Dictyostelium discoideum')
+    print(m2)
 
     import time
-    from .. import obiGeneSets
+    import orangecontrib.bio.obiGeneSets as obiGeneSets
 
     def testsets():
-        return obiGeneSets.collections([":kegg:hsa", ":go:hsa"])
+        return obiGeneSets.collections((("KEGG",), "9606"), (("GO",), "9606"))
 
     def names1():
         import orange
@@ -1005,8 +997,8 @@ if __name__ == '__main__':
 
     def namesd():
         import orange
-        data = orange.ExampleTable("dd_ge_biorep1.tab")
-        names = [ ex["gene"].value for ex in data ]
+        data = orange.ExampleTable("dicty.tab")
+        names = [ ex["DDB"].value for ex in data ]
         return names
 
     genesets = auto_pickle("testcol", "3", testsets)
@@ -1031,7 +1023,7 @@ if __name__ == '__main__':
     mat8.set_targets(names)
 
     print("before genes")
-    genes = reduce(set.union, genesets.values()[:1000], set())
+    genes = reduce(set.union, [ g.genes for g in genesets ], set())
     genes = list(genes)
     print(genes[:20])
     print(len(genes))
@@ -1042,4 +1034,7 @@ if __name__ == '__main__':
         print("DICT", g, mat7.match(g))
         print("NCBI", g, mat8.match(g))
 
+
+if __name__ == '__main__':
+    _test1()
 

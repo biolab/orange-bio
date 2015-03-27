@@ -1,9 +1,18 @@
 import sys, os
-import urllib2
+
+try:
+    from urllib2 import urlopen
+except:
+    from urllib.request import urlopen
+
+try:
+    basestring
+except:
+    basestring = str
+
 import shutil
 import re
-import Orange
-
+from .utils import serverfiles
 from collections import defaultdict
 
 class disease(object):
@@ -22,12 +31,12 @@ class disease(object):
                                                                                 
 class OMIM(object):
     VERSION = 1
-    DEFAULT_DATABASE_PATH = Orange.utils.serverfiles.localpath("OMIM")
+    DEFAULT_DATABASE_PATH = serverfiles.localpath("OMIM")
     def __init__(self, local_database_path=None):
         self.local_database_path = local_database_path if local_database_path is not None else self.DEFAULT_DATABASE_PATH
   
         if self.local_database_path == self.DEFAULT_DATABASE_PATH:
-            filename = Orange.utils.serverfiles.localpath_download("OMIM", "morbidmap")
+            filename = serverfiles.localpath_download("OMIM", "morbidmap")
         else:
             filename = os.path.join(self.local_database_path, "morbidmap")
 
@@ -37,7 +46,7 @@ class OMIM(object):
     def download_from_NCBI(cls, file=None):
         if isinstance(file, basestring):
             file = open(file, "wb")
-        stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/repository/OMIM/ARCHIVE/morbidmap")
+        stream = urlopen("ftp://ftp.ncbi.nih.gov/repository/OMIM/ARCHIVE/morbidmap")
         shutil.copyfileobj(stream, file, length=10)
         file.close()
 

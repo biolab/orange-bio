@@ -156,7 +156,7 @@ class Organism(object):
             aliases[target_id].add(source_id.split(":", 1)[1])
 
         return [set([entry_id]).union(names)
-                for entry_id, names in aliases.iteritems()]
+                for entry_id, names in aliases.items()]
 
     def pathways(self, with_ids=None):
         """

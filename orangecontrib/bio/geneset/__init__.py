@@ -1,11 +1,20 @@
 from __future__ import absolute_import, with_statement
 
-import cPickle as pickle, os, tempfile, sys
+try:
+    import cPickle as pickle
+except :
+    import pickle
+    
+import os, tempfile, sys
 from collections import defaultdict
 import datetime
 
-import Orange.core as orange
-from Orange.orng import orngServerFiles
+from ..utils import serverfiles
+
+try:
+    from Orange.utils import environ
+except ImportError:
+    from ..utils import environ
 
 from .. import go as obiGO, kegg as obiKEGG, taxonomy as obiTaxonomy
 from .. import dicty 
@@ -13,7 +22,11 @@ obiDictyMutants = dicty.phenotypes
 from .. import omim as obiOMIM
 from .. import go as obiGO
 
-from . import transform
+try:
+    from . import transform
+except:
+    pass
+    #not yet available in Orange3
 
 sfdomain = "gene_sets"
 
@@ -209,8 +222,7 @@ def omakedirs(dir):
 def local_path():
     """ Returns local path for gene sets. Creates it if it does not exists
     yet. """
-    from Orange.orng import orngEnviron
-    pth = os.path.join(orngEnviron.directoryNames["bufferDir"], "gene_sets_local")
+    pth = os.path.join(environ.buffer_dir, "gene_sets_local")
     omakedirs(pth)
     return pth
 
@@ -256,7 +268,7 @@ def modification_date(file):
 
 def list_serverfiles_from_flist(flist):
     gs_files = filter(is_genesets_file, flist)
-    localfiles = os.listdir(orngServerFiles.localpath(sfdomain))
+    localfiles = os.listdir(serverfiles.localpath(sfdomain))
     localfiles = set(filter(is_genesets_file, localfiles))
     return [ filename_parse(fn) + \
         ((True,) if fn in localfiles else (False,)) for fn in set(gs_files) | localfiles ]
@@ -265,12 +277,12 @@ def list_serverfiles_conn(serverfiles=None):
     """ Returns available gene sets from the server files
     repository: a list of (hierarchy, organism, on_local) """
     if serverfiles == None:
-        serverfiles = orngServerFiles.ServerFiles()
+        serverfiles = serverfiles.ServerFiles()
     flist = serverfiles.listfiles(sfdomain)
     return list_serverfiles_from_flist(flist)
 
 def list_serverfiles():
-    fname = orngServerFiles.localpath_download(sfdomain, "index.pck")
+    fname = serverfiles.localpath_download(sfdomain, "index.pck")
     flist = pickle.load(open(fname, 'r'))
     return list_serverfiles_from_flist(flist)
 
@@ -295,7 +307,7 @@ def list_all(org=None, local=None):
 
 def update_server_list(serverfiles_upload, serverfiles_list=None):
     if serverfiles_list == None:
-        serverfiles_list = orngServerFiles.ServerFiles()
+        serverfiles_list = serverfiles.ServerFiles()
 
     flist = map(lambda x: filename(*x[:2]), list_serverfiles_conn(serverfiles_list))
 
@@ -307,7 +319,7 @@ def update_server_list(serverfiles_upload, serverfiles_list=None):
         tags = [ "gene sets", "index", "essential" ]
         serverfiles_upload.upload(sfdomain, fn, tfname, title, tags)
         serverfiles_upload.unprotect(sfdomain, fn)
-    except Exception,e:
+    except Exception as e:
         raise e
     finally:
         os.remove(tfname)
@@ -383,7 +395,7 @@ def load_local(hierarchy, organism):
 
 def load_serverfiles(hierarchy, organism):
     return load_fn(hierarchy, organism, list_serverfiles, 
-        lambda h,o: orngServerFiles.localpath_download(sfdomain, filename(h, o)))
+        lambda h,o: serverfiles.localpath_download(sfdomain, filename(h, o)))
 
 def load_fn(hierarchy, organism, fnlist, fnget):
     files = map(lambda x: x[:2], fnlist())
@@ -457,24 +469,24 @@ def upload_genesets(rsf):
     """
     Builds the default gene sets and
     """
-    orngServerFiles.update_local_files()
+    serverfiles.update_local_files()
 
     genesetsfn = [ keggGeneSets, goGeneSets, miRNAGeneSets]
     organisms = obiTaxonomy.common_taxids()
     for fn in genesetsfn:
         for org in organisms:
             try:
-                print "Uploading ORG", org, fn
+                print("Uploading ORG %s %s" % (org, fn))
                 genesets = fn(org).split_by_hierarchy()
                 for gs in genesets:
-                    print "registering", gs.common_hierarchy()
+                    print("registering %s" % gs.common_hierarchy())
                     register(gs, rsf) #server files
                     #register(gs)
-                    print "successful", gs.common_hierarchy()
+                    print("successful %s" % gs.common_hierarchy())
             except obiTaxonomy.UnknownSpeciesIdentifier:
-                print "Organism ontology not available", org
+                print("Organism ontology not available %s" % org)
             except GenesetRegException:
-                print "Empty gene sets.", org
+                print("Empty gene sets. %s" % org)
 
 
 def only_option(a):
@@ -651,7 +663,7 @@ class GeneSets(set):
 
 
 if __name__ == "__main__":
-    rsf = orngServerFiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
+    rsf = serverfiles.ServerFiles(username=sys.argv[1], password=sys.argv[2])
     upload_genesets(rsf)
     pass
 

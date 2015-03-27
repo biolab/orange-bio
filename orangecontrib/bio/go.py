@@ -39,6 +39,10 @@ try:
 except ImportError:
     from .utils import environ
 
+try:
+    basestring
+except NameError:
+    basestring = str
 
 from .utils import serverfiles
 from .utils import stats
@@ -715,8 +719,8 @@ class Annotations(object):
         ids = to_taxid(org)
         from . import taxonomy as tax
         if not ids:
-            ids = [org] if org in Taxonomy().common_org_map.keys() + \
-                  Taxonomy().code_map.keys() else []
+            ids = [org] if org in Taxonomy().common_org_map or \
+                org in Taxonomy().code_map.keys() else []
         if not ids:
             ids = tax.to_taxid(org, mapTo=Taxonomy().keys())
         if not ids:
@@ -1503,7 +1507,7 @@ class Taxonomy(object):
         return self.code_map[key]
 
     def keys(self):
-        return list(set(self.common_org_map.keys() + self.code_map.keys()))
+        return list(set(list(self.common_org_map.keys()) + list(self.code_map.keys())))
 
 
 def from_taxid(id):
