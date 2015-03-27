@@ -1,6 +1,19 @@
 import os
-import urllib2
-import anydbm
+try:
+    from urllib2 import HTTPError, urlopen, quote
+except ImportError:
+    from urllib.request import urlopen
+    from urllib.parse import quote
+    from urllib.error import HTTPError
+try:
+    import anydbm
+except ImportError:
+    import dbm as anydbm
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
+
 import shelve
 import itertools
 import warnings
@@ -10,10 +23,8 @@ from collections import namedtuple
 from operator import itemgetter
 from contextlib import closing
 from xml.dom import pulldom
-from StringIO import StringIO
 
 from Orange.utils import environ
-
 
 class BioMartError(Exception):
     pass
@@ -199,7 +210,7 @@ def drop_iter(generator):
                 yield generator.next()
             except StopIteration:
                 raise StopIteration
-            except Exception, ex:
+            except Exception as ex:
                 warnings.warn("An error occured during iteration:\n%s" %
                               str(ex), UserWarning, stacklevel=2)
     return list(_iter(generator))
@@ -209,7 +220,7 @@ DEFAULT_ADDRESS = "http://www.biomart.org/biomart/martservice"
 
 DATA_CACHE = os.path.join(environ.buffer_dir, "biomart-data.cache.db")
 META_CACHE = os.path.join(environ.buffer_dir, "biomart-mata.cache.db")
-
+print(DATA_CACHE, META_CACHE)
 
 def checkBioMartServerError(response):
     if response.strip().startswith("Mart name conflict"):
@@ -269,7 +280,7 @@ class BioMartConnection(object):
            kwargs.iteritems(),
            key=lambda item: order.index(item[0]) if item[0] in order else 10
         )
-        query = "&".join("%s=%s" % (key, urllib2.quote(value))
+        query = "&".join("%s=%s" % (key, quote(value))
                          for key, value in items if key != "POST")
 
         return self.address + "?" + query
@@ -292,9 +303,9 @@ class BioMartConnection(object):
 
         if not response_cached:
             try:
-                response = urllib2.urlopen(url).read()
+                response = urlopen(url).read()
                 checkBioMartServerError(response)
-            except Exception, ex:
+            except Exception as ex:
                 self._error_cache[url] = ex
                 raise ex
 
@@ -457,7 +468,7 @@ class BioMartRegistry(object):
             return [mart for mart in self.marts()
                     if name in [getattr(mart, "name", None),
                                 getattr(mart, "internalName", None)]][0]
-        except IndexError, ex:
+        except IndexError as ex:
             raise ValueError(name)
 
     def __getitem__(self, name):
@@ -610,7 +621,7 @@ class BioMartDatabase(object):
             try:
                 registry = redirect.registry()
                 connection = redirect
-            except urllib2.HTTPError, ex:
+            except HTTPError as ex:
                 warnings.warn("'%s' is not responding!, using the default "
                               "original connection. %s" %
                               (redirect.address, str(ex)))
@@ -625,7 +636,7 @@ class BioMartDatabase(object):
         try:
             datasets = self.connection.datasets(
                 mart=self.name, virtualSchema=self.virtualSchema).read()
-        except BioMartError, ex:
+        except BioMartError as ex:
             if self.virtualSchema == "default":
                 datasets = self.connection.datasets(mart=self.name).read()
             else:
@@ -1150,23 +1161,23 @@ if __name__ == "__main__":
     con = BioMartConnection("http://www.biomart.org/biomart/martservice")
     registry = BioMartRegistry(con)
     for schema in registry.virtual_schemas():
-        print "Virtual schema '%s'" % schema.name
+        print("Virtual schema '%s'" % schema.name)
         for mart in schema.databases():
-            print "\tMart: '%s' ('%s'):" % (mart.name, mart.displayName)
+            print("\tMart: '%s' ('%s'):" % (mart.name, mart.displayName))
             for dataset in mart.datasets():
-                print "\t\t Dataset '%s' %s' '%s'" % \
+                print("\t\t Dataset '%s' %s' '%s'" % \
                       (dataset.datasetType, dataset.internalName,
-                       dataset.displayName)
+                       dataset.displayName))
 
     database = BioMartDatabase(name="dicty", connection=con)
     datasets = database.datasets()
-    print datasets
+    print(datasets)
     dataset = datasets[2]
     configuration = dataset.configuration()
     attr = dataset.attributes()
-    print attr
+    print(attr)
     filters = dataset.filters()
-    print filters
+    print(filters)
     reg = BioMartRegistry(con)
 
     dataset = reg.dataset("scerevisiae_gene_ensembl")
@@ -1176,8 +1187,8 @@ if __name__ == "__main__":
          filters=[("chromosome_name", "I"),
                   ("with_wikigene", {"excluded": "1"})],
          format="FASTA")
-    print query.xml_query()
-    print query.run()
+    print(query.xml_query())
+    print(query.run())
 
     data = query.get_example_table()
     data.save("seq.tab")

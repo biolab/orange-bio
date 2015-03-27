@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import os, time
 
-from Orange.orng import orngServerFiles
+from ..utils import serverfiles
 
 from .. import taxonomy as obiTaxonomy
 from .. import kegg as obiKEGG
@@ -10,7 +10,7 @@ from .. import kegg as obiKEGG
 from .. import dicty as obiDicty
 from .. import biomart as obiBioMart
 
-from . import homology
+#from . import homology
 
 default_database_path = orngServerFiles.localpath("NCBI_geneinfo")
 
@@ -101,7 +101,7 @@ class NCBIGeneInfo(dict):
             try:
                 self._history = dict([(line.split("\t")[2], GeneHistory(line)) for line in open(fname, "rb").read().splitlines()])
                 
-            except Exception, ex:
+            except Exception as ex:
                 print >> sys.srderr, "Loading NCBI gene history failed.", ex
                 self._history = {}
         return self._history
@@ -125,9 +125,9 @@ class NCBIGeneInfo(dict):
             taxids = obiTaxonomy.search(org, onlySpecies=False)
             taxids = set(cls.common_taxids()).intersection(taxids) #onlySpecies=False needed to find correct dicty
         if len(taxids) == 0:
-            raise obiTaxonomy.UnknownSpeciesIdentifier, org
+            raise obiTaxonomy.UnknownSpeciesIdentifier(org)
         elif len(taxids) > 1:
-            raise obiTaxonomy.MultipleSpeciesException, ", ".join(["%s: %s" % (id, obiTaxonomy.name(id)) for id in taxids])
+            raise obiTaxonomy.MultipleSpeciesException(", ".join(["%s: %s" % (id, obiTaxonomy.name(id)) for id in taxids]))
         taxid = taxids.pop()
         return cls.TAX_MAP.get(taxid, taxid)
 
@@ -265,7 +265,6 @@ class EnsembleGeneInfo(object):
         
         dataset = obiBioMart.BioMartDataset("ensembl", dset_name)
         table = dataset.get_example_table(attributes=attrs, unique=True)
-        print len(table)
         table.save(dset_name + ".tab")
         from collections import defaultdict
         names = defaultdict(set)
@@ -289,7 +288,7 @@ class EnsembleGeneInfo(object):
         try:
             filename = orngServerFiles.localpath_download("EnsembleGeneInfo", self.filename())
             info = cPickle.load(open(filename, "rb"))
-        except Exception, ex:    
+        except Exception as ex:    
             filename = orngServerFiles.localpath("EnsembleGeneInfo", self.filename())
             info = self.create_info()
             cPickle.dump(info, open(filename, "wb"))
@@ -978,8 +977,6 @@ if __name__ == '__main__':
     #m2 = GMNCBI('Dictyostelium discoideum')
     #print m2.aliases
 
-
-
     """
     gi = info(list(info)[0])
     print gi.tax_id, gi.synonyms, gi.dbXrefs, gi.symbol_from_nomenclature_authority, gi.full_name_from_nomenclature_authority
@@ -1010,31 +1007,31 @@ if __name__ == '__main__':
 
     info = NCBIGeneInfo('Dictyostelium discoideum')
     for a in names2:
-        print a
+        print(a)
         info.get_info(a)
 
     t = time.time()
     mat5 = matcher([[GMKEGG('human'),GMGO('human')]], direct=False, ignore_case=True)
     mat7 = GMDicty()
     mat8 = GMNCBI('Homo sapiens')
-    print "initialized all", time.time()-t
+    print("initialized all", time.time()-t)
 
-    print "using targets"
+    print("using targets")
 
     mat5.set_targets(names)
     mat7.set_targets(names)
     mat8.set_targets(names)
 
-    print "before genes"
+    print("before genes")
     genes = reduce(set.union, genesets.values()[:1000], set())
     genes = list(genes)
-    print genes[:20]
-    print len(genes)
-    print "after genes"
+    print(genes[:20])
+    print(len(genes))
+    print("after genes")
 
     for g in sorted(genes):
-        print "KGO ", g, mat5.match(g), mat5.explain(g)
-        print "DICT", g, mat7.match(g)
-        print "NCBI", g, mat8.match(g)
+        print("KGO ", g, mat5.match(g), mat5.explain(g))
+        print("DICT", g, mat7.match(g))
+        print("NCBI", g, mat8.match(g))
 
 

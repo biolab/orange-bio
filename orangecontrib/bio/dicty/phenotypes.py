@@ -1,13 +1,14 @@
 import os
-import urllib2
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
 import shutil
 import pickle
 
 from collections import defaultdict
 
-from Orange.orng import orngServerFiles
-
-from Orange.utils.serverfiles import localpath_download
+from ..utils import serverfiles
 
 domain = "dictybase"
 pickle_file = "mutants.pkl"
@@ -52,7 +53,7 @@ class DictyMutants(object):
     """
     
     VERSION=1
-    DEFAULT_DATABASE_PATH = orngServerFiles.localpath("DictyMutants") #use a default local folder for storing the genesets
+    DEFAULT_DATABASE_PATH = serverfiles.localpath("DictyMutants") #use a default local folder for storing the genesets
     
     def __init__(self, local_database_path=None):
         self.local_database_path = local_database_path if local_database_path is not None else self.DEFAULT_DATABASE_PATH
@@ -60,7 +61,7 @@ class DictyMutants(object):
         if not os.path.exists(self.local_database_path):
             os.mkdir(self.local_database_path)
             
-        self._mutants = pickle.load(open(localpath_download(domain, pickle_file), "rb"))
+        self._mutants = pickle.load(open(serverfiles.localpath_download(domain, pickle_file), "rb"))
               
     def update_file(self, name):
         url = "http://dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=mutant_phenotypes&ID="
@@ -207,4 +208,4 @@ def download_mutants():
 
 if __name__ == "__main__":
     dicty_mutants = mutants()
-    print mutant_phenotypes(dicty_mutants[0])
+    print(mutant_phenotypes(dicty_mutants[0]))

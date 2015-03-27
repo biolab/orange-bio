@@ -3,16 +3,21 @@ from __future__ import absolute_import
 import sys, pprint, time, re
 from itertools import *
 import urllib
-import urllib2
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
 import socket
 import os
 from collections import defaultdict
 import pickle
 
+import numpy
+
 from . import phenotypes
 
-import orange
-from Orange.orng import orngServerFiles
+#import orange #FIXME
+from ..utils import serverfiles
 
 defaddress = "http://bcm.fri.uni-lj.si/microarray/api/index.php?"
 #defaddresspipa = "https://pipa.fri.uni-lj.si/pipa/script/api/orange.py?action="
@@ -133,16 +138,12 @@ def issequencens(x):
 
 #end utility functions
 
-import statc
-#median = statc.median
 
 def median(l):
     if len(l) == 0:
         return None
     else:
-        return statc.median(l)
-
-
+        return numpy.median(l)
 
 socket.setdefaulttimeout(60)
 
@@ -155,15 +156,14 @@ def replaceChars(address):
 
 def httpGet(address, *args, **kwargs):
     if verbose: 
-        print address, args, kwargs,  " "
+        print(address, args, kwargs,  " ")
     address = replaceChars(address)
     t1 = time.time()
-    f = urllib2.urlopen(address, *args, **kwargs)
+    f = urlopen(address, *args, **kwargs)
     read = f.read()
     if verbose:
-        print "bytes", len(read),
-    if verbose:
-        print time.time() - t1
+        print("bytes", len(read))
+        print(time.time() - t1)
     return read
 
 def txt2ll(s, separ=' ', lineSepar='\n'):
@@ -179,7 +179,7 @@ class DBInterface(object):
 
     def raw(self, request, data=None, tryN=3):
         if verbose:
-            print "tryN", tryN
+            print("tryN", tryN)
 
         def try_down():
             try:
@@ -187,7 +187,7 @@ class DBInterface(object):
                     return httpGet(self.address + request)
                 else:
                     return httpGet(self.address + request, data=urllib.urlencode(data))
-            except urllib2.HTTPError, e:
+            except urllib2.HTTPError as e:
                 if e.code == 403:
                     raise AuthenticationError()
                 else:
@@ -204,7 +204,7 @@ class DBInterface(object):
     def get(self, request, data=None, tryN=3):
         rawf = self.raw(request, data)
         if rawf == None:
-            print "rawf == None!"
+            #print("rawf == None!")
             raise Exception("Connection error when contacting " + self.address + request)
         if rawf.startswith("error: authentication failed"):
             raise AuthenticationError()
@@ -212,11 +212,11 @@ class DBInterface(object):
             #TODO are there any other kinds of errors?
             if tryN > 0:
                 if verbose:
-                    print "trying again"
+                    print("trying again")
                 return self.get(request, data=data, tryN=tryN-1)
             else:
                 if verbose:
-                    print rafw[:1000]
+                    print(rafw[:1000])
                 raise Exception("Error with the database")
 
         a = txt2ll(rawf, separ='\t')
@@ -458,7 +458,7 @@ def example_tables(ids, chipsm=None, spotmap={}, callback=None, exclude_constant
     """
 
     if verbose:
-        print "Creating example table"
+        print("Creating example table")
 
     if callback: callback()
 
@@ -1233,7 +1233,7 @@ chips chips""")
             annotsinlist.append(readall[id])
 
         if verbose:
-            print zip(ids,[ dict(a)['chips.chip_map_id'] for a in annotsinlist ])
+            print(zip(ids,[ dict(a)['chips.chip_map_id'] for a in annotsinlist ]))
 
         cbc.end()
 
@@ -1254,7 +1254,7 @@ chips chips""")
             chipfn = self.chipRs
         
         if verbose:
-            print "DOWNLOAD TIME", time.time() - tstart
+            print("DOWNLOAD TIME %f" % (time.time() - tstart))
 
         cbc = CallBack(len(ids)*2+len(ids)+1, optcb, callbacks=999-30)
         et = self.exampleTables(ids, spotmap=self.spotMap(), callback=cbc, annots=read, exclude_constant_labels=exclude_constant_labels, chipfn=chipfn, allowed_labels=allowed_labels)
@@ -1352,7 +1352,7 @@ def averageAttributes(data, joinc="DDB", fn=median):
     """
 
     if verbose:
-        print "Averaging attributes"
+        print("Averaging attributes")
 
     valueso = []
     valuess = set(valueso)
@@ -1490,7 +1490,7 @@ class CacheSQLite(object):
         """
         import cPickle, zlib, sqlite3
         if verbose:
-            print "Adding", addr
+            print("Adding", addr)
         c = self.conn.cursor()
         if self.compress:
             bin = sqlite3.Binary(zlib.compress(cPickle.dumps(con)))
@@ -1513,14 +1513,14 @@ class CacheSQLite(object):
         """
         import cPickle, zlib
         if verbose:
-            print "getting from buffer", addr
+            print("getting from buffer %s" % addr)
             t = time.time()
         c = self.conn.cursor()
         c.execute('select con from buf where address=?', (addr,))
         ls = list(c)
         first = ls[0][0]
         if verbose:
-            print time.time() - t
+            print(time.time() - t)
         if self.compress:
             rc = cPickle.loads(zlib.decompress(first))
         else:
@@ -1528,12 +1528,12 @@ class CacheSQLite(object):
         c.close()
 
         if verbose:
-            print time.time() - t
+            print(time.time() - t)
         return rc
 
 def download_url(url, repeat=2):
     def do():
-        return urllib2.urlopen(url)
+        return urlopen(url)
 
     if repeat <= 0:
         do()
@@ -1670,8 +1670,8 @@ class DictyBase(object):
  
     @classmethod
     def version(cls):
-        orngServerFiles.localpath_download(cls.domain, cls.filename)
-        return orngServerFiles.info(cls.domain, cls.filename)["datetime"]
+        serverfiles.localpath_download(cls.domain, cls.filename)
+        return serverfiles.info(cls.domain, cls.filename)["datetime"]
     
     @classmethod
     def download_information(cls):
@@ -1716,7 +1716,7 @@ class DictyBase(object):
         return pickle.dumps((info,mappings), -1)
 
     def __init__(self):
-        fn = orngServerFiles.localpath_download(self.domain, self.filename)
+        fn = serverfiles.localpath_download(self.domain, self.filename)
         self.info, self.mappings = pickle.load(open(fn, 'rb'))
 
 if __name__=="__main__":
@@ -1724,14 +1724,14 @@ if __name__=="__main__":
 
     def printet(et):
         et.save("ett.tab")
-        print open("ett.tab").read()
+        print(open("ett.tab").read())
 
     a = DictyBase()
-    print len(a.info)
+    print(len(a.info))
 
     dbc = DictyExpress(cache=CacheSQLite("../tmpbufnew"))
 
-    print dbc.annotationOptions()
+    print(dbc.annotationOptions())
 
     count = 0
     def cb():
@@ -1740,6 +1740,6 @@ if __name__=="__main__":
         #print "CBBB", count
 
     et = dbc.get_data(sample=[ "tagA-", "pkaC-"], callback=cb, exclude_constant_labels=True, allowed_labels=["sample"])
-    print et.domain
-    print et.domain[0].attributes
+    print(et.domain)
+    print(et.domain[0].attributes)
     printet(et)
