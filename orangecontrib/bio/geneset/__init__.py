@@ -16,17 +16,25 @@ try:
 except ImportError:
     from ..utils import environ
 
+try:
+    basestring
+except:
+    basestring = str
+
 from .. import go as obiGO, kegg as obiKEGG, taxonomy as obiTaxonomy
 from .. import dicty 
 obiDictyMutants = dicty.phenotypes
 from .. import omim as obiOMIM
 from .. import go as obiGO
 
+#FIXME temp hack to be able to unpickle in Orange3
+import orangecontrib.bio
+sys.modules['Orange.bio'] = orangecontrib.bio
+
 try:
     from . import transform
 except:
-    pass
-    #not yet available in Orange3
+    pass  #not yet available in Orange3
 
 sfdomain = "gene_sets"
 
@@ -283,7 +291,7 @@ def list_serverfiles_conn(serverfiles=None):
 
 def list_serverfiles():
     fname = serverfiles.localpath_download(sfdomain, "index.pck")
-    flist = pickle.load(open(fname, 'r'))
+    flist = pickle.load(open(fname, 'rb'))
     return list_serverfiles_from_flist(flist)
 
 def list_all(org=None, local=None):
@@ -331,7 +339,7 @@ def _register_local(genesets):
     hierarchy = genesets.common_hierarchy()
     fn = filename(hierarchy, org)
 
-    with open(os.path.join(pth, fn), "w") as f:
+    with open(os.path.join(pth, fn), "wb") as f:
         pickle.dump(genesets, f)
 
     return fn
@@ -398,7 +406,7 @@ def load_serverfiles(hierarchy, organism):
         lambda h,o: serverfiles.localpath_download(sfdomain, filename(h, o)))
 
 def load_fn(hierarchy, organism, fnlist, fnget):
-    files = map(lambda x: x[:2], fnlist())
+    files = list(map(lambda x: x[:2], fnlist()))
     hierd = build_hierarchy_dict(files)
     out = GeneSets()
     matches = hierd[(hierarchy, organism)]
@@ -408,7 +416,7 @@ def load_fn(hierarchy, organism, fnlist, fnget):
         raise NoGenesetsException(exstr)
     for (h, o) in [ files[i] for i in hierd[(hierarchy, organism)]]:
         fname = fnget(h, o)
-        out.update(pickle.load(open(fname, 'r')))
+        out.update(pickle.load(open(fname, 'rb')))
     return out
 
 def load(hierarchy, organism):

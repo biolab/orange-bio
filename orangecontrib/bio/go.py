@@ -10,6 +10,8 @@ import os
 import tarfile
 import gzip
 import re
+import sys
+import six
 
 try:
     import cPickle as pickle
@@ -29,10 +31,7 @@ from gzip import GzipFile
 from collections import defaultdict
 from operator import attrgetter
 
-try:
-    from Orange.utils import progress_bar_milestones
-except ImportError:
-    progress_bar_milestones = False
+from .utils import progress_bar_milestones
 
 try:
     from Orange.utils import environ
@@ -41,8 +40,10 @@ except ImportError:
 
 try:
     basestring
+    intern
 except NameError:
     basestring = str
+    intern = sys.intern
 
 from .utils import serverfiles
 from .utils import stats
@@ -375,7 +376,7 @@ class Ontology(object):
         self.alias_mapper = {}
         self.reverse_alias_mapper = defaultdict(set)
         milestones = progress_bar_milestones(len(self.terms), 10)
-        for i, (id, term) in enumerate(self.terms.iteritems()):
+        for i, (id, term) in enumerate(six.iteritems(self.terms)):
             for typeId, parent in term.related:
                 self.terms[parent].related_to.add((typeId, id))
             try:
@@ -845,7 +846,7 @@ class Annotations(object):
     def gene_names_dict(self):
         if self._gene_names_dict is None:
             self._gene_names_dict = defaultdict(set)
-            for alias, name in self.alias_mapper.iteritems():
+            for alias, name in six.iteritems(self.alias_mapper):
                 self._gene_names_dict[name].add(alias)
         return self._gene_names_dict
 

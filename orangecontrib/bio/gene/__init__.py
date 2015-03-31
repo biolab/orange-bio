@@ -978,12 +978,10 @@ def matcher(matchers, direct=True, ignore_case=True):
     return MatcherSequence(seqmat)
 
 def _test1():
-
     m1 = matcher([[GMNCBI('44689'), GMDicty()]])
     print(m1)
     m2 = GMNCBI('Dictyostelium discoideum')
     print(m2)
-
     import time
     import orangecontrib.bio.obiGeneSets as obiGeneSets
 
@@ -991,19 +989,19 @@ def _test1():
         return obiGeneSets.collections((("KEGG",), "9606"), (("GO",), "9606"))
 
     def names1():
-        import orange
-        data = orange.ExampleTable("DLBCL.tab")
+        import Orange
+        data = Orange.data.Table("DLBCL.tab")
         return [ a.name for a in  data.domain.attributes ]
 
     def namesd():
-        import orange
-        data = orange.ExampleTable("dicty.tab")
+        import Orange
+        data = Orange.data.Table("dicty.tab")
         names = [ ex["DDB"].value for ex in data ]
         return names
 
-    genesets = auto_pickle("testcol", "3", testsets)
-    names = auto_pickle("testnames", "4", names1)
-    names2 = auto_pickle("testnamesdicty", "4", namesd)
+    genesets = testsets()
+    names = names1()
+    names2 = namesd()
 
     info = NCBIGeneInfo('Dictyostelium discoideum')
     for a in names2:
