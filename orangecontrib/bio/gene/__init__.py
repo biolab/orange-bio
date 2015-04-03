@@ -10,7 +10,7 @@ from .. import kegg as obiKEGG
 from .. import dicty as obiDicty
 from .. import biomart as obiBioMart
 
-#from . import homology
+from . import homology
 
 #python3
 try:
@@ -22,6 +22,11 @@ try:
     import cPickle as pickle
 except ImportError:
     import pickle
+
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
 
 try:
     from Orange.utils import environ
@@ -205,7 +210,7 @@ class NCBIGeneInfo(dict):
         if isinstance(file, basestring):
             file = open(file, "wb")
         
-        stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/gene/DATA/gene_info.gz")
+        stream = urlopen("ftp://ftp.ncbi.nih.gov/gene/DATA/gene_info.gz")
         tmpfile = tempfile.TemporaryFile()
         shutil.copyfileobj(stream, tmpfile)
         tmpfile.seek(0)
@@ -218,7 +223,7 @@ class NCBIGeneInfo(dict):
         if isinstance(file, basestring):
             file = open(file, "wb")
         
-        stream = urllib2.urlopen("ftp://ftp.ncbi.nih.gov/gene/DATA/gene_history.gz")
+        stream = urlopen("ftp://ftp.ncbi.nih.gov/gene/DATA/gene_history.gz")
         tmpfile = tempfile.TemporaryFile()
         shutil.copyfileobj(stream, tmpfile)
         tmpfile.seek(0)

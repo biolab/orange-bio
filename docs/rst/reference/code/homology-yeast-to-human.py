@@ -1,13 +1,14 @@
-import Orange.bio.gene.homology
-import Orange.bio.taxonomy
+import orangecontrib.bio.gene
+import orangecontrib.bio.taxonomy
+import Orange
 
 data = Orange.data.Table("brown-selected")
 
-geneinfo = Orange.bio.gene.NCBIGeneInfo('4932')
+geneinfo = orangecontrib.bio.gene.NCBIGeneInfo('4932')
 
 genes = [str(ex["gene"]) for ex in data]
 
 for gene in genes:
-    mappedgene = Orange.bio.gene.homology.homolog(geneinfo(gene).symbol, \
+    mappedgene = orangecontrib.bio.gene.homology.homolog(geneinfo(gene).symbol, \
         '4932', '9606')
-    print gene, mappedgene
+    print(gene, mappedgene)

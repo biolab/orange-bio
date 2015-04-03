@@ -1,10 +1,18 @@
+from __future__ import absolute_import
+
 import sys, os
-import urllib2
 import shutil
+
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
+
+from functools import reduce
 
 from collections import defaultdict
 
-from Orange.orng import orngServerFiles
+from ..utils import serverfiles
 
 class _homolog(object):
     __slots__ = ["group_id", "taxonomy_id", "gene_id", "gene_symbol"]
@@ -33,7 +41,7 @@ class _Homologs(object):
         return homologs.get(homolotaxid, None)
     
 class HomoloGene(_Homologs):
-    DEFAULT_DATABASE_PATH = orngServerFiles.localpath("HomoloGene")
+    DEFAULT_DATABASE_PATH = serverfiles.localpath("HomoloGene")
     VERSION = 1
     DOMAIN = "HomoloGene"
     FILENAME = "homologene.data"
@@ -43,13 +51,13 @@ class HomoloGene(_Homologs):
 
     @classmethod
     def download_from_NCBI(cls, file=None):
-        data = urllib2.urlopen("ftp://ftp.ncbi.nlm.nih.gov/pub/HomoloGene/current/homologene.data")
+        data = urlopen("ftp://ftp.ncbi.nlm.nih.gov/pub/HomoloGene/current/homologene.data")
         if file is None:
             try:
-                os.mkdir(orngServerFiles.localpath("HomoloGene"))
+                os.mkdir(serverfiles.localpath("HomoloGene"))
             except OSError:
                 pass
-            file = open(orngServerFiles.localpath("HomoloGene", "homologene.data"), "wb")
+            file = open(serverfiles.localpath("HomoloGene", "homologene.data"), "wb")
         elif type(file) in [str, unicode]:
             file = open(file, "wb")
         shutil.copyfileobj(data, file)
@@ -65,8 +73,8 @@ class HomoloGene(_Homologs):
         return h
     
     def load(self):
-        path = orngServerFiles.localpath_download(self.DOMAIN, self.FILENAME)
-        lines = open(path, "rb").read().splitlines()[:-1]
+        path = serverfiles.localpath_download(self.DOMAIN, self.FILENAME)
+        lines = open(path, "rt").read().splitlines()[:-1]
         self._homologs = {} 
         self._homologs = dict([((h.taxonomy_id, h.gene_symbol), h) for h in [_homolog(line) for line in lines]])
         self._homologs_by_group = reduce(lambda dict, h: dict[h.group_id].append(h) or dict, self._homologs.values(), defaultdict(list))
@@ -117,7 +125,7 @@ class InParanoid(object):
     VERSION = 1
     def __init__(self):
         import sqlite3
-        self.con = sqlite3.connect(orngServerFiles.localpath_download("HomoloGene", "InParanoid.sqlite"))
+        self.con = sqlite3.connect(serverfiles.localpath_download("HomoloGene", "InParanoid.sqlite"))
         
     def all_genes(self, taxid):
         """ Return all genes in the database for the given taxid
