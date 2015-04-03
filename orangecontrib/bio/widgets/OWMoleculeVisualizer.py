@@ -3,7 +3,6 @@ from __future__ import absolute_import
 
 import math
 
-from cStringIO import StringIO
 from collections import namedtuple
 
 from PyQt4.QtGui import (

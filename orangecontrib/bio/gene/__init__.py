@@ -202,7 +202,6 @@ class NCBIGeneInfo(dict):
     @staticmethod
     def get_geneinfo_from_ncbi(file, progressCallback=None):
         import urllib2, gzip, shutil, tempfile
-        from cStringIO import StringIO
         if isinstance(file, basestring):
             file = open(file, "wb")
         
@@ -216,7 +215,6 @@ class NCBIGeneInfo(dict):
     @staticmethod
     def get_gene_history_from_ncbi(file, progressCallback=None):
         import urllib2, gzip, shutil, tempfile
-        from cStringIO import StringIO
         if isinstance(file, basestring):
             file = open(file, "wb")
         

@@ -1,4 +1,4 @@
-from Orange.bio import go
+from orangecontrib.bio import go
 
 ontology = go.Ontology()
 

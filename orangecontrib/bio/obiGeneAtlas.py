@@ -327,7 +327,7 @@ that are up regulated in the liver in at least three experiments) ::
 """
 
 import urllib2
-from  StringIO import StringIO
+from io import StringIO
 import json
 from xml.etree.ElementTree import ElementTree
 

@@ -1,24 +1,27 @@
 from __future__ import absolute_import
 
 import os
-import urllib2
 import re
 import shelve
 import shutil
 import posixpath
 import json
 from xml.etree.ElementTree import ElementTree
-from StringIO import StringIO
+from io import StringIO
 
 from collections import defaultdict
 from functools import partial
 from contextlib import closing
 from contextlib import contextmanager
 
-from Orange.utils import serverfiles
+from orangecontrib.bio.utils import serverfiles
 
 parse_json = json.load
 
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
 
 def parse_xml(stream):
     """ Parse an xml stream into an instance of
@@ -260,14 +263,14 @@ class ArrayExpressConnection(object):
                 if url in cache:
                     return StringIO(cache[url])
 
-            stream = urllib2.urlopen(url, timeout=timeout)
+            stream = urlopen(url, timeout=timeout)
             data = stream.read()
             with self.open_cache("w") as cache:
                 cache[url] = data
 
             return StringIO(data)
         else:
-            return urllib2.urlopen(url, timeout=timeout)
+            return urlopen(url, timeout=timeout)
 
     def open_cache(self, flag="r"):
         if isinstance(self.cache, basestring):
@@ -1042,7 +1045,7 @@ class ArrayExpressExperiment(object):
             os.makedirs(repo_dir)
         except OSError:
             pass
-        stream = urllib2.urlopen(url)
+        stream = urlopen(url)
         local_filename = os.path.join(repo_dir, basename)
         shutil.copyfileobj(stream, open(local_filename, "wb"))
 

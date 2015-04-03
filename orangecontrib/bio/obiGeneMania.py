@@ -419,7 +419,7 @@ import os
 import posixpath
 
 from contextlib import contextmanager
-import StringIO
+from io import StringIO
 
 @contextmanager
 def finishing(obj):
@@ -432,7 +432,7 @@ def guess_size(fileobj):
     try:
         if isinstance(fileobj, file):
             return os.fstat(fileobj.fileno()).st_size
-        elif isinstance(fileobj, StringIO.StringIO):
+        elif isinstance(fileobj, StringIO):
             pos = fileobj.tell()
             fileobj.seek(0, 2)
             length = fileobj.tell() - pos

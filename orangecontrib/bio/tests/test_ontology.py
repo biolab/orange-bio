@@ -1,9 +1,9 @@
 import doctest
 import unittest
-from StringIO import StringIO
 
-from .. import ontology
+from io import StringIO
 
+from orangecontrib.bio import ontology
 
 class TestOntology(unittest.TestCase):
     def test_oboobject(self):
@@ -49,7 +49,7 @@ name: bar
 #        term = ontology.OBOObject.parse_stanza(stanza)
 
         seinfeld = ontology.OBOOntology(seinfeld)
-#        print seinfeld.child_edges("001")
+#        print(seinfeld.child_edges("001"))
 
 def load_tests(loader, tests, ignore):
     stanza = '''[Term]

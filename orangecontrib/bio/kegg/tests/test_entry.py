@@ -1,9 +1,9 @@
-from StringIO import StringIO
+from io import StringIO
 import doctest
 
 import unittest
 
-from ..entry import parser, fields, DBEntry, entry_decorate
+from orangecontrib.bio.kegg.entry import parser, fields, DBEntry, entry_decorate
 
 
 TEST_ENTRY = """\

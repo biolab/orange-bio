@@ -73,17 +73,17 @@ Example
 
 Load the ontology and print out some terms::
 
-	from Orange.bio import go
+	from orangecontrib.bio import go
 	ontology = go.Ontology()
 	term = ontology["GO:0097194"] # execution phase of apoptosis
 
 	# print a term
-	print term
+	print(term)
 
 	# access fields by name
-	print term.id, term.name
+	print(term.id, term.name)
 	# note the use of underscore due to a conflict with a python def keyword
-	print term.def_
+	print(term.def_)
 
 
 Searching the annotation (part of :download:`code/go_gene_annotations.py`)

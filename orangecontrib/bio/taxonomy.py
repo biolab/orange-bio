@@ -8,19 +8,15 @@ try:
 except ImportError:
     import pickle
 
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
 
 import  os, shutil, sys, tarfile
 
 try:
     from Orange.utils import environ
 except ImportError:
-    from .utils import environ
+    from orangecontrib.bio.utils import environ
 
-from .utils import serverfiles
+from orangecontrib.bio.utils import serverfiles
 
 import six
 

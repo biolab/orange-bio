@@ -50,7 +50,7 @@ def open_microcosm(org="mus_musculus", version="v5"):
     """ Open the miRna targets from the EBI microcosm site. 
     """
     import urllib2, zipfile
-    import StringIO
+    from io import StringIO
     stream = urllib2.urlopen("ftp://ftp.ebi.ac.uk/pub/databases/microcosm/{version}/arch.{version}.txt.{org}.zip".format(org=org, version=version))
     contents = stream.read()
     stream = StringIO.StringIO(contents)

@@ -9,10 +9,8 @@ try:
     import anydbm
 except ImportError:
     import dbm as anydbm
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+
+from io import StringIO
 
 import shelve
 import itertools
@@ -1023,7 +1021,7 @@ class BioMartQuery(object):
                  orange.StringVariable("sequence")],
                 False)  # TODO: meaningful id
             examples = []
-            from StringIO import StringIO
+            from io import StringIO
             from Bio import SeqIO
             for seq in SeqIO.parse(StringIO(data), "fasta"):
                 examples.append([seq.id, str(seq.seq)])

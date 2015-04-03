@@ -1,8 +1,8 @@
 import unittest
 import six
 
-from .. import databases
-from .. import pathway
+from orangecontrib.bio.kegg import databases
+from orangecontrib.bio.kegg import pathway
 
 
 class TestGenome(unittest.TestCase):

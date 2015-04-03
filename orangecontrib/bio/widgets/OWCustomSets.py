@@ -5,7 +5,6 @@
 <contact>Vid Jelen (vid.jelen1@gmail.com)</contact>
 """
 import os
-from StringIO import StringIO
 
 import Orange
 import cPickle as pickle

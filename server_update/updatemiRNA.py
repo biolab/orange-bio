@@ -3,7 +3,7 @@ from common import *
 
 import urllib
 import re
-import StringIO
+from io import StringIO
 import zipfile
 
 import Orange.bio.obiTaxonomy as tax
@@ -228,7 +228,7 @@ org_taxo = [tax.name(id) for id in tax.common_taxids()]
 try:
     tarscan_url = 'http://www.targetscan.org//vert_50//vert_50_data_download/Conserved_Site_Context_Scores.txt.zip'
     
-    zf = zipfile.ZipFile(StringIO.StringIO(urllib.urlopen(tarscan_url).read()))
+    zf = zipfile.ZipFile(StringIO(urllib.urlopen(tarscan_url).read()))
     arch = zf.read(zf.namelist()[0]).splitlines()[1:]
     arch.pop()
     mirnas = [a.split('\t')[3] for a in arch]
@@ -248,7 +248,7 @@ print "\nBuilding miRNA library..."
 address = 'ftp://mirbase.org/pub/mirbase/CURRENT/miRNA.dat.gz'
 flag = 1
 try:
-    data_webPage = gzip.GzipFile(fileobj=StringIO.StringIO(urllib.urlopen(address).read())).read()    
+    data_webPage = gzip.GzipFile(fileobj=StringIO(urllib.urlopen(address).read())).read()
 except IOError:
     flag = 0
     sendMail('Database file of miRNAs not found on: %s' % address)

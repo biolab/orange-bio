@@ -1,8 +1,7 @@
 import unittest
 import doctest
 
-from .. import arrayexpress
-
+from orangecontrib.bio import arrayexpress
 
 def load_tests(loader, tests, ignore):
     conn = arrayexpress.ArrayExpressConnection()

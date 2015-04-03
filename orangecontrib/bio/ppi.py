@@ -12,7 +12,7 @@ import errno
 import posixpath
 import textwrap
 
-from StringIO import StringIO
+from io import StringIO
 from collections import defaultdict, namedtuple
 from operator import itemgetter
 

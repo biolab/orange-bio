@@ -13,20 +13,20 @@ of Genes and Genomes) <http://www.genome.jp/kegg/>`_ using its web services.
 .. _`requests`: https://pypi.python.org/pypi/requests
 
 
->>> from Orange.bio.kegg import *
+>>> from orangecontrib.bio.kegg import *
 >>> # Create a KEGG Genes database interface
 >>> genome = KEGGGenome()
 >>> # List all available entry ids
 >>> keys = genome.keys()
->>> print keys[0]
+>>> print(keys[0])
 T01001
 >>> # Retrieve the entry for the key.
 >>> entry = genome[keys[0]]
->>> print entry.entry_key
+>>> print(entry.entry_key)
 T01001
->>> print entry.definition
+>>> print(entry.definition)
 Homo sapiens (human)
->>> print str(entry)
+>>> print(str(entry)) # doctest:+ELLIPSIS
 ENTRY       T01001            Complete  Genome
 NAME        hsa, HUMAN, 9606
 DEFINITION  Homo sapiens (human)
@@ -36,16 +36,17 @@ The :class:`Organism` class can be a convenient starting point
 for organism specific databases.
 
 >>> organism = Organism("Homo sapiens")  # searches for the organism by name
->>> print organism.org_code  # prints the KEGG organism code
+>>> print(organism.org_code)  # prints the KEGG organism code
 hsa
 >>> genes = organism.genes  # get the genes database for the organism
 >>> gene_ids = genes.keys() # KEGG gene identifiers
 >>> entry = genes["hsa:672"]
->>> print entry.definition
+>>> print(entry.definition)
 breast cancer 1, early onset
->>> print entry  # print the entry in DBGET database format.
+>>> # print the entry in DBGET database format.
+>>> print(entry) # doctest:+ELLIPSIS
 ENTRY       672               CDS       T01001
-NAME        BRCA1, BRCAI, BRCC1, BROVCA1, IRIS, PNCA4, PPP1R53, PSCP, RNF53
+NAME        BRCA1, BRCAI, BRCC1, BROVCA1, FANCS, IRIS, PNCA4, PPP1R53, PSCP, RNF53
 DEFINITION  breast cancer 1, early onset
 ...
 
@@ -61,15 +62,15 @@ from itertools import chain
 from datetime import datetime
 from contextlib import contextmanager
 
-from .. import utils, taxonomy
-from . import databases
-from . import entry
+from orangecontrib.bio import utils, taxonomy
+from orangecontrib.bio.kegg import databases
+from orangecontrib.bio.kegg import entry
 
-from .brite import BriteEntry, Brite
+from orangecontrib.bio.kegg.brite import BriteEntry, Brite
 
-from . import api
-from . import conf
-from . import pathway
+from orangecontrib.bio.kegg import api
+from orangecontrib.bio.kegg import conf
+from orangecontrib.bio.kegg import pathway
 
 from functools import reduce
 

@@ -31,12 +31,12 @@ from gzip import GzipFile
 from collections import defaultdict
 from operator import attrgetter
 
-from .utils import progress_bar_milestones
+from orangecontrib.bio.utils import progress_bar_milestones
 
 try:
     from Orange.utils import environ
 except ImportError:
-    from .utils import environ
+    from orangecontrib.bio.utils import environ
 
 try:
     basestring
@@ -45,10 +45,10 @@ except NameError:
     basestring = str
     intern = sys.intern
 
-from .utils import serverfiles
-from .utils import stats
+from orangecontrib.bio.utils import serverfiles
+from orangecontrib.bio.utils import stats
 
-from . import gene as obiGene, taxonomy as obiTaxonomy
+from orangecontrib.bio import gene as obiGene, taxonomy as obiTaxonomy
 
 default_database_path = os.path.join(serverfiles.localpath(), "GO")
 
@@ -718,7 +718,7 @@ class Annotations(object):
     @classmethod
     def organism_name_search(cls, org):
         ids = to_taxid(org)
-        from . import taxonomy as tax
+        from orangecontrib.bio import taxonomy as tax
         if not ids:
             ids = [org] if org in Taxonomy().common_org_map or \
                 org in Taxonomy().code_map.keys() else []
@@ -990,10 +990,10 @@ class Annotations(object):
             annotationsDict[ann.GO_ID].add(ann)
 
         self._ensure_ontology()
-        if slims_only and not self.ontology.slimsSubset:
+        if slims_only and not self.ontology.slims_subset:
             warnings.warn("Unspecified slims subset in the ontology! "
                           "Using 'goslim_generic' subset", UserWarning)
-            self.ontology.SetSlimsSubset("goslim_generic")
+            self.ontology.set_slims_subset("goslim_generic")
 
         terms = annotationsDict.keys()
         filteredTerms = [term for term in terms if term in self.ontology]
@@ -1004,12 +1004,12 @@ class Annotations(object):
                           "ontology." % ",".join(map(repr, termDiff)),
                           UserWarning)
 
-        terms = self.ontology.ExtractSuperGraph(filteredTerms)
+        terms = self.ontology.extract_super_graph(filteredTerms)
         res = {}
 
         milestones = progress_bar_milestones(len(terms), 100)
         for i, term in enumerate(terms):
-            if slims_only and term not in self.ontology.slimsSubset:
+            if slims_only and term not in self.ontology.slims_subset:
                 continue
             allAnnotations = self.get_all_annotations(term).intersection(refAnnotations)
 ##            allAnnotations.intersection_update(refAnnotations)
@@ -1057,7 +1057,7 @@ class Annotations(object):
                     "ontology." % ",".join(map(repr, termDiff)),
                     UserWarning)
 
-            terms = self.ontology.ExtractSuperGraph(filteredTerms)
+            terms = self.ontology.extract_super_graph(filteredTerms)
             for i, term in enumerate(terms):
                 termAnnots = self.get_all_annotations(term).intersection(annotations)
 ##                termAnnots.intersection_update(annotations)
@@ -1203,7 +1203,7 @@ class Annotations(object):
 
     DownloadAnnotationsAtRev = download_annotations_at_rev
 
-from .taxonomy import pickled_cache
+from orangecontrib.bio.taxonomy import pickled_cache
 
 
 @pickled_cache(None, [("GO", "taxonomy.pickle"),
@@ -1259,10 +1259,10 @@ def _draw_enrichment_graph_tostream(enriched, fh, width, height, header=None,
     GOTerms = dict([(t[0], t) for t in enriched if t[0] in ontology])
 
     def getParents(term):
-        parents = ontology.ExtractSuperGraph([term])
+        parents = ontology.extract_super_graph([term])
         parents = [id for id in parents if id in GOTerms and id != term]
-        c = reduce(set.union, [set(ontology.ExtractSuperGraph([id])) -
-                               set([id]) for id in parents], set())
+        lst = [set(ontology.extract_super_graph([id])) - set([id]) for id in parents]
+        c = set.union(*lst) if lst else set()
         parents = [t for t in parents if t not in c]
         return parents
     parents = dict([(term, getParents(term)) for term in GOTerms])

@@ -1,7 +1,7 @@
 import unittest
 import doctest
 
-from ... import kegg
+from orangecontrib.bio import kegg
 
 
 class TestApi(unittest.TestCase):

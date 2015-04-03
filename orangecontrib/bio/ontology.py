@@ -9,7 +9,7 @@ This module provides an interface for parsing, creating and manipulating of
 Construct an ontology from scratch with custom terms ::
 
     >>> term = OBOObject("Term", id="foo:bar", name="Foo bar")
-    >>> print term
+    >>> print(term)
     [Term]
     id: foo:bar
     name: Foo bar
@@ -17,10 +17,10 @@ Construct an ontology from scratch with custom terms ::
     >>> ontology = OBOOntology()
     >>> ontology.add_object(term)
     >>> ontology.add_header_tag("created-by", "ales") # add a header tag
-    >>> from StringIO import StringIO
+    >>> from io import StringIO
     >>> buffer = StringIO()
     >>> ontology.write(buffer) # Save the ontology to a file like object
-    >>> print buffer.getvalue() # Print the contents of the buffer
+    >>> print(buffer.getvalue()) # Print the contents of the buffer
     created-by: ales
     <BLANKLINE>
     [Term]
@@ -32,9 +32,11 @@ To load an ontology from a file, pass the file or filename to the
 :class:`OBOOntology` constructor or call its load method ::
 
     >>> buffer.seek(0) # rewind
+    0
     >>> ontology = OBOOntology(buffer)
     >>> # Or equivalently
     >>> buffer.seek(0) # rewind
+    0
     >>> ontology = OBOOntology()
     >>> ontology.load(buffer)
 
@@ -43,13 +45,26 @@ See the definition of the `.obo file format <http://www.geneontology.org/GO.form
 
 """
 
+import sys
 import re
-import urllib2
 import warnings
 import keyword
 from collections import defaultdict
-from StringIO import StringIO
+import six
 
+from io import StringIO
+
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
+
+try:
+    basestring
+    intern
+except NameError:
+    basestring = str
+    intern = sys.intern
 
 #: These are builtin OBO objects present in any ontology by default.
 BUILTIN_OBO_OBJECTS = [
@@ -225,7 +240,7 @@ class OBOObject(object):
         self.values = {}
 
         sorted_tags = sorted(
-            kwargs.iteritems(),
+            six.iteritems(kwargs),
             key=lambda key_val: chr(1) if key_val[0] == "id" else key_val[0]
         )
 
@@ -279,7 +294,7 @@ class OBOObject(object):
 
             >>> term = OBOObject("Term")
             >>> term.add_tag("id", "FOO:002", comment="This is an id")
-            >>> print term
+            >>> print(term)
             [Term]
             id: FOO:002 ! This is an id
 
@@ -368,7 +383,7 @@ class OBOObject(object):
         ... id: FOO:001
         ... name: bar
         ... """)
-        >>> print term.id, term.name
+        >>> print(term.id, term.name)
         FOO:001 bar
 
         '''
@@ -441,7 +456,7 @@ class Instance(OBOObject):
 class OBOParser(object):
     r''' A simple parser for .obo files (inspired by xml.dom.pulldom)
 
-    >>> from StringIO import StringIO
+    >>> from io import StringIO
     >>> file = StringIO("""\
     ... header_tag: header_value
     ... [Term]
@@ -449,7 +464,7 @@ class OBOParser(object):
     ... """)
     >>> parser = OBOParser(file)
     >>> for event, value in parser:
-    ...     print event, value
+    ...     print(event, value)
     ...
     HEADER_TAG ['header_tag', 'header_value']
     START_STANZA Term
@@ -943,7 +958,7 @@ def name_mangle(tag):
     """
     Mangle tag name if it conflicts with python keyword.
 
-    >>> term.name_mangle("def"), term.name_mangle("class")
+    >>> name_mangle("def"), name_mangle("class")
     ('def_', 'class_')
 
     """
@@ -978,7 +993,7 @@ def foundry_ontologies():
     ``('Biological process', 'http://purl.obolibrary.org/obo/go.obo')``
 
     """
-    stream = urllib2.urlopen("http://www.obofoundry.org/")
+    stream = urlopen("http://www.obofoundry.org/")
     text = stream.read()
     pattern = r'<td class=".+?">\s*<a href=".+?">(.+?)</a>\s*</td>\s*<td class=".+?">.*?</td>\s*<td class=".+?">.*?</td>\s*?<td class=".+?">\s*<a href="(.+?obo)">.+?</a>'
     return re.findall(pattern, text)
@@ -1016,7 +1031,7 @@ relationship: parent 001 ! George
     term = OBOObject.parse_stanza(stanza)
 
     seinfeld = OBOOntology(seinfeld)
-    print seinfeld.child_edges("001")
+    print(seinfeld.child_edges("001"))
 
     doctest.testmod(extraglobs={"stanza": stanza, "term": term},
                     optionflags=doctest.ELLIPSIS)
