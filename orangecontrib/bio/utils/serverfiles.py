@@ -128,7 +128,7 @@ except:
 try:
     from Orange.utils import environ
 except ImportError:
-    from Orange.canvas.utils import environ
+    from . import environ
 
 import time, threading
 import os
