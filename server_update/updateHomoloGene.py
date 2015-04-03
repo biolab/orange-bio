@@ -15,9 +15,8 @@ filename = os.path.join(path, "homologene.data")
 obiHomoloGene.HomoloGene.download_from_NCBI(filename)
 uncompressed = os.stat(filename).st_size
 import gzip, shutil
-f = gzip.open(filename + ".gz", "wb")
-shutil.copyfileobj(open(filename), f)
-f.close()
+with gzip.open(filename + ".gz", "wb") as f:
+    shutil.copyfileobj(open(filename), f)
 
 #sf_server.create_domain("HomoloGene")
 print "Uploading homologene.data"

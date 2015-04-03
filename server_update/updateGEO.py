@@ -69,7 +69,6 @@ gds_info = dict([(id, info) for id, info in gds_info.items()
 
 # get the list of GDS files from NCBI directory
 
-
 print "Retrieving ftp directory ..."
 ftp = ftplib.FTP(FTP_NCBI)
 ftp.login()
@@ -77,12 +76,16 @@ ftp.cwd(NCBI_DIR)
 dirlist = []
 ftp.dir(dirlist.append)
 
+from datetime import timedelta
 from datetime import datetime
 def modified(line):
     line = line.split()
     try:
         date  = " ".join(line[5: 8] + [str(datetime.today().year)])
-        return datetime.strptime(date, "%b %d %H:%M %Y")
+        df = datetime.strptime(date, "%b %d %H:%M %Y")
+        if df > datetime.today(): #this date means previous year
+            df = df - timedelta(365)
+        return df
     except ValueError:
         pass
     try:
@@ -97,10 +100,17 @@ gds_names = [(m.search(d).group(0), modified(d)) for d in dirlist if m.search(d)
 #gds_names = [name for name, time_m in gds_names if time_t > gds_info_datetime]
 #gds_names = [m.search(d).group(0) for d in dirlist if m.search(d)]
 #gds_names = [name for name in gds_names if not(name in gds_info or name in excluded)]
+avail_names = [ n for n,_ in gds_names ]
 gds_names = [name for name, time_m in gds_names if not(name in gds_info or name in excluded) or time_m > gds_info_datetime]
 skipped = []
+deleted = set(gds_info.keys()) - set(avail_names)
 
-if len(gds_names):
+if len(gds_names) or len(deleted):
+    print "delete", deleted
+
+    for d in deleted:
+        del gds_info[d]
+
     for count, gds_name in enumerate(gds_names):
         print "%3d of %3d -- Adding %s ..." % (count+1, len(gds_names), gds_name)
         try:
@@ -119,12 +129,10 @@ if len(gds_names):
             print "... skipped (error):", str(ex)
             skipped.append(gds_name)
     
-    print "Updating %s:%s on the server ..." % (DOMAIN, GDS_INFO)
+print "Updating %s:%s on the server ..." % (DOMAIN, GDS_INFO)
  
-    sf_server.upload(DOMAIN, GDS_INFO, localfile, TITLE, TAGS)
-    sf_server.protect(DOMAIN, GDS_INFO, "0")
-else:
-    print "No update required."
+sf_server.upload(DOMAIN, GDS_INFO, localfile, TITLE, TAGS)
+sf_server.protect(DOMAIN, GDS_INFO, "0")
 
 print
 print "GDS data sets: %d" % len(gds_info)

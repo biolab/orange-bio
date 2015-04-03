@@ -1,5 +1,6 @@
 import sys, os
 import urllib2
+import shutil
 
 from collections import defaultdict
 
@@ -42,7 +43,7 @@ class HomoloGene(_Homologs):
 
     @classmethod
     def download_from_NCBI(cls, file=None):
-        data = urllib2.urlopen("ftp://ftp.ncbi.nlm.nih.gov/pub/HomoloGene/current/homologene.data").read()
+        data = urllib2.urlopen("ftp://ftp.ncbi.nlm.nih.gov/pub/HomoloGene/current/homologene.data")
         if file is None:
             try:
                 os.mkdir(orngServerFiles.localpath("HomoloGene"))
@@ -51,8 +52,8 @@ class HomoloGene(_Homologs):
             file = open(orngServerFiles.localpath("HomoloGene", "homologene.data"), "wb")
         elif type(file) in [str, unicode]:
             file = open(file, "wb")
-        file.write(data)
-        file.flush()
+        shutil.copyfileobj(data, file)
+        file.close()
         
     @classmethod    
     def get_instance(cls):
