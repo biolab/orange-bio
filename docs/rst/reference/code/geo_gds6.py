@@ -12,7 +12,5 @@ else:
     learners = [ Orange.classification.logreg.LibLinearLogRegLearner() ]
     results = Orange.evaluation.testing.cross_validation(learners, data, folds=10)
 
+
 print("AUC = %.3f" % Orange.evaluation.scoring.AUC(results)[0])
-
-
-
