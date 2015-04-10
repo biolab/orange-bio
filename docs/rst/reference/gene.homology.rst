@@ -2,19 +2,19 @@
 Translation of homologs (:mod:`gene.homology`)
 ============================================================
 
-.. py:currentmodule:: Orange.bio.gene.homology
+.. py:currentmodule:: orangecontrib.bio.gene.homology
 
 This module is an interface to `NCBI HomoloGene <http://www.ncbi.nlm.nih.gov/homologene/>`_.
 
-.. autofunction::  Orange.bio.gene.homology.all_genes
+.. autofunction::  orangecontrib.bio.gene.homology.all_genes
 
-.. autofunction::  Orange.bio.gene.homology.homologs
+.. autofunction::  orangecontrib.bio.gene.homology.homologs
 
-.. autofunction::  Orange.bio.gene.homology.homolog
+.. autofunction::  orangecontrib.bio.gene.homology.homolog
 
-.. autofunction::  Orange.bio.gene.homology.orthologs
+.. autofunction::  orangecontrib.bio.gene.homology.orthologs
 
-.. autofunction::  Orange.bio.gene.homology.all_genes_inParanoid
+.. autofunction::  orangecontrib.bio.gene.homology.all_genes_inParanoid
 
 Examples
 --------
