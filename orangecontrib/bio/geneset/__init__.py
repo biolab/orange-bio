@@ -320,7 +320,6 @@ def update_server_list(serverfiles_upload, serverfiles_list=None):
     flist = map(lambda x: filename(*x[:2]), list_serverfiles_conn(serverfiles_list))
 
     tfname = pickle_temp(flist)
-
     try:
         fn = "index.pck"
         title = "Gene sets: index"
@@ -361,7 +360,6 @@ def _register_serverfiles(genesets, serverFiles):
 
     #save to temporary file
     tfname = pickle_temp(genesets)
-
     try:
         if org != None:
             taxname = obiTaxonomy.name(org)
@@ -479,7 +477,7 @@ def upload_genesets(rsf):
     """
     serverfiles.update_local_files()
 
-    genesetsfn = [ keggGeneSets, goGeneSets, miRNAGeneSets]
+    genesetsfn = [ goGeneSets, keggGeneSets, miRNAGeneSets]
     organisms = obiTaxonomy.common_taxids()
     for fn in genesetsfn:
         for org in organisms:

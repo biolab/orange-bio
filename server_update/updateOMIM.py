@@ -3,7 +3,7 @@
 
 
 from common import *
-from Orange.bio import obiOMIM
+from orangecontrib.bio import obiOMIM
 
 import os, sys
 
@@ -24,7 +24,7 @@ sf_server.unprotect("OMIM", "morbidmap")
 """
 Orange server upload for OMIM morbidmap gene sets
 """
-from Orange.bio.obiGeneSets import omimGeneSets, register
+from orangecontrib.bio.geneset import omimGeneSets, register
 
 omim_sets_split = omimGeneSets().split_by_hierarchy()
 for omim_sets in omim_sets_split:

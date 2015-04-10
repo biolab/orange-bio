@@ -4,7 +4,7 @@ from common import *
 """
 Orange server upload for Cytoband gene sets
 """
-from Orange.bio.obiGeneSets import reactomePathwaysGeneSets, register
+from orangecontrib.bio.geneset import reactomePathwaysGeneSets, register
 
 reactome_sets_split = reactomePathwaysGeneSets().split_by_hierarchy()
 for pathway_sets in reactome_sets_split:

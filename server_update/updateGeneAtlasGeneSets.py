@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 from collections import defaultdict
-from Orange.bio.obiGeneAtlas import run_simple_query
-from Orange.bio.obiGeneSets import GeneSets, GeneSet
+from orangecontrib.bio.obiGeneAtlas import run_simple_query
+from orangecontrib.bio.geneset import GeneSets, GeneSet, register
 import time
+
+from common import *
 
 def display_string(string):
     return string.capitalize().replace("_", " ")
@@ -51,20 +53,6 @@ for (ef, efv), genes in sets.items():
     gene_sets.append(gs)
 
 final_set = GeneSets(gene_sets)
-
-print final_set
-exit()
-
-from Orange.bio.obiGeneSets import register
-import Orange.utils.serverfiles as serverfiles
-import sys
-
-try:
-    sf_server = serverfiles.ServerFiles(sys.argv[1], sys.argv[2])
-except:
-    print "argv[1] = username, argv[2] = password"
-    exit()
-
 set_split = final_set.split_by_hierarchy()
 
 for s in set_split:

@@ -4,8 +4,8 @@ from common import *
 import sys, os
 from gzip import GzipFile
 import tempfile
-from Orange.bio.obiDicty import DictyBase
-import Orange.bio.obiDictyMutants as DictyMutants
+from orangecontrib.bio.obiDicty import DictyBase
+import orangecontrib.bio.obiDictyMutants as DictyMutants
 
 tmpdir = tempfile.mkdtemp("dictybase")
 base = DictyBase.pickle_data()
@@ -58,7 +58,7 @@ shutil.rmtree(tmpdir_mutants)
 """
 Orange server upload for Dicty mutant gene sets
 """
-from Orange.bio.obiGeneSets import dictyMutantSets, update_server_list, register
+from orangecontrib.bio.geneset import dictyMutantSets, update_server_list, register
 
 mutant_sets_split = dictyMutantSets().split_by_hierarchy()
 for mutant_sets in mutant_sets_split:
