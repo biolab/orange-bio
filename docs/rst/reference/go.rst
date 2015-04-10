@@ -1,5 +1,5 @@
-.. py:currentmodule:: Orange.bio.go
-.. py:module:: Orange.bio.go
+.. py:currentmodule:: orangecontrib.bio.go
+.. py:module:: orangecontrib.bio.go
 
 =========================
 Gene Ontology (:mod:`go`)
@@ -11,7 +11,7 @@ Provides access to `Gene Ontology`_ and its gene annotations.
 .. _Gene Ontology: http://geneontology.org/
 
 
-.. autoclass:: Orange.bio.go.Ontology(filename=None, progress_callback=None, rev=None)
+.. autoclass:: orangecontrib.bio.go.Ontology(filename=None, progress_callback=None, rev=None)
    :members:
       defined_slims_subsets, named_slims_subset, set_slims_subset, slims_for_term,
       extract_super_graph, extract_sub_graph, __getitem__, __len__,
@@ -23,7 +23,7 @@ Provides access to `Gene Ontology`_ and its gene annotations.
    >>> term = ontology[term_ids[0]]
 
 
-.. autoclass:: Orange.bio.go.Term
+.. autoclass:: orangecontrib.bio.go.Term
 
    .. attribute:: id
 
@@ -48,7 +48,7 @@ Provides access to `Gene Ontology`_ and its gene annotations.
       the relationship type with term_id.
 
 
-.. autoclass:: Orange.bio.go.Annotations(filename_or_organism=None, ontology=None, genematcher=None, progress_callback=None, rev=None)
+.. autoclass:: orangecontrib.bio.go.Annotations(filename_or_organism=None, ontology=None, genematcher=None, progress_callback=None, rev=None)
    :members:
    :member-order: bysource
    :exclude-members:
@@ -59,7 +59,7 @@ Provides access to `Gene Ontology`_ and its gene annotations.
       geneAnnotations, geneNames, geneNamesDict, termAnnotations
 
 
-.. autoclass:: Orange.bio.go.AnnotationRecord
+.. autoclass:: orangecontrib.bio.go.AnnotationRecord
    :members:
        from_string,
    	   DB, DB_Object_ID, DB_Object_Symbol, Qualifier, GO_ID,
