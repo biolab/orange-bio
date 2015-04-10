@@ -2,28 +2,28 @@
 Organism Taxonomy (:mod:`taxonomy`)
 ===================================
 
-.. py:currentmodule:: Orange.bio.taxonomy
+.. py:currentmodule:: orangecontrib.bio.taxonomy
 
 This module provides access to the `NCBI's organism taxonomy information
 <http://www.ncbi.nlm.nih.gov/Taxonomy/>`_ and organism name unification
 across different modules.
 
-.. autofunction:: Orange.bio.taxonomy.name(taxid)
+.. autofunction:: orangecontrib.bio.taxonomy.name(taxid)
 
-.. autofunction:: Orange.bio.taxonomy.other_names(taxid)
+.. autofunction:: orangecontrib.bio.taxonomy.other_names(taxid)
 
-.. autofunction:: Orange.bio.taxonomy.search(string, onlySpecies=True, exact=False)
+.. autofunction:: orangecontrib.bio.taxonomy.search(string, onlySpecies=True, exact=False)
 
-.. autofunction:: Orange.bio.taxonomy.lineage(taxid)
+.. autofunction:: orangecontrib.bio.taxonomy.lineage(taxid)
    
 ..
-   ..autofunction:: Orange.bio.taxonomy.to_taxid
+   ..autofunction:: orangecontrib.bio.taxonomy.to_taxid
 
-.. autofunction:: Orange.bio.taxonomy.taxids
+.. autofunction:: orangecontrib.bio.taxonomy.taxids
 
-.. autofunction:: Orange.bio.taxonomy.common_taxids
+.. autofunction:: orangecontrib.bio.taxonomy.common_taxids
 
-.. autofunction:: Orange.bio.taxonomy.essential_taxids
+.. autofunction:: orangecontrib.bio.taxonomy.essential_taxids
 
 Examples
 --------

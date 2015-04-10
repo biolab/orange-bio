@@ -1,4 +1,4 @@
-import Orange.bio.taxonomy
+import orangecontrib.bio.taxonomy
 
-for taxid in Orange.bio.taxonomy.common_taxids():
-    print "%-6s %s" % (taxid, Orange.bio.taxonomy.name(taxid))
+for taxid in orangecontrib.bio.taxonomy.common_taxids():
+    print("%-6s %s" % (taxid, orangecontrib.bio.taxonomy.name(taxid)))

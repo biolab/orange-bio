@@ -1,4 +1,4 @@
-.. py:currentmodule:: Orange.bio.utils.stats
+.. py:currentmodule:: orangecontrib.bio.utils.stats
 
 .. index:: binomial distribution
 .. index:: hypergeometric distribution

@@ -1,4 +1,4 @@
-.. automodule:: Orange.bio.ontology
+.. automodule:: orangecontrib.bio.ontology
 
 .. autoclass:: OBOOntology
    :members:

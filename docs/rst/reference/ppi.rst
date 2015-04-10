@@ -2,7 +2,7 @@
 Protein-protein interactions (:mod:`ppi`)
 ============================================================
 
-.. py:currentmodule:: Orange.bio.ppi
+.. py:currentmodule:: orangecontrib.bio.ppi
 
 :class:`PPIDatabase` is an abstract class defining a common interface
 for accessing protein-protein interaction databases.
