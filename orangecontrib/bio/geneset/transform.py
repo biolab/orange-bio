@@ -7,12 +7,14 @@ from collections import defaultdict
 import scipy.stats
 import scipy.special
 import numpy
-import Orange, Orange.utils
+import Orange
 
 try:
     from statc import mean, std
 except ImportError:
     from numpy import mean, std
+
+import Orange.utils
 
 from .. import utils
 obiExpression = utils.expression

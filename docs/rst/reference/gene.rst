@@ -1,4 +1,4 @@
-.. py:currentmodule:: Orange.bio.gene
+.. py:currentmodule:: orangecontrib.bio.gene
 
 .. index:: gene matching
 .. index:: gene name matching
