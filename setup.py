@@ -3,7 +3,7 @@
 import sys
 
 try:
-    if sys.version < '3':
+    if sys.version_info < (3, ):
         import distribute_setup
         distribute_setup.use_setuptools()
 except ImportError:
@@ -113,7 +113,9 @@ ENTRY_POINTS = {
         'bio = orangecontrib.bio',
     ),
     'orange.widgets': (
-        'Bioinformatics = orangecontrib.bio.widgets',
+        ('Bioinformatics = orangecontrib.bio.widgets'
+         if sys.version_info < (3,) else
+         'Bioinformatics = orangecontrib.bio.widgets3'),
         # This should be unneeded, because module given should load (register)
         # all wanted widgets and prototypes should just have a flag, but for now ...
         'Prototypes = orangecontrib.bio.widgets.prototypes',
