@@ -7,7 +7,12 @@ from collections import defaultdict
 import scipy.stats
 import scipy.special
 import numpy
-import Orange, Orange.utils, statc
+import Orange, Orange.utils
+
+try:
+    from statc import mean, std
+except ImportError:
+    from numpy import mean, std
 
 from .. import utils
 obiExpression = utils.expression
@@ -100,7 +105,7 @@ def pca(M, snapshot=None):
 
 def pca2(M):
     """ Perform PCA on M, return eigenvectors and eigenvalues, sorted.
-    Mostly euivalent to pca(), slightly slower but more stable."""
+    Mostly equivalent to pca(), slightly slower but more stable."""
     XMean = numpy.mean(M, axis = 0)
     M = M - XMean
     U,s,Vt = numpy.linalg.svd(M, full_matrices=False)
@@ -817,7 +822,7 @@ class LLR(ParametrizedTransformation):
             for i, gene_gs, g in zip(gsi, genes_gs, gausse):
                 if gene_gs not in self._normalizec: #skip if computed already
                     r = [ _llrlogratio(ex[i].value, *g) for ex in data ]
-                    self._normalizec[gene_gs] = (statc.mean(r), statc.std(r))
+                    self._normalizec[gene_gs] = (mean(r), std(r))
 
         def t(ex, w, genes_gs=genes_gs, gausse=gausse, normalizec=self._normalizec):
             nm2, name_ind2, genes2 = self._match_instance(ex, genes_gs, None)
@@ -848,7 +853,7 @@ class LLR_slow(ParametrizedTransformation):
         normalizec = []
         for i,g in zip(range(len(datao.domain.attributes)), gaussiane):
             r = [ _llrlogratio(ex[i].value, *g) for ex in datao ]
-            normalizec.append((statc.mean(r), statc.std(r)))
+            normalizec.append((mean(r), std(r)))
         return gaussiane, normalizec
 
     def _use_par(self, arr, constructt):
@@ -1014,7 +1019,7 @@ if __name__ == "__main__":
 
     def pp2(ar):
         ol =  sorted(ar.items())
-        print '\n'.join([ a + ": " +str(b) for a,b in ol])
+        print('\n'.join([ a + ": " +str(b) for a,b in ol]))
 
     #ass = LLR(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0, normalize=True)
     #ass = LLR_slow(data, matcher=matcher, gene_sets=gsets, class_values=choosen_cv, min_part=0.0)
