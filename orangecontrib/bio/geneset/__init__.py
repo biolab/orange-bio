@@ -2,7 +2,7 @@ from __future__ import absolute_import, with_statement
 
 try:
     import cPickle as pickle
-except :
+except:
     import pickle
     
 import os, tempfile, sys
@@ -26,10 +26,6 @@ from .. import dicty
 obiDictyMutants = dicty.phenotypes
 from .. import omim as obiOMIM
 from .. import go as obiGO
-
-#FIXME temp hack to be able to unpickle in Orange3
-import orangecontrib.bio
-sys.modules['Orange.bio'] = orangecontrib.bio
 
 try:
     from . import transform
