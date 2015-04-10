@@ -5,9 +5,8 @@ from collections import defaultdict
 import os
 import os.path
 
-import Orange.bio.geneset
-Orange.bio.geneset.update_server_list(sf_server)
-
+import orangecontrib.bio.geneset
+orangecontrib.bio.geneset.update_server_list(sf_server)
 
 chemical_term = defaultdict(set)
 
@@ -99,7 +98,7 @@ for l in f:
 for a,b in sorted(term_pids.items(), key=lambda x: len(x[1])):
     print term_tree[a], a, len(b)
 
-from Orange.bio.geneset import GeneSet, GeneSets
+from orangecontrib.bio.geneset import GeneSet, GeneSets
 
 gss = set()
 for a,b in term_pids.items():
@@ -112,8 +111,7 @@ for a,b in term_pids.items():
 
 gss = GeneSets(gss)
 
-Orange.bio.geneset.register(gss, sf_server)
-#Orange.bio.geneset.register(gss)
+orangecontrib.bio.geneset.register(gss, sf_server)
 
 #gssgmt = "chem_mesh2.gmt"
 #with open(gssgmt, "wt") as f:
