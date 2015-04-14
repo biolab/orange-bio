@@ -114,7 +114,7 @@ class LabelSelectionWidget(QWidget):
         """
         self.clear()
         if isinstance(labels, dict):
-            labels = labels.items()
+            labels = list(labels.items())
 
         self.labels = labels
         for label, values in labels:
@@ -149,13 +149,18 @@ class LabelSelectionWidget(QWidget):
             self.values_view.selectionModel().clear()
 
     def set_current_label(self, index):
-        """Set the current label
+        """Set the current label index
         """
         self.labels_combo.setCurrentIndex(index)
         label, values = self.labels[index]
         # Block selection changed
         with blocked_signals(self):
             self._values_model[:] = values
+
+    def current_label(self):
+        """Return the current label index.
+        """
+        return self.labels_combo.currentIndex()
 
     def on_label_activated(self, index):
         label, values = self.labels[index]
