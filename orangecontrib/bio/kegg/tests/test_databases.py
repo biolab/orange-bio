@@ -81,9 +81,9 @@ class TestPathways(unittest.TestCase):
 class TestUtils(unittest.TestCase):
     def test_batch_iter(self):
         iter = range(25)
-        expected = [range(10),
-                    range(10, 20),
-                    range(20, 25)]
+        expected = [list(range(10)),
+                    list(range(10, 20)),
+                    list(range(20, 25))]
         for exp, batch in zip(expected,
                               databases.batch_iter(iter, 10)):
             self.assertEqual(exp, batch)

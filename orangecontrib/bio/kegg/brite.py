@@ -5,6 +5,7 @@ KEGG Brite
 from __future__ import absolute_import
 
 import os
+import io
 import re
 
 try:
@@ -51,10 +52,10 @@ class Brite(BriteEntry):
         local_filename = os.path.join(self.local_cache, brite_id + ".keg")
         if not os.path.exists(local_filename):
             brite = urlopen(url).read()
-            with open(local_filename, "wb") as f:
+            with io.open(local_filename, "wb") as f:
                 f.write(brite)
 
-        return open(local_filename, "rb")
+        return io.open(local_filename, "r", )
 
     def load(self, brite_id):
         lines = self._get_brite(brite_id).read().split("\n!\n")[1].splitlines()

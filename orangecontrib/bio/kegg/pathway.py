@@ -7,12 +7,14 @@ KEGG Pathway
 from __future__ import absolute_import
 
 import os
-import requests
 
 import xml.parsers
 from xml.dom import minidom
 
 from contextlib import closing
+from functools import reduce
+
+import requests
 
 from . import conf
 from . import caching
@@ -216,11 +218,12 @@ class Pathway(object):
 
     @cached_method
     def pathway_dom(self):
-        try:
-            return minidom.parse(self._get_kgml()).getElementsByTagName("pathway")[0]
-        except xml.parsers.expat.ExpatError:
-            # TODO: Should delete the cached xml file.
-            return None
+        with self._get_kgml() as kgml:
+            try:
+                return minidom.parse(kgml).getElementsByTagName("pathway")[0]
+            except xml.parsers.expat.ExpatError:
+                # TODO: Should delete the cached xml file.
+                return None
 
     @cached_method
     def entries(self):
