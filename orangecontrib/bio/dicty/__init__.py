@@ -1,22 +1,45 @@
 from __future__ import absolute_import
+from __future__ import division
 
 import sys, pprint, time, re
 from itertools import *
 import urllib
+
+import zlib, sqlite3
+
 try:
     from urllib2 import urlopen
+    from urllib import urlencode
+    from urllib2 import HTTPError
+    import cPickle as pickle
 except ImportError:
     from urllib.request import urlopen
+    from urllib.parse import urlencode
+    from urllib.error import HTTPError
+    import pickle
+
+try:
+    basestring
+except NameError:
+    basestring = str
+    izip = zip
+    from functools import reduce
+
 import socket
 import os
 from collections import defaultdict
 import pickle
 
+from ..utils.compat import *
+
+import Orange
+
 import numpy
 
 from . import phenotypes
 
-#import orange #FIXME
+import six
+
 from ..utils import serverfiles
 
 defaddress = "http://bcm.fri.uni-lj.si/microarray/api/index.php?"
@@ -35,7 +58,7 @@ def splitN(origsize, maxchunk):
     except possibly the last one is of maximum allowed size.
     Chunks are returned in list.
     """
-    l = [maxchunk]*(origsize/maxchunk)
+    l = [maxchunk]*(origsize//maxchunk)
     a = origsize % maxchunk
     if a > 0: 
         l.append(a)
@@ -91,20 +114,6 @@ def imnth(l, ns):
     for a in l:
         yield [ a[n] for n in ns ]
 
-def flatten(l,r=0):
-    """
-    Flatten a python structure into a list. Leave strings alone.
-    """
-    if type(l) == type("a"):
-        return [ l ]
-    try: #if enumerable then flatten it's elements
-        rec = [ flatten(a,r=r+1) for a in l ]
-        ret = []
-        for a in rec:
-            ret = ret + a
-        return ret
-    except:
-        return [ l ]
 
 def mxrange(lr):
     """
@@ -160,11 +169,15 @@ def httpGet(address, *args, **kwargs):
     address = replaceChars(address)
     t1 = time.time()
     f = urlopen(address, *args, **kwargs)
+
     read = f.read()
     if verbose:
         print("bytes", len(read))
         print(time.time() - t1)
-    return read
+    if six.PY3:
+        return read.decode("utf-8")
+    else:
+        return read
 
 def txt2ll(s, separ=' ', lineSepar='\n'):
     return [ a.split(separ) for a in s.split(lineSepar) ]
@@ -186,8 +199,8 @@ class DBInterface(object):
                 if data == None:
                     return httpGet(self.address + request)
                 else:
-                    return httpGet(self.address + request, data=urllib.urlencode(data))
-            except urllib2.HTTPError as e:
+                    return httpGet(self.address + request, data=urlencode(data).encode('ascii'))
+            except HTTPError as e:
                 if e.code == 403:
                     raise AuthenticationError()
                 else:
@@ -479,7 +492,7 @@ def example_tables(ids, chipsm=None, spotmap={}, callback=None, exclude_constant
         if chipsm != None:
             chipdata = chipsm[chipid]
         else:
-            chipdata = chipdl.next()
+            chipdata = six.next(chipdl)
 
         if callback: callback()
 
@@ -555,7 +568,7 @@ def bufferkeypipax(command, data):
         data = data.copy()
         if pipaparpass in data:
             data.pop(pipaparpass)
-        return command + " " +  urllib.urlencode(sorted(data.items()))
+        return command + " " +  urlencode(sorted(data.items()))
     else:
         return command
 
@@ -678,7 +691,7 @@ class PIPAx(DBCommon):
                 callback()
 
         def argsort(a):
-            sort = sorted([(map(int, item), i) for i, item in enumerate(a)])
+            sort = sorted([(list(map(int, item)), i) for i, item in enumerate(a)])
             return [i for _, i in sort]
 
         cbc = CallBack(len(ids), optcb, callbacks=10)
@@ -742,10 +755,9 @@ Can only retrieve a single result_template_type at a time"""
         cbc.end()
 
         # Restore input ids order.
-        domain = orange.Domain([et.domain[id] for id in ids], None)
-        domain.addmetas(et.domain.getmetas())
-        et = orange.ExampleTable(domain, et)
-
+        domain = create_domain([et.domain[id] for id in ids], None, et.domain.metas if OR3 else et.domain.getmetas())
+        et = Orange.data.Table(domain, et)
+        
         cbc = CallBack(2, optcb, callbacks=10)
 
         #transformation is performed prior to averaging
@@ -1299,7 +1311,7 @@ def createExampleTable(names, vals, annots, ddb, cname="DDB", \
     Create an ExampleTable for this group. Attributes are those in
     names. 
     """
-    attributes = [ orange.FloatVariable(n, numberOfDecimals=3) \
+    attributes = [ ContinuousVariable(n, number_of_decimals=3) \
         for n in names ]
 
     #exclusion of names with constant values
@@ -1312,27 +1324,27 @@ def createExampleTable(names, vals, annots, ddb, cname="DDB", \
     if allowed_labels != None:
         oknames = set(filter(lambda x: x in allowed_labels, oknames))
 
-    #print oknames
-
-    for a,an in zip(attributes, annots):
-        a.setattr("attributes", dict([(name,str(val)) for name,val in an if name in oknames]))
-
-    domain = orange.Domain(attributes, False)
-    ddbv = orange.StringVariable(cname)
-    id = orange.newmetaid()
-    domain.addmeta(id, ddbv)
+    ddbv = StringVariable(cname)
 
     examples = [ None ]*len(ddb)
+    ddbs = [ None ]*len(ddb)
     for i,(v,d) in enumerate(izip(izip(*vals), ddb)):
-        ex = orange.Example(domain, [ floatOrUnknown(a) for a in v ])
-        ex[cname] = d
+        ex = [ encode_unknown(a) for a in v ]
 
         if permutation:
             examples[permutation[i]] = ex
+            ddbs[permutation[i]] = [d]
         else:
             examples[i] = ex
+            ddbs[i] = [d]
+    
+    domain = create_domain(attributes, None, [ ddbv ])
+    data = create_table(domain, examples, None, ddbs)
 
-    return orange.ExampleTable(domain,examples)
+    for a,an in zip(data.domain.attributes, annots):
+        a.attributes = dict([(name,str(val)) for name,val in an if name in oknames])
+
+    return data
 
 def transformValues(data, fn):
     """
@@ -1340,7 +1352,7 @@ def transformValues(data, fn):
     """
     for ex in data:
         for at in data.domain.attributes:
-            if not ex[at].isSpecial():
+            if ex[at].value != NAN:
                 ex[at] = fn(ex[at])
 
 def averageAttributes(data, joinc="DDB", fn=median):
@@ -1376,18 +1388,17 @@ def averageAttributes(data, joinc="DDB", fn=median):
 
         for a in range(len(attributes)):
             val = ex[a]
-            if not val.isSpecial():
-                valuesddb[a][j].append(val.native())
+            if val != NAN:
+                valuesddb[a][j].append(val.value)
 
     #create a new example table reusing the domain - apply fn
     examples = []
+    metas = []
     for v in valueso:
-        example = orange.Example(domain, \
-            [ floatOrUnknown(fn(valuesddb[a][v])) for a in range(len(attributes)) ] )
-        example[joinc] = v
-        examples.append(example)
+        examples.append([ encode_unknown(fn(valuesddb[a][v])) for a in range(len(attributes)) ])
+        metas.append([v])
 
-    return orange.ExampleTable(domain, examples)
+    return create_table(domain, examples, None, metas)
 
 def floatOrUnknown(a):
     """
@@ -1398,6 +1409,17 @@ def floatOrUnknown(a):
         return float(a)
     except:
         return "?"
+
+def encode_unknown(a):
+    """
+    Converts an element to float if possible.
+    If now, output "?".
+    """
+    try:
+        return float(a)
+    except:
+        return NAN
+
 
 class CallBack():
     """
@@ -1452,7 +1474,6 @@ class CacheSQLite(object):
         self.conn = self.connect()
 
     def connect(self):
-        import sqlite3
         conn = sqlite3.connect(self.filename)
         c = conn.cursor()
         c.execute('''create table if not exists buf
@@ -1488,14 +1509,13 @@ class CacheSQLite(object):
         :param con: Contents.
         :param version: Version.
         """
-        import cPickle, zlib, sqlite3
         if verbose:
             print("Adding", addr)
         c = self.conn.cursor()
         if self.compress:
-            bin = sqlite3.Binary(zlib.compress(cPickle.dumps(con)))
+            bin = sqlite3.Binary(zlib.compress(pickle.dumps(con)))
         else:
-            bin = sqlite3.Binary(cPickle.dumps(con))
+            bin = sqlite3.Binary(pickle.dumps(con))
         c.execute('insert or replace into buf values (?,?,?)', (addr, version, bin))
         c.close()
         if autocommit:
@@ -1511,7 +1531,6 @@ class CacheSQLite(object):
 
         :param addr: Element address.
         """
-        import cPickle, zlib
         if verbose:
             print("getting from buffer %s" % addr)
             t = time.time()
@@ -1522,9 +1541,9 @@ class CacheSQLite(object):
         if verbose:
             print(time.time() - t)
         if self.compress:
-            rc = cPickle.loads(zlib.decompress(first))
+            rc = pickle.loads(zlib.decompress(first))
         else:
-            rc = cPickle.loads(str(first))
+            rc = pickle.loads(str(first))
         c.close()
 
         if verbose:
@@ -1606,10 +1625,10 @@ def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], 
     natts = []
 
     def nativeOrNone(val):
-        if val.isSpecial(): 
+        if val == NAN: 
             return None
         else: 
-            return val.native()
+            return val.value
 
     def avgnone(l):
         """ Removes None and run avg function"""
@@ -1632,15 +1651,15 @@ def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], 
 
     all_values = defaultdict(set)
     for a in [ at.attributes for at in data.domain.attributes ]:
-        for k,v in a.iteritems():
+        for k,v in a.items():
             all_values[k].add(v)
 
     types = {}
-    for k,vals in all_values.iteritems():
+    for k,vals in all_values.items():
         types[k] = data_type(vals)
 
     for group, elements in d.items():
-        a = orange.FloatVariable()
+        a = ContinuousVariable()
         #here sort elements
     
         def sk(x):
@@ -1651,15 +1670,16 @@ def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], 
         a.attributes.update(join_ats([data.domain.attributes[i].attributes for i in elements]))
         a.name = namefn(a.attributes)
 
-        def avgel(ex, el):
-            return orange.Value(avgnone([ nativeOrNone(ex[ind]) for ind in el ]))
-
-        a.getValueFrom = lambda ex,rw,el=elements: avgel(ex,el)
+        if not OR3:
+            def avgel(ex, el):
+                return Orange.data.Value(avgnone([ nativeOrNone(ex[ind]) for ind in el ]))
+            a.getValueFrom = lambda ex,rw,el=elements: avgel(ex,el)
+        else:
+            a.compute_value = lambda d,el=elements: numpy.nanmedian(data[:,el], axis=1)
         natts.append(a)
 
-    ndom = orange.Domain(natts, data.domain.classVar)
-    ndom.addmetas(data.domain.getmetas())
-    return orange.ExampleTable(ndom, data)
+    ndom = create_domain(natts, data.domain.class_var, data.domain.metas if OR3 else data.domain.getmetas())
+    return Orange.data.Table(ndom, data)
 
 
 class DictyBase(object):
