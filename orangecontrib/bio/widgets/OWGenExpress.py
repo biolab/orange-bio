@@ -1,6 +1,6 @@
 """
-<name>GenCloud</name>
-<description>Access expression data from the GenCloud platform.</description>
+<name>GenExpress</name>
+<description>Expression data from GenExpress.</description>
 <icon>icons/GenCloud.svg</icon>
 <priority>36</priority>
 """
@@ -24,8 +24,8 @@ import orangecontrib.bio.widgets.OWPIPAx as OWPIPAx
 import requests
 from orangecontrib.bio import obiDicty
 
-NAME = "GenCloud"
-DESCRIPTION = "Access expression data from the GenCloud platform."
+NAME = "GenExpress"
+DESCRIPTION = "Expression data from GenExpress."
 ICON = "icons/GenCloud.svg"
 PRIORITY = 36
 
@@ -53,28 +53,30 @@ class Genesis(object):
     IGNORE_REPLICATE = ["Replicate", "id", "ID", "Name" ]
 
     #FIXME get this from the server
-    LABELS = [("static.name", "Name"),
-          ("input.alignment.input.genome.static.name", "Species"),
-          ("input.alignment.input.reads.var.sample.strain", "Strain"),
-          ("Experiment", "Experiment"),
-          ('input.alignment.input.reads.var.sample.genotype', "Genotype"),
-          ("input.alignment.input.reads.var.sample.treatment", "Treatment"),
-          ("input.alignment.input.reads.var.sample.growth", "Growth"),
-          ("input.alignment.input.reads.var.sample.timepoint", "Timepoint"),
-          ("input.alignment.input.reads.var.replicates.replicate", "Replicate"),
-          ("unique_id", "ID"),
-          ("adapter_type", "Adapter"),
-          ("experimenter", "Experimenter"),
-          ("band", "Band"),
-          ("polya", "Polya"),
-          ("primer", "Primer"),
-          ("shearing", "Shearing")]
+    LABELS = [
+        ("input.alignment.input.reads.var.experiment", "Experiment"),
+        ("input.alignment.input.genome.static.name", "Species"),
+        ("static.name", "Name"),
+        ("input.alignment.input.reads.var.sample.strain", "Strain"),
+        ('input.alignment.input.reads.var.sample.genotype', "Genotype"),
+        ("input.alignment.input.reads.var.sample.treatment", "Treatment"),
+        ("input.alignment.input.reads.var.sample.growth", "Growth"),
+        ("input.alignment.input.reads.var.sample.time", "Timepoint"),
+        ("input.alignment.input.reads.var.replicates.replicate", "Replicate"),
+        ("unique_id", "ID"),
+        ("adapter_type", "Adapter"),
+        ("experimenter", "Experimenter"),
+        ("band", "Band"),
+        ("polya", "Polya"),
+        ("primer", "Primer"),
+        ("shearing", "Shearing"),
+    ]
 
     def __init__(self, address, cache=None,
-                 username="", password="", connect=True):
+                 username='anonymous@genialis.com', password='anonymous', connect=True):
 
         """
-        :param str address: The address of the API. 
+        :param str address: The address of the API.
         :param str username:
         :param str password: Login info; None for public access.
         :param CacheSQLite cache: A cache that stores results locally (an
@@ -111,18 +113,28 @@ class Genesis(object):
         return self._buffer_fn("projects" + "|||" + self.username, bufver, reload, a, self)
 
     def result_types(self, reload=False, bufver="0"):
-        """Return a list of available result types.
-        """
+        """Return a list of available result types."""
         def a(self):
-            objects = self.project.objects(type__startswith='data:expression').values()
-            types = set()
+            objects = self.project.objects(type__startswith='data:expression:')
+            types = {}
             for o in objects:
                 an = o.annotation
                 for path, a in an.iteritems():
                     if path.startswith('output') and a['type'] == 'basic:file:' \
                         and not path.startswith('output.proc.'):
-                            types.add(a["name"])
-            return sorted(types)
+                            types[a['name']] = a['label']
+
+            # Sort keys by labels
+            keys = [typ for typ, label in sorted(types.items(), key=lambda x: x[1])]
+            try:
+                # Push field exp to the top (exp is considered default)
+                keys.remove('exp')
+                keys = ['exp'] + keys
+            except ValueError:
+                # Ignore if no 'exp' field
+                pass
+
+            return keys, types
         return self._buffer_fn(self.projectid + "|||" + self.username + "|||" + "result_types", bufver, reload, a, self)
 
     def results_list(self, rtype, reload=False, bufver="0"):
@@ -133,7 +145,7 @@ class Genesis(object):
         :param str rtype: Result type to use (see :obj:`result_types`).
         """
         def a(self):
-            objects = self.project.objects(type__startswith='data:expression').values()
+            objects = self.project.objects(type__startswith='data:expression:')
             rdict = {}
             for o in objects:
                 an = o.annotation
@@ -141,7 +153,7 @@ class Genesis(object):
                 for path, a in an.iteritems():
                     if path.startswith('output') and a['type'] == 'basic:file:' \
                         and a["name"] == rtype:
-                            ok = True  
+                            ok = True
                 if ok:
                     rdict[o.id] = an
                     rdict[o.id]["date_modified"] = o.date_modified
@@ -202,14 +214,18 @@ class Genesis(object):
                 unbuffered.append((id, field))
         unbufferedset = set(unbuffered)
 
-        newgen = [].__iter__()
-        if unbuffered:
-            newgen = self.gen.download(unbuffered)
+        # newgen = [].__iter__()
+        # if unbuffered:
+        #     newgen = self.gen.download(unbuffered)
         for id,field in downloads:
             if (id, field) in unbufferedset:
-                response = newgen.next()
+                import gzip
+                import StringIO
+                response = self.gen.download([id], 'output.' + rtype).next()
+                response_gzipped = StringIO.StringIO(response.content)
+                response_content = gzip.GzipFile(fileobj=response_gzipped)
                 out = []
-                for l in response.text.split('\n')[1:]:
+                for l in response_content.read().split('\n')[1:]:
                     if l:
                         gene, val = l.split('\t')
                         out.append((str(gene), str(val)))
@@ -223,12 +239,12 @@ class Genesis(object):
                  callback=None, bufver="0", transform=None,
                  allowed_labels=None, reload=False):
         """
-        Return data in a :obj:`Orange.data.Table`. Each feature represents 
-        a sample and each row is a gene. The feature's ``.attributes`` 
+        Return data in a :obj:`Orange.data.Table`. Each feature represents
+        a sample and each row is a gene. The feature's ``.attributes``
         contain annotations.
 
         :param list ids: List of ids as returned by :obj:`results_list`
-            if `result_type` is None; list of ids as returned by :obj:`mappings` 
+            if `result_type` is None; list of ids as returned by :obj:`mappings`
             if `result_type` is set.
 
         :param str result_type: Result template type id as returned by
@@ -243,7 +259,7 @@ class Genesis(object):
             float (the default functions returns the median).
 
         :param function transform: A function that transforms individual values.
-            It should take and return a float. Example use: logarithmic 
+            It should take and return a float. Example use: logarithmic
             transformation. Default: None.
 
         """
@@ -265,7 +281,7 @@ class Genesis(object):
                 if key in an:
                     read[a].append((pretty, to_text(an[key])))
         cbc.end()
-    
+
         download_func = lambda x: self.download(x, result_type, reload=reload,
                                                 bufver=bufver)
 
@@ -334,7 +350,7 @@ SelectionByKey = OWPIPAx.SelectionByKey
 ListItemDelegate = OWPIPAx.ListItemDelegate
 SelectionSetsWidget = OWPIPAx.SelectionSetsWidget
 SortedListWidget = OWPIPAx.SortedListWidget
-               
+
 # Mapping from PIPAx.results_list annotation keys to Header names.
 HEADER = [("_cached", "")] + Genesis.LABELS
 
@@ -347,21 +363,26 @@ SORTING_MODEL_LIST = \
      "ID", "Name", "Replicate"]
 
 
-class OWGenCloud(OWWidget):
+class OWGenExpress(OWWidget):
     settingsList = ["server", "excludeconstant", "username", "password",
                     "joinreplicates", "selectionSetsWidget.selections",
                     "columnsSortingWidget.sortingOrder", "currentSelection",
-                    "log2", "experimentsHeaderState", "rtypei", "projecti" ]
+                    "log2", "experimentsHeaderState", "rtypei", "projecti", "serveri" ]
 
     def __init__(self, parent=None, signalManager=None, name="Genesis"):
         OWWidget.__init__(self, parent, signalManager, name)
         self.outputs = [("Example table", ExampleTable)]
 
-        self.username = ""
+        self.servers = [
+            ('https://dictyexpress.research.bcm.edu/', 'dictyExpress'),
+            ('https://cloud.genialis.com/', 'Genialis'),
+        ]
+        self.username = "anonymous"
         self.password = ""
         self.log2 = False
         self.rtypei = 0
         self.projecti = 0
+        self.serveri = 0
 
         self.selectedExperiments = []
         self.buffer = obiDicty.CacheSQLite(bufferfile)
@@ -370,7 +391,7 @@ class OWGenCloud(OWWidget):
         self.excludeconstant = False
         self.joinreplicates = False
         self.currentSelection = None
-    
+
         self.items = []
 
         self.experimentsHeaderState = \
@@ -380,14 +401,11 @@ class OWGenCloud(OWWidget):
 
         self.controlArea.setMaximumWidth(250)
         self.controlArea.setMinimumWidth(250)
-    
+
         """
         OWGUI.button(self.controlArea, self, "Reload",
                      callback=self.Reload)
         """
-        OWGUI.button(self.controlArea, self, "Clear cache",
-                     callback=self.clear_cache)
-
         box = OWGUI.widgetBox(self.controlArea, 'Project')
         self.projectCB = OWGUI.comboBox(box, self, "projecti",
                 items=[],
@@ -439,7 +457,10 @@ class OWGenCloud(OWWidget):
 
         OWGUI.rubber(self.controlArea)
 
-        box = OWGUI.widgetBox(self.controlArea, "Authentication")
+        box = OWGUI.widgetBox(self.controlArea, 'Server')
+        OWGUI.comboBox(box, self, "serveri",
+                       items=[title for url, title in self.servers],
+                       callback=self.ServerChosen)
 
         OWGUI.lineEdit(box, self, "username", "Username:",
                        labelWidth=100,
@@ -452,6 +473,9 @@ class OWGenCloud(OWWidget):
                                     callback=self.AuthChanged)
 
         self.passf.setEchoMode(QLineEdit.Password)
+
+        OWGUI.button(self.controlArea, self, "Clear cache",
+                     callback=self.clear_cache)
 
         OWGUI.lineEdit(self.mainArea, self, "searchString", "Search",
                        callbackOnType=True,
@@ -515,7 +539,15 @@ class OWGenCloud(OWWidget):
     def ConnectAndUpdate(self):
         self.Connect()
         if self.dbc:
-            self.projects = sorted(self.dbc.projects().items(), key=lambda x: x[1])
+            def get_data_count(project_id):
+                # XXX: is there a better way?
+                # Note: limit 0 would return all objects
+                return self.dbc.gen.api.data.get(case_ids__contains=project_id,
+                                                 type__startswith='data:expression:',
+                                                 limit=1)['meta']['total_count']
+
+            self.projects = sorted([p for p in self.dbc.projects().items() if
+                                    get_data_count(p[0]) > 0], key=lambda x: x[1])
             self.UpdateProjects()
             self.ProjectChosen()
             self.UpdateExperimentTypes()
@@ -524,30 +556,36 @@ class OWGenCloud(OWWidget):
         self.error(1)
         self.warning(1)
 
-        username = "anonymous@genialis.com"
-        password = "anonymous"
+        username = 'anonymous@genialis.com'
+        password = 'anonymous'
+        url = self.servers[self.serveri][0]
+
         if self.username:
             username = self.username
             password = self.password
+
+        if username.lower() in ['anonymous@genialis.com', 'anonymous']:
+            username = 'anonymous@genialis.com'
+            password = 'anonymous'
 
         self.dbc = None
         self.projects = []
         self.result_types = []
 
         try:
-            self.dbc = Genesis(address="http://cloud.genialis.com/",
+            self.dbc = Genesis(address=url,
                                   username=username,
                                   password=password,
                                   cache=self.buffer)
         except requests.exceptions.ConnectionError:
-            self.dbc = Genesis(address="http://cloud.genialis.com/", 
+            self.dbc = Genesis(address=url,
                                   username=username,
                                   password=password,
                                   connect=False,
                                   cache=self.buffer)
             self.warning(1, "Could not connect to server, working from cache.")
         except Exception, ex:
-            self.error(1, "Wrong username or password.")
+           self.error(1, "Wrong username or password.")
 
         self.UpdateProjects()
         self.UpdateExperimentTypes() #clear lists
@@ -568,7 +606,7 @@ class OWGenCloud(OWWidget):
 
     def UpdateExperimentTypes(self):
         self.expressionTypesCB.clear()
-        items = [desc for desc  in self.result_types]
+        items = [self.result_types_labels[desc] for desc in self.result_types]
         self.expressionTypesCB.addItems(items)
         #do not update anything if the list is empty
         if len(self.result_types):
@@ -587,21 +625,23 @@ class OWGenCloud(OWWidget):
         self.experimentsWidget.clear()
 
         if not self.dbc or not self.dbc.projectid: #the connection did not succeed
-            return 
+            return
 
         self.items = []
 
         self.progressBarInit()
 
         result_types = []
+        result_types_labels = []
+
         sucind = False  # success indicator for database index
 
         try:
-            result_types = self.dbc.result_types(reload=reload)
+            result_types, result_types_labels = self.dbc.result_types(reload=reload)
             sucind = True
         except Exception, ex:
             try:
-                result_types = self.dbc.result_types()
+                result_types, result_types_labels = self.dbc.result_types()
                 self.warning(0, "Can not access database - using cached data.")
                 sucind = True
             except Exception, ex:
@@ -612,12 +652,13 @@ class OWGenCloud(OWWidget):
             self.error(0)
 
         self.result_types = result_types
+        self.result_types_labels = result_types_labels
 
         self.UpdateExperimentTypes()
         self.UpdateResultsList(reload=reload)
 
         self.progressBarFinished()
-        
+
         if self.currentSelection:
             self.currentSelection.select(self.experimentsWidget.selectionModel())
 
@@ -626,7 +667,17 @@ class OWGenCloud(OWWidget):
     def ProjectChosen(self, reload=False):
         if self.projects:
             self.dbc.projectid = self.projects[self.projecti][0]
-            self.UpdateExperiments(reload=reload)
+        else:
+            self.dbc.projectid = None
+
+        self.UpdateExperiments(reload=reload)
+
+    def ServerChosen(self, reload=False):
+        #if self.projects:
+        #    self.dbc.projectid = self.projects[self.projecti][0]
+        #    self.UpdateExperiments(reload=reload)
+        print 'ServerChosen'
+        self.ConnectAndUpdate()
 
     def UpdateResultsList(self, reload=False):
 
@@ -814,7 +865,7 @@ class OWGenCloud(OWWidget):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     obiDicty.verbose = True
-    w = OWGenCloud()
+    w = OWGenExpress()
     w.show()
     app.exec_()
     w.saveSettings()
