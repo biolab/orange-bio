@@ -184,7 +184,7 @@ def childiter(item):
 class OWGEODatasets(OWWidget):
     name = "GEO Data Sets"
     description = DESCRIPTION
-    icon = "../widgets/icons/GEODatasets.svg"
+    icon = "../widgets/icons/GEODataSets.svg"
     priority = PRIORITY
 
     inputs = []
