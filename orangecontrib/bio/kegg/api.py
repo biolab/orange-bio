@@ -56,7 +56,7 @@ class KeggApi(object):
 
         """
         return list(map(OrganismSummary.from_str,
-                   self.service.list.organism.get().splitlines()))
+                        self.service.list.organism.get().splitlines()))
 
     def list_pathways(self, organism):
         """
@@ -66,15 +66,15 @@ class KeggApi(object):
         [Definition(entry_id=',...
 
         """
-        return map(Definition.from_str,
-                   self.service.list.pathway(organism).get().splitlines())
+        return list(map(Definition.from_str,
+                        self.service.list.pathway(organism).get().splitlines()))
 
     def list(self, db):
         """
         Return a list of all available entries in database `db`.
         """
-        return map(Definition.from_str,
-                   self.service.list(db).get().splitlines())
+        return list(map(Definition.from_str,
+                        self.service.list(db).get().splitlines()))
 
     #######
     # DBGET
@@ -133,7 +133,7 @@ class KeggApi(object):
         else:
             result = self.service.link(target_db)("+".join(ids)).get()
 
-        return map(Link._make, map(str.split, result.splitlines()))
+        return list(map(Link._make, map(str.split, result.splitlines())))
 
     def get_genes_by_enzyme(self, enzyme_id, org):
         return _link_targets(self.link(org, ids=[enzyme_id]))
@@ -296,7 +296,7 @@ class KeggApi(object):
 
     def get_genes_pathway_organism(self, organism):
         l = self.link("pathway", organism)
-        return map(tuple, l)
+        return list(map(tuple, l))
 
     #####################
     # Pathways by objects

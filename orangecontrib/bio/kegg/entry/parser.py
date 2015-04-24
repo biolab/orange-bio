@@ -2,6 +2,8 @@
 A parser for DBGET database entries
 
 """
+from __future__ import print_function
+
 from six import StringIO
 
 
@@ -17,7 +19,7 @@ class DBGETEntryParser(object):
         ...
         >>> parser = DBGETEntryParser()
         >>> for event, title, contents_part in parser.parse(stream):
-        ...    print parser.EVENTS[event], title, repr(contents_part)
+        ...    print(parser.EVENTS[event], title, repr(contents_part))
         ...
         ENTRY_START None None
         SECTION_START ENTRY 'foo\n'

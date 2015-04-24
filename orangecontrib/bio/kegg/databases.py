@@ -208,9 +208,9 @@ class DBDataBase(object):
         # of 'get' requests.
         with closing(get.cache_store()) as store:
             def is_uncached(key):
-                return not get.key_has_valid_cache(get.key_from_args((key,)),
-                                                   store)
-            keys = filter(is_uncached, keys)
+                cache_key = get.key_from_args((key,))
+                return not get.key_has_valid_cache(cache_key, store)
+            keys = [key for key in keys if is_uncached(key)]
 
         start = 0
 
@@ -232,7 +232,7 @@ class DBDataBase(object):
         """
         entries = []
         batch_size = 10
-        keys = map(self._add_db, keys)
+        keys = list(map(self._add_db, keys))
 
         # Precache the entries first
         self.pre_cache(keys)
