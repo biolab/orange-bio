@@ -1,7 +1,10 @@
 from __future__ import absolute_import
 
 import os
-import urllib2
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
 import shutil
 import gzip
 import zipfile
@@ -16,8 +19,11 @@ from io import StringIO
 from collections import defaultdict, namedtuple
 from operator import itemgetter
 
-from Orange.utils import serverfiles
-from Orange.utils import ConsoleProgressBar, wget
+from .utils import serverfiles
+try:
+    from Orange.utils import ConsoleProgressBar, wget
+except ImportError:
+    pass #FIXME disabled in Orange3
 
 from . import taxonomy
 
@@ -854,7 +860,7 @@ class STRING(PPIDatabase):
 
             progress.finish()
 
-            print "Indexing the database"
+            print("Indexing the database")
             cls.create_db_index(con)
 
             con.executescript("""
@@ -1074,7 +1080,7 @@ class STRINGDetailed(STRING):
 
             progress.finish()
 
-            print "Indexing"
+            print("Indexing")
             con.execute("""\
                 CREATE INDEX IF NOT EXISTS index_evidence
                     ON evidence (protein_id1, protein_id2)
@@ -1324,6 +1330,6 @@ def biogrid_proteins():
 
 if __name__ == "__main__":
     for protein in mips_proteins():
-        print "Protein", protein, "interacts with",
-        print ",".join(set(reduce(list.__add__, [[inter.protein1, inter.protein2] for inter in mips_interactions(protein)], [])) - set([protein]))
+        print("Protein", protein, "interacts with",)
+        print(",".join(set(reduce(list.__add__, [[inter.protein1, inter.protein2] for inter in mips_interactions(protein)], [])) - set([protein])))
 
