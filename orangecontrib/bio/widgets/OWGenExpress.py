@@ -8,7 +8,7 @@
 from __future__ import absolute_import
 
 import Orange
-import genapi
+import genesis
 
 import sys, os
 from collections import defaultdict
@@ -55,14 +55,14 @@ class Genesis(object):
     #FIXME get this from the server
     LABELS = [
         ("input.alignment.input.reads.var.experiment", "Experiment"),
-        ("input.alignment.input.genome.static.name", "Species"),
-        ("static.name", "Name"),
+        ("input.alignment.input.reads.var.sample.time", "Timepoint"),
+        ("input.alignment.input.reads.var.replicates.replicate", "Replicate"),
         ("input.alignment.input.reads.var.sample.strain", "Strain"),
         ('input.alignment.input.reads.var.sample.genotype', "Genotype"),
         ("input.alignment.input.reads.var.sample.treatment", "Treatment"),
         ("input.alignment.input.reads.var.sample.growth", "Growth"),
-        ("input.alignment.input.reads.var.sample.time", "Timepoint"),
-        ("input.alignment.input.reads.var.replicates.replicate", "Replicate"),
+        ("input.alignment.input.genome.static.name", "Genome"),
+        ("static.name", "Name"),
         ("unique_id", "ID"),
         ("adapter_type", "Adapter"),
         ("experimenter", "Experimenter"),
@@ -88,7 +88,7 @@ class Genesis(object):
         self.password = password
         self._gen = None
         if connect:
-            self._gen = genapi.GenCloud(username, password, address)
+            self._gen = genesis.Genesis(username, password, address)
         self._project = None
         self.projectid = None
 
@@ -96,7 +96,7 @@ class Genesis(object):
     def gen(self):
         if not self._gen:
             try:
-                self._gen = genapi.GenCloud(self.username, self.password, self.address)
+                self._gen = genesis.Genesis(self.username, self.password, self.address)
             except:
                 raise GenCountConnectionException("Connection needed")
         return self._gen
@@ -115,7 +115,7 @@ class Genesis(object):
     def result_types(self, reload=False, bufver="0"):
         """Return a list of available result types."""
         def a(self):
-            objects = self.project.objects(type__startswith='data:expression:')
+            objects = self.project.data(type__startswith='data:expression:')
             types = {}
             for o in objects:
                 an = o.annotation
@@ -145,7 +145,7 @@ class Genesis(object):
         :param str rtype: Result type to use (see :obj:`result_types`).
         """
         def a(self):
-            objects = self.project.objects(type__startswith='data:expression:')
+            objects = self.project.data(type__startswith='data:expression:')
             rdict = {}
             for o in objects:
                 an = o.annotation
@@ -413,7 +413,7 @@ class OWGenExpress(OWWidget):
 
         self.projects = []
 
-        b = OWGUI.widgetBox(self.controlArea, "Experiment Sets")
+        b = OWGUI.widgetBox(self.controlArea, "Selection bookmarks")
         self.selectionSetsWidget = SelectionSetsWidget(self)
         self.selectionSetsWidget.setSizePolicy(QSizePolicy.Preferred,
                                                QSizePolicy.Maximum)
