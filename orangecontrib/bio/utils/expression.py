@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 import numpy
 
@@ -384,7 +384,7 @@ def equi_n_discretization(array, intervals=5, dim=1):
     pointsshape[dim] = 1
     points = []
     for i in range(intervals):
-        cutend = cut + count / intervals + numpy.ones(len(r)) * (r > i)
+        cutend = cut + count // intervals + numpy.ones(len(r)) * (r > i)
         if dim == 1:
             p = sarray[list(range(len(cutend))), numpy.array(cutend, dtype=int) -1]
         else:
@@ -491,7 +491,6 @@ def lowess(x, y, f=2./3., iter=3, progressCallback=None):
     w **= 3
     yest = numpy.zeros(n)
     delta = numpy.ones(n)
-    milestones = Orange.utils.progress_bar_milestones(iter*n)
     for iteration in range(iter):
         for i in range(n):
             weights = delta * w[:,i]
@@ -506,8 +505,8 @@ def lowess(x, y, f=2./3., iter=3, progressCallback=None):
             beta1 = (A22*b1-A12*b2) / determinant
             beta2 = (A11*b2-A21*b1) / determinant
             yest[i] = beta1 + beta2*x[i]
-            if progressCallback and (iteration*n + i) in milestones:
-                progressCallback((100. * iteration*n + i) /  (iter * n))
+            if progressCallback and (iteration * n + i) % (iter * n // 100 + 1) == 0:
+                progressCallback((100. * iteration*n + i) / (iter * n))
         residuals = y-yest
         s = median(abs(residuals))
         delta[:] = numpy.clip(residuals/(6*s),-1,1)
@@ -576,7 +575,7 @@ def lowess2(x, y, xest, f=2./3., iter=3, progressCallback=None):
     yest2 = numpy.zeros(nest,'f')
     delta = numpy.ones(n,'f')
     iter_count = iter*(nest + n) if iter > 1 else nest
-    milestones = Orange.utils.progress_bar_milestones(iter_count)
+
     curr_iter = 0
     for iteration in range(iter):
         # fit xest
@@ -586,7 +585,7 @@ def lowess2(x, y, xest, f=2./3., iter=3, progressCallback=None):
             A = numpy.array([[numpy.sum(weights), numpy.sum(weights*x)], [numpy.sum(weights*x), numpy.sum(weights*x*x)]])
             beta = numpy.linalg.solve(A, b)
             yest2[i] = beta[0] + beta[1]*xest[i]
-            if progressCallback and curr_iter in milestones:
+            if progressCallback and curr_iter % (iter_count // 100 + 1) == 0:
                 progressCallback(100. * curr_iter / iter_count)
             curr_iter += 1
                 
@@ -598,7 +597,7 @@ def lowess2(x, y, xest, f=2./3., iter=3, progressCallback=None):
                 A = numpy.array([[numpy.sum(weights), numpy.sum(weights*x)], [numpy.sum(weights*x), numpy.sum(weights*x*x)]])
                 beta = numpy.linalg.solve(A,b)
                 yest[i] = beta[0] + beta[1]*x[i]
-                if progressCallback and curr_iter in milestones:
+                if progressCallback and curr_iter % (iter_count // 100 + 1) == 0:
                     progressCallback(100. * curr_iter / iter_count)
                 curr_iter += 1
             residuals = y-yest
@@ -771,8 +770,8 @@ def MA_center_lowess_fast(G, R, f=2./3., iter=1, resolution=100, progressCallbac
     
     ratio, intensity = ratio_intensity(G, R)
     valid = - (ratio.mask & intensity.mask)
-    resoluiton = min(resolution, len(intensity[valid]))
-    hist, edges = numpy.histogram(intensity[valid], len(intensity[valid])/resolution)
+    resolution = min(resolution, len(intensity[valid]))
+    hist, edges = numpy.histogram(intensity[valid], len(intensity[valid])//resolution)
     
     progressCallback2 = (lambda val: progressCallback(val/2)) if progressCallback else None 
     centered = lowess2(intensity[valid], ratio[valid], edges, f, iter, progressCallback=progressCallback2)
@@ -845,8 +844,8 @@ def MA_zscore(G, R, window=1./5., padded=False, progressCallback=None):
     def local_indices(i, sorted):
         """ local indices in sorted (mirror padded if out of bounds)
         """
-        start, end = i - r/2, i + r/2 + r%2
-        pad_start , pad_end = [], []
+        start, end = i - r // 2, i + r // 2 + r % 2
+        pad_start, pad_end = [], []
         if start < 0:
             pad_start = sorted[:abs(start)]
             random.shuffle(pad_start)
@@ -860,15 +859,14 @@ def MA_zscore(G, R, window=1./5., padded=False, progressCallback=None):
             return pad_start + sorted[start: end] + pad_end
         else:
             return sorted[start:end]
-    
-    milestones = Orange.utils.progress_bar_milestones(len(sorted))
+
     for i in range(len(sorted)):
         indices = local_indices(i, sorted)
         localRatio = numpy.take(ratio, indices)
         local_std = numpy.ma.std(localRatio)
         ind = sorted[i]
         z_scores[ind] = ratio[ind] / local_std
-        if progressCallback and i in milestones:
+        if progressCallback and i % (len(sorted) // 100 + 1) == 0:
             progressCallback(100. * i / len(sorted))
         
     z_scores._mask = - numpy.isfinite(z_scores)
