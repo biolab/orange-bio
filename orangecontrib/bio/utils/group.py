@@ -1,6 +1,7 @@
 
 from collections import defaultdict
 from operator import add
+from functools import reduce
 import numpy
 import math
 
@@ -28,11 +29,11 @@ def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
 
     all_values = defaultdict(set)
     for a in annotations:
-        for k,v in a.iteritems():
+        for k,v in a.items():
             all_values[k].add(v)
 
     types = {}
-    for k,vals in all_values.iteritems():
+    for k,vals in all_values.items():
         types[k] = data_type(vals)
     
     groups = defaultdict(list)
@@ -40,7 +41,7 @@ def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
         groups[tuple(a[k] for k in separate)].append(i)
 
     different_in_all = set(k \
-        for k,vals in all_values.iteritems() \
+        for k,vals in all_values.items() \
         if len(vals) == len(annotations) or len(vals) == 1)
 
     other_relevant = set(all_values.keys()) - different_in_all - ignore - set(separate)
@@ -83,15 +84,15 @@ def separate_by(data, separate, ignore=[], consider=None, add_empty=True):
 
         rv2 = lambda x: relevant_vals(annotations[x] if isinstance(x,int) else x)
 
-        ngroups[g] = map(lambda x: x if isinstance(x,int) else None,
-            sorted(elements, key=rv2))
+        ngroups[g] = list(map(lambda x: x if isinstance(x,int) else None,
+            sorted(elements, key=rv2)))
 
         d = defaultdict(int) #get groups of different relevant values
         for i in elements:
             d[rv2(i)] += 1
         
-        uniquepos[g] = map(lambda x: not d[rv2(x)] > 1,
-             sorted(elements, key=rv2))
+        uniquepos[g] = list(map(lambda x: not d[rv2(x)] > 1,
+             sorted(elements, key=rv2)))
     
     return ngroups, uniquepos
 
