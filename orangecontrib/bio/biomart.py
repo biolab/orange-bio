@@ -1,31 +1,37 @@
+from __future__ import print_function
 import os
-try:
-    from urllib2 import HTTPError, urlopen, quote
-except ImportError:
-    from urllib.request import urlopen
-    from urllib.parse import quote
-    from urllib.error import HTTPError
-try:
-    import anydbm
-except ImportError:
-    import dbm as anydbm
-
-from io import StringIO
-
+import errno
+import sys
 import shelve
 import itertools
 import warnings
+import io
 
-from functools import wraps
+from functools import wraps, reduce
 from collections import namedtuple
 from operator import itemgetter
 from contextlib import closing
 from xml.dom import pulldom
 
+
+if sys.version_info < (3,):
+    from urllib2 import HTTPError, urlopen, quote
+    from urllib import addinfourl
+    import anydbm
+else:
+    from urllib.request import urlopen
+    from urllib.response import addinfourl
+    from urllib.parse import quote
+    from urllib.error import HTTPError
+    import dbm as anydbm
+
+import six
+
 try:
     from Orange.utils import environ
 except ImportError:
     from .utils import environ
+
 
 class BioMartError(Exception):
     pass
@@ -122,7 +128,7 @@ class XMLNode(object):
             match = False
 
         return match and all(self.attributes.get(key, None) == value
-                             for key, value in kwargs.iteritems())
+                             for key, value in kwargs.items())
 
     def elements(self, tag=None, **kwargs):
         if self._match(tag, **kwargs):
@@ -161,7 +167,7 @@ class XMLNode(object):
 
 
 def parseXML(stream, parser=None):
-    if isinstance(stream, basestring):
+    if isinstance(stream, six.string_types):
         events = pulldom.parseString(stream, parser)
     else:
         events = pulldom.parse(stream, parser)
@@ -208,7 +214,7 @@ def drop_iter(generator):
     def _iter(generator):
         while True:
             try:
-                yield generator.next()
+                yield next(generator)
             except StopIteration:
                 raise StopIteration
             except Exception as ex:
@@ -217,17 +223,32 @@ def drop_iter(generator):
     return list(_iter(generator))
 
 
+def ensure_dir_exists(name, mode=0o777):
+    try:
+        os.makedirs(name, mode)
+    except OSError as err:
+        if err.errno != errno.EEXIST:
+            raise
+
 DEFAULT_ADDRESS = "http://www.biomart.org/biomart/martservice"
 
-DATA_CACHE = os.path.join(environ.buffer_dir, "biomart-data.cache.db")
-META_CACHE = os.path.join(environ.buffer_dir, "biomart-mata.cache.db")
+# The cache is python version depended (due to use of pickle)
+_PY_TAG = "py{0.major}.{0.minor}".format(sys.version_info)
+_CACHE_VER = 2  # Cache structure version
+_CACHE_TAG = "v{}-{}".format(_CACHE_VER, _PY_TAG)
+
+DATA_CACHE = os.path.join(environ.buffer_dir,
+                          "biomart-data.cache.{}.db".format(_CACHE_TAG))
+META_CACHE = os.path.join(environ.buffer_dir,
+                          "biomart-mata.cache.{}.db".format(_CACHE_TAG))
+
 
 def checkBioMartServerError(response):
-    if response.strip().startswith("Mart name conflict"):
+    if response.strip().startswith(b"Mart name conflict"):
         raise DatabaseNameConflictError(response)
-    elif response.strip().startswith("Problem retrieving datasets"):
+    elif response.strip().startswith(b"Problem retrieving datasets"):
         raise BioMartError(response)
-    elif response.startswith("non-BioMart die():"):
+    elif response.startswith(b"non-BioMart die():"):
         raise BioMartServerError(response)
 
 
@@ -241,6 +262,8 @@ class BioMartConnection(object):
     >>> response = connection.datasets(mart="ensembl")
 
     """
+    _Response = namedtuple("Response", ["data", "headers", "url", "code"])
+
     FOLLOW_REDIRECTS = False
 
     def __init__(self, address=None):
@@ -265,6 +288,7 @@ class BioMartConnection(object):
 
     def _open_cache(self, filename, flag="r"):
         # Ensure the cache db actualy exists (r,w flags do not create it)
+        ensure_dir_exists(os.path.dirname(filename))
         if flag in ["r", "w"]:
             try:
                 return shelve.open(filename, flag)
@@ -277,19 +301,22 @@ class BioMartConnection(object):
     def request_url(self, **kwargs):
         order = ["type", "dataset", "mart", "virtualSchema", "query"]
         items = sorted(
-           kwargs.iteritems(),
+           kwargs.items(),
            key=lambda item: order.index(item[0]) if item[0] in order else 10
         )
+
         query = "&".join("%s=%s" % (key, quote(value))
                          for key, value in items if key != "POST")
 
         return self.address + "?" + query
-#         return url.replace(" ", "%20")
 
     def request(self, **kwargs):
         url = self.request_url(**kwargs)
         cache_key = url
-        if isinstance(url, unicode):
+
+        if sys.version_info >= (3,) and isinstance(url, bytes):
+            cache_key = url.decode("latin-1")
+        elif sys.version_info < (3,) and isinstance(url, unicode):
             cache_key = url.encode("utf-8")
 
         if cache_key in self._error_cache:
@@ -298,35 +325,54 @@ class BioMartConnection(object):
         cache_open = self._get_cache_for_args(kwargs)
 
         with closing(cache_open(flag="r")) as cache:
-            response_cached = cache_key in cache
-            response = cache[cache_key] if response_cached else None
+            response = cache.get(cache_key, None)
 
-        if not response_cached:
+        if response is not None:
+            rtype, rargs = response
+            if rtype == "Success":
+                response = BioMartConnection._Response(*rargs)
+            elif rtype == "Failure":
+                raise BioMartError(*rargs)
+            else:
+                assert False
+
+        if response is None:
             try:
-                response = urlopen(url).read()
-                checkBioMartServerError(response)
-            except Exception as ex:
-                self._error_cache[url] = ex
-                raise ex
+                reply = urlopen(url)
+                headers = reply.headers
+                data = reply.read()
+            except HTTPError as err:
+                self._error_cache[url] = err
+                raise
+            else:
+                response = self._Response(data, headers, reply.url, reply.code)
+                try:
+                    checkBioMartServerError(data)
+                except Exception as err:
+                    # TODO: Which (if any) errors can and should be
+                    # cached persistently?
+                    self._error_cache[url] = err
+                    raise
 
             with closing(cache_open(flag="w")) as cache:
-                cache[cache_key] = response
+                cache[cache_key] = ("Success", tuple(response))
 
-        return StringIO(response)
+        return addinfourl(io.BytesIO(response.data), response.headers,
+                          response.url, response.code)
 
     def registry(self, **kwargs):
         return self.request(type="registry")
 
-    def datasets(self, mart="ensembl", **kwargs):
+    def datasets(self, mart, **kwargs):
         return self.request(type="datasets", mart=mart, **kwargs)
 
-    def attributes(self, dataset="oanatinus_gene_ensembl", **kwargs):
+    def attributes(self, dataset, **kwargs):
         return self.request(type="attributes", dataset=dataset, **kwargs)
 
-    def filters(self, dataset="oanatinus_gene_ensembl", **kwargs):
+    def filters(self, dataset, **kwargs):
         return self.request(type="filters", dataset=dataset, **kwargs)
 
-    def configuration(self, dataset="oanatinus_gene_ensembl", **kwargs):
+    def configuration(self, dataset, **kwargs):
         return self.request(type="configuration", dataset=dataset, **kwargs)
 
     def clear_cache(self):
@@ -349,9 +395,9 @@ class BioMartRegistry(object):
     :param stream: A file like object with xml registry or a
           BioMartConnection instance
 
-    >>> registry = tioMartRegistry(connection)
+    >>> registry = BioMartRegistry(connection)
     >>> for schema in registry.virtual_schemas():
-    ...    print schema.name
+    ...    print(schema.name)
     ...
     default
 
@@ -367,9 +413,9 @@ class BioMartRegistry(object):
             else:
                 stream = self.connection.registry()
                 self.connection._registry = self
-        else:
-            stream = open(stream, "rb") if isinstance(stream, basestring) \
-                     else stream
+        elif isinstance(stream, six.string_types):
+            stream = open(stream, "rb")
+
         self.registry = self.parse(stream)
 
     @cached
@@ -403,7 +449,7 @@ class BioMartRegistry(object):
         """Return a list off all 'mart' instances (:obj:`BioMartDatabase`)
         regardless of their virtual schemas.
         """
-        return reduce(list.__add__,
+        return reduce(list.__iadd__,
                       drop_iter(schema.marts()
                                 for schema in self.virtual_schemas()),
                       [])
@@ -425,7 +471,7 @@ class BioMartRegistry(object):
         """Return a list of all datasets (:obj:`BioMartDataset`) from all
         marts regardless of their virtual schemas.
         """
-        return reduce(list.__add__,
+        return reduce(list.__iadd__,
                       drop_iter(mart.datasets()
                                 for mart in self.marts()),
                       [])
@@ -450,15 +496,12 @@ class BioMartRegistry(object):
         return BioMartQuery(self, **kwargs)
 
     def links_between(self, exporting, importing, virtualSchema="default"):
-        """ Return all links between `exporting` and `importing` datasets in the
-        `virtualSchema`.
+        """Return all links between `exporting` and `importing` datasets
+        in the `virtualSchema`.
         """
         schema = [schema for schema in self.virtual_schemas()
                   if schema.name == virtualSchema][0]
         return schema.links_between(exporting, importing)
-
-    def get_path(self, exporting, importing):
-        raise NotImplementedError
 
     def __iter__(self):
         return iter(self.marts())
@@ -468,7 +511,7 @@ class BioMartRegistry(object):
             return [mart for mart in self.marts()
                     if name in [getattr(mart, "name", None),
                                 getattr(mart, "internalName", None)]][0]
-        except IndexError as ex:
+        except IndexError:
             raise ValueError(name)
 
     def __getitem__(self, name):
@@ -489,8 +532,7 @@ class BioMartRegistry(object):
         """Parse the registry file like object and return a DOM like
         description (:obj:`XMLNode`).
         """
-        xml = stream.read()
-        doc = parseXML(xml, parser)
+        doc = parseXML(stream, parser)
         return doc
 
 parseRegistry = BioMartRegistry.parse
@@ -598,7 +640,7 @@ class BioMartDatabase(object):
 
         self.name = name
         self.virtualSchema = virtualSchema
-        self.database = database,
+        self.database = database
         self.default = default
         self.displayName = displayName
         self.host = host
@@ -636,12 +678,13 @@ class BioMartDatabase(object):
         try:
             datasets = self.connection.datasets(
                 mart=self.name, virtualSchema=self.virtualSchema).read()
-        except BioMartError as ex:
+        except BioMartError:
+            # Why ??
             if self.virtualSchema == "default":
                 datasets = self.connection.datasets(mart=self.name).read()
             else:
                 raise
-        datasets = de_tab(datasets)
+        datasets = de_tab(datasets.decode("utf-8"))
         return [dict(zip(keys, line)) for line in datasets]
 
     @cached
@@ -762,8 +805,11 @@ class BioMartDataset(object):
         stream = self.connection.configuration(
             dataset=self.internalName, virtualSchema=self.virtualSchema
         )
-        response = stream.read()
-        doc = parseXML(response, parser)
+        data = stream.read()
+        if sys.version_info >= (3,):
+            encoding = stream.headers.get_content_charset("utf-8")
+            data = data.decode(encoding)
+        doc = parseXML(data, parser)
         config = list(doc.elements("DatasetConfig"))[0]
         return DatasetConfig(BioMartRegistry(self.connection), config.tag,
                              config.attributes, config.children)
@@ -778,8 +824,8 @@ class BioMartDataset(object):
         return query.run()
 
     def count(self, filters=[], unique=False):
-        """Construct and run a :obj:`BioMartQuery` and count the number of returned
-        lines.
+        """Construct and run a :obj:`BioMartQuery` and count the
+        number of returned lines.
         """
         query = BioMartQuery(self.connection, dataset=self, filters=filters,
                              uniqueRows=unique,
@@ -797,19 +843,24 @@ class BioMartDataset(object):
 class BioMartQuery(object):
     """ Construct a query to run on a BioMart server.
 
-    >>> BioMartQuery(connection,
-    ...              dataset="hsapiens_gene_ensembl",
-    ...              attributes=["ensembl_transcript_id",
-    ...                          "chromosome_name"],
-    ...              filters=[("chromosome_name", ["22"])]).get_count()
+    >>> query = BioMartQuery(connection,
+    ...                      dataset="hsapiens_gene_ensembl",
+    ...                      attributes=["ensembl_transcript_id",
+    ...                                  "chromosome_name"],
+    ...                      filters=[("chromosome_name", ["22"])])
+    ...
+    >>> count = query.get_count()
+    >>> print(count) # doctest: +SKIP
     1221
+
     >>> # Equivalent to
     >>> query = BioMartQuery(connection)
     >>> query.set_dataset("hsapiens_gene_ensembl")
     >>> query.add_filter("chromosome_name", "22")
     >>> query.add_attribute("ensembl_transcript_id")
     >>> query.add_attribute("chromosome_name")
-    >>> query.get_count()
+    >>> count = query.get_count()
+    >>> print(count)  # doctest: +SKIP
     1221
 
     """
@@ -871,11 +922,11 @@ class BioMartQuery(object):
             def args(args):
                 if isinstance(args, list):
                     return 'value="%s"' % ",".join(args)
-                elif isinstance(args, basestring):
+                elif isinstance(args, six.string_types):
                     return 'value="%s"' % args
                 elif isinstance(args, dict):
                     return " ".join(['%s="%s"' % (key, value)
-                                     for key, value in args.iteritems()])
+                                     for key, value in args.items()])
 
             xml = "\n".join(
                 '\t\t<Filter name = "%s" %s />' % (name(fil), args(val))
@@ -976,7 +1027,7 @@ class BioMartQuery(object):
                      .replace("\n", "").replace("\t", ""))
         stream = self.registry.connection.request(query=query)
         stream = stream.read()
-        if stream.startswith("Query ERROR:"):
+        if stream.startswith(b"Query ERROR:"):
             raise BioMartQueryError(stream)
         return stream
 
@@ -984,9 +1035,7 @@ class BioMartQuery(object):
         self.uniqueRows = unique
 
     def xml_query(self, count=None, header=False):
-        self.version = version = "0.4"
-
-        schema = self.virtualSchema
+        self.version = "0.4"
 
         dataset = self._query[0][0]
         dataset = dataset.internalName if isinstance(dataset, BioMartDataset) \
@@ -1005,29 +1054,69 @@ class BioMartQuery(object):
         return xml
 
     def get_example_table(self):
-        import orange
+        import Orange.data
+        import Orange.feature
+        from Bio import SeqIO
+
         data = self.run(count=False, header=True)
 
         if self.format.lower() == "tsv":
             header, data = data.split("\n", 1)
-            domain = orange.Domain([orange.StringVariable(name)
-                                    for name in header.split("\t")], False)
+            domain = Orange.data.Domain(
+                [Orange.feature.String(name) for name in header.split("\t")],
+                None)
+
             data = [line.split("\t")
                     for line in data.split("\n") if line.strip()]
-            return orange.ExampleTable(domain, data) if data else None
+            return Orange.data.Table(domain, data) if data else None
         elif self.format.lower() == "fasta":
-            domain = orange.Domain(
-                [orange.StringVariable("id"),
-                 orange.StringVariable("sequence")],
+            domain = Orange.data.Domain(
+                [Orange.feature.String("id"),
+                 Orange.feature.String("sequence")],
                 False)  # TODO: meaningful id
             examples = []
-            from io import StringIO
-            from Bio import SeqIO
-            for seq in SeqIO.parse(StringIO(data), "fasta"):
+
+            for seq in SeqIO.parse(io.BytesIO(data), "fasta"):
                 examples.append([seq.id, str(seq.seq)])
-            return orange.ExampleTable(domain, examples)
+            return Orange.data.Table(domain, examples)
         else:
-            raise BioMartError("Unsupported format: %" % self.format)
+            raise BioMartError("Unsupported format: %s" % self.format)
+
+    def as_orange_table_v3(self):
+        import numpy
+        import Orange.data
+        from Bio import SeqIO
+        data = self.run(count=False, header=True)
+        data = data.decode("utf-8")
+        if self.format.lower() == "tsv":
+            header, data = data.split("\n", 1)
+            domain = Orange.data.Domain(
+                [], [], [Orange.data.StringVariable(name)
+                         for name in header.split("\t")])
+            rows = [line.split("\t")
+                    for line in data.split("\n") if line.strip()]
+            rows = numpy.array(rows, dtype=object)
+            X = numpy.empty((len(rows), 0))
+            return Orange.data.Table.from_numpy(domain, X, metas=rows)
+        elif self.format.lower() == "fasta":
+            domain = Orange.data.Domain(
+                [], [],
+                [Orange.data.StringVariable("id"),
+                 Orange.data.StringVariable("sequence")])
+
+            rows = [[seq.id, str(seq.seq)]
+                    for seq in SeqIO.parse(io.StringIO(data), "fasta")]
+            rows = numpy.array(rows, dtype=object)
+            X = numpy.empty((len(rows), 0))
+            return Orange.data.Table.from_numpy(domain, X, metas=rows)
+        else:
+            raise BioMartError("Unsupported format: %s" % self.format)
+
+    if sys.version_info >= (3,):
+        get_example_table = as_orange_table_v3
+        get_table = as_orange_table_v3
+    else:
+        get_table = get_example_table
 
 
 def get_pointed(self):
@@ -1060,7 +1149,7 @@ class ConfigurationNode(XMLNode):
         XMLNode.__init__(self, *args, **kwargs)
         self.registry = registry
         self.__dict__.update([(self._name_mangle(name), value) \
-                              for name, value in self.attributes.iteritems()])
+                              for name, value in self.attributes.items()])
 
         self.children = [self._factory(child) for child in self.children]
 
@@ -1164,20 +1253,14 @@ if __name__ == "__main__":
         print("Virtual schema '%s'" % schema.name)
         for mart in schema.databases():
             print("\tMart: '%s' ('%s'):" % (mart.name, mart.displayName))
-            for dataset in mart.datasets():
-                print("\t\t Dataset '%s' %s' '%s'" % \
-                      (dataset.datasetType, dataset.internalName,
-                       dataset.displayName))
+            try:
+                for dataset in mart.datasets():
+                    print("\t\t Dataset '%s' %s' '%s'" % \
+                          (dataset.datasetType, dataset.internalName,
+                           dataset.displayName))
+            except BioMartError as err:
+                print(err, file=sys.stderr)
 
-    database = BioMartDatabase(name="dicty", connection=con)
-    datasets = database.datasets()
-    print(datasets)
-    dataset = datasets[2]
-    configuration = dataset.configuration()
-    attr = dataset.attributes()
-    print(attr)
-    filters = dataset.filters()
-    print(filters)
     reg = BioMartRegistry(con)
 
     dataset = reg.dataset("scerevisiae_gene_ensembl")
@@ -1190,7 +1273,7 @@ if __name__ == "__main__":
     print(query.xml_query())
     print(query.run())
 
-    data = query.get_example_table()
+    data = query.get_table()
     data.save("seq.tab")
 
     import doctest
