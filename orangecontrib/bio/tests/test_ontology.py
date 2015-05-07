@@ -1,7 +1,7 @@
 import doctest
 import unittest
 
-from io import StringIO
+from six import StringIO
 
 from orangecontrib.bio import ontology
 
