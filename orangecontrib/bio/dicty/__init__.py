@@ -1,46 +1,39 @@
 from __future__ import absolute_import
 from __future__ import division
 
-import sys, pprint, time, re
-from itertools import *
-import urllib
+import sys
+import os
+import time
+import re
+import zlib
+import sqlite3
+import socket
 
-import zlib, sqlite3
+import pickle
 
-try:
+from functools import reduce
+from collections import defaultdict
+
+if sys.version_info < (3, ):
     from urllib2 import urlopen
     from urllib import urlencode
     from urllib2 import HTTPError
-    import cPickle as pickle
-except ImportError:
+    from itertools import izip
+else:
     from urllib.request import urlopen
     from urllib.parse import urlencode
     from urllib.error import HTTPError
-    import pickle
-
-try:
-    basestring
-except NameError:
-    basestring = str
     izip = zip
-    from functools import reduce
 
-import socket
-import os
-from collections import defaultdict
-import pickle
-
-from ..utils.compat import *
+import six
+import numpy
 
 import Orange
 
-import numpy
-
+from ..utils.compat import *
+from ..utils import serverfiles
 from . import phenotypes
 
-import six
-
-from ..utils import serverfiles
 
 defaddress = "http://bcm.fri.uni-lj.si/microarray/api/index.php?"
 #defaddresspipa = "https://pipa.fri.uni-lj.si/pipa/script/api/orange.py?action="
@@ -141,9 +134,9 @@ def mxrange(lr):
 def issequencens(x):
     """
     Is x a sequence and not string ? We say it is if it has a __getitem__ 
-    method and it is not an instance of basestring.
+    method and it is not an instance of six.string_types.
     """
-    return hasattr(x, '__getitem__') and not isinstance(x, basestring)
+    return hasattr(x, '__getitem__') and not isinstance(x, six.string_types)
 
 #end utility functions
 
@@ -175,7 +168,8 @@ def httpGet(address, *args, **kwargs):
         print("bytes", len(read))
         print(time.time() - t1)
     if six.PY3:
-        return read.decode("utf-8")
+        encoding = f.headers.get_content_charset("latin-1")
+        return read.decode(encoding)
     else:
         return read
 
@@ -392,7 +386,7 @@ class DBCommon(object):
         sids = split(ids,chunk)
     
         bufverfn = None
-        if isinstance(bufver, basestring):
+        if isinstance(bufver, six.string_types):
             bufverfn = lambda x: bufver
         else:
             bufverfn = bufver
@@ -492,7 +486,7 @@ def example_tables(ids, chipsm=None, spotmap={}, callback=None, exclude_constant
         if chipsm != None:
             chipdata = chipsm[chipid]
         else:
-            chipdata = six.next(chipdl)
+            chipdata = next(chipdl)
 
         if callback: callback()
 
@@ -718,7 +712,7 @@ class PIPAx(DBCommon):
                     mappings_id = annot["id"]
                 return res_types_to_unique_id[data_id, mappings_id]
 
-            ids = map(id_map, ids)
+            ids = list(map(id_map, ids))
         else:
             result_type_set = set(id.rsplit("_", 1)[-1] for id in ids)
             if len(result_type_set) != 1:
@@ -800,7 +794,7 @@ Can only retrieve a single result_template_type at a time"""
         sids = split(ids, chunk)
 
         bufverfn = None
-        if isinstance(bufver, basestring):
+        if isinstance(bufver, six.string_types):
             bufverfn = lambda x: bufver
         else:
             bufverfn = bufver
@@ -1097,7 +1091,7 @@ chips chips""")
         """
         Download chips using new shorter format.
         """
-        chip_map_ids = zip(ids,[ dict(a)['chips.chip_map_id'] for a in annots ])
+        chip_map_ids = list(zip(ids, [dict(a)['chips.chip_map_id'] for a in annots]))
 
         def separateByChipsMaps(l):
             begin = 0
