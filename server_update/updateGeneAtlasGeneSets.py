@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+import sys
+print("DEFUNCT")
+sys.exit(0)
+
 from collections import defaultdict
 from orangecontrib.bio.obiGeneAtlas import run_simple_query
 from orangecontrib.bio.geneset import GeneSets, GeneSet, register

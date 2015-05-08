@@ -20,7 +20,6 @@ sf_server.upload("OMIM", "morbidmap", filename, title="Online Mendelian Inherita
                    tags=["genes", "diseases", "human", "OMIM" "#version:%i" % obiOMIM.OMIM.VERSION])
 sf_server.unprotect("OMIM", "morbidmap")
 
-
 """
 Orange server upload for OMIM morbidmap gene sets
 """
