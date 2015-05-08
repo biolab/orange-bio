@@ -381,8 +381,13 @@ def to_taxid(name):
     Return a NCBI Taxonomy id for a given KEGG Organism name
     """
     with _global_genome_instance() as genome:
-        if name in genome:
+        
+        if name in genome: #a T string
             return genome[name].taxid
+
+        name2 = genome.org_code_to_entry_key(name)
+        if name2 in genome:
+            return genome[name2].taxid
 
         keys = genome.search(name)
         if keys:
