@@ -77,7 +77,7 @@ INSTALL_REQUIRES = (
     'Orange',
     'setuptools',
     'numpy',
-    'GenAPI>=0.0.4',
+    'genesis-pyapi>=1.1.1',
     # Dependencies which are problematic to install automatically
     #'openbabel-python', # You get bindings together with the openbabel library and not stand-alone
     #'scipy', # Requires Fortran compiler
