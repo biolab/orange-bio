@@ -502,7 +502,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         return genes
         
     def FilterAnnotatedGenes(self, genes):
-        matchedgenes = self.annotations.GetGeneNamesTranslator(genes).values()
+        matchedgenes = self.annotations.get_gene_names_translator(genes).values()
         return matchedgenes, [gene for gene in genes if gene not in matchedgenes]
         
     def FilterUnknownGenes(self):
@@ -544,13 +544,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
             
         i = len(calls)
         if not self.ontology:
-            self.ontology = obiGO.Ontology(progressCallback=lambda value: pb.advance())
+            self.ontology = obiGO.Ontology(progress_callback=lambda value: pb.advance())
             i+=1
         if org != self.loadedAnnotationCode:
             self.annotations = None
             gc.collect() # Force run garbage collection.
             code = self.annotationFiles[org].split(".")[-3]
-            self.annotations = obiGO.Annotations(code, genematcher=obiGene.GMDirect(), progressCallback=lambda value: pb.advance())
+            self.annotations = obiGO.Annotations(code, genematcher=obiGene.GMDirect(), progress_callback=lambda value: pb.advance())
             i+=1
             self.loadedAnnotationCode = org
             count = defaultdict(int)
@@ -582,7 +582,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     except Exception, ex:
                         print ex
             self.annotations.genematcher = obiGene.matcher(matchers)
-            self.annotations.genematcher.set_targets(self.annotations.geneNames)
+            self.annotations.genematcher.set_targets(self.annotations.gene_names)
             
     def Enrichment(self, pb=None):
         pb = OWGUI.ProgressBar(self, 100) if pb is None else pb
@@ -611,7 +611,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         genesCount = len(clusterGenes)
         genesSetCount = len(set(clusterGenes))
         
-        self.clusterGenes = clusterGenes = self.annotations.GetGeneNamesTranslator(clusterGenes).values()
+        self.clusterGenes = clusterGenes = self.annotations.get_gene_names_translator(clusterGenes).values()
         
 #        self.clusterGenes = clusterGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, clusterGenes)
         self.infoLabel.setText("%i unique genes on input\n%i (%.1f%%) genes with known annotations" % (genesSetCount, len(clusterGenes), 100.0*len(clusterGenes)/genesSetCount if genesSetCount else 0.0))
@@ -632,7 +632,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
                 refc = len(referenceGenes)
 #                referenceGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, referenceGenes)
-                referenceGenes = self.annotations.GetGeneNamesTranslator(referenceGenes).values()
+                referenceGenes = self.annotations.get_gene_names_translator(referenceGenes).values()
                 self.referenceRadioBox.buttons[1].setText("Reference set (%i genes, %i matched)" % (refc, len(referenceGenes)))
                 self.referenceRadioBox.buttons[1].setDisabled(False)
                 self.information(2)
@@ -642,14 +642,14 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 else:
                     self.referenceRadioBox.buttons[1].setText("Reference set")
                     self.referenceRadioBox.buttons[1].setDisabled(True)
-                referenceGenes = self.annotations.geneNames
+                referenceGenes = self.annotations.gene_names
                 self.useReferenceDataset = 0
         else:
             self.useReferenceDataset = 0
         if not self.useReferenceDataset:
             self.information(2)
             self.information(1)
-            referenceGenes = self.annotations.geneNames
+            referenceGenes = self.annotations.gene_names
         self.referenceGenes = referenceGenes
         evidences = []
         for etype in obiGO.evidenceTypesOrdered:
@@ -658,9 +658,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         aspect = ["P", "C", "F"][self.aspectIndex]
         
         if clusterGenes:
-            self.terms = terms = self.annotations.GetEnrichedTerms(clusterGenes, referenceGenes, evidences, aspect=aspect,
-                                                                   prob=self.probFunctions[self.probFunc], useFDR=False,
-                                                                   progressCallback=lambda value:pb.advance() )
+            self.terms = terms = self.annotations.get_enriched_terms(clusterGenes, referenceGenes, evidences, aspect=aspect,
+                                                                   prob=self.probFunctions[self.probFunc], use_fdr=False,
+                                                                   progress_callback=lambda value:pb.advance() )
             ids = []
             pvals = []
             for i,d in self.terms.items():
@@ -866,9 +866,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         for etype in obiGO.evidenceTypesOrdered:
             if getattr(self, "useEvidence"+etype):
                 evidences.append(etype)
-        allTerms = self.annotations.GetAnnotatedTerms(selectedGenes, 
-                          directAnnotationOnly=self.selectionDirectAnnotation, 
-                          evidenceCodes=evidences)
+        allTerms = self.annotations.get_annotated_terms(selectedGenes, 
+                          direct_annotation_only=self.selectionDirectAnnotation, 
+                          evidence_codes=evidences)
             
         if self.selectionDisjoint:
             count = defaultdict(int)
