@@ -25,13 +25,17 @@ else:
     from Orange.feature import Continuous as ContinuousVariable
     from Orange.feature import String as StringVariable
 
+from .utils import compat
+
 OR3 = True if Orange.__version__ >= "3" else False
 
 if OR3:
     NAN = float("nan")
     import numpy
+    isnan = numpy.isnan
 else:
     NAN = '?'
+    isnan = lambda v: v == "?"
 
 def spots_mean(x):
     vs = [v for v in x if v and v!=NAN]
@@ -67,36 +71,6 @@ GDS_INFO_FILENAME = "gds_info.pickled"
 FTP_NCBI = "ftp.ncbi.nih.gov"
 FTP_DIR = "pub/geo/DATA/SOFT/GDS/"
 
-def create_domain(at, cl, metas):
-    if OR3:
-        return Orange.data.Domain(at, cl, metas=metas)
-    else:
-        domain  = Orange.data.Domain(at, cl)
-        if metas:
-            domain.add_metas(dict((StringVariable.new_meta_id(), ma) for ma in  metas))
-        return domain
-
-def create_table(atts, classvar, metaatts, X, Y, metas):
-    domain = create_domain(atts, classvar, metas=metaatts)
-    if OR3:
-        if Y:
-            Y = [ [ classvar.to_val(l) ] for l in Y ]
-        if metas:
-            metas = [ [ c.to_val(v) for c,v in zip(metaatts, l) ] for l in metas ]
-        data = Orange.data.Table(domain, numpy.asarray(X), Y=Y, metas=metas)
-    else:
-        insts = []
-        for i in range(len(X)):
-            if Y:
-                inst = Orange.data.Instance(domain, X[i] + [ Y[i] ])
-            else:
-                inst = Orange.data.Instance(domain, X[i])
-            if metaatts:
-                for ma,mv in zip(metaatts, metas[i]):
-                    inst[ma] = mv
-            insts.append(inst)
-        data = Orange.data.Table(domain, insts)
-    return data
 
 class GDSInfo:
 
@@ -350,9 +324,10 @@ class GDS():
                 X.append(vals)
                 Y.append(sample2class.get(sampleid, None))
                 metas.append([samp_ann[sampleid].get(n, None) for n,_ in ad.items() if n != sample_type ])
-    
-            return create_table(atts, classvar, metasvar, X, Y, metas)
-            
+
+            domain = compat.create_domain(atts, classvar, metasvar)
+            return compat.create_table(domain, X, Y, metas)
+
         else: # genes in rows
             annotations = self.sample_annotations(sample_type)
             atts = [ContinuousVariable(name=ss) for ss in self.info["samples"]]
@@ -372,8 +347,9 @@ class GDS():
                 else:
                     X.append(self.gdsdata[g].data)
             metas = [ [a] for a in nameval]
-            return create_table(atts, None, metasvar, X, None, metas)
-        
+            domain = compat.create_domain(atts, None, metasvar)
+            return compat.create_table(domain, X, None, metas)
+
     def getdata(self, report_genes=True, merge_function=spots_mean,
                  sample_type=None, transpose=False, remove_unknown=None):
         """

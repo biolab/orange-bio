@@ -40,9 +40,12 @@ def create_table(domain, X, Y, metas):
     if OR3:
         metaatts = domain.metas
         if Y:
-            Y = [ [ classvar.to_val(l) ] for l in Y ]
+            Y = numpy.array([[classvar.to_val(row)] for row in Y],
+                            dtype=float)
         if metas:
-            metas = [ [ c.to_val(v) for c,v in zip(metaatts, l) ] for l in metas ]
+            metas = numpy.array([[c.to_val(v) for c, v in zip(metaatts, row)]
+                                 for row in metas],
+                                dtype=object)
         data = Orange.data.Table(domain, numpy.asarray(X), Y=Y, metas=metas)
     else:
         metaatts = [ at for i,at in sorted(domain.getmetas().items()) ]
