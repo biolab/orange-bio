@@ -1,66 +1,61 @@
 from __future__ import absolute_import
 
-try:
-    import cPickle as pickle
-except:
-    import pickle
+import os
+import gzip
+import re
 
-import gzip, os.path, re
-
-import Orange
-from .utils import serverfiles
-
-from . import taxonomy
 from collections import defaultdict
-import Orange
 
 import six
+if six.PY3:
+    import pickle
+else:
+    import cPickle as pickle
+
+import numpy
 
 import Orange.data
-
 if six.PY3:
-   from Orange.data import DiscreteVariable, ContinuousVariable, StringVariable
+    from Orange.data import DiscreteVariable, ContinuousVariable, StringVariable
 else:
     from Orange.feature import Discrete as DiscreteVariable
     from Orange.feature import Continuous as ContinuousVariable
     from Orange.feature import String as StringVariable
 
+from .utils import serverfiles
 from .utils import compat
+from . import taxonomy
 
-OR3 = True if Orange.__version__ >= "3" else False
-
-if OR3:
-    NAN = float("nan")
-    import numpy
-    isnan = numpy.isnan
-else:
-    NAN = '?'
-    isnan = lambda v: v == "?"
 
 def spots_mean(x):
-    vs = [v for v in x if v and v!=NAN]
-    if len(vs) == 0: return NAN
-    return sum(vs)/len(vs)
+    vs = [v for v in x if not compat.isunknown(v)]
+    if len(vs) == 0:
+        return compat.unknown
+    else:
+        return sum(vs) / len(vs)
+
 
 def spots_median(x):
-    vs = [v for v in x if v and v!=NAN]
-    if len(vs) == 0: return NAN
-    if len(vs) % 2:
-        return sorted(vs)/(len(vs)/2)
-    else:
-        z = sorted(x)
-        return (z[len(vs)/2-1] + z[len(vs)/2]) / 2. 
-    return sum(vs)/len(vs)
+    vs = [v for v in x if not compat.isunknown(v)]
+    if len(vs) == 0:
+        return compat.unknown
+    return numpy.median(vs)
+
 
 def spots_min(x):
-    vs = [v for v in x if v and v!=NAN]
-    if len(vs) == 0: return NAN
-    return min(vs)/len(vs)
+    vs = [v for v in x if not compat.isunknown(v)]
+    if len(vs) == 0:
+        return compat.unknown
+    else:
+        return min(vs)
+
 
 def spots_max(x):
-    vs = [v for v in x if v and v!=NAN]
-    if len(vs) == 0: return NAN
-    return max(vs)/len(vs)
+    vs = [v for v in x if not compat.isunknown(v)]
+    if len(vs) == 0:
+        return compat.unknown
+    else:
+        return max(vs)
 
 p_assign = re.compile(" = (.*$)")
 p_tagvalue = re.compile("![a-z]*_([a-z_]*) = (.*)$")    
@@ -267,7 +262,7 @@ class GDS():
     def _parse_soft(self, remove_unknown=None):
         """Parse GDS data, returns data dictionary."""
         f = gzip.open(self.filename, "rt")
-        mfloat = lambda x: float(x) if x!='null' else NAN
+        mfloat = lambda x: float(x) if x != 'null' else compat.unknown
     
         data = {}
         # find the start of the data part
@@ -400,9 +395,10 @@ class GDS():
 
 
 def _float_or_na(x):
-    if x.isSpecial():
-        return NAN
-    return float(x)
+    if compat.isunknown(x):
+        return compat.unknown
+    else:
+        return float(x)
 
 def transpose_class_to_labels(data, attcol="sample"):
     """Converts data with genes as attributes to data with genes in rows."""

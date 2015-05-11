@@ -1,26 +1,24 @@
-#compatibility with Orange 2 and 3
-from __future__ import absolute_import
-
-try:
-    import cPickle as pickle
-except:
-    import pickle
+# compatibility with Orange 2 and 3
 
 import Orange
+
 OR3 = True if Orange.__version__ >= "3" else False
 
 if OR3:
-   from Orange.data import DiscreteVariable, ContinuousVariable, StringVariable
+    from Orange.data import DiscreteVariable, ContinuousVariable, StringVariable
 else:
     from Orange.feature import Discrete as DiscreteVariable
     from Orange.feature import Continuous as ContinuousVariable
     from Orange.feature import String as StringVariable
 
 if OR3:
-    NAN = float("nan")
     import numpy
+    unknown = NAN = float("nan")
+    isunknown = numpy.isnan
 else:
-    NAN = '?'
+    unknown = NAN = '?'
+    isunknown = lambda v: v == NAN
+
 
 def create_domain(at, cl, metas):
     if OR3:
@@ -34,6 +32,7 @@ def create_domain(at, cl, metas):
                 metas = zip([ StringVariable.new_meta_id() for _ in metas ], metas)
             domain.add_metas(dict((StringVariable.new_meta_id(), ma) for mi, ma in metas))
         return domain
+
 
 def create_table(domain, X, Y, metas):
     classvar = domain.class_var
