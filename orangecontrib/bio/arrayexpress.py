@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import os
 import re
@@ -7,25 +7,28 @@ import shutil
 import posixpath
 import json
 from xml.etree.ElementTree import ElementTree
-from io import StringIO
 
 from collections import defaultdict
 from functools import partial
 from contextlib import closing
 from contextlib import contextmanager
 
-from orangecontrib.bio.utils import serverfiles
-
-parse_json = json.load
-
 try:
     from urllib2 import urlopen
 except ImportError:
     from urllib.request import urlopen
 
+import io
+import six
+
+from orangecontrib.bio.utils import serverfiles
+
+parse_json = json.load
+
+
 def parse_xml(stream):
-    """ Parse an xml stream into an instance of
-    `xml.etree.ElementTree.ElementTree`.
+    """
+    Parse an xml stream into an instance of `xml.etree.ElementTree.ElementTree`.
     """
     return ElementTree(file=stream)
 
@@ -105,7 +108,7 @@ class ArrayExpressConnection(object):
         """
         # Formaters:
         def format_default(val):
-            if isinstance(val, basestring):
+            if isinstance(val, six.string_types):
                 return val
             else:
                 return "+".join(val)
@@ -241,7 +244,7 @@ class ArrayExpressConnection(object):
 
         """
         stream = self.query_files(accession=accession, format="json")
-        data = json.load(stream)
+        data = json.load(io.TextIOWrapper(stream, encoding="utf-8"))
         try:
             files = data["files"]["experiment"]["file"]
         except KeyError:
@@ -261,19 +264,19 @@ class ArrayExpressConnection(object):
         if self.cache is not None:
             with self.open_cache("r") as cache:
                 if url in cache:
-                    return StringIO(cache[url])
+                    return io.BytesIO(cache[url])
 
             stream = urlopen(url, timeout=timeout)
             data = stream.read()
             with self.open_cache("w") as cache:
                 cache[url] = data
 
-            return StringIO(data)
+            return io.BytesIO(data)
         else:
             return urlopen(url, timeout=timeout)
 
     def open_cache(self, flag="r"):
-        if isinstance(self.cache, basestring):
+        if isinstance(self.cache, six.string_types):
             try:
                 return closing(_open_shelve(self.cache, flag))
             except Exception:
@@ -328,8 +331,8 @@ def query_experiments(keywords=None, accession=None, array=None, ef=None,
     :param miamescore: Filter on the MIAME complience score (max 5).
     :param date: Filter by release date.
 
-    >>> query_experiments(species="Homo sapiens", ef="organism_part", efv="liver")
-    {u'experiments': ...
+    >>> query_experiments(species="Homo sapiens", ef="organism_part", efv="liver") # doctest: +SKIP
+    {...
 
     .. _EFO: http://www.ebi.ac.uk/efo/
 
@@ -348,7 +351,7 @@ def query_experiments(keywords=None, accession=None, array=None, ef=None,
     )
 
     if format == "json":
-        return parse_json(stream)
+        return parse_json(io.TextIOWrapper(stream, ecoding="utf-8"))
     else:
         return parse_xml(stream)
 
@@ -382,7 +385,7 @@ def query_files(keywords=None, accession=None, array=None, ef=None,
     )
 
     if format == "json":
-        return parse_json(stream)
+        return parse_json(io.TextIOWrapper(stream, ecoding="utf-8"))
     else:
         return parse_xml(stream)
 
@@ -406,8 +409,8 @@ def parse_idf(file):
     and the second element is a list of all tag values.
 
     """
-    if isinstance(file, basestring):
-        file = open(file, "rb")
+    if isinstance(file, six.string_types):
+        file = io.open(file, "r")
     data = file.read()
     lines = data.splitlines()
     lines = [line.split("\t") for line in lines
@@ -422,8 +425,8 @@ def parse_sdrf(file):
     (a row is a list of string values).
 
     """
-    if isinstance(file, basestring):
-        file = open(file, "rb")
+    if isinstance(file, six.string_types):
+        file = io.open(file, "r")
     data = file.read()
     lines = data.splitlines()
     lines = [line.split("\t") for line in lines
@@ -450,8 +453,8 @@ def parse_data_matrix(file):
         - a list of list matrix with values (as strings)
 
     """
-    if isinstance(file, basestring):
-        file = open(file, "rb")
+    if isinstance(file, six.string_types):
+        file = io.open(file, "r")
     data = file.read()
     lines = data.splitlines()
     lines = [line.split("\t") for line in lines if line.strip()]
@@ -472,19 +475,20 @@ def parse_data_matrix(file):
 
 
 class InvestigationDesign(dict):
-    r"""Investigation design (contains the contents of the .idf).
+    r"""
+    Investigation design (contains the contents of the .idf).
 
-    >>> idf_file = StringIO(
+    >>> idf_file = six.StringIO(
     ...     'Investigation Title\tfoo investigation\n' +
     ...     'Experimental Design\tfubar\tsnafu\n' +
     ...     'SDRF File\tfoobar.sdrf\n'
     ... )
     >>> idf = InvestigationDesign(idf_file)
-    >>> print idf.investigation_title
+    >>> print(idf.investigation_title)
     foo investigation
-    >>> print idf.experimental_design
+    >>> print(idf.experimental_design)
     ['fubar', 'snafu']
-    >>> print idf.sdrf_file
+    >>> print(idf.sdrf_file)
     ['foobar.sdrf']
 
     """
@@ -616,7 +620,7 @@ class SampleDataRelationship(object):
     def _column(self, name):
         """ Return the named column.
         """
-        if isinstance(name, basestring):
+        if isinstance(name, six.string_types):
             index = self.header.index(name)
         else:
             index = name
@@ -790,8 +794,14 @@ def processed_matrix_to_orange(matrix_file, sdrf=None):
     import numpy
     import Orange
 
-    if isinstance(matrix_file, basestring):
-        matrix_file = open(matrix_file, "rb")
+    def as_str(text):
+        if isinstance(text, unicode):
+            return text.encode("utf-8")
+        else:
+            return text
+
+    if isinstance(matrix_file, six.string_types):
+        matrix_file = io.open(matrix_file, "r")
 
     header, quant_type, rows, matrix = parse_data_matrix(matrix_file)
     header_ref, header = header
@@ -803,6 +813,8 @@ def processed_matrix_to_orange(matrix_file, sdrf=None):
     is_float = numpy.frompyfunc(_is_float, 1, 1)  # an numpy ufunc
 
     for header_name, quant, column in zip(header, quant_type, matrix.T):
+        header_name = as_str(header_name)
+
         if _is_continuous(column):
             feature = Orange.feature.Continuous(header_name)
             # relace all non parsable floats with '?'
@@ -810,20 +822,20 @@ def processed_matrix_to_orange(matrix_file, sdrf=None):
         else:
             values = set(column)
             feature = Orange.feature.Discrete(
-                header_name, values=sorted(values)
+                header_name, values=sorted(map(as_str, values))
             )
-        feature.attributes["quantitation type"] = quant
+        feature.attributes["quantitation type"] = as_str(quant)
         features.append(feature)
 
-    row_ref_feature = Orange.feature.String(row_ref)
+    row_ref_feature = Orange.feature.String(as_str(row_ref))
     domain = Orange.data.Domain(features, None)
     domain.addmeta(Orange.feature.Descriptor.new_meta_id(), row_ref_feature)
 
-    table = Orange.data.Table(domain, [list(row) for row in matrix])
+    table = Orange.data.Table(domain, [list(map(as_str, row)) for row in matrix])
     table.setattr("header_ref", header_ref)
     # Add row identifiers
     for instance, row in zip(table, rows):
-        instance[row_ref_feature] = row
+        instance[row_ref_feature] = as_str(row)
 
     if sdrf is not None:
         pattern = re.compile(
@@ -934,10 +946,10 @@ class ArrayExpressExperiment(object):
     An convenience class representing an Array Express Experiment.
 
     >>> ae = ArrayExpressExperiment("E-MEXP-2917")
-    >>> print ae.name
+    >>> print(ae.name)
     Characterization of Data Variation in Gene Expression Profiling of ...
     >>> for file in ae.files:
-    ...     print file["name"], file["url"]
+    ...     print("{:<10}: {}".format(file["name"], file["url"]))
     E-MEXP-2917...
     >>> table = ae.fgem_to_table() # Retrieve the experiment data table
 
@@ -1089,7 +1101,7 @@ class ArrayExpressExperiment(object):
         if not self._is_local(url):
             self._download_file(url, extract=True)
         file = self._local_filepath(url)
-        return open(file, "rb")
+        return io.open(file, "rb")
 
     def _search_files(self, kind=None, extension=None):
         """ Search files by `kind` and `extension`.
@@ -1141,7 +1153,9 @@ class ArrayExpressExperiment(object):
                              "and data relationship file"
                              .format(self.accession))
         file = files[0]
-        return SampleDataRelationship(self._open(file.get("url")))
+        return SampleDataRelationship(
+            io.TextIOWrapper(self._open(file.get("url")), encoding="utf-8")
+        )
 
     def fgem_to_table(self):
         """ Retrieve the processed matrix from the Array Express FTP
@@ -1154,12 +1168,16 @@ class ArrayExpressExperiment(object):
         # (should be in sdrf but sometimes it is in 2column file only, why?)
         sdrf = self._search_files("sdrf", "txt")
         if sdrf:
-            sdrf = SampleDataRelationship(self._open(sdrf[0].get("url")))
+            sdrf = SampleDataRelationship(
+                io.TextIOWrapper(self._open(sdrf[0].get("url")),
+                                 encoding="utf-8"),
+            )
             if "Derived Array Data Matrix File" not in sdrf.header:
                 twocol = self._search_files("twocolumn", "txt")
                 if twocol:
                     sdrf = SampleDataRelationship(
-                        self._open(twocol[0].get("url"))
+                        io.TextIOWrapper(self._open(twocol[0].get("url")),
+                                         encoding="utf-8")
                     )
         matrix_file = self._search_files("fgem")[0]
         self._open(matrix_file.get("url"))
@@ -1176,7 +1194,8 @@ def test():
     bar = type("bar", (object,), {})()
 
     doctest.testmod(optionflags=doctest.ELLIPSIS,
-                    extraglobs={"conn": conn, "foo": foo, "bar": bar})
+                    extraglobs={"conn": conn, "foo": foo, "bar": bar,
+                                "six": six})
 
 
 if __name__ == "__main__":

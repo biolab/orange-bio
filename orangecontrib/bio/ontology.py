@@ -17,7 +17,7 @@ Construct an ontology from scratch with custom terms ::
     >>> ontology = OBOOntology()
     >>> ontology.add_object(term)
     >>> ontology.add_header_tag("created-by", "ales") # add a header tag
-    >>> from io import StringIO
+    >>> from six import StringIO
     >>> buffer = StringIO()
     >>> ontology.write(buffer) # Save the ontology to a file like object
     >>> print(buffer.getvalue()) # Print the contents of the buffer
@@ -31,12 +31,10 @@ Construct an ontology from scratch with custom terms ::
 To load an ontology from a file, pass the file or filename to the
 :class:`OBOOntology` constructor or call its load method ::
 
-    >>> buffer.seek(0) # rewind
-    0
+    >>> _ = buffer.seek(0) # rewind
     >>> ontology = OBOOntology(buffer)
     >>> # Or equivalently
-    >>> buffer.seek(0) # rewind
-    0
+    >>> _ = buffer.seek(0) # rewind
     >>> ontology = OBOOntology()
     >>> ontology.load(buffer)
 
@@ -44,7 +42,7 @@ To load an ontology from a file, pass the file or filename to the
 See the definition of the `.obo file format <http://www.geneontology.org/GO.format.obo-1_2.shtml>`_.
 
 """
-
+from __future__ import print_function
 import sys
 import re
 import warnings
@@ -52,7 +50,7 @@ import keyword
 from collections import defaultdict
 import six
 
-from io import StringIO
+from six import StringIO
 
 try:
     from urllib2 import urlopen
@@ -456,7 +454,7 @@ class Instance(OBOObject):
 class OBOParser(object):
     r''' A simple parser for .obo files (inspired by xml.dom.pulldom)
 
-    >>> from io import StringIO
+    >>> from six import StringIO
     >>> file = StringIO("""\
     ... header_tag: header_value
     ... [Term]
