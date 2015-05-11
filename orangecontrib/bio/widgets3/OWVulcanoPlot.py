@@ -5,18 +5,14 @@ Volcano plot
 """
 import sys
 
-from operator import add
-from collections import defaultdict
 from contextlib import contextmanager
-from functools import reduce
 
 import numpy
 import scipy.stats
 
 from PyQt4 import QtGui
-from PyQt4.QtGui import (
-    QWidget, QVBoxLayout, QPainterPath, QPainter, QItemSelection
-)
+from PyQt4.QtGui import QPainterPath, QPainter
+
 from PyQt4.QtCore import (
     Qt, QEvent, QObject, QPointF, QRectF, QSize, QPoint, QRect
 )
@@ -28,7 +24,10 @@ import Orange.data
 
 from Orange.widgets.utils.datacaching import data_hints
 from Orange.widgets import widget, gui, settings
-from Orange.widgets.utils.itemmodels import PyListModel
+
+from .utils import gui as guiutils, group as grouputils
+
+from .OWFeatureSelection import SetContextHandler
 
 NAME = "Volcano Plot"
 DESCRIPTION = "Plots fold change vs. p-value.)"
@@ -52,149 +51,6 @@ def blocked_signals(qobj):
         yield qobj
     finally:
         qobj.blockSignals(state)
-
-
-class LabelSelectionWidget(QWidget):
-    """
-    A widget for selection of label values.
-    """
-    label_activated = Signal(int)
-    selection_changed = Signal(object, object)
-
-    def __init__(self, parent=None):
-        QWidget.__init__(self, parent)
-        self._values_model = PyListModel([], parent=self)
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        def group_box(title):
-            box = QtGui.QGroupBox(title)
-            box.setFlat(True)
-            lay = QVBoxLayout()
-            lay.setContentsMargins(0, 0, 0, 0)
-            box.setLayout(lay)
-            return box
-
-        self.labels_combo = QtGui.QComboBox()
-        self.values_view = QtGui.QListView(
-            selectionMode=QtGui.QListView.ExtendedSelection
-        )
-        self.values_view.setModel(self._values_model)
-        self.labels_combo.activated[int].connect(self.on_label_activated)
-        self.values_view.selectionModel().selectionChanged.connect(
-            self.on_values_selection
-        )
-
-        l_box = group_box("Label")
-        v_box = group_box("Values")
-
-        l_box.layout().addWidget(self.labels_combo)
-        v_box.layout().addWidget(self.values_view)
-
-        layout.addWidget(l_box)
-        layout.addWidget(v_box)
-
-        self.setLayout(layout)
-
-        self.setSizePolicy(QtGui.QSizePolicy.Expanding,
-                           QtGui.QSizePolicy.Expanding)
-
-        self._block_selection_emit = False
-
-        self.labels = []
-        self.set_labels([])
-
-    def clear(self):
-        self.labels_combo.clear()
-        self._values_model[:] = []
-        self.labels = []
-
-    def set_labels(self, labels):
-        """Set the labels to display.
-        """
-        self.clear()
-        if isinstance(labels, dict):
-            labels = list(labels.items())
-
-        self.labels = labels
-        for label, values in labels:
-            self.labels_combo.addItem(label)
-
-        if labels:
-            self.set_current_label(0)
-
-    def set_selection(self, label, values):
-        """Set the selection to label and values
-        """
-        if isinstance(label, str):
-            labels = [l for l, _ in self.labels]
-            index = labels.index(label) if label in labels else -1
-        else:
-            index = label
-
-        if index >= 0:
-            if index != self.labels_combo.currentIndex():
-                self.set_current_label(index)
-
-            all_values = list(self._values_model)
-            values = [v for v in values if v in all_values]
-            selection = QItemSelection()
-            for i, v in enumerate(self._values_model):
-                if v in values:
-                    index = self._values_model.index(i, 0)
-                    selection.select(index, index)
-            self.values_view.selectionModel().select(
-                selection,  QtGui.QItemSelectionModel.ClearAndSelect)
-        else:
-            self.values_view.selectionModel().clear()
-
-    def set_current_label(self, index):
-        """Set the current label index
-        """
-        self.labels_combo.setCurrentIndex(index)
-        label, values = self.labels[index]
-        # Block selection changed
-        with blocked_signals(self):
-            self._values_model[:] = values
-
-    def current_label(self):
-        """Return the current label index.
-        """
-        return self.labels_combo.currentIndex()
-
-    def on_label_activated(self, index):
-        label, values = self.labels[index]
-        with blocked_signals(self):
-            self._values_model[:] = values
-
-        self.label_activated.emit(index)
-
-    def on_values_selection(self, selected, deselected):
-        label, values = self.current_selection()
-        self.selection_changed.emit(label, values)
-
-    def selection_indexes(self):
-        """ Return the values selection indices.
-        """
-        selection = self.values_view.selectionModel().selection()
-        indexes = selection.indexes()
-        return sorted(set([i.row() for i in indexes]))
-
-    def current_selection(self):
-        """ Return the current label and selected values.
-        """
-        i = self.labels_combo.currentIndex()
-
-        if i == -1:
-            # When clearing the labels model / combobox
-            return None, None
-
-        label, all_values = self.labels[i]
-        values = [all_values[i] for i in self.selection_indexes()]
-        return label, values
-
-    def sizeHint(self):
-        return QSize(100, 200)
 
 
 class GraphSelections(QObject):
@@ -561,8 +417,6 @@ class VolcanoGraph(pg.PlotWidget):
     def sizeHint(self):
         return QSize(500, 500)
 
-# from .OWGenotypeDistances import SetContextHandler
-
 
 class OWVolcanoPlot(widget.OWWidget):
     name = NAME
@@ -573,24 +427,20 @@ class OWVolcanoPlot(widget.OWWidget):
     inputs = INPUTS
     outputs = OUTPUTS
 
-#     contextHandlers = {
-#         "targets": SetContextHandler("targets")
-#     }
-
     want_save_graph = False
+
+    settingsHandler = SetContextHandler()
 
     symbol_size = settings.Setting(5)
     symetric_selections = settings.Setting(True)
     auto_commit = settings.Setting(False)
 
-    genes_in_columns = settings.Setting(False)
-    label_selections = settings.Setting([])
+    current_group_index = settings.ContextSetting(-1)
+    #: stored selection indices (List[int]) for every split group.
+    stored_selections = settings.ContextSetting([])
 
     def __init__(self, parent=None):
         widget.OWWidget.__init__(self, parent)
-
-        self.target_group = None, []
-        self.label_selections = []
 
         self.data = None
         self.target_group = None, []
@@ -614,16 +464,12 @@ class OWVolcanoPlot(widget.OWWidget):
 
         box = gui.widgetBox(self.controlArea, "Target Labels")
 
-        self.target_widget = LabelSelectionWidget(self)
-        self.target_widget.selection_changed.connect(self.on_target_changed)
-        self.target_widget.label_activated.connect(self.on_label_activated)
+        self.target_widget = guiutils.LabelSelectionWidget(
+            self,
+            groupChanged=self.on_label_activated,
+            groupSelectionChanged=self.on_target_changed)
 
         box.layout().addWidget(self.target_widget)
-
-        self.genesInColumnsCheck = gui.checkBox(
-            box, self, "genes_in_columns", "Genes in columns",
-            callback=[self.init_from_data, self.plot]
-        )
 
         box = gui.widgetBox(self.controlArea, "Settings")
 
@@ -642,110 +488,108 @@ class OWVolcanoPlot(widget.OWWidget):
         return QSize(800, 600)
 
     def clear(self):
-        self.target_widget.set_labels([])
         self.targets = []
-        self.label_selections = []
-        self.target_group = None, []
+        self.stored_selections = []
+        self.target_widget.setModel(None)
         self.clear_graph()
 
     def clear_graph(self):
         self.graph.clear()
 
     def set_data(self, data=None):
-#         self.closeContext("targets")
+        self.closeContext()
         self.clear()
         self.data = data
         self.error(0)
         self.warning([0, 1])
         if data is not None:
-            self.genes_in_columns = not bool(data.domain.class_var)
-            self.genesInColumnsCheck.setEnabled(bool(data.domain.class_var))
-            if self.genes_in_columns:
-                self.genes_in_columns = not data_hints.get_hint(data, "genesinrows", not self.genes_in_columns)
-#             self.openContext("", data)
+            self.init_from_data()
+
+            if not self.targets:
+                self.error(0, "Data has no suitable defined groups/labels")
+
+            genesinrows = data_hints.get_hint(data, "genesinrows", True)
+
+            # Select the first RowGroup if genesinrows hint is False
+            if not genesinrows:
+                ind = [i for i, grp in enumerate(self.targets)
+                       if isinstance(grp, grouputils.RowGroup)]
+                if ind:
+                    self.current_group_index = ind[0]
+                else:
+                    self.current_group_index = 0 if self.targets else -1
+
+            else:
+                self.current_group_index = 0
+
+            # TODO: Why does the current_group_index not get restored
+            self.openContext([(grp.name, v)
+                              for grp in self.targets for v in grp.values])
+            model = self.target_widget.model()
+
+            # FIX: This assumes fixed target key/values order.
+            indices = [model.index(i, 0, model.index(keyind, 0,))
+                       for keyind, selected in enumerate(self.stored_selections)
+                       for i in selected]
+
+            selection = guiutils.itemselection(indices)
+            self.target_widget.setCurrentGroupIndex(self.current_group_index)
+            self.target_widget.setSelection(selection)
+
+            self.plot()
         else:
             self.infoLabel.setText("No data on input.")
-        self.init_from_data()
 
     def init_from_data(self):
-        """Init widget state from the data.
+        """Initialize widget state after receiving new data.
         """
-        self.update_target_labels()
-        self.error(0)
-        if self.data:
-            if not self.targets:
-                if self.genes_in_columns:
-                    self.error(0, "Data set with no column labels (attribute tags)")
-                else:
-                    self.error(0, "Data has no class.")
+        if self.data is not None:
+            column_groups, row_groups = grouputils.group_candidates(self.data)
+            self.targets = column_groups + row_groups
+            self.stored_selections = [[0] for _ in self.targets]
 
-#         self.openContext("targets", [(label, v) for label, vals in self.targets \
-#                                                 for v in vals])
+            targetitems = [guiutils.standarditem_from(desc)
+                           for desc in self.targets]
+            model = QtGui.QStandardItemModel()
+            for item in targetitems:
+                model.appendRow(item)
 
-        # Context handler might 'helpfully' restore some invalid selection
-        if len(self.label_selections) != len(self.targets):
-            self.label_selections = [[] for t in self.targets]
+            with blocked_signals(self.target_widget):
+                self.target_widget.setModel(model)
 
-        if self.target_group == (None, []) and self.targets:
-            label, values = self.targets[0]
-            self.target_group = (label, values[:1])
-
-        if self.target_group != (None, []):
-            self.target_widget.set_selection(*self.target_group)
-        else:
-            self.clear_graph()
-
-    def update_target_labels(self):
-        if self.data:
-            if self.genes_in_columns:
-                items = [a.attributes.items() for a in self.data.domain.attributes]
-                items = reduce(add, map(list, items), [])
-
-                targets = defaultdict(set)
-                for label, value in items:
-                    targets[label].add(value)
-
-                targets = [(key, list(sorted(vals)))
-                           for key, vals in targets.items() if len(vals) >= 2]
-                self.targets = targets
-            else:
-                var = self.data.domain.class_var
-                values = list(var.values)
-                if len(values) >= 2:
-                    self.targets = [(var.name, values)]
-                else:
-                    self.targets = []
         else:
             self.targets = []
+            self.stored_selections = []
+            with blocked_signals(self.target_widget):
+                self.target_widget.setModel(None)
 
-        if self.targets:
-            label, values = self.targets[0]
-            self.target_group = (label, values[:1])
-        else:
-            self.target_group = None, []
-
-        self.label_selections = [[] for t in self.targets]
-        self.target_widget.set_labels(self.targets)
+    def selected_split(self):
+        groupindex = self.target_widget.currentGroupIndex()
+        if not (0 <= groupindex < len(self.targets)):
+            return None, []
+        group = self.targets[groupindex]
+        selection = self.target_widget.currentGroupSelection()
+        selection = [ind.row() for ind in selection.indexes()]
+        return group, selection
 
     def on_label_activated(self, index):
-        """Try to restore a saved selection.
-        """
-        selected = self.label_selections[index]
-        if not selected:
-            selected = self.targets[index][1][:1]
+        self.current_group_index = index
+        self.plot()
 
-        self.target_widget.set_selection(index, selected)
+    def on_target_changed(self):
+        # Save the current selection to persistent settings
+        rootind = self.target_widget.currentGroupIndex()
+        selection = self.target_widget.currentGroupSelection()
+        indices = [ind.row() for ind in selection.indexes()]
 
-    def on_target_changed(self, label, values):
-        self.target_group = label, values
-        # Save the selection
-        labels = [l for l, _ in self.targets]
-        if label in labels:
-            index = labels.index(label)
-            self.label_selections[index] = values
+        if rootind != -1 and indices:
+            self.stored_selections[rootind] = indices
 
-        # replot
-        if label and values:
+        self._update_plot()
+
+    def _update_plot(self):
+        group, targetindices = self.selected_split()
+        if group is not None and targetindices:
             self.plot()
         else:
             self.clear_graph()
@@ -756,44 +600,20 @@ class OWVolcanoPlot(widget.OWWidget):
         else:
             self.graph.setSelectionMode(VolcanoGraph.RectSelection)
 
-    def group_indices(self):
-        """
-        Return the selection masks for the current group selection.
-        """
-        key, values = self.target_group
-        if self.genes_in_columns:
-            target = set([(key, value) for value in values])
-            I1 = [bool(set(var.attributes.items()).intersection(target))
-                  for var in self.data.domain.attributes]
-            I1 = numpy.array(I1)
-            I2 = numpy.ones_like(I1, dtype=bool)
-            I2[I1] = False
-            return I1, I2
-        else:
-            target = set(values)
-            class_var = self.data.domain.class_var
-            target_ind = [class_var.values.index(t) for t in target]
-
-            X, _ = self.data.get_column_view(self.data.domain.class_var)
-            I1 = numpy.zeros_like(X, dtype=bool)
-            for i in target_ind:
-                I1 |= X == i
-            I2 = numpy.ones_like(I1, dtype=bool)
-            I2[I1] = False
-            return I1, I2
-
     def plot(self):
         self.graph.clear()
 
         self.current_selection = []
-        _, target_values = self.target_group
+        group, target_indices = self.selected_split()
         self.warning([0, 1])
         self.error(1)
 
-        if self.data and target_values:
+        if self.data and group is not None and target_indices:
             X = self.data.X
-            I1, I2 = self.group_indices()
-            if not self.genes_in_columns:
+            I1 = grouputils.group_selection_mask(
+                self.data, group, target_indices)
+            I2 = ~I1
+            if isinstance(group, grouputils.RowGroup):
                 X = X.T
 
             N1, N2 = numpy.count_nonzero(I1), numpy.count_nonzero(I2)
@@ -809,13 +629,14 @@ class OWVolcanoPlot(widget.OWWidget):
                        "More than one measurement per class should be provided"
                 )
 
-            fold = numpy.log2(numpy.mean(X[:, I1], axis=1) /
-                              numpy.mean(X[:, I2], axis=1))
+            with numpy.errstate(divide="ignore", invalid="ignore"):
+                fold = numpy.log2(numpy.mean(X[:, I1], axis=1) /
+                                  numpy.mean(X[:, I2], axis=1))
 
-            # TODO: handle missing values better (mstats)
-            _, P = scipy.stats.ttest_ind(X[:, I1], X[:, I2], axis=1,
-                                         equal_var=True)
-            logP = numpy.log10(P)
+                # TODO: handle missing values better (mstats)
+                _, P = scipy.stats.ttest_ind(X[:, I1], X[:, I2], axis=1,
+                                             equal_var=True)
+                logP = numpy.log10(P)
 
             mask = numpy.isfinite(fold) & numpy.isfinite(logP)
             self.validindices = numpy.flatnonzero(mask)
@@ -852,14 +673,15 @@ class OWVolcanoPlot(widget.OWWidget):
         """
         Commit (send) the selected items.
         """
-        if self.data and self.genes_in_columns:
+        if self.data is not None and \
+                isinstance(self.selected_split()[0], grouputils.ColumnGroup):
             selected = self.selection()
             if selected.size:
                 data = self.data[selected]
             else:
                 data = None
             self.current_selection = list(selected)  # For testing in on_selection_changed
-        elif self.data:
+        elif self.data is not None:
             selected = self.selection()
             attrs = [self.data.domain[i] for i in selected]
             data = self.data[:, tuple(attrs) + self.data.domain.metas]
@@ -883,7 +705,8 @@ class OWVolcanoPlot(widget.OWWidget):
             logr, logp = pos.x(), pos.y()
             index = point.data()
 
-            text = ("<b>{index}</b><hr/>log<sub>2</sub>(ratio): {logr:.5f}<br/>"
+            text = ("<b>{index}</b><hr/>"
+                    "log<sub>2</sub>(ratio): {logr:.5f}<br/>"
                     "p-value: {p:.5f}").format(logr=logr, p=10 ** -logp,
                                                index=index)
 
