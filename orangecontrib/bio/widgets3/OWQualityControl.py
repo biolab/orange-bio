@@ -6,7 +6,7 @@ from functools import reduce
 from xml.sax.saxutils import escape
 
 import numpy
-import scipy
+import scipy.stats
 
 from PyQt4 import QtGui
 from PyQt4.QtGui import (
@@ -23,7 +23,7 @@ from Orange.widgets.utils import itemmodels
 from .OWHeatMap import GraphicsSimpleTextLayoutItem
 from ..utils import group as exp
 
-from .OWFeatureSelection import SetContextHandler
+from .utils.settings import SetContextHandler
 
 
 def take_columns(data, indices):
@@ -133,7 +133,7 @@ def experiment_description(feature):
 class OWQualityControl(widget.OWWidget):
     name = "Quality Control"
     description = "Experiment quality control"
-    icon = "../widget/icons/QualityControl.svg"
+    icon = "../widgets/icons/QualityControl.svg"
     priority = 5000
 
     inputs = [("Experiment Data", Orange.data.Table, "set_data")]

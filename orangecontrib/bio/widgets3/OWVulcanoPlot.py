@@ -25,9 +25,9 @@ import Orange.data
 from Orange.widgets.utils.datacaching import data_hints
 from Orange.widgets import widget, gui, settings
 
-from .utils import gui as guiutils, group as grouputils
-
-from .OWFeatureSelection import SetContextHandler
+from .utils import gui as guiutils
+from .utils import group as grouputils
+from .utils.settings import SetContextHandler
 
 NAME = "Volcano Plot"
 DESCRIPTION = "Plots fold change vs. p-value.)"
