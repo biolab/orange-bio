@@ -6,6 +6,7 @@ Differential Gene Expression
 """
 import sys
 import copy
+from types import SimpleNamespace as namespace
 
 import numpy as np
 import scipy.stats
@@ -13,7 +14,7 @@ import scipy.special
 
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
-from PyQt4.QtCore import pyqtSignal as Signal
+from PyQt4.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
 
 import pyqtgraph as pg
 
@@ -21,7 +22,9 @@ import Orange.data
 from Orange.preprocess import transformation
 
 from Orange.widgets import widget, gui, settings
+
 from Orange.widgets.utils.datacaching import data_hints
+from Orange.widgets.utils import concurrent
 
 from .utils import gui as guiutils
 from .utils import group as grouputils
@@ -579,7 +582,10 @@ class OWFeatureSelection(widget.OWWidget):
         self.scores = None
         #: The computed scores from label permutations
         self.nulldist = None
-        #: Stored selections (TODO)
+
+        self.__scores_future = self.__scores_state = None
+
+        self.__in_progress = False
 
         self.test_f = {
             OWFeatureSelection.LowTail: test_low,
@@ -681,6 +687,7 @@ class OWFeatureSelection(widget.OWWidget):
         gui.rubber(self.controlArea)
 
         self.on_scoring_method_changed()
+        self._executor = concurrent.ThreadExecutor()
 
     def sizeHint(self):
         return QtCore.QSize(800, 600)
@@ -697,6 +704,7 @@ class OWFeatureSelection(widget.OWWidget):
         self.clear_plot()
         self.dataInfoLabel.setText("No data on input.\n")
         self.selectedInfoLabel.setText("\n")
+        self.__cancel_pending()
 
     def clear_plot(self):
         """Clear the histogram plot.
@@ -783,8 +791,12 @@ class OWFeatureSelection(widget.OWWidget):
     def update_scores(self):
         """Compute the scores and update the histogram.
         """
+        self.__cancel_pending()
         self.clear_plot()
+        self.scores = None
+        self.nulldist = None
         self.error(0)
+
         grp, split_selection = self.selected_split()
 
         if not self.data or grp is None:
@@ -798,6 +810,7 @@ class OWFeatureSelection(widget.OWWidget):
 
         def permute_indices(group_indices, random_state=None):
             assert all(ind.dtype.kind == "i" for ind in group_indices)
+            assert all(ind.ndim == 1 for ind in group_indices)
             if random_state is None:
                 random_state = np.random
             joined = np.hstack(group_indices)
@@ -836,19 +849,92 @@ class OWFeatureSelection(widget.OWWidget):
 
         # TODO: Check that each label has more than one measurement,
         # raise warning otherwise.
-        scores = compute_scores(X, indices, )
 
-        null_scores = []
-        if self.compute_null:
-            rstate = np.random.RandomState(0)
-            for i in range(self.permutations_count):
-                p_indices = permute_indices(indices, rstate)
-                assert all(pi.shape == i.shape
-                           for pi, i in zip(indices, p_indices))
-                pscore = compute_scores(X, p_indices)
-                assert pscore.shape == scores.shape
-                null_scores.append(pscore)
+        def compute_scores_with_perm(X, indices, nperm=0, rstate=None,
+                                     progress_advance=None):
+            scores = compute_scores(X, indices, )
 
+            if progress_advance is not None:
+                progress_advance()
+            null_scores = []
+            if nperm > 0:
+                if rstate is None:
+                    rstate = np.random.RandomState(0)
+
+                for i in range(nperm):
+                    p_indices = permute_indices(indices, rstate)
+                    assert all(pind.shape == ind.shape
+                               for pind, ind in zip(indices, p_indices))
+                    pscore = compute_scores(X, p_indices)
+                    assert pscore.shape == scores.shape
+                    null_scores.append(pscore)
+                    if progress_advance is not None:
+                        progress_advance()
+
+            return scores, null_scores
+
+        p_advance = concurrent.methodinvoke(
+            self, "progressBarAdvance", (float,))
+        state = namespace(cancelled=False, advance=p_advance)
+
+        def progress():
+            if state.cancelled:
+                raise concurrent.CancelledError
+            else:
+                state.advance(100 / (nperm + 1))
+
+        self.progressBarInit()
+        set_scores = concurrent.methodinvoke(
+            self, "__set_score_results", (concurrent.Future,))
+
+        nperm = self.permutations_count if self.compute_null else 0
+        self.__scores_state = state
+        self.__scores_future = self._executor.submit(
+                compute_scores_with_perm, X, indices, nperm,
+                progress_advance=progress)
+        self.__scores_future.add_done_callback(set_scores)
+
+    @Slot(float)
+    def __pb_advance(self, value):
+        self.progressBarAdvance(value, )
+
+    @Slot(float)
+    def progressBarAdvance(self, value):
+        if not self.__in_progress:
+            self.__in_progress = True
+            try:
+                super().progressBarAdvance(value)
+            finally:
+                self.__in_progress = False
+
+    @Slot(concurrent.Future)
+    def __set_score_results(self, scores):
+        # set score results from a Future
+        self.error(1)
+        if scores is self.__scores_future:
+            self.histogram.setUpdatesEnabled(True)
+            self.progressBarFinished()
+
+            if not self.__scores_state.cancelled:
+                try:
+                    results = scores.result()
+                except Exception as ex:
+                    sys.excepthook(*sys.exc_info())
+                    self.error(1, "Error: {!s}", ex)
+                else:
+                    self.set_scores(*results)
+
+        elif self.__scores_future is None:
+            self.histogram.setUpdatesEnabled(True)
+            self.progressBarFinished()
+
+    def __cancel_pending(self):
+        if self.__scores_future is not None:
+            self.__scores_future.cancel()
+            self.__scores_state.cancelled = True
+            self.__scores_state = self.__scores_future = None
+
+    def set_scores(self, scores, null_scores=None):
         self.scores = scores
         self.nulldist = null_scores
 
@@ -1159,6 +1245,12 @@ class OWFeatureSelection(widget.OWWidget):
         self.send("Remaining data subset", remainingdata)
         self.send("Selected genes", None)
 
+    def onDeleteWidget(self):
+        super().onDeleteWidget()
+        self.clear()
+        self.__cancel_pending()
+        self._executor.shutdown(wait=True)
+
 
 def copy_variable(var):
     clone = copy.copy(var)
@@ -1222,6 +1314,7 @@ def test_main(argv=sys.argv):
     rval = app.exec_()
     w.set_data(None)
     w.saveSettings()
+    w.onDeleteWidget()
     return rval
 
 if __name__ == "__main__":
