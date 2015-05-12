@@ -3,9 +3,14 @@
 
 from common import *
 
-from Orange.bio import obiTaxonomy
-
 import tarfile
+import bz2
+
+from orangecontrib.bio import taxonomy
+from orangecontrib.bio.ncbi import taxonomy as ncbi_taxonomy
+
+
+DOMAIN, FILENAME = taxonomy.Taxonomy.DOMAIN, taxonomy.Taxonomy.FILENAME
 
 path = os.path.join(environ.buffer_dir, "tmp_Taxonomy")
 
@@ -14,21 +19,23 @@ try:
 except OSError:
     pass
 
-uncompressedSize = lambda filename: sum(info.size for info in tarfile.open(filename).getmembers())
+taxdump_filename = os.path.join(path, "taxdump.tar.gz")
+db_filename = os.path.join(path, FILENAME)
+bz2_filename = os.path.join(path, FILENAME + ".bz2")
 
+ncbi_taxonomy.Taxonomy.download(path)
+ncbi_taxonomy.Taxonomy.init_db(db_filename, tarfile.open(taxdump_filename))
 
-obiTaxonomy.Taxonomy.ParseTaxdumpFile(outputdir=path)
-tFile = tarfile.open(os.path.join(path, "ncbi_taxonomy.tar.gz"), "w:gz")
-tFile.add(os.path.join(path, "ncbi_taxonomy.db"), "ncbi_taxonomy.db")
-tFile.add(os.path.join(path, "ncbi_taxonomy_inf.db"), "ncbi_taxonomy_inf.db")
-tFile.close()
+db_size = os.stat(db_filename).st_size
 
+with bz2.BZ2File(bz2_filename, mode="w", compresslevel=9) as f:
+    shutil.copyfileobj(open(db_filename, "rb"), f)
 
 sf_server.upload(
-    "Taxonomy", "ncbi_taxonomy.tar.gz",
-    os.path.join(path, "ncbi_taxonomy.tar.gz"),
+    DOMAIN, FILENAME,
+    bz2_filename,
     title="NCBI Taxonomy",
     tags=["NCBI", "taxonomy", "organism names", "essential",
-          "#uncompressed:%i" % uncompressedSize(os.path.join(path, "ncbi_taxonomy.tar.gz"))]
+          "#uncompressed:%i" % db_size, "#compression:bz2"]
 )
-sf_server.unprotect("Taxonomy", "ncbi_taxonomy.tar.gz")
+sf_server.unprotect(DOMAIN, FILENAME)
