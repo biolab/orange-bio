@@ -14,7 +14,7 @@ from PyQt4.QtGui import (
 )
 from PyQt4.QtCore import Qt, QSize
 
-import Orange
+import Orange.data
 import Orange.misc
 from Orange.preprocess import transformation
 
@@ -24,7 +24,7 @@ from Orange.widgets.utils import itemmodels
 from ..utils.group import \
     separate_by, data_type, linearize, dist_pcorr, dist_eucl, dist_spearman
 
-from .OWFeatureSelection import SetContextHandler
+from .utils.settings import SetContextHandler
 
 
 def clone_attr(attr):

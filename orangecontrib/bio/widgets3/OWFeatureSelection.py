@@ -5,8 +5,7 @@ Differential Gene Expression
 
 """
 import sys
-import itertools
-from collections import defaultdict
+import copy
 
 import numpy as np
 import scipy.stats
@@ -18,11 +17,14 @@ from PyQt4.QtCore import pyqtSignal as Signal
 import pyqtgraph as pg
 
 import Orange.data
+from Orange.preprocess import transformation
 
 from Orange.widgets import widget, gui, settings
 from Orange.widgets.utils.datacaching import data_hints
 
-from .OWVulcanoPlot import LabelSelectionWidget
+from .utils import gui as guiutils
+from .utils import group as grouputils
+from .utils.settings import SetContextHandler
 
 
 def score_fold_change(a, b, axis=0):
@@ -447,43 +449,6 @@ def test_middle(array, low, high):
     return (array <= high) | (array >= low)
 
 
-class SetContextHandler(settings.ContextHandler):
-    def __init__(self, match_imperfect=False):
-        super().__init__()
-        self.match_imperfect = match_imperfect
-
-    def match(self, context, items):
-        items = set(items)
-
-        if self.match_imperfect:
-            intersection, union = items & context.items, items | context.items
-            if len(union) > 0:
-                return len(intersection) / len(union)
-            else:
-                return 0
-        else:
-            return 2 if items == context.items else 0
-
-    def new_context(self, items):
-        ctx = super().new_context()
-        ctx.items = frozenset(items)
-        return ctx
-
-    def settings_to_widget(self, widget):
-        super().settings_to_widget(widget)
-
-        context = widget.current_context
-        if context is None:
-            return
-
-        for setting, data, instance in \
-                self.provider.traverse_settings(context.values, widget):
-            if isinstance(setting, settings.ContextSetting) and \
-                    setting.name in data:
-                value = self.decode_setting(settings, data[setting.name])
-                setattr(instance, setting.name, value)
-
-
 class OWFeatureSelection(widget.OWWidget):
     name = "Differential Expression"
     description = "Gene selection by differential expression analysis."
@@ -542,8 +507,10 @@ class OWFeatureSelection(widget.OWWidget):
     add_scores_to_output = settings.Setting(False)
     auto_commit = settings.Setting(False)
 
-    target_selections = settings.ContextSetting({})
-    current_target_selection = settings.ContextSetting((None, None))
+    #: Current target group index
+    current_group_index = settings.ContextSetting(-1)
+    #: Stored (persistent) values selection for all target split groups.
+    stored_selections = settings.ContextSetting([])
 
     def __init__(self, parent=None):
         widget.OWWidget.__init__(self, parent)
@@ -553,8 +520,6 @@ class OWFeatureSelection(widget.OWWidget):
 
         #: Input data set
         self.data = None
-        #: All candidate group definitions List[str | Variable, List[str]]
-        self.groups = []
         #: Current target group selection
         self.targets = []
         #: The computed scores
@@ -562,9 +527,6 @@ class OWFeatureSelection(widget.OWWidget):
         #: The computed scores from label permutations
         self.nulldist = None
         #: Stored selections (TODO)
-        self.target_selections = None
-        #: Current target group key and selected values
-        self.current_target_selection = (None, None)
 
         self.test_f = {
             OWFeatureSelection.LowTail: test_low,
@@ -599,15 +561,15 @@ class OWFeatureSelection(widget.OWWidget):
                                self.update_scores])
 
         box = gui.widgetBox(self.controlArea, "Target Labels")
-        self.label_selection_widget = LabelSelectionWidget(self)
+        self.label_selection_widget = guiutils.LabelSelectionWidget(self)
         self.label_selection_widget.setMaximumHeight(150)
         box.layout().addWidget(self.label_selection_widget)
 
-        self.label_selection_widget.selection_changed.connect(
-            self.on_target_changed)
-
-        self.label_selection_widget.label_activated.connect(
+        self.label_selection_widget.groupChanged.connect(
             self.on_label_activated)
+
+        self.label_selection_widget.groupSelectionChanged.connect(
+            self.on_target_changed)
 
         box = gui.widgetBox(self.controlArea, "Selection")
         box.layout().setSpacing(0)
@@ -667,8 +629,6 @@ class OWFeatureSelection(widget.OWWidget):
 
         self.on_scoring_method_changed()
 
-        self.resize(800, 600)
-
     def sizeHint(self):
         return QtCore.QSize(800, 600)
 
@@ -676,16 +636,14 @@ class OWFeatureSelection(widget.OWWidget):
         """Clear the widget state.
         """
         self.data = None
-        self.attribute_targets = []
-        self.class_targets = []
-        self.labels = []
         self.targets = []
+        self.stored_selections = []
         self.nulldist = None
         self.scores = None
-        self.dataInfoLabel.setText("No data on input.\n")
-        self.selectedInfoLabel.setText("\n")
         self.label_selection_widget.clear()
         self.clear_plot()
+        self.dataInfoLabel.setText("No data on input.\n")
+        self.selectedInfoLabel.setText("\n")
 
     def clear_plot(self):
         """Clear the histogram plot.
@@ -694,30 +652,30 @@ class OWFeatureSelection(widget.OWWidget):
 
     def initialize(self, data):
         """Initialize widget state from the data."""
-        col_targets, row_targets = group_candidates(data)
+        col_targets, row_targets = grouputils.group_candidates(data)
+        modelitems = [guiutils.standarditem_from(obj)
+                      for obj in col_targets + row_targets]
 
-        self.attribute_targets = col_targets
-        self.class_targets = row_targets
-        self.labels = col_targets + row_targets
-        self.update_targets_widget()
+        model = QtGui.QStandardItemModel()
+        for item in modelitems:
+            model.appendRow(item)
 
-    def update_targets_widget(self):
-        """Update the contents of the targets widget.
-        """
-        labels = [
-            (label.name if isinstance(label, Orange.data.Variable) else label,
-             values)
-            for label, values in self.labels
-        ]
-        self.label_selection_widget.clear()
-        self.label_selection_widget.set_labels(labels)
+        self.label_selection_widget.setModel(model)
 
-        combobox = self.label_selection_widget.labels_combo
-        for i, (key, _) in enumerate(self.labels):
-            if isinstance(key, Orange.data.Variable):
-                combobox.setItemIcon(i, gui.attributeIconDict[key])
+        self.targets = col_targets + row_targets
+        # Default selections for all group keys
+        # (the first value is selected)
+        self.stored_selections = [[0] for _ in self.targets]
 
-        self.data_labels = labels
+    def selected_split(self):
+        index = self.label_selection_widget.currentGroupIndex()
+        if not (0 <= index < len(self.targets)):
+            return None, ()
+
+        grp = self.targets[index]
+        selection = self.label_selection_widget.currentGroupSelection()
+        selected_indices = [ind.row() for ind in selection.indexes()]
+        return grp, selected_indices
 
     def set_data(self, data):
         self.closeContext()
@@ -729,60 +687,54 @@ class OWFeatureSelection(widget.OWWidget):
         if self.data is not None:
             self.initialize(data)
 
-        if self.data is not None and \
-                not (self.attribute_targets or self.class_targets):
+        if self.data is not None and not self.targets:
             # If both attr. labels and classes are missing, show an error
             self.error(
                 1, "Cannot compute gene scores! Differential expression "
                    "widget requires a data-set with a discrete class "
-                   "variable or attribute labels!"
+                   "variable(s) or attribute labels!"
             )
             self.data = None
 
         if self.data is not None:
             # Initialize the selected groups/labels.
             # Default selected group key
+            index = 0
             rowshint = data_hints.get_hint(data, "genesinrows", False)
-            if (rowshint and self.class_targets) or not self.attribute_targets:
-                # Select the first group variable candidate
-                index = len(self.attribute_targets)
-            elif self.attribute_targets:
-                # Select the first attribute label
-                index = 0
-            else:
-                assert False
-            # Default target sets for all group keys
-            # (the first value is selected)
-            self.target_selections = \
-                [values[:1] for _, values in self.data_labels]
+            if not rowshint:
+                # Select the first row group split candidate (if available)
+                indices = [i for i, grp in enumerate(self.targets)
+                           if isinstance(grp, grouputils.RowGroup)]
+                if indices:
+                    index = indices[0]
 
-            label, values = self.data_labels[index]
-            # Default current selection
-            self.current_target_selection = label, values[:1]
+            self.current_group_index = index
 
             # Restore target label selection from context settings
-            items = {(key, val)
-                     for key, values in self.data_labels for val in values}
+            items = {(grp.name, val)
+                     for grp in self.targets for val in grp.values}
             self.openContext(items)
-            self.label_selection_widget.set_selection(
-                *self.current_target_selection)
+            # Restore current group / selection
+            model = self.label_selection_widget.model()
+            selection = [model.index(i, 0, model.index(keyind, 0))
+                         for keyind, selection in enumerate(self.stored_selections)
+                         for i in selection]
+            selection = guiutils.itemselection(selection)
+
+            self.label_selection_widget.setSelection(selection)
+            self.label_selection_widget.setCurrentGroupIndex(
+                self.current_group_index)
 
         self.commit()
-
-    def set_targets(self, targets):
-        """Set the target groups for score computation.
-        """
-        self.targets = targets
-        self.update_scores()
 
     def update_scores(self):
         """Compute the scores and update the histogram.
         """
         self.clear_plot()
         self.error(0)
-        label, values = self.current_target_selection
+        grp, split_selection = self.selected_split()
 
-        if not self.data or label is None:
+        if not self.data or grp is None:
             return
 
         _, side, test_type, score_func = self.Scores[self.score_index]
@@ -800,55 +752,19 @@ class OWFeatureSelection(widget.OWWidget):
             split_ind = np.cumsum([len(ind) for ind in group_indices])
             return np.split(joined, split_ind[:-1])
 
-        def selected_split():
-            index = self.label_selection_widget.current_label()
-            selection = self.label_selection_widget.selection_indexes()
-            assert index >= 0
-            if index < len(self.attribute_targets):
-                key, values = self.attribute_targets[index]
-            else:
-                key, values = self.class_targets[index]
-
-            return key, values, selection
-
-        def group_indices(data, key, values, axis=0):
-            if axis == 0:
-                return group_indices_rows(data, key, values)
-            else:
-                assert axis == 1
-                return group_indices_columns(data, key, values)
-
-        def group_indices_rows(data, var, values):
-            col_view, _ = data.get_column_view(var)
-            target_ind = [var.values.index(t) for t in values]
-
-            mask = np.zeros_like(col_view, dtype=bool)
-            for i in target_ind:
-                mask |= col_view == i
-
-            return mask
-
-        def group_indices_columns(data, key, values):
-            target = set([(key, value) for value in values])
-            mask = [not target.isdisjoint(var.attributes.items())
-                    for var in data.domain.attributes]
-            return np.array(mask, dtype=bool)
-
-        split_key, split_values, split_selection = selected_split()
-        if isinstance(split_key, Orange.data.Variable):
+        if isinstance(grp, grouputils.RowGroup):
             axis = 0
         else:
-            assert isinstance(split_key, str)
             axis = 1
 
         if test_type == OWFeatureSelection.TwoSampleTest:
-            target = [split_values[i] for i in split_selection]
-            G1 = group_indices(self.data, split_key, target, axis=axis)
+            G1 = grouputils.group_selection_mask(
+                self.data, grp, split_selection)
             G2 = ~G1
             indices = [np.flatnonzero(G1), np.flatnonzero(G2)]
         elif test_type == self.VarSampleTest:
-            indices = [group_indices(self.data, split_key, [value], axis=axis)
-                       for value in split_values]
+            indices = [grouputils.group_selection_mask(self.data, grp, [i])
+                       for i in range(len(grp.values))]
             indices = [np.flatnonzero(ind) for ind in indices]
         else:
             assert False
@@ -962,13 +878,13 @@ class OWFeatureSelection(widget.OWWidget):
                 x1, y1 = minx / 2, maxy
                 x2, y2 = maxx / 2, maxy
 
-            _, selected = self.current_target_selection
-            labelidx = self.label_selection_widget.current_label()
+            grp, selected_indices = self.selected_split()
 
-            _, values = self.labels[labelidx]
+            values = grp.values
+            selected_values = [values[i] for i in selected_indices]
 
-            left = ", ".join(v for v in values if v not in selected)
-            right = ", ".join(v for v in selected)
+            left = ", ".join(v for v in values if v not in selected_values)
+            right = ", ".join(v for v in selected_values)
 
             labelitem = pg.TextItem(left, color=(40, 40, 40))
             labelitem.setPos(x1, y1)
@@ -981,11 +897,11 @@ class OWFeatureSelection(widget.OWWidget):
     def update_data_info_label(self):
         if self.data is not None:
             samples, genes = len(self.data), len(self.data.domain.attributes)
-            label, _ = self.labels[self.label_selection_widget.current_label()]
-            if not isinstance(label, Orange.data.Variable):
+            grp, indices = self.selected_split()
+            if isinstance(grp, grouputils.ColumnGroup):
                 samples, genes = genes, samples
 
-            label, target_labels = self.targets
+            target_labels = [grp.values[i] for i in indices]
             text = "%i samples, %i genes\n" % (samples, genes)
             text += "Sample target: '%s'" % (",".join(target_labels))
         else:
@@ -1109,29 +1025,16 @@ class OWFeatureSelection(widget.OWWidget):
         self.commit()
 
     def on_target_changed(self):
-        label, values = self.label_selection_widget.current_selection()
-
-        if values is None:
-            values = []
-
-#         labelidx = self.label_selection_widget.current_label()
-#         if labelidx >= 0:
-#             label, _ = self.labels[labelidx]
-
-        self.current_target_selection = label, values
-        # Save target label selection
-        labels = [l for l, _ in self.data_labels]
-        if label in labels:
-            label_index = labels.index(label)
-            self.target_selections[label_index] = values
-
-        self.set_targets((label, values))
+        grp, indices = self.selected_split()
+        if grp is None:
+            return
+        # Store target group label selection.
+        self.stored_selections[self.targets.index(grp)] = indices
+        self.update_scores()
 
     def on_label_activated(self, index):
-        selection = self.target_selections[index]
-        if not selection:
-            selection = self.data_labels[index][1][:1]
-        self.label_selection_widget.set_selection(index, selection)
+        self.current_group_index = index
+        self.update_scores()
 
     def on_scoring_method_changed(self):
         _, _, test_type, _ = self.Scores[self.score_index]
@@ -1152,8 +1055,8 @@ class OWFeatureSelection(widget.OWWidget):
         if self.data is None or self.scores is None:
             return
 
-        key, _ = self.labels[self.label_selection_widget.current_label()]
-        if isinstance(key, Orange.data.Variable):
+        grp, _ = self.selected_split()
+        if isinstance(grp, grouputils.RowGroup):
             axis = 1
         else:
             axis = 0
@@ -1203,37 +1106,12 @@ class OWFeatureSelection(widget.OWWidget):
         self.send("Remaining data subset", remainingdata)
         self.send("Selected genes", None)
 
-import copy
-from Orange.preprocess import transformation
-
 
 def copy_variable(var):
     clone = copy.copy(var)
     clone.compute_value = transformation.Identity(var)
     clone.attributes = dict(var.attributes)
     return clone
-
-
-def group_candidates(data):
-    items = [attr.attributes.items() for attr in data.domain.attributes]
-    items = list(itertools.chain(*items))
-
-    targets = defaultdict(set)
-    for label, value in items:
-        targets[label].add(value)
-
-    # Need at least 2 distinct values or key
-    targets = [(key, sorted(vals)) for key, vals in targets.items() \
-               if len(vals) >= 2]
-    column_groups = sorted(targets)
-
-    disc_vars = [var for var in data.domain.class_vars + data.domain.metas
-                 if isinstance(var, Orange.data.DiscreteVariable)
-                 and len(var.values) >= 2]
-
-    row_groups = [(var, var.values) for var in disc_vars]
-
-    return column_groups, row_groups
 
 
 def test_main(argv=sys.argv):
