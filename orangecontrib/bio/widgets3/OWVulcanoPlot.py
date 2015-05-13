@@ -698,7 +698,10 @@ class OWVolcanoPlot(widget.OWWidget):
         pos = viewbox.mapToView(viewbox.mapFromScene(event.scenePos()))
         logr = pos.x()
         logp = pos.y()
-        points = self.graph._item.pointsAt(pos)
+        text = ""
+        points = []
+        if self.graph._item is not None:
+            points = self.graph._item.pointsAt(pos)
         if points:
             point = points[0]
             pos = point.pos()
