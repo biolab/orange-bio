@@ -1,19 +1,15 @@
 #!/usr/bin/env python
 
 import sys
-
-try:
-    if sys.version_info < (3, ):
-        import distribute_setup
-        distribute_setup.use_setuptools()
-except ImportError:
-    # For documentation we load setup.py to get version
-    # so it does not matter if importing fails
-    pass
-
 import os
 
-from setuptools import setup, find_packages
+try:
+    from setuptools import setup, find_packages
+except ImportError:
+    import ez_setup
+    ez_setup.use_setuptools()
+    from setuptools import setup, find_packages
+
 
 NAME = 'Orange-Bioinformatics'
 DOCUMENTATION_NAME = 'Orange Bioinformatics'
