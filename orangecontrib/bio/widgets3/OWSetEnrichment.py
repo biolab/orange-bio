@@ -11,7 +11,7 @@ import traceback
 import types
 import concurrent.futures
 from collections import defaultdict
-from functools import reduce
+from functools import reduce, partial
 
 import numpy as np
 
@@ -721,8 +721,14 @@ class OWSetEnrichment(widget.OWWidget):
                           default=1)
         nspaces = int(math.ceil(math.log10(maxcount or 1)))
         refspaces = int(math.ceil(math.log(maxrefcount or 1)))
-        countFmt = "%" + str(nspaces) + "s  (%.2f%%)"
-        refFmt = "%" + str(refspaces) + "s  (%.2f%%)"
+        query_fmt = "%" + str(nspaces) + "s  (%.2f%%)"
+        ref_fmt = "%" + str(refspaces) + "s  (%.2f%%)"
+
+        def fmt_count(fmt, count, total):
+            return fmt % (count, 100.0 * count / (total or 1))
+
+        fmt_query_count = partial(fmt_count, query_fmt)
+        fmt_ref_count = partial(fmt_count, ref_fmt)
 
         linkFont = QtGui.QFont(self.annotationsChartView.viewOptions().font)
         linkFont.setUnderline(True)
@@ -753,11 +759,9 @@ class OWSetEnrichment(widget.OWWidget):
             row = [
                 item(", ".join(gset.hierarchy)),
                 item(gsname(gset), tooltip=gset.link),
-                item(countFmt % (nquery_mapped,
-                                 100.0 * nquery_mapped / nquery),
+                item(fmt_query_count(nquery_mapped, nquery),
                      tooltip=nquery_mapped, user=nquery_mapped),
-                item(refFmt % (nref_mapped,
-                               100.0 * nref_mapped / nref),
+                item(fmt_ref_count(nref_mapped, nref),
                      tooltip=nref_mapped, user=nref_mapped),
                 item(fmtp(enrich.p_value), user=enrich.p_value),
                 item(),  # column 5, FDR, is computed in filterAnnotationsChartView
@@ -831,8 +835,10 @@ class OWSetEnrichment(widget.OWWidget):
 
         if state.results.done() and not state.results.exception():
             mapped, _, _ = state.results.result()
+            ratio_mapped = (len(mapped) / state.query_count
+                            if state.query_count else 0)
             text += ("%i (%.1f%%) gene names matched" %
-                     (len(mapped), 100.0 * len(mapped) / state.query_count))
+                     (len(mapped), 100.0 * ratio_mapped))
         elif not state.results.done():
             text += "..."
         else:
