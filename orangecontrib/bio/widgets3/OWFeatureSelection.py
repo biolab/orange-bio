@@ -1010,7 +1010,8 @@ class OWFeatureSelection(widget.OWWidget):
 
         # If this is a two sample test add markers to the left and right
         # plot indicating which group is over-expressed in that part
-        if test_type == OWFeatureSelection.TwoSampleTest:
+        if test_type == OWFeatureSelection.TwoSampleTest and \
+                side == OWFeatureSelection.TwoTail:
             maxy = np.max(freq)
             # XXX: Change use of integer constant
             if scoreindex == 0:  # fold change is centered on 1.0
