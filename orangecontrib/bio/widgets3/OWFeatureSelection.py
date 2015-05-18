@@ -195,6 +195,11 @@ def score_mann_whitney(a, b, axis=0):
     return np.array(U), np.array(P)
 
 
+def score_mann_whitney_u(a, b, axis=0):
+    U, _ = score_mann_whitney(a, b, axis=axis)
+    return U
+
+
 class InfiniteLine(pg.InfiniteLine):
     def paint(self, painter, option, widget=None):
         brect = self.boundingRect()
@@ -531,9 +536,7 @@ class OWFeatureSelection(widget.OWWidget):
         ("ANOVA P-value", LowTail, VarSampleTest, score_anova_p),
         ("Signal to Noise Ratio", TwoTail, TwoSampleTest,
          score_signal_to_noise),
-#         ("Info Gain", HighTail, TwoSampleTest, None),
-#         ("Chi Square", HighTail, TwoSampleTest, None),
-        ("Mann-Whitney", LowTail, TwoSampleTest, score_mann_whitney),
+        ("Mann-Whitney", LowTail, TwoSampleTest, score_mann_whitney_u),
     ]
 
     settingsHandler = SetContextHandler()
