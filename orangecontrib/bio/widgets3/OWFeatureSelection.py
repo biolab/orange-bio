@@ -9,6 +9,7 @@ import copy
 
 import numpy as np
 import scipy.stats
+import scipy.special
 
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
@@ -76,6 +77,11 @@ def score_ttest_p(a, b, axis=0):
 
 
 def score_anova(*arrays, axis=0):
+    F, P = f_oneway(*arrays, axis=axis)
+    return F, P
+
+
+def score_anova_(*arrays, axis=0):
     arrays = [np.asarray(arr, dtype=float) for arr in arrays]
 
     if not len(arrays) > 1:
@@ -97,6 +103,53 @@ def score_anova(*arrays, axis=0):
     scores = [scipy.stats.f_oneway(*ars) for ars in zip(*arrays)]
     F, P = zip(*scores)
     return np.array(F, dtype=float), np.array(P, dtype=float)
+
+
+def f_oneway(*arrays, axis=0):
+    """
+    Perform a 1-way ANOVA
+
+    Like `scipy.stats.f_oneway` but accept 2D arrays, with `axis`
+    specifying over which axis to operate (in which axis the samples
+    are stored).
+
+    Parameters
+    ----------
+    A1, A2, ... : array_like
+        The samples for each group.
+    axis : int
+        The axis which contain the samples.
+
+    Returns
+    -------
+    F : array
+        F scores
+    P : array
+        P values
+
+    See also
+    --------
+    scipy.stats.f_oneway
+    """
+    arrays = [np.asarray(a, dtype=float) for a in arrays]
+    alldata = np.concatenate(arrays, axis)
+    bign = alldata.shape[axis]
+    sstot = np.sum(alldata ** 2, axis) - (np.sum(alldata, axis) ** 2) / bign
+
+    ssarrays = [(np.sum(a, axis, keepdims=True) ** 2) / a.shape[axis]
+                for a in arrays]
+    ssbn = np.sum(np.concatenate(ssarrays, axis), axis)
+    ssbn -= (np.sum(alldata, axis) ** 2) / bign
+    assert sstot.shape == ssbn.shape
+
+    sswn = sstot - ssbn
+    dfbn = len(arrays) - 1
+    dfwn = bign - len(arrays)
+    msb = ssbn / dfbn
+    msw = sswn / dfwn
+    f = msb / msw
+    prob = scipy.special.fdtrc(dfbn, dfwn, f)
+    return f, prob
 
 
 def score_anova_f(*arrays, axis=0):
@@ -1112,6 +1165,46 @@ def copy_variable(var):
     clone.compute_value = transformation.Identity(var)
     clone.attributes = dict(var.attributes)
     return clone
+
+import unittest
+
+
+class Test_f_oneway(unittest.TestCase):
+    def test_f_oneway(self):
+        g1 = np.array([0.1, -0.1, 0.2, -0.2])
+        g2 = g1 + 1
+        g3 = g1
+
+        f1, p1 = scipy.stats.f_oneway(g1, g2)
+        f, p = f_oneway(g1, g2)
+        np.testing.assert_almost_equal([f, p], [f1, p1])
+
+        f, p = f_oneway(np.c_[g1], np.c_[g2], axis=0)
+        np.testing.assert_almost_equal([f[0], p[0]], [f1, p1])
+
+        f1, p1 = scipy.stats.f_oneway(g1, g2, g3)
+        f, p = f_oneway(g1, g2, g3)
+        np.testing.assert_almost_equal([f, p], [f1, p1])
+
+        G1 = np.random.normal(size=(10, 30))
+        G2 = np.random.normal(loc=1, size=(10, 20))
+        G3 = np.random.normal(loc=2, size=(10, 10))
+
+        F, P = f_oneway(G1, G2, G3, axis=1)
+        self.assertEqual(F.shape, (10,))
+        self.assertEqual(P.shape, (10,))
+
+        FP1 = [scipy.stats.f_oneway(g1, g2, g3)
+               for g1, g2, g3 in zip(G1, G2, G3)]
+
+        F1 = [f for f, _ in FP1]
+        P1 = [p for _, p in FP1]
+        np.testing.assert_almost_equal(F1, F)
+        np.testing.assert_almost_equal(P1, P)
+
+        F, P = f_oneway(G1.T, G2.T, G3.T, axis=0)
+        np.testing.assert_almost_equal(F1, F)
+        np.testing.assert_almost_equal(P1, P)
 
 
 def test_main(argv=sys.argv):
