@@ -379,7 +379,8 @@ class OWGEODatasets(OWWidget):
                     current_index,
                     QItemSelectionModel.Select | QItemSelectionModel.Rows
                 )
-                self.treeWidget.scrollTo(current_index)
+                self.treeWidget.scrollTo(
+                    current_index, QTreeView.PositionAtCenter)
 
         for i in range(8):
             self.treeWidget.resizeColumnToContents(i)

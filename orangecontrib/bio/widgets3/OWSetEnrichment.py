@@ -614,7 +614,7 @@ class OWSetEnrichment(widget.OWWidget):
         def refset_null():
             """Return the default background reference set"""
             col = collections.result()
-            return reduce(operator.ior, (set(g.genes for g in col)), set())
+            return reduce(operator.ior, (set(g.genes) for g in col), set())
 
         def refset_ncbi():
             """Return all NCBI gene names"""
