@@ -214,6 +214,14 @@ class UpdateTreeWidgetItem(QTreeWidgetItem):
 
         left = qunpack(self.data(column, role))
         right = qunpack(other.data(column, role))
+        try:
+            return left < right
+        except TypeError:
+            pass
+        # order lexically by str representation, but ensure `None`
+        # always orders on one side
+        left = (0, "") if left is None else (1, str(left))
+        right = (0, "") if right is None else (1, str(right))
         return left < right
 
 

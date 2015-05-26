@@ -289,8 +289,6 @@ class OWGeneInfo(widget.OWWidget):
         gui.button(box, self, "Clear Selection",
                    callback=self.treeWidget.clearSelection)
 
-        self.resize(1000, 700)
-
         self.geneinfo = []
         self.cells = []
         self.row2geneinfo = {}

@@ -21,7 +21,7 @@ from PyQt4.QtGui import (
     QKeySequence, QApplication
 )
 
-from PyQt4.QtCore import Qt, QRectF
+from PyQt4.QtCore import Qt, QRectF, QSize
 from PyQt4.QtCore import pyqtSlot as Slot
 import Orange
 
@@ -327,8 +327,6 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
 
         self.data = None
         self.refData = None
-
-        self.resize(800, 600)
 
         self._executor = concurrent.ThreadExecutor()
         self.setEnabled(False)
@@ -834,6 +832,9 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
         self.org = None
         self._executor.shutdown(wait=False)
         gc.collect()  # Force collection (WHY?)
+
+    def sizeHint(self):
+        return QSize(1024, 720)
 
 
 def pathway_enrichment(genesets, genes, reference, prob=None, callback=None):

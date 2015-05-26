@@ -1,3 +1,5 @@
+.. _pipax:
+
 .. _pipa:
 
 PIPA
