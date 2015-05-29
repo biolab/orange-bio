@@ -25,7 +25,6 @@ LONG_DESCRIPTION = open(os.path.join(os.path.dirname(__file__), 'README.rst')).r
 AUTHOR = 'Bioinformatics Laboratory, FRI UL'
 AUTHOR_EMAIL = 'contact@orange.biolab.si'
 URL = 'http://orange.biolab.si/addons/'
-DOWNLOAD_URL = 'https://bitbucket.org/biolab/orange-bioinformatics/downloads'
 LICENSE = 'GPLv3'
 
 KEYWORDS = (
@@ -77,12 +76,20 @@ INSTALL_REQUIRES = (
     'Orange',
     'setuptools',
     'numpy',
+    'scipy',
+    'six',
     'genesis-pyapi>=1.1.1',
     # Dependencies which are problematic to install automatically
     #'openbabel-python', # You get bindings together with the openbabel library and not stand-alone
     #'scipy', # Requires Fortran compiler
     #'matplotlib', # Requires that numpy is installed first
 ),
+
+if sys.version_info > (3, ):
+    INSTALL_REQUIRES = INSTALL_REQUIRES + ("pyqtgraph",)
+
+if sys.version_info < (3, 4):
+    INSTALL_REQUIRES = INSTALL_REQUIRES + ("singledispatch",)
 
 EXTRAS_REQUIRE = {
     'GUI': (
@@ -121,7 +128,7 @@ ENTRY_POINTS = {
         'Prototypes = orangecontrib.bio.widgets.prototypes',
     ),
     'orange.canvas.help': (
-        'intersphinx = orangecontrib.bio.widgets:intersphinx'
+        'intersphinx = orangecontrib.bio.widgets:intersphinx',
     )
 }
 
@@ -136,7 +143,6 @@ if __name__ == '__main__':
         author = AUTHOR,
         author_email = AUTHOR_EMAIL,
         url = URL,
-        download_url = DOWNLOAD_URL,
         license = LICENSE,
         keywords = KEYWORDS,
         classifiers = CLASSIFIERS,
