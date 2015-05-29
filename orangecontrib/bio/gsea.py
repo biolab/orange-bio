@@ -878,7 +878,7 @@ class GSEA(object):
             self.gm = obiGene.matcher([obiGene.GMKEGG(self.organism, ignore_case=not caseSensitive)], 
                 ignore_case=not caseSensitive, direct=True)
             print "WARNING: gene matcher build automatically for organism: " + self.organism
-
+        
         self.gm.set_targets(attrnames)
 
  

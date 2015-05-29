@@ -18,7 +18,7 @@ from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
 
-from .. import obiGene, obiGeneSets, obiGsea, obiKEGG
+from .. import obiGene, obiGeneSets, obiGsea, obiKEGG, obiTaxonomy
 
 NAME = "GSEA"
 DESCRIPTION = "Gene set enrichment analysis."
@@ -267,30 +267,15 @@ class OWGsea(OWWidget):
                     "atLeast"]
 
     def UpdateOrganismComboBox(self):
+        oldi = self.organismIndex
         try:
-            genome = obiKEGG.KEGGGenome()
-
-            self.allOrganismCodes = genome
-
-            essential = genome.essential_organisms()
-
-            local = [name.split(".")[0].split("_")[-1]
-                     for name in orngServerFiles.listfiles("KEGG")
-                     if "kegg_genes" in name]
-
-            entry_keys = map(genome.org_code_to_entry_key,
-                             essential + local)
-
-            entries = genome.batch_get(entry_keys)
-
-            items = [entry.definition for entry in entries]
-
-            self.organismTaxids = [entry.taxid for entry in entries]
-
+            essential = obiTaxonomy.essential_taxids()
+            self.organismTaxids = list(essential)
             self.organismComboBox.clear()
-            self.organismComboBox.addItems(items)
+            self.organismComboBox.addItems([obiTaxonomy.name(id) for id in self.organismTaxids])
         finally:
             self.setBlocking(False)
+        self.organismIndex = max(min(oldi, len(self.organismTaxids)-1),0)
 
 
     def __init__(self, parent=None, signalManager = None, name='GSEA'):
@@ -333,7 +318,6 @@ class OWGsea(OWWidget):
 
         box = OWGUI.widgetBox(ca, 'Organism')
         #FROM KEGG WIDGET - organism selection
-        self.allOrganismCodes = {}
         self.organismTaxids = []
         self.organismComboBox = cb = OWGUI.comboBox(box, self, "organismIndex", items=[], debuggingEnabled=0) #changed
         cb.setMaximumWidth(200)
@@ -813,11 +797,7 @@ if __name__=="__main__":
     ow=OWGsea()
     ow.show()
 
-    #d = orange.ExampleTable('/home/marko/testData.tab')
-    d = orange.ExampleTable('/home/marko/orange/add-ons/Bioinformatics/sterolTalkHepa.tab')
-    #d = orange.ExampleTable('/home/marko/ddd.tab')
-    #d = orange.ExampleTable('tmp.tab')
-    #d = orange.ExampleTable('../gene_three_lines_log.tab')
+    d = Orange.data.Table('/home/marko/dicty.tab')
 
     QTimer.singleShot(1000, lambda : ow.setData(d))
 

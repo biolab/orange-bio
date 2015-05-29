@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import os
 import gzip
 import re
+import io
 
 from collections import defaultdict
 
@@ -65,6 +66,8 @@ DOMAIN = "GEO"
 GDS_INFO_FILENAME = "gds_info.pickled"
 FTP_NCBI = "ftp.ncbi.nih.gov"
 FTP_DIR = "pub/geo/DATA/SOFT/GDS/"
+
+SOFT_ENCODING = "utf-8"  # Is this true?
 
 
 class GDSInfo:
@@ -173,7 +176,10 @@ class GDS():
         getstate = lambda x: x.split(" ")[0][1:] 
         getid = lambda x: x.rstrip().split(" ")[2]
         self._download()
-        f = gzip.open(self.filename, "rt")
+        f = gzip.open(self.filename, "rb")
+        if six.PY3:
+            f = io.TextIOWrapper(f, encoding=SOFT_ENCODING)
+
         state = None; previous_state = None
     
         info = {"subsets" : []}
@@ -220,7 +226,9 @@ class GDS():
 
     def _getspotmap(self, include_spots=None):
         """Return gene to spot and spot to genes mapings."""
-        f = gzip.open(self.filename, "rt")
+        f = gzip.open(self.filename, "rb")
+        if six.PY3:
+            f = io.TextIOWrapper(f, encoding=SOFT_ENCODING)
         for line in f:
             if line.startswith("!dataset_table_begin"):
                 break
@@ -261,7 +269,10 @@ class GDS():
     
     def _parse_soft(self, remove_unknown=None):
         """Parse GDS data, returns data dictionary."""
-        f = gzip.open(self.filename, "rt")
+        f = gzip.open(self.filename, "rb")
+        if six.PY3:
+            f = io.TextIOWrapper(f, encoding=SOFT_ENCODING)
+
         mfloat = lambda x: float(x) if x != 'null' else compat.unknown
     
         data = {}
