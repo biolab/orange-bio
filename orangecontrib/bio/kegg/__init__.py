@@ -62,8 +62,8 @@ from itertools import chain
 from datetime import datetime
 from contextlib import contextmanager
 
-import Orange
 from orangecontrib.bio import utils, taxonomy
+from orangecontrib.bio.utils import progress_bar_milestones
 from orangecontrib.bio.kegg import databases
 from orangecontrib.bio.kegg import entry
 
