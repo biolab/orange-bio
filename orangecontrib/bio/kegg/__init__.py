@@ -199,7 +199,7 @@ class Organism(object):
         reference = set(reference)
 
         allPathways = defaultdict(lambda: [[], 1.0, []])
-        milestones = Orange.utils.progress_bar_milestones(len(genes), 100)
+        milestones = progress_bar_milestones(len(genes), 100)
         pathways_db = KEGGPathways()
 
         pathways_for_gene = []
