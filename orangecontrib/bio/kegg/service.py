@@ -18,7 +18,7 @@ def slumber_service():
             content_types = ["text/plain"]
 
             def loads(self, data):
-                return str(data.decode("utf8"))
+                return data
 
         # for python 2/3 compatibility
         serializer = slumber.serialize.Serializer(
