@@ -351,7 +351,7 @@ def query_experiments(keywords=None, accession=None, array=None, ef=None,
     )
 
     if format == "json":
-        return parse_json(io.TextIOWrapper(stream, ecoding="utf-8"))
+        return parse_json(io.TextIOWrapper(stream, encoding="utf-8"))
     else:
         return parse_xml(stream)
 
@@ -385,7 +385,7 @@ def query_files(keywords=None, accession=None, array=None, ef=None,
     )
 
     if format == "json":
-        return parse_json(io.TextIOWrapper(stream, ecoding="utf-8"))
+        return parse_json(io.TextIOWrapper(stream, encoding="utf-8"))
     else:
         return parse_xml(stream)
 
