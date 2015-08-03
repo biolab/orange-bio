@@ -219,7 +219,6 @@ class OWGeneInfo(widget.OWWidget):
         self.selectionChangedFlag = False
 
         self.__initialized = False
-        self.__inprogressset = False
         self.initfuture = None
         self.itemsfuture = None
 
@@ -320,15 +319,8 @@ class OWGeneInfo(widget.OWWidget):
     @Slot()
     def advance(self):
         assert self.thread() is QThread.currentThread()
-        self.progressBarSet(self.progressBarValue + 1)
-
-    def progressBarSet(self, value):
-        if not self.__inprogressset:
-            self.__inprogressset = True
-            try:
-                super().progressBarSet(value)
-            finally:
-                self.__inprogressset = False
+        self.progressBarSet(self.progressBarValue + 1,
+                            processEvents=None)
 
     def initialize(self):
         if self.__initialized:

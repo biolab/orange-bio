@@ -424,8 +424,6 @@ class OWDatabasesUpdate(OWWidget):
         self.domains = domains or DOMAINS
         self.serverFiles = serverfiles.ServerFiles()
 
-        self.__in_progress_update = False
-
         fbox = gui.widgetBox(self.controlArea, "Filter")
 
         # The completer model token strings
@@ -831,20 +829,11 @@ class OWDatabasesUpdate(OWWidget):
                 self._haveProgress = True
                 self.progressBarInit()
 
-            self.progressBarSet(self.progress.ratioCompleted() * 100)
-#             self.progressBarSet(self.progress.ratioCompleted() * 100,
-#                                 processEventsFlags=None)
+            self.progressBarSet(self.progress.ratioCompleted() * 100,
+                                processEvents=None)
         if rmin == rmax:
             self._haveProgress = False
             self.progressBarFinished()
-
-    def progressBarSet(self, value):
-        if not self.__in_progress_update:
-            self.__in_progress_update = True
-            try:
-                OWWidget.progressBarSet(self, value)
-            finally:
-                self.__in_progress_update = False
 
 
 class ProgressState(QObject):
