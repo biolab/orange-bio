@@ -217,10 +217,10 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
     icon = "../widgets/icons/KEGGPathways.svg"
     priority = 2030
 
-    inputs = [("Examples", Orange.data.Table, "SetData", widget.Default),
+    inputs = [("Data", Orange.data.Table, "SetData", widget.Default),
               ("Reference", Orange.data.Table, "SetRefData")]
-    outputs = [("Selected Examples", Orange.data.Table, widget.Default),
-               ("Unselected Examples", Orange.data.Table)]
+    outputs = [("Selected Data", Orange.data.Table, widget.Default),
+               ("Unselected Data", Orange.data.Table)]
 
     settingsHandler = settings.DomainContextHandler()
 
