@@ -1257,8 +1257,7 @@ class OWFeatureSelection(widget.OWWidget):
 
 
 def copy_variable(var):
-    clone = copy.copy(var)
-    clone.compute_value = transformation.Identity(var)
+    clone = var.copy(compute_value=transformation.Identity(var))
     clone.attributes = dict(var.attributes)
     return clone
 

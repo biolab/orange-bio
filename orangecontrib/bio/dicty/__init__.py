@@ -1653,24 +1653,27 @@ def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], 
         types[k] = data_type(vals)
 
     for group, elements in d.items():
-        a = ContinuousVariable()
-        #here sort elements
     
         def sk(x):
             return [ types[n](x[n]) for n in ignorenames if n in all_values ]
 
         elements = sorted(elements, key=lambda x: sk(data.domain.attributes[x].attributes))
+        atdic = join_ats([data.domain.attributes[i].attributes for i in elements])
+        aname = namefn(atdic)
 
-        a.attributes.update(join_ats([data.domain.attributes[i].attributes for i in elements]))
-        a.name = namefn(a.attributes)
+        a = None
 
         if not OR3:
+            a = ContinuousVariable(name=aname)
             def avgel(ex, el):
                 return Orange.data.Value(avgnone([ nativeOrNone(ex[ind]) for ind in el ]))
             a.getValueFrom = lambda ex,rw,el=elements: avgel(ex,el)
         else:
-            a.compute_value = lambda d,el=elements: numpy.nanmedian(data[:,el], axis=1)
+            a = ContinuousVariable(name=aname, compute_value=lambda d,el=elements: numpy.nanmedian(data[:,el], axis=1))
+        a.attributes.update(join_ats([data.domain.attributes[i].attributes for i in elements]))
+        a.attributes.update(atdic)
         natts.append(a)
+
 
     ndom = create_domain(natts, data.domain.class_var, data.domain.metas if OR3 else data.domain.getmetas())
     return Orange.data.Table(ndom, data)

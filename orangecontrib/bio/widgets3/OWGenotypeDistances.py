@@ -28,8 +28,7 @@ from .utils.settings import SetContextHandler
 
 
 def clone_attr(attr):
-    newvar = copy.copy(attr)
-    newvar.compute_value = transformation.Identity(attr)
+    newvar = attr.copy(compute_value=transformation.Identity(attr))
     newvar.attributes = copy.copy(attr.attributes)
     return newvar
 
