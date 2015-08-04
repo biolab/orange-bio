@@ -60,3 +60,9 @@ def create_table(domain, X, Y, metas):
             insts.append(inst)
         data = Orange.data.Table(domain, insts)
     return data
+
+def get_metas(domain):
+    if OR3:
+        return domain.metas
+    else:
+        return [at for i, at in sorted(domain.getmetas().items())]
