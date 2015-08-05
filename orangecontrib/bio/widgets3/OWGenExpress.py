@@ -3,6 +3,7 @@ import os
 import math
 import io
 import gzip
+import numpy as np
 
 from collections import defaultdict
 
@@ -21,7 +22,7 @@ from Orange.widgets import widget, gui, settings
 from Orange.widgets.utils.datacaching import data_hints
 
 from .. import dicty
-from ..utils import environ
+from ..utils import environ, compat
 from .OWPIPAx import SelectionByKey, SelectionSetsWidget, SortedListWidget
 
 median = dicty.median
@@ -379,6 +380,7 @@ class OWGenExpress(widget.OWWidget):
     username = settings.Setting("anonymous")
     password = settings.Setting("")
     log2 = settings.Setting(False)
+    transpose = settings.Setting(False)
     rtypei = settings.Setting(0)
     projecti = settings.Setting(0)
     serveri = settings.Setting(0)
@@ -462,6 +464,9 @@ class OWGenExpress(widget.OWWidget):
 
         gui.checkBox(self.controlArea, self, "log2",
                      "Logarithmic (base 2) transformation")
+
+        gui.checkBox(self.controlArea, self, "transpose",
+                     "Genes as attributes")
 
         self.commit_button = gui.button(self.controlArea, self, "&Commit",
                                         callback=self.Commit)
@@ -778,6 +783,17 @@ class OWGenExpress(widget.OWWidget):
                     ignorenames=self.dbc.IGNORE_REPLICATE,
                     namefn=None,
                     avg=dicty.median)
+
+            if self.transpose:
+                experiments = [at for at in table.domain.variables]
+                attr = [compat.ContinuousVariable(name=ex['DDB'].value) for ex in table]
+                metavars = sorted(table.domain.variables[0].attributes.keys())
+                metavars = [compat.StringVariable(name=name) for name in metavars]
+                domain = compat.create_domain(attr, None, metavars)
+                metavars = compat.get_metas(domain)
+                X = np.array([[row[exp].value for exp in experiments] for row in table])
+                metas = [[exp.attributes[var.name] for var in metavars] for exp in experiments]
+                table = compat.create_table(domain, X.transpose(), None, metas)
 
             # Sort attributes
             sortOrder = self.columnsSortingWidget.sortingOrder

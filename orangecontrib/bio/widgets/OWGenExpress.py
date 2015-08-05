@@ -14,6 +14,7 @@ import sys, os
 from collections import defaultdict
 import math
 from datetime import date
+import numpy as np
 
 from Orange.orng import orngEnviron
 from Orange.OrangeWidgets import OWGUI
@@ -22,6 +23,7 @@ from Orange.OrangeWidgets.OWWidget import *
 import orangecontrib.bio.widgets.OWPIPAx as OWPIPAx
 
 import requests
+from ..utils import compat
 from orangecontrib.bio import obiDicty
 
 NAME = "GenExpress"
@@ -380,6 +382,7 @@ class OWGenExpress(OWWidget):
         self.username = "anonymous"
         self.password = ""
         self.log2 = False
+        self.transpose = False
         self.rtypei = 0
         self.projecti = 0
         self.serveri = 0
@@ -449,6 +452,10 @@ class OWGenExpress(OWWidget):
 
         OWGUI.checkBox(self.controlArea, self, "log2",
                        "Logarithmic (base 2) transformation"
+                       )
+
+        OWGUI.checkBox(self.controlArea, self, "transpose",
+                       "Genes as attributes"
                        )
 
         self.commit_button = OWGUI.button(self.controlArea, self, "&Commit",
@@ -793,6 +800,17 @@ class OWGenExpress(OWWidget):
                     namefn=None,
                     avg=obiDicty.median
                     )
+
+            if self.transpose:
+                experiments = [at for at in table.domain.variables]
+                attr = [compat.ContinuousVariable(name=ex['DDB'].value) for ex in table]
+                metavars = sorted(table.domain.variables[0].attributes.keys())
+                metavars = [compat.StringVariable(name=name) for name in metavars]
+                domain = compat.create_domain(attr, None, metavars)
+                metavars = compat.get_metas(domain)
+                X = np.array([[row[exp].value for exp in experiments] for row in table])
+                metas = [[exp.attributes[var.name] for var in metavars] for exp in experiments]
+                table = compat.create_table(domain, X.transpose().tolist(), None, metas)
 
             # Sort attributes
             sortOrder = self.columnsSortingWidget.sortingOrder
