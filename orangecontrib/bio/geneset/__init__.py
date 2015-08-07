@@ -47,7 +47,7 @@ def goGeneSets(org):
     genesets = []
     link_fmt = "http://amigo.geneontology.org/cgi-bin/amigo/term-details.cgi?term=%s"
     for termn, term in ontology.terms.items():
-        genes = annotations.GetAllGenes(termn)
+        genes = annotations.get_all_genes(termn)
         hier = ("GO", term.namespace)
         if len(genes) > 0:
             gs = GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org, link=link_fmt % termn)
@@ -481,10 +481,10 @@ def upload_genesets(rsf):
                 print("Uploading ORG %s %s" % (org, fn))
                 genesets = fn(org).split_by_hierarchy()
                 for gs in genesets:
-                    print("registering %s" % gs.common_hierarchy())
+                    print("registering %s" % str(gs.common_hierarchy()))
                     register(gs, rsf) #server files
                     #register(gs)
-                    print("successful %s" % gs.common_hierarchy())
+                    print("successful %s" % str(gs.common_hierarchy()))
             except obiTaxonomy.UnknownSpeciesIdentifier:
                 print("Organism ontology not available %s" % org)
             except GenesetRegException:
