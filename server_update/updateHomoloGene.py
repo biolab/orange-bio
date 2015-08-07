@@ -3,7 +3,7 @@
 
 from common import *
 
-from Orange.bio import obiHomoloGene
+from orangecontrib.bio.gene import homology as obiHomoloGene
 
 path = os.path.join(environ.buffer_dir, "tmp_HomoloGene")
 
@@ -37,7 +37,7 @@ organisms = {"3702": "A.thaliana",
             "7955": "D.rerio",
             "352472": "D.discoideum",
             "7227":  "D.melanogaster",
-            "562":  "E.coliK12",
+            "562":  "E.coli",
             #"11103", # Hepatitis C virus
             "9606": "H.sapiens",
             "10090": "M.musculus",
@@ -69,9 +69,10 @@ organisms = sorted(organisms.values())
 import time
 for i, org1 in enumerate(organisms):
     for org2 in organisms[i+1:]:
-        print "http://inparanoid.sbc.su.se/download/current/orthoXML/InParanoid.%s-%s.orthoXML" % (org1, org2)
+        filename = "http://inparanoid.sbc.su.se/download/current/Orthologs_OrthoXML/%s/%s-%s.orthoXML" % (org1, org1, org2)
+        print filename
         try:
-            stream = urllib2.urlopen("http://inparanoid.sbc.su.se/download/current/orthoXML/InParanoid.%s-%s.orthoXML" % (org1, org2))
+            stream = urllib2.urlopen(filename)
         except Exception, ex:
             print ex
             continue
