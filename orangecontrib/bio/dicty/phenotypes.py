@@ -67,7 +67,7 @@ class DictyMutants(object):
         url = "http://dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=mutant_phenotypes&ID="
         filename = os.path.join(self.local_database_path, name)
         temp_file = os.path.join(self.local_database_path, name + "_temp")
-        stream = urllib2.urlopen(url + name)
+        stream = urlopen(url + name)
     
         with open(temp_file, "wb") as file:
             shutil.copyfileobj(stream, file)
