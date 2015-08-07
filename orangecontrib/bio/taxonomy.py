@@ -5,9 +5,10 @@ from collections import defaultdict
 
 try:
     import cPickle as pickle
+    from cStringIO import StringIO
 except ImportError:
     import pickle
-
+    from io import StringIO
 
 import  os, shutil, sys, tarfile
 
