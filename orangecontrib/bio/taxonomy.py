@@ -10,7 +10,7 @@ except ImportError:
     import pickle
     from io import StringIO
 
-import  os, shutil, sys, tarfile
+import os, shutil, sys, tarfile, re
 
 try:
     from Orange.utils import environ
@@ -190,23 +190,15 @@ def cached(func):
     f.__name__ = "Cached " + func.__name__
     return f
     
+import time
+
 class TextDB(object):
     entry_start_string = chr(255)
     entry_end_string = chr(254)+"\n"
     entry_separator_string = chr(253)
 
-    @property
-    def _text_lower(self):
-        if id(self._text) == self._lower_text_id:
-            return self._lower_text
-        else:
-            self._lower_text_id = id(self._text)
-            self._lower_text = self._text.lower()
-            return self._lower_text
-        
     def __init__(self, file=None, **kwargs):
         self._text = ""
-        self._lower_text_id = id(self._text) - 1
         self._cache = {}
         self.__dict__.update(kwargs)
         
@@ -216,8 +208,18 @@ class TextDB(object):
             else:
                 self._text = open(file, "rb").read()
 
+    def _find_all_regex(self, string, start=0, text=None, unique=True, flags=0):
+        text = text if text != None else self._text
+        passover = 0
+        for a in re.finditer(string, text, flags=flags):
+            index = a.start()
+            if index >= passover:
+                yield index
+                if unique:
+                    passover = text.find(self.entry_start_string, index + 1)
+
     def _find_all(self, string, start=0, text=None, unique=True):
-        text = text if text != None else self._text_lower
+        text = text if text != None else self._text
         while True:
             index = text.find(string, start)
             if index != -1:
@@ -244,11 +246,11 @@ class TextDB(object):
         return self._get_entry_at(index)
                 
     def search(self, string):
-        string = string.lower()
         res = []
-        for idx in self._find_all(string):
+        string = re.escape(string)
+        for idx in self._find_all_regex(string, flags=re.IGNORECASE):
             entry = self._get_entry_at(idx)
-            id , rest = entry.split(self.entry_separator_string, 1)
+            id, rest = entry.split(self.entry_separator_string, 1)
             self._cache[id] = entry
             res.append(id)
         return res
