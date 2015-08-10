@@ -15,12 +15,11 @@ from PyQt4.QtGui import (
     QGraphicsWidget
 )
 
-from PyQt4.QtCore import Qt, QEvent
+from PyQt4.QtCore import Qt, QEvent, QSizeF
 import Orange
 from Orange.widgets import widget, gui, settings
 from Orange.widgets.utils import itemmodels
 
-from .OWHeatMap import GraphicsSimpleTextLayoutItem
 from ..utils import group as exp
 
 from .utils.settings import SetContextHandler
@@ -602,6 +601,53 @@ class OWQualityControl(widget.OWWidget):
         self.rug_widgets = rug_widgets
         self.labels = labels
         self.on_view_resize(self.scene_view.size())
+
+
+class GraphicsSimpleTextLayoutItem(QtGui.QGraphicsLayoutItem):
+    """ A Graphics layout item wrapping a QGraphicsSimpleTextItem alowing it
+    to be managed by a layout.
+
+    """
+    def __init__(self, text_item, orientation=Qt.Horizontal, parent=None):
+        super().__init__(parent)
+        self.orientation = orientation
+        self.text_item = text_item
+        if orientation == Qt.Vertical:
+            self.text_item.rotate(-90)
+            self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        else:
+            self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        if self.orientation == Qt.Horizontal:
+            self.text_item.setPos(rect.topLeft())
+        else:
+            self.text_item.setPos(rect.bottomLeft())
+
+    def sizeHint(self, which, constraint=QSizeF()):
+        if which in [Qt.PreferredSize]:
+            size = self.text_item.boundingRect().size()
+            if self.orientation == Qt.Horizontal:
+                return size
+            else:
+                return QSizeF(size.height(), size.width())
+        else:
+            return QSizeF()
+
+    def updateGeometry(self):
+        super().updateGeometry()
+        parent = self.parentLayoutItem()
+        if parent.isLayout():
+            parent.updateGeometry()
+
+    def setFont(self, font):
+        self.text_item.setFont(font)
+        self.updateGeometry()
+
+    def setText(self, text):
+        self.text_item.setText(text)
+        self.updateGeometry()
 
 
 class RugGraphicsWidget(QGraphicsWidget):
