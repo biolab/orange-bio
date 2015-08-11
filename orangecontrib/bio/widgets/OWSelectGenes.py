@@ -1422,7 +1422,12 @@ class GeneSetView(QFrame):
         self.initialize()
 
     def initialize(self):
-        self.gs_hierarchy = gs = genesets.list_all()
+        gs = genesets.list_all()
+        # Filter out genesets with taxid == None
+        # (What the furious felonious ferrous ferrets)
+        gs = [(h, taxid, _2) for h, taxid, _2 in gs if taxid]
+
+        self.gs_hierarchy = gs
         taxids = set(taxid for _, taxid, _ in gs)
         self.organisms = [(taxid, taxonomy.name(taxid)) for taxid in taxids]
         for taxid, name in self.organisms:
