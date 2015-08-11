@@ -11,6 +11,8 @@ import datetime
 
 from ..utils import serverfiles
 
+import six
+
 try:
     from Orange.utils import environ
 except ImportError:
@@ -287,7 +289,10 @@ def list_serverfiles_conn(serverfiles=None):
 
 def list_serverfiles():
     fname = serverfiles.localpath_download(sfdomain, "index.pck")
-    flist = pickle.load(open(fname, 'rb'))
+    if six.PY3:
+        flist = pickle.load(open(fname, 'rb'), encoding="latin1")
+    else:
+        flist = pickle.load(open(fname, 'rb'))
     return list_serverfiles_from_flist(flist)
 
 def list_all(org=None, local=None):
@@ -410,7 +415,10 @@ def load_fn(hierarchy, organism, fnlist, fnget):
         raise NoGenesetsException(exstr)
     for (h, o) in [ files[i] for i in hierd[(hierarchy, organism)]]:
         fname = fnget(h, o)
-        out.update(pickle.load(open(fname, 'rb')))
+        if six.PY3:
+            out.update(pickle.load(open(fname, 'rb'), encoding="latin1"))
+        else:
+            out.update(pickle.load(open(fname, 'rb')))
     return out
 
 def load(hierarchy, organism):
