@@ -6,4 +6,8 @@ from gzip import GzipFile
 import tempfile
 from orangecontrib.bio.geneset  import upload_genesets
 
+import orangecontrib.bio.kegg.caching as keggcache
+
+keggcache.clear_cache()
+
 upload_genesets(sf_server)
