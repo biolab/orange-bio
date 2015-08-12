@@ -338,9 +338,9 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self.geneAttrIndexCombo.clear()
         self.ClearGraph()
 
-        self.send("Selected Examples", None)
-        self.send("Unselected Examples", None)
-        self.send("Example With Unknown Genes", None)
+        self.send("Data on Selected Genes", None)
+        self.send("Data on Unselected Genes", None)
+        self.send("Data on Unknown Genes", None)
         self.send("Enrichment Report", None)
 
     def setDataset(self, data=None):
@@ -439,9 +439,9 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
                 data = self.clusterDataset[indices]
             else:
                 data = None
-            self.send("Example With Unknown Genes", data)
+            self.send("Data on Unknown Genes", data)
         else:
-            self.send("Example With Unknown Genes", None)
+            self.send("Data on Unknown Genes", None)
 
     def Load(self, pb=None):
         go_files, tax_files = serverfiles.listfiles("GO"), serverfiles.listfiles("Taxonomy")
@@ -827,8 +827,8 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
                 self.clusterDataset.domain.metas)
             newdata = self.clusterDataset.from_table(domain, self.clusterDataset)
 
-            self.send("Selected Examples", newdata)
-            self.send("Unselected Examples", None)
+            self.send("Data on Selected Genes", newdata)
+            self.send("Data on Unselected Genes", None)
         elif self.candidateGeneAttrs:
             selectedExamples = []
             unselectedExamples = []
@@ -867,8 +867,8 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             else:
                 unselectedExamples = None
 
-            self.send("Selected Examples", selectedExamples)
-            self.send("Unselected Examples", unselectedExamples)
+            self.send("Data on Selected Genes", selectedExamples)
+            self.send("Data on Unselected Genes", unselectedExamples)
 
     def ShowInfo(self):
         dialog = QtGui.QDialog(self)
