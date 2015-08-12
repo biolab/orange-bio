@@ -80,14 +80,14 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
     icon = "../widgets/icons/GOBrowser.svg"
     priority = 2020
 
-    inputs = [("Cluster Examples", Orange.data.Table,
+    inputs = [("Cluster Data", Orange.data.Table,
                "setDataset", widget.Single + widget.Default),
-              ("Reference Examples", Orange.data.Table,
+              ("Reference Data", Orange.data.Table,
                "setReferenceDataset")]
 
-    outputs = [("Selected Examples", Orange.data.Table),
-               ("Unselected Examples", Orange.data.Table),
-               ("Example With Unknown Genes", Orange.data.Table),
+    outputs = [("Data on Selected Genes", Orange.data.Table),
+               ("Data on Unselected Genes", Orange.data.Table),
+               ("Data on Unknown Genes", Orange.data.Table),
                ("Enrichment Report", Orange.data.Table)]
 
     settingsHandler = settings.DomainContextHandler()
