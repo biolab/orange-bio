@@ -113,7 +113,7 @@ class OWDisplayProfiles(widget.OWWidget):
     priority = 1030
 
     inputs = [("Data", Orange.data.Table, "set_data")]
-    outputs = [("Data", Orange.data.Table)]
+    outputs = [("Selected Data", Orange.data.Table)]
     settingsHandler = settings.DomainContextHandler()
 
     #: List of selected class indices
@@ -371,7 +371,7 @@ class OWDisplayProfiles(widget.OWWidget):
         if self.data is not None and len(self.__selected_data_indices) > 0:
             subset = self.data[self.__selected_data_indices]
 
-        self.send("Data", subset)
+        self.send("Selected Data", subset)
 
 
 def test_main(argv=sys.argv):
