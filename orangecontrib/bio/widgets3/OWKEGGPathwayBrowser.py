@@ -401,8 +401,8 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
         self.listView.clear()
         self.pathwayView.SetPathway(None)
 
-        self.send("Selected Examples", None)
-        self.send("Unselected Examples", None)
+        self.send("Selected Data", None)
+        self.send("Unselected Data", None)
 
     def SetData(self, data=None):
         if self.__runstate == OWKEGGPathwayBrowser.Initializing:
@@ -790,7 +790,7 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
 #                 newDomain = Orange.data.Domain(selectedVars, 0)
                 data = self.data[:, selected]
 #                 data = Orange.data.Table(newDomain, self.data)
-                self.send("Selected Examples", data)
+                self.send("Selected Data", data)
             elif self.geneAttrCandidates:
                 geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex,
                                                        len(self.geneAttrCandidates) - 1)]
@@ -814,11 +814,11 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
                 else:
                     other = None
 
-                self.send("Selected Examples", selected)
-                self.send("Unselected Examples", other)
+                self.send("Selected Data", selected)
+                self.send("Unselected Data", other)
         else:
-            self.send("Selected Examples", None)
-            self.send("Unselected Examples", None)
+            self.send("Selected Data", None)
+            self.send("Unselected Data", None)
 
     def ClearCache(self):
         kegg.caching.clear_cache()
