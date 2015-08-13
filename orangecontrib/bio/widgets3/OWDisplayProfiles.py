@@ -194,6 +194,10 @@ class OWDisplayProfiles(widget.OWWidget):
 
         self.data = data
         if data is not None:
+            n_instances = len(data)
+            n_attrs = len(data.domain.attributes)
+            self.infoLabel.setText("%i genes on input\n%i attributes"%(n_instances, n_attrs))
+
             if is_discrete(data.domain.class_var):
                 class_vals = data.domain.class_var.values
             else:
@@ -236,7 +240,7 @@ class OWDisplayProfiles(widget.OWWidget):
         else:
             group_indices = [np.arange(len(data))]
 
-        X = np.arange(len(domain.attributes))
+        X = np.arange(1, len(domain.attributes)+1)
         groups = []
 
         for i, indices in enumerate(group_indices):
