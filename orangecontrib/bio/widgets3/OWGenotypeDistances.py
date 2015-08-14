@@ -294,7 +294,8 @@ class OWGenotypeDistances(widget.OWWidget):
 
         def get_attr(attr_index, i):
             if attr_index is None:
-                attr = Orange.data.ContinuousVariable(next(missing_name_gen))
+                attr = Orange.data.ContinuousVariable(next(missing_name_gen), 
+                    compute_value=lambda x: None)
                 attr.attributes.update(relevant_items[i])
                 return attr
             else:
