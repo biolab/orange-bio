@@ -350,6 +350,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self.closeContext()
         self.clear()
         self.clusterDataset = data
+
         if data is not None:
             domain = data.domain
             allvars = domain.variables + domain.metas
@@ -358,7 +359,6 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             self.geneAttrIndexCombo.clear()
             for var in self.candidateGeneAttrs:
                 self.geneAttrIndexCombo.addItem(*gui.attributeItem(var))
-
             taxid = data_hints.get_hint(data, "taxid", "")
             code = None
             try:
@@ -378,6 +378,15 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             self.useAttrNames = data_hints.get_hint(data, "genesinrows",
                                                     self.useAttrNames)
             self.openContext(data)
+
+            self.geneAttrIndex = min(self.geneAttrIndex,
+                                     len(self.candidateGeneAttrs) - 1)
+            if len(self.candidateGeneAttrs) == 0:
+                self.useAttrNames = True
+                self.geneAttrIndex = -1
+            elif self.geneAttrIndex < len(self.candidateGeneAttrs):
+                self.geneAttrIndex = len(self.candidateGeneAttrs) - 1
+
             self._updateEnrichment()
 
     def setReferenceDataset(self, data=None):
@@ -513,6 +522,8 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             self.annotations.genematcher.set_targets(self.annotations.gene_names)
 
     def Enrichment(self, pb=None):
+        assert self.clusterDataset is not None
+
         pb = gui.ProgressBar(self, 100) if pb is None else pb
         if not self.annotations.ontology:
             self.annotations.ontology = self.ontology
@@ -521,65 +532,71 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             self.SetGeneMatcher()
         self.error(1)
         self.warning([0, 1])
-        try:
-            if self.useAttrNames:
-                clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
-                self.information(0)
+
+        if self.useAttrNames:
+            clusterGenes = [v.name for v in self.clusterDataset.domain.attributes]
+            self.information(0)
+        elif 0 <= self.geneAttrIndex < len(self.candidateGeneAttrs):
+            geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
+            clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset
+                            if not numpy.isnan(ex[geneAttr])]
+            if any("," in gene for gene in clusterGenes):
+                self.information(0, "Separators detected in cluster gene names. Assuming multiple genes per example.")
+                clusterGenes = reduce(operator.iadd, (genes.split(",") for genes in clusterGenes), [])
             else:
-                geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex,
-                                                       len(self.candidateGeneAttrs)-1)]
-                clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset
-                                if not numpy.isnan(ex[geneAttr])]
-                if any("," in gene for gene in clusterGenes):
-                    self.information(0, "Separators detected in cluster gene names. Assuming multiple genes per example.")
-                    clusterGenes = reduce(operator.iadd, (genes.split(",") for genes in clusterGenes), [])
-                else:
-                    self.information(0)
-        except Exception as ex:
-            self.error(1, "Failed to extract gene names from input dataset! %s" % str(ex))
+                self.information(0)
+        else:
+            self.error(1, "Failed to extract gene names from input dataset!")
             return {}
 
         genesSetCount = len(set(clusterGenes))
 
         self.clusterGenes = clusterGenes = self.annotations.get_gene_names_translator(clusterGenes).values()
 
-#        self.clusterGenes = clusterGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, clusterGenes)
         self.infoLabel.setText("%i unique genes on input\n%i (%.1f%%) genes with known annotations" % (genesSetCount, len(clusterGenes), 100.0*len(clusterGenes)/genesSetCount if genesSetCount else 0.0))
 
         referenceGenes = None
-        if self.referenceDataset:
-            try:
-                if self.useAttrNames:
-                    referenceGenes = [v.name for v in self.referenceDataset.domain.variables]
-                    self.information(1)
-                else:
-                    referenceGenes = [str(ex[geneAttr]) for ex in self.referenceDataset if not ex[geneAttr].isSpecial()]
-                    if any("," in gene for gene in clusterGenes):
-                        self.information(1, "Separators detected in reference gene names. Assuming multiple genes per example.")
-                        referenceGenes = reduce(operator.iadd, (genes.split(",") for genes in referenceGenes), [])
-                    else:
-                        self.information(1)
+        if not self.useReferenceDataset or self.referenceDataset is None:
+            self.information(2)
+            self.information(1)
+            referenceGenes = self.annotations.gene_names
 
+        elif self.referenceDataset is not None:
+            if self.useAttrNames:
+                referenceGenes = [v.name for v in self.referenceDataset.domain.attributes]
+                self.information(1)
+            elif geneAttr in (self.referenceDataset.domain.variables +
+                              self.referenceDataset.domain.metas):
+                referenceGenes = [str(ex[geneAttr]) for ex in self.referenceDataset
+                                  if not numpy.isnan(ex[geneAttr])]
+                if any("," in gene for gene in clusterGenes):
+                    self.information(1, "Separators detected in reference gene names. Assuming multiple genes per example.")
+                    referenceGenes = reduce(operator.iadd, (genes.split(",") for genes in referenceGenes), [])
+                else:
+                    self.information(1)
+            else:
+                self.information(1)
+                referenceGenes = None
+
+            if referenceGenes is None:
+                referenceGenes = list(self.annotations.gene_names)
+                self.referenceRadioBox.buttons[1].setText("Reference set")
+                self.referenceRadioBox.buttons[1].setDisabled(True)
+                self.information(2, "Unable to extract gene names from reference dataset. Using entire genome for reference")
+                self.useReferenceDataset = 0
+            else:
                 refc = len(referenceGenes)
-#                referenceGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, referenceGenes)
                 referenceGenes = self.annotations.get_gene_names_translator(referenceGenes).values()
                 self.referenceRadioBox.buttons[1].setText("Reference set (%i genes, %i matched)" % (refc, len(referenceGenes)))
                 self.referenceRadioBox.buttons[1].setDisabled(False)
                 self.information(2)
-            except Exception as er:
-                if not self.referenceDataset:
-                    self.information(2, "Unable to extract gene names from reference dataset. Using entire genome for reference")
-                else:
-                    self.referenceRadioBox.buttons[1].setText("Reference set")
-                    self.referenceRadioBox.buttons[1].setDisabled(True)
-                referenceGenes = self.annotations.gene_names
-                self.useReferenceDataset = 0
         else:
             self.useReferenceDataset = 0
-        if not self.useReferenceDataset:
-            self.information(2)
-            self.information(1)
-            referenceGenes = self.annotations.gene_names
+
+        if not referenceGenes:
+            self.error(1, "No valid reference set")
+            return {}
+
         self.referenceGenes = referenceGenes
         evidences = []
         for etype in go.evidenceTypesOrdered:
