@@ -157,11 +157,10 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             tooltip="Use this attribute to extract gene names from input data")
         self.geneAttrIndexCombo.setDisabled(self.useAttrNames)
 
-        gui.checkBox(genebox, self, "useAttrNames", "Use attributes names",
-                     tooltip="Use attribute names for gene names",
-                     callback=[lambda: self.geneAttrIndexCombo.setEnabled(
-                                            not self.useAttrNames),
-                               self._updateEnrichment])
+        cb = gui.checkBox(genebox, self, "useAttrNames", "Use attributes names",
+                          tooltip="Use attribute names for gene names",
+                          callback=self._updateEnrichment)
+        cb.toggled[bool].connect(self.geneAttrIndexCombo.setDisabled)
 
         gui.button(genebox, self, "Gene matcher settings",
                    callback=self.UpdateGeneMatcher,
