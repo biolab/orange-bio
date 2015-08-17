@@ -325,8 +325,7 @@ class OWGeneInfo(widget.OWWidget):
         if self.__initialized:
             # Already initialized
             return
-
-        self.progressBarFinished()
+        self.__initialized = True
 
         self.organisms = sorted(
             set([name.split(".")[-2] for name in
@@ -339,21 +338,25 @@ class OWGeneInfo(widget.OWWidget):
         )
         if self.taxid in self.organisms:
             self.organism_index = self.organisms.index(self.taxid)
+        else:
+            self.organism_index = 0
+            self.taxid = self.organisms[self.organism_index]
 
         self.altSourceCheck.setVisible(self.taxid == DICTY_TAXID)
         self.dictyExpressBox.setVisible(self.taxid == DICTY_TAXID)
 
         self.infoLabel.setText("No data on input\n")
-        self.__initialized = True
         self.initfuture = None
 
         self.setBlocking(False)
+        self.progressBarFinished(processEvents=None)
 
     def _onInitializeError(self, exc):
         sys.excepthook(type(exc), exc.args, None)
         self.error(0, "Could not download the necessary files.")
 
     def _onSelectedOrganismChanged(self):
+        assert 0 <= self.organism_index <= len(self.organisms)
         self.taxid = self.organisms[self.organism_index]
         self.altSourceCheck.setVisible(self.taxid == DICTY_TAXID)
         self.dictyExpressBox.setVisible(self.taxid == DICTY_TAXID)
@@ -391,6 +394,9 @@ class OWGeneInfo(widget.OWWidget):
 
             if self.taxid in self.organisms:
                 self.organism_index = self.organisms.index(self.taxid)
+            else:
+                self.organism_index = 0
+                self.taxid = self.organisms[self.organism_index]
 
             self.updateInfoItems()
         else:
