@@ -263,6 +263,7 @@ class OWMAPlot(widget.OWWidget):
     def setData(self, data):
         self.closeContext()
         self.clear()
+        self.unconditional_commit()
         self.data = data
         self.error([0, 1])
         if data is not None:
@@ -372,8 +373,8 @@ class OWMAPlot(widget.OWWidget):
         """ Run MA centering and z_score estimation in a separate thread 
         """
         self.error(0)
-        self.progressBarInit()
-        self.progressBarSet(0.0)
+        self.progressBarInit(processEvents=None)
+        self.progressBarSet(0.0, processEvents=None)
         G, R = self.getMerged()
 
         center_method = self.CENTER_METHODS[self.selectedCenterMethod][1]
@@ -404,6 +405,7 @@ class OWMAPlot(widget.OWWidget):
         self._task.exceptionReady.connect(self.onException)
 
         self.setEnabled(False)
+        self.setBlocking(True)
 
         self._executor.submit(self._task)
 
@@ -417,16 +419,18 @@ class OWMAPlot(widget.OWWidget):
         Gc, Rc, z_scores = results
 
         self.setEnabled(True)
+        self.setBlocking(False)
         self.progressBarFinished()
         self.centered = Gc, Rc
         self.z_scores = z_scores
         self.plotMA(Gc, Rc, z_scores, self.zCutoff)
-        self.commit()
+        self.commitIf()
 
     def onException(self, error):
         print("Error: ", error, file=sys.stderr)
         self.error(0, "Error: {!s}".format(error))
         self.setEnabled(True)
+        self.setBlocking(False)
 
     def plotMA(self, G, R, z_scores, z_cuttof):
         ratio, intensity = expression.ratio_intensity(G, R)
