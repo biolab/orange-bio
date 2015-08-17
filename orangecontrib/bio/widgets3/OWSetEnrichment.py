@@ -935,7 +935,7 @@ class OWSetEnrichment(widget.OWWidget):
                       if matcher.umatch(attr.name) in mapped]
 
             newdomain = Orange.data.Domain(
-                mapped, self.data.domain.class_vars, self.domain.data.metas)
+                mapped, self.data.domain.class_vars, self.data.domain.metas)
             data = self.data.from_table(newdomain, self.data)
         else:
             geneattr = self.geneAttrs[self.geneattr]
