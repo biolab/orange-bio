@@ -14,7 +14,7 @@ except ImportError:
 NAME = 'Orange-Bioinformatics'
 DOCUMENTATION_NAME = 'Orange Bioinformatics'
 
-VERSION = '2.6.8'
+VERSION = '2.6.9'
 
 DESCRIPTION = 'Orange Bioinformatics add-on for Orange data mining software package.'
 LONG_DESCRIPTION = open(os.path.join(os.path.dirname(__file__), 'README.rst')).read()
