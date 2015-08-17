@@ -685,8 +685,9 @@ class OWVolcanoPlot(widget.OWWidget):
         elif self.data is not None:
             selected = self.selection()
             attrs = [self.data.domain[i] for i in selected]
-            data = self.data[:, tuple(attrs) + self.data.domain.metas]
-
+            domain = Orange.data.Domain(
+                attrs, self.data.domain.class_vars, self.data.domain.metas)
+            data = self.data.from_table(domain, self.data)
             self.current_selection = list(selected)  # For testing in on_selection_changed
         else:
             data = None
