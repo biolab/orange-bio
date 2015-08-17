@@ -249,11 +249,10 @@ class OWGeneInfo(widget.OWWidget):
             box, self, "gene_attr",
             "Gene atttibute", callback=self.updateInfoItems
         )
-        gui.checkBox(box, self, "useAttr", "Use attribute names",
-                     callback=self.updateInfoItems,
-                     disables=[(-1, self.geneAttrComboBox)])
-
-        self.geneAttrComboBox.setDisabled(bool(self.useAttr))
+        self.geneAttrComboBox.setEnabled(not self.useAttr)
+        cb = gui.checkBox(box, self, "useAttr", "Use attribute names",
+                          callback=self.updateInfoItems)
+        cb.toggled[bool].connect(self.geneAttrComboBox.setDisabled)
 
         gui.auto_commit(self.controlArea, self, "auto_commit", "Commit")
 
