@@ -914,32 +914,52 @@ fmtpdet = lambda score: "%0.9f" % score if score > 10e-4 else "%0.5e" % score
 
 
 class GOTreeWidgetItem(QtGui.QTreeWidgetItem):
-    def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes, maxFoldEnrichment, parent):
+    def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes,
+                 maxFoldEnrichment, parent):
         super().__init__(parent)
         self.term = term
         self.enrichmentResult = enrichmentResult
         self.nClusterGenes = nClusterGenes
         self.nRefGenes = nRefGenes
         self.maxFoldEnrichment = maxFoldEnrichment
-        self.enrichment = enrichment = lambda t: len(t[0]) / t[2] * (nRefGenes / nClusterGenes)
+
+        querymapped, pvalue, refmappedcount, fdr = enrichmentResult
+
+        querymappedcount = len(querymapped)
+        if refmappedcount > 0 and nRefGenes > 0 and nClusterGenes > 0:
+            enrichment = (querymappedcount / refmappedcount) * (nRefGenes / nClusterGenes)
+        else:
+            enrichment = numpy.nan
+
+        self.enrichment = enrichment  # = lambda t: len(t[0]) / t[2] * (nRefGenes / (nClusterGenes or 1))
+
         self.setText(0, term.name)
-        fmt = "%" + str(-int(math.log(nClusterGenes))) + "i (%.2f%%)"
-        self.setText(1, fmt % (len(enrichmentResult[0]), 100.0*len(self.enrichmentResult[0])/nClusterGenes))
-        fmt = "%" + str(-int(math.log(nRefGenes))) + "i (%.2f%%)"
-        self.setText(2, fmt % (enrichmentResult[2], 100.0*enrichmentResult[2]/nRefGenes))
-        self.setText(3, fmtp(enrichmentResult[1]))
-        self.setToolTip(3, fmtpdet(enrichmentResult[1]))
-        self.setText(4, fmtp(enrichmentResult[3])) #FDR
-        self.setToolTip(4, fmtpdet(enrichmentResult[3]))
-        self.setText(5, ", ".join(enrichmentResult[0]))
-        self.setText(6, "%.2f" % (enrichment(enrichmentResult)))
-        self.setToolTip(6, "%.2f" % (enrichment(enrichmentResult)))
+
+        fmt = "%" + str(-int(math.log(max(nClusterGenes, 1)))) + "i (%.2f%%)"
+        self.setText(1, fmt % (querymappedcount,
+                               100.0 * querymappedcount / (nClusterGenes or 1)))
+
+        fmt = "%" + str(-int(math.log(max(nRefGenes, 1)))) + "i (%.2f%%)"
+        self.setText(2, fmt % (refmappedcount,
+                               100.0 * refmappedcount / (nRefGenes or 1)))
+
+        self.setText(3, fmtp(pvalue))
+        self.setToolTip(3, fmtpdet(pvalue))
+        self.setText(4, fmtp(fdr))  # FDR
+        self.setToolTip(4, fmtpdet(fdr))
+        self.setText(5, ", ".join(querymapped))
+        self.setText(6, "%.2f" % (enrichment))
+        self.setToolTip(6, "%.2f" % (enrichment))
         self.setToolTip(0, "<p>" + term.__repr__()[6:].strip().replace("\n", "<br>"))
-        self.sortByData = [term.name, len(self.enrichmentResult[0]), enrichmentResult[2], enrichmentResult[1], enrichmentResult[3], ", ".join(enrichmentResult[0]), enrichment(enrichmentResult)]
+        self.sortByData = [term.name, querymappedcount, refmappedcount,
+                           pvalue, fdr, ", ".join(querymapped), enrichment]
 
     def data(self, col, role):
         if role == Qt.UserRole:
-            return self.enrichment(self.enrichmentResult) / self.maxFoldEnrichment
+            if self.maxFoldEnrichment > 0:
+                return self.enrichment / self.maxFoldEnrichment
+            else:
+                return numpy.nan
         else:
             return super().data(col, role)
 
