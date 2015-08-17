@@ -288,8 +288,9 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
         box = gui.widgetBox(self.controlArea, "Cache Control")
 
         gui.button(box, self, "Clear cache",
-                     callback=self.ClearCache,
-                     tooltip="Clear all locally cached KEGG data.")
+                   callback=self.ClearCache,
+                   tooltip="Clear all locally cached KEGG data.",
+                   default=False, autoDefault=False)
 
         gui.separator(self.controlArea)
 
