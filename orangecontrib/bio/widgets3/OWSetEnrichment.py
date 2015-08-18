@@ -61,9 +61,9 @@ class BarItemDelegate(QtGui.QStyledItemDelegate):
             style = QtGui.QApplication.instance().style()
 
         style.drawPrimitive(
-            QStyle.PE_PanelItemViewRow, option, painter)
+            QStyle.PE_PanelItemViewRow, option, painter, option.widget)
         style.drawPrimitive(
-            QStyle.PE_PanelItemViewItem, option, painter)
+            QStyle.PE_PanelItemViewItem, option, painter, option.widget)
         rect = option.rect
         val = index.data(Qt.DisplayRole)
 
