@@ -296,8 +296,11 @@ class VolcanoGraph(pg.PlotWidget):
         self.__selectiondelegate = None
         self._item = None
         self._selitem = None
-
         self.plotData = numpy.empty((0, 2))
+        self._stylebrush = numpy.array([
+            pg.mkBrush((0, 0, 255, 100)),  # normal points
+            pg.mkBrush((255, 0, 0, 100))   # selected points
+        ])
 
     def setSelectionMode(self, mode):
         if mode != self.__selectionMode:
@@ -365,8 +368,7 @@ class VolcanoGraph(pg.PlotWidget):
 
     def updateSelectionArea(self):
         mask = self.selectionMask()
-        brush = numpy.array([QtGui.QBrush(Qt.blue), QtGui.QBrush(Qt.red)])
-        brush = brush[mask.astype(int)]
+        brush = self._stylebrush[mask.astype(int)]
         self._item.setBrush(brush)
 
         if self._selitem is not None:
@@ -392,9 +394,7 @@ class VolcanoGraph(pg.PlotWidget):
                 self.removeItem(self._item)
 
             mask = self.selectionMask()
-            brush = numpy.array([QtGui.QBrush(Qt.blue), QtGui.QBrush(Qt.red)])
-            brush = brush[mask.astype(int)]
-
+            brush = self._stylebrush[mask.astype(int)]
             self._item = ScatterPlotItem(
                 x=self.plotData[:, 0], y=self.plotData[:, 1],
                 brush=brush, size=self.symbolSize, antialias=True,
