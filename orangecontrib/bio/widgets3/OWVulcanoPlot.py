@@ -444,7 +444,9 @@ class OWVolcanoPlot(widget.OWWidget):
 
         self.data = None
         self.target_group = None, []
+        self.targets = []
         self.current_selection = []
+        self.validindices = numpy.empty((0,), dtype=int)
 
         self.graph = VolcanoGraph(symbolSize=self.symbol_size, background="w")
         self.graph.setSelectionMode(VolcanoGraph.SymetricSelection)
@@ -478,7 +480,7 @@ class OWVolcanoPlot(widget.OWWidget):
                     callback=lambda:
                         self.graph.setSymbolSize(self.symbol_size))
 
-        gui.checkBox(box, self,  "symetric_selections", "Symmetric selection",
+        gui.checkBox(box, self, "symetric_selections", "Symmetric selection",
                      callback=self.__on_selectionModeChanged)
 
         gui.auto_commit(self.controlArea, self, "auto_commit", "Commit")
@@ -491,6 +493,7 @@ class OWVolcanoPlot(widget.OWWidget):
         self.targets = []
         self.stored_selections = []
         self.target_widget.setModel(None)
+        self.validindices = numpy.empty((0,), dtype=int)
         self.clear_graph()
 
     def clear_graph(self):
@@ -604,7 +607,7 @@ class OWVolcanoPlot(widget.OWWidget):
 
     def plot(self):
         self.graph.clear()
-
+        self.validindices = numpy.empty((0,), dtype=int)
         self.current_selection = []
         group, target_indices = self.selected_split()
         self.warning([0, 1])
