@@ -103,16 +103,19 @@ class GraphSelections(QObject):
         if len(data) == 0:
             return numpy.zeros(0, dtype=bool)
 
+        def contained(a, left, top, right, bottom):
+            assert left <= right and bottom <= top
+            x, y = a.T
+            return (x >= left) & (x <= right) & (y <= top) & (y >= bottom)
+
         data = numpy.asarray(data)
-        region = QPainterPath()
+        selected = numpy.zeros(len(data), dtype=bool)
         for p1, p2 in self.selection:
-            region.addRect(QRectF(p1, p2).normalized())
-
-        def test(point):
-            return region.contains(QPointF(point[0], point[1]))
-
-        test = numpy.apply_along_axis(test, 1, data)
-        return test
+            r = QRectF(p1, p2).normalized()
+            # Note the inverted top/bottom (Qt coordinate system)
+            selected |= contained(data, r.left(), r.bottom(),
+                                  r.right(), r.top())
+        return selected
 
     def mousePressEvent(self, event):
         """
