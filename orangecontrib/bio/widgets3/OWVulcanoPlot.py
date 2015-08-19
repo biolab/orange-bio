@@ -460,6 +460,7 @@ class OWVolcanoPlot(widget.OWWidget):
         self.graph.scene().installEventFilter(self)
         self.graph.getViewBox().setMouseEnabled(False, False)
         self.graph.getViewBox().enableAutoRange(enable=True)
+        self.graph.plotItem.showGrid(True, True, 0.3)
         self.mainArea.layout().addWidget(self.graph)
 
         ## GUI
