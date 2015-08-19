@@ -1234,7 +1234,7 @@ class OWFeatureSelection(widget.OWWidget):
             for var, score in zip(attrs, scores):
                 var.attributes[score_name] = str(score)
 
-            selected_attrs = [attrs[i] for i in selected]
+            selected_attrs = [attrs[i] for i in indices]
             remaining_attrs = [attrs[i] for i in remaining]
 
             domain = Orange.data.Domain(

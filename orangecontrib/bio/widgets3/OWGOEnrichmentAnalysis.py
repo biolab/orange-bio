@@ -157,11 +157,10 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             tooltip="Use this attribute to extract gene names from input data")
         self.geneAttrIndexCombo.setDisabled(self.useAttrNames)
 
-        gui.checkBox(genebox, self, "useAttrNames", "Use attributes names",
-                     tooltip="Use attribute names for gene names",
-                     callback=[lambda: self.geneAttrIndexCombo.setEnabled(
-                                            not self.useAttrNames),
-                               self._updateEnrichment])
+        cb = gui.checkBox(genebox, self, "useAttrNames", "Use attributes names",
+                          tooltip="Use attribute names for gene names",
+                          callback=self._updateEnrichment)
+        cb.toggled[bool].connect(self.geneAttrIndexCombo.setDisabled)
 
         gui.button(genebox, self, "Gene matcher settings",
                    callback=self.UpdateGeneMatcher,
@@ -350,6 +349,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self.closeContext()
         self.clear()
         self.clusterDataset = data
+
         if data is not None:
             domain = data.domain
             allvars = domain.variables + domain.metas
@@ -358,7 +358,6 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             self.geneAttrIndexCombo.clear()
             for var in self.candidateGeneAttrs:
                 self.geneAttrIndexCombo.addItem(*gui.attributeItem(var))
-
             taxid = data_hints.get_hint(data, "taxid", "")
             code = None
             try:
@@ -378,6 +377,15 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             self.useAttrNames = data_hints.get_hint(data, "genesinrows",
                                                     self.useAttrNames)
             self.openContext(data)
+
+            self.geneAttrIndex = min(self.geneAttrIndex,
+                                     len(self.candidateGeneAttrs) - 1)
+            if len(self.candidateGeneAttrs) == 0:
+                self.useAttrNames = True
+                self.geneAttrIndex = -1
+            elif self.geneAttrIndex < len(self.candidateGeneAttrs):
+                self.geneAttrIndex = len(self.candidateGeneAttrs) - 1
+
             self._updateEnrichment()
 
     def setReferenceDataset(self, data=None):
@@ -513,6 +521,8 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             self.annotations.genematcher.set_targets(self.annotations.gene_names)
 
     def Enrichment(self, pb=None):
+        assert self.clusterDataset is not None
+
         pb = gui.ProgressBar(self, 100) if pb is None else pb
         if not self.annotations.ontology:
             self.annotations.ontology = self.ontology
@@ -521,65 +531,71 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             self.SetGeneMatcher()
         self.error(1)
         self.warning([0, 1])
-        try:
-            if self.useAttrNames:
-                clusterGenes = [v.name for v in self.clusterDataset.domain.variables]
-                self.information(0)
+
+        if self.useAttrNames:
+            clusterGenes = [v.name for v in self.clusterDataset.domain.attributes]
+            self.information(0)
+        elif 0 <= self.geneAttrIndex < len(self.candidateGeneAttrs):
+            geneAttr = self.candidateGeneAttrs[self.geneAttrIndex]
+            clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset
+                            if not numpy.isnan(ex[geneAttr])]
+            if any("," in gene for gene in clusterGenes):
+                self.information(0, "Separators detected in cluster gene names. Assuming multiple genes per example.")
+                clusterGenes = reduce(operator.iadd, (genes.split(",") for genes in clusterGenes), [])
             else:
-                geneAttr = self.candidateGeneAttrs[min(self.geneAttrIndex,
-                                                       len(self.candidateGeneAttrs)-1)]
-                clusterGenes = [str(ex[geneAttr]) for ex in self.clusterDataset
-                                if not numpy.isnan(ex[geneAttr])]
-                if any("," in gene for gene in clusterGenes):
-                    self.information(0, "Separators detected in cluster gene names. Assuming multiple genes per example.")
-                    clusterGenes = reduce(operator.iadd, (genes.split(",") for genes in clusterGenes), [])
-                else:
-                    self.information(0)
-        except Exception as ex:
-            self.error(1, "Failed to extract gene names from input dataset! %s" % str(ex))
+                self.information(0)
+        else:
+            self.error(1, "Failed to extract gene names from input dataset!")
             return {}
 
         genesSetCount = len(set(clusterGenes))
 
         self.clusterGenes = clusterGenes = self.annotations.get_gene_names_translator(clusterGenes).values()
 
-#        self.clusterGenes = clusterGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, clusterGenes)
         self.infoLabel.setText("%i unique genes on input\n%i (%.1f%%) genes with known annotations" % (genesSetCount, len(clusterGenes), 100.0*len(clusterGenes)/genesSetCount if genesSetCount else 0.0))
 
         referenceGenes = None
-        if self.referenceDataset:
-            try:
-                if self.useAttrNames:
-                    referenceGenes = [v.name for v in self.referenceDataset.domain.variables]
-                    self.information(1)
-                else:
-                    referenceGenes = [str(ex[geneAttr]) for ex in self.referenceDataset if not ex[geneAttr].isSpecial()]
-                    if any("," in gene for gene in clusterGenes):
-                        self.information(1, "Separators detected in reference gene names. Assuming multiple genes per example.")
-                        referenceGenes = reduce(operator.iadd, (genes.split(",") for genes in referenceGenes), [])
-                    else:
-                        self.information(1)
+        if not self.useReferenceDataset or self.referenceDataset is None:
+            self.information(2)
+            self.information(1)
+            referenceGenes = self.annotations.gene_names
 
+        elif self.referenceDataset is not None:
+            if self.useAttrNames:
+                referenceGenes = [v.name for v in self.referenceDataset.domain.attributes]
+                self.information(1)
+            elif geneAttr in (self.referenceDataset.domain.variables +
+                              self.referenceDataset.domain.metas):
+                referenceGenes = [str(ex[geneAttr]) for ex in self.referenceDataset
+                                  if not numpy.isnan(ex[geneAttr])]
+                if any("," in gene for gene in clusterGenes):
+                    self.information(1, "Separators detected in reference gene names. Assuming multiple genes per example.")
+                    referenceGenes = reduce(operator.iadd, (genes.split(",") for genes in referenceGenes), [])
+                else:
+                    self.information(1)
+            else:
+                self.information(1)
+                referenceGenes = None
+
+            if referenceGenes is None:
+                referenceGenes = list(self.annotations.gene_names)
+                self.referenceRadioBox.buttons[1].setText("Reference set")
+                self.referenceRadioBox.buttons[1].setDisabled(True)
+                self.information(2, "Unable to extract gene names from reference dataset. Using entire genome for reference")
+                self.useReferenceDataset = 0
+            else:
                 refc = len(referenceGenes)
-#                referenceGenes = filter(lambda g: g in self.annotations.aliasMapper or g in self.annotations.additionalAliases, referenceGenes)
                 referenceGenes = self.annotations.get_gene_names_translator(referenceGenes).values()
                 self.referenceRadioBox.buttons[1].setText("Reference set (%i genes, %i matched)" % (refc, len(referenceGenes)))
                 self.referenceRadioBox.buttons[1].setDisabled(False)
                 self.information(2)
-            except Exception as er:
-                if not self.referenceDataset:
-                    self.information(2, "Unable to extract gene names from reference dataset. Using entire genome for reference")
-                else:
-                    self.referenceRadioBox.buttons[1].setText("Reference set")
-                    self.referenceRadioBox.buttons[1].setDisabled(True)
-                referenceGenes = self.annotations.gene_names
-                self.useReferenceDataset = 0
         else:
             self.useReferenceDataset = 0
-        if not self.useReferenceDataset:
-            self.information(2)
-            self.information(1)
-            referenceGenes = self.annotations.gene_names
+
+        if not referenceGenes:
+            self.error(1, "No valid reference set")
+            return {}
+
         self.referenceGenes = referenceGenes
         evidences = []
         for etype in go.evidenceTypesOrdered:
@@ -897,32 +913,52 @@ fmtpdet = lambda score: "%0.9f" % score if score > 10e-4 else "%0.5e" % score
 
 
 class GOTreeWidgetItem(QtGui.QTreeWidgetItem):
-    def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes, maxFoldEnrichment, parent):
+    def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes,
+                 maxFoldEnrichment, parent):
         super().__init__(parent)
         self.term = term
         self.enrichmentResult = enrichmentResult
         self.nClusterGenes = nClusterGenes
         self.nRefGenes = nRefGenes
         self.maxFoldEnrichment = maxFoldEnrichment
-        self.enrichment = enrichment = lambda t: len(t[0]) / t[2] * (nRefGenes / nClusterGenes)
+
+        querymapped, pvalue, refmappedcount, fdr = enrichmentResult
+
+        querymappedcount = len(querymapped)
+        if refmappedcount > 0 and nRefGenes > 0 and nClusterGenes > 0:
+            enrichment = (querymappedcount / refmappedcount) * (nRefGenes / nClusterGenes)
+        else:
+            enrichment = numpy.nan
+
+        self.enrichment = enrichment  # = lambda t: len(t[0]) / t[2] * (nRefGenes / (nClusterGenes or 1))
+
         self.setText(0, term.name)
-        fmt = "%" + str(-int(math.log(nClusterGenes))) + "i (%.2f%%)"
-        self.setText(1, fmt % (len(enrichmentResult[0]), 100.0*len(self.enrichmentResult[0])/nClusterGenes))
-        fmt = "%" + str(-int(math.log(nRefGenes))) + "i (%.2f%%)"
-        self.setText(2, fmt % (enrichmentResult[2], 100.0*enrichmentResult[2]/nRefGenes))
-        self.setText(3, fmtp(enrichmentResult[1]))
-        self.setToolTip(3, fmtpdet(enrichmentResult[1]))
-        self.setText(4, fmtp(enrichmentResult[3])) #FDR
-        self.setToolTip(4, fmtpdet(enrichmentResult[3]))
-        self.setText(5, ", ".join(enrichmentResult[0]))
-        self.setText(6, "%.2f" % (enrichment(enrichmentResult)))
-        self.setToolTip(6, "%.2f" % (enrichment(enrichmentResult)))
+
+        fmt = "%" + str(-int(math.log(max(nClusterGenes, 1)))) + "i (%.2f%%)"
+        self.setText(1, fmt % (querymappedcount,
+                               100.0 * querymappedcount / (nClusterGenes or 1)))
+
+        fmt = "%" + str(-int(math.log(max(nRefGenes, 1)))) + "i (%.2f%%)"
+        self.setText(2, fmt % (refmappedcount,
+                               100.0 * refmappedcount / (nRefGenes or 1)))
+
+        self.setText(3, fmtp(pvalue))
+        self.setToolTip(3, fmtpdet(pvalue))
+        self.setText(4, fmtp(fdr))  # FDR
+        self.setToolTip(4, fmtpdet(fdr))
+        self.setText(5, ", ".join(querymapped))
+        self.setText(6, "%.2f" % (enrichment))
+        self.setToolTip(6, "%.2f" % (enrichment))
         self.setToolTip(0, "<p>" + term.__repr__()[6:].strip().replace("\n", "<br>"))
-        self.sortByData = [term.name, len(self.enrichmentResult[0]), enrichmentResult[2], enrichmentResult[1], enrichmentResult[3], ", ".join(enrichmentResult[0]), enrichment(enrichmentResult)]
+        self.sortByData = [term.name, querymappedcount, refmappedcount,
+                           pvalue, fdr, ", ".join(querymapped), enrichment]
 
     def data(self, col, role):
         if role == Qt.UserRole:
-            return self.enrichment(self.enrichmentResult) / self.maxFoldEnrichment
+            if self.maxFoldEnrichment > 0:
+                return self.enrichment / self.maxFoldEnrichment
+            else:
+                return numpy.nan
         else:
             return super().data(col, role)
 

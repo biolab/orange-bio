@@ -204,7 +204,7 @@ class OWGEODatasets(OWWidget):
          b'\x00\x00\x00\xff\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x01\xb5\x00\x00\x02\x10\x01\x00\x00\x00\x07\x01\x00\x00\x00\x01')
     )
 
-    autoCommit = Setting(True)
+    autoCommit = Setting(False)
 
     def __init__(self, parent=None, signalManager=None, name=" GEO Data Sets"):
         OWWidget.__init__(self, parent, signalManager, name)

@@ -278,9 +278,8 @@ class OWSelectGenes(widget.OWWidget):
             "Complete on gene symbol names", self,
             toolTip="Use symbol names for auto completion.",
             checkable=True,
-            checked=self.completeOnSymbols
         )
-
+        self.completeOnSymbolsAction.setChecked(self.completeOnSymbols)
         self.completeOnSymbolsAction.toggled[bool].connect(
             self._onToggleSymbolCompletion
         )

@@ -540,6 +540,8 @@ class OWVolcanoPlot(widget.OWWidget):
         else:
             self.infoLabel.setText("No data on input.")
 
+        self.unconditional_commit()
+
     def init_from_data(self):
         """Initialize widget state after receiving new data.
         """
@@ -662,12 +664,11 @@ class OWVolcanoPlot(widget.OWWidget):
         nselected = numpy.count_nonzero(mask)
         self.infoLabel2.setText("%i selected genes" % nselected)
 
-        if self.auto_commit:
-            selection = list(self.selection())
-            # Did the selection actually change
-            if selection != self.current_selection:
-                self.current_selection = selection
-                self.commit()
+        selection = list(self.selection())
+        # Did the selection actually change
+        if selection != self.current_selection:
+            self.current_selection = selection
+            self.commit()
 
     def commit(self):
         """
@@ -684,8 +685,9 @@ class OWVolcanoPlot(widget.OWWidget):
         elif self.data is not None:
             selected = self.selection()
             attrs = [self.data.domain[i] for i in selected]
-            data = self.data[:, tuple(attrs) + self.data.domain.metas]
-
+            domain = Orange.data.Domain(
+                attrs, self.data.domain.class_vars, self.data.domain.metas)
+            data = self.data.from_table(domain, self.data)
             self.current_selection = list(selected)  # For testing in on_selection_changed
         else:
             data = None

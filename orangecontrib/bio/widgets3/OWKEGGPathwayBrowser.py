@@ -288,8 +288,9 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
         box = gui.widgetBox(self.controlArea, "Cache Control")
 
         gui.button(box, self, "Clear cache",
-                     callback=self.ClearCache,
-                     tooltip="Clear all locally cached KEGG data.")
+                   callback=self.ClearCache,
+                   tooltip="Clear all locally cached KEGG data.",
+                   default=False, autoDefault=False)
 
         gui.separator(self.controlArea)
 
@@ -421,10 +422,14 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
             self.geneAttrCandidates[:] = vars
 
             # Try to guess the gene name variable
-            names_lower = [v.name.lower() for v in vars]
-            scores = [(name == "gene", "gene" in name)
-                      for name in names_lower]
-            imax, _ = max(enumerate(scores), key=itemgetter(1))
+            if vars:
+                names_lower = [v.name.lower() for v in vars]
+                scores = [(name == "gene", "gene" in name)
+                          for name in names_lower]
+                imax, _ = max(enumerate(scores), key=itemgetter(1))
+            else:
+                imax = -1
+
             self.geneAttrIndex = imax
 
             taxid = data_hints.get_hint(data, "taxid", None)
@@ -437,8 +442,14 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
 
             self.useAttrNames = data_hints.get_hint(data, "genesinrows",
                                                     self.useAttrNames)
-
             self.openContext(data)
+
+            if len(self.geneAttrCandidates) == 0:
+                self.useAttrNames = True
+                self.geneAttrIndex = -1
+            else:
+                self.geneAttrIndex = min(self.geneAttrIndex,
+                                         len(self.geneAttrCandidates) - 1)
         else:
             self.Clear()
 
@@ -743,8 +754,8 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
         if self.useAttrNames:
             genes = [str(v.name).strip() for v in data.domain.attributes]
         elif self.geneAttrCandidates:
-            index = min(self.geneAttrIndex, len(self.geneAttrCandidates) - 1)
-            geneAttr = self.geneAttrCandidates[index]
+            assert 0 <= self.geneAttrIndex < len(self.geneAttrCandidates)
+            geneAttr = self.geneAttrCandidates[self.geneAttrIndex]
             genes = [str(e[geneAttr]) for e in data
                      if not numpy.isnan(e[geneAttr])]
         else:
@@ -792,8 +803,8 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
 #                 data = Orange.data.Table(newDomain, self.data)
                 self.send("Selected Data", data)
             elif self.geneAttrCandidates:
-                geneAttr = self.geneAttrCandidates[min(self.geneAttrIndex,
-                                                       len(self.geneAttrCandidates) - 1)]
+                assert 0 <= self.geneAttrIndex < len(self.geneAttrCandidates)
+                geneAttr = self.geneAttrCandidates[self.geneAttrIndex]
                 selectedIndices = []
                 otherIndices = []
                 for i, ex in enumerate(self.data):
