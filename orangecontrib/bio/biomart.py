@@ -266,10 +266,10 @@ class BioMartConnection(object):
 
     FOLLOW_REDIRECTS = False
 
-    def __init__(self, address=None):
+    def __init__(self, address=None, timeout=30):
 
         self.address = address if address is not None else DEFAULT_ADDRESS
-
+        self.timeout = timeout
         self._error_cache = {}
 
     def _get_cache_for_args(self, kwargs):
@@ -338,7 +338,7 @@ class BioMartConnection(object):
 
         if response is None:
             try:
-                reply = urlopen(url)
+                reply = urlopen(url, timeout=self.timeout)
                 headers = reply.headers
                 data = reply.read()
             except HTTPError as err:

@@ -1,6 +1,5 @@
 import sys
 import warnings
-import socket
 import io
 from collections import defaultdict
 from functools import partial
@@ -23,11 +22,7 @@ import Orange
 from Orange.widgets.utils import concurrent
 from Orange.widgets import widget, gui, settings
 
-
 from .. import biomart
-
-# TODO: use urlopen(... timeout=...)
-socket.setdefaulttimeout(60)
 
 
 def is_hidden(tree):
@@ -734,7 +729,7 @@ class OWBioMart(widget.OWWidget):
 
     @staticmethod
     def _get_registry(url=None, precache=True):
-        con = biomart.BioMartConnection(url)
+        con = biomart.BioMartConnection(url, timeout=30)
         reg = biomart.BioMartRegistry(con)
         if precache:
             _ = reg.marts()
