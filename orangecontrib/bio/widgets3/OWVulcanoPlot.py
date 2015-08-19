@@ -449,7 +449,9 @@ class OWVolcanoPlot(widget.OWWidget):
         self.validindices = numpy.empty((0,), dtype=int)
 
         self.graph = VolcanoGraph(symbolSize=self.symbol_size, background="w")
-        self.graph.setSelectionMode(VolcanoGraph.SymetricSelection)
+        self.graph.setSelectionMode(
+            VolcanoGraph.SymetricSelection if self.symetric_selections else
+            VolcanoGraph.RectSelection)
 
         self.graph.selectionChanged.connect(self.on_selection_changed)
         self.graph.scene().installEventFilter(self)
