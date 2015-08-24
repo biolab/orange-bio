@@ -1,13 +1,11 @@
 import sys
 import warnings
-import socket
 import io
 from collections import defaultdict
 from functools import partial
 import itertools
 
 import six
-import numpy
 
 from PyQt4.QtGui import (
     QWidget, QComboBox, QListView, QLineEdit, QPlainTextEdit, QRadioButton,
@@ -24,11 +22,7 @@ import Orange
 from Orange.widgets.utils import concurrent
 from Orange.widgets import widget, gui, settings
 
-
 from .. import biomart
-
-# TODO: use urlopen(... timeout=...)
-socket.setdefaulttimeout(60)
 
 
 def is_hidden(tree):
@@ -655,7 +649,6 @@ class OWBioMart(widget.OWWidget):
     icon = "../widgets/icons/BioMart.svg"
     priority = 2010
 
-    inputs = [("Input ids", Orange.data.Table, "setData")]
     outputs = [("Data", Orange.data.Table)]
 
     SHOW_FILTERS = True
@@ -666,9 +659,6 @@ class OWBioMart(widget.OWWidget):
         super().__init__(parent)
 
         self.selectedDatabase = 0
-
-        self.idAttr = 0
-        self.useAttrNames = False
         self.uniqueRows = True
 
         gui.button(gui.widgetBox(self.controlArea, "Cache", addSpace=True),
@@ -688,25 +678,6 @@ class OWBioMart(widget.OWWidget):
             addSpace=True)
 
         self.datasetsCombo.setMaximumWidth(250)
-
-        box = gui.widgetBox(self.controlArea, "Input Ids")
-
-        cb = gui.checkBox(box, self, "useAttrNames", "Use attribute names",
-                          tooltip="Use attribute names for ids",
-                          callback=self.updateInputIds)
-
-        self.idAttrCB = gui.comboBox(
-            box, self, "idAttr",
-            tooltip="Use attribute values from ...",
-            callback=self.updateInputIds)
-
-        cb.disables = [(-1, self.idAttrCB)]
-        cb.makeConsistent()
-
-        self.idText = QPlainTextEdit()
-        self.idText.setReadOnly(True)
-
-        box.layout().addWidget(self.idText)
 
         gui.rubber(self.controlArea)
 
@@ -744,9 +715,7 @@ class OWBioMart(widget.OWWidget):
         task.exceptionReady.connect(self._handleException)
         self._executor.submit(task)
 
-        self.candidateIdAttrs = []
         self._afterInitQueue = []
-        self.data = None
 
         try:
             from Bio import SeqIO
@@ -760,7 +729,7 @@ class OWBioMart(widget.OWWidget):
 
     @staticmethod
     def _get_registry(url=None, precache=True):
-        con = biomart.BioMartConnection(url)
+        con = biomart.BioMartConnection(url, timeout=30)
         reg = biomart.BioMartRegistry(con)
         if precache:
             _ = reg.marts()
@@ -942,35 +911,6 @@ class OWBioMart(widget.OWWidget):
         while self._afterInitQueue:
             call = self._afterInitQueue.pop(0)
             call()
-
-    def setData(self, data=None):
-        self.candidateIdAttrs = []
-        self.data = data
-        self.idAttrCB.clear()
-        if data is not None:
-            attrs = data.domain.variables + data.domain.metas
-            attrs = [attr for attr in attrs
-                     if isinstance(attr, Orange.data.StringVariable)]
-            self.candidateIdAttrs = attrs
-            self.idAttrCB.addItems([attr.name for attr in attrs])
-            self.idAttr = min(self.idAttr, len(self.candidateIdAttrs) - 1)
-
-        self.updateInputIds()
-
-    def updateInputIds(self):
-        if self.data is not None:
-            if self.useAttrNames:
-                names = [attr.name for attr in self.data.domain.attributes]
-            elif self.candidateIdAttrs:
-                attr = self.candidateIdAttrs[self.idAttr]
-                names = [str(ex[attr]) for ex in self.data
-                         if not numpy.isnan(ex[attr])]
-            else:
-                names = []
-        else:
-            names = []
-
-        self.idText.setPlainText("\n".join(names))
 
     def clearCache(self):
         self.registry.connection.clear_cache()
