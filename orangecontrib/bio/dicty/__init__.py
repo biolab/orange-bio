@@ -28,6 +28,13 @@ else:
 import six
 import numpy
 
+try:
+    #for 2.7.9+ and 3.4.3+
+    import ssl
+    CONTEXT = ssl._create_unverified_context()
+except AttributeError:
+    CONTEXT = None
+
 import Orange
 
 from ..utils.compat import *
@@ -36,7 +43,6 @@ from . import phenotypes
 
 
 defaddress = "http://bcm.fri.uni-lj.si/microarray/api/index.php?"
-#defaddresspipa = "https://pipa.fri.uni-lj.si/pipa/script/api/orange.py?action="
 defaddresspipa = "https://pipa.fri.uni-lj.si/PIPA/PIPAapi/PIPAorange.py"
 defaddresspipa_coverage = "https://pipa.biolab.si/tbrowse/api/pipa.py"
 
@@ -161,7 +167,7 @@ def httpGet(address, *args, **kwargs):
         print(address, args, kwargs,  " ")
     address = replaceChars(address)
     t1 = time.time()
-    f = urlopen(address, *args, **kwargs)
+    f = urlopen(address, *args, context=CONTEXT, **kwargs)
 
     read = f.read()
     if verbose:
@@ -1546,7 +1552,7 @@ class CacheSQLite(object):
 
 def download_url(url, repeat=2):
     def do():
-        return urlopen(url)
+        return urlopen(url, context=CONTEXT)
 
     if repeat <= 0:
         do()
