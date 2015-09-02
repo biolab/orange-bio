@@ -15,9 +15,23 @@ Widgets
 .. toctree::
    :maxdepth: 1
  
-   PIPA.rst
-   databases.rst
-   geodatasets.rst
+   widgets/biomart
+   widgets/databasesupdate
+   widgets/dataprofiles
+   widgets/dictyExpress
+   widgets/differentialexpression
+   widgets/expressionprofiledistances
+   widgets/geneinfo
+   widgets/genexpress
+   widgets/geodatasets
+   widgets/gobrowser
+   widgets/keggpathways
+   widgets/maplot
+   widgets/PIPAx
+   widgets/qualitycontrol
+   widgets/selectgenes
+   widgets/setenrichment
+   widgets/volcanoplot
 
 Scripting Reference
 -------------------
