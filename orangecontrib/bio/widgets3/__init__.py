@@ -14,7 +14,7 @@ BACKGROUND = "light-grass"
 
 intersphinx = (
     ("{DEVELOP_ROOT}/docs/build/html/", None),
-    ("http://orange-bioinformatics.readthedocs.org/en/latest/", None)
+    ("http://pythonhosted.org/Orange-Bioinformatics/", None)
 )
 
 WIDGET_HELP_PATH = (
@@ -24,5 +24,5 @@ WIDGET_HELP_PATH = (
     # inside doc folder
     ("{DEVELOP_ROOT}/doc/build/htmlhelp/index.html", None),
 
-    ("http://example.com/my-widget/docs/", "")
+    ("http://pythonhosted.org/Orange-Bioinformatics/", "")
 )
