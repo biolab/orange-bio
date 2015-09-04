@@ -2,7 +2,7 @@
 Array Express (:mod:`arrayexpress`)
 ===================================
 
-.. py:currentmodule:: Orange.bio.arrayexpress
+.. py:currentmodule:: orangecontrib.bio.arrayexpress
 
 Access the `ArrayExpress`_ web services and database.
 
@@ -11,7 +11,7 @@ that you can query and download.
 
 Retrieve the object representing experiment with accession E-TABM-25
 
->>> from Orange.bio import arrayexpress
+>>> from orangecontrib.bio import arrayexpress
 >>> experiment = ArrayExpressExperiment("E-TABM-25")
 >>> print experiment.accession
 E-TABM-25
@@ -32,7 +32,7 @@ Transcription profiling of aging in the primate brain
 
 Low level Array Express query using REST services:
 
->>> from Orange.bio import arrayexpress
+>>> from orangecontrib.bio import arrayexpress
 >>> arrayexpress.query_experiments(accession='E-MEXP-31')
 {u'experiments': ...
 

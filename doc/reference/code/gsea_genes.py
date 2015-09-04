@@ -1,5 +1,5 @@
 import Orange
-from Orange.bio import dicty, geneset, gsea, gene, geo
+from orangecontrib.bio import dicty, geneset, gsea, gene, geo
 
 gds = geo.GDS("GDS10")
 data = gds.getdata() 

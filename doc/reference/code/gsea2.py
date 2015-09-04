@@ -1,5 +1,5 @@
 import Orange
-from Orange.bio import dicty, geneset, gsea, gene
+from orangecontrib.bio import dicty, geneset, gsea, gene
 
 dbc = dicty.DictyExpress()
 data = dbc.get_data(sample='pkaC-', time="8")

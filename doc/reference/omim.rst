@@ -1,4 +1,4 @@
-.. py:currentmodule:: Orange.bio.omim
+.. py:currentmodule:: orangecontrib.bio.omim
 
 .. index:: NCBI
 .. index:: OMIM

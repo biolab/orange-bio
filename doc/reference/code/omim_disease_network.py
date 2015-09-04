@@ -1,7 +1,7 @@
-import Orange.bio.omim
+import orangecontrib.bio.omim
 
-diseases = Orange.bio.omim.diseases()
-genes = [Orange.bio.omim.disease_genes(disease) for disease in diseases]
+diseases = orangecontrib.bio.omim.diseases()
+genes = [orangecontrib.bio.omim.disease_genes(disease) for disease in diseases]
 
 vertices = []
 edges = []

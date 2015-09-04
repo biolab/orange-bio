@@ -2,11 +2,11 @@
 Bio Mart (:mod:`biomart`)
 =========================
 
-.. py:currentmodule:: Orange.bio.biomart
+.. py:currentmodule:: orangecontrib.bio.biomart
 
 Access BioMart MartService.
 
->>> from Orange.bio.biomart import *
+>>> from orangecontrib.bio.biomart import *
 >>> connection = BioMartConnection(
 ...     "http://www.biomart.org/biomart/martservice")
 ...

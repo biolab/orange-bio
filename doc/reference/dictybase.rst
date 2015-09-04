@@ -1,4 +1,4 @@
-.. py:currentmodule:: Orange.bio.dicty.phenotypes
+.. py:currentmodule:: orangecontrib.bio.dicty.phenotypes
 
 .. index:: mutant phenotypes
 .. index:: phenotypes
@@ -15,7 +15,7 @@ phenotypes <http://dictybase.org/Downloads/>`_ data from the
 :obj:`DictyMutant` objects with their respective name, strain descriptor,
 associated genes and associated phenotypes.
 
->>> from Orange.bio.dicty.phenotypes import *
+>>> from orangecontrib.bio.dicty.phenotypes import *
 >>> # Create a set of all mutant objects
 >>> dicty_mutants = mutants()
 >>> # List a set of all genes referenced by a single mutant
@@ -28,7 +28,7 @@ associated genes and associated phenotypes.
 Classes and Functions
 =====================
 
-.. automodule:: Orange.bio.dicty.phenotypes
+.. automodule:: orangecontrib.bio.dicty.phenotypes
    :members:
    :member-order: bysource
 
