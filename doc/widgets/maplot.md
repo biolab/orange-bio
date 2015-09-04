@@ -68,4 +68,4 @@ appended - Z-score, Log ratio and Intensity. We see these new attributes and nor
 Another possible output for the MA plot widget is *Filtered expression array*, which will give us instances
 above the Z-score cutoff threshold (red dots in the plot). We observe these instances the **Data Table** (filtered).
 
-<img src="images/MAPlot-Example.png" alt="image" width="600">
+![](images/MAPlot-Example.png)

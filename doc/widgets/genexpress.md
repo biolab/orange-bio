@@ -55,5 +55,4 @@ In the schema below we connected **GenExpress** to **Data Table** to view the ge
 and then to **Scatter Plot**, where we chose to view expression levels from two experiments. In the plot
 we select an outlier and view it in another **Data Table**.
 
-<img src="images/GenExpress-Example.png" alt="image" width="600">
-
+![](images/GenExpress-Example.png)

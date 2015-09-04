@@ -62,4 +62,4 @@ Then we observe expression levels in **Data Profiles** widget, where we see all 
 *Expression Profiles* plotted, together with *Quartiles* and mean expression level. Finally,
 we selected the gene with the highest overall expression level and output it to **Data Table**.
 
-<img src="images/DataProfiles-Example.png" alt="image" width="600">
+![](images/DataProfiles-Example.png)

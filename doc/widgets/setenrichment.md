@@ -61,4 +61,4 @@ select the most interesting genes. Then we fed those 628 genes to **Set Enrichme
 analysis of the most valuable terms. We sorted the data by FDR values and selected the top-scoring
 term. **Heat Map** widget provides a nice visualization of the data.
 
-<img src="images/SetEnrichment-Example.png" alt="image" width="600">
+![](images/SetEnrichment-Example.png)

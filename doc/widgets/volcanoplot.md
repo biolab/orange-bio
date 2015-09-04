@@ -57,4 +57,4 @@ desired area is selected in the plot, we output the data and observe them in ano
 Now we get only 80 instances, which were those genes that had a high normalized fold change under
 high dose of caffeine and had a low p-value at the same time.
 
-<img src="images/VolcanoPlot-Example.png" alt="image" width="600">
+![](images/VolcanoPlot-Example.png)

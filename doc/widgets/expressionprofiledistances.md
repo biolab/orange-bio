@@ -54,4 +54,5 @@ and sorted them by replicates. We could see the grouping immediately in the *Gro
 fed the results to **Distance Map** and **Hierarchical Clustering** to visualize the distances 
 and cluster the attributes.
 
-<img src="images/ExpressionProfileDistances-Example.png" alt="image" width="600">
+
+![](images/ExpressionProfileDistances-Example.png)

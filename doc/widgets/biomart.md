@@ -46,4 +46,4 @@ the data to output only those genes that can be found on chromosome I. We got 99
 Then we used **Merge Data** widget to append these metas to our data. We matched the data by gene/Ensemble gene ID
 and in the end we got a merged data table with 5 meta attributes.
 
-<img src="images/BioMart-Example.png" alt="image" width="600">
+![](images/BioMart-Example.png)

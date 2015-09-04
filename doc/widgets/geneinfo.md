@@ -45,4 +45,4 @@ widget. Then we feed the same data into the *Gene Info*, where we select only th
 on the 11th chromosome. We can observe these data in another *Data Table*, where additional information
 on the selected genes are appended as meta attributes.
 
-<img src="images/GeneInfo-Example.png" alt="image" width="600">
+![](images/GeneInfo-Example.png)

@@ -51,4 +51,4 @@ we selected *Caffeine effect: time dose and response* data set from the GEO data
 attributes. We inspected the data in *Data Table*. Then we selected
 3 genes in the **Select Columns** widget for a detailed analysis in another data table.
 
-<img src="images/GEODataSets-Example2.png" alt="image" width="600">
+![](images/GEODataSets-Example2.png)

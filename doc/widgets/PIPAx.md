@@ -59,7 +59,7 @@ Example
 In the schema below we connected **PIPAx** to **Data Table**, **Set Enrichment**, and **Distance Map**
 (through **Distances**) widgets.
 
-<img src="images/PIPA-Example.png" alt="image" width="600">
+![](images/PIPA-Example.png)
 
 The **Data Table** widget above contains the output from the **PIPAx** widget.
 Each column contains gene expressions of a single experiment. The labels

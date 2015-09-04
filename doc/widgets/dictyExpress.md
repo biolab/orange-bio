@@ -42,4 +42,4 @@ In the schema below we connected **ditcyExpress** to a **Data Table** to observe
 the selected experiments. Then we used **Differential Expression** widget to select
 the most relevant genes and output them to another **Data Table**.
 
-<img src="images/dictyExpress-Example.png" alt="image" width="600">
+![](images/dictyExpress-Example.png)

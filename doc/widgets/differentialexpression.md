@@ -64,4 +64,4 @@ genes. We left upper and lower threshold at default (1 and -1) and output the da
 Then we observed the selected data in another **Data Table**. As we have ticked
 the *Add gene scores to output*, the table shows an additional column with gene scores as instances.
 
-<img src="images/DiffExpression-Example.png" alt="image" width="600">
+![](images/DiffExpression-Example.png)

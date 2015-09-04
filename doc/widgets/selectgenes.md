@@ -69,4 +69,4 @@ a list of genes you can see in the *Select Genes* box. Then we fed these data in
 There are 125 genes in the entire *AX4 Dictyostelium discoideum* data that are present in the
 selected mRNA processes.
 
-<img src="images/SelectGenes-Example.png" alt="image" width="600">
+![](images/SelectGenes-Example.png)
