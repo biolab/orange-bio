@@ -127,7 +127,9 @@ ENTRY_POINTS = {
         'Prototypes = orangecontrib.bio.widgets.prototypes',
     ),
     'orange.canvas.help': (
-        'intersphinx = orangecontrib.bio.widgets:intersphinx',
+        ('intersphinx = orangecontrib.bio.widgets:intersphinx' 
+        if sys.version_info < (3,) else
+        'html-index = orangecontrib.bio.widgets3:WIDGET_HELP_PATH'),
     )
 }
 

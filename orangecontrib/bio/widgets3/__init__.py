@@ -16,3 +16,13 @@ intersphinx = (
     ("{DEVELOP_ROOT}/docs/build/html/", None),
     ("http://orange-bioinformatics.readthedocs.org/en/latest/", None)
 )
+
+WIDGET_HELP_PATH = (
+    # Used for development.
+    # You still need to build help pages using
+    # make htmlhelp
+    # inside doc folder
+    ("{DEVELOP_ROOT}/doc/build/htmlhelp/index.html", None),
+
+    ("http://example.com/my-widget/docs/", "")
+)
