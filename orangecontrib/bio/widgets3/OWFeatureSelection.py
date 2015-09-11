@@ -949,6 +949,7 @@ class OWFeatureSelection(widget.OWWidget):
         self.setup_plot(self.score_index, scores, nulldist)
         self.update_data_info_label()
         self.update_selected_info_label()
+        self.commit()
 
     def setup_plot(self, scoreindex, scores, nulldist=None):
         """
