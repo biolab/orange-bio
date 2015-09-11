@@ -240,9 +240,9 @@ class OWGEODatasets(OWWidget):
             gui.setStopper(self, self.commitButton, cb, "selectionChanged",
                            self.commit)
         else:
-            self.commitIf = self.commit
             gui.auto_commit(self.controlArea, self, "autoCommit", "Commit",
                             box="Commit")
+            self.commitIf = self.commit
 
         gui.rubber(self.controlArea)
 
