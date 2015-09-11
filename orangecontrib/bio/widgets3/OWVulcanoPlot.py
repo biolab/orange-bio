@@ -103,16 +103,19 @@ class GraphSelections(QObject):
         if len(data) == 0:
             return numpy.zeros(0, dtype=bool)
 
+        def contained(a, left, top, right, bottom):
+            assert left <= right and bottom <= top
+            x, y = a.T
+            return (x >= left) & (x <= right) & (y <= top) & (y >= bottom)
+
         data = numpy.asarray(data)
-        region = QPainterPath()
+        selected = numpy.zeros(len(data), dtype=bool)
         for p1, p2 in self.selection:
-            region.addRect(QRectF(p1, p2).normalized())
-
-        def test(point):
-            return region.contains(QPointF(point[0], point[1]))
-
-        test = numpy.apply_along_axis(test, 1, data)
-        return test
+            r = QRectF(p1, p2).normalized()
+            # Note the inverted top/bottom (Qt coordinate system)
+            selected |= contained(data, r.left(), r.bottom(),
+                                  r.right(), r.top())
+        return selected
 
     def mousePressEvent(self, event):
         """
@@ -296,8 +299,11 @@ class VolcanoGraph(pg.PlotWidget):
         self.__selectiondelegate = None
         self._item = None
         self._selitem = None
-
         self.plotData = numpy.empty((0, 2))
+        self._stylebrush = numpy.array([
+            pg.mkBrush((0, 0, 255, 100)),  # normal points
+            pg.mkBrush((255, 0, 0, 100))   # selected points
+        ])
 
     def setSelectionMode(self, mode):
         if mode != self.__selectionMode:
@@ -365,8 +371,7 @@ class VolcanoGraph(pg.PlotWidget):
 
     def updateSelectionArea(self):
         mask = self.selectionMask()
-        brush = numpy.array([QtGui.QBrush(Qt.blue), QtGui.QBrush(Qt.red)])
-        brush = brush[mask.astype(int)]
+        brush = self._stylebrush[mask.astype(int)]
         self._item.setBrush(brush)
 
         if self._selitem is not None:
@@ -392,9 +397,7 @@ class VolcanoGraph(pg.PlotWidget):
                 self.removeItem(self._item)
 
             mask = self.selectionMask()
-            brush = numpy.array([QtGui.QBrush(Qt.blue), QtGui.QBrush(Qt.red)])
-            brush = brush[mask.astype(int)]
-
+            brush = self._stylebrush[mask.astype(int)]
             self._item = ScatterPlotItem(
                 x=self.plotData[:, 0], y=self.plotData[:, 1],
                 brush=brush, size=self.symbolSize, antialias=True,
@@ -444,15 +447,20 @@ class OWVolcanoPlot(widget.OWWidget):
 
         self.data = None
         self.target_group = None, []
+        self.targets = []
         self.current_selection = []
+        self.validindices = numpy.empty((0,), dtype=int)
 
         self.graph = VolcanoGraph(symbolSize=self.symbol_size, background="w")
-        self.graph.setSelectionMode(VolcanoGraph.SymetricSelection)
+        self.graph.setSelectionMode(
+            VolcanoGraph.SymetricSelection if self.symetric_selections else
+            VolcanoGraph.RectSelection)
 
         self.graph.selectionChanged.connect(self.on_selection_changed)
         self.graph.scene().installEventFilter(self)
         self.graph.getViewBox().setMouseEnabled(False, False)
         self.graph.getViewBox().enableAutoRange(enable=True)
+        self.graph.plotItem.showGrid(True, True, 0.3)
         self.mainArea.layout().addWidget(self.graph)
 
         ## GUI
@@ -478,7 +486,7 @@ class OWVolcanoPlot(widget.OWWidget):
                     callback=lambda:
                         self.graph.setSymbolSize(self.symbol_size))
 
-        gui.checkBox(box, self,  "symetric_selections", "Symmetric selection",
+        gui.checkBox(box, self, "symetric_selections", "Symmetric selection",
                      callback=self.__on_selectionModeChanged)
 
         gui.auto_commit(self.controlArea, self, "auto_commit", "Commit")
@@ -491,6 +499,7 @@ class OWVolcanoPlot(widget.OWWidget):
         self.targets = []
         self.stored_selections = []
         self.target_widget.setModel(None)
+        self.validindices = numpy.empty((0,), dtype=int)
         self.clear_graph()
 
     def clear_graph(self):
@@ -604,7 +613,7 @@ class OWVolcanoPlot(widget.OWWidget):
 
     def plot(self):
         self.graph.clear()
-
+        self.validindices = numpy.empty((0,), dtype=int)
         self.current_selection = []
         group, target_indices = self.selected_split()
         self.warning([0, 1])
