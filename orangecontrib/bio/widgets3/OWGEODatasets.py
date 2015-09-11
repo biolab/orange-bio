@@ -242,6 +242,7 @@ class OWGEODatasets(OWWidget):
         else:
             gui.auto_commit(self.controlArea, self, "autoCommit", "Commit",
                             box="Commit")
+            self.commitIf = self.commit
 
         gui.rubber(self.controlArea)
 

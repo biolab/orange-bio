@@ -949,6 +949,7 @@ class OWFeatureSelection(widget.OWWidget):
         self.setup_plot(self.score_index, scores, nulldist)
         self.update_data_info_label()
         self.update_selected_info_label()
+        self.commit()
 
     def setup_plot(self, scoreindex, scores, nulldist=None):
         """
@@ -1140,6 +1141,7 @@ class OWFeatureSelection(widget.OWWidget):
             cuthigh = scores_high[-max(count_high, 1)]
             cutlow = scores_low[min(count_low, len(scores_low) - 1)]
             self.histogram.setBoundary(cutlow, cuthigh)
+        self._invalidate_selection()
 
     def select_p_best(self):
         if not self.nulldist:
@@ -1163,6 +1165,7 @@ class OWFeatureSelection(widget.OWWidget):
         elif side == OWFeatureSelection.TwoTail:
             p1, p2 = np.percentile(nulldist, [100 * p / 2, 100 * (1 - p / 2)])
             self.histogram.setBoundary(p1, p2)
+        self._invalidate_selection()
 
     def _invalidate_selection(self):
         self.commit()
