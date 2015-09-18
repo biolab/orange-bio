@@ -1138,8 +1138,9 @@ class OWFeatureSelection(widget.OWWidget):
             sign = sign[sort_ind][-n:]
             count_high = np.count_nonzero(sign == 1)
             count_low = len(sign) - count_high
-            cuthigh = scores_high[-max(count_high, 1)]
-            cutlow = scores_low[min(count_low, len(scores_low) - 1)]
+            eps = np.finfo(float).eps
+            cuthigh = scores_high[-count_high] if count_high else  scores_high[-1] + eps
+            cutlow = scores_low[count_low - 1] if count_low else scores_low[0] - eps
             self.histogram.setBoundary(cutlow, cuthigh)
         self._invalidate_selection()
 
