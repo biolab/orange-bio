@@ -1133,7 +1133,7 @@ class OWFeatureSelection(widget.OWWidget):
 
             if score_name == "Fold Change":
                 # comparing fold change on a logarithmic scale
-                scores = np.log(scores)
+                scores = np.log2(scores)
             sort_ind = np.argsort(scores)
             sign = sign[sort_ind][-n:]
             count_high = np.count_nonzero(sign == 1)
