@@ -786,14 +786,13 @@ class OWGenExpress(widget.OWWidget):
 
             if self.transpose:
                 experiments = [at for at in table.domain.variables]
-                attr = [compat.ContinuousVariable(name=ex['DDB'].value) for ex in table]
+                attr = [compat.ContinuousVariable.make(ex['DDB'].value) for ex in table]
                 metavars = sorted(table.domain.variables[0].attributes.keys())
-                metavars = [compat.StringVariable(name=name) for name in metavars]
+                metavars = [compat.StringVariable.make(name) for name in metavars]
                 domain = compat.create_domain(attr, None, metavars)
                 metavars = compat.get_metas(domain)
-                X = np.array([[row[exp].value for exp in experiments] for row in table])
                 metas = [[exp.attributes[var.name] for var in metavars] for exp in experiments]
-                table = compat.create_table(domain, X.transpose(), None, metas)
+                table = compat.create_table(domain, table.X.transpose(), None, metas)
 
             # Sort attributes
             sortOrder = self.columnsSortingWidget.sortingOrder
