@@ -119,15 +119,13 @@ ENTRY_POINTS = {
         'bio = orangecontrib.bio',
     ),
     'orange.widgets': (
-        ('Bioinformatics = orangecontrib.bio.widgets'
-         if sys.version_info < (3,) else
-         'Bioinformatics = orangecontrib.bio.widgets3'),
-        # This should be unneeded, because module given should load (register)
-        # all wanted widgets and prototypes should just have a flag, but for now ...
-        'Prototypes = orangecontrib.bio.widgets.prototypes',
+        ('Bioinformatics = orangecontrib.bio.widgets',
+         'Prototypes = orangecontrib.bio.widgets.prototypes')
+        if sys.version_info < (3, ) else
+        ('Bioinformatics = orangecontrib.bio.widgets3',)
     ),
     'orange.canvas.help': (
-        ('intersphinx = orangecontrib.bio.widgets:intersphinx' 
+        ('intersphinx = orangecontrib.bio.widgets:intersphinx'
         if sys.version_info < (3,) else
         'html-index = orangecontrib.bio.widgets3:WIDGET_HELP_PATH'),
     )
