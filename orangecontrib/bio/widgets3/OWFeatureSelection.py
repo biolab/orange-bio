@@ -49,7 +49,12 @@ def score_fold_change(a, b, axis=0):
     """
     mean_a = np.nanmean(a, axis=axis)
     mean_b = np.nanmean(b, axis=axis)
-    return mean_a / mean_b
+    res = mean_a / mean_b
+    warning = None
+    if np.any(res < 0):
+        res[res < 0] = float("nan")
+        warning = "Negative fold change scores were ignored. You should use another scoring method."
+    return res, warning
 
 
 def score_log_fold_change(a, b, axis=0):
@@ -61,7 +66,8 @@ def score_log_fold_change(a, b, axis=0):
     score_fold_change
 
     """
-    return np.log2(score_fold_change(a, b, axis=axis))
+    s, w = score_fold_change(a, b, axis=axis) 
+    return np.log2(s), w
 
 
 def score_ttest(a, b, axis=0):
@@ -807,9 +813,10 @@ class OWFeatureSelection(widget.OWWidget):
 
         _, side, test_type, score_func = self.Scores[self.score_index]
 
-        def compute_scores(X, group_indices):
+        def compute_scores(X, group_indices, warn=False):
             arrays = [X[ind] for ind in group_indices]
-            return score_func(*arrays, axis=0)
+            ss = score_func(*arrays, axis=0)
+            return ss[0] if isinstance(ss, tuple) and not warn else ss
 
         def permute_indices(group_indices, random_state=None):
             assert all(ind.dtype.kind == "i" for ind in group_indices)
@@ -855,7 +862,10 @@ class OWFeatureSelection(widget.OWWidget):
 
         def compute_scores_with_perm(X, indices, nperm=0, rstate=None,
                                      progress_advance=None):
-            scores = compute_scores(X, indices, )
+            warning = None
+            scores = compute_scores(X, indices, warn=True)
+            if isinstance(scores, tuple):
+                scores, warning = scores
 
             if progress_advance is not None:
                 progress_advance()
@@ -874,7 +884,7 @@ class OWFeatureSelection(widget.OWWidget):
                     if progress_advance is not None:
                         progress_advance()
 
-            return scores, null_scores
+            return scores, null_scores, warning
 
         p_advance = concurrent.methodinvoke(
             self, "progressBarAdvance", (float,))
@@ -914,6 +924,7 @@ class OWFeatureSelection(widget.OWWidget):
     def __set_score_results(self, scores):
         # set score results from a Future
         self.error(1)
+        self.warning(10)
         if scores is self.__scores_future:
             self.histogram.setUpdatesEnabled(True)
             self.progressBarFinished()
@@ -937,7 +948,7 @@ class OWFeatureSelection(widget.OWWidget):
             self.__scores_state.cancelled = True
             self.__scores_state = self.__scores_future = None
 
-    def set_scores(self, scores, null_scores=None):
+    def set_scores(self, scores, null_scores=None, warning=None):
         self.scores = scores
         self.nulldist = null_scores
 
@@ -945,6 +956,8 @@ class OWFeatureSelection(widget.OWWidget):
             nulldist = np.array(null_scores, dtype=float)
         else:
             nulldist = None
+
+        self.warning(10, warning)
 
         self.setup_plot(self.score_index, scores, nulldist)
         self.update_data_info_label()
