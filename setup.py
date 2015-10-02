@@ -20,7 +20,7 @@ DESCRIPTION = 'Orange Bioinformatics add-on for Orange data mining software pack
 LONG_DESCRIPTION = open(os.path.join(os.path.dirname(__file__), 'README.rst')).read()
 AUTHOR = 'Bioinformatics Laboratory, FRI UL'
 AUTHOR_EMAIL = 'contact@orange.biolab.si'
-URL = 'http://orange.biolab.si/addons/'
+URL = 'http://orange.biolab.si/download'
 LICENSE = 'GPLv3'
 
 KEYWORDS = (
