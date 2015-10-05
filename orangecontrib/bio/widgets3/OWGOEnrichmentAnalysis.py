@@ -44,10 +44,10 @@ def listAvailable():
             ret[td.get("#organism", file)] = file
 
     essential = ["gene_association.%s.tar.gz" % go.from_taxid(taxid)
-                 for taxid in taxonomy.essential_taxids()
+                 for taxid in taxonomy.common_taxids()
                  if go.from_taxid(taxid)]
     essentialNames = [taxonomy.name(taxid)
-                      for taxid in taxonomy.essential_taxids()
+                      for taxid in taxonomy.common_taxids()
                       if go.from_taxid(taxid)]
     ret.update(zip(essentialNames, essential))
     return ret

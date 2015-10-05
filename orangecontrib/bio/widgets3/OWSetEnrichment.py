@@ -303,7 +303,7 @@ class OWSetEnrichment(widget.OWWidget):
         # ensuring all required databases have been downloaded.
 
         sets = geneset.list_all()
-        taxids = set(taxonomy.essential_taxids() +
+        taxids = set(taxonomy.common_taxids() +
                      list(filter(None, [tid for _, tid, _ in sets])))
         organisms = [(tid, name_or_none(tid)) for tid in taxids]
         organisms = [(tid, name) for tid, name in organisms

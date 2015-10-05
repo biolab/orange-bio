@@ -330,7 +330,7 @@ class OWGeneInfo(widget.OWWidget):
         self.organisms = sorted(
             set([name.split(".")[-2] for name in
                  serverfiles.listfiles("NCBI_geneinfo")] +
-                gene.NCBIGeneInfo.essential_taxids())
+                gene.NCBIGeneInfo.common_taxids())
         )
 
         self.organismComboBox.addItems(
