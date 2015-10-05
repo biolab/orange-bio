@@ -947,6 +947,7 @@ class OWSetEnrichment(widget.OWWidget):
     def onDeleteWidget(self):
         if self.state is not None:
             self._cancelPending()
+            self.state = None
         self._executor.shutdown(wait=False)
 
 
@@ -958,8 +959,8 @@ from collections import namedtuple
 
 enrichment_res = namedtuple(
     "enrichment_result",
-    ["query_mapped",      #:: set
-     "reference_mapped",  #:: set
+    ["query_mapped",      #:: list
+     "reference_mapped",  #:: list
      "p_value",           #:: float
      "enrichment_score"   #:: float
      ]
@@ -983,7 +984,7 @@ def set_enrichment(target, reference, query,
     enrichment = query_p / ref_p if ref_p else np.nan
 
     return enrichment_res(
-        query_mapped, reference_mapped,
+        list(query_mapped), list(reference_mapped),
         prob.p_value(len(query_mapped), len(reference),
                      len(reference_mapped), len(query)),
         enrichment
