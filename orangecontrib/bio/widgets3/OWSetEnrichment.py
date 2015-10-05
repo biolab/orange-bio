@@ -909,7 +909,7 @@ class OWSetEnrichment(widget.OWWidget):
     @Slot(float)
     def _setProgress(self, value):
         assert QThread.currentThread() is self.thread()
-        self.progressBarSet(value)
+        self.progressBarSet(value, processEvents=None)
 
     @Slot(str)
     def _setRunInfo(self, text):
