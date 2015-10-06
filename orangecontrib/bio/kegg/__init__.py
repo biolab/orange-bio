@@ -41,10 +41,10 @@ hsa
 >>> genes = organism.genes  # get the genes database for the organism
 >>> gene_ids = list(genes.keys()) # KEGG gene identifiers
 >>> entry = genes["hsa:672"]
->>> print(entry.definition)
+>>> print(entry.definition) # doctest:+SKIP
 breast cancer 1, early onset
 >>> # print the entry in DBGET database format.
->>> print(entry) # doctest:+ELLIPSIS
+>>> print(entry) # doctest:+SKIP
 ENTRY       672               CDS       T01001
 NAME        BRCA1, BRCAI, BRCC1, BROVCA1, FANCS, IRIS, PNCA4, PPP1R53, PSCP, RNF53
 DEFINITION  breast cancer 1, early onset
