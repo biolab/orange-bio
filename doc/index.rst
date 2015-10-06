@@ -81,10 +81,12 @@ To install add-on in `development mode`_ run::
 Source Code and Issue Tracker
 -----------------------------
 
-Source code is available on Bitbucket_. For issues and wiki we use Trac_.
+Source code is available on GitHub_.
 
-.. _Bitbucket: https://bitbucket.org/biolab/orange-bioinformatics
-.. _Trac: http://orange.biolab.si/trac/
+Bug reports and suggestions should be submitted to `Issue Tracker`_ on GitHub.
+
+.. _GitHub: https://github.com/biolab/orange-bio
+.. _Issue Tracker: https://github.com/biolab/orange-bio/issues
 
 Indices and tables
 ==================
