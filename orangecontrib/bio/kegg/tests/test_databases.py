@@ -16,9 +16,8 @@ class TestGenome(unittest.TestCase):
             entry = genome[key]
             self.assertEqual(entry.entry_key, key)
             self.assertIsInstance(entry, genome.ENTRY_TYPE)
-            # Should we allow fields to be unicode?
-            self.assertIsInstance(entry.name, str)
-            self.assertIsInstance(entry.taxid, str)
+            self.assertIsInstance(entry.name, six.string_types)
+            self.assertIsInstance(entry.taxid, six.string_types)
 
         self.assertTrue(genome.search("homo sapiens")[0] == "hsa")
         entry = genome['hsa']
