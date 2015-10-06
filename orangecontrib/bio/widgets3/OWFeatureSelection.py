@@ -1137,23 +1137,16 @@ class OWFeatureSelection(widget.OWWidget):
             self.histogram.setLower(cut)
         elif side == OWFeatureSelection.TwoTail:
             n = min(self.n_best, len(scores))
-            scores_high = scores[-n:]
-            scores_low = scores[:n]
-            scores = np.r_[scores_high, scores_low]
-            sign = np.r_[np.full_like(scores_high, 1),
-                         np.full_like(scores_low, -1)]
-            scores = np.abs(scores)
-
+            scoresabs = np.abs(scores)
             if score_name == "Fold Change":
                 # comparing fold change on a logarithmic scale
-                scores = np.log2(scores)
-            sort_ind = np.argsort(scores)
-            sign = sign[sort_ind][-n:]
-            count_high = np.count_nonzero(sign == 1)
-            count_low = len(sign) - count_high
-            eps = np.finfo(float).eps
-            cuthigh = scores_high[-count_high] if count_high else  scores_high[-1] + eps
-            cutlow = scores_low[count_low - 1] if count_low else scores_low[0] - eps
+                scores = np.log2(scoresabs)
+                scores = scores[np.isfinite(scoresabs)]
+            scoresabs = np.sort(np.abs(scores))
+            limit = (scoresabs[-n] + scoresabs[-min(n+1, len(scores))]) / 2
+            cuthigh, cutlow = limit, -limit
+            if score_name == "Fold Change":
+                cuthigh, cutlow = 2**cuthigh, 2**cutlow
             self.histogram.setBoundary(cutlow, cuthigh)
         self._invalidate_selection()
 
