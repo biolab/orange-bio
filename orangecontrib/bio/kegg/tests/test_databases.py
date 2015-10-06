@@ -8,7 +8,7 @@ from orangecontrib.bio.kegg import pathway
 class TestGenome(unittest.TestCase):
     def test_genome(self):
         genome = databases.Genome()
-        entry_keys = genome.keys()
+        entry_keys = list(genome.keys())
 
         for key in entry_keys[:3] + entry_keys[-3:]:
             self.assertTrue(key in genome)
@@ -28,7 +28,8 @@ class TestGenome(unittest.TestCase):
 class TestGenes(unittest.TestCase):
     def _tester(self, org):
         genes = databases.Genes(org)
-        keys = genes.keys()[:3] + genes.keys()[-3:]
+        keys = list(genes.keys())
+        keys = keys[:3] + keys[-3:]
         all_entries = []
         for gene in keys:
             self.assertTrue(gene in genes)
