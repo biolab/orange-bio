@@ -49,7 +49,7 @@ class Taxonomy(collections.Mapping):
     SCHEMA_VERSION = (0, 0, 1)
 
     def __init__(self, taxdb):
-        self._con = sqlite3.connect(taxdb)
+        self._con = sqlite3.connect(taxdb, timeout=15)
         self._con.execute("""
             CREATE INDEX IF NOT EXISTS
                 index_names_tax_id ON names(tax_id)
