@@ -392,10 +392,13 @@ class ServerFiles(object):
         if self._authen():
             auth = (self.username, self.password)
 
-        if data:
-            ans = req.post(root+command, data=data, files=files, auth=auth, verify=False, timeout=timeout, stream=True)
-        else:
-            ans = req.get(root+command, auth=auth, verify=False, timeout=timeout, stream=True)
+        try:
+            if data:
+                ans = req.post(root+command, data=data, files=files, auth=auth, verify=False, timeout=timeout, stream=True)
+            else:
+                ans = req.get(root+command, auth=auth, verify=False, timeout=timeout, stream=True)
+        except:
+            raise ConnectionError
 
         return str(ans.text) if not raw else ans.raw
     
