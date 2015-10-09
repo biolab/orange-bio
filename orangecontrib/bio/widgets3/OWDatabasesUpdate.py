@@ -706,8 +706,6 @@ class OWDatabasesUpdate(OWWidget):
 
         task = DownloadTask(domain, filename, sf)
 
-        self.executor.submit(task)
-
         self.progress.adjustRange(0, 100)
 
         pb = ItemProgressBar(self.filesView)
@@ -730,6 +728,8 @@ class OWDatabasesUpdate(OWWidget):
         opt_widget.setEnabled(False)
         self._tasks.append(task)
 
+        self.executor.submit(task)
+
     def EndDownloadTask(self, task):
         future = task.future()
         index = self.updateItemIndex(task.domain, task.filename)
@@ -750,7 +750,7 @@ class OWDatabasesUpdate(OWWidget):
             # Show the exception string in the size column.
             tree_item.setData(
                 2, Qt.DisplayRole,
-                "Error occurred while downloading:" + str(future.exception())
+                "Error occurred while downloading: " + str(future.exception())
             )
 
         else:
@@ -931,6 +931,7 @@ class DownloadTask(Task):
                                  callback=self._advance)
         except Exception:
             self.exception.emit(sys.exc_info())
+            raise
 
 
 def main_test():
