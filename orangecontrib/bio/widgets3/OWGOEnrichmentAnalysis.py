@@ -44,10 +44,10 @@ def listAvailable():
             ret[td.get("#organism", file)] = file
 
     essential = ["gene_association.%s.tar.gz" % go.from_taxid(taxid)
-                 for taxid in taxonomy.common_taxids()
+                 for taxid in taxonomy.essential_taxids()
                  if go.from_taxid(taxid)]
     essentialNames = [taxonomy.name(taxid)
-                      for taxid in taxonomy.common_taxids()
+                      for taxid in taxonomy.essential_taxids()
                       if go.from_taxid(taxid)]
     ret.update(zip(essentialNames, essential))
     return ret
@@ -734,7 +734,9 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             [Orange.data.StringVariable("GO Term Id"),
              Orange.data.StringVariable("GO Term Name"),
              Orange.data.ContinuousVariable("Cluster Frequency"),
+             Orange.data.ContinuousVariable("Genes in Cluster", number_of_decimals=0),
              Orange.data.ContinuousVariable("Reference Frequency"),
+             Orange.data.ContinuousVariable("Genes in Reference", number_of_decimals=0),
              Orange.data.ContinuousVariable("p-value"),
              Orange.data.ContinuousVariable("FDR"),
              Orange.data.ContinuousVariable("Enrichment"),
@@ -743,7 +745,9 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         terms = [[t_id,
                   self.ontology[t_id].name,
                   len(genes) / len(self.clusterGenes),
+                  len(genes),
                   r_count / len(self.referenceGenes),
+                  r_count,
                   p_value,
                   fdr,
                   len(genes) / len(self.clusterGenes) * \
