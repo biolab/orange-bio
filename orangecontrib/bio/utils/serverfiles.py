@@ -113,7 +113,7 @@ import sys
 import socket
 
 # default socket timeout in seconds
-timeout = 120
+timeout = 5
 
 import base64
 import functools
@@ -383,6 +383,7 @@ class ServerFiles(object):
 
     def _server_request(self, root, command, data, files, repeat=2, raw=False):
         import requests
+        import requests.exceptions
         req = requests.Session()
         a = requests.adapters.HTTPAdapter(max_retries=repeat)
         req.mount('https://', a)
@@ -397,8 +398,8 @@ class ServerFiles(object):
                 ans = req.post(root+command, data=data, files=files, auth=auth, verify=False, timeout=timeout, stream=True)
             else:
                 ans = req.get(root+command, auth=auth, verify=False, timeout=timeout, stream=True)
-        except:
-            raise ConnectionError
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            raise e
 
         return str(ans.text) if not raw else ans.raw
     
