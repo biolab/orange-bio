@@ -390,7 +390,9 @@ def retrieveFilesList(serverFiles, domains=None, advance=lambda: None):
     for dom in domains:
         try:
             serverInfo[dom] = serverFiles.allinfo(dom)
-        except Exception:  # ignore inexistent domains
+        except ConnectionError:
+             raise
+        except Exception as e:  # ignore inexistent domains
             pass
     advance()
     return serverInfo
@@ -488,6 +490,7 @@ class OWDatabasesUpdate(OWWidget):
             box, self, "Retry", callback=self.RetrieveFilesList
         )
         self.retryButton.hide()
+        self.warning(0)
 
         box = gui.widgetBox(self.controlArea, orientation="horizontal")
         gui.rubber(box)
@@ -517,6 +520,8 @@ class OWDatabasesUpdate(OWWidget):
         self._haveProgress = False
 
     def RetrieveFilesList(self):
+        self.retryButton.hide()
+        self.warning(0)
         self.progress.setRange(0, 3)
         self.serverFiles = serverfiles.ServerFiles(access_code=self.accessCode)
 
@@ -626,11 +631,12 @@ class OWDatabasesUpdate(OWWidget):
         self.buttonCheck(selected_items, AVAILABLE, self.downloadButton)
 
     def HandleError(self, exception):
-        if isinstance(exception, IOError):
-            self.error(0,
-                       "Could not connect to server! Press the Retry "
-                       "button to try again.")
+        if isinstance(exception, ConnectionError):
+            self.warning(0,
+                       "Could not connect to server! Check your connection "
+                       "and try again.")
             self.SetFilesList({})
+            self.retryButton.show()
         else:
             sys.excepthook(type(exception), exception.args, None)
             self.progress.setRange(0, 0)
@@ -706,8 +712,6 @@ class OWDatabasesUpdate(OWWidget):
 
         task = DownloadTask(domain, filename, sf)
 
-        self.executor.submit(task)
-
         self.progress.adjustRange(0, 100)
 
         pb = ItemProgressBar(self.filesView)
@@ -730,6 +734,8 @@ class OWDatabasesUpdate(OWWidget):
         opt_widget.setEnabled(False)
         self._tasks.append(task)
 
+        self.executor.submit(task)
+
     def EndDownloadTask(self, task):
         future = task.future()
         index = self.updateItemIndex(task.domain, task.filename)
@@ -750,8 +756,9 @@ class OWDatabasesUpdate(OWWidget):
             # Show the exception string in the size column.
             tree_item.setData(
                 2, Qt.DisplayRole,
-                "Error occurred while downloading:" + str(future.exception())
+                "Error occurred while downloading: " + str(future.exception())
             )
+            self.warning(0, "Error while downloading. Check your connection.")
 
         else:
             # get the new updated info dict and replace the the old item
@@ -801,17 +808,23 @@ class OWDatabasesUpdate(OWWidget):
     def onDownloadFinished(self):
         # on download completed/canceled/error
         assert QThread.currentThread() is self.thread()
+        ex_occured = False
         for task in list(self._tasks):
             future = task.future()
             if future.done():
                 self.EndDownloadTask(task)
                 self._tasks.remove(task)
+            if future.exception():
+                ex_occured = True
 
         if not self._tasks:
             # Clear/reset the overall progress
             self.progress.setRange(0, 0)
 
             self.cancelButton.setEnabled(False)
+
+            if not ex_occured:
+                self.warning(0)
 
     def onDownloadError(self, exc_info):
         sys.excepthook(*exc_info)
@@ -931,6 +944,7 @@ class DownloadTask(Task):
                                  callback=self._advance)
         except Exception:
             self.exception.emit(sys.exc_info())
+            raise
 
 
 def main_test():
