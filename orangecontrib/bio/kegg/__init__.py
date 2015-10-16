@@ -17,7 +17,7 @@ of Genes and Genomes) <http://www.genome.jp/kegg/>`_ using its web services.
 >>> # Create a KEGG Genes database interface
 >>> genome = KEGGGenome()
 >>> # List all available entry ids
->>> keys = genome.keys()
+>>> keys = list(genome.keys())
 >>> print(keys[0])
 T01001
 >>> # Retrieve the entry for the key.
@@ -39,12 +39,12 @@ for organism specific databases.
 >>> print(organism.org_code)  # prints the KEGG organism code
 hsa
 >>> genes = organism.genes  # get the genes database for the organism
->>> gene_ids = genes.keys() # KEGG gene identifiers
+>>> gene_ids = list(genes.keys()) # KEGG gene identifiers
 >>> entry = genes["hsa:672"]
->>> print(entry.definition)
+>>> print(entry.definition) # doctest:+SKIP
 breast cancer 1, early onset
 >>> # print the entry in DBGET database format.
->>> print(entry) # doctest:+ELLIPSIS
+>>> print(entry) # doctest:+SKIP
 ENTRY       672               CDS       T01001
 NAME        BRCA1, BRCAI, BRCC1, BROVCA1, FANCS, IRIS, PNCA4, PPP1R53, PSCP, RNF53
 DEFINITION  breast cancer 1, early onset

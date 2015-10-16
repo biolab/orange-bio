@@ -5,6 +5,7 @@ DBGET Database Interface
 """
 from __future__ import absolute_import
 
+import sys
 import re
 from contextlib import closing
 
@@ -83,28 +84,11 @@ class DBDataBase(object):
             self._info = self.api.info(self.DB)
         return self._info
 
-
-    def keys(self):
-        """
-        Return a list of database keys. These are unique KEGG identifiers
-        that can be used to query the database.
-
-        """
-        return list(self._keys)
-
     def iterkeys(self):
         """
         Return an iterator over the `keys`.
         """
         return iter(self._keys)
-
-    def items(self):
-        """
-        Return a list of all (key, :obj:`DBDataBase.ENTRY_TYPE` instance)
-        tuples.
-
-        """
-        return list(zip(self.keys(), self.batch_get(self.keys())))
 
     def iteritems(self):
         """
@@ -115,12 +99,6 @@ class DBDataBase(object):
         return chain_iter(zip(batch, self.batch_get(batch))
                           for batch in batch_iter(iterkeys, batch_size))
 
-    def values(self):
-        """
-        Return a list of all :obj:`DBDataBase.ENTRY_TYPE` instances.
-        """
-        return self.batch_get(self.keys())
-
     def itervalues(self):
         """
         Return an iterator over all :obj:`DBDataBase.ENTRY_TYPE` instances.
@@ -129,6 +107,48 @@ class DBDataBase(object):
         iterkeys = self.iterkeys()
         return chain_iter(self.batch_get(batch)
                           for batch in batch_iter(iterkeys, batch_size))
+
+    if sys.version_info < (3, ):
+        def keys(self):
+            """
+            Return a list of database keys. These are unique KEGG identifiers
+            that can be used to query the database.
+            """
+            return list(self._keys)
+
+        def values(self):
+            """
+            Return a list of all :obj:`DBDataBase.ENTRY_TYPE` instances.
+            """
+            return self.batch_get(self.keys())
+
+        def items(self):
+            """
+            Return a list of all (key, :obj:`DBDataBase.ENTRY_TYPE` instance)
+            tuples.
+            """
+            return list(zip(self.keys(), self.batch_get(self.keys())))
+
+    else:
+        def keys(self):
+            """
+            Return an iterator over all database keys. These are unique
+            KEGG identifiers that can be used to query the database.
+            """
+            return iter(self._keys)
+
+        def values(self):
+            """
+            Return an iterator over all :obj:`DBDataBase.ENTRY_TYPE` instances.
+            """
+            return self.itervalues()
+
+        def items(self):
+            """
+            Return an iterator over all (key, :obj:`DBDataBase.ENTRY_TYPE`)
+            tuples.
+            """
+            return self.iteritems()
 
     def get(self, key, default=None):
         """

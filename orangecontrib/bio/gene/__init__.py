@@ -1,6 +1,7 @@
 from __future__ import absolute_import
-
-import os, time
+import sys
+import os
+import time
 
 from ..utils import serverfiles
 
@@ -198,11 +199,18 @@ class NCBIGeneInfo(dict):
         for key, val in zip(self.iterkeys(), self.itervalues()):
             yield key, val
 
-    def values(self):
-        return list(self.itervalues())
-    
-    def items(self):
-        return list(self.iteritems())
+    if sys.version_info < (3, ):
+        def values(self):
+            return list(self.itervalues())
+
+        def items(self):
+            return list(self.iteritems())
+    else:
+        def values(self):
+            return map(GeneInfo, super().values())
+
+        def items(self):
+            return ((key, GeneInfo(value)) for key, value in super().items())
 
     @staticmethod
     def get_geneinfo_from_ncbi(file, progressCallback=None):
