@@ -404,8 +404,8 @@ DOMAINS = [
 
 class OWDatabasesUpdate(OWWidget):
 
-    name = "Databases update"
-    description = "Update local system biology databases."
+    name = "Databases Update"
+    description = "Update local systems biology databases."
     icon = "../widgets/icons/Databases.svg"
     priority = 10
 
