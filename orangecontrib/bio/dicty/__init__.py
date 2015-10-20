@@ -1568,7 +1568,7 @@ def empty_none(s):
     else:
         return None
 
-def join_ats(atts):
+def join_ats(atts, fnshow=None):
     """ Joins attribute attributes together. If all values are the same,
     set the parameter to the common value, else return a list of the
     values in the same order as the attributes are imputed. """
@@ -1586,10 +1586,14 @@ def join_ats(atts):
         if len(s) == 1:
             od[k] = list(s)[0]
         else:
-            od[k] = str([ at[k] for at in atts ])
+            if not fnshow:
+                od[k] = str([ at[k] for at in atts ])
+            else:
+                od[k] = fnshow([ at[k] for at in atts ])
+    print(od)
     return od
 
-def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], namefn=None, avg=median):
+def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], namefn=None, avg=median, fnshow=None):
     """ Join replicates by median. 
     Default parameters work for PIPA data.
     Sort elements in the same order as ignorenames!
@@ -1664,7 +1668,7 @@ def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], 
             return [ types[n](x[n]) for n in ignorenames if n in all_values ]
 
         elements = sorted(elements, key=lambda x: sk(data.domain.attributes[x].attributes))
-        atdic = join_ats([data.domain.attributes[i].attributes for i in elements])
+        atdic = join_ats([data.domain.attributes[i].attributes for i in elements], fnshow=fnshow)
         aname = namefn(atdic)
 
         a = None
@@ -1676,7 +1680,6 @@ def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], 
             a.getValueFrom = lambda ex,rw,el=elements: avgel(ex,el)
         else:
             a = ContinuousVariable(name=aname, compute_value=lambda d,el=elements: numpy.nanmedian(data[:,el], axis=1))
-        a.attributes.update(join_ats([data.domain.attributes[i].attributes for i in elements]))
         a.attributes.update(atdic)
         natts.append(a)
 

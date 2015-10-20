@@ -782,7 +782,8 @@ class OWGenExpress(widget.OWWidget):
                 table = dicty.join_replicates(table,
                     ignorenames=self.dbc.IGNORE_REPLICATE,
                     namefn=None,
-                    avg=dicty.median)
+                    avg=dicty.median,
+                    fnshow=lambda x: " | ".join(map(str, x)))
 
             if self.transpose:
                 experiments = [at for at in table.domain.variables]
