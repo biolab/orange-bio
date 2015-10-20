@@ -773,14 +773,14 @@ class OWGenExpress(widget.OWWidget):
         if self.log2:
             transfn = lambda x: math.log(x + 1.0, 2)
 
-        reverse_header_dict = {name: key for key, name in HEADER}
+        reverse_header_dict = {name: name for key, name in HEADER}
+        reverse_header_dict["ID"] = "id"
 
         allowed_labels = None
 
         def namefn(a):
             name = SORTING_MODEL_LIST[self.exnamei]
-            if name == "ID":
-                name = "id"
+            name = reverse_header_dict.get(name, "id")
             return dict(a)[name]
 
         if len(ids):
