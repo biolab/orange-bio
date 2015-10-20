@@ -194,7 +194,7 @@ class SelectionSetsWidget(QFrame):
 
     def sizeHint(self):
         size = QFrame.sizeHint(self)
-        return QSize(size.width(), 200)
+        return QSize(size.width(), 150)
 
     def _onSelectionChanged(self, selected, deselected):
         self.setSelectionModified(True)
