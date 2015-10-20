@@ -458,7 +458,7 @@ class DBCommon(object):
             annots=annots, chipfn=chipfn, allowed_labels=allowed_labels)
 
 
-def example_tables(ids, chipsm=None, spotmap={}, callback=None, exclude_constant_labels=False, annots={}, chipfn=None, allowed_labels=None):
+def example_tables(ids, chipsm=None, spotmap={}, callback=None, exclude_constant_labels=False, annots={}, chipfn=None, allowed_labels=None, namefn=None):
     """
     Create example tables from chip readings, spot mappings and 
     group specifications.
@@ -517,12 +517,15 @@ def example_tables(ids, chipsm=None, spotmap={}, callback=None, exclude_constant
             vals[putind] = v
         groupvals.append(vals)
 
-        groupnames.append(chipid) 
-
         newannots = [['id', str(chipid)]] #add chipid to annotations
         if annots:
             newannots += annots[chipid]
         groupannots.append(newannots)
+    
+        if namefn == None:
+            groupnames.append(chipid) 
+        else:
+            groupnames.append(namefn(newannots))
 
     togen = (groupnames, groupvals, groupannots)
     
@@ -1590,7 +1593,6 @@ def join_ats(atts, fnshow=None):
                 od[k] = str([ at[k] for at in atts ])
             else:
                 od[k] = fnshow([ at[k] for at in atts ])
-    print(od)
     return od
 
 def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], namefn=None, avg=median, fnshow=None):
@@ -1601,8 +1603,9 @@ def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], 
 
     d = defaultdict(list)
 
+    namefndef = lambda att: ",".join(att["id"]) if issequencens(att["id"]) else att["id"]
     if namefn == None:
-        namefn = lambda att: ",".join(att["id"]) if issequencens(att["id"]) else att["id"]
+        namefn = namefndef
 
     #key function
     def key_g(att):
@@ -1669,7 +1672,12 @@ def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], 
 
         elements = sorted(elements, key=lambda x: sk(data.domain.attributes[x].attributes))
         atdic = join_ats([data.domain.attributes[i].attributes for i in elements], fnshow=fnshow)
-        aname = namefn(atdic)
+        if namefn != "name":
+            aname = namefn(atdic)
+        else:
+            #get attribute name
+            atdic2 = join_ats([ { "id": data.domain.attributes[i].name} for i in elements], fnshow=fnshow)
+            aname = namefndef(atdic2)
 
         a = None
 

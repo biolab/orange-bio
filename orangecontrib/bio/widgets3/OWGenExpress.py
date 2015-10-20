@@ -242,7 +242,7 @@ class Genesis(object):
     def get_data(self, ids=None, result_type=None,
                  exclude_constant_labels=False, average=median,
                  callback=None, bufver="0", transform=None,
-                 allowed_labels=None, reload=False):
+                 allowed_labels=None, reload=False, namefn=None):
         """
         Return data in a :obj:`Orange.data.Table`. Each feature represents
         a sample and each row is a gene. The feature's ``.attributes``
@@ -292,11 +292,13 @@ class Genesis(object):
 
         cbc = CallBack(len(ids) + 3, optcb,
                        callbacks=99 - 20)
+
         et = example_tables(ids, spotmap={}, callback=cbc,
                             annots=read,
                             exclude_constant_labels=exclude_constant_labels,
                             chipfn=download_func,
-                            allowed_labels=allowed_labels)
+                            allowed_labels=allowed_labels,
+                            namefn=namefn)
         cbc.end()
 
         cbc = CallBack(2, optcb, callbacks=10)
@@ -364,7 +366,7 @@ TIMEPOINT_COLUMN = 2
 REPLICATE_COLUMN = 3
 
 SORTING_MODEL_LIST = [
-    "Strain", "Experiment", "Genotype", "Timepoint", "Growth", "Species",
+    "Strain", "Experiment", "Genotype", "Timepoint", "Growth", "Genome",
     "ID", "Name", "Replicate"]
 
 
@@ -384,6 +386,7 @@ class OWGenExpress(widget.OWWidget):
     rtypei = settings.Setting(0)
     projecti = settings.Setting(0)
     serveri = settings.Setting(0)
+    exnamei = settings.Setting(6)
 
     excludeconstant = settings.Setting(False)
     joinreplicates = settings.Setting(False)
@@ -441,6 +444,10 @@ class OWGenExpress(widget.OWWidget):
         self.columnsSortingWidget.setSizePolicy(
             QSizePolicy.Preferred, QSizePolicy.Maximum)
 
+        box = gui.widgetBox(self.controlArea, 'Experiment name')
+        self.experimentNameCB = gui.comboBox(
+            box, self, "exnamei", items=SORTING_MODEL_LIST)
+
         b.layout().addWidget(self.columnsSortingWidget)
         sorting_model = QStringListModel(SORTING_MODEL_LIST)
         self.columnsSortingWidget.setModel(sorting_model)
@@ -451,6 +458,7 @@ class OWGenExpress(widget.OWWidget):
         self.columnsSortingWidget.sortingOrderChanged.connect(store_sort_order)
 
         gui.separator(self.controlArea)
+
 
         box = gui.widgetBox(self.controlArea, 'Expression Type')
         self.expressionTypesCB = gui.comboBox(
@@ -769,6 +777,12 @@ class OWGenExpress(widget.OWWidget):
 
         allowed_labels = None
 
+        def namefn(a):
+            name = SORTING_MODEL_LIST[self.exnamei]
+            if name == "ID":
+                name = "id"
+            return dict(a)[name]
+
         if len(ids):
             table = self.dbc.get_data(
                 ids=ids, result_type=self.rtype(),
@@ -776,12 +790,13 @@ class OWGenExpress(widget.OWWidget):
                 exclude_constant_labels=self.excludeconstant,
                 bufver=self.wantbufver,
                 transform=transfn,
-                allowed_labels=allowed_labels)
+                allowed_labels=allowed_labels,
+                namefn=namefn)
 
             if self.joinreplicates:
                 table = dicty.join_replicates(table,
                     ignorenames=self.dbc.IGNORE_REPLICATE,
-                    namefn=None,
+                    namefn="name",
                     avg=dicty.median,
                     fnshow=lambda x: " | ".join(map(str, x)))
 
