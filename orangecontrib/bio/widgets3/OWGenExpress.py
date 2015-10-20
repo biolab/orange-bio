@@ -800,16 +800,6 @@ class OWGenExpress(widget.OWWidget):
                     avg=dicty.median,
                     fnshow=lambda x: " | ".join(map(str, x)))
 
-            if self.transpose:
-                experiments = [at for at in table.domain.variables]
-                attr = [compat.ContinuousVariable.make(ex['DDB'].value) for ex in table]
-                metavars = sorted(table.domain.variables[0].attributes.keys())
-                metavars = [compat.StringVariable.make(name) for name in metavars]
-                domain = compat.create_domain(attr, None, metavars)
-                metavars = compat.get_metas(domain)
-                metas = [[exp.attributes[var.name] for var in metavars] for exp in experiments]
-                table = compat.create_table(domain, table.X.transpose(), None, metas)
-
             # Sort attributes
             sortOrder = self.columnsSortingWidget.sortingOrder
 
@@ -847,6 +837,16 @@ class OWGenExpress(widget.OWWidget):
 
             table = Orange.data.Table.from_table(domain, table)
             table = Orange.data.Table(domain, table)
+
+            if self.transpose:
+                experiments = [at for at in table.domain.variables]
+                attr = [compat.ContinuousVariable.make(ex['DDB'].value) for ex in table]
+                metavars = sorted(table.domain.variables[0].attributes.keys())
+                metavars = [compat.StringVariable.make(name) for name in metavars]
+                domain = compat.create_domain(attr, None, metavars)
+                metavars = compat.get_metas(domain)
+                metas = [[exp.attributes[var.name] for var in metavars] for exp in experiments]
+                table = compat.create_table(domain, table.X.transpose(), None, metas)
 
             data_hints.set_hint(table, "taxid", "352472")
             data_hints.set_hint(table, "genesinrows", False)
