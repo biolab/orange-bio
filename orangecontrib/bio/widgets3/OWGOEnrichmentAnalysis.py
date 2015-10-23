@@ -105,7 +105,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
     filterByNumOfInstances = settings.Setting(False)
     minNumOfInstances = settings.Setting(1)
     filterByPValue = settings.Setting(True)
-    maxPValue = settings.Setting(0.01)
+    maxPValue = settings.Setting(0.2)
     filterByPValue_nofdr = settings.Setting(False)
     maxPValue_nofdr = settings.Setting(0.01)
     probFunc = settings.Setting(0)
