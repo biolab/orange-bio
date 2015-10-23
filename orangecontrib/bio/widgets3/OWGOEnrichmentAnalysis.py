@@ -298,7 +298,9 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self._executor = ThreadExecutor()
         self._init = EnsureDownloaded(
             [("Taxonomy", "ncbi_taxonomy.tar.gz"),
-             ("GO", "taxonomy.pickle")]
+             ("GO", "taxonomy.pickle"),
+             ("GO", "gene_association.wb.tar.gz"),
+             ("GO", "gene_association.ecocyc.tar.gz")]
         )
         self._init.finished.connect(self.__initialize_finish)
         self._executor.submit(self._init)

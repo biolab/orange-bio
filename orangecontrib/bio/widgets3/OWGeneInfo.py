@@ -33,7 +33,7 @@ from Orange.widgets.utils.concurrent import \
 
 
 from .. import gene, taxonomy
-
+from ..widgets.utils.download import EnsureDownloaded
 
 def ensure_downloaded(domain, filename, advance=None):
     serverfiles.localpath_download(domain, filename, callback=advance)
@@ -309,8 +309,14 @@ class OWGeneInfo(widget.OWWidget):
 
         task.resultReady.connect(self.initialize)
         task.exceptionReady.connect(self._onInitializeError)
-
         self.initfuture = self.executor.submit(task)
+
+        ed = EnsureDownloaded(
+            [("NCBI_geneinfo", "gene_info.6239.db"),
+             ("NCBI_geneinfo", "gene_info.562.db")]
+        )
+        ed.run()
+
 
     def sizeHint(self):
         return QSize(1024, 720)
