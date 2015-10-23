@@ -384,14 +384,16 @@ def retrieveFilesList(serverFiles, domains=None, advance=lambda: None):
     """
     Retrieve and return serverfiles.allinfo for all domains.
     """
+    import requests.exceptions
     domains = serverFiles.listdomains() if domains is None else domains
     advance()
     serverInfo = {}
     for dom in domains:
         try:
             serverInfo[dom] = serverFiles.allinfo(dom)
-        except ConnectionError:
-             raise
+        except (requests.exceptions.Timeout,
+                requests.exceptions.ConnectionError) as e:
+             raise ConnectionError
         except Exception as e:  # ignore inexistent domains
             pass
     advance()
