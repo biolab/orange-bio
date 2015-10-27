@@ -32,7 +32,7 @@ from Orange.widgets.utils.concurrent import \
     ThreadExecutor, Task, methodinvoke
 
 
-from .. import gene, taxonomy
+from orangecontrib.bio import gene, taxonomy
 
 
 def ensure_downloaded(domain, filename, advance=None):
