@@ -297,7 +297,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self.setBlocking(True)
         self._executor = ThreadExecutor()
         self._init = EnsureDownloaded(
-            [("Taxonomy", "ncbi_taxonomy.tar.gz"),
+            [(taxonomy.Taxonomy.DOMAIN, taxonomy.Taxonomy.FILENAME),
              ("GO", "taxonomy.pickle")]
         )
         self._init.finished.connect(self.__initialize_finish)

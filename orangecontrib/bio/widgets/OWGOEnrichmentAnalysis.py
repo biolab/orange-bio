@@ -323,7 +323,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.setBlocking(True)
         self._executor = ThreadExecutor()
         self._init = EnsureDownloaded(
-            [("Taxonomy", "ncbi_taxonomy.tar.gz"),
+            [(obiTaxonomy.Taxonomy.DOMAIN, obiTaxonomy.Taxonomy.FILENAME),
              ("GO", "taxonomy.pickle")]
         )
         self._init.finished.connect(self.UpdateOrganismComboBox)
