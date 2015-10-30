@@ -13,6 +13,8 @@ from functools import partial
 import gc
 import sys, os, tarfile, math
 from os.path import join as p_join
+from urllib2 import URLError
+from requests.exceptions import ConnectTimeout
 
 from Orange.orng import orngServerFiles
 from Orange.orng.orngDataCaching import data_hints
@@ -22,6 +24,7 @@ from Orange.OrangeWidgets.OWConcurrent import ThreadExecutor
 
 from .. import obiGene, obiGO, obiProb, obiTaxonomy
 from .utils.download import EnsureDownloaded
+from PyQt4 import QtCore
 
 NAME = "GO Browser"
 DESCRIPTION = "Enrichment analysis for Gene Ontology terms."
@@ -140,7 +143,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.filterByNumOfInstances = False
         self.minNumOfInstances = 1
         self.filterByPValue = True
-        self.maxPValue = 0.1
+        self.maxPValue = 0.2
         self.filterByPValue_nofdr = False
         self.maxPValue_nofdr = 0.1
         self.probFunc = 0
@@ -319,7 +322,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.selectedTerms = []
 
         self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.onStateChanged)
-
         self.setBlocking(True)
         self._executor = ThreadExecutor()
         self._init = EnsureDownloaded(
@@ -329,6 +331,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self._init.finished.connect(self.UpdateOrganismComboBox)
         self._executor.submit(self._init)
 
+
     def UpdateOrganismComboBox(self):
         try:
             self.annotationFiles = listAvailable()
@@ -336,6 +339,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.annotationComboBox.clear()
             self.annotationComboBox.addItems(self.annotationCodes)
             self.annotationComboBox.setCurrentIndex(self.annotationIndex)
+        except ConnectTimeout:
+            self.error(1, "Internet connection error! Data has not been loaded.")
         finally:
             self.setBlocking(False)
 
@@ -347,14 +352,15 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 self.SetGeneMatcher()
                 if self.clusterDataset:
                     self.Update()
-                
+
     def Update(self):
+        pb = OWGUI.ProgressBar(self, 100)
+        self.Load(pb=pb)
         if self.clusterDataset:
-            pb = OWGUI.ProgressBar(self, 100)
-            self.Load(pb=pb)
             self.FilterUnknownGenes()
             graph = self.Enrichment(pb=pb)
             self.SetGraph(graph)
+
 
     def UpdateGOAndAnnotation(self, tags=[]):
         from .OWUpdateGenomicsDatabases import OWUpdateGenomicsDatabases
@@ -525,28 +531,39 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if not tax_files:
             calls.append(("Taxonomy", "ncbi_taxnomy.tar.gz"))
             count += 1
-        org = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
-        if org != self.loadedAnnotationCode:
-            count += 1
-            if self.annotationFiles[org] not in go_files:
-                calls.append(("GO", self.annotationFiles[org]))
+
+        org = None
+        if len(self.annotationCodes):
+            org = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
+            if org != self.loadedAnnotationCode:
                 count += 1
-                
+                if self.annotationFiles[org] not in go_files:
+                    calls.append(("GO", self.annotationFiles[org]))
+                    count += 1
+
         if "gene_ontology_edit.obo.tar.gz" not in go_files:
             calls.append(("GO", "gene_ontology_edit.obo.tar.gz"))
             count += 1
         if not self.ontology:
             count += 1
         pb.iter += count*100
-        
-        for i, args in enumerate(calls):
-            orngServerFiles.localpath_download(*args, **dict(callback=pb.advance))
+
+        try:
+            for i, args in enumerate(calls):
+                orngServerFiles.localpath_download(*args, **dict(callback=pb.advance))
+        except URLError:
+            self.error(1, "Internet connection error, data has not been loaded.")
+            if finish:
+                pb.finish()
+            return
+        else:
+            self.error(0, "")
             
         i = len(calls)
         if not self.ontology:
             self.ontology = obiGO.Ontology(progress_callback=lambda value: pb.advance())
             i+=1
-        if org != self.loadedAnnotationCode:
+        if org and org != self.loadedAnnotationCode:
             self.annotations = None
             gc.collect() # Force run garbage collection.
             code = self.annotationFiles[org].split(".")[-3]
@@ -562,6 +579,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             for etype in obiGO.evidenceTypesOrdered:
                 self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
                 self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
+        elif org is None:
+            pb.finish()
         if finish:
             pb.finish()
             
@@ -583,7 +602,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                         print ex
             self.annotations.genematcher = obiGene.matcher(matchers)
             self.annotations.genematcher.set_targets(self.annotations.gene_names)
-            
+
     def Enrichment(self, pb=None):
         pb = OWGUI.ProgressBar(self, 100) if pb is None else pb
         if not self.annotations.ontology:
@@ -851,6 +870,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 
         self.ExampleSelection()
         self.selectionChanging = 0
+
             
     
     def UpdateAddClassButton(self):
@@ -928,7 +948,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.send("Unselected Examples", unselectedExamples)
 
     def ShowInfo(self):
-        dialog = QDialog(self)
+        dialog = QDialog(self, )
+        dialog.setWindowTitle("Ontology / Annotation Info")
         dialog.setModal(False)
         dialog.setLayout(QVBoxLayout())
         label = QLabel(dialog)
@@ -939,6 +960,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         label.setText("Annotations:\n"+self.annotations.header.replace("!", "") if self.annotations else "Annotations not loaded!")
         dialog.layout().addWidget(label)
         dialog.show()
+
         
     def sendReport(self):
         self.reportSettings("Settings", [("Organism", self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes) - 1)]),
@@ -1052,10 +1074,9 @@ class GeneMatcherDialog(OWWidget):
              ("useAffy", "Use Affymetrix platform reference ids")]
     settingsList = [item[0] for item in items]
     def __init__(self, parent=None, defaults=[True, False, False, False], enabled=[False, True, True, True], **kwargs):
-        OWWidget.__init__(self, parent, **kwargs)
+        OWWidget.__init__(self, parent, title="Gene Matching", **kwargs)
         for item, default in zip(self.items, defaults):
             setattr(self, item[0], default)
-            
         self.loadSettings()
         for item, enable in zip(self.items, enabled):
             cb = OWGUI.checkBox(self, self, *item)
