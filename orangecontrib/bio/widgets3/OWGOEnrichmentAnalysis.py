@@ -986,40 +986,58 @@ class EnrichmentColumnItemDelegate(QtGui.QItemDelegate):
             super().paint(painter, option, index)
 
 
-class GeneMatcherDialog(widget.OWWidget):
+class GeneMatcherDialog(QtGui.QDialog):
     items = [("useGO", "Use gene names from Gene Ontology annotations"),
              ("useKEGG", "Use gene names from KEGG Genes database"),
              ("useNCBI", "Use gene names from NCBI Gene info database"),
              ("useAffy", "Use Affymetrix platform reference ids")]
-    settingsList = [item[0] for item in items]
 
     def __init__(self, parent=None, defaults=[True, False, False, False],
                  enabled=[False, True, True, True], **kwargs):
-        super().__init__(self, parent, **kwargs)
-
+        super().__init__(parent, **kwargs)
+        self.setLayout(QtGui.QVBoxLayout())
         for item, default in zip(self.items, defaults):
             setattr(self, item[0], default)
 
-#         self.loadSettings()
-        for item, enable in zip(self.items, enabled):
-            cb = gui.checkBox(self, self, *item)
-            cb.setEnabled(enable)
+        for item, enable, checked in zip(self.items, enabled, defaults):
+            cb = QtGui.QCheckBox(text=item[1], checked=checked, enabled=enable)
+            cb.toggled[bool].connect(
+                lambda state, name=item[0]:
+                    setattr(self, name, state)
+            )
+            self.layout().addWidget(cb)
 
-        box = gui.widgetBox(self, orientation="horizontal")
-        gui.button(box, self, "OK", callback=self.accept)
-        gui.button(box, self, "Cancel", callback=self.reject)
+        bbox = QtGui.QDialogButtonBox(
+            Qt.Horizontal,
+            standardButtons=(QtGui.QDialogButtonBox.Ok |
+                             QtGui.QDialogButtonBox.Cancel))
+        bbox.accepted.connect(self.accept)
+        bbox.rejected.connect(self.reject)
+
+        self.layout().addWidget(bbox)
+
+        self.layout().setSizeConstraint(QtGui.QLayout.SetFixedSize)
 
 
 def test_main(argv=sys.argv):
-    app = QtGui.QApplication(argv)
+    app = QtGui.QApplication(list(argv))
+    argv = app.argv()
+    if len(argv) > 1:
+        data = Orange.data.Table(argv[1])
+    else:
+        data = None
+
     w = OWGOEnrichmentAnalysis()
-    data = Orange.data.Table("brown-selected.tab")
-    w.setDataset(data)
     w.show()
     w.raise_()
-    r = app.exec_()
+    w.setDataset(data)
+    w.handleNewSignals()
+    rval = app.exec_()
+    w.setDataset(None)
+    w.handleNewSignals()
     w.saveSettings()
-    return r
+    w.onDeleteWidget()
+    return rval
 
 if __name__ == "__main__":
     sys.exit(test_main())
