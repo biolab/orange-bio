@@ -23,6 +23,8 @@ from Orange.widgets.utils.datacaching import data_hints
 from Orange.widgets import widget, gui, settings
 from Orange.widgets.utils.concurrent import ThreadExecutor
 
+from requests.exceptions import ConnectTimeout
+
 from .. import gene, go, taxonomy
 from ..utils import serverfiles
 from ..utils import stats
@@ -44,11 +46,11 @@ def listAvailable():
             ret[td.get("#organism", file)] = file
 
     essential = ["gene_association.%s.tar.gz" % go.from_taxid(taxid)
-                 for taxid in taxonomy.common_taxids()
-                 if go.from_taxid(taxid)]
+             for taxid in taxonomy.common_taxids()
+             if go.from_taxid(taxid)]
     essentialNames = [taxonomy.name(taxid)
-                      for taxid in taxonomy.common_taxids()
-                      if go.from_taxid(taxid)]
+                  for taxid in taxonomy.common_taxids()
+                  if go.from_taxid(taxid)]
     ret.update(zip(essentialNames, essential))
     return ret
 
@@ -105,7 +107,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
     filterByNumOfInstances = settings.Setting(False)
     minNumOfInstances = settings.Setting(1)
     filterByPValue = settings.Setting(True)
-    maxPValue = settings.Setting(0.01)
+    maxPValue = settings.Setting(0.2)
     filterByPValue_nofdr = settings.Setting(False)
     maxPValue_nofdr = settings.Setting(0.01)
     probFunc = settings.Setting(0)
@@ -303,18 +305,29 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self._init.finished.connect(self.__initialize_finish)
         self._executor.submit(self._init)
 
+
     def sizeHint(self):
         return QtCore.QSize(1000, 700)
 
     def __initialize_finish(self):
         self.setBlocking(False)
 
-        self.annotationFiles = listAvailable()
-        self.annotationCodes = sorted(self.annotationFiles.keys())
-        self.annotationComboBox.clear()
-        self.annotationComboBox.addItems(self.annotationCodes)
-        self.annotationComboBox.setCurrentIndex(self.annotationIndex)
-        self.__state = OWGOEnrichmentAnalysis.Ready
+        try:
+            self.annotationFiles = listAvailable()
+        except ConnectTimeout:
+            self.error(2, "Internet connection error, unable to load data. " + \
+                          "Check connection and create a new GO Browser widget.")
+            self.filterTab.setEnabled(False)
+            self.inputTab.setEnabled(False)
+            self.selectTab.setEnabled(False)
+            self.listView.setEnabled(False)
+            self.sigTerms.setEnabled(False)
+        else:
+            self.annotationCodes = sorted(self.annotationFiles.keys())
+            self.annotationComboBox.clear()
+            self.annotationComboBox.addItems(self.annotationCodes)
+            self.annotationComboBox.setCurrentIndex(self.annotationIndex)
+            self.__state = OWGOEnrichmentAnalysis.Ready
 
     def __on_evidenceChanged(self):
         for etype, cb in self.evidenceCheckBoxDict.items():
@@ -403,7 +416,8 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         super().handleNewSignals()
 
     def _updateEnrichment(self):
-        if self.clusterDataset is not None:
+        if self.clusterDataset is not None and \
+                self.__state == OWGOEnrichmentAnalysis.Ready:
             pb = gui.ProgressBar(self, 100)
             self.Load(pb=pb)
             graph = self.Enrichment(pb=pb)
@@ -452,54 +466,56 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             self.send("Data on Unknown Genes", None)
 
     def Load(self, pb=None):
-        go_files, tax_files = serverfiles.listfiles("GO"), serverfiles.listfiles("Taxonomy")
-        calls = []
-        pb, finish = (gui.ProgressBar(self, 0), True) if pb is None else (pb, False)
-        count = 0
-        if not tax_files:
-            calls.append(("Taxonomy", "ncbi_taxnomy.tar.gz"))
-            count += 1
-        org = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
-        if org != self.loadedAnnotationCode:
-            count += 1
-            if self.annotationFiles[org] not in go_files:
-                calls.append(("GO", self.annotationFiles[org]))
+
+        if self.__state == OWGOEnrichmentAnalysis.Ready:
+            go_files, tax_files = serverfiles.listfiles("GO"), serverfiles.listfiles("Taxonomy")
+            calls = []
+            pb, finish = (gui.ProgressBar(self, 0), True) if pb is None else (pb, False)
+            count = 0
+            if not tax_files:
+                calls.append(("Taxonomy", "ncbi_taxnomy.tar.gz"))
                 count += 1
+            org = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
+            if org != self.loadedAnnotationCode:
+                count += 1
+                if self.annotationFiles[org] not in go_files:
+                    calls.append(("GO", self.annotationFiles[org]))
+                    count += 1
 
-        if "gene_ontology_edit.obo.tar.gz" not in go_files:
-            calls.append(("GO", "gene_ontology_edit.obo.tar.gz"))
-            count += 1
-        if not self.ontology:
-            count += 1
-        pb.iter += count * 100
+            if "gene_ontology_edit.obo.tar.gz" not in go_files:
+                calls.append(("GO", "gene_ontology_edit.obo.tar.gz"))
+                count += 1
+            if not self.ontology:
+                count += 1
+            pb.iter += count * 100
 
-        for args in calls:
-            serverfiles.localpath_download(*args, **dict(callback=pb.advance))
+            for args in calls:
+                serverfiles.localpath_download(*args, **dict(callback=pb.advance))
 
-        i = len(calls)
-        if not self.ontology:
-            self.ontology = go.Ontology(progress_callback=lambda value: pb.advance())
-            i += 1
+            i = len(calls)
+            if not self.ontology:
+                self.ontology = go.Ontology(progress_callback=lambda value: pb.advance())
+                i += 1
 
-        if org != self.loadedAnnotationCode:
-            self.annotations = None
-            gc.collect()  # Force run garbage collection
-            code = self.annotationFiles[org].split(".")[-3]
-            self.annotations = go.Annotations(code, genematcher=gene.GMDirect(), progress_callback=lambda value: pb.advance())
-            i += 1
-            self.loadedAnnotationCode = org
-            count = defaultdict(int)
-            geneSets = defaultdict(set)
+            if org != self.loadedAnnotationCode:
+                self.annotations = None
+                gc.collect()  # Force run garbage collection
+                code = self.annotationFiles[org].split(".")[-3]
+                self.annotations = go.Annotations(code, genematcher=gene.GMDirect(), progress_callback=lambda value: pb.advance())
+                i += 1
+                self.loadedAnnotationCode = org
+                count = defaultdict(int)
+                geneSets = defaultdict(set)
 
-            for anno in self.annotations.annotations:
-                count[anno.evidence] += 1
-                geneSets[anno.evidence].add(anno.geneName)
-            for etype in go.evidenceTypesOrdered:
-                ecb = self.evidenceCheckBoxDict[etype]
-                ecb.setEnabled(bool(count[etype]))
-                ecb.setText(etype + ": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
-        if finish:
-            pb.finish()
+                for anno in self.annotations.annotations:
+                    count[anno.evidence] += 1
+                    geneSets[anno.evidence].add(anno.geneName)
+                for etype in go.evidenceTypesOrdered:
+                    ecb = self.evidenceCheckBoxDict[etype]
+                    ecb.setEnabled(bool(count[etype]))
+                    ecb.setText(etype + ": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
+            if finish:
+                pb.finish()
 
     def SetGeneMatcher(self):
         if self.annotations:
