@@ -224,7 +224,7 @@ class OWGEODatasets(OWWidget):
 
         box = gui.widgetBox(self.controlArea, "Output", addSpace=True)
         gui.radioButtonsInBox(box, self, "outputRows",
-                              ["Genes or spots", "Samples"], "Rows",
+                              ["Genes in rows", "Samples in row"], "Rows",
                               callback=self.commitIf)
 
         gui.checkBox(box, self, "mergeSpots", "Merge spots of same gene",
