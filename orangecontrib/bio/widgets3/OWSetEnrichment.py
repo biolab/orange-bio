@@ -285,7 +285,7 @@ class OWSetEnrichment(widget.OWWidget):
         self.setBlocking(True)
 
         task = EnsureDownloaded(
-            [("Taxonomy", "ncbi_taxonomy.tar.gz"),
+            [(taxonomy.Taxonomy.DOMAIN, taxonomy.Taxonomy.FILENAME),
              (geneset.sfdomain, "index.pck")]
         )
 
