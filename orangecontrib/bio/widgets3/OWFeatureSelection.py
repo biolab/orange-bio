@@ -762,7 +762,7 @@ class OWFeatureSelection(widget.OWWidget):
             self.error(
                 1, "Cannot compute gene scores! Differential expression "
                    "widget requires a data-set with a discrete class "
-                   "variable(s) or attribute labels!"
+                   "variable(s) or column labels!"
             )
             self.data = None
 

@@ -474,7 +474,7 @@ class OWGenExpress(widget.OWWidget):
                      "Logarithmic (base 2) transformation")
 
         gui.checkBox(self.controlArea, self, "transpose",
-                     "Genes as attributes")
+                     "Genes as columns")
 
         self.commit_button = gui.button(self.controlArea, self, "&Commit",
                                         callback=self.Commit)

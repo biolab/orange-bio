@@ -583,7 +583,7 @@ class OWSetEnrichment(widget.OWWidget):
         self.error(0)
 
         if not self.genesinrows and len(self.geneAttrs) == 0:
-            self.error(0, "Input data contains no attributes with gene names")
+            self.error(0, "Input data contains no columns with gene names")
             return
 
         self.__state = OWSetEnrichment.RunningEnrichment

@@ -153,7 +153,7 @@ class OWGenotypeDistances(widget.OWWidget):
         self.error(0)
         self.warning(0)
         if data and not self.get_suitable_keys(data):
-            self.error(0, "Data has no suitable attribute labels.")
+            self.error(0, "Data has no suitable column labels.")
             data = None
 
         self.data = data
@@ -251,7 +251,7 @@ class OWGenotypeDistances(widget.OWWidget):
 
         self.warning(0)
         if not separate_keys:
-            self.warning(0, "No separate by attribute selected.")
+            self.warning(0, "No separate by column selected.")
 
         partitions, uniquepos = separate_by(
             self.data, separate_keys, consider=relevant_keys)
