@@ -247,7 +247,7 @@ class OWGeneInfo(widget.OWWidget):
         box = gui.widgetBox(self.controlArea, "Gene names", addSpace=True)
         self.geneAttrComboBox = gui.comboBox(
             box, self, "gene_attr",
-            "Gene atttibute", callback=self.updateInfoItems
+            "Gene attribute", callback=self.updateInfoItems
         )
         self.geneAttrComboBox.setEnabled(not self.useAttr)
         cb = gui.checkBox(box, self, "useAttr", "Use attribute names",
