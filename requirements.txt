@@ -2,7 +2,7 @@ setuptools
 numpy
 scipy
 six
-Orange
 genesis-pyapi>=1.1.2
 slumber>=0.7.1
 requests>=2.6.0
+Orange
