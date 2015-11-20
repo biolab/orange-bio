@@ -7,6 +7,13 @@ bioinformatics, like gene set analysis, enrichment, and access to pathway
 libraries. Included are also widgets for with graphical user interface
 for, mainly, gene expression analytics.
 
+Orange Bioinformatics provides access to publicly available data, like GEO data
+sets, Biomart, GO, KEGG, Atlas, ArrayExpress, and PIPAx database. As for the
+analytics, there is gene selection, quality control, scoring distances between
+experiments with multiple factors. All features can be combined with powerful
+visualization, network exploration and data mining techniques from the Orange
+data mining framework.
+
 .. _Orange: http://orange.biolab.si/
 
 Widgets
