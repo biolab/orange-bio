@@ -84,7 +84,8 @@ class UpdateOptionsWidget(QWidget):
         layout.addWidget(self.checkButton)
         self.setLayout(layout)
 
-        self.setMaximumHeight(30)
+        self.setMinimumHeight(20)
+        self.setMaximumHeight(20)
 
         self.state = -1
         self.setState(state)
@@ -482,16 +483,18 @@ class OWDatabasesUpdate(OWWidget):
             box, self, "Cancel", callback=self.Cancel,
             tooltip="Cancel scheduled downloads/updates."
         )
+
+        self.retryButton = gui.button(
+            box, self, "Reconnect", callback=self.RetrieveFilesList
+        )
+        self.retryButton.hide()
+
         gui.rubber(box)
 
         gui.lineEdit(box, self, "accessCode", "Access Code",
                      orientation="horizontal",
                      callback=self.RetrieveFilesList)
 
-        self.retryButton = gui.button(
-            box, self, "Retry", callback=self.RetrieveFilesList
-        )
-        self.retryButton.hide()
         self.warning(0)
 
         box = gui.widgetBox(self.controlArea, orientation="horizontal")
@@ -585,7 +588,8 @@ class OWDatabasesUpdate(OWWidget):
                 button = QToolButton(
                     None, text="Update",
                     maximumWidth=120,
-                    maximumHeight=30
+                    minimumHeight=20,
+                    maximumHeight=20
                 )
 
                 if sys.platform == "darwin":
@@ -636,7 +640,7 @@ class OWDatabasesUpdate(OWWidget):
         if isinstance(exception, ConnectionError):
             self.warning(0,
                        "Could not connect to server! Check your connection "
-                       "and try again.")
+                       "and try to reconnect.")
             self.SetFilesList({})
             self.retryButton.show()
         else:
@@ -661,6 +665,7 @@ class OWDatabasesUpdate(OWWidget):
         self.infoLabel.setText(text)
 
     def UpdateAll(self):
+        self.warning(0)
         for item, tree_item, _ in self.updateItems:
             if item.state == OUTDATED and not tree_item.isHidden():
                 self.SubmitDownloadTask(item.domain, item.filename)
@@ -756,14 +761,30 @@ class OWDatabasesUpdate(OWWidget):
             opt_widget.setState(item.state)
 
             # Show the exception string in the size column.
-            tree_item.setData(
-                2, Qt.DisplayRole,
-                "Error occurred while downloading: " + str(future.exception())
+            self.warning(0, "Error while downloading. Check your connection "
+                            "and retry.")
+
+            # recreate button for download
+            button = QToolButton(
+                None, text="Retry",
+                maximumWidth=120,
+                minimumHeight=20,
+                maximumHeight=20
             )
-            self.warning(0, "Error while downloading. Check your connection.")
+
+            if sys.platform == "darwin":
+                button.setAttribute(Qt.WA_MacSmallSize)
+
+            button.clicked.connect(
+                partial(self.SubmitDownloadTask, item.domain,
+                        item.filename)
+            )
+
+            self.filesView.setItemWidget(tree_item, 2, button)
 
         else:
             # get the new updated info dict and replace the the old item
+            self.warning(0)
             info = serverfiles.info(item.domain, item.filename)
             new_item = update_item_from_info(item.domain, item.filename,
                                              info, info)
@@ -810,26 +831,21 @@ class OWDatabasesUpdate(OWWidget):
     def onDownloadFinished(self):
         # on download completed/canceled/error
         assert QThread.currentThread() is self.thread()
-        ex_occured = False
         for task in list(self._tasks):
             future = task.future()
             if future.done():
                 self.EndDownloadTask(task)
                 self._tasks.remove(task)
-            if future.exception():
-                ex_occured = True
 
         if not self._tasks:
             # Clear/reset the overall progress
             self.progress.setRange(0, 0)
-
             self.cancelButton.setEnabled(False)
-
-            if not ex_occured:
-                self.warning(0)
 
     def onDownloadError(self, exc_info):
         sys.excepthook(*exc_info)
+        self.warning(0, "Error while downloading. Check your connection and "
+                        "retry.")
 
     def updateItemIndex(self, domain, filename):
         for i, (item, _, _) in enumerate(self.updateItems):
