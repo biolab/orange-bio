@@ -122,20 +122,20 @@ def enrichmentScoreRanked(subset, lcor, ordered, p=1.0, rev2=None):
 
     """
     #BY DEFINITION
-    print "subset", subset
+    print("subset", subset)
 
     for i in ordered:
         ess.append(ess[-1] + \
             (inAb*abs(lcor[i]**p) if i in subset else notInA)
         )
         if i in subset:
-            print ess[-2], ess[-1]
-            print i, (inAb*abs(lcor[i]**p))
+            print(ess[-2], ess[-1])
+            print(i, (inAb*abs(lcor[i]**p)))
 
     maxEs = max(ess)
     minEs = min(ess)
     
-    print "REAL", (maxEs if abs(maxEs) > abs(minEs) else minEs, ess[1:])
+    print("REAL", (maxEs if abs(maxEs) > abs(minEs) else minEs, ess[1:]))
 
     """
     return (maxSum if abs(maxSum) > abs(minSum) else minSum, [])
@@ -450,9 +450,9 @@ def gseaSignificance(enrichmentScores, enrichmentNulls):
         diffs = [ l1[i]-l2[i] for i in range(len(l1)) ]
         sumd = sum( [ abs(a) for a in diffs ] )
         if sumd > 0:
-            print nes > 0
-            print "orig", l1
-            print "modi", l2
+            print(nes > 0)
+            print("orig", l1)
+            print("modi", l2)
         """
 
         try:
@@ -859,7 +859,7 @@ class GSEA(object):
         self.organism = organism
 
         if organism != None:
-            print "WARNING: obiGsea - organism and caseSensitive parameters are deprecated. Use matcher instead."
+            print("WARNING: obiGsea - organism and caseSensitive parameters are deprecated. Use matcher instead.")
 
         self.gsweights = {}
         self.namesToIndices = None
@@ -877,7 +877,7 @@ class GSEA(object):
         if self.gm == None: #build a gene matcher, if if does not exists
             self.gm = obiGene.matcher([obiGene.GMKEGG(self.organism, ignore_case=not caseSensitive)], 
                 ignore_case=not caseSensitive, direct=True)
-            print "WARNING: gene matcher build automatically for organism: " + self.organism
+            print("WARNING: gene matcher build automatically for organism: " + self.organism)
         
         self.gm.set_targets(attrnames)
 
@@ -1138,6 +1138,6 @@ if  __name__=="__main__":
     data = orange.ExampleTable("/home/marko/t_gsea1.tab")
     gen1 = obiGeneSets.collections((("KEGG",), "352472"))
     out = runGSEA(data, n=10, geneSets=gen1, permutation="gene", atLeast=3, matcher=matcher, phenVar="growth")
-    print out
-    print "\n".join(map(str,sorted(out.items())))
+    print(out)
+    print("\n".join(map(str,sorted(out.items()))))
     
