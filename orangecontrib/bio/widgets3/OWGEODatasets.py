@@ -637,7 +637,7 @@ class OWGEODatasets(OWWidget):
         self.selectionChanged = False
 
     def splitterMoved(self, *args):
-        self.splitterSettings = [str(sp.saveState()) for sp in self.splitters]
+        self.splitterSettings = [bytes(sp.saveState()) for sp in self.splitters]
 
     def onDeleteWidget(self):
         if self._inittask:
