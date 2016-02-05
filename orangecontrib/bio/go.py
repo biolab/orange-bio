@@ -1488,7 +1488,8 @@ class Taxonomy(object):
                 "4896": "GeneDB_Spombe",  # Schizosaccharomyces pombe
                 "31033": None,  # Takifugu rubripes
                 "8355": None,  # Xenopus laevis
-                "4577": None  # Zea mays
+                "4577": None,  # Zea mays
+                "5476": "cgd",
                 }
     version = 1
     __shared_state = {"tax": None}

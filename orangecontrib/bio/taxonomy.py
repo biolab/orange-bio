@@ -37,7 +37,8 @@ _COMMON_NAMES = (
     ("4896",   "Schizosaccharomyces pombe"),
     ("31033",  "Takifugu rubripes"),
     ("8355",   "Xenopus laevis"),
-    ("4577",   "Zea mays")
+    ("4577",   "Zea mays"),
+    ("5476",   "Candida albicans")
 )
 
 _COMMON_NAMES_MAPPING = dict(_COMMON_NAMES)

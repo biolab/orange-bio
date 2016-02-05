@@ -117,7 +117,9 @@ for org in list_available_organisms():
     if org in exclude or org not in commonOrgs:
         continue
 
-    if web_org_mtime(org) <= sf_org_mtime(org):
+    print "Query", org
+
+    if 1 and web_org_mtime(org) <= sf_org_mtime(org):
         # Skip update
         continue
 
