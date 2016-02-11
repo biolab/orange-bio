@@ -136,13 +136,13 @@ class Organism(object):
 
         .. note::
 
-            This only includes 'ncbi-geneid' and 'ncbi-gi' records
+            This only includes 'ncbi-geneid' and 'ncbi-proteinid' records
             from the KEGG Genes DBLINKS entries.
 
         """
         definitions = self.api.list(self.org_code)
         ncbi_geneid = self.api.conv(self.org_code, "ncbi-geneid")
-        ncbi_gi = self.api.conv(self.org_code, "ncbi-gi")
+        ncbi_gi = self.api.conv(self.org_code, "ncbi-proteinid")
 
         aliases = defaultdict(set)
 
