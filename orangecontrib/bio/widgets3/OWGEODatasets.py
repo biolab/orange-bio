@@ -743,7 +743,7 @@ else:
                 os.remove(dst)
                 os.rename(src)
     else:
-        _os_replace = os.replace
+        _os_replace = os.rename
 
 
 def gds_is_cached(gdsname):
@@ -772,13 +772,15 @@ def gds_download(gdsname, progress=None):
        prefix=basename + "-", dir=GDS_CACHE_DIR, delete=False)
     try:
         retrieve_url(gdsurl, temp, progress=progress)
-    except BaseException:
+    except BaseException as err:
         try:
+            temp.close()
             os.remove(temp.name)
-        except OSError:
+        except (OSError, IOError):
             pass
-        raise
+        raise err
     else:
+        temp.close()
         _os_replace(temp.name, targetpath)
 
 
