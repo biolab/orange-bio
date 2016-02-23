@@ -122,7 +122,7 @@ class GraphicsPathwayItem(QGraphicsPixmapItem):
                 continue
             graphics = entry.graphics
             contained_objects = [obj for obj in objects if obj in entry.name]
-            item = EntryGraphicsItem(graphics, self, self.scene())
+            item = EntryGraphicsItem(graphics, self)
             item.setToolTip(self.tooltip(entry, contained_objects,
                                          name_mapper))
             item._actions = self.actions(entry, contained_objects)
@@ -178,7 +178,8 @@ class PathwayView(QGraphicsView):
 
         self.setRenderHints(QPainter.Antialiasing)
         scene = QGraphicsScene(self)
-        self.pixmapGraphicsItem = QGraphicsPixmapItem(None, scene)
+        self.pixmapGraphicsItem = QGraphicsPixmapItem(None)
+        scene.addItem(self.pixmapGraphicsItem)
         self.setScene(scene)
 
         self.setMouseTracking(True)
