@@ -983,7 +983,7 @@ class OWFeatureSelection(widget.OWWidget):
         validmask = np.isfinite(scores)
         validscores = scores[validmask]
 
-        nbins = max(np.sqrt(len(validscores)), 20)
+        nbins = int(max(np.ceil(np.sqrt(len(validscores))), 20))
         freq, edges = np.histogram(validscores, bins=nbins)
         self.histogram.setHistogramCurve(
             pg.PlotCurveItem(x=edges, y=freq, stepMode=True,
