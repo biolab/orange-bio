@@ -888,7 +888,7 @@ class OBOOntology(object):
         Return a NetworkX graph of this ontology.
         """
         import networkx
-        graph = networkx.Graph()
+        graph = networkx.DiGraph()
 
         edge_types = self.edge_types()
 
