@@ -199,7 +199,7 @@ class OWGEODatasets(OWWidget):
                     "splitterSettings", "currentGds", "autoCommit",
                     "datasetNames"]
 
-    outputRows = Setting(False)
+    outputRows = Setting(True)
     mergeSpots = Setting(True)
     gdsSelectionStates = Setting({})
     currentGds = Setting(None)
@@ -224,7 +224,7 @@ class OWGEODatasets(OWWidget):
 
         box = gui.widgetBox(self.controlArea, "Output", addSpace=True)
         gui.radioButtonsInBox(box, self, "outputRows",
-                              ["Genes in rows", "Samples in row"], "Rows",
+                              ["Genes in rows", "Samples in rows"], "Rows",
                               callback=self.commitIf)
 
         gui.checkBox(box, self, "mergeSpots", "Merge spots of same gene",

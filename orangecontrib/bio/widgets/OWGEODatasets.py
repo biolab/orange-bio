@@ -176,7 +176,7 @@ class OWGEODatasets(OWWidget):
         self.includeIf = False
         self.minSamples = 3
         self.autoCommit = False
-        self.outputRows = 0
+        self.outputRows = 1
         self.mergeSpots = True
         self.filterString = ""
         self.currentGds = None
