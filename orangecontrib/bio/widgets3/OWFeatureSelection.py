@@ -577,6 +577,8 @@ class OWFeatureSelection(widget.OWWidget):
     #: Stored (persistent) values selection for all target split groups.
     stored_selections = settings.ContextSetting([])
 
+    graph_name = 'histogram.plotItem'
+
     def __init__(self, parent=None):
         widget.OWWidget.__init__(self, parent)
 
@@ -1258,6 +1260,9 @@ class OWFeatureSelection(widget.OWWidget):
         self.send("Data subset", subsetdata)
         self.send("Remaining data subset", remainingdata)
         self.send("Selected genes", None)
+
+    def send_report(self):
+        self.report_plot()
 
     def onDeleteWidget(self):
         super().onDeleteWidget()
