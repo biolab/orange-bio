@@ -430,8 +430,6 @@ class OWVolcanoPlot(widget.OWWidget):
     inputs = INPUTS
     outputs = OUTPUTS
 
-    want_save_graph = False
-
     settingsHandler = SetContextHandler()
 
     symbol_size = settings.Setting(5)
@@ -441,6 +439,8 @@ class OWVolcanoPlot(widget.OWWidget):
     current_group_index = settings.ContextSetting(-1)
     #: stored selection indices (List[int]) for every split group.
     stored_selections = settings.ContextSetting([])
+
+    graph_name = "graph.plotItem"
 
     def __init__(self, parent=None):
         widget.OWWidget.__init__(self, parent)
@@ -737,6 +737,14 @@ class OWVolcanoPlot(widget.OWWidget):
             if event.type() == QEvent.GraphicsSceneHelp:
                 return self._handleHelpEvent(event)
         return super().eventFilter(obj, event)
+
+    def send_report(self):
+        group, selection = self.selected_split()
+        self.report_plot()
+        if group:
+            target = group.name
+            values = ", ".join(numpy.array(group.values)[selection])
+            self.report_caption("{var} = {value}".format(var=target, value=values))
 
 
 def test_main():
