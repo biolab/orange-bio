@@ -128,6 +128,8 @@ class OWDisplayProfiles(widget.OWWidget):
     annot_index = settings.ContextSetting(0)
     auto_commit = settings.Setting(True)
 
+    graph_name = 'graph.plotItem'
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -376,6 +378,9 @@ class OWDisplayProfiles(widget.OWWidget):
             subset = self.data[self.__selected_data_indices]
 
         self.send("Selected Data", subset)
+
+    def send_report(self):
+        self.report_plot()
 
 
 def test_main(argv=sys.argv):
