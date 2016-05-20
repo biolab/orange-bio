@@ -639,6 +639,24 @@ class OWGEODatasets(OWWidget):
     def splitterMoved(self, *args):
         self.splitterSettings = [bytes(sp.saveState()) for sp in self.splitters]
 
+    def send_report(self):
+        self.report_items("GEO Dataset",
+                          [("ID", self.currentGds['dataset_id']), ("Title", self.currentGds['title']),
+                           ("Organism", self.currentGds['sample_organism'])])
+        self.report_items("Data", [("Samples", self.currentGds['sample_count']),
+                                   ("Features", self.currentGds['feature_count']),
+                                   ("Genes", self.currentGds['gene_count'])])
+        self.report_name("Sample annotations")
+        subsets = defaultdict(list)
+        for subset in self.currentGds['subsets']:
+            subsets[subset['type']].append((subset['description'], len(subset['sample_id'])))
+        self.report_html += "<ul>"
+        for type in subsets:
+            self.report_html += "<b>" + type + ":</b></br>"
+            for desc, count in subsets[type]:
+                self.report_html += 9 * "&nbsp" + "<b>{}:</b> {}</br>".format(desc, count)
+        self.report_html += "</ul>"
+
     def onDeleteWidget(self):
         if self._inittask:
             self._inittask.future().cancel()
