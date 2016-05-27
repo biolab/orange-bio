@@ -128,6 +128,8 @@ class OWDisplayProfiles(widget.OWWidget):
     annot_index = settings.ContextSetting(0)
     auto_commit = settings.Setting(True)
 
+    graph_name = 'graph.plotItem'
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -169,6 +171,7 @@ class OWDisplayProfiles(widget.OWWidget):
         self.graph.scene().selectionChanged.connect(
             self.__on_curve_selection_changed)
         self.mainArea.layout().addWidget(self.graph)
+        self.legend = None
 
     def sizeHint(self):
         return QtCore.QSize(800, 600)
@@ -231,6 +234,8 @@ class OWDisplayProfiles(widget.OWWidget):
         """Setup the plot with new curve data."""
         assert self.data is not None
 
+        legend = self.graph.plotItem.addLegend(offset=(-30, 30))
+
         data, domain = self.data, self.data.domain
         if is_discrete(domain.class_var):
             class_col_data, _ = data.get_column_view(domain.class_var)
@@ -291,6 +296,7 @@ class OWDisplayProfiles(widget.OWWidget):
             self.graph.addItem(hc)
 
             self.graph.addItem(meancurve)
+            legend.addItem(meancurve, "&nbsp; {}".format(self.classes[i]))
             q1, q2, q3 = np.nanpercentile(group_data.X, [25, 50, 75], axis=0)
             # TODO: implement and use a box plot item
             errorbar = pg.ErrorBarItem(
@@ -376,6 +382,9 @@ class OWDisplayProfiles(widget.OWWidget):
             subset = self.data[self.__selected_data_indices]
 
         self.send("Selected Data", subset)
+
+    def send_report(self):
+        self.report_plot()
 
 
 def test_main(argv=sys.argv):
