@@ -70,7 +70,7 @@ SETUP_REQUIRES = (
 )
 
 INSTALL_REQUIRES = (
-    'Orange',
+    'Orange' '3' if sys.version_info > (3, ) else '',
     'setuptools',
     'numpy',
     'scipy',
