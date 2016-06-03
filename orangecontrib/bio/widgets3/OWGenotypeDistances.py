@@ -10,8 +10,8 @@ import numpy
 from PyQt4.QtGui import (
     QWidget, QVBoxLayout, QLabel, QHeaderView, QListView, QScrollArea,
     QSizePolicy, QColor, QPalette, QStandardItemModel, QStandardItem,
-    QItemSelectionModel, QItemSelection
-)
+    QItemSelectionModel, QItemSelection,
+    QSpacerItem, QWidgetItem)
 from PyQt4.QtCore import Qt, QSize
 
 import Orange.data
@@ -338,7 +338,7 @@ class OWGenotypeDistances(widget.OWWidget):
         for separatev, domain in [(None, for_print(relevant_items))] + groups:
             label = None
             if separatev is not None:
-                ann_vals = " <b>|</b> ".join(["<b>{0}</ b> = {1}".format(key,val) \
+                ann_vals = " <b>|</b> ".join(["<b>{0}</b> = {1}".format(key,val) \
                      for key, val in zip(keys, separatev)])
                 label = QLabel(ann_vals)
 
@@ -476,6 +476,31 @@ class OWGenotypeDistances(widget.OWWidget):
             data = None
         self.send("Sorted Data", data)
         self.send("Distances", self.matrix)
+
+    def send_report(self):
+        self.report_items((
+            ("Separate By", ", ".join(self.selected_separeate_by_keys())),
+            ("Sort By", ", ".join(self.selected_relevant_keys())),
+            ("Distance Measure", self.DISTANCE_FUNCTIONS[self.distance_measure][0])
+        ))
+        layout = self.groups_scroll_area.widget().layout()
+        html = "<table>"
+        for i in range(layout.count()):
+            item = layout.itemAt(i)
+            if isinstance(item, QSpacerItem):
+                html += "<tr><td></td></tr>"
+            elif isinstance(item, QWidgetItem):
+                hor = item.widget()
+                if isinstance(hor, QLabel):
+                    label = hor.text()
+                    html += "<tr><td><b>%s</b></td></tr>" % label
+                elif isinstance(hor, QHeaderView):
+                    model = hor.model()
+                    content = (model.horizontalHeaderItem(col) for col in range(model.columnCount()))
+                    content = (item.text().replace('\n', "<br/>") for item in content)
+                    html += "<tr>" + ''.join("<td>{}</td>".format(item) for item in content) + "</tr>"
+        html += "</table>"
+        self.report_raw("Groups", html)
 
 
 def test_main(argv=sys.argv):
