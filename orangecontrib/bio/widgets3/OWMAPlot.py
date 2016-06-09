@@ -4,9 +4,9 @@ import os
 from functools import partial, reduce
 
 import numpy
-from PyQt4.QtGui import QPainter
-from PyQt4.QtCore import QObject, QSize, QThread, QThreadPool
-from PyQt4.QtCore import pyqtSlot as Slot
+from AnyQt.QtGui import QPainter
+from AnyQt.QtCore import QObject, QSize, QThread, QThreadPool, Slot
+
 import pyqtgraph as pg
 
 import Orange.data
@@ -536,7 +536,7 @@ class OWMAPlot(widget.OWWidget):
 
 
 def test_main(argv=sys.argv):
-    from PyQt4.QtGui import QApplication
+    from AnyQt.QtWidgets import QApplication
     if len(argv) > 1:
         filename = argv[1]
     else:

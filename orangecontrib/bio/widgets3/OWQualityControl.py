@@ -8,14 +8,14 @@ from xml.sax.saxutils import escape
 import numpy
 import scipy.stats
 
-from PyQt4 import QtGui
-from PyQt4.QtGui import (
-    QListView, QGraphicsView, QGraphicsScene, QPainter, QItemSelectionModel,
-    QSizePolicy, QColor, QPen, QGraphicsGridLayout, QGraphicsSimpleTextItem,
-    QGraphicsWidget
+from AnyQt.QtWidgets import (
+    QListView, QGraphicsView, QGraphicsScene, QSizePolicy,
+    QGraphicsGridLayout, QGraphicsLayoutItem, QGraphicsSimpleTextItem,
+    QGraphicsWidget, QGraphicsLineItem
 )
+from AnyQt.QtGui import QPainter, QColor, QPen
+from AnyQt.QtCore import Qt, QEvent, QSizeF, QItemSelectionModel
 
-from PyQt4.QtCore import Qt, QEvent, QSizeF
 import Orange
 from Orange.widgets import widget, gui, settings
 from Orange.widgets.utils import itemmodels
@@ -603,7 +603,7 @@ class OWQualityControl(widget.OWWidget):
         self.on_view_resize(self.scene_view.size())
 
 
-class GraphicsSimpleTextLayoutItem(QtGui.QGraphicsLayoutItem):
+class GraphicsSimpleTextLayoutItem(QGraphicsLayoutItem):
     """ A Graphics layout item wrapping a QGraphicsSimpleTextItem alowing it
     to be managed by a layout.
 
@@ -723,9 +723,9 @@ class RugGraphicsWidget(QGraphicsWidget):
         self.update_rug_geometry()
 
 
-class RugItem(QtGui.QGraphicsLineItem):
+class RugItem(QGraphicsLineItem):
     def __init__(self, value, height):
-        QtGui.QGraphicsLineItem.__init__(self)
+        QGraphicsLineItem.__init__(self)
         self.value = value
         self.height = height
 
@@ -760,13 +760,14 @@ class ClickableRugItem(RugItem):
 
 
 def test_main(argv=sys.argv):
+    from AnyQt.QtWidgets import QApplication
     if len(argv) > 1:
         filename = argv[1]
     else:
         filename = "GDS624.tab"
     data = Orange.data.Table(filename)
 
-    app = QtGui.QApplication(argv)
+    app = QApplication(argv)
     w = OWQualityControl()
     w.set_data(data)
     w.handleNewSignals()

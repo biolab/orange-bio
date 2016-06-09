@@ -1,12 +1,13 @@
 import sys
 import itertools
 
-from PyQt4.QtCore import pyqtSignal as Signal
 
 if sys.version_info < (3,):
+    from PyQt4.QtCore import pyqtSignal as Signal
     from Orange.utils import serverfiles
     from Orange.OrangeWidgets.OWConcurrent import Task
 else:
+    from AnyQt.QtCore import Signal
     from ...utils import serverfiles
     from Orange.widgets.utils.concurrent import Task
 

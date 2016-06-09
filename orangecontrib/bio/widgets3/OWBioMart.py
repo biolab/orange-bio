@@ -7,15 +7,18 @@ import itertools
 
 import six
 
-from PyQt4.QtGui import (
+from AnyQt.QtWidgets import (
     QWidget, QComboBox, QListView, QLineEdit, QPlainTextEdit, QRadioButton,
-    QButtonGroup, QGroupBox, QCheckBox, QLabel, QFrame, QTabWidget, QSizePolicy,
-    QGridLayout, QVBoxLayout, QHBoxLayout, QStackedLayout,
-    QStringListModel, QItemSelectionModel,
-    QRegExpValidator
+    QButtonGroup, QGroupBox, QCheckBox, QLabel, QFrame, QTabWidget,
+    QSizePolicy, QGridLayout, QVBoxLayout, QHBoxLayout, QStackedLayout,
 )
-from PyQt4.QtCore import Qt, QObject, QRegExp, QModelIndex, QThread, QThreadPool, QSize
-from PyQt4.QtCore import pyqtSlot as Slot
+from AnyQt.QtGui import QRegExpValidator
+
+from AnyQt.QtCore import (
+    Qt, QObject, QRegExp, QModelIndex, QThread, QThreadPool, QSize,
+    QStringListModel, QItemSelectionModel
+)
+from AnyQt.QtCore import Slot
 
 import Orange
 
@@ -917,14 +920,13 @@ class OWBioMart(widget.OWWidget):
 
 
 def test_main(argv=sys.argv):
-    from PyQt4.QtGui import QApplication
-    app = QApplication(sys.argv)
+    from AnyQt.QtWidgets import QApplication
+    app = QApplication(list(argv))
+
     ow = OWBioMart()
     ow.show()
     ow.raise_()
 
-    data = Orange.data.Table("brown-selected")
-    ow.setData(data)
     r = app.exec_()
     ow.saveSettings()
     return r

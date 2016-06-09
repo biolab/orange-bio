@@ -11,18 +11,19 @@ from xml.sax.saxutils import escape
 
 from contextlib import contextmanager
 
-from PyQt4.QtGui import (
-    QFrame, QHBoxLayout, QPlainTextEdit, QSyntaxHighlighter, QTextCharFormat,
-    QTextCursor, QCompleter, QStandardItemModel, QSortFilterProxyModel,
-    QStandardItem, QListView, QTreeView, QStyle, QStyledItemDelegate,
-    QStyleOptionViewItemV4, QPalette, QColor, QApplication, QAction,
-    QToolButton, QItemSelectionModel, QPlainTextDocumentLayout, QTextDocument,
-    QRadioButton, QButtonGroup, QStyleOptionButton, QMenu, QDialog,
-    QStackedWidget, QComboBox, QFileDialog
+from AnyQt.QtWidgets import (
+    QFrame, QHBoxLayout, QPlainTextEdit, QPlainTextDocumentLayout,
+    QCompleter, QListView, QTreeView, QAction, QToolButton, QRadioButton,
+    QButtonGroup, QMenu, QDialog, QStackedWidget, QComboBox, QFileDialog,
+    QStyle, QStyledItemDelegate, QStyleOptionViewItem, QStyleOptionButton,
+    QApplication
 )
-
-from PyQt4.QtCore import Qt, QEvent, QThread
-from PyQt4.QtCore import pyqtSignal as Signal
+from AnyQt.QtGui import (
+    QSyntaxHighlighter, QTextCursor, QTextCharFormat, QTextDocument,
+    QStandardItemModel, QStandardItem, QPalette, QColor
+)
+from AnyQt.QtCore import QSortFilterProxyModel, QItemSelectionModel
+from AnyQt.QtCore import Qt, QEvent, QThread, Signal
 
 import Orange
 
@@ -64,7 +65,7 @@ class SaveSlot(QStandardItem):
 class SavedSlotDelegate(QStyledItemDelegate):
 
     def paint(self, painter, option, index):
-        option = QStyleOptionViewItemV4(option)
+        option = QStyleOptionViewItem(option)
         self.initStyleOption(option, index)
 
         modified = bool(index.data(SaveSlot.ModifiedRole))
@@ -1315,11 +1316,10 @@ def is_printable(unichar):
 
 import itertools
 
-from PyQt4.QtGui import (
+from AnyQt.QtWidgets import (
     QVBoxLayout, QLineEdit, QDialogButtonBox, QProgressBar, QSizePolicy
 )
-
-from PyQt4.QtCore import QSize
+from AnyQt.QtCore import QSize
 from orangecontrib.bio import geneset as genesets
 from orangecontrib.bio.utils import serverfiles
 

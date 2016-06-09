@@ -1,9 +1,8 @@
 import sys
 from collections import namedtuple
 
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import pyqtSlot as Slot
-
+from AnyQt.QtWidgets import QSizePolicy, QLayout
+from AnyQt.QtCore import Slot
 
 import Orange.data
 
@@ -107,8 +106,8 @@ class OWGeneNetwork(widget.OWWidget):
         box = gui.widgetBox(self.controlArea, "Commit")
         gui.button(box, self, "Retrieve", callback=self.commit, default=True)
 
-        self.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
-        self.layout().setSizeConstraint(QtGui.QLayout.SetFixedSize)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.layout().setSizeConstraint(QLayout.SetFixedSize)
 
         self.executor = ThreadExecutor()
 
@@ -223,7 +222,7 @@ class OWGeneNetwork(widget.OWWidget):
         self._invalidated = False
         self._update_info()
 
-    @Slot(object)
+    @Slot()
     def _on_result_ready(self,):
         self.progressBarFinished()
         self.setBlocking(False)
@@ -501,7 +500,7 @@ def extract_network(ppidb, query, geneinfo, include_neighborhood=True,
 
 
 def main():
-    from PyQt4.QtGui import QApplication
+    from AnyQt.QtWidgets import QApplication
     app = QApplication([])
     w = OWGeneNetwork()
     brown = Orange.data.Table("brown-selected")

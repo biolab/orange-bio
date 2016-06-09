@@ -4,15 +4,17 @@ import math
 from collections import defaultdict
 from datetime import date
 
-from PyQt4.QtGui import (
+from AnyQt.QtWidgets import (
     QAction, QHBoxLayout, QVBoxLayout, QWidget, QTreeWidget, QTreeWidgetItem,
-    QComboBox, QGridLayout, QFrame, QToolButton, QSizePolicy, QStyledItemDelegate,
-    QLineEdit, QCompleter, QListView,
-    QStringListModel, QStandardItemModel, QStandardItem, QSortFilterProxyModel,
-    QItemSelectionModel,
+    QComboBox, QGridLayout, QFrame, QToolButton, QSizePolicy,
+    QStyledItemDelegate, QLineEdit, QCompleter, QListView,
 )
-from PyQt4.QtCore import Qt, QSize, QTimer
-from PyQt4.QtCore import pyqtSignal as Signal
+from AnyQt.QtGui import QStandardItemModel, QStandardItem
+from AnyQt.QtCore import (
+    Qt, QSize, QTimer, QStringListModel, QSortFilterProxyModel,
+    QItemSelectionModel, Signal
+)
+
 import Orange.data
 from Orange.widgets import widget, gui, settings
 from Orange.widgets.utils.datacaching import data_hints
@@ -946,7 +948,7 @@ class OWPIPAx(widget.OWWidget):
 
 
 def test_main():
-    from PyQt4.QtGui import QApplication
+    from AnyQt.QtWidgets import QApplication
     app = QApplication(sys.argv)
     dicty.verbose = True
     w = OWPIPAx()

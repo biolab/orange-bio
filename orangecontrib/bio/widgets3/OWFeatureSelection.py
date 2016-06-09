@@ -5,16 +5,15 @@ Differential Gene Expression
 
 """
 import sys
-import copy
+
 from types import SimpleNamespace as namespace
 
 import numpy as np
 import scipy.stats
 import scipy.special
 
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import Qt
-from PyQt4.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
+from AnyQt.QtGui import QStandardItemModel, QPen
+from AnyQt.QtCore import Qt, QLineF, QSize, Signal, Slot
 
 import pyqtgraph as pg
 
@@ -211,7 +210,7 @@ class InfiniteLine(pg.InfiniteLine):
     def paint(self, painter, option, widget=None):
         brect = self.boundingRect()
         c = brect.center()
-        line = QtCore.QLineF(brect.left(), c.y(), brect.right(), c.y())
+        line = QLineF(brect.left(), c.y(), brect.right(), c.y())
         t = painter.transform()
         line = t.map(line)
         painter.save()
@@ -248,7 +247,7 @@ class Histogram(pg.PlotWidget):
         self.__max = 0
 
         def makeline(pos):
-            pen = QtGui.QPen(Qt.darkGray, 1)
+            pen = QPen(Qt.darkGray, 1)
             pen.setCosmetic(True)
             line = InfiniteLine(angle=90, pos=pos, pen=pen, movable=True)
             line.setCursor(Qt.SizeHorCursor)
@@ -263,11 +262,11 @@ class Histogram(pg.PlotWidget):
 
         brush = pg.mkBrush((200, 200, 200, 180))
         self.__taillow = pg.PlotCurveItem(
-            fillLevel=0, brush=brush, pen=QtGui.QPen(Qt.NoPen))
+            fillLevel=0, brush=brush, pen=QPen(Qt.NoPen))
         self.__taillow.setVisible(False)
 
         self.__tailhigh = pg.PlotCurveItem(
-            fillLevel=0, brush=brush, pen=QtGui.QPen(Qt.NoPen))
+            fillLevel=0, brush=brush, pen=QPen(Qt.NoPen))
         self.__tailhigh.setVisible(False)
 
     def setData(self, hist, bins=None):
@@ -702,7 +701,7 @@ class OWFeatureSelection(widget.OWWidget):
         self._executor = concurrent.ThreadExecutor()
 
     def sizeHint(self):
-        return QtCore.QSize(800, 600)
+        return QSize(800, 600)
 
     def clear(self):
         """Clear the widget state.
@@ -729,7 +728,7 @@ class OWFeatureSelection(widget.OWWidget):
         modelitems = [guiutils.standarditem_from(obj)
                       for obj in col_targets + row_targets]
 
-        model = QtGui.QStandardItemModel()
+        model = QStandardItemModel()
         for item in modelitems:
             model.appendRow(item)
 
@@ -1330,7 +1329,8 @@ class Test_f_oneway(unittest.TestCase):
 
 
 def test_main(argv=sys.argv):
-    app = QtGui.QApplication(argv)
+    from AnyQt.QtWidgets import QApplication
+    app = QApplication(argv)
     if len(argv) > 1:
         filename = argv[1]
     else:

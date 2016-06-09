@@ -3,15 +3,13 @@ import os
 import math
 import io
 import gzip
-import numpy as np
 
 from collections import defaultdict
 
-from PyQt4.QtGui import (
-    QSizePolicy, QTreeWidget, QTreeWidgetItem, QStringListModel, QLineEdit,
-    QApplication
+from AnyQt.QtWidgets import (
+    QSizePolicy, QTreeWidget, QTreeWidgetItem, QLineEdit,
 )
-from PyQt4.QtCore import Qt, QSize, QTimer
+from AnyQt.QtCore import Qt, QSize, QTimer, QStringListModel
 
 import requests
 import genesis
@@ -880,6 +878,7 @@ class OWGenExpress(widget.OWWidget):
 
 
 def test_main():
+    from AnyQt.QtWidgets import QApplication
     app = QApplication(sys.argv)
     dicty.verbose = True
     w = OWGenExpress()
