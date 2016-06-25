@@ -924,7 +924,8 @@ class OWSetEnrichment(widget.OWWidget):
         rows = self.annotationsChartView.selectionModel().selectedRows(0)
         selected = [model.item(index.row(), 0) for index in rows]
         mapped = reduce(operator.ior,
-                        (item.enrichment.query_mapped for item in selected),
+                        (set(item.enrichment.query_mapped)
+                         for item in selected),
                         set())
         assert self.state.namematcher.done()
         matcher = self.state.namematcher.result()

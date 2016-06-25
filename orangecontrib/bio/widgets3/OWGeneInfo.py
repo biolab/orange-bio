@@ -11,6 +11,8 @@ from itertools import chain
 from collections import defaultdict
 from functools import partial, lru_cache
 
+import numpy as np
+
 from PyQt4.QtGui import (
     QTreeView, QItemSelection, QItemSelectionModel, QFont, QColor,
     QApplication, QMessageBox, QDesktopServices, QSortFilterProxyModel
@@ -574,6 +576,7 @@ class OWGeneInfo(widget.OWWidget):
             for col, meta in zip(range(model.columnCount()), metas):
                 col_data = [str(model.index(row, col).data(Qt.DisplayRole))
                             for row in model_rows]
+                col_data = np.array(col_data, dtype=object, ndmin=2).T
                 newdata[:, meta] = col_data
 
             if not len(newdata):
