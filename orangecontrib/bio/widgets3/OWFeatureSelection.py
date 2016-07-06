@@ -19,6 +19,7 @@ from PyQt4.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
 import pyqtgraph as pg
 
 import Orange.data
+from Orange.canvas.report import report
 from Orange.preprocess import transformation
 
 from Orange.widgets import widget, gui, settings
@@ -26,9 +27,9 @@ from Orange.widgets import widget, gui, settings
 from Orange.widgets.utils.datacaching import data_hints
 from Orange.widgets.utils import concurrent
 
-from .utils import gui as guiutils
-from .utils import group as grouputils
-from .utils.settings import SetContextHandler
+from orangecontrib.bio.widgets3.utils import gui as guiutils
+from orangecontrib.bio.widgets3.utils import group as grouputils
+from orangecontrib.bio.widgets3.utils.settings import SetContextHandler
 
 
 def score_fold_change(a, b, axis=0):
@@ -1263,6 +1264,17 @@ class OWFeatureSelection(widget.OWWidget):
 
     def send_report(self):
         self.report_plot()
+        caption = report.render_items_vert((
+            ("Scoring method", self.Scores[self.score_index][0]),
+            ("Upper treshold", self.max_value),
+            ("Lower threshold", self.min_value),
+            ("Compute null distribution", self.compute_null),
+            ("Permutations", self.permutations_count),
+            ("α-value", self.alpha_value),
+            ("Best Ranked", self.n_best)
+        ))
+        self.report_caption(caption)
+        self.report_caption(self.selectedInfoLabel.text())
 
     def onDeleteWidget(self):
         super().onDeleteWidget()
