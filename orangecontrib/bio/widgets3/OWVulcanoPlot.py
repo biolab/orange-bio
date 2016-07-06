@@ -25,9 +25,9 @@ import Orange.data
 from Orange.widgets.utils.datacaching import data_hints
 from Orange.widgets import widget, gui, settings
 
-from .utils import gui as guiutils
-from .utils import group as grouputils
-from .utils.settings import SetContextHandler
+from orangecontrib.bio.widgets3.utils import gui as guiutils
+from orangecontrib.bio.widgets3.utils import group as grouputils
+from orangecontrib.bio.widgets3.utils.settings import SetContextHandler
 
 NAME = "Volcano Plot"
 DESCRIPTION = "Plots fold change vs. p-value.)"
@@ -430,8 +430,6 @@ class OWVolcanoPlot(widget.OWWidget):
     inputs = INPUTS
     outputs = OUTPUTS
 
-    want_save_graph = False
-
     settingsHandler = SetContextHandler()
 
     symbol_size = settings.Setting(5)
@@ -441,6 +439,8 @@ class OWVolcanoPlot(widget.OWWidget):
     current_group_index = settings.ContextSetting(-1)
     #: stored selection indices (List[int]) for every split group.
     stored_selections = settings.ContextSetting([])
+
+    graph_name = "graph.plotItem"
 
     def __init__(self, parent=None):
         widget.OWWidget.__init__(self, parent)
@@ -737,6 +737,17 @@ class OWVolcanoPlot(widget.OWWidget):
             if event.type() == QEvent.GraphicsSceneHelp:
                 return self._handleHelpEvent(event)
         return super().eventFilter(obj, event)
+
+    def send_report(self):
+        group, selection = self.selected_split()
+        self.report_plot()
+        caption = []
+        if group:
+            target = group.name
+            values = ", ".join(numpy.array(group.values)[selection])
+            caption.append("{var} = {value}".format(var=target, value=values))
+        caption.append(self.infoLabel2.text())
+        self.report_caption(", ".join(caption))
 
 
 def test_main():
