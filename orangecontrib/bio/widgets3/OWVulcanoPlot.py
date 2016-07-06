@@ -25,9 +25,9 @@ import Orange.data
 from Orange.widgets.utils.datacaching import data_hints
 from Orange.widgets import widget, gui, settings
 
-from .utils import gui as guiutils
-from .utils import group as grouputils
-from .utils.settings import SetContextHandler
+from orangecontrib.bio.widgets3.utils import gui as guiutils
+from orangecontrib.bio.widgets3.utils import group as grouputils
+from orangecontrib.bio.widgets3.utils.settings import SetContextHandler
 
 NAME = "Volcano Plot"
 DESCRIPTION = "Plots fold change vs. p-value.)"
@@ -741,10 +741,13 @@ class OWVolcanoPlot(widget.OWWidget):
     def send_report(self):
         group, selection = self.selected_split()
         self.report_plot()
+        caption = []
         if group:
             target = group.name
             values = ", ".join(numpy.array(group.values)[selection])
-            self.report_caption("{var} = {value}".format(var=target, value=values))
+            caption.append("{var} = {value}".format(var=target, value=values))
+        caption.append(self.infoLabel2.text())
+        self.report_caption(", ".join(caption))
 
 
 def test_main():
