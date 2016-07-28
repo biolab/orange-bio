@@ -39,6 +39,7 @@ Widgets
    widgets/selectgenes
    widgets/setenrichment
    widgets/volcanoplot
+   widgets/genialisDictyExpress
 
 Scripting Reference
 -------------------
@@ -62,6 +63,7 @@ Scripting Reference
    reference/ppi.rst
    reference/taxonomy.rst
    reference/utils.stats.rst
+   reference/resolwe.rst
 
 Installation
 ------------

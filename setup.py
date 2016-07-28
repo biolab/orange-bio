@@ -78,6 +78,7 @@ INSTALL_REQUIRES = (
     'genesis-pyapi>=1.1.2',
     "slumber>=0.7.1",
     "requests>=2.6.0",
+    "requests-cache>=0.4.12",
     # Dependencies which are problematic to install automatically
     #'openbabel-python', # You get bindings together with the openbabel library and not stand-alone
     #'scipy', # Requires Fortran compiler
