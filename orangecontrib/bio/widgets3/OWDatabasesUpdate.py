@@ -18,7 +18,7 @@ from PyQt4.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
 
 from orangecontrib.bio.utils import serverfiles, environ
 from orangecontrib.bio.utils.serverfiles import sizeformat as sizeof_fmt
-
+from orangecontrib.bio.widgets3.utils.gui import TokenListCompleter
 
 if sys.version_info < (3, ):
     import Orange.OrangeWidgets.OWGUI as gui
@@ -430,20 +430,9 @@ class OWDatabasesUpdate(OWWidget):
         self.serverFiles = serverfiles.ServerFiles()
 
         fbox = gui.widgetBox(self.controlArea, "Filter")
-
-        # The completer model token strings
-        self.completertokens = []
-        # A 'dynamic' completer item model will be updated with
-        # 'prefix {token}' where prefix is current 'active' filter list
-        # (the QCompleter only completes on one item in the model)
-        self.completermodel = QStringListModel(self)
-        self.completer = QCompleter(
-            self.completermodel, self,
-            caseSensitivity=Qt.CaseInsensitive
-        )
-
+        self.completer = TokenListCompleter(
+            self, caseSensitivity=Qt.CaseInsensitive)
         self.lineEditFilter = QLineEdit(textChanged=self.SearchUpdate)
-
         self.lineEditFilter.setCompleter(self.completer)
 
         fbox.layout().addWidget(self.lineEditFilter)
@@ -613,9 +602,7 @@ class OWDatabasesUpdate(OWWidget):
             self.filesView.setColumnWidth(column, width)
 
         hints = [hint for hint in sorted(all_tags) if not hint.startswith("#")]
-        self.completertokens = hints
-        self.completermodel.setStringList(hints)
-
+        self.completer.setTokenList(hints)
         self.SearchUpdate()
         self.UpdateInfoLabel()
         self.toggleButtons()
@@ -677,24 +664,7 @@ class OWDatabasesUpdate(OWWidget):
                     [AVAILABLE, OUTDATED]:
                 self.SubmitDownloadTask(item.domain, item.filename)
 
-    def _updateCompleterPrefix(self, prefix, seperator=" "):
-        prefix = str(self.completer.completionPrefix())
-
-        tokens = self.completertokens
-        model = self.completer.model()
-
-        if not prefix.endswith(seperator) and seperator in prefix:
-            prefix, _ = prefix.rsplit(seperator, 1)
-            items = [prefix + seperator + item for item in tokens]
-        else:
-            items = tokens
-        old = set(str(item) for item in model.stringList())
-
-        if old != set(items):
-            model.setStringList(items)
-
     def SearchUpdate(self, searchString=None):
-        self._updateCompleterPrefix(searchString)
         strings = str(self.lineEditFilter.text()).split()
         for item, tree_item, _ in self.updateItems:
             hide = not all(UpdateItem_match(item, string)
