@@ -21,7 +21,7 @@ else:
 import numpy
 
 from PyQt4.QtGui import (
-    QLineEdit, QCompleter, QSortFilterProxyModel, QSplitter,
+    QLineEdit, QSortFilterProxyModel, QSplitter,
     QTreeView, QItemSelectionModel, QTreeWidget, QTreeWidgetItem,
     QApplication, QStandardItemModel, QStandardItem, QStringListModel
 )
@@ -55,6 +55,7 @@ else:
 
 from orangecontrib.bio.utils import serverfiles
 from orangecontrib.bio import geo
+from orangecontrib.bio.widgets3.utils.gui import TokenListCompleter
 
 NAME = "GEO Data Sets"
 DESCRIPTION = "Access to Gene Expression Omnibus data sets."
@@ -252,19 +253,13 @@ class OWGEODatasets(OWWidget):
 
         gui.rubber(self.controlArea)
 
-#         self.filterLineEdit = OWGUIEx.lineEditHint(
-#             self.mainArea, self, "filterString", "Filter",
-#             caseSensitive=False, matchAnywhere=True,
-#             callback=self.filter,  delimiters=" ")
-
         gui.widgetLabel(self.mainArea, "Filter")
         self.filterLineEdit = QLineEdit(
             textChanged=self.filter
         )
-        self.completer = QCompleter(
-            caseSensitivity=Qt.CaseInsensitive
+        self.completer = TokenListCompleter(
+            self, caseSensitivity=Qt.CaseInsensitive
         )
-        self.completer.setModel(QStringListModel(self))
         self.filterLineEdit.setCompleter(self.completer)
 
         self.mainArea.layout().addWidget(self.filterLineEdit)
@@ -372,8 +367,7 @@ class OWGEODatasets(OWWidget):
         filter_items = sorted(set(filter_items.split(" ")))
         filter_items = [item for item in filter_items if len(item) > 3]
 
-        self.completer.model().setStringList(filter_items)
-#         self.filterLineEdit.setItems(filter_items)
+        self.completer.setTokenList(filter_items)
 
         if self.currentGds:
             current_id = self.currentGds["dataset_id"]
@@ -879,6 +873,7 @@ def main_test():
     app = QApplication([])
     w = OWGEODatasets()
     w.show()
+    w.raise_()
     r = app.exec_()
     w.saveSettings()
     return r
