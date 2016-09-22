@@ -47,6 +47,7 @@ import sys
 import re
 import warnings
 import keyword
+from functools import reduce
 from collections import defaultdict
 import six
 
