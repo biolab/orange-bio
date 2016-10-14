@@ -64,7 +64,7 @@ try:
 except NameError:
     basestring = str
     intern = sys.intern
-    from io import open
+    import io
 
 #: These are builtin OBO objects present in any ontology by default.
 BUILTIN_OBO_OBJECTS = [
@@ -571,8 +571,8 @@ class OBOOntology(object):
         """
         if isinstance(file, basestring):
             try:
-               file = open(file, encoding='utf-8')
-            except TypeError:
+               file = io.open(file, 'r', encoding=None)
+            except NameError:
                file = open(file, "rb")
 
         parser = OBOParser(file)
