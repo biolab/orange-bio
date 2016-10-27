@@ -1,4 +1,5 @@
-
+import serverfiles
+import os
 import sys
 
 from datetime import datetime
@@ -15,9 +16,10 @@ from AnyQt.QtCore import (
 )
 from AnyQt.QtCore import Signal, Slot
 
-from orangecontrib.bio.utils import serverfiles
-from orangecontrib.bio.utils.serverfiles import sizeformat as sizeof_fmt
+from orangecontrib.bio.utils import environ
 from orangecontrib.bio.widgets3.utils.gui import TokenListCompleter
+from serverfiles import sizeformat as sizeof_fmt
+
 
 if sys.version_info < (3, ):
     import Orange.OrangeWidgets.OWGUI as gui
@@ -38,6 +40,11 @@ else:
 #: Update file item states
 AVAILABLE, CURRENT, OUTDATED, DEPRECATED = range(4)
 
+#: Set Serverfiles and Localfiles
+_LocalPath = os.path.join(environ.buffer_dir, "testServerFiles")
+_server = "http://193.2.72.57/newsf/"
+_serverFiles = serverfiles.ServerFiles(server=_server)
+_localFiles = serverfiles.LocalFiles(_LocalPath, serverfiles=_serverFiles)
 
 class ItemProgressBar(QProgressBar):
     """Progress Bar with and `advance()` slot.
@@ -193,7 +200,7 @@ class UpdateTreeWidgetItem(QTreeWidgetItem):
 
         if self.item.state in [CURRENT, OUTDATED, DEPRECATED]:
             tooltip += ("\nFile: %s" %
-                        serverfiles.localpath(self.item.domain,
+                        _localFiles.localpath(self.item.domain,
                                               self.item.filename))
 
         if self.item.state == OUTDATED and diff_date:
@@ -357,7 +364,8 @@ def join_info_list(domain, files_local, files_server):
     for filename in sorted(filenames):
         info_server = files_server.get(filename, None)
         info_local = files_local.get(filename, None)
-        yield update_item_from_info(domain, filename, info_server, info_local)
+        # TODO : filename is touple ("domain","filename")
+        yield update_item_from_info(domain, filename[1], info_server, info_local)
 
 
 def join_info_dict(local, server):
@@ -380,17 +388,21 @@ def special_tags(item):
                  if tag.startswith("#") and ":" in tag])
 
 
-def retrieveFilesList(serverFiles, domains=None, advance=lambda: None):
+def listdomains():
+    return set([domain for domain, filename in _serverFiles.listfiles()])
+
+
+def retrieveFilesList(_serverFiles, domains=None, advance=lambda: None):
     """
     Retrieve and return serverfiles.allinfo for all domains.
     """
     import requests.exceptions
-    domains = serverFiles.listdomains() if domains is None else domains
+    domains = listdomains() if domains is None else domains
     advance()
     serverInfo = {}
     for dom in domains:
         try:
-            serverInfo[dom] = serverFiles.allinfo(dom)
+            serverInfo[dom] = _serverFiles.allinfo(dom)
         except (requests.exceptions.Timeout,
                 requests.exceptions.ConnectionError) as e:
              raise ConnectionError
@@ -424,9 +436,7 @@ class OWDatabasesUpdate(OWWidget):
                           wantMainArea=False)
 
         self.searchString = ""
-        self.accessCode = ""
         self.domains = domains or DOMAINS
-        self.serverFiles = serverfiles.ServerFiles()
 
         fbox = gui.widgetBox(self.controlArea, "Filter")
         self.completer = TokenListCompleter(
@@ -478,11 +488,11 @@ class OWDatabasesUpdate(OWWidget):
         self.retryButton.hide()
 
         gui.rubber(box)
-
+        """
         gui.lineEdit(box, self, "accessCode", "Access Code",
                      orientation="horizontal",
                      callback=self.RetrieveFilesList)
-
+        """
         self.warning(0)
 
         box = gui.widgetBox(self.controlArea, orientation="horizontal")
@@ -516,9 +526,8 @@ class OWDatabasesUpdate(OWWidget):
         self.retryButton.hide()
         self.warning(0)
         self.progress.setRange(0, 3)
-        self.serverFiles = serverfiles.ServerFiles(access_code=self.accessCode)
 
-        task = Task(function=partial(retrieveFilesList, self.serverFiles,
+        task = Task(function=partial(retrieveFilesList, _serverFiles,
                                      self.domains,
                                      methodinvoke(self.progress, "advance")))
 
@@ -534,16 +543,14 @@ class OWDatabasesUpdate(OWWidget):
         Set the files to show.
         """
         self.setEnabled(True)
-
         domains = serverInfo.keys()
         if not domains:
             if self.domains:
                 domains = self.domains
             else:
-                domains = serverfiles.listdomains()
+                domains = listdomains()
 
-        localInfo = dict([(dom, serverfiles.allinfo(dom)) for dom in domains])
-
+        localInfo = dict([(dom, _localFiles.allinfo(dom)) for dom in domains])
         all_tags = set()
 
         self.filesView.clear()
@@ -681,10 +688,7 @@ class OWDatabasesUpdate(OWWidget):
         index = self.updateItemIndex(domain, filename)
         _, tree_item, opt_widget = self.updateItems[index]
 
-        if self.accessCode:
-            sf = serverfiles.ServerFiles(access_code=self.accessCode)
-        else:
-            sf = serverfiles.ServerFiles()
+        sf = _serverFiles
 
         task = DownloadTask(domain, filename, sf)
 
@@ -754,7 +758,7 @@ class OWDatabasesUpdate(OWWidget):
         else:
             # get the new updated info dict and replace the the old item
             self.warning(0)
-            info = serverfiles.info(item.domain, item.filename)
+            info = _localFiles.info(item.domain, item.filename)
             new_item = update_item_from_info(item.domain, item.filename,
                                              info, info)
 
@@ -766,7 +770,7 @@ class OWDatabasesUpdate(OWWidget):
             self.UpdateInfoLabel()
 
     def SubmitRemoveTask(self, domain, filename):
-        serverfiles.remove(domain, filename)
+        _localFiles.remove(domain, filename)
         index = self.updateItemIndex(domain, filename)
         item, tree_item, opt_widget = self.updateItems[index]
 
@@ -927,8 +931,7 @@ class DownloadTask(Task):
 
     def run(self):
         try:
-            serverfiles.download(self.domain, self.filename, self.serverfiles,
-                                 callback=self._advance)
+            _localFiles.download(self.domain, self.filename, callback=self._advance)
         except Exception:
             self.exception.emit(sys.exc_info())
             raise
