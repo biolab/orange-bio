@@ -14,7 +14,8 @@ import gc
 import sys, os, tarfile, math
 from os.path import join as p_join
 
-from Orange.orng import orngServerFiles
+#from Orange.orng import orngServerFiles
+from orangecontrib.bio.utils import serverfiles
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWWidget import *
@@ -41,13 +42,13 @@ OUTPUTS = [("Selected Examples", Orange.data.Table),
 REPLACES = ["_bioinformatics.widgets.OWGOEnrichmentAnalysis.OWGOEnrichmentAnalysis"]
 
 
-dataDir = orngServerFiles.localpath("GO")
+dataDir = serverfiles.localpath("GO")
 
 def listAvailable():
-    files = orngServerFiles.listfiles("GO")
+    files = serverfiles.listfiles("GO")
     ret = {}
     for file in files:
-        tags = orngServerFiles.info("GO", file)["tags"]
+        tags = serverfiles.info("GO", file)["tags"]
         td = dict([tuple(tag.split(":")) for tag in tags if tag.startswith("#") and ":" in tag])
         if "association" in file.lower():
             ret[td.get("#organism", file)] = file
@@ -64,8 +65,8 @@ class _disablegc(object):
         gc.enable()
 
 def getOrgFileName(org):
-    from Orange.orng import orngServerFiles
-    files = orngServerFiles.listfiles("go")
+    #from Orange.orng import orngServerFiles
+    files = serverfiles.listfiles("go")
     return [f for f in files if org in f].pop()
 
 class TreeNode(object):
@@ -518,7 +519,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.send("Example With Unknown Genes", None)
 
     def Load(self, pb=None):
-        go_files, tax_files = orngServerFiles.listfiles("GO"), orngServerFiles.listfiles("Taxonomy")
+        go_files, tax_files = serverfiles.listfiles("GO"), serverfiles.listfiles("Taxonomy")
         calls = []
         pb, finish = (OWGUI.ProgressBar(self, 0), True) if pb is None else (pb, False)
         count = 0
@@ -540,7 +541,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         pb.iter += count*100
         
         for i, args in enumerate(calls):
-            orngServerFiles.localpath_download(*args, **dict(callback=pb.advance))
+            serverfiles.localpath_download(*args, **dict(callback=pb.advance))
             
         i = len(calls)
         if not self.ontology:
