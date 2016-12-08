@@ -1056,7 +1056,6 @@ class BioMartQuery(object):
     def get_example_table(self):
         import Orange.data
         import Orange.feature
-        from Bio import SeqIO
 
         data = self.run(count=False, header=True)
 
@@ -1070,6 +1069,7 @@ class BioMartQuery(object):
                     for line in data.split("\n") if line.strip()]
             return Orange.data.Table(domain, data) if data else None
         elif self.format.lower() == "fasta":
+            from Bio import SeqIO
             domain = Orange.data.Domain(
                 [Orange.feature.String("id"),
                  Orange.feature.String("sequence")],
@@ -1085,7 +1085,6 @@ class BioMartQuery(object):
     def as_orange_table_v3(self):
         import numpy
         import Orange.data
-        from Bio import SeqIO
         data = self.run(count=False, header=True)
         data = data.decode("utf-8")
         if self.format.lower() == "tsv":
@@ -1099,6 +1098,7 @@ class BioMartQuery(object):
             X = numpy.empty((len(rows), 0))
             return Orange.data.Table.from_numpy(domain, X, metas=rows)
         elif self.format.lower() == "fasta":
+            from Bio import SeqIO
             domain = Orange.data.Domain(
                 [], [],
                 [Orange.data.StringVariable("id"),
