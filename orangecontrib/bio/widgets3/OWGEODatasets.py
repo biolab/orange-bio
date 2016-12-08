@@ -857,7 +857,7 @@ def copyfileobj(src, dst, buffer=2 ** 15, size=None, progress=None):
         if not data:
             break
 
-    if size is None:
+    if size is None and progress is not None:
         progress(count, count)
 
     return count
