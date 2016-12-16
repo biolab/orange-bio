@@ -35,7 +35,7 @@ class Control(object):
     """ Base mixin class for query GUI widgets
     """
 
-    def __init__(self, tree, dataset, master):
+    def __init__(self, tree=None, dataset=None, master=None, **kwargs):
         """
             :param tree: configuration element
             :type tree: biomart.ConfigurationNode
@@ -45,12 +45,13 @@ class Control(object):
             :type master: OWBioMart
 
         """
+        super(Control, self).__init__(**kwargs)
         self.tree = tree
         self.dataset = dataset
         self.master = master
         self.subControls = []
 
-        if isinstance(self, QObject):
+        if tree is not None and isinstance(self, QObject):
             self.setObjectName(tree.internalName)
             if hasattr(tree, "description"):
                 self.setToolTip(tree.description)
@@ -642,6 +643,17 @@ class PageWidget(QFrame, Control):
         if hasattr(tree, "description"):
             self.setToolTip(tree.description)
 
+# A list of preset mart services available for selection from the pull
+# down menu
+
+MartServices = [
+    ("Ensembl", "http://www.ensembl.org/biomart/martservice"),
+    ("Ensembl Fungi", "http://fungi.ensembl.org/biomart/martservice"),
+    ("Pancreatic Expression Database",
+     "http://www.pancreasexpression.org/biomart/martservice"),
+    ("VectorBase", "http://biomart.vectorbase.org/biomart/martservice"),
+]
+
 
 class OWBioMart(widget.OWWidget):
     name = "BioMart"
@@ -653,6 +665,7 @@ class OWBioMart(widget.OWWidget):
 
     SHOW_FILTERS = True
 
+    selectedService = settings.Setting(MartServices[0][1])
     selectedDataset = settings.Setting(0)
 
     def __init__(self, parent=None):
@@ -665,6 +678,16 @@ class OWBioMart(widget.OWWidget):
                    self, "Clear cache",
                    tooltip="Clear saved query results",
                    callback=self.clearCache)
+        self.serviceindex = 0
+        self.serviceCombo = gui.comboBox(
+            self.controlArea, self, "serviceindex", "Mart Service",
+            callback=self._setServiceUrl
+        )
+        for name, url in MartServices:
+            self.serviceCombo.addItem(name, userData=url)
+        idx = self.serviceCombo.findData(self.selectedService, Qt.UserRole)
+        self.serviceCombo.setCurrentIndex(idx)
+        # self.selectedService = self.serviceCombo.itemData(self.serviceCombo.currentItem())
 
         self.martsCombo = gui.comboBox(
             self.controlArea, self, "selectedDatabase", "Database",
@@ -707,14 +730,17 @@ class OWBioMart(widget.OWWidget):
 
         self.error(0)
         self.setEnabled(False)
+        self._task = None
         self._executor = concurrent.ThreadExecutor(
             threadPool=QThreadPool(maxThreadCount=2)
         )
-        self._task = task = concurrent.Task(function=self._get_registry)
+        service = self.selectedService
+        self._task = task = concurrent.Task(
+            function=partial(self._get_registry, url=service))
         task.resultReady.connect(self.setBioMartRegistry)
         task.exceptionReady.connect(self._handleException)
         self._executor.submit(task)
-
+        self._setServiceUrl()
         self._afterInitQueue = []
 
         try:
@@ -727,9 +753,21 @@ class OWBioMart(widget.OWWidget):
     def sizeHint(self):
         return QSize(800, 600)
 
+    def _setServiceUrl(self):
+        service = self.serviceCombo.itemData(self.serviceCombo.currentIndex())
+        if service is not None:
+            self.selectedService = service
+            self._task = task = concurrent.Task(
+                function=partial(self._get_registry, url=service))
+            task.resultReady.connect(self.setBioMartRegistry)
+            task.exceptionReady.connect(self._handleException)
+            self._executor.submit(task)
+
     @staticmethod
     def _get_registry(url=None, precache=True):
-        con = biomart.BioMartConnection(url, timeout=30)
+        if url is None:
+            url = MartServices[0][1]
+        con = biomart.BioMartConnection(address=url, timeout=30)
         reg = biomart.BioMartRegistry(con)
         if precache:
             _ = reg.marts()
@@ -750,12 +788,12 @@ class OWBioMart(widget.OWWidget):
         self.marts = [mart for mart in self.registry.marts()
                       if getattr(mart, "visible", "0") != "0"]
 
+        self.martsCombo.clear()
         for mart in self.marts:
             self.martsCombo.addItem(mart.displayName)
 
     def setSelectedMart(self):
         self.mart = self.marts[self.selectedDatabase]
-
         self.error(0)
         self.setEnabled(False)
 
