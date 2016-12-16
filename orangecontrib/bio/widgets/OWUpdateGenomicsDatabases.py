@@ -1,5 +1,3 @@
-import serverfiles
-
 from datetime import datetime
 from functools import partial
 from collections import namedtuple
@@ -7,7 +5,7 @@ from collections import namedtuple
 from PyQt4.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
 
 from serverfiles import sizeformat as sizeof_fmt
-from ..utils.environ import buffer_dir
+from orangecontrib.bio.utils.serverfiles import LOCALFILES, ServerFiles
 
 from Orange.utils.environ import canvas_install_dir
 from Orange.OrangeWidgets.OWWidget import *
@@ -28,10 +26,8 @@ OUTPUTS = []
 AVAILABLE, CURRENT, OUTDATED, DEPRECATED = range(4)
 
 #: Set Serverfiles and Localfiles
-_LocalPath = os.path.join(buffer_dir, "testServerFiles")
-_server = "http://193.2.72.57/newsf/"
-_serverFiles = serverfiles.ServerFiles(server=_server)
-_localFiles = serverfiles.LocalFiles(_LocalPath, serverfiles=_serverFiles)
+_serverFiles = ServerFiles()
+_localFiles = LOCALFILES
 
 _icons_dir = os.path.join(canvas_install_dir, "icons")
 

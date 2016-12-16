@@ -1,4 +1,3 @@
-import serverfiles
 import os
 import sys
 
@@ -16,9 +15,9 @@ from AnyQt.QtCore import (
 )
 from AnyQt.QtCore import Signal, Slot
 
-from orangecontrib.bio.utils import environ
 from orangecontrib.bio.widgets3.utils.gui import TokenListCompleter
 from serverfiles import sizeformat as sizeof_fmt
+from orangecontrib.bio.utils.serverfiles import LOCALFILES, ServerFiles
 
 
 if sys.version_info < (3, ):
@@ -41,10 +40,9 @@ else:
 AVAILABLE, CURRENT, OUTDATED, DEPRECATED = range(4)
 
 #: Set Serverfiles and Localfiles
-_LocalPath = os.path.join(environ.buffer_dir, "testServerFiles")
-_server = "http://193.2.72.57/newsf/"
-_serverFiles = serverfiles.ServerFiles(server=_server)
-_localFiles = serverfiles.LocalFiles(_LocalPath, serverfiles=_serverFiles)
+_serverFiles = ServerFiles()
+_localFiles = LOCALFILES
+
 
 class ItemProgressBar(QProgressBar):
     """Progress Bar with and `advance()` slot.

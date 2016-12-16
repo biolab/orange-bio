@@ -19,32 +19,32 @@ class ServerFiles(serverfiles.ServerFiles):
         serverfiles.ServerFiles.__init__(self, server)
 
 
-_path = os.path.join(environ.buffer_dir, "serverfiles-bio")
-_localFiles = serverfiles.LocalFiles(_path, serverfiles=ServerFiles())
+PATH = os.path.join(environ.buffer_dir, "serverfiles-bio")
+LOCALFILES = serverfiles.LocalFiles(PATH, serverfiles=ServerFiles())
 
 
 def localpath(*args):
-    return _localFiles.localpath(*args)
+    return LOCALFILES.localpath(*args)
 
     
 def listfiles(*args):
-    return [fname for domain, fname in _localFiles.listfiles(*args)]
+    return [fname for domain, fname in LOCALFILES.listfiles(*args)]
 
 
 def localpath_download(*path, **kwargs):
-    return _localFiles.localpath_download(*path, **kwargs)
+    return LOCALFILES.localpath_download(*path, **kwargs)
 
 
 def download(*path):
-    return _localFiles.download(*path)
+    return LOCALFILES.download(*path)
 
 
 def info(*path):
-    return _localFiles.info(*path)
+    return LOCALFILES.info(*path)
 
 
 def update(*path, **kwargs):
-    return _localFiles.update(*path, **kwargs)
+    return LOCALFILES.update(*path, **kwargs)
 
 
 def sizeformat(size):
