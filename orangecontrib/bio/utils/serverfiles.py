@@ -9,7 +9,8 @@ try:
 except ImportError:
     from . import environ
 
-_server_url = "http://193.2.72.57/newsf/"
+
+_server_url = "http://orange.biolab.si/serverfiles-bio/"
 
 
 class ServerFiles(serverfiles.ServerFiles):
@@ -17,7 +18,8 @@ class ServerFiles(serverfiles.ServerFiles):
     def __init__(self, server=_server_url):
         serverfiles.ServerFiles.__init__(self, server)
 
-_path = os.path.join(environ.buffer_dir, "testServerFiles")
+
+_path = os.path.join(environ.buffer_dir, "serverfiles-bio")
 _localFiles = serverfiles.LocalFiles(_path, serverfiles=ServerFiles())
 
 
@@ -47,3 +49,4 @@ def update(*path, **kwargs):
 
 def sizeformat(size):
     return serverfiles.sizeformat(size)
+
