@@ -12,8 +12,12 @@ import operator
 from collections import defaultdict
 from functools import reduce
 
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import Qt
+from AnyQt.QtWidgets import (
+    QTreeWidget, QTreeWidgetItem, QTreeView, QMenu, QCheckBox, QSplitter,
+    QDialog, QVBoxLayout, QLabel, QDialogButtonBox, QLayout, QItemDelegate
+)
+from AnyQt.QtGui import QBrush
+from AnyQt.QtCore import Qt, QSize
 
 import numpy
 
@@ -61,11 +65,11 @@ class TreeNode(object):
         self.children = children
 
 
-class GOTreeWidget(QtGui.QTreeWidget):
+class GOTreeWidget(QTreeWidget):
     def contextMenuEvent(self, event):
         super().contextMenuEvent(event)
         term = self.itemAt(event.pos()).term
-        self._currMenu = QtGui.QMenu()
+        self._currMenu = QMenu()
         self._currAction = self._currMenu.addAction("View term on AmiGO website")
         self._currAction.triggered.connect(lambda: self.BrowserAction(term))
         self._currMenu.popup(event.globalPos())
@@ -224,7 +228,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
                               addSpace=True)
         self.evidenceCheckBoxDict = {}
         for etype in go.evidenceTypesOrdered:
-            ecb = QtGui.QCheckBox(
+            ecb = QCheckBox(
                 etype, toolTip=go.evidenceTypes[etype],
                 checked=self.useEvidenceType[etype])
             ecb.toggled.connect(self.__on_evidenceChanged)
@@ -259,17 +263,17 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self.DAGcolumns = ['GO term', 'Cluster', 'Reference', 'p-value',
                            'FDR', 'Genes', 'Enrichment']
 
-        self.splitter = QtGui.QSplitter(Qt.Vertical, self.mainArea)
+        self.splitter = QSplitter(Qt.Vertical, self.mainArea)
         self.mainArea.layout().addWidget(self.splitter)
 
         # list view
         self.listView = GOTreeWidget(self.splitter)
-        self.listView.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
+        self.listView.setSelectionMode(QTreeView.ExtendedSelection)
         self.listView.setAllColumnsShowFocus(1)
         self.listView.setColumnCount(len(self.DAGcolumns))
         self.listView.setHeaderLabels(self.DAGcolumns)
 
-        self.listView.header().setClickable(True)
+        self.listView.header().setSectionsClickable(True)
         self.listView.header().setSortIndicatorShown(True)
         self.listView.setSortingEnabled(True)
         self.listView.setItemDelegateForColumn(
@@ -279,11 +283,11 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self.listView.itemSelectionChanged.connect(self.ViewSelectionChanged)
 
         # table of significant GO terms
-        self.sigTerms = QtGui.QTreeWidget(self.splitter)
+        self.sigTerms = QTreeWidget(self.splitter)
         self.sigTerms.setColumnCount(len(self.DAGcolumns))
         self.sigTerms.setHeaderLabels(self.DAGcolumns)
         self.sigTerms.setSortingEnabled(True)
-        self.sigTerms.setSelectionMode(QtGui.QTreeView.ExtendedSelection)
+        self.sigTerms.setSelectionMode(QTreeView.ExtendedSelection)
         self.sigTerms.setItemDelegateForColumn(
             6, EnrichmentColumnItemDelegate(self))
 
@@ -307,7 +311,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
 
 
     def sizeHint(self):
-        return QtCore.QSize(1000, 700)
+        return QSize(1000, 700)
 
     def __initialize_finish(self):
         self.setBlocking(False)
@@ -337,7 +341,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
     def UpdateGeneMatcher(self):
         """Open the Gene matcher settings dialog."""
         dialog = GeneMatcherDialog(self, defaults=self.geneMatcherSettings, modal=True)
-        if dialog.exec_() != QtGui.QDialog.Rejected:
+        if dialog.exec_() != QDialog.Rejected:
             self.geneMatcherSettings = [getattr(dialog, item[0]) for item in dialog.items]
             if self.annotations:
                 self.SetGeneMatcher()
@@ -907,15 +911,15 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             self.send("Data on Unselected Genes", unselectedExamples)
 
     def ShowInfo(self):
-        dialog = QtGui.QDialog(self)
+        dialog = QDialog(self)
         dialog.setModal(False)
-        dialog.setLayout(QtGui.QVBoxLayout())
-        label = QtGui.QLabel(dialog)
+        dialog.setLayout(QVBoxLayout())
+        label = QLabel(dialog)
         label.setText("Ontology:\n" + self.ontology.header
                       if self.ontology else "Ontology not loaded!")
         dialog.layout().addWidget(label)
 
-        label = QtGui.QLabel(dialog)
+        label = QLabel(dialog)
         label.setText("Annotations:\n" + self.annotations.header.replace("!", "")
                       if self.annotations else "Annotations not loaded!")
         dialog.layout().addWidget(label)
@@ -932,7 +936,7 @@ fmtp = lambda score: "%0.5f" % score if score > 10e-4 else "%0.1e" % score
 fmtpdet = lambda score: "%0.9f" % score if score > 10e-4 else "%0.5e" % score
 
 
-class GOTreeWidgetItem(QtGui.QTreeWidgetItem):
+class GOTreeWidgetItem(QTreeWidgetItem):
     def __init__(self, term, enrichmentResult, nClusterGenes, nRefGenes,
                  maxFoldEnrichment, parent):
         super().__init__(parent)
@@ -987,13 +991,13 @@ class GOTreeWidgetItem(QtGui.QTreeWidgetItem):
         return self.sortByData[col] < other.sortByData[col]
 
 
-class EnrichmentColumnItemDelegate(QtGui.QItemDelegate):
+class EnrichmentColumnItemDelegate(QItemDelegate):
     def paint(self, painter, option, index):
         self.drawBackground(painter, option, index)
         value = index.data(Qt.UserRole)
         if isinstance(value, float) and numpy.isfinite(value):
             painter.save()
-            painter.setBrush(QtGui.QBrush(Qt.blue, Qt.SolidPattern))
+            painter.setBrush(QBrush(Qt.blue, Qt.SolidPattern))
             painter.drawRect(option.rect.x(), option.rect.y(),
                              int(value * (option.rect.width() - 1)),
                              option.rect.height() - 1)
@@ -1002,7 +1006,7 @@ class EnrichmentColumnItemDelegate(QtGui.QItemDelegate):
             super().paint(painter, option, index)
 
 
-class GeneMatcherDialog(QtGui.QDialog):
+class GeneMatcherDialog(QDialog):
     items = [("useGO", "Use gene names from Gene Ontology annotations"),
              ("useKEGG", "Use gene names from KEGG Genes database"),
              ("useNCBI", "Use gene names from NCBI Gene info database"),
@@ -1011,33 +1015,34 @@ class GeneMatcherDialog(QtGui.QDialog):
     def __init__(self, parent=None, defaults=[True, False, False, False],
                  enabled=[False, True, True, True], **kwargs):
         super().__init__(parent, **kwargs)
-        self.setLayout(QtGui.QVBoxLayout())
+        self.setLayout(QVBoxLayout())
         for item, default in zip(self.items, defaults):
             setattr(self, item[0], default)
 
         for item, enable, checked in zip(self.items, enabled, defaults):
-            cb = QtGui.QCheckBox(text=item[1], checked=checked, enabled=enable)
+            cb = QCheckBox(text=item[1], checked=checked, enabled=enable)
             cb.toggled[bool].connect(
                 lambda state, name=item[0]:
                     setattr(self, name, state)
             )
             self.layout().addWidget(cb)
 
-        bbox = QtGui.QDialogButtonBox(
+        bbox = QDialogButtonBox(
             Qt.Horizontal,
-            standardButtons=(QtGui.QDialogButtonBox.Ok |
-                             QtGui.QDialogButtonBox.Cancel))
+            standardButtons=QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
         bbox.accepted.connect(self.accept)
         bbox.rejected.connect(self.reject)
 
         self.layout().addWidget(bbox)
 
-        self.layout().setSizeConstraint(QtGui.QLayout.SetFixedSize)
+        self.layout().setSizeConstraint(QLayout.SetFixedSize)
 
 
 def test_main(argv=sys.argv):
-    app = QtGui.QApplication(list(argv))
-    argv = app.argv()
+    from AnyQt.QtWidgets import QApplication
+    app = QApplication(list(argv))
+    argv = app.arguments()
     if len(argv) > 1:
         data = Orange.data.Table(argv[1])
     else:

@@ -1,22 +1,21 @@
 
-import os
 import sys
 
 from datetime import datetime
 from functools import partial
 from collections import namedtuple
 
-from PyQt4.QtGui import (
+from AnyQt.QtWidgets import (
     QWidget, QProgressBar, QTreeWidget, QTreeWidgetItem, QToolButton,
     QCheckBox, QLabel, QLineEdit, QCompleter, QStyledItemDelegate,
-    QApplication, QAbstractItemView, QSizePolicy, QHBoxLayout, QStringListModel
+    QApplication, QAbstractItemView, QSizePolicy, QHBoxLayout
 )
+from AnyQt.QtCore import (
+    Qt, QSize, QEvent, QObject, QThreadPool, QThread, QStringListModel
+)
+from AnyQt.QtCore import Signal, Slot
 
-from PyQt4.QtCore import Qt, QSize, QEvent, QObject, QThreadPool, QThread
-from PyQt4.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
-
-
-from orangecontrib.bio.utils import serverfiles, environ
+from orangecontrib.bio.utils import serverfiles
 from orangecontrib.bio.utils.serverfiles import sizeformat as sizeof_fmt
 from orangecontrib.bio.widgets3.utils.gui import TokenListCompleter
 

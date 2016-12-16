@@ -3,9 +3,10 @@ import sys
 from types import SimpleNamespace as namespace
 
 import numpy as np
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtGui import QStyle, QGraphicsItem, QPen, QColor
-from PyQt4.QtCore import Qt, QPointF
+
+from AnyQt.QtWidgets import QStyle, QGraphicsItem, QListWidget
+from AnyQt.QtGui import QPen, QColor, QPainter, QPainterPathStroker
+from AnyQt.QtCore import Qt, QPointF, QSize
 
 import pyqtgraph as pg
 
@@ -42,7 +43,7 @@ def disconnected_curve_data(data, x=None):
 
 
 def shape_from_path(path, width=1,):
-    stroker = QtGui.QPainterPathStroker()
+    stroker = QPainterPathStroker()
     stroker.setWidth(width)
     return stroker.createStroke(path)
 
@@ -153,7 +154,7 @@ class OWDisplayProfiles(widget.OWWidget):
         group_box = gui.widgetBox(self.controlArea, "Classes")
         self.group_listbox = gui.listBox(
             group_box, self, "selected_classes", "classes",
-            selectionMode=QtGui.QListWidget.MultiSelection,
+            selectionMode=QListWidget.MultiSelection,
             callback=self.__on_class_selection_changed)
         self.unselectAllClassedQLB = gui.button(
             group_box, self, "Unselect all",
@@ -167,14 +168,14 @@ class OWDisplayProfiles(widget.OWWidget):
         gui.auto_commit(self.controlArea, self, "auto_commit", "Commit")
 
         self.graph = pg.PlotWidget(background="w")
-        self.graph.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        self.graph.setRenderHint(QPainter.Antialiasing, True)
         self.graph.scene().selectionChanged.connect(
             self.__on_curve_selection_changed)
         self.mainArea.layout().addWidget(self.graph)
         self.legend = None
 
     def sizeHint(self):
-        return QtCore.QSize(800, 600)
+        return QSize(800, 600)
 
     def clear(self):
         """
@@ -388,7 +389,8 @@ class OWDisplayProfiles(widget.OWWidget):
 
 
 def test_main(argv=sys.argv):
-    a = QtGui.QApplication(argv)
+    from AnyQt.QtWidgets import QApplication
+    a = QApplication(argv)
     if len(argv) > 1:
         filename = argv[1]
     else:

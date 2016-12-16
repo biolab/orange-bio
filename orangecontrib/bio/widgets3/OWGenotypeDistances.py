@@ -7,12 +7,12 @@ from collections import defaultdict
 
 import numpy
 
-from PyQt4.QtGui import (
+from AnyQt.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QHeaderView, QListView, QScrollArea,
-    QSizePolicy, QColor, QPalette, QStandardItemModel, QStandardItem,
-    QItemSelectionModel, QItemSelection,
-    QSpacerItem, QWidgetItem)
-from PyQt4.QtCore import Qt, QSize
+    QSizePolicy, QSpacerItem, QWidgetItem
+)
+from AnyQt.QtGui import QColor, QPalette, QStandardItemModel, QStandardItem
+from AnyQt.QtCore import Qt, QSize, QItemSelectionModel, QItemSelection
 
 import Orange.data
 import Orange.misc
@@ -505,7 +505,7 @@ class OWGenotypeDistances(widget.OWWidget):
 
 def test_main(argv=sys.argv):
     import os
-    from PyQt4.QtGui import QApplication
+    from AnyQt.QtWidgets import QApplication
 
     if len(argv) > 1:
         filename = argv[1]

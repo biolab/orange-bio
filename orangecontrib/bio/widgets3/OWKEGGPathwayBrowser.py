@@ -13,16 +13,17 @@ from contextlib import contextmanager
 
 import numpy
 
-from PyQt4.QtGui import (
-    QTreeWidget, QTreeWidgetItem, QItemSelectionModel, QSplitter,
-    QAction, QMenu, QGraphicsView, QGraphicsScene,
-    QBrush, QColor, QPen, QTransform, QPainter, QPainterPath,
-    QGraphicsItem, QGraphicsPathItem, QGraphicsPixmapItem, QPixmap,
-    QKeySequence, QApplication
+from AnyQt.QtWidgets import (
+    QTreeWidget, QTreeWidgetItem, QSplitter, QAction, QMenu,
+    QGraphicsView, QGraphicsScene, QGraphicsItem, QGraphicsPathItem,
+    QGraphicsPixmapItem
 )
+from AnyQt.QtGui import (
+    QBrush, QColor, QPen, QTransform, QPainter, QPainterPath, QPixmap,
+    QKeySequence
+)
+from AnyQt.QtCore import Qt, QRectF, QSize, Slot, QItemSelectionModel
 
-from PyQt4.QtCore import Qt, QRectF, QSize
-from PyQt4.QtCore import pyqtSlot as Slot
 import Orange
 
 from ..utils import serverfiles
@@ -141,11 +142,11 @@ class GraphicsPathwayItem(QGraphicsPixmapItem):
             address = ("http://www.genome.jp/dbget-bin/www_bget?" +
                        "+".join([org] + genes))
 
-            action.triggered[()].connect(partial(webbrowser.open, address))
+            action.triggered.connect(partial(webbrowser.open, address))
             actions.append(action)
         elif hasattr(entry, "link"):
             action = QAction("View %s on KEGG website" % str(type), None)
-            action.triggered[()].connect(partial(webbrowser.open, entry.link))
+            action.triggered.connect(partial(webbrowser.open, entry.link))
             actions.append(action)
         return actions
 
@@ -896,6 +897,7 @@ def disconnected(signal, slot):
 
 
 def test_main(argv=sys.argv):
+    from AnyQt.QtWidgets import QApplication
     app = QApplication(sys.argv)
 
     if len(argv) > 1:

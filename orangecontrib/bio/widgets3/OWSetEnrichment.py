@@ -15,10 +15,17 @@ from functools import reduce, partial
 
 import numpy as np
 
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtGui import QStyle
-from PyQt4.QtCore import Qt, QModelIndex, QThread
-from PyQt4.QtCore import pyqtSlot as Slot
+from AnyQt.QtWidgets import (
+    QTreeWidget, QTreeWidgetItem, QTreeView, QLineEdit, QCompleter,
+    QHBoxLayout, QStyle, QStyledItemDelegate, QApplication
+)
+from AnyQt.QtGui import (
+    QBrush, QColor, QFont, QStandardItemModel, QStandardItem
+)
+from AnyQt.QtCore import (
+    Qt, QRect, QSize, QModelIndex, QStringListModel, QThread, QThreadPool,
+    Slot
+)
 
 import Orange
 from Orange.widgets.utils.datacaching import data_hints
@@ -47,8 +54,8 @@ def word_split(string):
     return string.translate(_TR_TABLE).split()
 
 
-class BarItemDelegate(QtGui.QStyledItemDelegate):
-    def __init__(self, parent, brush=QtGui.QBrush(QtGui.QColor(255, 170, 127)),
+class BarItemDelegate(QStyledItemDelegate):
+    def __init__(self, parent, brush=QBrush(QColor(255, 170, 127)),
                  scale=(0.0, 1.0)):
         super().__init__(parent)
         self.brush = brush
@@ -58,7 +65,7 @@ class BarItemDelegate(QtGui.QStyledItemDelegate):
         if option.widget is not None:
             style = option.widget.style()
         else:
-            style = QtGui.QApplication.instance().style()
+            style = QApplication.instance().style()
 
         style.drawPrimitive(
             QStyle.PE_PanelItemViewRow, option, painter, option.widget)
@@ -74,7 +81,7 @@ class BarItemDelegate(QtGui.QStyledItemDelegate):
                 rect = rect.adjusted(
                     1, 1, - int(rect.width() * (1.0 - val)) - 2, -2)
             else:
-                rect = QtCore.QRect()
+                rect = QRect()
 
             painter.save()
             if option.state & QStyle.State_Selected:
@@ -203,11 +210,11 @@ class OWSetEnrichment(widget.OWWidget):
             box="Reference", callback=self.updateAnnotations)
 
         box = gui.widgetBox(self.controlArea, "Entity Sets")
-        self.groupsWidget = QtGui.QTreeWidget(self)
+        self.groupsWidget = QTreeWidget(self)
         self.groupsWidget.setHeaderLabels(["Category"])
         box.layout().addWidget(self.groupsWidget)
 
-        hLayout = QtGui.QHBoxLayout()
+        hLayout = QHBoxLayout()
         hLayout.setSpacing(10)
         hWidget = gui.widgetBox(self.mainArea, orientation=hLayout)
         gui.spin(hWidget, self, "minClusterCount",
@@ -252,10 +259,10 @@ class OWSetEnrichment(widget.OWWidget):
         fdrfilterbox.layout().setAlignment(cb, Qt.AlignRight)
         fdrfilterbox.layout().setAlignment(sp, Qt.AlignLeft)
 
-        self.filterLineEdit = QtGui.QLineEdit(
+        self.filterLineEdit = QLineEdit(
             self, placeholderText="Filter ...")
 
-        self.filterCompleter = QtGui.QCompleter(self.filterLineEdit)
+        self.filterCompleter = QCompleter(self.filterLineEdit)
         self.filterCompleter.setCaseSensitivity(Qt.CaseInsensitive)
         self.filterLineEdit.setCompleter(self.filterCompleter)
 
@@ -265,12 +272,12 @@ class OWSetEnrichment(widget.OWWidget):
         self.filterLineEdit.textChanged.connect(
             self.filterAnnotationsChartView)
 
-        self.annotationsChartView = QtGui.QTreeView(
+        self.annotationsChartView = QTreeView(
             alternatingRowColors=True,
             sortingEnabled=True,
-            selectionMode=QtGui.QTreeView.ExtendedSelection,
+            selectionMode=QTreeView.ExtendedSelection,
             rootIsDecorated=False,
-            editTriggers=QtGui.QTreeView.NoEditTriggers,
+            editTriggers=QTreeView.NoEditTriggers,
         )
         self.annotationsChartView.viewport().setMouseTracking(True)
         self.mainArea.layout().addWidget(self.annotationsChartView)
@@ -292,11 +299,11 @@ class OWSetEnrichment(widget.OWWidget):
         task.finished.connect(self.__initialize_finish)
         self.setStatusMessage("Initializing")
         self._executor = ThreadExecutor(
-            parent=self, threadPool=QtCore.QThreadPool(self))
+            parent=self, threadPool=QThreadPool(self))
         self._executor.submit(task)
 
     def sizeHint(self):
-        return QtCore.QSize(1024, 600)
+        return QSize(1024, 600)
 
     def __initialize_finish(self):
         # Finalize the the widget's initialization (preferably after
@@ -466,7 +473,7 @@ class OWSetEnrichment(widget.OWWidget):
         def fill(col, parent, full=(), org=""):
             for key, value in sorted(col.items()):
                 full_cat = full + (key,)
-                item = QtGui.QTreeWidgetItem(parent, [key])
+                item = QTreeWidgetItem(parent, [key])
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable |
                               Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 if value:
@@ -730,11 +737,11 @@ class OWSetEnrichment(widget.OWWidget):
         fmt_query_count = partial(fmt_count, query_fmt)
         fmt_ref_count = partial(fmt_count, ref_fmt)
 
-        linkFont = QtGui.QFont(self.annotationsChartView.viewOptions().font)
+        linkFont = QFont(self.annotationsChartView.viewOptions().font)
         linkFont.setUnderline(True)
 
         def item(value=None, tooltip=None, user=None):
-            si = QtGui.QStandardItem()
+            si = QStandardItem()
             if value is not None:
                 si.setData(value, Qt.DisplayRole)
             if tooltip is not None:
@@ -745,7 +752,7 @@ class OWSetEnrichment(widget.OWWidget):
                 si.setData(value, Qt.UserRole)
             return si
 
-        model = QtGui.QStandardItemModel()
+        model = QStandardItemModel()
         model.setSortRole(Qt.UserRole)
         model.setHorizontalHeaderLabels(
             ["Category", "Term", "Count", "Reference count", "p-value",
@@ -773,7 +780,7 @@ class OWSetEnrichment(widget.OWWidget):
             row[0].enrichment = enrich
             row[1].setData(gset.link, gui.LinkRole)
             row[1].setFont(linkFont)
-            row[1].setForeground(QtGui.QColor(Qt.blue))
+            row[1].setForeground(QColor(Qt.blue))
 
             model.appendRow(row)
 
@@ -795,7 +802,7 @@ class OWSetEnrichment(widget.OWWidget):
                            set())
 
         self.filterCompleter.setModel(None)
-        self.completerModel = QtGui.QStringListModel(sorted(allnames))
+        self.completerModel = QStringListModel(sorted(allnames))
         self.filterCompleter.setModel(self.completerModel)
 
         if results:
@@ -993,7 +1000,7 @@ def set_enrichment(target, reference, query,
 
 
 if __name__ == "__main__":
-    app = QtGui.QApplication(sys.argv)
+    app = QApplication(sys.argv)
     w = OWSetEnrichment()
 #     data = Orange.data.Table("yeast-class-RPR.tab")
     data = Orange.data.Table("brown-selected")

@@ -10,13 +10,15 @@ from contextlib import contextmanager
 import numpy
 import scipy.stats
 
-from PyQt4 import QtGui
-from PyQt4.QtGui import QPainterPath, QPainter
-
-from PyQt4.QtCore import (
-    Qt, QEvent, QObject, QPointF, QRectF, QSize, QPoint, QRect
+from AnyQt.QtWidgets import (
+    QGraphicsView, QGraphicsItemGroup, QGraphicsRectItem, QToolTip
 )
-from PyQt4.QtCore import pyqtSignal as Signal
+from AnyQt.QtGui import (
+    QPainterPath, QPainter, QBrush, QPen, QStandardItemModel
+)
+from AnyQt.QtCore import (
+    Qt, QEvent, QObject, QPointF, QRectF, QSize, QPoint, QRect, Signal
+)
 
 import pyqtgraph as pg
 
@@ -202,7 +204,7 @@ class SymetricSelections(GraphSelections):
         widget = event.widget()
         assert widget is not None
         view = widget.parent()
-        assert isinstance(view, QtGui.QGraphicsView)
+        assert isinstance(view, QGraphicsView)
         pos = view.mapFromGlobal(event.screenPos())
         hitarea = view.mapToScene(QRect(pos - QPoint(2, 2), QSize(4, 4)))
         hitarea = viewbox.mapFromScene(hitarea)
@@ -379,15 +381,15 @@ class VolcanoGraph(pg.PlotWidget):
             self._selitem = None
 
         if self.__selectiondelegate is not None:
-            self._selitem = QtGui.QGraphicsItemGroup()
+            self._selitem = QGraphicsItemGroup()
             self._selitem.dataBounds = \
                 lambda axis, frac=1.0, orthoRange=None: None
 
             for p1, p2 in self.__selectiondelegate.selection:
                 r = QRectF(p1, p2).normalized()
-                ritem = QtGui.QGraphicsRectItem(r, self._selitem)
-                ritem.setBrush(QtGui.QBrush(Qt.NoBrush))
-                ritem.setPen(QtGui.QPen(Qt.red, 0))
+                ritem = QGraphicsRectItem(r, self._selitem)
+                ritem.setBrush(QBrush(Qt.NoBrush))
+                ritem.setPen(QPen(Qt.red, 0))
 
             self.addItem(self._selitem)
 
@@ -561,7 +563,7 @@ class OWVolcanoPlot(widget.OWWidget):
 
             targetitems = [guiutils.standarditem_from(desc)
                            for desc in self.targets]
-            model = QtGui.QStandardItemModel()
+            model = QStandardItemModel()
             for item in targetitems:
                 model.appendRow(item)
 
@@ -729,7 +731,7 @@ class OWVolcanoPlot(widget.OWWidget):
         else:
             text = ""
 
-        QtGui.QToolTip.showText(event.screenPos(), text, widget=self.graph)
+        QToolTip.showText(event.screenPos(), text, widget=self.graph)
         return True
 
     def eventFilter(self, obj, event):
@@ -751,7 +753,8 @@ class OWVolcanoPlot(widget.OWWidget):
 
 
 def test_main():
-    ap = QtGui.QApplication(sys.argv)
+    from AnyQt.QtWidgets import QApplication
+    ap = QApplication(sys.argv)
     w = OWVolcanoPlot()
     w.setAttribute(Qt.WA_DeleteOnClose, True)
 

@@ -13,15 +13,12 @@ from functools import partial, lru_cache
 
 import numpy as np
 
-from PyQt4.QtGui import (
-    QTreeView, QItemSelection, QItemSelectionModel, QFont, QColor,
-    QApplication, QMessageBox, QDesktopServices, QSortFilterProxyModel
+from AnyQt.QtWidgets import QTreeView, QMessageBox
+from AnyQt.QtGui import QFont, QColor, QDesktopServices
+from AnyQt.QtCore import (
+    Qt, QSize, QThread, QAbstractItemModel, QSortFilterProxyModel,
+    QModelIndex, QItemSelection, QItemSelectionModel, QUrl, Slot
 )
-from PyQt4.QtCore import (
-    Qt, QSize, QThread, QAbstractItemModel, QModelIndex, QUrl
-)
-
-from PyQt4.QtCore import pyqtSlot as Slot
 
 import Orange
 
@@ -715,6 +712,7 @@ def reportItemModel(view, model, index=QModelIndex()):
 
 
 def test_main(argv=sys.argv):
+    from AnyQt.QtWidgets import QApplication
     app = QApplication(argv)
 
     if len(argv) > 1:

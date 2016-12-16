@@ -20,14 +20,14 @@ else:
 
 import numpy
 
-from PyQt4.QtGui import (
-    QLineEdit, QSortFilterProxyModel, QSplitter,
-    QTreeView, QItemSelectionModel, QTreeWidget, QTreeWidgetItem,
-    QApplication, QStandardItemModel, QStandardItem, QStringListModel
+from AnyQt.QtWidgets import (
+    QLineEdit, QSplitter, QTreeView, QTreeWidget, QTreeWidgetItem,
 )
-
-from PyQt4.QtCore import Qt, QThread, QCoreApplication
-from PyQt4.QtCore import pyqtSlot as Slot
+from AnyQt.QtGui import QStandardItemModel, QStandardItem
+from AnyQt.QtCore import (
+    Qt, QThread, QCoreApplication, QSortFilterProxyModel, QItemSelectionModel,
+    QStringListModel, Slot
+)
 
 import Orange.data
 
@@ -870,6 +870,7 @@ def sniff_size(fileobj):
 
 
 def main_test():
+    from AnyQt.QtWidgets import QApplication
     app = QApplication([])
     w = OWGEODatasets()
     w.show()
