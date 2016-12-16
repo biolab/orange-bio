@@ -27,7 +27,7 @@ from PyQt4.QtCore import (
 
 import Orange
 
-from Orange.utils import serverfiles
+from orangecontrib.bio.utils import serverfiles
 from Orange.orng.orngDataCaching import data_hints
 
 from Orange.OrangeWidgets import OWGUI
@@ -751,7 +751,6 @@ class OWKEGGPathwayBrowser(OWWidget):
             kegg_gs_collections = geneset.collections(
                 (("KEGG", "pathways"), taxid)
             )
-
             pathways = pathway_enrichment(
                 kegg_gs_collections, unique_genes.keys(),
                 unique_ref_genes.keys(),

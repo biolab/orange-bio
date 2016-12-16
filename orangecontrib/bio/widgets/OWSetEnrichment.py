@@ -4,18 +4,20 @@
 
 from __future__ import absolute_import, with_statement
 
+import threading
 import math
 import operator
 from collections import defaultdict
 
-from Orange.orng import orngEnviron, orngServerFiles
+from Orange.orng import orngEnviron
+from orangecontrib.bio.utils import serverfiles
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI
 from Orange.OrangeWidgets.OWGUI import LinkStyledItemDelegate, LinkRole
 from Orange.OrangeWidgets.OWGUI import BarItemDelegate
 from Orange.OrangeWidgets.OWWidget import *
-
 from Orange.OrangeWidgets.OWConcurrent import ThreadExecutor, Task
+from Orange.utils import ConsoleProgressBar
 
 from .utils.download import EnsureDownloaded
 
@@ -407,7 +409,7 @@ class OWSetEnrichment(OWWidget):
             self.progressBarInit()
             call = self.asyncCall(obiGene.matcher, name="Gene Matcher", blocking=True, thread=self.thread())
             call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
-            with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+            with DownloadProgress.setredirect(call.emitProgressChanged):
 #            with orngServerFiles.DownloadProgress.setredirect(self.progressBarSet):
                 matchers = [obiGene.GMGO, obiGene.GMKEGG, obiGene.GMNCBI, obiGene.GMAffy]
                 if any(self.geneMatcherSettings) and taxid != -1:
@@ -435,7 +437,7 @@ class OWSetEnrichment(OWWidget):
         taxid = self.taxid_list[self.speciesIndex]
         call = self.asyncCall(obiGene.NCBIGeneInfo, (taxid,), name="Load reference genes", blocking=True, thread=self.thread())
         call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
-        with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+        with DownloadProgress.setredirect(call.emitProgressChanged):
             call.__call__()
             return call.get_result()
 
@@ -482,7 +484,7 @@ class OWSetEnrichment(OWWidget):
         ## Load collections in a worker thread
         call = self.asyncCall(obiGeneSets.collections, categories, name="Loading collections", blocking=True, thread=self.thread())
         call.connect(call, SIGNAL("progressChanged(float)"), self.progressBarSet)
-        with orngServerFiles.DownloadProgress.setredirect(call.emitProgressChanged):
+        with DownloadProgress.setredirect(call.emitProgressChanged):
             call.__call__()
             collections = list(call.get_result())
 
@@ -694,6 +696,61 @@ def reportItemModel(view, model, index=QModelIndex()):
     else:
         variant = model.data(index, Qt.DisplayRole)
         return str(variant.toString()) if variant.isValid() else ""
+
+
+class DownloadProgress(ConsoleProgressBar):
+    redirect = None
+    lock = threading.RLock()
+
+    def __init__(self, filename, size):
+        print "Downloading", filename
+        ConsoleProgressBar.__init__(self, "progress:", 20)
+        self.size = size
+        self.starttime = time.time()
+        self.speed = 0.0
+
+    def sizeof_fmt(self, num):
+        return serverfiles.sizeformat(num)
+
+    def getstring(self):
+        elapsed = max(time.time() - self.starttime, 0.1)
+        speed = max(int(self.state * self.size / 100.0 / elapsed), 1)
+        eta = (100 - self.state) * self.size / 100.0 / speed
+        return ConsoleProgressBar.getstring(self) + \
+               "  %s  %12s/s  %3i:%02i ETA" % (self.sizeof_fmt(self.size),
+                                               self.sizeof_fmt(speed),
+                                               eta / 60, eta % 60)
+
+    def __call__(self, *args, **kwargs):
+        ret = ConsoleProgressBar.__call__(self, *args, **kwargs)
+        if self.redirect:
+            self.redirect(self.state)
+        return ret
+
+    class RedirectContext(object):
+        def __enter__(self):
+            DownloadProgress.lock.acquire()
+            return DownloadProgress
+
+        def __exit__(self, ex_type, value, tb):
+            DownloadProgress.redirect = None
+            DownloadProgress.lock.release()
+            return False
+
+    @classmethod
+    def setredirect(cls, redirect):
+        cls.redirect = staticmethod(redirect)
+        return cls.RedirectContext()
+
+    @classmethod
+    def __enter__(cls):
+        cls.lock.acquire()
+        return cls
+
+    @classmethod
+    def __exit__(cls, exc_type, exc_value, traceback):
+        cls.lock.release()
+        return False
 
 
 

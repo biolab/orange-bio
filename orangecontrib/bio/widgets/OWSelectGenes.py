@@ -1363,8 +1363,7 @@ from PyQt4.QtGui import (
 
 from PyQt4.QtCore import QSize
 from Orange.bio import obiGeneSets as genesets
-from Orange.utils import serverfiles
-
+from orangecontrib.bio.utils import serverfiles
 
 class GeneSetView(QFrame):
     selectedOrganismChanged = Signal(str)

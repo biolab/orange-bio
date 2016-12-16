@@ -24,12 +24,12 @@ def create_domain(at, cl, metas):
     if OR3:
         return Orange.data.Domain(at, cl, metas=metas)
     else:
-        domain  = Orange.data.Domain(at, cl)
+        domain = Orange.data.Domain(at, cl)
         if metas:
-            if isinstance(metas, dict):
-                metas = sorted(metas.items())
-            else:
-                metas = zip([ StringVariable.new_meta_id() for _ in metas ], metas)
+            if not isinstance(metas, dict):
+                [domain.add_meta(StringVariable.new_meta_id(), meta) for meta in reversed(metas)]
+                return domain
+            metas = sorted(metas.items())
             domain.add_metas(dict((StringVariable.new_meta_id(), ma) for mi, ma in metas))
         return domain
 

@@ -16,7 +16,7 @@ from PyQt4.QtCore import pyqtSlot as Slot
 
 import Orange
 
-from Orange.utils import serverfiles
+from orangecontrib.bio.utils import serverfiles
 from Orange.utils import lru_cache
 
 from Orange.orng.orngDataCaching import data_hints
