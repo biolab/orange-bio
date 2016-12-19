@@ -325,7 +325,7 @@ def taxid_map(query, targets):
     else:
         return None
 
-from Orange.utils import serverfiles as sf
+from orangecontrib.bio.utils import serverfiles as sf
 
 
 def fetch_ppidb(ppisource, taxid, progress=None):

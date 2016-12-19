@@ -16,7 +16,7 @@ from collections import defaultdict
 from functools import partial
 
 from Orange.utils import lru_cache
-from Orange.utils import serverfiles
+from orangecontrib.bio.utils import serverfiles
 from Orange.orng.orngDataCaching import data_hints
 from Orange.OrangeWidgets import OWGUI, OWGUIEx
 from Orange.OrangeWidgets.OWWidget import *

@@ -1,4 +1,4 @@
-
+import os
 import sys
 
 from datetime import datetime
@@ -15,9 +15,10 @@ from AnyQt.QtCore import (
 )
 from AnyQt.QtCore import Signal, Slot
 
-from orangecontrib.bio.utils import serverfiles
-from orangecontrib.bio.utils.serverfiles import sizeformat as sizeof_fmt
 from orangecontrib.bio.widgets3.utils.gui import TokenListCompleter
+from serverfiles import sizeformat as sizeof_fmt
+from orangecontrib.bio.utils.serverfiles import LOCALFILES, ServerFiles
+
 
 if sys.version_info < (3, ):
     import Orange.OrangeWidgets.OWGUI as gui
@@ -37,6 +38,10 @@ else:
 
 #: Update file item states
 AVAILABLE, CURRENT, OUTDATED, DEPRECATED = range(4)
+
+#: Set Serverfiles and Localfiles
+_serverFiles = ServerFiles()
+_localFiles = LOCALFILES
 
 
 class ItemProgressBar(QProgressBar):
@@ -193,7 +198,7 @@ class UpdateTreeWidgetItem(QTreeWidgetItem):
 
         if self.item.state in [CURRENT, OUTDATED, DEPRECATED]:
             tooltip += ("\nFile: %s" %
-                        serverfiles.localpath(self.item.domain,
+                        _localFiles.localpath(self.item.domain,
                                               self.item.filename))
 
         if self.item.state == OUTDATED and diff_date:
@@ -329,7 +334,6 @@ def update_item_from_info(domain, filename, info_server, info_local):
 
     """
     latest, local, title, tags, size = None, None, None, None, None
-
     if info_server is not None:
         info_server = info_dict_to_item_info(domain, filename, info_server)
         latest = info_server.time
@@ -352,22 +356,14 @@ def update_item_from_info(domain, filename, info_server, info_local):
                       tags, info_server, info_local)
 
 
-def join_info_list(domain, files_local, files_server):
-    filenames = set(files_local.keys()).union(files_server.keys())
-    for filename in sorted(filenames):
-        info_server = files_server.get(filename, None)
-        info_local = files_local.get(filename, None)
-        yield update_item_from_info(domain, filename, info_server, info_local)
-
-
 def join_info_dict(local, server):
-    domains = set(local.keys()).union(server.keys())
-    for domain in sorted(domains):
-        files_local = local.get(domain, {})
-        files_server = server.get(domain, {})
+    files = set(local.keys()).union(server.keys())
 
-        for item in join_info_list(domain, files_local, files_server):
-            yield item
+    for domain, file in sorted(files):
+        info_local = local.get((domain, file), None)
+        info_server = server.get((domain, file), None)
+
+        yield update_item_from_info(domain, file, info_server, info_local)
 
 
 def special_tags(item):
@@ -380,30 +376,20 @@ def special_tags(item):
                  if tag.startswith("#") and ":" in tag])
 
 
-def retrieveFilesList(serverFiles, domains=None, advance=lambda: None):
+def retrieveFilesList(advance=lambda: None):
     """
     Retrieve and return serverfiles.allinfo for all domains.
     """
     import requests.exceptions
-    domains = serverFiles.listdomains() if domains is None else domains
     advance()
-    serverInfo = {}
-    for dom in domains:
-        try:
-            serverInfo[dom] = serverFiles.allinfo(dom)
-        except (requests.exceptions.Timeout,
-                requests.exceptions.ConnectionError) as e:
-             raise ConnectionError
-        except Exception as e:  # ignore inexistent domains
-            pass
+
+    try:
+        serverInfo = _serverFiles.allinfo()
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        raise ConnectionError
+
     advance()
     return serverInfo
-
-
-DOMAINS = [
-    "GO", "MeSH", "Taxonomy", "NCBI_geneinfo", "GEO",  "dictybase",
-    "OMIM", "HomoloGene", "Affy", "miRNA", "gene_sets", "PPI"
-]
 
 
 class OWDatabasesUpdate(OWWidget):
@@ -419,14 +405,11 @@ class OWDatabasesUpdate(OWWidget):
     want_main_area = False
 
     def __init__(self, parent=None, signalManager=None,
-                 name="Databases update", domains=None):
+                 name="Databases update"):
         OWWidget.__init__(self, parent, signalManager, name,
                           wantMainArea=False)
 
         self.searchString = ""
-        self.accessCode = ""
-        self.domains = domains or DOMAINS
-        self.serverFiles = serverfiles.ServerFiles()
 
         fbox = gui.widgetBox(self.controlArea, "Filter")
         self.completer = TokenListCompleter(
@@ -478,11 +461,6 @@ class OWDatabasesUpdate(OWWidget):
         self.retryButton.hide()
 
         gui.rubber(box)
-
-        gui.lineEdit(box, self, "accessCode", "Access Code",
-                     orientation="horizontal",
-                     callback=self.RetrieveFilesList)
-
         self.warning(0)
 
         box = gui.widgetBox(self.controlArea, orientation="horizontal")
@@ -516,11 +494,8 @@ class OWDatabasesUpdate(OWWidget):
         self.retryButton.hide()
         self.warning(0)
         self.progress.setRange(0, 3)
-        self.serverFiles = serverfiles.ServerFiles(access_code=self.accessCode)
 
-        task = Task(function=partial(retrieveFilesList, self.serverFiles,
-                                     self.domains,
-                                     methodinvoke(self.progress, "advance")))
+        task = Task(function=partial(retrieveFilesList, methodinvoke(self.progress, "advance")))
 
         task.resultReady.connect(self.SetFilesList)
         task.exceptionReady.connect(self.HandleError)
@@ -535,15 +510,7 @@ class OWDatabasesUpdate(OWWidget):
         """
         self.setEnabled(True)
 
-        domains = serverInfo.keys()
-        if not domains:
-            if self.domains:
-                domains = self.domains
-            else:
-                domains = serverfiles.listdomains()
-
-        localInfo = dict([(dom, serverfiles.allinfo(dom)) for dom in domains])
-
+        localInfo = _localFiles.allinfo()
         all_tags = set()
 
         self.filesView.clear()
@@ -681,10 +648,7 @@ class OWDatabasesUpdate(OWWidget):
         index = self.updateItemIndex(domain, filename)
         _, tree_item, opt_widget = self.updateItems[index]
 
-        if self.accessCode:
-            sf = serverfiles.ServerFiles(access_code=self.accessCode)
-        else:
-            sf = serverfiles.ServerFiles()
+        sf = _serverFiles
 
         task = DownloadTask(domain, filename, sf)
 
@@ -754,7 +718,7 @@ class OWDatabasesUpdate(OWWidget):
         else:
             # get the new updated info dict and replace the the old item
             self.warning(0)
-            info = serverfiles.info(item.domain, item.filename)
+            info = _localFiles.info(item.domain, item.filename)
             new_item = update_item_from_info(item.domain, item.filename,
                                              info, info)
 
@@ -766,7 +730,7 @@ class OWDatabasesUpdate(OWWidget):
             self.UpdateInfoLabel()
 
     def SubmitRemoveTask(self, domain, filename):
-        serverfiles.remove(domain, filename)
+        _localFiles.remove(domain, filename)
         index = self.updateItemIndex(domain, filename)
         item, tree_item, opt_widget = self.updateItems[index]
 
@@ -927,8 +891,7 @@ class DownloadTask(Task):
 
     def run(self):
         try:
-            serverfiles.download(self.domain, self.filename, self.serverfiles,
-                                 callback=self._advance)
+            _localFiles.download(self.domain, self.filename, callback=self._advance)
         except Exception:
             self.exception.emit(sys.exc_info())
             raise
