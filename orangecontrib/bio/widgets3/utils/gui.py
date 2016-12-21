@@ -12,10 +12,10 @@ if sys.version_info < (3, 4):
 else:
     from functools import singledispatch
 
-from PyQt4 import QtGui, QtCore
+from AnyQt import QtGui, QtCore, QtWidgets
 
-from PyQt4.QtGui import QCompleter, QStringListModel
-from PyQt4.QtCore import Qt, QObject, pyqtSignal as Signal
+from AnyQt.QtWidgets import QCompleter
+from AnyQt.QtCore import Qt, QObject, QStringListModel, pyqtSignal as Signal
 
 import Orange.data
 from Orange.widgets.utils import itemmodels
@@ -106,7 +106,7 @@ def group_model(rowgroups, columngroups):
         model.addRow(item)
 
 
-class LabelSelectionWidget(QtGui.QWidget):
+class LabelSelectionWidget(QtWidgets.QWidget):
     """
     A widget for selection of label values.
 
@@ -126,24 +126,24 @@ class LabelSelectionWidget(QtGui.QWidget):
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent, **kwargs)
         self.__model = None
-        self.__selectionMode = QtGui.QListView.ExtendedSelection
+        self.__selectionMode = QtWidgets.QListView.ExtendedSelection
 
         self.__currentIndex = -1
         self.__selections = {}
 
-        layout = QtGui.QVBoxLayout()
+        layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
 
         def group_box(title):
-            box = QtGui.QGroupBox(title)
+            box = QtWidgets.QGroupBox(title)
             box.setFlat(True)
-            lay = QtGui.QVBoxLayout()
+            lay = QtWidgets.QVBoxLayout()
             lay.setContentsMargins(0, 0, 0, 0)
             box.setLayout(lay)
             return box
 
-        self.labels_combo = QtGui.QComboBox()
-        self.values_view = QtGui.QListView(
+        self.labels_combo = QtWidgets.QComboBox()
+        self.values_view = QtWidgets.QListView(
             selectionMode=self.__selectionMode
         )
 
@@ -161,8 +161,8 @@ class LabelSelectionWidget(QtGui.QWidget):
 
         self.setLayout(layout)
 
-        self.setSizePolicy(QtGui.QSizePolicy.Expanding,
-                           QtGui.QSizePolicy.Expanding)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                           QtWidgets.QSizePolicy.Expanding)
 
     def clear(self):
         """
@@ -246,7 +246,7 @@ class LabelSelectionWidget(QtGui.QWidget):
 
         Parameters
         ----------
-        selection : QtGui.QItemSelection
+        selection : QtCore.QItemSelection
             Item selection.
         """
         if self.values_view.selectionModel() is not None:
@@ -275,9 +275,9 @@ class LabelSelectionWidget(QtGui.QWidget):
 
         Returns
         -------
-        selection : QtGui.QItemSelection
+        selection : QtCore.QItemSelection
         """
-        selection = QtGui.QItemSelection()
+        selection = QtCore.QItemSelection()
         if self.__model is None:
             return selection
 
@@ -294,7 +294,7 @@ class LabelSelectionWidget(QtGui.QWidget):
         if self.values_view.selectionModel() is not None:
             return self.values_view.selectionModel().selection()
         else:
-            return QtGui.QItemSelection()
+            return QtCore.QItemSelection()
 
     def __onCurrentIndexChanged(self, index):
         self.__storeSelection(self.__currentIndex,
@@ -330,11 +330,11 @@ class LabelSelectionWidget(QtGui.QWidget):
         indices = [self.__model.index(pind.row(), pind.column(), root)
                    for pind in sel if pind.isValid() and pind.parent() == root]
 
-        selection = QtGui.QItemSelection()
+        selection = QtCore.QItemSelection()
         for ind in indices:
             selection.select(ind, ind)
         self.values_view.selectionModel().select(
-            selection, QtGui.QItemSelectionModel.ClearAndSelect)
+            selection, QtCore.QItemSelectionModel.ClearAndSelect)
 
     def sizeHint(self):
         """Reimplemented from QWidget.sizeHint"""
@@ -354,7 +354,7 @@ def itemselection(modelindexlist):
     -------
     selection : QtCore.QItemSelection
     """
-    selection = QtGui.QItemSelection()
+    selection = QtCore.QItemSelection()
     for index in modelindexlist:
         selection.select(index, index)
     return selection
