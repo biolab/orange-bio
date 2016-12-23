@@ -167,7 +167,10 @@ def httpGet(address, *args, **kwargs):
         print(address, args, kwargs,  " ")
     address = replaceChars(address)
     t1 = time.time()
-    f = urlopen(address, *args, context=CONTEXT, **kwargs)
+    if CONTEXT is not None:
+        f = urlopen(address, *args, context=CONTEXT, **kwargs)
+    else:  # to work before 2.7.9
+        f = urlopen(address, *args,  **kwargs)
 
     read = f.read()
     if verbose:
@@ -1555,7 +1558,10 @@ class CacheSQLite(object):
 
 def download_url(url, repeat=2):
     def do():
-        return urlopen(url, context=CONTEXT)
+        if CONTEXT is not None:  # to work before Python 2.7.9
+            return urlopen(url, context=CONTEXT)
+        else:
+            return urlopen(url)
 
     if repeat <= 0:
         do()
