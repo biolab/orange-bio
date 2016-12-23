@@ -26,11 +26,8 @@ def create_domain(at, cl, metas):
     else:
         domain  = Orange.data.Domain(at, cl)
         if metas:
-            if isinstance(metas, dict):
-                metas = sorted(metas.items())
-            else:
-                metas = zip([ StringVariable.new_meta_id() for _ in metas ], metas)
-            domain.add_metas(dict((StringVariable.new_meta_id(), ma) for mi, ma in metas))
+            metas = zip([ StringVariable.new_meta_id() for _ in metas ], metas)
+            domain.add_metas(dict(metas))
         return domain
 
 
