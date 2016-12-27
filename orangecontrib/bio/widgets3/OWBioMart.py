@@ -4,6 +4,7 @@ import io
 from collections import defaultdict
 from functools import partial
 import itertools
+import xml.sax
 
 import six
 
@@ -780,6 +781,9 @@ class OWBioMart(widget.OWWidget):
     def _handleException(self, exception):
         assert(QThread.currentThread() is self.thread())
         print("Task failed with:", exception, file=sys.stderr)
+        import logging
+        log = logging.getLogger(__name__)
+        log.exception("Error:", exc_info=exception)
         self.error(0, str(exception))
         self.setEnabled(True)
 
@@ -823,7 +827,7 @@ class OWBioMart(widget.OWWidget):
             connection = dataset.connection
             stream = connection.configuration(
                 dataset=dataset.internalName,
-                virtualSchema=dataset.virtualSchema)
+                virtualSchema=dataset.serverVirtualSchema)
             response = stream.read()
             return response
 
@@ -919,7 +923,10 @@ class OWBioMart(widget.OWWidget):
 
         query = self.registry.query(
             format="TSV" if "tsv" in format.lower() else format.upper(),
-            uniqueRows=self.uniqueRows)
+            uniqueRows=self.uniqueRows,
+            virtualSchema=dataset.virtualSchema,
+            serverVirtualSchema=dataset.serverVirtualSchema
+        )
 
         for dataset, (attributes, filters) in bydatasets.items():
             query.set_dataset(dataset if dataset else self.dataset)
