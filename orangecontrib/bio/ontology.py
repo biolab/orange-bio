@@ -233,6 +233,8 @@ class OBOObject(object):
     .. seealso:: :class:`Term` :class:`Typedef` :class:`Instance`
 
     """
+    Dispatch = {}
+
     def __init__(self, stanza_type="Term", **kwargs):
         """
         Initialize from keyword arguments.
@@ -440,8 +442,7 @@ class OBOObject(object):
 
         tag_values = [parse_tag_value(line) for line in lines[1:]
                       if ":" in line]
-
-        obo = OBOObject(stanza_type)
+        obo = OBOObject.Dispatch[stanza_type]()
         obo.add_tags(tag_values)
         return obo
 
@@ -507,6 +508,9 @@ class Instance(OBOObject):
     """
     def __init__(self, *args, **kwargs):
         OBOObject.__init__(self, "Instance", *args, **kwargs)
+
+
+OBOObject.Dispatch = {"Term": Term, "Typedef": Typedef, "Instance": Instance}
 
 
 class OBOParser(object):
@@ -637,7 +641,7 @@ class OBOOntology(object):
             if event == "TAG_VALUE":
                 tag_values.append(value)
             elif event == "START_STANZA":
-                current = OBOObject(value)
+                current = OBOObject.Dispatch[value]()
             elif event == "CLOSE_STANZA":
                 current.add_tags(tag_values)
                 self.add_object(current)
