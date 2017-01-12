@@ -3,13 +3,13 @@ DBGET entry
 """
 from __future__ import absolute_import
 
-__all__ = ["parser", "fields"]
-
+import warnings
 from collections import defaultdict
 
 from . import fields
 from .parser import DBGETEntryParser
 
+__all__ = ["parser", "fields"]
 
 # TODO: Remove the use of entry_decorate decorator
 # for constructing a DBEntry subclass, make fields
@@ -64,6 +64,7 @@ class DBEntry(object):
 
     def __init__(self, text=None):
         self._sections = {}
+        self.fields = []
         if text is not None:
             self.parse(text)
 

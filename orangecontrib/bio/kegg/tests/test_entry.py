@@ -10,7 +10,7 @@ TEST_ENTRY = """\
 ENTRY       test_id    something else
 NAME        test
 DESCRIPTION This is a test's description.
-            it spans
+            It spans
             multiple lines
   SUB       This is a description's sub
             section
@@ -31,7 +31,6 @@ class TestEntry(unittest.TestCase):
         entry = Entry(TEST_ENTRY)
         self.assertEqual(entry.entry_key, "test_id")
         self.assertEqual(entry.ENTRY.TITLE, "ENTRY")
-
         self.assertEqual(str(entry), TEST_ENTRY[:-4])
 
 
@@ -40,8 +39,22 @@ class TestParser(unittest.TestCase):
         parse = parser.DBGETEntryParser()
         stream = StringIO(TEST_ENTRY)
 
-        for event, title, text in parse.parse(stream):
-            pass
+        expected = [
+            (parse.ENTRY_START, None, None),
+            (parse.SECTION_START, "ENTRY", "test_id    something else\n"),
+            (parse.SECTION_END, "ENTRY", None),
+            (parse.SECTION_START, "NAME", "test\n"),
+            (parse.SECTION_END, "NAME", None),
+            (parse.SECTION_START, "DESCRIPTION", "This is a test's description.\n"),
+            (parse.TEXT, None, "It spans\n"),
+            (parse.TEXT, None, "multiple lines\n"),
+            (parse.SUBSECTION_START, "SUB", "This is a description's sub\n"),
+            (parse.TEXT, None, "section\n"),
+            (parse.SUBSECTION_END, "SUB", None),
+            (parse.SECTION_END, "DESCRIPTION", None),
+            (parse.ENTRY_END, None, None)
+        ]
+        self.assertSequenceEqual(list(parse.parse(stream)), expected)
 
 
 def load_tests(loader, tests, ignore):
