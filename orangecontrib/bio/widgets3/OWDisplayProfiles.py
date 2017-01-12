@@ -172,7 +172,9 @@ class OWDisplayProfiles(widget.OWWidget):
         self.graph.scene().selectionChanged.connect(
             self.__on_curve_selection_changed)
         self.mainArea.layout().addWidget(self.graph)
-        self.legend = None
+        self.legend = pg.LegendItem(offset=(-30, 30))
+        self.legend.setParentItem(self.graph.plotItem)
+        self.legend_items = []
 
     def sizeHint(self):
         return QSize(800, 600)
@@ -189,12 +191,17 @@ class OWDisplayProfiles(widget.OWWidget):
         self.__selected_data_indices = []
         self.graph.clear()
 
+    def clear_legend(self):
+        if self.classes:
+            [self.legend.removeItem("&nbsp; {}".format(item)) for item in self.classes]
+
     def set_data(self, data):
         """
         Set the input profile dataset.
         """
         self.closeContext()
         self.clear()
+        self.clear_legend()
 
         self.data = data
         if data is not None:
@@ -227,15 +234,14 @@ class OWDisplayProfiles(widget.OWWidget):
             self.annotation_variables = annotvars
             self.openContext(data)
 
-            self._setup_plot()
+            if n_attrs:
+                self._setup_plot()
 
         self.commit()
 
     def _setup_plot(self):
         """Setup the plot with new curve data."""
         assert self.data is not None
-
-        legend = self.graph.plotItem.addLegend(offset=(-30, 30))
 
         data, domain = self.data, self.data.domain
         if is_discrete(domain.class_var):
@@ -297,7 +303,7 @@ class OWDisplayProfiles(widget.OWWidget):
             self.graph.addItem(hc)
 
             self.graph.addItem(meancurve)
-            legend.addItem(meancurve, "&nbsp; {}".format(self.classes[i]))
+            self.legend_items.append(meancurve)
             q1, q2, q3 = np.nanpercentile(group_data.X, [25, 50, 75], axis=0)
             # TODO: implement and use a box plot item
             errorbar = pg.ErrorBarItem(
@@ -317,10 +323,16 @@ class OWDisplayProfiles(widget.OWWidget):
         self.__update_visibility()
         self.__update_tooltips()
 
+    def __update_legend(self):
+        self.clear_legend()
+        [self.legend.addItem(self.legend_items[i], "&nbsp; {}".format(self.classes[i]))
+         for i in self.selected_classes]
+
     def __update_visibility(self):
         if self.__groups is None:
             return
 
+        self.__update_legend()
         if self.classes:
             selected = lambda i: i in self.selected_classes
         else:
