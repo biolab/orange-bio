@@ -1,0 +1,30 @@
+language: python
+
+matrix:
+  include:
+    - python: "2.7"
+      env: TESTSUITES=orangecontrib.bio.tests
+    - python: "3.4"
+      env: TESTSUITES=orangecontrib.bio.tests
+    - python: "3.5"
+      env: TESTSUITES=orangecontrib.bio.tests BUILD_DOC=1
+
+cache:
+  pip: true
+
+install:
+  - python -m pip install 'pip>=9'  # to install manylinux wheels
+  - pip --version
+  - python setup.py clean --all sdist -d dist
+  - name=$(python setup.py --name)
+  - version=$(python setup.py --version)
+  - pip install dist/${name}-${version}.tar.gz
+
+script:
+  - testdir=$(mktemp -d ./testdir.XXX)
+  - pushd "${testdir}"
+  - for testmod in ${TESTSUITES}; do python -c "import ${testmod}"; done
+  - python -m unittest -v ${TESTSUITES}
+  - popd; rm -r "${testdir}"
+  - if [[ ${BUILD_DOC} ]]; then pip install -r doc/requirements.txt; fi
+  - if [[ ${BUILD_DOC} ]]; then (cd doc;  make html ); fi
