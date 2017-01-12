@@ -163,8 +163,7 @@ class ArrayExpressConnection(object):
                      "wholewords": format_wholewords,
                      }
         parts = []
-        arg_items = kwargs.items()
-
+        arg_items = sorted(kwargs.items())
         arg_items = sorted(
             arg_items,
             key=lambda arg: self._ARGS_ORDER.index(arg[0])
@@ -239,8 +238,8 @@ class ArrayExpressConnection(object):
 
         Example::
 
-            >>> raw_file = conn.open_file("E-TABM-1087", kind="raw")
-            >>> processed_file = conn.open_file("E-TABM-1087", kind="processed")
+            >>> raw_file = conn.open_file("E-TABM-1087", kind="raw")  # doctest: +SKIP
+            >>> processed_file = conn.open_file("E-TABM-1087", kind="processed")  # doctest: +SKIP
 
         """
         stream = self.query_files(accession=accession, format="json")
@@ -367,7 +366,7 @@ def query_files(keywords=None, accession=None, array=None, ef=None,
     arguments.
 
     >>> query_files(species="Mus musculus", ef="developmental_stage",
-    ...             efv="embryo", format="xml")
+    ...             efv="embryo", format="xml")  # doctest: +SKIP
     <xml.etree.ElementTree.ElementTree object ...
 
     """
@@ -951,7 +950,8 @@ class ArrayExpressExperiment(object):
     >>> for file in ae.files:
     ...     print("{:<10}: {}".format(file["name"], file["url"]))
     E-MEXP-2917...
-    >>> table = ae.fgem_to_table() # Retrieve the experiment data table
+    >>> # Retrieve the experiment data table
+    >>> table = ae.fgem_to_table() # doctest: +SKIP
 
     :param str accession:
         The experiment accession id.
