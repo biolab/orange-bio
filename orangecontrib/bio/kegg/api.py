@@ -49,11 +49,10 @@ class KeggApi(object):
 
     def list_organisms(self):
         """
-        Return a list of all available organisms
+        Return a list of all available organisms,
 
-        >>> api.list_organisms()
-        [OrganismSummary(entry_id=T0..
-
+        >>> api.list_organisms()  # doctest: +ELLIPSIS
+        [OrganismSummary(entry_id='T01001', ...
         """
         return list(map(OrganismSummary.from_str,
                         self.service.list.organism.get().splitlines()))
@@ -62,9 +61,8 @@ class KeggApi(object):
         """
         Return a list of all available pathways for `organism`
 
-        >>> api.list_pathways("hsa")
-        [Definition(entry_id=',...
-
+        >>> api.list_pathways("hsa")  # doctest: +ELLIPSIS
+        [Definition(entry_id='path:hsa00010', ...
         """
         return list(map(Definition.from_str,
                         self.service.list.pathway(organism).get().splitlines()))
@@ -84,9 +82,8 @@ class KeggApi(object):
         """
         Return info for database `db`
 
-        >>> print api.info("pathway")
+        >>> print(api.info("pathway"))
         BInfo(entry_id='path', definition='KEGG Pathway Database', ...
-
         """
         result = self.service.info(db).get()
         return BInfo.from_text(result)

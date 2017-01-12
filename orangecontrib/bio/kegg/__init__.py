@@ -12,8 +12,6 @@ of Genes and Genomes) <http://www.genome.jp/kegg/>`_ using its web services.
 
 .. _`requests`: https://pypi.python.org/pypi/requests
 
-
->>> from orangecontrib.bio.kegg import *
 >>> # Create a KEGG Genes database interface
 >>> genome = KEGGGenome()
 >>> # List all available entry ids
@@ -411,14 +409,3 @@ def _global_genome_instance():
             lock.release()
 
     return instance_locked(genome, genome._lock)
-
-
-def main():
-    KEGGGenome()
-    import doctest
-    extraglobs = {"api": KeggApi()}
-    doctest.testmod(optionflags=doctest.ELLIPSIS, extraglobs=extraglobs)
-
-
-if __name__ == "__main__":
-    sys.exit(main())

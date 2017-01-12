@@ -88,6 +88,9 @@ INSTALL_REQUIRES = (
 if sys.version_info > (3, ):
     INSTALL_REQUIRES = INSTALL_REQUIRES + ("pyqtgraph", "AnyQt")
 
+if sys.version_info < (3, 3):
+    INSTALL_REQUIRES = INSTALL_REQUIRES + ("backports.unittest_mock",)
+
 if sys.version_info < (3, 4):
     INSTALL_REQUIRES = INSTALL_REQUIRES + ("singledispatch",)
 

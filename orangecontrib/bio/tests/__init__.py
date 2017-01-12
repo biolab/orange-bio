@@ -7,6 +7,7 @@ def suite(loader=None, pattern='test_*.py'):
     Return the default test suite.
     """
     test_dir = os.path.dirname(__file__)
+    kegg_dir = os.path.normpath(os.path.join(test_dir, "..", "kegg"))
     if loader is None:
         loader = unittest.TestLoader()
     if pattern is None:
@@ -18,6 +19,7 @@ def suite(loader=None, pattern='test_*.py'):
     top_level_dir = os.path.realpath(top_level_dir)
     all_tests = [
         loader.discover(test_dir, pattern, top_level_dir),
+        loader.discover(kegg_dir, pattern, top_level_dir),
     ]
 
     return unittest.TestSuite(all_tests)
