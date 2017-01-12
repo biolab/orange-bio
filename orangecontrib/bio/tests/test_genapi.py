@@ -1,13 +1,13 @@
+import sys
 import unittest
+
 import Orange
 
-from orangecontrib.bio import resolwe
 
-
+@unittest.skipIf(sys.version_info < (3,), "Python 3 only")
 class TestGenapi(unittest.TestCase):
-
     def test_login(self):
-
+        from orangecontrib.bio import resolwe
         email = 'anonymous@genialis.com'
         password = 'anonymous'
         url = 'https://dictyexpress.research.bcm.edu'
@@ -17,7 +17,7 @@ class TestGenapi(unittest.TestCase):
         self.assertRaises(Exception, resolwe.connect, email, password, 'testUrl', 'genesis')
 
     def test_objects(self):
-
+        from orangecontrib.bio import resolwe
         gen = resolwe.connect('anonymous@genialis.com', 'anonymous',
                               'https://dictyexpress.research.bcm.edu', 'genesis')
         etc_objects = gen.fetch_etc_objects()
