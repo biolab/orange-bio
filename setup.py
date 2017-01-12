@@ -56,7 +56,6 @@ CLASSIFIERS = (
 )
 
 PACKAGES = find_packages(
-    exclude = ('*.tests', '*.tests.*', 'tests.*', 'tests'),
 )
 
 PACKAGE_DATA = {
