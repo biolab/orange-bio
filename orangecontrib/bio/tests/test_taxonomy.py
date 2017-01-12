@@ -1,16 +1,16 @@
-
+import os
 import unittest
 import errno
 
 from orangecontrib.bio import taxonomy
+from orangecontrib.bio.utils import serverfiles
 
 
 def islocal():
     try:
-        taxonomy.serverfiles.info(
-            taxonomy.Taxonomy.DOMAIN, taxonomy.Taxonomy.FILENAME)
-    except OSError as e:
-        if e.errno == errno.EEXIST:
+        serverfiles.info(taxonomy.Taxonomy.DOMAIN, taxonomy.Taxonomy.FILENAME)
+    except (OSError, IOError) as e:
+        if e.errno == errno.ENOENT:
             return False
         else:
             raise
@@ -18,8 +18,12 @@ def islocal():
         return True
 
 
-@unittest.skipIf(not islocal(), "Taxonomy not available")
 class TestTaxonomy(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        if "TESTS_NET_ACCESS" not in os.environ and not islocal():
+            raise unittest.SkipTest(
+                "Taxonomy not available and TESTS_NET_ACCESS env not defined")
 
     def test_name(self):
         tax = taxonomy.Taxonomy()
