@@ -41,7 +41,7 @@ from AnyQt.QtCore import (
 from AnyQt.QtGui import QStandardItemModel, QStandardItem, QPalette
 from AnyQt.QtWidgets import (
     QWidget, QTreeView, QComboBox, QApplication, QSplitter,
-    QRadioButton, QButtonGroup, QProgressBar, QStackedLayout,
+    QRadioButton, QButtonGroup, QProgressBar, QStackedLayout, QFormLayout,
     QStyledItemDelegate, QHBoxLayout, QSizePolicy,
     QStyle, QStylePainter, QStyleOptionComboBox, QToolTip
 )
@@ -57,7 +57,8 @@ from orangecontrib.bio.utils import stats, environ
 from orangecontrib.bio.widgets3.OWGEODatasets import retrieve_url
 
 from orangecontrib.bio.widgets3.utils import disconnected, group_ranges
-
+from orangecontrib.bio.widgets3.utils.data import append_columns
+from orangecontrib.bio.widgets3.OWFeatureSelection import copy_variable
 
 def download_file(url, targetpath, progress=None):
     # type: (str, str, Optional[Callable[[int, int], None]]) -> None
@@ -388,6 +389,20 @@ class ComboBox(QComboBox):
         return super().event(event)
 
 
+class DomainRole(enum.IntEnum):
+    """
+    An enum describing the position in the domain where columns should be
+    placed.
+    """
+    Attribute, Class, Meta = 0, 1, 2
+
+DomainRole.DisplayNames = {
+    DomainRole.Attribute: "Attribute",
+    DomainRole.Class: "Class variable",
+    DomainRole.Meta: "Meta variable",
+}
+
+
 class OWMapManEnrichment(widget.OWWidget):
     name = "GoMapMan Ontology"
     icon = "icons/GoMapMan.svg"
@@ -409,6 +424,12 @@ class OWMapManEnrichment(widget.OWWidget):
         widget.OutputSignal(
             "Selected data", Orange.data.Table, widget.Default,
             id="selected-data"),
+        widget.OutputSignal(
+            "Data", Orange.data.Table,
+            id="annotated-data",
+            doc="The input query data with (selected) term membership "
+                "indicator columns"
+        )
     ]
     settingsHandler = settings.DomainContextHandler()
 
@@ -426,6 +447,10 @@ class OWMapManEnrichment(widget.OWWidget):
 
     splitter_state = settings.Setting(b'')           # type: bytes
     header_states = settings.Setting((b'', b''))     # type: Tuple[bytes, bytes]
+    append_term_indicators = settings.Setting(True)  # type: bool
+    term_indicator_role = settings.Setting(
+        int(DomainRole.Meta))                        # type: int
+    auto_commit = settings.Setting(False)            # type: bool
 
     def __init__(self):
         super().__init__()
@@ -538,7 +563,7 @@ class OWMapManEnrichment(widget.OWWidget):
             b1.setChecked(True)
 
         @bbox.buttonClicked.connect
-        def on_ref_tooggled():
+        def on_ref_toggled():
             self.use_reference_input = b2.isChecked()
             self.__data.refids = None
             self.__data.queryids_resolved = None
@@ -552,6 +577,33 @@ class OWMapManEnrichment(widget.OWWidget):
         box.layout().addWidget(b1)
         box.layout().addWidget(b2)
         self.controlArea.layout().addStretch(10)
+
+        box = gui.widgetBox(self.controlArea, "Output", addSpace=False)
+        append_check = gui.checkBox(box, self, "append_term_indicators",
+                                    "Append term indicator columns")
+        append_check.setAttribute(Qt.WA_LayoutUsesWidgetRect, True)
+
+        form = QFormLayout(
+            formAlignment=Qt.AlignLeft,
+            labelAlignment=Qt.AlignLeft,
+            fieldGrowthPolicy=QFormLayout.AllNonFixedFieldsGrow,
+        )
+        box.layout().addLayout(form)
+        append_check.ensurePolished()
+        form.setContentsMargins(
+            gui.checkButtonOffsetHint(append_check), 0, 6, 6)
+        position_cb = gui.comboBox(box, self, "term_indicator_role")
+        position_cb.setEnabled(bool(self.append_term_indicators))
+
+        for role in DomainRole:
+            position_cb.addItem(DomainRole.DisplayNames[role])
+
+        position_cb.activated.connect(self._invalidate_output)
+        form.addRow("Place as:", position_cb)
+        append_check.toggled[bool].connect(position_cb.setEnabled)
+
+        gui.auto_commit(box, self, "auto_commit", "Commit", box=False,
+                        commit=self.commit)
 
         # Main area views
         #################
@@ -688,7 +740,7 @@ class OWMapManEnrichment(widget.OWWidget):
             model.setGraph({})
             model.setResults([])
 
-        self.commit()
+        self.unconditional_commit()
 
     def set_query_data(self, data):
         """
@@ -768,7 +820,7 @@ class OWMapManEnrichment(widget.OWWidget):
             self.__update()
 
         self.__update_infotext()
-        self.commit()
+        self.unconditional_commit()
 
     def query_list_source(self):
         return self.query_combo.currentData()
@@ -1181,7 +1233,7 @@ class OWMapManEnrichment(widget.OWWidget):
 
     def __treeview_expand_and_select(self, expanded, selected,
                                      command=QItemSelectionModel.ClearAndSelect):
-        # type: (List[ontology.Term], List[ontology.Term]) -> None
+        # type: (List[ontology.Term], List[ontology.Term], QItemSelectionModel.Command) -> None
         view = self.treeview
         model = view.model()  # type: OntologyEnrichmentResultsModel
         graph = model.graph()
@@ -1233,6 +1285,9 @@ class OWMapManEnrichment(widget.OWWidget):
 
     @Slot()
     def __selection_changed(self):
+        self._invalidate_output()
+
+    def _invalidate_output(self):
         self.commit()
 
     def commit(self):
@@ -1246,21 +1301,55 @@ class OWMapManEnrichment(widget.OWWidget):
             return rows
 
         if self.query_data is not None and self.__data.results is not None:
-            res = self.__data.results
+            results = self.__data.results  # type: List[Result]
             rows = selected_rows(self.tableview, column=0)
             terms = [idx.data(Qt.UserRole) for idx in rows]
             assert all(isinstance(term, ontology.OBOObject) for term in terms)
-            selected_termids = {t.id for t in terms}
-            query_2_term = multimap_invert(
-                {res.node.id: res.query_mapped for res in self.__data.results}
-            )
+            terms = list(unique(terms))
+            selected_termids = [t.id for t in terms]
             query_vector = self.__data.query_source_vector
             query_source = self.__data.query_source
-            indices = [i for i, qid in enumerate(query_vector)
-                       if set(query_2_term.get(qid, [])) & selected_termids]
+            selected_termids_set = set(selected_termids)
+
+            # selected term id to query ids that map to that set
+            tid_2_query = {r.node.id: set(r.query_mapped) for r in results
+                           if r.node.id in selected_termids_set}
+            sel_qmapped = [tid_2_query[tid] for tid in selected_termids]
+            indicator = [[qid in qm for qm in sel_qmapped]
+                         for qid in query_vector]
+            indicator = numpy.array(indicator, dtype=bool)
+            assert indicator.ndim == 2
+            selected_mask = numpy.logical_or.reduce(indicator, axis=1)
+            indices = numpy.flatnonzero(selected_mask)
+
             if isinstance(query_source, Orange.data.StringVariable):
+                assert len(query_vector) == len(self.query_data)
                 selected_data = self.query_data[indices]
+                if self.append_term_indicators:
+                    term_vars = [Orange.data.DiscreteVariable(
+                                     term.name, values=["No", "Yes"])
+                                 for term in terms]
+                    term_cols = list(zip(term_vars, indicator.T))
+                else:
+                    term_vars, term_cols = [], []
+                select_var = Orange.data.DiscreteVariable(
+                    "Selected", ["No", "Yes"])
+                selected_cols = [(select_var, selected_mask)]
+                # 'Selected' Column is always in metas, the 'terms'
+                # positions are specified by the user.
+                if not self.append_term_indicators:
+                    args = {"metas": selected_cols}
+                elif self.term_indicator_role == DomainRole.Attribute:
+                    args = {"attributes": term_cols, "metas": selected_cols}
+                elif self.term_indicator_role == DomainRole.Class:
+                    args = {"class_vars": term_cols, "metas": selected_cols}
+                elif self.term_indicator_role == DomainRole.Meta:
+                    args = {"metas": term_cols + selected_cols}
+                else:
+                    assert False
+                annotated_data = append_columns(self.query_data, **args)
             else:
+                assert len(query_vector) == len(self.query_data.domain.attributes)
                 selected_data = self.query_data.from_table(
                     Orange.data.Domain(
                         [self.query_data.domain[i] for i in indices],
@@ -1268,9 +1357,30 @@ class OWMapManEnrichment(widget.OWWidget):
                         self.query_data.domain.metas),
                     self.query_data
                 )
+
+                if self.append_term_indicators:
+                    newattrs = [copy_variable(v)
+                                for v in self.query_data.domain.attributes]
+                    assert len(newattrs) == len(query_vector)
+                    for v, indicatorrow in zip(newattrs, indicator):
+                        for term, ismember in zip(terms, indicatorrow):
+                            v.attributes[term.name] = ismember  # str or not?
+                    annotated_data = self.query_data.from_table(
+                        Orange.data.Domain(
+                            newattrs, self.query_data.domain.class_vars,
+                            self.query_data.domain.metas),
+                        self.query_data
+                    )
+                    annotated_data.X[:] = self.query_data.X[:]
+                else:
+                    annotated_data = self.query_data
+
         else:
             selected_data = None
+            annotated_data = None
+
         self.send("Selected data", selected_data)
+        self.send("Data", annotated_data)
 
     def sizeHint(self):
         sh = super().sizeHint()
@@ -1377,7 +1487,7 @@ class _Item(QStandardItem):
     """
     def __init__(self, *args, data={}, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__data = data  # type: Dict[int, Callable[[], Any]
+        self.__data = data  # type: Dict[int, Callable[[], Any]]
 
     def data(self, role=Qt.DisplayRole):
         if role in self.__data:
