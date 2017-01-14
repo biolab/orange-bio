@@ -1,4 +1,5 @@
 from __future__ import print_function
+
 import os
 import errno
 import sys
@@ -234,7 +235,7 @@ DEFAULT_ADDRESS = "http://www.biomart.org/biomart/martservice"
 
 # The cache is python version depended (due to use of pickle)
 _PY_TAG = "py{0.major}.{0.minor}".format(sys.version_info)
-_CACHE_VER = 2  # Cache structure version
+_CACHE_VER = 3  # Cache structure version
 _CACHE_TAG = "v{}-{}".format(_CACHE_VER, _PY_TAG)
 
 DATA_CACHE = os.path.join(environ.buffer_dir,
@@ -246,7 +247,7 @@ META_CACHE = os.path.join(environ.buffer_dir,
 def checkBioMartServerError(response):
     if response.strip().startswith(b"Mart name conflict"):
         raise DatabaseNameConflictError(response)
-    elif response.strip().startswith(b"Problem retrieving datasets"):
+    elif response.strip().startswith(b"Problem retrieving"):
         raise BioMartError(response)
     elif response.startswith(b"non-BioMart die():"):
         raise BioMartServerError(response)
@@ -692,8 +693,11 @@ class BioMartDatabase(object):
         """Return a list of all datasets (:obj:`BioMartDataset`)
         in this database.
         """
-        return drop_iter(BioMartDataset(mart=self.name,
-                                        connection=self.connection, **dataset)
+        return drop_iter(BioMartDataset(
+                             mart=self.name,
+                             connection=self.connection,
+                             serverVirtualSchema=self.serverVirtualSchema,
+                             **dataset)
                          for dataset in self._datasets_index())
 
     def dataset_attributes(self, dataset, **kwargs):
@@ -758,20 +762,26 @@ class BioMartDataset(object):
     def __init__(self, mart="ensembl", internalName="hsapiens_gene_ensembl",
                  virtualSchema="default", connection=None,
                  datasetType="TableSet", displayName="", visible="1",
-                 assembly="", date="", **kwargs):
+                 assembly="", date="", serverVirtualSchema=None, **kwargs):
         self.connection = \
             connection if connection is not None else BioMartConnection()
         self.mart = mart
         self.internalName = internalName
-        self.virtualSchema = virtualSchema
+        self._virtualSchema = self.virtualSchema = virtualSchema
         self.datasetType = datasetType
         self.displayName = displayName
         self.visible = visible
         self.assembly = assembly
         self.date = date
+        self.serverVirtualSchema = serverVirtualSchema
         self.__dict__.update(kwargs)
         self._attributes = None
         self._filters = None
+        # The serverVirtualSchema is used for querying the remote
+        if self.serverVirtualSchema is None:
+            self._serverVirtualSchema = self.virtualSchema
+        else:
+            self._serverVirtualSchema = self.serverVirtualSchema
 
     @cached
     def attributes(self):
@@ -779,7 +789,7 @@ class BioMartDataset(object):
         (:obj:`Attribute`).
         """
         stream = self.connection.attributes(
-            dataset=self.internalName, virtualSchema=self.virtualSchema
+            dataset=self.internalName, virtualSchema=self._serverVirtualSchema
         )
         response = stream.read()
         lines = response.splitlines()
@@ -791,7 +801,7 @@ class BioMartDataset(object):
         (:obj:`Filter`).
         """
         stream = self.connection.filters(
-            dataset=self.internalName, virtualSchema=self.virtualSchema
+            dataset=self.internalName, virtualSchema=self._serverVirtualSchema
         )
         response = stream.read()
         lines = response.splitlines()
@@ -803,7 +813,7 @@ class BioMartDataset(object):
         (:obj:`DatasetConfig`).
         """
         stream = self.connection.configuration(
-            dataset=self.internalName, virtualSchema=self.virtualSchema
+            dataset=self.internalName, virtualSchema=self._serverVirtualSchema
         )
         data = stream.read()
         if sys.version_info >= (3,):
@@ -820,7 +830,7 @@ class BioMartDataset(object):
         query = BioMartQuery(self.connection, dataset=self,
                              attributes=attributes, filters=filters,
                              uniqueRows=unique,
-                             virtualSchema=self.virtualSchema)
+                             virtualSchema=self._serverVirtualSchema)
         return query.run()
 
     def count(self, filters=[], unique=False):
@@ -829,14 +839,14 @@ class BioMartDataset(object):
         """
         query = BioMartQuery(self.connection, dataset=self, filters=filters,
                              uniqueRows=unique,
-                             virtualSchema=self.virtualSchema)
+                             virtualSchema=self._serverVirtualSchema)
         return query.get_count()
 
     def get_example_table(self, attributes=[], filters=[], unique=False):
         query = BioMartQuery(self.connection, dataset=self,
                              attributes=attributes, filters=filters,
                              uniqueRows=unique,
-                             virtualSchema=self.virtualSchema)
+                             virtualSchema=self._serverVirtualSchema)
         return query.get_example_table()
 
 
@@ -889,7 +899,7 @@ class BioMartQuery(object):
                         uniqueRows="1" if self.uniqueRows else "0",
                         count="1" if count else "",
                         header="1" if header else "0",
-                        virtualSchemaName=self.virtualSchema,
+                        virtualSchemaName=self.serverVirtualSchema,
                         formatter=self.format,
                         version=self.version)
             xml = self.XML % args
@@ -983,7 +993,7 @@ class BioMartQuery(object):
 
     def __init__(self, registry, virtualSchema="default", dataset=None,
                  attributes=[], filters=[], count=False, uniqueRows=False,
-                 format="TSV"):
+                 format="TSV", serverVirtualSchema=None):
         if isinstance(registry, BioMartConnection):
             self.registry = BioMartRegistry(registry)
             self.virtualSchema = virtualSchema
@@ -993,6 +1003,11 @@ class BioMartQuery(object):
         else:
             self.registry = registry
             self.virtualSchema = virtualSchema
+
+        if serverVirtualSchema is None:
+            serverVirtualSchema = virtualSchema
+
+        self.serverVirtualSchema = serverVirtualSchema
 
         self._query = []
         if dataset:

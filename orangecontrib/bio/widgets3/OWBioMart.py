@@ -4,6 +4,7 @@ import io
 from collections import defaultdict
 from functools import partial
 import itertools
+import xml.sax
 
 import six
 
@@ -552,7 +553,7 @@ class FilterCollectionWidget(CollectionWidget):
         if fType == ("text", "", ""):
             filter_widget = TextFieldFilter(filter, self.dataset, self.master, self)
 
-        elif fType == ("text", "", "1"):
+        elif fType == ("text", "", "1") or fType == ("text", "", "true"):
             filter_widget = IdListFilter(filter, self.dataset, self.master, self)
 
         elif fType == ("list", "radio", ""):
@@ -561,7 +562,7 @@ class FilterCollectionWidget(CollectionWidget):
         elif fType == ("list", "menu", ""):
             filter_widget = DropDownFilter(filter, self.dataset, self.master, self)
 
-        elif fType == ("list", "menu", "1"):
+        elif fType == ("list", "menu", "1") or fType == ("list", "menu", "true"):
             filter_widget = MultiSelectListFilter(filter, self.dataset, self.master, self)
 
         elif fType == ("container", "", ""):
@@ -652,9 +653,11 @@ class PageWidget(QFrame, Control):
 MartServices = [
     ("Ensembl", "http://www.ensembl.org/biomart/martservice"),
     ("Ensembl Fungi", "http://fungi.ensembl.org/biomart/martservice"),
+    ("Ensembl Plants", "http://plants.ensembl.org/biomart/martservice"),
     ("Pancreatic Expression Database",
      "http://www.pancreasexpression.org/biomart/martservice"),
     ("VectorBase", "http://biomart.vectorbase.org/biomart/martservice"),
+    ("Phytozome", "https://phytozome.jgi.doe.gov/biomart/martservice"),
 ]
 
 
@@ -780,6 +783,9 @@ class OWBioMart(widget.OWWidget):
     def _handleException(self, exception):
         assert(QThread.currentThread() is self.thread())
         print("Task failed with:", exception, file=sys.stderr)
+        import logging
+        log = logging.getLogger(__name__)
+        log.exception("Error:", exc_info=exception)
         self.error(0, str(exception))
         self.setEnabled(True)
 
@@ -823,7 +829,7 @@ class OWBioMart(widget.OWWidget):
             connection = dataset.connection
             stream = connection.configuration(
                 dataset=dataset.internalName,
-                virtualSchema=dataset.virtualSchema)
+                virtualSchema=dataset.serverVirtualSchema)
             response = stream.read()
             return response
 
@@ -919,7 +925,10 @@ class OWBioMart(widget.OWWidget):
 
         query = self.registry.query(
             format="TSV" if "tsv" in format.lower() else format.upper(),
-            uniqueRows=self.uniqueRows)
+            uniqueRows=self.uniqueRows,
+            virtualSchema=dataset.virtualSchema,
+            serverVirtualSchema=dataset.serverVirtualSchema
+        )
 
         for dataset, (attributes, filters) in bydatasets.items():
             query.set_dataset(dataset if dataset else self.dataset)
