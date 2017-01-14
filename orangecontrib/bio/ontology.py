@@ -39,7 +39,8 @@ To load an ontology from a file, pass the file or filename to the
     >>> ontology.load(buffer)
 
 
-See the definition of the `.obo file format <http://www.geneontology.org/GO.format.obo-1_2.shtml>`_.
+See the definition of the `.obo file format
+<http://www.geneontology.org/GO.format.obo-1_2.shtml>`_.
 
 """
 from __future__ import print_function
@@ -47,8 +48,11 @@ import sys
 import re
 import warnings
 import keyword
+import operator
+
 from functools import reduce
 from collections import defaultdict
+
 import six
 
 from six import StringIO
@@ -58,12 +62,9 @@ try:
 except ImportError:
     from urllib.request import urlopen
 
-try:
-    basestring
-    intern
-except NameError:
-    basestring = str
+if sys.version_info >= (3,):
     intern = sys.intern
+
 
 #: These are builtin OBO objects present in any ontology by default.
 BUILTIN_OBO_OBJECTS = [
@@ -199,6 +200,8 @@ def parse_tag_value(tag_value_string):
 
     return tag, value, modifiers, comment
 
+_quotedstr_re = re.compile(r'"(.*?(?<!\\))"')
+
 
 class OBOObject(object):
     """
@@ -230,6 +233,8 @@ class OBOObject(object):
     .. seealso:: :class:`Term` :class:`Typedef` :class:`Instance`
 
     """
+    Dispatch = {}
+
     def __init__(self, stanza_type="Term", **kwargs):
         """
         Initialize from keyword arguments.
@@ -244,7 +249,7 @@ class OBOObject(object):
         )
 
         for tag, value in sorted_tags:
-            if isinstance(value, basestring):
+            if isinstance(value, six.string_types):
                 tag, value, modifiers, comment = \
                     parse_tag_value(name_demangle(tag) + ": " + value)
             elif isinstance(value, tuple):
@@ -277,6 +282,53 @@ class OBOObject(object):
         """
         value = self.get_values("name")
         return value[0] if value else None
+
+    @property
+    def namespace(self):
+        """
+        namespace tag or None if not defined
+        """
+        values = self.get_values("namespace")
+        assert 0 <= len(values) <= 1
+        return values[0] if values else None
+
+    @property
+    def alt_id(self):
+        return self.get_values("alt_id")
+
+    @property
+    def subset(self):
+        return self.get_values("subset")
+
+    @property
+    def definition(self):
+        # synonym for def_
+        return self.def_
+
+    @property
+    def def_(self):
+        values = self.get_values("def")
+        assert 0 <= len(values) <= 1
+        if not values:
+            return None
+        definition = values[0]
+        match = _quotedstr_re.match(definition)
+        return match.groups()[0]
+
+    @property
+    def comment(self):
+        values = self.get_values("comment")
+        assert 0 <= len(values) <= 1
+        return values[0] if values else None
+
+    @property
+    def synonyms(self):
+        values = self.get_values("synonym")
+        syn = []
+        for v in values:
+            match = _quotedstr_re.match(v)
+            syn.append(match.groups()[0])
+        return syn
 
     def name_mangle(self, tag):
         return name_mangle(tag)
@@ -374,25 +426,23 @@ class OBOObject(object):
 
     @classmethod
     def parse_stanza(cls, stanza):
-        r'''
+        r"""
         Parse and return an OBOObject instance from a stanza string.
 
-        >>> term = OBOObject.parse_stanza("""\
-        ... [Term]
+        >>> term = OBOObject.parse_stanza(
+        ... '''[Term]
         ... id: FOO:001
         ... name: bar
-        ... """)
+        ... ''')
         >>> print(term.id, term.name)
         FOO:001 bar
-
-        '''
+        """
         lines = stanza.splitlines()
         stanza_type = lines[0].strip("[]")
 
         tag_values = [parse_tag_value(line) for line in lines[1:]
                       if ":" in line]
-
-        obo = OBOObject(stanza_type)
+        obo = OBOObject.Dispatch[stanza_type]()
         obo.add_tags(tag_values)
         return obo
 
@@ -435,6 +485,14 @@ class Term(OBOObject):
     def __init__(self, *args, **kwargs):
         OBOObject.__init__(self, "Term", *args, **kwargs)
 
+    @property
+    def is_obsolete(self):
+        """
+        Is this term obsolete.
+        """
+        value = self.get_values("is_obsolete")
+        return value[0].lower() == "true" if value else False
+
 
 class Typedef(OBOObject):
     """
@@ -452,15 +510,18 @@ class Instance(OBOObject):
         OBOObject.__init__(self, "Instance", *args, **kwargs)
 
 
+OBOObject.Dispatch = {"Term": Term, "Typedef": Typedef, "Instance": Instance}
+
+
 class OBOParser(object):
-    r''' A simple parser for .obo files (inspired by xml.dom.pulldom)
+    r""" A simple parser for .obo files (inspired by xml.dom.pulldom)
 
     >>> from six import StringIO
-    >>> file = StringIO("""\
+    >>> file = StringIO('''
     ... header_tag: header_value
     ... [Term]
     ... id: FOO:001 { modifier=bar } ! comment
-    ... """)
+    ... ''')
     >>> parser = OBOParser(file)
     >>> for event, value in parser:
     ...     print(event, value)
@@ -469,8 +530,7 @@ class OBOParser(object):
     START_STANZA Term
     TAG_VALUE ('id', 'FOO:001', 'modifier=bar', 'comment')
     CLOSE_STANZA None
-
-    '''
+    """
     def __init__(self, file):
         self.file = file
 
@@ -568,8 +628,11 @@ class OBOOntology(object):
             An optional function callback to report on the progress.
 
         """
-        if isinstance(file, basestring):
-            file = open(file, "rb")
+        if isinstance(file, six.string_types):
+            if six.PY3:
+                file = open(file, "r", encoding="utf-8")
+            else:
+                file = open(file, "rb")
 
         parser = OBOParser(file)
         current = None
@@ -578,7 +641,7 @@ class OBOOntology(object):
             if event == "TAG_VALUE":
                 tag_values.append(value)
             elif event == "START_STANZA":
-                current = OBOObject(value)
+                current = OBOObject.Dispatch[value]()
             elif event == "CLOSE_STANZA":
                 current.add_tags(tag_values)
                 self.add_object(current)
@@ -615,8 +678,11 @@ class OBOOntology(object):
             A file like object.
 
         """
-        if isinstance(stream, basestring):
-            stream = open(stream, "wb")
+        if isinstance(stream, six.string_types):
+            if six.PY3:
+                stream = open(stream, "w", encoding="utf-8")
+            else:
+                stream = open(stream, "wb")
 
         for key, value in self.header_tags:
             stream.write(key + ": " + value + "\n")
@@ -671,7 +737,7 @@ class OBOOntology(object):
             Term id string.
 
         """
-        if isinstance(id, basestring):
+        if isinstance(id, six.string_types):
             if id in self.id2term:
                 return self.id2term[id]
             elif id in self.alt2id:
@@ -900,7 +966,7 @@ class OBOOntology(object):
         else:
             terms = [self.term(term) for term in terms]
             super_terms = [self.super_terms(term) for term in terms]
-            terms = reduce(set.union, super_terms, set(terms))
+            terms = reduce(operator.ior, super_terms, set(terms))
 
         for term in terms:
             graph.add_node(term.id, name=term.name)
@@ -934,7 +1000,7 @@ class OBOOntology(object):
         else:
             terms = [self.term(term) for term in terms]
             super_terms = [self.super_terms(term) for term in terms]
-            terms = reduce(set.union, super_terms, set(terms))
+            terms = reduce(operator.ior, super_terms, set(terms))
 
         for term in terms:
             graph.add_node(term.id, label=term.name)
@@ -992,8 +1058,14 @@ def foundry_ontologies():
     ``('Biological process', 'http://purl.obolibrary.org/obo/go.obo')``
 
     """
+    warnings.warn(
+        "foundry_ontologies is deprecated and most likely returns an "
+        "empty list",
+        DeprecationWarning, stacklevel=2
+    )
     stream = urlopen("http://www.obofoundry.org/")
-    text = stream.read()
+    encoding = stream.headers.get_charsets("utf-8")[0]
+    text = stream.read().decode(encoding)
     pattern = r'<td class=".+?">\s*<a href=".+?">(.+?)</a>\s*</td>\s*<td class=".+?">.*?</td>\s*<td class=".+?">.*?</td>\s*?<td class=".+?">\s*<a href="(.+?obo)">.+?</a>'
     return re.findall(pattern, text)
 

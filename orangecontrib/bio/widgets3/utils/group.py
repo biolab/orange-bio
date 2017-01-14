@@ -4,8 +4,8 @@ from xml.sax.saxutils import escape
 
 import numpy
 
-from PyQt4 import QtGui
-from PyQt4.QtCore import Qt
+from AnyQt import QtGui
+from AnyQt.QtCore import Qt
 
 import Orange.data
 from Orange.widgets import gui

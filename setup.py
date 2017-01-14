@@ -84,7 +84,7 @@ INSTALL_REQUIRES = (
     #'openbabel-python', # You get bindings together with the openbabel library and not stand-alone
     #'scipy', # Requires Fortran compiler
     #'matplotlib', # Requires that numpy is installed first
-),
+)
 
 if sys.version_info > (3, ):
     INSTALL_REQUIRES = INSTALL_REQUIRES + ("pyqtgraph", "AnyQt")
@@ -92,21 +92,17 @@ if sys.version_info > (3, ):
 if sys.version_info < (3, 4):
     INSTALL_REQUIRES = INSTALL_REQUIRES + ("singledispatch",)
 
+if sys.version_info < (3, 5):
+    INSTALL_REQUIRES = INSTALL_REQUIRES + ("typing",)
+
+
 EXTRAS_REQUIRE = {
-    'GUI': (
-        # Dependencies which are problematic to install automatically
-        #'PyQt', # No setup.py
-    ),
     'MOL_DEPICT': (
         'oasa'
     ),
     'NETWORK': (
         'Orange[NETWORK]'
     ),
-    'KEGG': (
-        'slumber >= 0.4'
-    )
-
 }
 
 DEPENDENCY_LINKS = (
