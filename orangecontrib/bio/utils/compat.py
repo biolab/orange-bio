@@ -26,11 +26,10 @@ def create_domain(at, cl, metas):
     else:
         domain  = Orange.data.Domain(at, cl)
         if metas:
-            if isinstance(metas, dict):
-                metas = sorted(metas.items())
-            else:
-                metas = zip([ StringVariable.new_meta_id() for _ in metas ], metas)
-            domain.add_metas(dict((StringVariable.new_meta_id(), ma) for mi, ma in metas))
+            # add metas in the reverse order (because meta ids are always decreasing)
+            # this allows us to pass metas in the same order to create_table
+            metas = zip([ StringVariable.new_meta_id() for _ in metas ], reversed(metas))
+            domain.add_metas(dict(metas))
         return domain
 
 
@@ -47,7 +46,7 @@ def create_table(domain, X, Y, metas):
                                 dtype=object)
         data = Orange.data.Table(domain, numpy.asarray(X), Y=Y, metas=metas)
     else:
-        metaatts = [ at for i,at in sorted(domain.getmetas().items()) ]
+        metaatts = get_metas(domain)
         insts = []
         for i in range(len(X)):
             if Y:

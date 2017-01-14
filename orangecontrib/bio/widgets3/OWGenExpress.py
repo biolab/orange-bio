@@ -842,7 +842,6 @@ class OWGenExpress(widget.OWWidget):
                 metavars = sorted(table.domain.variables[0].attributes.keys())
                 metavars = [compat.StringVariable.make(name) for name in metavars]
                 domain = compat.create_domain(attr, None, metavars)
-                metavars = compat.get_metas(domain)
                 metas = [[exp.attributes[var.name] for var in metavars] for exp in experiments]
                 table = compat.create_table(domain, table.X.transpose(), None, metas)
 

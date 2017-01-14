@@ -761,7 +761,7 @@ Can only retrieve a single result_template_type at a time"""
         cbc.end()
 
         # Restore input ids order.
-        domain = create_domain([et.domain[id] for id in ids], None, et.domain.metas if OR3 else et.domain.getmetas())
+        domain = create_domain([et.domain[id] for id in ids], None, et.domain.metas if OR3 else et.domain.getmetas().values())
         et = Orange.data.Table(domain, et)
         
         cbc = CallBack(2, optcb, callbacks=10)
@@ -1697,8 +1697,7 @@ def join_replicates(data, ignorenames=["replicate", "id", "name", "map_stop1"], 
         a.attributes.update(atdic)
         natts.append(a)
 
-
-    ndom = create_domain(natts, data.domain.class_var, data.domain.metas if OR3 else data.domain.getmetas())
+    ndom = create_domain(natts, data.domain.class_var, data.domain.metas if OR3 else data.domain.get_metas().values())
     return Orange.data.Table(ndom, data)
 
 
