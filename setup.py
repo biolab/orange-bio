@@ -76,7 +76,7 @@ INSTALL_REQUIRES = (
     'six',
     'genesis-pyapi>=1.1.2',
     "slumber>=0.7.1",
-    "requests>=2.6.0",
+    "requests>=2.11.1",
     "requests-cache>=0.4.12",
     "serverfiles>=0.2",
     # Dependencies which are problematic to install automatically
