@@ -12,8 +12,6 @@ of Genes and Genomes) <http://www.genome.jp/kegg/>`_ using its web services.
 
 .. _`requests`: https://pypi.python.org/pypi/requests
 
-
->>> from orangecontrib.bio.kegg import *
 >>> # Create a KEGG Genes database interface
 >>> genome = KEGGGenome()
 >>> # List all available entry ids
@@ -26,7 +24,7 @@ T01001
 T01001
 >>> print(entry.definition)
 Homo sapiens (human)
->>> print(str(entry)) # doctest:+ELLIPSIS
+>>> print(entry)  # doctest: +SKIP
 ENTRY       T01001            Complete  Genome
 NAME        hsa, HUMAN, 9606
 DEFINITION  Homo sapiens (human)
@@ -41,15 +39,13 @@ hsa
 >>> genes = organism.genes  # get the genes database for the organism
 >>> gene_ids = list(genes.keys()) # KEGG gene identifiers
 >>> entry = genes["hsa:672"]
->>> print(entry.definition) # doctest:+SKIP
-breast cancer 1, early onset
+>>> print(entry.definition) # doctest: +SKIP
+(RefSeq) BRCA1, DNA repair associated
 >>> # print the entry in DBGET database format.
->>> print(entry) # doctest:+SKIP
+>>> print(entry) # doctest: +SKIP
 ENTRY       672               CDS       T01001
 NAME        BRCA1, BRCAI, BRCC1, BROVCA1, FANCS, IRIS, PNCA4, PPP1R53, PSCP, RNF53
-DEFINITION  breast cancer 1, early onset
-...
-
+DEFINITION  ...
 """
 from __future__ import absolute_import
 
@@ -413,14 +409,3 @@ def _global_genome_instance():
             lock.release()
 
     return instance_locked(genome, genome._lock)
-
-
-def main():
-    KEGGGenome()
-    import doctest
-    extraglobs = {"api": KeggApi()}
-    doctest.testmod(optionflags=doctest.ELLIPSIS, extraglobs=extraglobs)
-
-
-if __name__ == "__main__":
-    sys.exit(main())

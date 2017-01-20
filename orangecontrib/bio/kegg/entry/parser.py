@@ -11,25 +11,25 @@ class DBGETEntryParser(object):
     r"""
     A DBGET entry parser (inspired by ``xml.dom.pulldom``).
 
-    ::
-
-        >>> stream = StringIO("ENTRY foo\n"
-        ...                   "NAME  foo's name\n"
-        ...                   "  BAR A subsection of 'NAME'\n")
-        ...
-        >>> parser = DBGETEntryParser()
-        >>> for event, title, contents_part in parser.parse(stream):
-        ...    print(parser.EVENTS[event], title, repr(contents_part))
-        ...
-        ENTRY_START None None
-        SECTION_START ENTRY 'foo\n'
-        SECTION_END ENTRY None
-        SECTION_START NAME "foo's name\n"
-        SUBSECTION_START BAR "A subsection of 'NAME'\n"
-        SUBSECTION_END BAR None
-        SECTION_END NAME None
-        ENTRY_END None None
-
+    Example
+    -------
+    >>> stream = StringIO(
+    ...     "ENTRY foo\n"
+    ...     "NAME  foo's name\n"
+    ...     "  BAR A subsection of 'NAME'\n"
+    ... )
+    >>> parser = DBGETEntryParser()
+    >>> for event, title, contents_part in parser.parse(stream):
+    ...    print(parser.EVENTS[event], title, repr(contents_part))
+    ...
+    ENTRY_START None None
+    SECTION_START ENTRY 'foo\n'
+    SECTION_END ENTRY None
+    SECTION_START NAME "foo's name\n"
+    SUBSECTION_START BAR "A subsection of 'NAME'\n"
+    SUBSECTION_END BAR None
+    SECTION_END NAME None
+    ENTRY_END None None
     """
     #: Entry start events
     ENTRY_START = 0

@@ -1,3 +1,4 @@
+import os
 import unittest
 import six
 
@@ -5,7 +6,17 @@ from orangecontrib.bio.kegg import databases
 from orangecontrib.bio.kegg import pathway
 
 
-class TestGenome(unittest.TestCase):
+class RemoteResourceTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        if "TEST_NET_ACCESS" not in os.environ:
+            raise unittest.SkipTest(
+                "Test tests remote 3rd party access (set 'TEST_NET_ACCESS' "
+                "env to enable)")
+        super(RemoteResourceTest, cls).setUpClass()
+
+
+class TestGenome(RemoteResourceTest):
     def test_genome(self):
         genome = databases.Genome()
         entry_keys = list(genome.keys())
@@ -24,7 +35,7 @@ class TestGenome(unittest.TestCase):
         self.assertEqual(entry.taxid, "9606")
 
 
-class TestGenes(unittest.TestCase):
+class TestGenes(RemoteResourceTest):
     def _tester(self, org):
         genes = databases.Genes(org)
         keys = list(genes.keys())
@@ -61,7 +72,7 @@ class TestGenes(unittest.TestCase):
         self._tester("ddi")
 
 
-class TestPathways(unittest.TestCase):
+class TestPathways(RemoteResourceTest):
     def _tester(self, path_id):
         pathways = databases.Pathway()
 
