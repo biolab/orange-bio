@@ -351,7 +351,7 @@ class OWGeneInfo(widget.OWWidget):
         self.progressBarFinished(processEvents=None)
 
     def _onInitializeError(self, exc):
-        sys.excepthook(type(exc), exc.args, None)
+        sys.excepthook(type(exc), exc, None)
         self.error(0, "Could not download the necessary files.")
 
     def _onSelectedOrganismChanged(self):

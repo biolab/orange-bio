@@ -597,7 +597,7 @@ class OWDatabasesUpdate(OWWidget):
             self.SetFilesList({})
             self.retryButton.show()
         else:
-            sys.excepthook(type(exception), exception.args, None)
+            sys.excepthook(type(exception), exception, None)
             self.progress.setRange(0, 0)
             self.setEnabled(True)
 
