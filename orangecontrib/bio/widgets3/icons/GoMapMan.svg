@@ -1,22 +1,13 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-<svg xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://www.w3.org/2000/svg" xmlns:osb="http://www.openswatchbook.org/uri/2009/osb" height="64" width="64" version="1.1" xmlns:cc="http://creativecommons.org/ns#" viewBox="0 0 63.999999 63.999999" xmlns:dc="http://purl.org/dc/elements/1.1/">
- <g transform="translate(0 -988.36)">
-  <path d="m14.5 991.86-9 6 14 15c-6 13-13.25 25.375-2.9375 33 13.188 7.8753 29.438 0 42.437 0.3119-4.4997-2.8119-7.5-0.7497-10-13.623-2-12.626 0.000266-39.188-13.502-32.75-9.998 5.06-15.998 13.06-15.998 13.06z" fill-rule="evenodd" fill-opacity=".95238" stroke="#000" stroke-width="1px" fill="#939492"/>
-  <g stroke="#000" stroke-width="1px" fill="none">
-   <path d="m30.5 998.36c-14 19-14 19-14 19l-8 20.5"/>
-   <path d="m16.5 1017.4 7 20.5"/>
-   <path d="m30.5 998.36 14.5 19 8.5 21"/>
-  </g>
-  <circle stroke-opacity=".87143" stroke="#17181a" cy="1037.4" cx="8.5" r="5" fill="#d2d2d2"/>
-  <path d="m45 1017.4-7 21" stroke="#000" stroke-width="1px" fill="none"/>
-  <g stroke-opacity=".87143" stroke="#17181a" fill="#d2d2d2">
-   <circle cx="23.492" cy="1037.6" r="5"/>
-   <circle cy="1038" cx="38.234" r="5"/>
-   <circle cx="53.539" cy="1037.7" r="5"/>
-   <circle cy="1016.8" cx="45.293" r="5"/>
-   <circle cx="16.433" cy="1016.7" r="5"/>
-   <circle cy="998.63" cx="30.738" r="5"/>
-  </g>
- </g>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="48px" height="48px" viewBox="0 0 48 48" enable-background="new 0 0 48 48" xml:space="preserve">
+<g id="zXDtGm_1_">
+</g>
+<path fill="#333333" stroke="#333333" stroke-miterlimit="10" d="M10.938,24.069c0,0,2.349-4.756,6.924-9.569
+	c4.575-4.813,14.888-1.938,17.888,10.812c0,0,0.438,5.188,4,7.938c0,0-10.688,4.062-20.75,1.938
+	C8.938,33.064,10.938,24.069,10.938,24.069z"/>
+<path fill="#616162" stroke="#616162" stroke-width="0.25" stroke-miterlimit="10" d="M9.188,9.438c0,0,0.489-1.5,1.588-1.188
+	S11.5,22.023,29.75,30.418C29.75,30.418,11.938,22.688,9.188,9.438z"/>
 </svg>
