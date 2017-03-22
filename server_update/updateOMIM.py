@@ -1,31 +1,30 @@
-##!interval=7
-##!contact=ales.erjavec@fri.uni-lj.si
+import os
+
+from server_update import create_info_file, sf_local, create_folder, SyncHelper
+from server_update.tests.test_OMIM import OMIMTest
+from orangecontrib.bio import omim
 
 
-from common import *
-from orangecontrib.bio import obiOMIM
+DOMAIN = 'OMIM'
+domain_path = sf_local.localpath(DOMAIN)
+create_folder(domain_path)
 
-import os, sys
 
-path = os.path.join(environ.buffer_dir, "tmp_OMIM")
+FILENAME = 'morbidmap'
+TITLE = 'Online Mendelian Inheritance in Man (OMIM)'
+TAGS = ['genes', 'diseases', 'human', 'OMIM']
+VERSION = omim.OMIM.VERSION
 
-try:
-    os.mkdir(path)
-except OSError:
-    pass
-filename = os.path.join(path, "morbidmap")
-obiOMIM.OMIM.download_from_NCBI(filename)
 
-sf_server.upload("OMIM", "morbidmap", filename, title="Online Mendelian Inheritance in Man (OMIM)",
-                   tags=["genes", "diseases", "human", "OMIM" "#version:%i" % obiOMIM.OMIM.VERSION])
-sf_server.unprotect("OMIM", "morbidmap")
+file_path = os.path.join(domain_path, "morbidmap")
+print('downloading file ...')
+omim.OMIM.download_from_NCBI(file_path)
+print('file created ...')
+create_info_file(file_path, title=TITLE, tags=TAGS, version=VERSION)
 
-"""
-Orange server upload for OMIM morbidmap gene sets
-"""
-from orangecontrib.bio.geneset import omimGeneSets, register
+helper = SyncHelper(DOMAIN, OMIMTest)
+helper.run_tests()
+print(helper.show_results())
+helper.sync_files()
 
-omim_sets_split = omimGeneSets().split_by_hierarchy()
-for omim_sets in omim_sets_split:
-    register(omim_sets, sf_server)
-
+helper.remove_update_folder()

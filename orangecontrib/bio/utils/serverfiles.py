@@ -2,24 +2,23 @@
 from __future__ import absolute_import
 
 import serverfiles
-import os
 
 try:
     from Orange.utils import environ
 except ImportError:
     from . import environ
 
+from orangecontrib.bio.utils import serverfile_path
 
-_server_url = "http://orange.biolab.si/serverfiles-bio/"
+server_url = "http://orange.biolab.si/serverfiles-bio/"
 
 
 class ServerFiles(serverfiles.ServerFiles):
 
-    def __init__(self, server=_server_url):
+    def __init__(self, server=server_url):
         serverfiles.ServerFiles.__init__(self, server)
 
-
-PATH = os.path.join(environ.buffer_dir, "serverfiles-bio")
+PATH = serverfile_path()
 LOCALFILES = serverfiles.LocalFiles(PATH, serverfiles=ServerFiles())
 
 
@@ -49,4 +48,3 @@ def update(*path, **kwargs):
 
 def sizeformat(size):
     return serverfiles.sizeformat(size)
-

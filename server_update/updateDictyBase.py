@@ -1,65 +1,58 @@
-##interval:7
-from common import *
+""" Dictybase update """
+from server_update import *
+from server_update.tests.test_Dicty import DictyBaseTest, DictyMutantsTest
+from orangecontrib.bio.dicty import phenotypes as DictyMutants
+from orangecontrib.bio.dicty import DictyBase
 
-import sys, os
-from gzip import GzipFile
-import tempfile
-from orangecontrib.bio.obiDicty import DictyBase
-import orangecontrib.bio.obiDictyMutants as DictyMutants
-
-tmpdir = tempfile.mkdtemp("dictybase")
+"""
+Update dictyBase
+"""
+DOMAIN = DictyBase.domain
+FILENAME = DictyBase.filename
+TITLE = 'dictyBase gene aliases'
+TAGS = DictyBase.tags
 base = DictyBase.pickle_data()
-filename = os.path.join(tmpdir, "tf")
+create_folder(sf_local.localpath(DOMAIN))
+localfile = sf_local.localpath(DOMAIN, FILENAME)
 
-f = open(filename, 'wb')
-f.write(base)
-f.close()
+print("updating dictBase ")
+with open(localfile, 'wb') as f:
+    f.write(base)
+    f.close()
 
-dom = DictyBase.domain
-fn = DictyBase.filename
+create_info_file(localfile, title=TITLE, tags=TAGS)
 
-try:
-    sf_server.create_domain('dictybase')
-except:
-    pass
+helper = SyncHelper(DOMAIN, DictyBaseTest)
+helper.run_tests()
+print(helper.show_results())
+helper.sync_files()
 
-print filename
-
-sf_server.upload(dom, fn, filename, title="dictyBase gene aliases",
-    tags=DictyBase.tags)
-sf_server.unprotect(dom, fn)
-
-shutil.rmtree(tmpdir)
+print("DictyBase updated\n")
 
 
 """
-Orange server upload for DictyMutants 
+Update DictyMutants
 """
-
-tmpdir_mutants = tempfile.mkdtemp("dictymutants")
 base_mutants = DictyMutants.download_mutants()
-file_mutants = os.path.join(tmpdir_mutants, "tempMut")
+DOMAIN = DictyMutants.domain
+FILENAME = DictyMutants.pickle_file
+TITLE = 'dictyBase mutant phenotypes'
+TAGS = DictyMutants.tags
+create_folder(sf_local.localpath(DOMAIN))
+localfile = sf_local.localpath(DOMAIN, FILENAME)
 
-fm = open(file_mutants, "wb")
-fm.write(base_mutants)
-fm.close()
 
-fm_dom = DictyMutants.domain
-fm_name = DictyMutants.pickle_file
+print("updating dictBase mutants")
+with open(localfile, 'wb') as f:
+    f.write(base_mutants)
+    f.close()
 
-print file_mutants
+create_info_file(localfile, title=TITLE, tags=TAGS)
 
-sf_server.upload(fm_dom, fm_name, file_mutants, title="dictyBase mutant phenotypes",
-    tags=DictyMutants.tags)
-sf_server.unprotect(fm_dom, fm_name)
+helper = SyncHelper(DOMAIN, DictyMutantsTest)
+helper.run_tests()
+print(helper.show_results())
+helper.sync_files()
+print("DictyBase mutant updated")
 
-shutil.rmtree(tmpdir_mutants)
-
-"""
-Orange server upload for Dicty mutant gene sets
-"""
-from orangecontrib.bio.geneset import dictyMutantSets, update_server_list, register
-
-mutant_sets_split = dictyMutantSets().split_by_hierarchy()
-for mutant_sets in mutant_sets_split:
-    register(mutant_sets, sf_server)
+helper.remove_update_folder()

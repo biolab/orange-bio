@@ -1,13 +1,18 @@
-##interval:7
-from common import *
-
-import sys, os
-from gzip import GzipFile
-import tempfile
-from orangecontrib.bio.geneset  import upload_genesets
-
+""" update gene_sets """
+import server_update
 import orangecontrib.bio.kegg.caching as keggcache
 
-keggcache.clear_cache()
+from server_update.tests.test_GeneSets import GeneSetsTest
+from orangecontrib.bio.geneset import upload_genesets
 
-upload_genesets(sf_server)
+
+keggcache.clear_cache()
+upload_genesets(server_update)
+
+helper = server_update.SyncHelper('gene_sets', GeneSetsTest)
+helper.run_tests()
+print(helper.show_results())
+helper.sync_files()
+
+helper.remove_update_folder()
+
