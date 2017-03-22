@@ -353,7 +353,7 @@ class Ontology(object):
         else:
             f = file
 
-        data = f.readlines()
+        data = [line.decode() if not isinstance(line, str) else line for line in f.readlines()]
         data = "".join([line for line in data if not line.startswith("!")])
         self.header = data[: data.index("[Term]")]
         c = re.compile("\[.+?\].*?\n\n", re.DOTALL)
@@ -811,7 +811,7 @@ class Annotations(object):
                 raise ValueError("Cannot open %r for parsing." % file)
         else:
             f = file
-        lines = [line for line in f.read().splitlines() if line.strip()]
+        lines = [line.decode() if not isinstance(line, str) else line for line in f.readlines()]
 
         milestones = progress_bar_milestones(len(lines), 100)
         for i, line in enumerate(lines):

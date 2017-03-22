@@ -58,7 +58,7 @@ class HomoloGene(_Homologs):
             except OSError:
                 pass
             file = open(serverfiles.localpath("HomoloGene", "homologene.data"), "wb")
-        elif type(file) in [str, unicode]:
+        elif type(file) in [str, bytes]:
             file = open(file, "wb")
         shutil.copyfileobj(data, file)
         file.close()
@@ -109,14 +109,16 @@ def _parseOrthoXML(file):
         geneIds.update(dict([(gene.attributes.get("id").value, (gene.attributes.get("geneId").value,
                   gene.attributes.get("protId").value)) for gene in genes]))
         geneIdToTaxid.update(dict.fromkeys([gene.attributes.get("geneId").value for gene in genes], taxid))
-        
+
     orthologs = []
-    clusters = doc.getElementsByTagName("cluster")
-    for cl in clusters:
-        clId = cl.attributes.get("id").value
-        geneRefs = cl.getElementsByTagName("geneRef")
+    groups = doc.getElementsByTagName("groups")
+    ortho_groups = groups[0].getElementsByTagName("orthologGroup")
+
+    for group in ortho_groups:
+        group_id = group.attributes.get("id").value
+        geneRefs = group.getElementsByTagName("geneRef")
         ids = [ref.attributes.get("id").value for ref in geneRefs]
-        orthologs.extend([(clId, geneIdToTaxid[geneIds[id][0]], geneIds[id][0]) for id in ids])
+        orthologs.extend([(group_id, geneIdToTaxid[geneIds[id][0]], geneIds[id][0]) for id in ids])
     return orthologs
         
 class InParanoid(object):

@@ -4,11 +4,14 @@ try:
     import cPickle as pickle
 except:
     import pickle
+
+from urllib.request import urlopen
     
 import os, tempfile, sys
 from collections import defaultdict
 import datetime
 
+from ..utils.serverfiles import localpath_download, listfiles
 from ..utils import serverfiles
 
 import six
@@ -54,7 +57,6 @@ def goGeneSets(org):
         if len(genes) > 0:
             gs = GeneSet(id=termn, name=term.name, genes=genes, hierarchy=hier, organism=org, link=link_fmt % termn)
             genesets.append(gs)
-
     return GeneSets(genesets)
 
 def strornone(x):
@@ -101,16 +103,14 @@ def cytobandGeneSets():
     """
     Create cytoband gene sets from Stanford Microarray Database
     """
-    import urllib2
-
-    url = "http://www-stat.stanford.edu/~tibs/GSA/cytobands-stanford.gmt"
-    stream = urllib2.urlopen(url)
+    url = "http://statweb.stanford.edu/~tibs/GSA/cytobands-stanford.gmt"
+    stream = urlopen(url)
     data = stream.read().splitlines()
 
     genesets = []
     for band in data:
-        b = band.split("\t")
-        genesets.append(GeneSet(id=b[0], name=b[1], genes=b[2:] if b[2:] else [], hierarchy=("Cytobands",), organism="9606", link=""))          
+        b = band.decode().split("\t")
+        genesets.append(GeneSet(id=b[0], name=b[1], genes=b[2:] if b[2:] else [], hierarchy=("Cytobands",), organism="9606", link=""))
 
     return GeneSets(genesets)
 
@@ -118,15 +118,14 @@ def reactomePathwaysGeneSets():
     """
     Prepare human pathways gene sets from reactome pathways
     """
-    import urllib
     import io
     from zipfile import ZipFile
 
-    url = urllib.urlopen("http://www.reactome.org/download/current/ReactomePathways.gmt.zip")
+    url = urlopen("http://www.reactome.org/download/current/ReactomePathways.gmt.zip")
     memfile = io.BytesIO(url.read())
     with ZipFile(memfile, "r") as myzip:
         f = myzip.open("ReactomePathways.gmt")
-        content = f.read().splitlines()      
+        content = f.read().decode().splitlines()
 
     genesets = [GeneSet(id=path.split("\t")[0], name=path.split("\t")[0], genes=path.split("\t")[2:] if path.split("\t")[2:] else [], hierarchy=("Reactome", "Pathways"), organism="9606", link="") for path in content]
     return GeneSets(genesets)
@@ -314,19 +313,17 @@ def list_all(org=None, local=None):
                (org == None or o == str(org))
         ]
 
-def update_server_list(serverfiles_upload, serverfiles_list=None):
-    if serverfiles_list == None:
-        serverfiles_list = serverfiles.ServerFiles()
 
-    flist = map(lambda x: filename(*x[:2]), list_serverfiles_conn(serverfiles_list))
-
+def update_server_list(serverFiles):
+    """ List all file from genes_sets domain """
+    flist = [fname for domain, fname in serverFiles.sf_local.listfiles(sfdomain) if fname != 'index.pck']
     tfname = pickle_temp(flist)
     try:
         fn = "index.pck"
         title = "Gene sets: index"
-        tags = [ "gene sets", "index", "essential" ]
-        serverfiles_upload.upload(sfdomain, fn, tfname, title, tags)
-        serverfiles_upload.unprotect(sfdomain, fn)
+        tags = ["gene sets", "index", "essential"]
+        with open(tfname, 'rb') as f:
+            serverFiles.register_sets(sfdomain, fn, f.read(), title, tags)
     except Exception as e:
         raise e
     finally:
@@ -346,7 +343,7 @@ def _register_local(genesets):
 
 def pickle_temp(obj):
     """ Pickle a file to a temporary file and returns its name """
-    fd,tfname = tempfile.mkstemp()
+    fd, tfname = tempfile.mkstemp()
     os.close(fd)
     f = open(tfname, 'wb')
     pickle.dump(obj, f)
@@ -364,12 +361,12 @@ def _register_serverfiles(genesets, serverFiles):
     try:
         if org != None:
             taxname = obiTaxonomy.name(org)
-        title = "Gene sets: " + ", ".join(hierarchy) + \
-            ((" (" + taxname + ")") if org != None else "")
-        tags = list(hierarchy) + [ "gene sets" ] + ([ taxname ] if org != None else [])  + obiTaxonomy.shortname(org) +\
-            ([ "essential" ] if org in obiTaxonomy.essential_taxids() else [] )
-        serverFiles.upload(sfdomain, fn, tfname, title, tags)
-        serverFiles.unprotect(sfdomain, fn)
+            title = "Gene sets: " + ", ".join(hierarchy) + ((" (" + taxname + ")") if org is not None else "")
+            tags = list(hierarchy) + ["gene sets"] +\
+                ([taxname] if org is not None else []) + obiTaxonomy.shortname(org) +\
+                (["essential"] if org in obiTaxonomy.essential_taxids() else [])
+            with open(tfname, 'rb') as f:
+                serverFiles.register_sets(sfdomain, fn, f.read(), title, tags)
     finally:
         os.remove(tfname)
 
@@ -378,10 +375,9 @@ def _register_serverfiles(genesets, serverFiles):
 def register(genesets, serverFiles=None):
     """ Registers given genesets locally.  The gene set is registered
     by the common hierarchy or organism (None if organisms are different).
-
     :param GeneSets genesets:
     :param serverFiles: If `serverFiles` is an authenticated ServerFiles connection,
-        the input gene sets are uploaded to the repository.  
+        the input gene sets are uploaded to the repository.
     """
     if serverFiles == None:
         _register_local(genesets)
@@ -479,19 +475,27 @@ def upload_genesets(rsf):
     """
     Builds the default gene sets and
     """
-    serverfiles.update_local_files()
+    #  we need this files, to perform an update
+    rsf.sf_local.localpath_download('Taxonomy', 'ncbi-taxonomy.sqlite')
+    [rsf.sf_local.localpath_download(domain, file) for domain, file in rsf.sf_server.listfiles('GO')]
+    [rsf.sf_local.localpath_download(domain, file) for domain, file in rsf.sf_server.listfiles('OMIM')]
+    [rsf.sf_local.localpath_download(domain, file) for domain, file in rsf.sf_server.listfiles('dictybase')]
+    [rsf.sf_local.localpath_download(domain, file) for domain, file in rsf.sf_server.listfiles('miRNA')]
 
-    genesetsfn = [ goGeneSets, keggGeneSets, miRNAGeneSets]
+    genesetsfn = [goGeneSets, keggGeneSets, miRNAGeneSets, omimGeneSets, dictyMutantSets,
+                  cytobandGeneSets, reactomePathwaysGeneSets]
     organisms = obiTaxonomy.common_taxids()
     for fn in genesetsfn:
         for org in organisms:
             try:
                 print("Uploading ORG %s %s" % (org, fn))
-                genesets = fn(org).split_by_hierarchy()
+                try:
+                    genesets = fn(org).split_by_hierarchy()
+                except TypeError:
+                    genesets = fn().split_by_hierarchy()
                 for gs in genesets:
                     print("registering %s" % str(gs.common_hierarchy()))
-                    register(gs, rsf) #server files
-                    #register(gs)
+                    register(gs, serverFiles=rsf) #server files register(gs)
                     print("successful %s" % str(gs.common_hierarchy()))
             except obiTaxonomy.UnknownSpeciesIdentifier:
                 print("Organism ontology not available %s" % org)
@@ -639,7 +643,6 @@ class GeneSets(set):
             raise GenesetRegException("Empty gene sets.")
 
         organisms = set(a.organism for a in self)
-
         try:
             return only_option(organisms)
         except:

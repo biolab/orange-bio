@@ -15,7 +15,8 @@ import errno
 import posixpath
 import textwrap
 
-from io import StringIO
+
+from io import StringIO, BytesIO
 from collections import defaultdict, namedtuple
 from operator import itemgetter
 
@@ -23,7 +24,21 @@ from .utils import serverfiles
 try:
     from Orange.utils import ConsoleProgressBar, wget
 except ImportError:
-    pass #FIXME disabled in Orange3
+    # FIXME disabled in Orange3
+    # FIXME ugly fix so update scripts work with py3
+
+    def wget(url, dst_obj=None, progress=None):
+        shutil.copyfileobj(urlopen(url), dst_obj)
+
+    class ConsoleProgressBar(object):
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, newstate=None):
+            pass
+
+        def finish(self):
+            pass
 
 from . import taxonomy
 
@@ -397,8 +412,8 @@ class BioGRID(PPIDatabase):
         """
         Pass the address of the latest BIOGRID-ALL release (in tab2 format).
         """
-        stream = urllib2.urlopen(address)
-        stream = StringIO(stream.read())
+        stream = urlopen(address)
+        stream = BytesIO(stream.read())
         zfile = zipfile.ZipFile(stream)
         # Expecting only one file.
         filename = zfile.namelist()[0]
@@ -419,8 +434,8 @@ class BioGRID(PPIDatabase):
 
         """
         dirname = os.path.dirname(filepath)
-        rows = csv.reader(open(filepath, "rb"), delimiter="\t")
-        rows.next()  # read the header line
+        rows = csv.reader(open(filepath, "r"), delimiter="\t")
+        next(rows)  # read the header line
 
         con = sqlite3.connect(os.path.join(dirname, BioGRID.SERVER_FILE))
         con.execute("drop table if exists links")  # Drop old table
@@ -468,7 +483,7 @@ class BioGRID(PPIDatabase):
 
         def processlinks(rowiter):
             for row in rowiter:
-                fields = map(to_none, row)
+                fields = list(map(to_none, row))
                 yield [fields[i] for i in link_indices]
 
                 interactor_a = [fields[i] for i in interactor_a_indices]
@@ -482,7 +497,7 @@ class BioGRID(PPIDatabase):
 
         con.executemany("""\
             insert into proteins values (?, ?, ?, ?, ?, ?)
-            """, proteins.itervalues())
+            """, proteins.values())
         con.commit()
         con.close()
 
@@ -555,7 +570,7 @@ class STRING(PPIDatabase):
 
     TAXID_MAP = {"352472": "44689",  # Dictyostelium discoideum
                  "562": None,
-                 "2104": "272634",   # Mycoplasma pneumoniae M129
+                 "2104": "272634",  # Mycoplasma pneumoniae M129
                  "4530": "39947",    # Oryza sativa Japonica Group
                  "4754": None,
                  "8355": None,
@@ -741,7 +756,7 @@ class STRING(PPIDatabase):
 
         pjoin = os.path.join
 
-        base_url = "http://string-db.org/newstring_download/"
+        base_url = "http://string-db.org/download/"
 
         def paths(flatfile):
             url = "{flatfile}.{version}/{taxid}.{flatfile}.{version}.txt.gz"
@@ -759,7 +774,7 @@ class STRING(PPIDatabase):
 
         def download(filename, url):
             with open(pjoin(cache_dir, filename + ".tmp"), "wb") as dest:
-                wget(url, dst_obj=dest, progress=True)
+                    wget(url, dst_obj=dest, progress=True)
 
             shutil.move(pjoin(cache_dir, filename + ".tmp"),
                         pjoin(cache_dir, filename))
@@ -774,9 +789,10 @@ class STRING(PPIDatabase):
         actions_fileobj = open(pjoin(cache_dir, actions_filename), "rb")
         aliases_fileobj = open(pjoin(cache_dir, aliases_filename), "rb")
 
-        links_file = gzip.GzipFile(fileobj=links_fileobj)
-        actions_file = gzip.GzipFile(fileobj=actions_fileobj)
-        aliases_file = gzip.GzipFile(fileobj=aliases_fileobj)
+        # python 3 support
+        links_file = gzip.open(pjoin(cache_dir, links_filename), mode='rt')
+        actions_file = gzip.open(pjoin(cache_dir, actions_filename), mode='rt')
+        aliases_file = gzip.open(pjoin(cache_dir, aliases_filename), mode='rt')
 
         progress = ConsoleProgressBar("Processing {}:".format(links_filename))
         progress(0.0)
@@ -842,16 +858,13 @@ class STRING(PPIDatabase):
 
             filesize = st_size(aliases_filename)
             aliases_file.readline()  # read header line
-
             progress = ConsoleProgressBar("Processing aliases:")
 
             reader = csv.reader(aliases_file, delimiter="\t")
 
             def read_aliases(reader, progress):
-                for i, (taxid, name, alias, source) in enumerate(reader):
-                    yield (".".join([taxid, name]),
-                           alias.decode("utf-8", errors="ignore"),
-                           source.decode("utf-8", errors="ignore"))
+                for i, (taxid_proteinid, alias, source) in enumerate(reader):
+                    yield (taxid_proteinid, alias, source)
                     if i % 10000 == 0:
                         progress(100.0 * aliases_fileobj.tell() / filesize)
 
@@ -1033,10 +1046,11 @@ class STRINGDetailed(STRING):
         url = url.format(version=version)
 
         if not os.path.exists(pjoin(cache_dir, filename)):
-            wget(url, cache_dir, progress=True)
+            with open(pjoin(cache_dir, filename), "wb") as dest:
+                wget(url, dest, progress=True)
 
         links_fileobj = open(pjoin(cache_dir, filename), "rb")
-        links_file = gzip.GzipFile(fileobj=links_fileobj)
+        links_file = gzip.open(pjoin(cache_dir, filename), mode='rt')
 
         con = sqlite3.connect(dbfilename)
         with con:
@@ -1058,8 +1072,9 @@ class STRINGDetailed(STRING):
                     )
                 """)
 
+            links_file.readline()  # Read header
             links = csv.reader(links_file, delimiter=" ")
-            links.next()  # Read header
+
             filesize = os.stat(pjoin(cache_dir, filename)).st_size
 
             progress = ConsoleProgressBar("Processing links file:")
@@ -1175,7 +1190,7 @@ class MIPS(object):
 
     @classmethod
     def download(cls):
-        src = urllib2.urlopen("http://mips.helmholtz-muenchen.de/proj/ppi/data/mppi.gz")
+        src = urlopen("http://mips.helmholtz-muenchen.de/proj/ppi/data/mppi.gz")
         dest = serverfiles.localpath("PPI", "mppi.gz")
         shutil.copyfileobj(src, open(dest, "wb"))
 
