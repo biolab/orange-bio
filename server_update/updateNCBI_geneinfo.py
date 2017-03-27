@@ -63,7 +63,6 @@ for taxid, genes in genes.items():
 
 helper = SyncHelper(DOMAIN, NCBIGeneInfoTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 helper.remove_update_folder()

@@ -11,7 +11,6 @@ upload_genesets(server_update)
 
 helper = server_update.SyncHelper('gene_sets', GeneSetsTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 helper.remove_update_folder()

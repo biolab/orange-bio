@@ -24,7 +24,6 @@ create_info_file(file_path, title=TITLE, tags=TAGS, version=VERSION)
 
 helper = SyncHelper(DOMAIN, OMIMTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 helper.remove_update_folder()

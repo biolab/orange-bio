@@ -1,7 +1,7 @@
 """ server update module """
 import subprocess
 import shutil
-
+import sys
 
 from io import StringIO
 from server_update.common import *
@@ -36,8 +36,7 @@ class SyncHelper(object):
         self.domain = domain
         self.domain_path = sf_local.localpath(self.domain)
         self.test_case = test_case
-        self.stream = StringIO()
-        self.runner = TextTestRunner(stream=self.stream, verbosity=2)
+        self.runner = TextTestRunner(verbosity=2)
         self.suit = makeSuite(self.test_case)
         self.results = None
 
@@ -81,10 +80,6 @@ class SyncHelper(object):
     def run_tests(self):
         self.results = self.runner.run(self.suit)
 
-    def show_results(self):
-        self.stream.seek(0)
-        return self.stream.read()
-
     def check_results(self):
         if self.results:
             return self.results.wasSuccessful()
@@ -97,7 +92,8 @@ class SyncHelper(object):
         """ use rsync to upload file on serverfiles-bio repo (info file included).
         """
         if not self.check_results():
-            return print(self.show_results())
+            self.remove_update_folder()
+            sys.exit(1)
 
         self._prepare_domain_path()
 

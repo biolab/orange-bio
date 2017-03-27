@@ -35,7 +35,6 @@ create_info_file(os.path.join(temp_path, FILENAME), title=TITLE, tags=TAGS, unco
 # sync files with remote server
 helper = SyncHelper(DOMAIN, TaxonomyTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 helper.remove_update_folder()

@@ -91,7 +91,6 @@ create_info_file(localfile, title=TITLE, tags=TAGS)
 # sync files with remote server
 helper = SyncHelper(DOMAIN, GEOTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 helper.remove_update_folder()

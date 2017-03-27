@@ -212,7 +212,6 @@ if any(tax.get(key, set()) != updatedTaxonomy.get(key, set()) for key in set(upd
 
 helper = SyncHelper(DOMAIN, GOTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 helper.remove_update_folder()

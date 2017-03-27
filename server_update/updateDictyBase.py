@@ -24,7 +24,6 @@ create_info_file(localfile, title=TITLE, tags=TAGS)
 
 helper = SyncHelper(DOMAIN, DictyBaseTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 print("DictyBase updated\n")
@@ -51,7 +50,6 @@ create_info_file(localfile, title=TITLE, tags=TAGS)
 
 helper = SyncHelper(DOMAIN, DictyMutantsTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 print("DictyBase mutant updated")
 

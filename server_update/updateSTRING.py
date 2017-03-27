@@ -87,7 +87,6 @@ for taxid in taxids:
 
 helper = SyncHelper(DOMAIN, StringTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 helper.remove_update_folder()

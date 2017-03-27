@@ -110,7 +110,6 @@ create_info_file(compressed_path, title=TITLE, tags=TAGS, version=VERSION,
 # sync files with remote server
 helper = SyncHelper(DOMAIN, HomologyTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 helper.remove_update_folder()

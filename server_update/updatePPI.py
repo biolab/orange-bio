@@ -33,7 +33,6 @@ create_info_file(os.path.join(tmp_path, 'allppis.xml'), title=TITLE, tags=TAGS, 
 
 helper = SyncHelper(DOMAIN, test_MIPS.MIPSTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 
@@ -59,7 +58,6 @@ create_info_file(os.path.join(tmp_path, sfn), title=TITLE, tags=TAGS, version=VE
 
 helper = SyncHelper(DOMAIN, test_BioGRID.BioGRIDTest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 helper.remove_update_folder()

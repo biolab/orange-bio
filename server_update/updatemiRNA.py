@@ -299,7 +299,6 @@ print('premiRNA.txt uploaded\n')
 
 helper = SyncHelper(DOMAIN, MiRNATest)
 helper.run_tests()
-print(helper.show_results())
 helper.sync_files()
 
 helper.remove_update_folder()
