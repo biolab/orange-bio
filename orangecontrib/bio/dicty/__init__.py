@@ -1720,6 +1720,7 @@ class DictyBase(object):
         """
         s = download_url("http://www.dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=general&ID=gene_information.txt").read()
         out = []
+        s = s.decode("utf-8")  # bytes to string
         for l in txt2ll(s, separ='\t', lineSepar='\n')[1:]:
             if len(l) == 4:
                 id = l[0]
@@ -1739,6 +1740,7 @@ class DictyBase(object):
         """
         s = download_url("http://www.dictybase.org/db/cgi-bin/dictyBase/download/download.pl?area=general&ID=DDB-GeneID-UniProt.txt").read()
         out = []
+        s = s.decode("utf-8")  # bytes to string
         for l in txt2ll(s, separ='\t', lineSepar='\n')[1:]:
             if len(l) == 4:
                 ddb = empty_none(l[0])

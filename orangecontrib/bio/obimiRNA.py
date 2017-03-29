@@ -2,9 +2,11 @@ from __future__ import absolute_import, division
 
 from collections import defaultdict
 import math, os, random, re, urllib
+import functools
+import numpy as np
 
-from Orange.orng import orngServerFiles as osf
-import statc
+from orangecontrib.bio.utils import serverfiles as osf
+#import statc
 
 from . import gene as ge, go, kegg as kg, utils, taxonomy as obiTaxonomy
 
@@ -65,8 +67,12 @@ def parse_targets_microcosm_v5(file, max_pvalue=None, min_score=None):
     #["mirna accession", "seq", "mirna id", "targets"]
     mirna_lib = defaultdict(lambda: ["", "", "", set()])
     mat_to_pre = {}
+    try:
+        basestring
+    except NameError:
+        basestring = str  # In Python 3, there is only one string type, so basestring has no reason to exist.
     if isinstance(file, basestring):
-        file = open(file, "rb")
+        file = open(file, "r")
     import csv
     reader = csv.reader(file, delimiter="\t")
     for line in reader:
@@ -89,7 +95,7 @@ def parse_targets_microcosm_v5(file, max_pvalue=None, min_score=None):
             
         mirna_lib[seq][-1].add(line[11]) #TRANSCRIPT_ID
         
-    for key, value in mirna_lib.iteritems():
+    for key, value in mirna_lib.items():
         value[-1] = ",".join(sorted(value[-1]) or ["None"])
         
     ids = sorted(ids)
@@ -267,7 +273,7 @@ def fromACC_toID(accession):
     if accession in preACCtoID:
         return preACCtoID[accession]
     else:
-        print "Accession not found."
+        print ("Accession not found.")
         return False
     
 
@@ -350,7 +356,7 @@ def filter_GO(mirna_goid, annotations, treshold=0.04, reverse=True):
     filter_GO() takes as input a dictionary like {mirna:[list of GO_IDs]} and
     remove the most common GO IDs in each list using the TF-IDF criterion.
     """       
-    uniqGO = list(set(reduce(lambda x,y: x+y, mirna_goid.values())))        
+    uniqGO = list(set(functools.reduce(lambda x,y: x+y, mirna_goid.values())))
     
     goIDF = {}    
     for n,go in enumerate(uniqGO):        
@@ -401,7 +407,7 @@ def get_pathways(mirna_list, organism='hsa', enrichment=False, pVal=0.1, pathSwi
     org = kg.KEGGOrganism(organism)
     gmkegg.set_targets(org.get_genes())     
     
-    genes = list(set(reduce(lambda x,y: x+y,[get_info(m).targets.split(',') for m in mirna_list])))
+    genes = list(set(functools.reduce(lambda x,y: x+y,[get_info(m).targets.split(',') for m in mirna_list])))
     keggNames = dict([(g,gmkegg.umatch(g)) for g in genes if gmkegg.umatch(g)])
         
     mirnaPathways = {}
@@ -412,7 +418,7 @@ def get_pathways(mirna_list, organism='hsa', enrichment=False, pVal=0.1, pathSwi
         else:
             paths = filter(None,[list(org.get_pathways_by_genes([k])) for k in kegg_genes])                   
             if paths:
-                mirnaPathways[m] = list(set(reduce(lambda x,y: x+y,paths)))
+                mirnaPathways[m] = list(set(functools.reduce(lambda x,y: x+y,paths)))
             else:
                 mirnaPathways[m] = []
     
@@ -443,15 +449,3 @@ def removeOldMirnas(mirna_list, getOnlyMature=False):
     return [old, filter(lambda x: not(x in old), mirna_list)]
     
 #######################
-
-
-
-
-
-
-
-
-
-
-
-      

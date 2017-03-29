@@ -1,55 +1,68 @@
-##interval:7
-from common import *
-from Orange.bio import obiGene, obiTaxonomy
-from gzip import GzipFile
+from server_update import *
+from server_update.tests.test_NCBIGeneInfo import NCBIGeneInfoTest
+from orangecontrib.bio import obiGene, obiTaxonomy
 
-tmpdir = os.path.join(environ.buffer_dir, "tmp_NCBIGene_info")
-try:
-    os.mkdir(tmpdir)
-except Exception, ex:
-    pass
 
-gene_info_filename = os.path.join(tmpdir, "gene_info")
-gene_history_filename = os.path.join(tmpdir, "gene_history")
+DOMAIN = 'NCBI_geneinfo'
+domain_path = sf_local.localpath(DOMAIN)
+create_folder(domain_path)
 
-obiGene.NCBIGeneInfo.get_geneinfo_from_ncbi(gene_info_filename)
-obiGene.NCBIGeneInfo.get_gene_history_from_ncbi(gene_history_filename)
+gene_info_filename = os.path.join(domain_path, "gene_info")
+gene_history_filename = os.path.join(domain_path, "gene_history")
 
-info = open(gene_info_filename, "rb")
-hist = open(gene_history_filename, "rb")
 
 taxids = obiGene.NCBIGeneInfo.common_taxids()
 essential = obiGene.NCBIGeneInfo.essential_taxids()
-
 genes = dict([(taxid, []) for taxid in taxids])
-for gi in info:
-    if any(gi.startswith(id + "\t") for id in taxids):
-        genes[gi.split("\t", 1)[0]].append(gi.strip())
-
 history = dict([(taxid, []) for taxid in taxids])
-for hi in hist:
-    if any(hi.startswith(id + "\t") for id in taxids): 
-        history[hi.split("\t", 1)[0]].append(hi.strip())
+
+print("Downloading geneinfo file...")
+obiGene.NCBIGeneInfo.get_geneinfo_from_ncbi(gene_info_filename)
+with open(gene_info_filename, 'r') as gene_info_temp:
+    print("creating genes info dict...")
+    for gi in gene_info_temp:
+        if any(gi.startswith(id + "\t") for id in taxids):
+            genes[gi.split("\t", 1)[0]].append(gi.strip())
+
+
+print("Downloading gene history file...")
+obiGene.NCBIGeneInfo.get_gene_history_from_ncbi(gene_history_filename)
+with open(gene_history_filename, 'r') as gene_history_temp:
+    print("creating genes history dict...")
+    for hi in gene_history_temp:
+        if any(hi.startswith(id + "\t") for id in taxids):
+            history[hi.split("\t", 1)[0]].append(hi.strip())
+
+print("Done!")
+
 
 for taxid, genes in genes.items():
-    filename = os.path.join(tmpdir, "gene_info.%s.db" % taxid)
-    f = open(filename, "wb")
-    f.write("\n".join(genes))
-    f.flush()
-    f.close()
-    print "Uploading", filename
-    sf_server.upload("NCBI_geneinfo", "gene_info.%s.db" % taxid, filename,
-              title = "NCBI gene info for %s" % obiTaxonomy.name(taxid),
-              tags = ["NCBI", "gene info", "gene_names", obiTaxonomy.name(taxid)] + obiTaxonomy.shortname(taxid) + (["essential"] if taxid in essential else []))
-    sf_server.unprotect("NCBI_geneinfo", "gene_info.%s.db" % taxid)
-    
-    filename = os.path.join(tmpdir, "gene_history.%s.db" % taxid)
-    f = open(filename, "wb")
-    f.write("\n".join(history.get(taxid, "")))
-    f.flush()
-    f.close()
-    print "Uploading", filename
-    sf_server.upload("NCBI_geneinfo", "gene_history.%s.db" % taxid, filename,
-              title = "NCBI gene history for %s" % obiTaxonomy.name(taxid),
-              tags = ["NCBI", "gene info", "history", "gene_names", obiTaxonomy.name(taxid)] + obiTaxonomy.shortname(taxid) + (["essential"] if taxid in essential else []))
-    sf_server.unprotect("NCBI_geneinfo", "gene_history.%s.db" % taxid)
+    TAGS_ORGANISM = [obiTaxonomy.name(taxid)] + obiTaxonomy.shortname(taxid) + \
+                    (["essential"] if taxid in essential else [])
+
+    TAGS_INFO = ["NCBI", "gene info", "gene_names"] + TAGS_ORGANISM
+    TAGS_HIST = ["NCBI", "gene info", "history", "gene_names"] + TAGS_ORGANISM
+
+    filename = os.path.join(domain_path, "gene_info.%s.db" % taxid)
+    with open(filename, 'w') as f:
+        f.write("\n".join(genes))
+        f.flush()
+        f.close()
+        print("{} created".format(filename))
+        create_info_file(filename, title="NCBI gene info for %s" % obiTaxonomy.name(taxid), tags=TAGS_INFO)
+        print("{}.info file created".format(filename))
+
+    filename = os.path.join(domain_path, "gene_history.%s.db" % taxid)
+    with open(filename, 'w') as f:
+        f.write("\n".join(history.get(taxid, '')))
+        f.flush()
+        f.close()
+        print("{} created".format(filename))
+        create_info_file(filename, title="NCBI gene history for %s" % obiTaxonomy.name(taxid), tags=TAGS_HIST)
+        print("{}.info file created".format(filename))
+
+helper = SyncHelper(DOMAIN, NCBIGeneInfoTest)
+helper.run_tests()
+helper.sync_files()
+
+helper.remove_update_folder()

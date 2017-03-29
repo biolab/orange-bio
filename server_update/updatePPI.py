@@ -1,45 +1,63 @@
-##!interval=7
-##!contact=ales.erjavec@fri.uni-lj.si
+""" update PPI """
+import gzip
 
-from Orange.bio import obiPPI
-import urllib2, tarfile
 
-from common import *
+from server_update import *
+from server_update.tests import test_BioGRID, test_MIPS
+from orangecontrib.bio import ppi
 
-try:
-    os.mkdir(sf_local.localpath("PPI"))
-except OSError:
-    pass
 
-try:
-    sf_server.create_domain("PPI")
-except Exception, ex:
-    print ex
+DOMAIN = 'PPI'
+domain_path = sf_local.localpath(DOMAIN)
+tmp_path = sf_local.localpath(DOMAIN, sf_temp)
+create_folder(domain_path)
 
-if True:
-    obiPPI.MIPS.download()
 
-    filename = sf_local.localpath("PPI", "mppi.gz")
-    sf_server.upload("PPI", "allppis.xml", filename, "MIPS Protein interactions",
-                       tags=["protein interaction", "MIPS", "#compression:gz", "#version:%i" % obiPPI.MIPS.VERSION]
-                       )
-    sf_server.unprotect("PPI", "allppis.xml") 
+""" MIPS """
+ppi.MIPS.download()
+TITLE = 'MIPS Protein interactions'
+TAGS = ['protein interaction', 'MIPS']
+VERSION = ppi.MIPS.VERSION
 
-if True:
-    obiPPI.BioGRID.download_data("http://thebiogrid.org/downloads/archives/Release%20Archive/BIOGRID-3.1.91/BIOGRID-ALL-3.1.91.tab2.zip") #replace with the newest version
+sfn = os.path.join(domain_path, 'mppi.gz')
+filename = os.path.join(domain_path, 'allppis.xml')
 
-    sfn = obiPPI.BioGRID.SERVER_FILE
+with gzip.open(sfn, 'rb') as f_gz:
+    f = open(filename, 'wb')
+    f.write(f_gz.read())
 
-    filename = sf_local.localpath("PPI", sfn)
+create_folder(tmp_path)
+shutil.move(sfn, os.path.join(tmp_path, 'allppis.xml'))
+create_info_file(os.path.join(tmp_path, 'allppis.xml'), title=TITLE, tags=TAGS, version=VERSION,
+                 compression='gz', uncompressed=file_size_bytes(filename))
 
-    import gzip
-    gz = gzip.GzipFile(filename + ".gz", "wb")
+helper = SyncHelper(DOMAIN, test_MIPS.MIPSTest)
+helper.run_tests()
+helper.sync_files()
+
+
+""" BioGrid """
+ppi.BioGRID.download_data("https://thebiogrid.org/downloads/archives/Latest%20Release/BIOGRID-ALL-LATEST.tab2.zip")
+# This download directory contains the most recent data release from the BioGRID. All files are named the same every
+# month for consistency to allow for automated scripted downloads.
+
+sfn = ppi.BioGRID.SERVER_FILE
+filename = os.path.join(domain_path, sfn)
+
+TITLE = 'BioGRID Protein interactions'
+TAGS = ['protein interaction', 'BioGrid']
+VERSION = ppi.BioGRID.VERSION
+
+create_folder(tmp_path)
+with gzip.GzipFile(os.path.join(tmp_path, sfn), "wb") as gz:
     gz.write(open(filename, "rb").read())
-    gz.close()
 
-    sf_server.upload("PPI", sfn, filename + ".gz", 
-        title="BioGRID Protein interactions", 
-        tags=["protein interaction", "BioGrid", "#compression:gz", "#version:%s" % obiPPI.BioGRID.VERSION]
-        )
-    sf_server.unprotect("PPI", sfn)
+create_info_file(os.path.join(tmp_path, sfn), title=TITLE, tags=TAGS, version=VERSION,
+                 compression='gz', uncompressed=file_size_bytes(filename))
 
+
+helper = SyncHelper(DOMAIN, test_BioGRID.BioGRIDTest)
+helper.run_tests()
+helper.sync_files()
+
+helper.remove_update_folder()
