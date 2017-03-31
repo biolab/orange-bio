@@ -146,7 +146,7 @@ exclude = ["goa_uniprot", "goa_pdb", "GeneDB_tsetse", "reactome",
 
 updatedTaxonomy = defaultdict(set)
 
-print(list_available_organisms())
+
 for org in list_available_organisms():
     FILENAME = 'gene_association.' + org + '.tar.gz'
     FILE_PATH = os.path.join(domain_path, FILENAME)
@@ -189,6 +189,14 @@ for org in list_available_organisms():
     create_info_file(FILE_PATH, title=TITLE, tags=TAGS, version=VERSION,
                      uncompressed=uncompressedSize(FILE_PATH), compression='tar.gz')
 
+# check if there are any new files to be synced
+new_files = [fname for domain, fname in sf_local.listfiles(DOMAIN) if fname != 'taxonomy.pickle']
+helper = SyncHelper(DOMAIN, GOTest)
+
+if not len(new_files):
+    helper.remove_update_folder()
+    sys.exit(up_to_date)
+
 try:
     with open(sf_local.localpath_download("GO", "taxonomy.pickle"), "rb") as f:
         tax = pickle.load(f)
@@ -210,7 +218,6 @@ if any(tax.get(key, set()) != updatedTaxonomy.get(key, set()) for key in set(upd
 
     create_info_file(tax_path, title=TITLE, tags=TAGS, version=VERSION)
 
-helper = SyncHelper(DOMAIN, GOTest)
 helper.run_tests()
 helper.sync_files()
 

@@ -13,9 +13,15 @@ DOMAIN = taxonomy.Taxonomy.DOMAIN
 FILENAME = taxonomy.Taxonomy.FILENAME
 TITLE = "NCBI Taxonomy"
 TAGS = ["NCBI", "taxonomy", "organism names", "essential"]
+helper = SyncHelper(DOMAIN, TaxonomyTest)
+
+if not http_last_modified(ncbi_taxonomy.TAXDUMP_URL) > sf_last_modified(DOMAIN, FILENAME):
+    # remove update folder
+    helper.remove_update_folder()
+    sys.exit(up_to_date)
 
 domain_path = sf_local.localpath(DOMAIN)
-temp_path = os.path.join(domain_path, 'temp')
+temp_path = os.path.join(domain_path, sf_temp)
 create_folder(domain_path)
 create_folder(temp_path)
 
@@ -33,7 +39,6 @@ with bz2.BZ2File(os.path.join(temp_path, FILENAME), mode="w", compresslevel=9) a
 create_info_file(os.path.join(temp_path, FILENAME), title=TITLE, tags=TAGS, uncompressed=db_size, compression='bz2')
 
 # sync files with remote server
-helper = SyncHelper(DOMAIN, TaxonomyTest)
 helper.run_tests()
 helper.sync_files()
 
