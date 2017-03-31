@@ -52,7 +52,8 @@ class SyncHelper(object):
         # create new allinfo file
         info_path = os.path.join(update_folder, '__INFO__')
         with open(info_path, 'wt') as f:
-            json.dump(list(sf_server.allinfo().items()), f)
+            # we must initialize ServerFiles object again because old one has __INFO__ cached
+            json.dump(list(ServerFiles().allinfo().items()), f)
 
         subprocess.call(["rsync", info_path, _sync_path])
 
