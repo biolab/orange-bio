@@ -777,7 +777,7 @@ class Annotations(object):
 
         if not os.path.exists(path):
             sf = serverfiles.ServerFiles()
-            available = sf.listfiles("GO")
+            available = [fname for domain, fname in sf.listfiles("GO")]
             if filename not in available:
                 raise obiTaxonomy.UnknownSpeciesIdentifier(org + str(code))
             serverfiles.download("GO", filename)
