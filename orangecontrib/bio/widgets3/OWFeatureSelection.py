@@ -13,7 +13,7 @@ import scipy.stats
 import scipy.special
 
 from AnyQt.QtGui import QStandardItemModel, QPen
-from AnyQt.QtCore import Qt, QLineF, QSize, Signal, Slot
+from AnyQt.QtCore import Qt, QLineF, QSize, QRectF, Signal, Slot
 
 import pyqtgraph as pg
 
@@ -607,7 +607,8 @@ class OWFeatureSelection(widget.OWWidget):
         self.histogram = Histogram(
             enableMouse=False, enableMenu=False, background="w"
         )
-        self.histogram.enableAutoRange(enable=True)
+        self.histogram.enableAutoRange(enable=False)
+        self.histogram.getPlotItem().hideButtons()  # hide auto range button
         self.histogram.getViewBox().setMouseEnabled(False, False)
         self.histogram.selectionChanged.connect(
             self.__on_histogram_plot_selection_changed
@@ -1010,7 +1011,6 @@ class OWFeatureSelection(widget.OWWidget):
         # Restore saved thresholds
         eps = np.finfo(float).eps
         minx, maxx = edges[0] - eps, edges[-1] + eps
-
         low, high = max(low, minx), min(high, maxx)
 
         if side == OWFeatureSelection.LowTail:
@@ -1052,6 +1052,16 @@ class OWFeatureSelection(widget.OWWidget):
             labelitem = pg.TextItem(right, color=(40, 40, 40))
             labelitem.setPos(x2, y2)
             self.histogram.addItem(labelitem)
+
+        miny, maxy = 0.0, np.max(freq)
+        if nulldist is not None:
+            maxy = max(np.max(nullfreq), maxy)
+
+        if not np.any(np.isnan([maxx, minx, maxy])):
+            self.histogram.setRange(
+                QRectF(minx, miny, maxx - minx, maxy - miny),
+                padding=0.05
+            )
 
     def update_data_info_label(self):
         if self.data is not None:
@@ -1334,7 +1344,7 @@ def test_main(argv=sys.argv):
     if len(argv) > 1:
         filename = argv[1]
     else:
-        filename = "brown-selected"
+        filename = "geo-gds360"
     data = Orange.data.Table(filename)
 
     w = OWFeatureSelection()
