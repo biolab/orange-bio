@@ -936,8 +936,7 @@ class OWFeatureSelection(widget.OWWidget):
                 try:
                     results = scores.result()
                 except Exception as ex:
-                    sys.excepthook(*sys.exc_info())
-                    self.error(1, "Error: {!s}", ex)
+                    self.error(1, "Error: {!s}".format(ex))
                 else:
                     self.set_scores(*results)
 
