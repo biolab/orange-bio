@@ -378,9 +378,11 @@ class VolcanoGraph(pg.PlotWidget):
             self.maxX = numpy.max(numpy.abs(self.plotData[:, 0]))
             self.maxY = numpy.max(self.plotData[:, 1])
         else:
-            self.maxX, self.maxY = 10, 10
+            self.maxX, self.maxY = 10., 10.
 
         self.replot_()
+
+        self.setRange(QRectF(-self.maxX, 0, 2 * self.maxX, self.maxY))
         self.selectionChanged.emit()
 
     def setSymbolSize(self, size):
