@@ -716,6 +716,10 @@ class OWVolcanoPlot(widget.OWWidget):
                 # TODO: handle missing values better (mstats)
                 _, P = scipy.stats.ttest_ind(X1, X2, axis=1, equal_var=True)
                 logP = numpy.log10(P)
+                if numpy.isscalar(logP):
+                    # ttest_ind does not preserve output shape if either
+                    # a or b is empty
+                    logP = numpy.full(fold.shape, numpy.nan)
 
             mask = numpy.isfinite(fold) & numpy.isfinite(logP)
             self.validindices = numpy.flatnonzero(mask)
