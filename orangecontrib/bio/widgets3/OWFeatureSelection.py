@@ -1164,11 +1164,11 @@ class OWFeatureSelection(widget.OWWidget):
         assert 0 <= self.alpha_value <= 1
         p = self.alpha_value
         if side == OWFeatureSelection.HighTail:
-            cut = np.percentile(nulldist, [100 * (1 - p)])
+            cut = np.percentile(nulldist, 100 * (1 - p))
             self.max_value = cut
             self.histogram.setUpper(cut)
         elif side == OWFeatureSelection.LowTail:
-            cut = np.percentile(nulldist, [100 * p])
+            cut = np.percentile(nulldist, 100 * p)
             self.min_value = cut
             self.histogram.setLower(cut)
         elif side == OWFeatureSelection.TwoTail:
@@ -1328,13 +1328,14 @@ class Test_f_oneway(unittest.TestCase):
         np.testing.assert_almost_equal(P1, P)
 
 
-def test_main(argv=sys.argv):
+def main(argv=None):
     from AnyQt.QtWidgets import QApplication
-    app = QApplication(argv)
+    app = QApplication(list(argv) if argv else [])
+    argv = app.arguments()
     if len(argv) > 1:
         filename = argv[1]
     else:
-        filename = "brown-selected"
+        filename = "geo-gds360"
     data = Orange.data.Table(filename)
 
     w = OWFeatureSelection()
@@ -1348,4 +1349,4 @@ def test_main(argv=sys.argv):
     return rval
 
 if __name__ == "__main__":
-    sys.exit(test_main())
+    sys.exit(main(sys.argv))
