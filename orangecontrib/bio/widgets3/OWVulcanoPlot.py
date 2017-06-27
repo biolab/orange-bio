@@ -374,7 +374,8 @@ class VolcanoGraph(pg.PlotWidget):
     def updateSelectionArea(self):
         mask = self.selectionMask()
         brush = self._stylebrush[mask.astype(int)]
-        self._item.setBrush(brush)
+        if self._item is not None:
+            self._item.setBrush(brush)
 
         if self._selitem is not None:
             self.removeItem(self._selitem)
@@ -671,15 +672,16 @@ class OWVolcanoPlot(widget.OWWidget):
 
     def on_selection_changed(self):
         # Selection area on the plot has changed.
-        mask = self.graph.selectionMask()
-        nselected = numpy.count_nonzero(mask)
-        self.infoLabel2.setText("%i selected genes" % nselected)
+        if self.data is not None:
+            mask = self.graph.selectionMask()
+            nselected = numpy.count_nonzero(mask)
+            self.infoLabel2.setText("%i selected genes" % nselected)
 
-        selection = list(self.selection())
-        # Did the selection actually change
-        if selection != self.current_selection:
-            self.current_selection = selection
-            self.commit()
+            selection = list(self.selection())
+            # Did the selection actually change
+            if selection != self.current_selection:
+                self.current_selection = selection
+                self.commit()
 
     def commit(self):
         """
