@@ -413,11 +413,11 @@ class VolcanoGraph(pg.PlotWidget):
             self.removeItem(self._item)
             self._item = None
 
-    def clear(self):
+    def clearPlot(self):
         self._item = None
         self._selitem = None
         self.plotData = numpy.empty((0, 2))
-        super().clear()
+        self.clear()
         self.selectionChanged.emit()
 
     def sizeHint(self):
@@ -506,7 +506,7 @@ class OWVolcanoPlot(widget.OWWidget):
         self.clear_graph()
 
     def clear_graph(self):
-        self.graph.clear()
+        self.graph.clearPlot()
 
     def set_data(self, data=None):
         self.closeContext()
@@ -615,7 +615,7 @@ class OWVolcanoPlot(widget.OWWidget):
             self.graph.setSelectionMode(VolcanoGraph.RectSelection)
 
     def plot(self):
-        self.graph.clear()
+        self.graph.clearPlot()
         self.validindices = numpy.empty((0,), dtype=int)
         self.current_selection = []
         group, target_indices = self.selected_split()
