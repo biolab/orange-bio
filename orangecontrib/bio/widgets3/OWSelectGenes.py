@@ -810,7 +810,7 @@ class OWSelectGenes(widget.OWWidget):
             self.entryField.moveCursor(QTextCursor.End)
 
     def importFromFile(self):
-        filename = QFileDialog.getOpenFileName(
+        filename, _ = QFileDialog.getOpenFileName(
             self, "Open File", os.path.expanduser("~/"))
 
         if filename:
