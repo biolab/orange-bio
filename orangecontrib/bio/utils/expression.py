@@ -753,12 +753,12 @@ def MA_center_lowess(G, R, f=2./3., iter=1, progressCallback=None):
     """
 #    from Bio.Statistics.lowess import lowess
     ratio, intensity = ratio_intensity(G, R)
-    valid = - (ratio.mask & intensity.mask)
+    valid = ~ (ratio.mask & intensity.mask)
     valid_ind = numpy.ma.where(valid)
     center_est = lowess(intensity[valid], ratio[valid], f=f, iter=iter, progressCallback=progressCallback)
     Gc, R = G.copy(), R.copy()
     Gc[valid] *= numpy.exp2(center_est)
-    Gc.mask, R.mask = -valid, -valid
+    Gc.mask, R.mask = ~valid, ~valid
     return Gc, R
 
 
@@ -769,7 +769,7 @@ def MA_center_lowess_fast(G, R, f=2./3., iter=1, resolution=100, progressCallbac
     """
     
     ratio, intensity = ratio_intensity(G, R)
-    valid = - (ratio.mask & intensity.mask)
+    valid = ~ (ratio.mask & intensity.mask)
     resolution = min(resolution, len(intensity[valid]))
     hist, edges = numpy.histogram(intensity[valid], len(intensity[valid])//resolution)
     
@@ -781,7 +781,7 @@ def MA_center_lowess_fast(G, R, f=2./3., iter=1, resolution=100, progressCallbac
     
     Gc, R = G.copy(), R.copy()
     Gc[valid] *= numpy.exp2(centered)
-    Gc.mask, R.mask = -valid, -valid
+    Gc.mask, R.mask = ~valid, ~valid
     return Gc, R
 
 
@@ -869,6 +869,5 @@ def MA_zscore(G, R, window=1./5., padded=False, progressCallback=None):
         if progressCallback and i % (len(sorted) // 100 + 1) == 0:
             progressCallback(100. * i / len(sorted))
         
-    z_scores._mask = - numpy.isfinite(z_scores)
+    z_scores._mask = ~numpy.isfinite(z_scores)
     return z_scores
-    
