@@ -433,11 +433,11 @@ class VolcanoGraph(pg.PlotWidget):
             self.removeItem(self._item)
             self._item = None
 
-    def clear(self):
+    def clearPlot(self):
         self._item = None
         self._selitem = None
         self.plotData = numpy.empty((0, 2))
-        super().clear()
+        self.clear()
         self.selectionChanged.emit()
 
     def sizeHint(self):
@@ -561,7 +561,7 @@ class OWVolcanoPlot(widget.OWWidget):
         self.clear_graph()
 
     def clear_graph(self):
-        self.graph.clear()
+        self.graph.clearPlot()
 
     def set_data(self, data=None):
         self.closeContext()
@@ -673,7 +673,7 @@ class OWVolcanoPlot(widget.OWWidget):
             self.graph.setSelectionMode(VolcanoGraph.RectSelection)
 
     def plot(self):
-        self.graph.clear()
+        self.graph.clearPlot()
         self.validindices = numpy.empty((0,), dtype=int)
         self.current_selection = []
         group, target_indices = self.selected_split()
@@ -740,15 +740,16 @@ class OWVolcanoPlot(widget.OWWidget):
         if self.graph.selectionMode() == VolcanoGraph.SymetricSelection:
             self.cut_log_r, self.cut_log_p = self.graph.selectionCut()
 
-        mask = self.graph.selectionMask()
-        nselected = numpy.count_nonzero(mask)
-        self.infoLabel2.setText("%i selected genes" % nselected)
+        if self.data is not None:
+            mask = self.graph.selectionMask()
+            nselected = numpy.count_nonzero(mask)
+            self.infoLabel2.setText("%i selected genes" % nselected)
 
-        selection = list(self.selection())
-        # Did the selection actually change
-        if selection != self.current_selection:
-            self.current_selection = selection
-            self.commit()
+            selection = list(self.selection())
+            # Did the selection actually change
+            if selection != self.current_selection:
+                self.current_selection = selection
+                self.commit()
 
     def commit(self):
         """
