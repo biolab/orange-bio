@@ -11,7 +11,6 @@ import io
 import gzip
 
 import tempfile
-import tarfile
 import numbers
 
 import pickle
@@ -175,7 +174,7 @@ class GeneOntologyResource(Resource):
 
 class OntologyResource(Resource):
     HOME = "http://www.gomapman.org"
-    VERSION = "2015-09-08"  # export date
+    VERSION = "2017-03-14"  # export date
     FILENAME = "ontology.obo"
     URL = "http://www.gomapman.org/export/{VERSION}/OBO/{FILENAME}"
     LICENSE = "CC BY-NC-SA 3.0"
@@ -184,8 +183,8 @@ class OntologyResource(Resource):
 
 class MappingResource(Resource):
     HOME = "http://www.gomapman.org"
-    VERSION = "2015-09-08"  # export date
-    FILENAME = "{organism.orgcode}_{mapping.identifiertag}_{VERSION}_mapping.txt.tar.gz"
+    VERSION = "2017-03-14"  # export date
+    FILENAME = "{organism.orgcode}_{mapping.identifiertag}_{VERSION}_mapping.txt.gz"
     URL = "http://www.gomapman.org/export/{VERSION}/mapman/{FILENAME}"
     LICENSE = "CC BY-NC-SA 3.0"
     CACHEPATH = "gomapman/{VERSION}/mapman/"
@@ -225,7 +224,7 @@ class MappingResource(Resource):
 
     Mappings = [
         # Arabidopsis thaliana
-        Mapping(Arabidopsis, "TAIR9", "Locus ID (AGI)",
+        Mapping(Arabidopsis, "Araport11", "Locus ID (AGI)",
                 "Arabidopsis gene loci number (AGI)"),
         # Potato
         Mapping(Potato, "stNIB-v1", "stNIB-v1",
@@ -247,22 +246,15 @@ class MappingResource(Resource):
                 "International Tomato Annotation Group"),
         # Tobacco
         Mapping(Tobacco, "ntaUG17", "NCBI UniGene", ""),
-        Mapping(Tobacco, "Affymetrix_A-AFFY-135", "",
-                "nta_Affymetrix_A-AFFY-135_2015-09-08_mapping.txt.tar.gz"),
-        Mapping(Tobacco, "Agilent_4x44k", "",
-                "nta_Agilent_4x44k_2015-09-08_mapping.txt.tar.gz"),
+        Mapping(Tobacco, "Affymetrix_A-AFFY-135", "", ""),
+        Mapping(Tobacco, "Agilent_4x44k", "", ""),
         # Beet
-        Mapping(Beet, "RefBeet1.1", "RefBeet",
-                "bvu_RefBeet1.1_2015-09-08_mapping.txt.tar.gz"),
-        Mapping(Beet, "Refbeet1.1_transcript", "RefBeet Transcript",
-                "bvu_Refbeet1.1_transcript_2015-09-08_mapping.txt.tar.gz"),
+        Mapping(Beet, "RefBeet1.1", "RefBeet", ""),
+        Mapping(Beet, "Refbeet1.1_transcript", "RefBeet Transcript", ""),
         # Cacao Tree
-        Mapping(CacaoTree, "Phytozome9.1", "Phytozome 9.1",
-                "tca_Phytozome9.1_2015-09-08_mapping.txt.tar.gz"),
-        Mapping(CacaoTree, "Phytozome9.1_gene-PLAZA", "PLAZA",
-                "tca_Phytozome9.1_gene-PLAZA_2015-09-08_mapping.txt.tar.gz"),
-        Mapping(CacaoTree, "Phytozome9.1_transcript", "Phytozome Transcript",
-                "tca_Phytozome9.1_transcript_2015-09-08_mapping.txt.tar.gz"),
+        Mapping(CacaoTree, "Phytozome9.1", "Phytozome 9.1", ""),
+        Mapping(CacaoTree, "Phytozome9.1_gene-PLAZA", "PLAZA", ""),
+        Mapping(CacaoTree, "Phytozome9.1_transcript", "Phytozome Transcript", ""),
     ]
 
     def __init__(self, version=VERSION, mapping=Mappings[0], **kwargs):
@@ -282,8 +274,7 @@ class MappingResource(Resource):
             datadir = default_datadir()
         path = self.localpath(datadir=datadir)
         basename = os.path.basename(path)
-        tfile = tarfile.open(self.localpath(datadir=datadir))
-        return tfile.extractfile(basename)
+        return gzip.open(self.localpath(datadir=datadir))
 
 
 def cache_load_ontology(path):
@@ -842,8 +833,7 @@ class OWMapManEnrichment(widget.OWWidget):
         res = MappingResource(mapping=mapping)
         res.fetch()
 
-        with tarfile.open(res.localpath()) as tfile:
-            mcontents = tfile.extractfile(tfile.next())
+        with gzip.open(res.localpath()) as mcontents:
             f = io.TextIOWrapper(mcontents, encoding="utf-8")
             nodes, mapping = mapman_mapping(f)
             f.close()
