@@ -6,16 +6,18 @@ Volcano plot
 import sys
 
 from contextlib import contextmanager
+from functools import partial
+from typing import List
 
 import numpy
 import scipy.stats
 
 from AnyQt.QtWidgets import (
-    QGraphicsView, QGraphicsItemGroup, QGraphicsRectItem, QToolTip
+    QGraphicsView, QGraphicsItemGroup, QGraphicsRectItem, QToolTip,
+    QFormLayout, QCheckBox
 )
-from AnyQt.QtGui import (
-    QPainterPath, QPainter, QBrush, QPen, QStandardItemModel
-)
+from AnyQt.QtGui import QPainter, QBrush, QPen, QStandardItemModel
+
 from AnyQt.QtCore import (
     Qt, QEvent, QObject, QPointF, QRectF, QSize, QPoint, QRect, Signal
 )
@@ -32,7 +34,7 @@ from orangecontrib.bio.widgets3.utils import group as grouputils
 from orangecontrib.bio.widgets3.utils.settings import SetContextHandler
 
 NAME = "Volcano Plot"
-DESCRIPTION = "Plots fold change vs. p-value.)"
+DESCRIPTION = "Plots fold change vs. p-value."
 ICON = "icons/VolcanoPlot.svg"
 PRIORITY = 1020
 
@@ -251,11 +253,15 @@ class SymetricSelections(GraphSelections):
         cutoffY = self.selection[1][1].y()
         return (numpy.abs(data[:, 0]) >= cutoffX) & (data[:, 1] >= cutoffY)
 
-    def cuttoff(self):
+    def cutoff(self):
         """
         Return the absolute x, y cutoff values.
         """
         return (self.selection[1][1].x(), self.selection[1][1].y())
+
+    def setCutoff(self, x, y):
+        if (x, y) != self.cutoff():
+            self.__setpos(Qt.Vertical | Qt.Horizontal, QPointF(x, y))
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.GraphicsSceneHoverMove:
@@ -294,7 +300,7 @@ class VolcanoGraph(pg.PlotWidget):
         self.cutoffX = 2.0
         self.cutoffY = 2.0
         # maximum absolute x, y values.
-        self.maxX, self.maxY = 10, 10
+        self.maxX, self.maxY = 10., 10.
         self.symbolSize = symbolSize
 
         self.__selectionMode = VolcanoGraph.NoSelection
@@ -337,12 +343,24 @@ class VolcanoGraph(pg.PlotWidget):
             if self.plotData.size:
                 self.updateSelectionArea()
 
+            self.selectionChanged.emit()
+
     def selectionMode(self):
         return self.__selectionMode
 
+    def setSelectionCut(self, x, y):
+        if (x, y) != (self.cutoffX, self.cutoffY):
+            self.cutoffX, self.cutoffY = x, y
+            if self.__selectionMode == VolcanoGraph.SymetricSelection:
+                assert isinstance(self.__selectiondelegate, SymetricSelections)
+                self.__selectiondelegate.setCutoff(x, y)
+
+    def selectionCut(self):
+        return self.cutoffX, self.cutoffY
+
     def __on_selectionChanged(self):
         if self.__selectionMode == VolcanoGraph.SymetricSelection:
-            self.cutoffX, self.cutoffY = self.__selectiondelegate.cuttoff()
+            self.cutoffX, self.cutoffY = self.__selectiondelegate.cutoff()
 
         self.updateSelectionArea()
 
@@ -360,9 +378,11 @@ class VolcanoGraph(pg.PlotWidget):
             self.maxX = numpy.max(numpy.abs(self.plotData[:, 0]))
             self.maxY = numpy.max(self.plotData[:, 1])
         else:
-            self.maxX, self.maxY = 10, 10
+            self.maxX, self.maxY = 10., 10.
 
         self.replot_()
+
+        self.setRange(QRectF(-self.maxX, 0, 2 * self.maxX, self.maxY))
         self.selectionChanged.emit()
 
     def setSymbolSize(self, size):
@@ -441,7 +461,12 @@ class OWVolcanoPlot(widget.OWWidget):
 
     current_group_index = settings.ContextSetting(-1)
     #: stored selection indices (List[int]) for every split group.
-    stored_selections = settings.ContextSetting([])
+    stored_selections = settings.ContextSetting([])  # type: List[int]
+
+    #: The (abs) selection cut on the log(ratio) scale (X axis)
+    cut_log_r = settings.Setting(2.0)  # type: float
+    #: The selection cut on on log(p_value) scale (Y axis)
+    cut_log_p = settings.Setting(2.0)  # type: float
 
     graph_name = "graph.plotItem"
 
@@ -455,6 +480,7 @@ class OWVolcanoPlot(widget.OWWidget):
         self.validindices = numpy.empty((0,), dtype=int)
 
         self.graph = VolcanoGraph(symbolSize=self.symbol_size, background="w")
+        self.graph.setSelectionCut(self.cut_log_r, self.cut_log_p)
         self.graph.setSelectionMode(
             VolcanoGraph.SymetricSelection if self.symetric_selections else
             VolcanoGraph.RectSelection)
@@ -463,6 +489,8 @@ class OWVolcanoPlot(widget.OWWidget):
         self.graph.scene().installEventFilter(self)
         self.graph.getViewBox().setMouseEnabled(False, False)
         self.graph.getViewBox().enableAutoRange(enable=True)
+        self.graph.getViewBox().setMenuEnabled(False)
+        self.graph.getPlotItem().hideButtons()
         self.graph.plotItem.showGrid(True, True, 0.3)
         self.mainArea.layout().addWidget(self.graph)
 
@@ -482,6 +510,36 @@ class OWVolcanoPlot(widget.OWWidget):
 
         box.layout().addWidget(self.target_widget)
 
+        box = gui.widgetBox(self.controlArea, "Selection")
+        cb = gui.checkBox(box, self, "symetric_selections", "Symmetric selection",
+                          callback=self.__on_selectionModeChanged)  # type: QCheckBox
+        form = QFormLayout(
+            labelAlignment=Qt.AlignRight,
+            formAlignment=Qt.AlignLeft,
+            fieldGrowthPolicy=QFormLayout.AllNonFixedFieldsGrow,
+        )
+
+        form.addRow(
+            "|log(ratio)|:",
+            gui.spin(box, self, "cut_log_r", 0.0, 20.0,
+                     step=0.01, decimals=4, spinType=float,
+                     callback=self.on_cut_changed)
+        )
+        form.addRow(
+            "-log<sub>10</sub>(P_value):",
+            gui.spin(box, self, "cut_log_p", 0.0, 20.0,
+                     step=0.01, decimals=4, spinType=float,
+                     callback=self.on_cut_changed)
+        )
+        box.layout().addLayout(form)
+
+        def set_enable_all(layout, enabled):
+            for i in range(layout.count()):
+                item = layout.itemAt(i)
+                if item is not None and item.widget() is not None:
+                    item.widget().setEnabled(enabled)
+        set_enable_all(form, self.symetric_selections)
+        cb.toggled.connect(partial(set_enable_all, form))
         box = gui.widgetBox(self.controlArea, "Settings")
 
         gui.hSlider(box, self, "symbol_size", label="Symbol size:   ",
@@ -489,11 +547,8 @@ class OWVolcanoPlot(widget.OWWidget):
                     callback=lambda:
                         self.graph.setSymbolSize(self.symbol_size))
 
-        gui.checkBox(box, self, "symetric_selections", "Symmetric selection",
-                     callback=self.__on_selectionModeChanged)
-
-        gui.auto_commit(self.controlArea, self, "auto_commit", "Commit")
         gui.rubber(self.controlArea)
+        gui.auto_commit(self.controlArea, self, "auto_commit", "Commit")
 
     def sizeHint(self):
         return QSize(800, 600)
@@ -601,6 +656,9 @@ class OWVolcanoPlot(widget.OWWidget):
 
         self._update_plot()
 
+    def on_cut_changed(self):
+        self.graph.setSelectionCut(self.cut_log_r, self.cut_log_p)
+
     def _update_plot(self):
         group, targetindices = self.selected_split()
         if group is not None and targetindices:
@@ -643,13 +701,20 @@ class OWVolcanoPlot(widget.OWWidget):
                        "More than one measurement per class should be provided"
                 )
 
-            with numpy.errstate(divide="ignore", invalid="ignore"):
-                fold = numpy.log2(numpy.mean(X[:, I1], axis=1) /
-                                  numpy.mean(X[:, I2], axis=1))
+            X1, X2 = X[:, I1], X[:, I2]
+            if numpy.any(X1 < 0.0) or numpy.any(X2 < 0):
+                self.error(
+                    "Negative values in the input. The inputs cannot be in "
+                    "ratio scale."
+                )
+                X1 = numpy.full_like(X1, numpy.nan)
+                X2 = numpy.full_like(X2, numpy.nan)
 
+            with numpy.errstate(divide="ignore", invalid="ignore"):
+                fold = numpy.log2(numpy.mean(X1, axis=1) /
+                                  numpy.mean(X2, axis=1))
                 # TODO: handle missing values better (mstats)
-                _, P = scipy.stats.ttest_ind(X[:, I1], X[:, I2], axis=1,
-                                             equal_var=True)
+                _, P = scipy.stats.ttest_ind(X1, X2, axis=1, equal_var=True)
                 logP = numpy.log10(P)
 
             mask = numpy.isfinite(fold) & numpy.isfinite(logP)
@@ -672,6 +737,9 @@ class OWVolcanoPlot(widget.OWWidget):
 
     def on_selection_changed(self):
         # Selection area on the plot has changed.
+        if self.graph.selectionMode() == VolcanoGraph.SymetricSelection:
+            self.cut_log_r, self.cut_log_p = self.graph.selectionCut()
+
         if self.data is not None:
             mask = self.graph.selectionMask()
             nselected = numpy.count_nonzero(mask)
@@ -754,25 +822,28 @@ class OWVolcanoPlot(widget.OWWidget):
         self.report_caption(", ".join(caption))
 
 
-def test_main():
+def main(argv=None):
     from AnyQt.QtWidgets import QApplication
-    ap = QApplication(sys.argv)
+    app = QApplication(list(argv) if argv else [])
+    argv = app.arguments()
     w = OWVolcanoPlot()
-    w.setAttribute(Qt.WA_DeleteOnClose, True)
 
-    if len(sys.argv) > 1:
-        filename = sys.argv[1]
+    if len(argv) > 1:
+        filename = argv[1]
     else:
-        filename = "brown-selected"
-
+        filename = "geo-gds360"
     d = Orange.data.Table(filename)
     w.set_data(d)
+    w.handleNewSignals()
     w.show()
     w.raise_()
-    rval = ap.exec_()
+    rval = app.exec_()
+    w.set_data(None)
+    w.handleNewSignals()
     w.saveSettings()
+    w.onDeleteWidget()
     return rval
 
 
 if __name__ == "__main__":
-    sys.exit(test_main())
+    sys.exit(main(sys.argv))
