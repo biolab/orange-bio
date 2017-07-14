@@ -22,24 +22,24 @@ PATH = serverfile_path()
 LOCALFILES = serverfiles.LocalFiles(PATH, serverfiles=ServerFiles())
 
 
-def localpath(*args):
-    return LOCALFILES.localpath(*args)
+def localpath(*args, **kwargs):
+    return LOCALFILES.localpath(*args, **kwargs)
 
     
-def listfiles(*args):
-    return [fname for domain, fname in LOCALFILES.listfiles(*args)]
+def listfiles(*args, **kwargs):
+    return [fname for domain, fname in LOCALFILES.listfiles(*args, **kwargs)]
 
 
 def localpath_download(*path, **kwargs):
     return LOCALFILES.localpath_download(*path, **kwargs)
 
 
-def download(*path):
-    return LOCALFILES.download(*path)
+def download(*args, **kwargs):
+    return LOCALFILES.download(*args, **kwargs)
 
 
-def info(*path):
-    return LOCALFILES.info(*path)
+def info(*args, **kwargs):
+    return LOCALFILES.info(*args, **kwargs)
 
 
 def update(*path, **kwargs):
