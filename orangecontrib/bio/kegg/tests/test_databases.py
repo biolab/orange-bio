@@ -86,7 +86,7 @@ class TestPathways(RemoteResourceTest):
         self.assertEqual(sorted(genes), sorted(path.genes()))
 
     def test(self):
-        self._tester("path:map00627")
+        self._tester("path:hsa05130")
 
 
 class TestUtils(unittest.TestCase):

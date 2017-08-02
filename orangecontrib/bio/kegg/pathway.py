@@ -7,6 +7,7 @@ KEGG Pathway
 from __future__ import absolute_import
 
 import os
+import io
 
 import xml.parsers
 from xml.dom import minidom
@@ -39,7 +40,7 @@ class Pathway(object):
     :param str pathway_id: A KEGG pathway id (e.g. 'path:hsa05130')
 
     """
-    KGML_URL_FORMAT = "http://www.genome.jp/kegg-bin/download?entry={pathway_id}&format=kgml"
+    KGML_URL_FORMAT = "http://rest.kegg.jp/get/{pathway_id}/kgml"
 
     def __init__(self, pathway_id, local_cache=None, connection=None):
         if pathway_id.startswith("path:"):
@@ -65,38 +66,8 @@ class Pathway(object):
         """
         Return an open kgml file for the pathway.
         """
-        from datetime import datetime, timedelta
-        valid = False
-        local_filename = os.path.join(self.local_cache,
-                                      self.pathway_id + ".xml")
- 
-        if os.path.exists(local_filename):
-            #TODO always return the item in cache
-            #the whole expiration mechanism would have to be updateda
-            valid = True
-            """
-            mtime = os.stat(local_filename).st_mtime
-            mtime = datetime.fromtimestamp(mtime)
-            now = datetime.now()
-            if conf.params["cache.invalidate"] == "always":
-                valid = False
-            elif conf.params["cache.invalidate"] == "session":
-                valid = (now - mtime) < (now - caching._SESSION_START)
-            elif conf.params["cache.invalidate"] == "daily":
-                valid = (now - mtime) < timedelta(1)
-            elif conf.params["cache.invalidate"] == "weekly":
-                valid = (now - mtime) < timedelta(7)
-            else:
-                valid = False
-            """
-
-        if not valid:
-            url = self.KGML_URL_FORMAT.format(pathway_id=self.pathway_id)
-            r = requests.get(url, stream=True)
-            with open(local_filename, 'wb') as f:
-                f.write(r.raw.read())
-
-        return open(local_filename, "rb")
+        kegg = api.CachedKeggApi()
+        return io.BytesIO(kegg.get(self.pathway_id + "/kgml"))
 
     def _get_image_filename(self):
         """
