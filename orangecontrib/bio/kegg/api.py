@@ -395,6 +395,10 @@ class CachedKeggApi(KeggApi):
         else:
             return KeggApi.get(self, ids)
 
+    @cached_method
+    def link(self, target_db, source_db=None, ids=None):
+        return KeggApi.link(self, target_db, source_db, ids)
+
     def _batch_get(self, ids):
         if len(ids) > 10:
             raise ValueError("Can batch at most 10 ids at a time.")

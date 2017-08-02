@@ -36,6 +36,8 @@ from .. import kegg
 from .. import geneset
 from ..utils import stats
 
+from .OWMapManOntology import relation_list_to_multimap
+
 
 def split_and_strip(string, sep=None):
     return [s.strip() for s in string.split(sep)]
@@ -673,15 +675,12 @@ class OWKEGGPathwayBrowser(widget.OWWidget):
             # We use the kegg pathway gene sets provided by 'geneset' for
             # the enrichment calculation.
 
-            # Ensure we are using the latest genesets
-            # TODO: ?? Is updating the index enough?
-            serverfiles.update(geneset.sfdomain, "index.pck")
-            kegg_gs_collections = geneset.collections(
-                (("KEGG", "pathways"), taxid)
-            )
-
+            kegg_api = kegg.api.CachedKeggApi()
+            linkmap = kegg_api.link(org.org_code, "pathway")
+            kegg_sets = relation_list_to_multimap(linkmap)
+            kegg_sets = geneset.GeneSets(input=kegg_sets)
             pathways = pathway_enrichment(
-                kegg_gs_collections, unique_genes.keys(),
+                kegg_sets, unique_genes.keys(),
                 unique_ref_genes.keys(),
                 callback=progress
             )
