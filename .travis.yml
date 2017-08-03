@@ -13,8 +13,9 @@ cache:
   pip: true
 
 install:
-  - python -m pip install 'pip>=9'  # to install manylinux wheels
+  - python -m pip install 'pip>=9' 'setuptools>=25'
   - pip --version
+  - pip list --format=legacy
   - python setup.py clean --all sdist -d dist
   - name=$(python setup.py --name)
   - version=$(python setup.py --version)
