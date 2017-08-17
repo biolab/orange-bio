@@ -19,11 +19,6 @@ def create_info_file(file_path, **kwargs):
         json.dump(kwargs, f)
 
 
-def load_info(inf_path):
-    with open(inf_path) as info_data:
-        return json.load(info_data)
-
-
 def create_folder(path):
     try:
         os.makedirs(path)

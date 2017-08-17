@@ -19,7 +19,7 @@ __all__ = ["Taxonomy"]
 
 pjoin = os.path.join
 
-TAXDUMP_URL = "ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz"
+TAXDUMP_URL = "http://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz"
 
 _taxon = namedtuple(
     "taxon",

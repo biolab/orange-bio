@@ -3,7 +3,8 @@ import subprocess
 import shutil
 import sys
 
-from io import StringIO
+
+from urllib.request import urlopen
 from server_update.common import *
 from orangecontrib.bio.utils import update_folder
 from unittest import TextTestRunner, makeSuite
@@ -12,6 +13,12 @@ create_folder(update_folder)  # before calling utils.serverfiles
 from orangecontrib.bio.utils.serverfiles import ServerFiles, LOCALFILES, PATH
 
 print(PATH)
+info_date_fmt = '%Y-%m-%d %H:%M:%S.%f'
+http_date_fmt = '%a, %d %b %Y %H:%M:%S %Z'
+
+# End script with exit code 10 if files on the server is up-to-date!
+up_to_date = 10
+
 sf_server = ServerFiles()
 sf_local = LOCALFILES
 sf_temp = 'temp'
@@ -28,6 +35,14 @@ def register_sets(sfdomain, fn, tfname, title, tags):
         f.write(tfname)
 
     create_info_file(file_path, title=title, tags=tags)
+
+
+def sf_last_modified(domain, filename):
+    return datetime.strptime(sf_server.info(domain, filename)['datetime'], info_date_fmt)
+
+
+def http_last_modified(url):
+    return datetime.strptime(urlopen(url).headers.get('Last-Modified'), http_date_fmt)
 
 
 class SyncHelper(object):
@@ -52,7 +67,8 @@ class SyncHelper(object):
         # create new allinfo file
         info_path = os.path.join(update_folder, '__INFO__')
         with open(info_path, 'wt') as f:
-            json.dump(list(sf_server.allinfo().items()), f)
+            # we must initialize ServerFiles object again because old one has __INFO__ cached
+            json.dump(list(ServerFiles().allinfo().items()), f)
 
         subprocess.call(["rsync", info_path, _sync_path])
 

@@ -58,6 +58,8 @@ gds_names = [name for name in gds_names if not (name in gds_info or name in excl
 print('{} new files will be added!'.format(len(gds_names)))
 skipped = []
 
+helper = SyncHelper(DOMAIN, GEOTest)
+
 if len(gds_names):
     for count, gds_name in enumerate(gds_names):
         print("%3d of %3d -- Adding %s ..." % (count + 1, len(gds_names), gds_name))
@@ -77,20 +79,21 @@ if len(gds_names):
             print("... skipped (error):", str(ex))
             skipped.append(gds_name)
 
+    # update .info file
+    create_info_file(localfile, title=TITLE, tags=TAGS)
 
-print("GDS data sets: %d" % len(gds_info))
-print("Organisms:")
+    print("GDS data sets: %d" % len(gds_info))
+    print("Organisms:")
 
-organisms = [info["sample_organism"] for info in gds_info.values()]
-for org in set(organisms):
-    print("  %s (%d)" % (org, organisms.count(org)))
+    organisms = [info["sample_organism"] for info in gds_info.values()]
+    for org in set(organisms):
+        print("  %s (%d)" % (org, organisms.count(org)))
 
-# update .info file
-create_info_file(localfile, title=TITLE, tags=TAGS)
+    # sync files with remote server
+    helper.run_tests()
+    helper.sync_files()
+    helper.remove_update_folder()
 
-# sync files with remote server
-helper = SyncHelper(DOMAIN, GEOTest)
-helper.run_tests()
-helper.sync_files()
-
-helper.remove_update_folder()
+else:
+    helper.remove_update_folder()
+    sys.exit(up_to_date)
