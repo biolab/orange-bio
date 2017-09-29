@@ -4,8 +4,9 @@ from collections import namedtuple
 
 from PyQt4.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
 
-from serverfiles import sizeformat as sizeof_fmt
-from orangecontrib.bio.utils.serverfiles import LOCALFILES, ServerFiles
+from serverfiles import LocalFiles, sizeformat as sizeof_fmt
+from orangecontrib.bio.utils import serverfiles
+
 
 from Orange.utils.environ import canvas_install_dir
 from Orange.OrangeWidgets.OWWidget import *
@@ -24,10 +25,6 @@ OUTPUTS = []
 
 #: Update file item states
 AVAILABLE, CURRENT, OUTDATED, DEPRECATED = range(4)
-
-#: Set Serverfiles and Localfiles
-_serverFiles = ServerFiles()
-_localFiles = LOCALFILES
 
 _icons_dir = os.path.join(canvas_install_dir, "icons")
 
@@ -186,7 +183,7 @@ class UpdateTreeWidgetItem(QTreeWidgetItem):
 
         if self.item.state in [CURRENT, OUTDATED, DEPRECATED]:
             tooltip += ("\nFile: %s" %
-                        _localFiles.localpath(self.item.domain,
+                        serverfiles.localpath(self.item.domain,
                                               self.item.filename))
 
         if self.item.state == OUTDATED and diff_date:
@@ -363,7 +360,7 @@ def retrieveFilesList(advance=lambda: None):
     import requests.exceptions
     advance()
     try:
-        serverInfo = _serverFiles.allinfo()
+        serverInfo = serverfiles.ServerFiles().allinfo()
     except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
         raise requests.exceptions.ConnectionError
     advance()
@@ -380,7 +377,7 @@ class OWUpdateGenomicsDatabases(OWWidget):
         self.searchString = ""
         self.showAll = showAll
 
-        self.serverFiles = _serverFiles
+        self.serverFiles = serverfiles.ServerFiles()
 
         box = OWGUI.widgetBox(self.controlArea, orientation="horizontal")
 
@@ -462,7 +459,7 @@ class OWUpdateGenomicsDatabases(OWWidget):
 
     def RetrieveFilesList(self):
         self.progress.setRange(0, 3)
-        self.serverFiles = _serverFiles
+        self.serverFiles = serverfiles.ServerFiles()
 
         task = Task(function=partial(retrieveFilesList, methodinvoke(self.progress, "advance")))
 
@@ -479,7 +476,7 @@ class OWUpdateGenomicsDatabases(OWWidget):
         """
         self.setEnabled(True)
 
-        localInfo = _localFiles.allinfo()
+        localInfo = LocalFiles(serverfiles.PATH).allinfo()
 
         all_tags = set()
 
@@ -615,7 +612,7 @@ class OWUpdateGenomicsDatabases(OWWidget):
         index = self.updateItemIndex(domain, filename)
         _, tree_item, opt_widget = self.updateItems[index]
 
-        sf = _serverFiles
+        sf = LocalFiles(serverfiles.PATH, serverfiles.ServerFiles())
 
         task = DownloadTask(domain, filename, sf)
 
@@ -667,7 +664,7 @@ class OWUpdateGenomicsDatabases(OWWidget):
 
         else:
             # get the new updated info dict and replace the the old item
-            info = _localFiles.info(item.domain, item.filename)
+            info = serverfiles.info(item.domain, item.filename)
             new_item = update_item_from_info(item.domain, item.filename,
                                              info, info)
 
@@ -679,7 +676,7 @@ class OWUpdateGenomicsDatabases(OWWidget):
             self.UpdateInfoLabel()
 
     def SubmitRemoveTask(self, domain, filename):
-        _localFiles.remove(domain, filename)
+        serverfiles.LOCALFILES.remove(domain, filename)
         index = self.updateItemIndex(domain, filename)
         item, tree_item, opt_widget = self.updateItems[index]
 
@@ -839,6 +836,7 @@ class DownloadTask(Task):
 
     def run(self):
         try:
-            _localFiles.download(self.domain, self.filename, callback=self._advance)
+            self.serverfiles.download(
+                self.domain, self.filename, callback=self._advance)
         except Exception:
             self.exception.emit(sys.exc_info())
