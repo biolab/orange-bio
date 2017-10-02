@@ -45,18 +45,11 @@ REPLACES = ["_bioinformatics.widgets.OWGOEnrichmentAnalysis.OWGOEnrichmentAnalys
 dataDir = serverfiles.localpath("GO")
 
 def listAvailable():
-    files = serverfiles.listfiles("GO")
-    ret = {}
-    for file in files:
-        tags = serverfiles.info("GO", file)["tags"]
-        td = dict([tuple(tag.split(":")) for tag in tags if tag.startswith("#") and ":" in tag])
-        if "association" in file.lower():
-            ret[td.get("#organism", file)] = file
-    orgMap = {"352472":"44689"}
-    essential = ["gene_association.%s.tar.gz" % obiGO.from_taxid(id) for id in obiTaxonomy.essential_taxids() if obiGO.from_taxid(id)]
-    essentialNames = [obiTaxonomy.name(id) for id in obiTaxonomy.essential_taxids() if obiGO.from_taxid(id)]
-    ret.update(zip(essentialNames, essential))
-    return ret
+    taxids = obiTaxonomy.common_taxids()
+    essential = [(obiTaxonomy.name(taxid),
+                  "gene_association.%s.tar.gz" % obiGO.from_taxid(taxid))
+                 for taxid in taxids if obiGO.from_taxid(taxid)]
+    return dict(essential)
 
 class _disablegc(object):
     def __enter__(self):
