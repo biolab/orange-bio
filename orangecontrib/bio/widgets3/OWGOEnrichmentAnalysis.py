@@ -11,6 +11,7 @@ import operator
 
 from collections import defaultdict
 from functools import reduce
+from fnmatch import fnmatch
 
 from AnyQt.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QTreeView, QMenu, QCheckBox, QSplitter,
@@ -40,23 +41,11 @@ def isstring(var):
 
 
 def listAvailable():
-    files = serverfiles.listfiles("GO")
-    ret = {}
-    for file in files:
-        tags = serverfiles.info("GO", file)["tags"]
-        td = dict([tuple(tag.split(":")) for tag in tags
-                   if tag.startswith("#") and ":" in tag])
-        if "association" in file.lower():
-            ret[td.get("#organism", file)] = file
-
-    essential = ["gene_association.%s.tar.gz" % go.from_taxid(taxid)
-             for taxid in taxonomy.common_taxids()
-             if go.from_taxid(taxid)]
-    essentialNames = [taxonomy.name(taxid)
-                  for taxid in taxonomy.common_taxids()
-                  if go.from_taxid(taxid)]
-    ret.update(zip(essentialNames, essential))
-    return ret
+    taxids = taxonomy.common_taxids()
+    essential = [(taxonomy.name(taxid),
+                  "gene_association.%s.tar.gz" % go.from_taxid(taxid))
+                 for taxid in taxids if go.from_taxid(taxid)]
+    return dict(essential)
 
 
 class TreeNode(object):
