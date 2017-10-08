@@ -289,6 +289,9 @@ class Ontology(object):
     """
     version = 1
 
+    DOMAIN = "GO"
+    FILENAME = "gene_ontology_edit.obo.tar.gz"
+
     def __init__(self, filename=None, progress_callback=None, rev=None):
         self.terms = {}
         self.typedefs = {}
@@ -316,7 +319,7 @@ class Ontology(object):
                             if progress_callback else None)
         else:
             filename = serverfiles.localpath_download(
-                "GO", "gene_ontology_edit.obo.tar.gz"
+                self.DOMAIN, self.FILENAME
             )
             self.parse_file(filename, progress_callback)
 
@@ -330,7 +333,7 @@ class Ontology(object):
         filename = os.path.join(default_database_path,
                                 "gene_ontology_edit.obo.tar.gz")
         if not os.path.isfile(filename) and not os.path.isdir(filename):
-            serverfiles.download("GO", "gene_ontology_edit.obo.tar.gz")
+            serverfiles.download(cls.DOMAIN, cls.FILENAME)
 
         return cls(filename, progress_callback=progress_callback)
 
@@ -1486,6 +1489,8 @@ class Taxonomy(object):
                 "10116": "rgd",  # Rattus norvegicus
                 "4932": "sgd",  # Saccharomyces cerevisiae
                 "4896": "GeneDB_Spombe",  # Schizosaccharomyces pombe
+                # TODO: update mapping to pombase (will ruin someones day)
+                # "4896": "pombase",  # Schizosaccharomyces pombe
                 "31033": None,  # Takifugu rubripes
                 "8355": None,  # Xenopus laevis
                 "4577": None,  # Zea mays
