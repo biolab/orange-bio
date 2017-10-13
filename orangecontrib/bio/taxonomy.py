@@ -239,8 +239,8 @@ def name(taxid):
     """
     # Most of the lookups will be for the common names, so in most
     # situations we can avoid loading the taxonomy.
-    if taxid in _COMMON_NAMES:
-        return _COMMON_NAMES[taxid]
+    if taxid in _COMMON_NAMES_MAPPING:
+        return _COMMON_NAMES_MAPPING[taxid]
     else:
         return Taxonomy()[taxid]
 
