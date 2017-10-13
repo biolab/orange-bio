@@ -1206,11 +1206,7 @@ class Annotations(object):
 
     DownloadAnnotationsAtRev = download_annotations_at_rev
 
-from orangecontrib.bio.taxonomy import pickled_cache
 
-
-@pickled_cache(None, [("GO", "taxonomy.pickle"),
-                      ("Taxonomy", "ncbi_taxonomy.tar.gz")])
 def organism_name_search(name):
     return Annotations.organism_name_search(name)
 

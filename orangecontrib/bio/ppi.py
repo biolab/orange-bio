@@ -42,8 +42,6 @@ except ImportError:
 
 from . import taxonomy
 
-from .taxonomy import pickled_cache
-
 
 def mkdir_p(path, mode=0o777):
     try:
@@ -1195,7 +1193,6 @@ class MIPS(object):
         shutil.copyfileobj(src, open(dest, "wb"))
 
     @classmethod
-    @pickled_cache(None, [("PPI", "allppis.xml")], version=1)
     def _get_instance(cls):
         return MIPS()
 
