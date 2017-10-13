@@ -104,7 +104,7 @@ class Taxonomy(collections.Mapping):
                 index_names_name ON names(name)""")
 
         if not exact:
-            name = "{0}%".format(name)
+            name = "%{0}%".format(name)
             operator = "LIKE"
         else:
             operator = "="
