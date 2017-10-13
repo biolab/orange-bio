@@ -1497,17 +1497,10 @@ class Taxonomy(object):
                 "5476": "cgd",
                 }
     version = 1
-    __shared_state = {"tax": None}
 
     def __init__(self):
-        self.__dict__ = self.__shared_state
-        if not self.tax:
-            path = serverfiles.localpath_download("GO", "taxonomy.pickle")
-            if os.path.isfile(path):
-                self.tax = pickle.load(open(path, "rb"))
-            else:
-                serverfiles.download("GO", "taxonomy.pickle")
-                self.tax = pickle.load(open(path, "rb"))
+        # Back-compatibility. Has not really been in use for ~10 years.
+        self.tax = {}
 
     def __getitem__(self, key):
         key = self.common_org_map.get(key, key)
@@ -1526,7 +1519,7 @@ def from_taxid(id):
 def to_taxid(db_code):
     """ Return a set of NCBI taxonomy ids from db_code GO organism annotations.
     """
-    r = [key for key, val in Taxonomy().code_map.items() if db_code == val]
+    r = [key for key, val in Taxonomy.code_map.items() if db_code == val]
     return set(r)
 
 
