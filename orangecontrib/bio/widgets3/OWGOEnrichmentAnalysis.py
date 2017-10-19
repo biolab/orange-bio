@@ -345,9 +345,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         dialog = GeneMatcherDialog(self, defaults=self.geneMatcherSettings, modal=True)
         if dialog.exec_() != QDialog.Rejected:
             self.geneMatcherSettings = [getattr(dialog, item[0]) for item in dialog.items]
-            if self.annotations is not None:
-                self.SetGeneMatcher()
-                self.__invalidate()
+            self.__invalidateAnnotations()
 
     def clear(self):
         self.infoLabel.setText("No data on input\n")
@@ -551,6 +549,15 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
 
         if go.Ontology.FILENAME not in go_files:
             files.append((go.Ontology.DOMAIN, go.Ontology.FILENAME))
+
+        gene_info_files = serverfiles.listfiles(gene.NCBIGeneInfo.DOMAIN)
+        gi_filename = gene.NCBIGeneInfo.FILENAME.format(
+            taxid=gene.NCBIGeneInfo.TAX_MAP.get(
+                annotation.taxid, annotation.taxid)
+        )
+
+        if gi_filename not in gene_info_files and self.geneMatcherSettings[2]:
+            files.append((gene.NCBIGeneInfo.DOMAIN, gi_filename))
 
         if files:
             self.__start_download(files)
