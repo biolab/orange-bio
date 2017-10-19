@@ -13,6 +13,7 @@ import logging
 from collections import defaultdict
 from functools import reduce
 from concurrent.futures import Future
+from types import SimpleNamespace
 
 from typing import Dict, List, Tuple
 
@@ -44,14 +45,6 @@ from ..widgets.utils.download import EnsureDownloaded
 
 def isstring(var):
     return isinstance(var, Orange.data.StringVariable)
-
-
-def listAvailable():
-    taxids = taxonomy.common_taxids()
-    essential = [(taxonomy.common_taxid_to_name(taxid),
-                  "gene_association.%s.tar.gz" % go.from_taxid(taxid))
-                 for taxid in taxids if go.from_taxid(taxid)]
-    return dict(essential)
 
 
 class TreeNode(object):
@@ -135,7 +128,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self.referenceDataset = None
         self.ontology = None
         self.annotations = None
-        self.loadedAnnotationCode = "---"
+        self.loadedAnnotationCode = None
         self.treeStructRootKey = None
         self.probFunctions = [stats.Binomial(), stats.Hypergeometric()]
         self.selectedTerms = []
@@ -144,7 +137,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self.__state = State.Ready
         self.__scheduletimer = QTimer(self, singleShot=True)
         self.__scheduletimer.timeout.connect(self.__update)
-        self.annotationCodes = []
+
 
         #############
         ## GUI
@@ -161,7 +154,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
 
         box = gui.widgetBox(self.inputTab, "Organism")
         self.annotationComboBox = gui.comboBox(
-            box, self, "annotationIndex", items=self.annotationCodes,
+            box, self, "annotationIndex", items=[],
             callback=self.__invalidateAnnotations, tooltip="Select organism"
         )
 
@@ -309,11 +302,33 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         self.filterTab.layout().addStretch(1)
         self.selectTab.layout().addStretch(1)
 
-        self.annotationFiles = listAvailable()
-        self.annotationCodes = sorted(self.annotationFiles.keys())
+        class AnnotationSlot(SimpleNamespace):
+            taxid = ...  # type: str
+            name = ...   # type: str
+            orgcode = ...  # type: str
+            filename = ...  # type:str
+
+        available_annotations = [
+            AnnotationSlot(
+                taxid=taxid,
+                name=taxonomy.common_taxid_to_name(taxid),
+                orgcode=go.from_taxid(taxid),
+                filename="gene_association.{}.tar.gz"
+                         .format(go.from_taxid(taxid))
+            )
+            for taxid in taxonomy.common_taxids()
+            if go.from_taxid(taxid)
+        ]
+        self.availableAnnotations = sorted(
+            available_annotations, key=lambda a: a.name
+        )
         self.annotationComboBox.clear()
-        self.annotationComboBox.addItems(self.annotationCodes)
+
+        for a in self.availableAnnotations:
+            self.annotationComboBox.addItem(a.name)
+
         self.annotationComboBox.setCurrentIndex(self.annotationIndex)
+        self.annotationIndex = self.annotationComboBox.currentIndex()
 
         self._executor = ThreadExecutor()
 
@@ -360,20 +375,18 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             for var in self.candidateGeneAttrs:
                 self.geneAttrIndexCombo.addItem(*gui.attributeItem(var))
             taxid = data_hints.get_hint(data, "taxid", "")
-            code = None
+
             try:
                 code = go.from_taxid(taxid)
             except KeyError:
                 pass
-            except Exception as ex:
-                print(ex)
-
-            if code is not None:
-                filename = "gene_association.%s.tar.gz" % code
-                if filename in self.annotationFiles.values():
-                    self.annotationIndex = \
-                            [i for i, name in enumerate(self.annotationCodes)
-                             if self.annotationFiles[name] == filename].pop()
+            else:
+                _c2i = {a.orgcode: i
+                        for i, a in enumerate(self.availableAnnotations)}
+                try:
+                    self.annotationIndex = _c2i[code]
+                except KeyError:
+                    pass
 
             self.useAttrNames = data_hints.get_hint(data, "genesinrows",
                                                     self.useAttrNames)
@@ -417,7 +430,7 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
 
     def __invalidateAnnotations(self):
         self.annotations = None
-        self.loadedAnnotationCode = ""
+        self.loadedAnnotationCode = None
         if self.clusterDataset:
             self.infoLabel.setText("...\n")
         self.__updateReferenceSetButton()
@@ -529,12 +542,12 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
         # the background. Return True if all dbs are present and false
         # otherwise
         assert self.__state == State.Ready
+        annotation = self.availableAnnotations[self.annotationIndex]
         go_files = serverfiles.listfiles("GO")
         files = []
-        org = self.annotationCodes[self.annotationIndex]
-        if org != self.loadedAnnotationCode:
-            if self.annotationFiles[org] not in go_files:
-                files.append(("GO", self.annotationFiles[org]))
+
+        if annotation.filename not in go_files:
+            files.append(("GO", annotation.filename))
 
         if go.Ontology.FILENAME not in go_files:
             files.append((go.Ontology.DOMAIN, go.Ontology.FILENAME))
@@ -547,17 +560,16 @@ class OWGOEnrichmentAnalysis(widget.OWWidget):
             return True
 
     def Load(self):
-        org = self.annotationCodes[self.annotationIndex]
+        a = self.availableAnnotations[self.annotationIndex]
 
         if self.ontology is None:
             self.ontology = go.Ontology()
 
-        if org != self.loadedAnnotationCode:
+        if a.orgcode != self.loadedAnnotationCode:
             self.annotations = None
             gc.collect()  # Force run garbage collection
-            code = self.annotationFiles[org].split(".")[-3]
-            self.annotations = go.Annotations(code, genematcher=gene.GMDirect())
-            self.loadedAnnotationCode = org
+            self.annotations = go.Annotations(a.orgcode, genematcher=gene.GMDirect())
+            self.loadedAnnotationCode = a.orgcode
             count = defaultdict(int)
             geneSets = defaultdict(set)
 
