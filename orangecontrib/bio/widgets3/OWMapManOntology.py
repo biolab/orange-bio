@@ -174,7 +174,7 @@ class GeneOntologyResource(Resource):
 
 class OntologyResource(Resource):
     HOME = "http://www.gomapman.org"
-    VERSION = "2017-03-14"  # export date
+    VERSION = "2017-09-05"  # export date
     FILENAME = "ontology.obo"
     URL = "http://www.gomapman.org/export/{VERSION}/OBO/{FILENAME}"
     LICENSE = "CC BY-NC-SA 3.0"
@@ -183,7 +183,7 @@ class OntologyResource(Resource):
 
 class MappingResource(Resource):
     HOME = "http://www.gomapman.org"
-    VERSION = "2017-03-14"  # export date
+    VERSION = "2017-09-05"  # export date
     FILENAME = "{organism.orgcode}_{mapping.identifiertag}_{VERSION}_mapping.txt.gz"
     URL = "http://www.gomapman.org/export/{VERSION}/mapman/{FILENAME}"
     LICENSE = "CC BY-NC-SA 3.0"
@@ -242,7 +242,7 @@ class MappingResource(Resource):
         Mapping(Rice, "MSU_v7", "Locus ID (MSU)",
                 "MSU Rice Genome Annotation Project"),
         # Tomato
-        Mapping(Tomato, "SL2.40_ITAG2.3",  "Locus ID (SGN)",
+        Mapping(Tomato, "SL3.0_ITAG3.2", "Locus ID (SGN)",
                 "International Tomato Annotation Group"),
         # Tobacco
         Mapping(Tobacco, "ntaUG17", "NCBI UniGene", ""),
