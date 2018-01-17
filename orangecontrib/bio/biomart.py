@@ -1178,9 +1178,9 @@ class ConfigurationNode(XMLNode):
         tag = node.tag
         class_ = globals().get(tag, None)
         if not class_:
-            raise ValueError("Unknown node '%s;" % tag)
-        else:
-            return class_(self.registry, tag, node.attributes, node.children)
+            class_ = ConfigurationNode
+            warnings.warn("Unknown node '%s';" % tag)
+        return class_(self.registry, tag, node.attributes, node.children)
 
     def elements(self, tag=None, **kwargs):
         if isinstance(tag, type):
@@ -1254,6 +1254,10 @@ class PushAction(ConfigurationNode):
 
 
 class MainTable(ConfigurationNode):
+    pass
+
+
+class MainTables(ConfigurationNode):
     pass
 
 

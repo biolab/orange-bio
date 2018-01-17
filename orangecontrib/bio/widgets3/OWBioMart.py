@@ -19,14 +19,14 @@ from AnyQt.QtCore import (
     Qt, QObject, QRegExp, QModelIndex, QThread, QThreadPool, QSize,
     QStringListModel, QItemSelectionModel
 )
-from AnyQt.QtCore import Slot
+from AnyQt.QtCore import pyqtSlot as Slot
 
 import Orange
 
 from Orange.widgets.utils import concurrent
 from Orange.widgets import widget, gui, settings
 
-from .. import biomart
+from orangecontrib.bio import biomart
 
 
 def is_hidden(tree):
