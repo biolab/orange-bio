@@ -223,7 +223,7 @@ class OWSetEnrichment(widget.OWWidget):
                       "Use entities from Reference Examples input signal " +
                       "as reference"],
             box="Reference", callback=self.updateAnnotations)
-
+        self.referenceRadioBox.setEnabled(False)
         box = gui.widgetBox(self.controlArea, "Entity Sets")
         self.groupsWidget = QTreeWidget(self)
         self.groupsWidget.setHeaderLabels(["Category"])
