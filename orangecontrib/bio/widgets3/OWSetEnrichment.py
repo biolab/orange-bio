@@ -251,7 +251,7 @@ class OWSetEnrichment(widget.OWWidget):
             callback=self.filterAnnotationsChartView,
             callbackOnReturn=True,
         )
-        sp.setEnabled(self.useMaxFDRFilter)
+        sp.setEnabled(self.useMaxPValFilter)
         cb.toggled[bool].connect(sp.setEnabled)
 
         pvalfilterbox.layout().setAlignment(cb, Qt.AlignRight)
