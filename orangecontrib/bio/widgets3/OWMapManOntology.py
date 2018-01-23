@@ -11,7 +11,6 @@ import io
 import gzip
 
 import tempfile
-import numbers
 
 import pickle
 import logging
@@ -26,7 +25,7 @@ from xml.sax.saxutils import escape
 from types import SimpleNamespace as namespace
 
 from typing import (
-    Dict, List, Tuple, Optional, Union, Any, Iterable, Sequence, Callable,
+    Dict, List, Tuple, Optional, Union, Any, Iterable, Callable,
     Generic, TypeVar, Hashable
 )
 
@@ -34,15 +33,14 @@ import numpy
 
 from AnyQt.QtCore import (
     Qt, QSize, QModelIndex, QAbstractProxyModel,
-    QSortFilterProxyModel, QItemSelection, QItemSelectionRange,
-    QItemSelectionModel, QEvent
+    QItemSelection, QItemSelectionRange, QItemSelectionModel, QEvent
 )
 from AnyQt.QtGui import QStandardItemModel, QStandardItem, QPalette
 from AnyQt.QtWidgets import (
     QWidget, QTreeView, QComboBox, QApplication, QSplitter,
     QRadioButton, QButtonGroup, QProgressBar, QStackedLayout, QFormLayout,
-    QStyledItemDelegate, QHBoxLayout, QSizePolicy,
-    QStyle, QStylePainter, QStyleOptionComboBox, QToolTip
+    QHBoxLayout, QSizePolicy, QStyle, QStylePainter, QStyleOptionComboBox,
+    QToolTip
 )
 from AnyQt.QtCore import pyqtSlot as Slot
 
@@ -58,6 +56,10 @@ from orangecontrib.bio.widgets3.OWGEODatasets import retrieve_url
 from orangecontrib.bio.widgets3.utils import disconnected, group_ranges
 from orangecontrib.bio.widgets3.utils.data import append_columns
 from orangecontrib.bio.widgets3.OWFeatureSelection import copy_variable
+from orangecontrib.bio.widgets3.utils.itemmodels import (
+    FilterProxyModel, RealDelegate
+)
+
 
 def download_file(url, targetpath, progress=None):
     # type: (str, str, Optional[Callable[[int, int], None]]) -> None
@@ -313,31 +315,6 @@ def cache_load_ontology(path):
             pickle.dump((stat.st_mtime_ns, stat.st_size, stat.st_ino), fcache)
             pickle.dump(ont, fcache)
         return ont
-
-
-class RealDelegate(QStyledItemDelegate):
-    """
-    An Item delegate for displaying numerical columns
-    """
-    def __init__(self, parent=None, precision=4, **kwargs):
-        super().__init__(parent, **kwargs)
-        self.precision = precision
-
-    def displayText(self, value, locale):
-        if isinstance(value, numbers.Integral):
-            return locale.toString(int(value))
-        elif isinstance(value, numbers.Real):
-            return locale.toString(float(value), "g", self.precision)
-        else:
-            return super().displayText(value, locale)
-
-    def initStyleOption(self, option, index):
-        super().initStyleOption(option, index)
-        align = index.data(Qt.TextAlignmentRole)
-        data = index.data(Qt.DisplayRole)
-        if align is None and isinstance(data, numbers.Real):
-            # Right align if the model does not specify otherwise
-            option.displayAlignment = Qt.AlignRight | Qt.AlignVCenter
 
 
 if not hasattr(QComboBox, "currentData"):
@@ -1809,44 +1786,6 @@ class OntologyEnrichmentResultsModel(GraphModel):
         row = [termitem, termid, count, ref, fdrval, pval, genelist,
                enrich, logenrich]
         return row
-
-
-class FilterProxyModel(QSortFilterProxyModel):
-    """
-    A simple filter proxy model with settable filter predicates
-
-    Example
-    -------
-    >>> proxy = FilterProxyModel()
-    >>> proxy.setFilters([
-    ...     FilterProxyModel.Filter(0, Qt.DisplayRole, lambda value: value < 1)
-    ... ])
-    """
-    Filter = namedtuple("Filter", ["column", "role", "predicate"])
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__filters = []
-
-    def setFilters(self, filters):
-        # type: (Sequence[FilterProxyModel.Filter]) -> None
-        filters = [FilterProxyModel.Filter(f.column, f.role, f.predicate)
-                   for f in filters]
-        self.__filters = filters
-        self.invalidateFilter()
-
-    def filterAcceptsRow(self, row, parent):
-        source = self.sourceModel()
-
-        def apply(f):
-            index = source.index(row, f.column, parent)
-            data = source.data(index, f.role)
-            try:
-                return f.predicate(data)
-            except (TypeError, ValueError):
-                return False
-
-        return all(apply(f) for f in self.__filters)
 
 
 def relation_list_to_multimap(rellist):

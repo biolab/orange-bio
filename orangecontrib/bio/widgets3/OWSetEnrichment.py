@@ -37,8 +37,7 @@ from Orange.widgets import widget, gui, settings
 from Orange.widgets.utils.concurrent import ThreadExecutor, Task, methodinvoke
 
 from orangecontrib.bio import gene, geneset, taxonomy, utils
-# from .utils.itemmodels import FilterProxyModel
-from orangecontrib.bio.widgets3.OWMapManOntology import (
+from orangecontrib.bio.widgets3.utils.itemmodels import (
     FilterProxyModel, RealDelegate
 )
 
