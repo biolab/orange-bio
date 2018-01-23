@@ -865,8 +865,10 @@ class OWSetEnrichment(widget.OWWidget):
         header = self.annotationsChartView.header()
         for i in range(model.columnCount()):
             sh = self.annotationsChartView.sizeHintForColumn(i)
-            sh = max(sh, header.sectionSizeHint(i))
-            self.annotationsChartView.setColumnWidth(i, max(min(sh, 300), 30))
+            sh = max(header.sectionSizeHint(i), sh)
+            width = self.annotationsChartView.columnWidth(i)
+            if min(sh, 300) > width:
+                self.annotationsChartView.setColumnWidth(i, max(min(sh, 300), 30))
 
         self.progressBarFinished()
         self.setStatusMessage("")
