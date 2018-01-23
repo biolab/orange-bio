@@ -818,9 +818,10 @@ class OWSetEnrichment(widget.OWWidget):
             ]
             row[0].geneset = gset
             row[0].enrichment = enrich
-            row[1].setData(gset.link, gui.LinkRole)
-            row[1].setFont(linkFont)
-            row[1].setForeground(QColor(Qt.blue))
+            if gset.link:
+                row[1].setData(gset.link, gui.LinkRole)
+                row[1].setFont(linkFont)
+                row[1].setForeground(QColor(Qt.blue))
 
             model.appendRow(row)
 
