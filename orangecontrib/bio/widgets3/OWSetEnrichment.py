@@ -170,6 +170,7 @@ class OWSetEnrichment(widget.OWWidget):
     maxPValue = settings.Setting(0.01)
     maxFDR = settings.Setting(0.01)
     autocommit = settings.Setting(False)
+    headerState = settings.Setting(b'')  # type: bytes
 
     Ready, Initializing, Loading, RunningEnrichment = 0, 1, 2, 4
 
@@ -310,14 +311,16 @@ class OWSetEnrichment(widget.OWWidget):
         self.annotationsChartView.selectionModel().selectionChanged.connect(
             lambda: self.commit()
         )
-        self.annotationsChartView.header().setSortIndicator(
-            ResultsModel.Pval, Qt.AscendingOrder
-        )
-        self.mainArea.layout().addWidget(self.annotationsChartView)
-
+        header = self.annotationsChartView.header()
         contextEventFilter = gui.VisibleHeaderSectionContextEventFilter(
-            self.annotationsChartView)
-        self.annotationsChartView.header().installEventFilter(contextEventFilter)
+            self.annotationsChartView
+        )
+        header.installEventFilter(contextEventFilter)
+        header.setSortIndicator(ResultsModel.Pval, Qt.AscendingOrder)
+        if self.headerState:
+            header.restoreState(self.headerState)
+
+        self.mainArea.layout().addWidget(self.annotationsChartView)
 
         self.groupsWidget.itemClicked.connect(self.subsetSelectionChanged)
         gui.auto_commit(self.controlArea, self, "autocommit", "Commit")
@@ -337,6 +340,12 @@ class OWSetEnrichment(widget.OWWidget):
 
     def sizeHint(self):
         return QSize(1024, 600)
+
+    def closeEvent(self, event):
+        self.headerState = bytes(
+            self.annotationsChartView.header().saveState()
+        )
+        super().closeEvent(event)
 
     def __initialize_finish(self):
         # Finalize the the widget's initialization (preferably after
