@@ -159,7 +159,7 @@ class DBAASeq(DBSimpleField):
 
     @property
     def sequence(self):
-        return self.split("\n", 1)[1].replace("\n", "")
+        return self.text.split("\n", 1)[1].replace("\n", "")
 
     @property
     def sequence_lenght(self):
@@ -177,7 +177,7 @@ class DBNTSeq(DBSimpleField):
 
     @property
     def sequence(self):
-        return self.split("\n", 1)[1].replace("\n", "")
+        return self.text.split("\n", 1)[1].replace("\n", "")
 
     @property
     def sequence_lenght(self):
