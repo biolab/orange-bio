@@ -120,6 +120,11 @@ def pickled_cache(filename=None, dependencies=[], version=1, maxSize=30,
     """
     Return a persistent cache function decorator.
     """
+    warnings.warn(
+        "'pickled_cache' is deprecated and will be removed in the future",
+        DeprecationWarning,
+        stacklevel=2
+    )
     def datetime_info(domain, filename):
         try:
             return serverfiles.info(domain, filename)["datetime"]
@@ -228,31 +233,27 @@ class Taxonomy(object):
         return list(self._tax)
 
 
-@pickled_cache(None, [("Taxonomy", "ncbi-taxonomy.sqlite")], version=2)
 def name(taxid):
     """
     Return the scientific name for organism with taxid.
     """
     # Most of the lookups will be for the common names, so in most
     # situations we can avoid loading the taxonomy.
-    if taxid in _COMMON_NAMES:
-        return _COMMON_NAMES[taxid]
+    if taxid in _COMMON_NAMES_MAPPING:
+        return _COMMON_NAMES_MAPPING[taxid]
     else:
         return Taxonomy()[taxid]
 
 
-@pickled_cache(None, [("Taxonomy", "ncbi-taxonomy.sqlite")], version=2)
 def other_names(taxid):
     """
     Return a list of (name, name_type) tuples excluding the scientific name.
 
     Use :func:`name` to retrieve the scientific name.
-
     """
-    return  Taxonomy().other_names(taxid)
+    return Taxonomy().other_names(taxid)
 
 
-@pickled_cache(None, [("Taxonomy", "ncbi-taxonomy.sqlite")], version=2)
 def search(string, onlySpecies=True, exact=False):
     """ Search the NCBI taxonomy database for an organism.
 
@@ -264,7 +265,6 @@ def search(string, onlySpecies=True, exact=False):
     return list(ids)
 
 
-@pickled_cache(None, [("Taxonomy", "ncbi-taxonomy.sqlite")], version=2)
 def lineage(taxid):
     """ Return a list of taxids ordered from the topmost node (root) to taxid.
     """

@@ -35,7 +35,7 @@ class TestTaxonomy(unittest.TestCase):
         names = tax.other_names("4932")
 
         self.assertIn(("brewer's yeast", "common name"), names)
-        self.assertIn(("lager beer yeast", "common name"), names)
+        self.assertIn(("baker's yeast", 'genbank common name'), names)
 
     def test_search(self):
         tax = taxonomy.Taxonomy()

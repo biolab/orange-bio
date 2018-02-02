@@ -289,6 +289,9 @@ class Ontology(object):
     """
     version = 1
 
+    DOMAIN = "GO"
+    FILENAME = "gene_ontology_edit.obo.tar.gz"
+
     def __init__(self, filename=None, progress_callback=None, rev=None):
         self.terms = {}
         self.typedefs = {}
@@ -316,7 +319,7 @@ class Ontology(object):
                             if progress_callback else None)
         else:
             filename = serverfiles.localpath_download(
-                "GO", "gene_ontology_edit.obo.tar.gz"
+                self.DOMAIN, self.FILENAME
             )
             self.parse_file(filename, progress_callback)
 
@@ -330,7 +333,7 @@ class Ontology(object):
         filename = os.path.join(default_database_path,
                                 "gene_ontology_edit.obo.tar.gz")
         if not os.path.isfile(filename) and not os.path.isdir(filename):
-            serverfiles.download("GO", "gene_ontology_edit.obo.tar.gz")
+            serverfiles.download(cls.DOMAIN, cls.FILENAME)
 
         return cls(filename, progress_callback=progress_callback)
 
@@ -1203,11 +1206,7 @@ class Annotations(object):
 
     DownloadAnnotationsAtRev = download_annotations_at_rev
 
-from orangecontrib.bio.taxonomy import pickled_cache
 
-
-@pickled_cache(None, [("GO", "taxonomy.pickle"),
-                      ("Taxonomy", "ncbi_taxonomy.tar.gz")])
 def organism_name_search(name):
     return Annotations.organism_name_search(name)
 
@@ -1486,23 +1485,18 @@ class Taxonomy(object):
                 "10116": "rgd",  # Rattus norvegicus
                 "4932": "sgd",  # Saccharomyces cerevisiae
                 "4896": "GeneDB_Spombe",  # Schizosaccharomyces pombe
+                # TODO: update mapping to pombase (will ruin someones day)
+                # "4896": "pombase",  # Schizosaccharomyces pombe
                 "31033": None,  # Takifugu rubripes
                 "8355": None,  # Xenopus laevis
                 "4577": None,  # Zea mays
                 "5476": "cgd",
                 }
     version = 1
-    __shared_state = {"tax": None}
 
     def __init__(self):
-        self.__dict__ = self.__shared_state
-        if not self.tax:
-            path = serverfiles.localpath_download("GO", "taxonomy.pickle")
-            if os.path.isfile(path):
-                self.tax = pickle.load(open(path, "rb"))
-            else:
-                serverfiles.download("GO", "taxonomy.pickle")
-                self.tax = pickle.load(open(path, "rb"))
+        # Back-compatibility. Has not really been in use for ~10 years.
+        self.tax = {}
 
     def __getitem__(self, key):
         key = self.common_org_map.get(key, key)
@@ -1521,7 +1515,7 @@ def from_taxid(id):
 def to_taxid(db_code):
     """ Return a set of NCBI taxonomy ids from db_code GO organism annotations.
     """
-    r = [key for key, val in Taxonomy().code_map.items() if db_code == val]
+    r = [key for key, val in Taxonomy.code_map.items() if db_code == val]
     return set(r)
 
 

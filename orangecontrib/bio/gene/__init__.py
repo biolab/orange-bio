@@ -82,6 +82,9 @@ class GeneHistory(object):
 
 
 class NCBIGeneInfo(dict):
+    DOMAIN = "NCBI_geneinfo"
+    FILENAME = "gene_info.{taxid}.db"
+
     TAX_MAP = {
             "2104": "272634",  # Mycoplasma pneumoniae
             "4530": "39947",  # Oryza sativa
@@ -99,7 +102,6 @@ class NCBIGeneInfo(dict):
         """
         
         self.taxid = self.organism_name_search(organism)
-
 
         fname = serverfiles.localpath_download("NCBI_geneinfo", "gene_info.%s.db" % self.taxid)
         file = open(fname, "rt")
