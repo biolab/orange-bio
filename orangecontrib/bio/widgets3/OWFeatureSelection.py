@@ -848,7 +848,7 @@ class OWFeatureSelection(widget.OWWidget):
         else:
             assert False
 
-        if not all(np.count_nonzero(ind) > 0 for ind in indices):
+        if not all(ind.size > 0 for ind in indices):
             self.error(0, "Target labels most exclude/include at least one "
                           "value.")
             self.scores = None
