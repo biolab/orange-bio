@@ -9,9 +9,13 @@ import operator
 import itertools
 import traceback
 import types
+import enum
 import concurrent.futures
+
 from collections import defaultdict
 from functools import reduce, partial
+
+from typing import List, Tuple
 
 import numpy as np
 
@@ -24,7 +28,7 @@ from AnyQt.QtGui import (
 )
 from AnyQt.QtCore import (
     Qt, QRect, QSize, QModelIndex, QStringListModel, QThread, QThreadPool,
-    Slot
+    pyqtSlot as Slot
 )
 
 import Orange
@@ -33,15 +37,16 @@ from Orange.widgets import widget, gui, settings
 from Orange.widgets.utils.concurrent import ThreadExecutor, Task, methodinvoke
 
 from orangecontrib.bio import gene, geneset, taxonomy, utils
+from orangecontrib.bio.widgets3.utils.itemmodels import (
+    FilterProxyModel, RealDelegate
+)
 
-from ..widgets.utils.download import EnsureDownloaded
+
+from orangecontrib.bio.widgets.utils.download import EnsureDownloaded
 
 
 def gsname(geneset):
     return geneset.name if geneset.name else geneset.id
-
-fmtp = lambda score: "%0.5f" % score if score > 10e-4 else "%0.1e" % score
-fmtpdet = lambda score: "%0.9f" % score if score > 10e-4 else "%0.5e" % score
 
 # A translation table mapping punctuation, ... to spaces
 _TR_TABLE = dict((ord(c), ord(" ")) for c in ".,!?()[]{}:;'\"<>")
@@ -52,6 +57,15 @@ def word_split(string):
     Split a string into a list of words.
     """
     return string.translate(_TR_TABLE).split()
+
+
+class FormatItemDelegate(QStyledItemDelegate):
+    def __init__(self, fmt, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__fmt = fmt
+
+    def displayText(self, value, locale):
+        return self.__fmt(value)
 
 
 class BarItemDelegate(QStyledItemDelegate):
@@ -156,6 +170,7 @@ class OWSetEnrichment(widget.OWWidget):
     maxPValue = settings.Setting(0.01)
     maxFDR = settings.Setting(0.01)
     autocommit = settings.Setting(False)
+    headerState = settings.Setting(b'')  # type: bytes
 
     Ready, Initializing, Loading, RunningEnrichment = 0, 1, 2, 4
 
@@ -208,7 +223,7 @@ class OWSetEnrichment(widget.OWWidget):
                       "Use entities from Reference Examples input signal " +
                       "as reference"],
             box="Reference", callback=self.updateAnnotations)
-
+        self.referenceRadioBox.setEnabled(False)
         box = gui.widgetBox(self.controlArea, "Entity Sets")
         self.groupsWidget = QTreeWidget(self)
         self.groupsWidget.setHeaderLabels(["Category"])
@@ -236,7 +251,7 @@ class OWSetEnrichment(widget.OWWidget):
             callback=self.filterAnnotationsChartView,
             callbackOnReturn=True,
         )
-        sp.setEnabled(self.useMaxFDRFilter)
+        sp.setEnabled(self.useMaxPValFilter)
         cb.toggled[bool].connect(sp.setEnabled)
 
         pvalfilterbox.layout().setAlignment(cb, Qt.AlignRight)
@@ -260,7 +275,8 @@ class OWSetEnrichment(widget.OWWidget):
         fdrfilterbox.layout().setAlignment(sp, Qt.AlignLeft)
 
         self.filterLineEdit = QLineEdit(
-            self, placeholderText="Filter ...")
+            self, placeholderText="Filter ..."
+        )
 
         self.filterCompleter = QCompleter(self.filterLineEdit)
         self.filterCompleter.setCaseSensitivity(Qt.CaseInsensitive)
@@ -278,13 +294,33 @@ class OWSetEnrichment(widget.OWWidget):
             selectionMode=QTreeView.ExtendedSelection,
             rootIsDecorated=False,
             editTriggers=QTreeView.NoEditTriggers,
+            uniformRowHeights=True,
+        )
+        self.annotationsChartView.setItemDelegateForColumn(
+            ResultsModel.Pval, RealDelegate(self, precision=4)
+        )
+        self.annotationsChartView.setItemDelegateForColumn(
+            ResultsModel.FDR, RealDelegate(self, precision=4)
         )
         self.annotationsChartView.viewport().setMouseTracking(True)
-        self.mainArea.layout().addWidget(self.annotationsChartView)
+        self.proxy = FilterProxyModel(parent=self, dynamicSortFilter=True)
 
+        model = ResultsModel(parent=self)
+        self.proxy.setSourceModel(model)
+        self.annotationsChartView.setModel(self.proxy)
+        self.annotationsChartView.selectionModel().selectionChanged.connect(
+            lambda: self.commit()
+        )
+        header = self.annotationsChartView.header()
         contextEventFilter = gui.VisibleHeaderSectionContextEventFilter(
-            self.annotationsChartView)
-        self.annotationsChartView.header().installEventFilter(contextEventFilter)
+            self.annotationsChartView
+        )
+        header.installEventFilter(contextEventFilter)
+        header.setSortIndicator(ResultsModel.Pval, Qt.AscendingOrder)
+        if self.headerState:
+            header.restoreState(self.headerState)
+
+        self.mainArea.layout().addWidget(self.annotationsChartView)
 
         self.groupsWidget.itemClicked.connect(self.subsetSelectionChanged)
         gui.auto_commit(self.controlArea, self, "autocommit", "Commit")
@@ -304,6 +340,12 @@ class OWSetEnrichment(widget.OWWidget):
 
     def sizeHint(self):
         return QSize(1024, 600)
+
+    def closeEvent(self, event):
+        self.headerState = bytes(
+            self.annotationsChartView.header().saveState()
+        )
+        super().closeEvent(event)
 
     def __initialize_finish(self):
         # Finalize the the widget's initialization (preferably after
@@ -367,10 +409,6 @@ class OWSetEnrichment(widget.OWWidget):
         self.__state = self.__state & ~OWSetEnrichment.RunningEnrichment
 
         self._clearView()
-
-        if self.annotationsChartView.model() is not None:
-            self.annotationsChartView.model().clear()
-
         self.geneAttrComboBox.clear()
         self.geneAttrs = []
         self._updatesummary()
@@ -384,8 +422,10 @@ class OWSetEnrichment(widget.OWWidget):
 
     def _clearView(self):
         """Clear the enrichment report view (main area)."""
-        if self.annotationsChartView.model() is not None:
-            self.annotationsChartView.model().clear()
+        model = self.proxy.sourceModel()  # type: ResultsModel
+        model.setRowCount(0)
+        self.information(0)
+        self.warning(0)
 
     def setData(self, data=None):
         """Set the input dataset with query gene names"""
@@ -532,6 +572,7 @@ class OWSetEnrichment(widget.OWWidget):
                     not set(categories) <= set(self.currentAnnotatedCategories):
                 self.updateAnnotations()
             else:
+                self._updateFDR()
                 self.filterAnnotationsChartView()
 
     def updateGeneMatcherSettings(self):
@@ -716,9 +757,7 @@ class OWSetEnrichment(widget.OWWidget):
         self.__state &= ~OWSetEnrichment.RunningEnrichment
 
         query, reference, results = results
-
-        if self.annotationsChartView.model():
-            self.annotationsChartView.model().clear()
+        results = results  # type: List[Tuple[geneset.GeneSet, enrichment_res]]
 
         nquery = len(query)
         nref = len(reference)
@@ -734,9 +773,24 @@ class OWSetEnrichment(widget.OWWidget):
         def fmt_count(fmt, count, total):
             return fmt % (count, 100.0 * count / (total or 1))
 
-        fmt_query_count = partial(fmt_count, query_fmt)
-        fmt_ref_count = partial(fmt_count, ref_fmt)
+        fmt_query_count = partial(fmt_count, query_fmt, total=nquery)
+        fmt_ref_count = partial(fmt_count, ref_fmt, total=nref)
+        view = self.annotationsChartView
 
+        delegate = view.itemDelegateForColumn(ResultsModel.Count)
+        if delegate is not None:
+            delegate.deleteLater()
+        delegate = view.itemDelegateForColumn(ResultsModel.Reference)
+        if delegate is not None:
+            delegate.deleteLater()
+
+        view.setItemDelegateForColumn(
+            ResultsModel.Count, FormatItemDelegate(fmt_query_count, self)
+
+        )
+        view.setItemDelegateForColumn(
+            ResultsModel.Reference, FormatItemDelegate(fmt_ref_count, self)
+        )
         linkFont = QFont(self.annotationsChartView.viewOptions().font)
         linkFont.setUnderline(True)
 
@@ -752,11 +806,7 @@ class OWSetEnrichment(widget.OWWidget):
                 si.setData(value, Qt.UserRole)
             return si
 
-        model = QStandardItemModel()
-        model.setSortRole(Qt.UserRole)
-        model.setHorizontalHeaderLabels(
-            ["Category", "Term", "Count", "Reference count", "p-value",
-             "FDR", "Enrichment"])
+        model = ResultsModel(parent=self)
         for i, (gset, enrich) in enumerate(results):
             if len(enrich.query_mapped) == 0:
                 continue
@@ -766,29 +816,26 @@ class OWSetEnrichment(widget.OWWidget):
             row = [
                 item(", ".join(gset.hierarchy)),
                 item(gsname(gset), tooltip=gset.link),
-                item(fmt_query_count(nquery_mapped, nquery),
-                     tooltip=nquery_mapped, user=nquery_mapped),
-                item(fmt_ref_count(nref_mapped, nref),
-                     tooltip=nref_mapped, user=nref_mapped),
-                item(fmtp(enrich.p_value), user=enrich.p_value),
-                item(),  # column 5, FDR, is computed in filterAnnotationsChartView
+                item(nquery_mapped, tooltip=nquery_mapped, user=nquery_mapped),
+                item(nref_mapped, tooltip=nref_mapped, user=nref_mapped),
+                item(enrich.p_value, user=enrich.p_value),
+                item(np.nan),  # column 5, FDR, is computed in _updateFDR
                 item(enrich.enrichment_score,
                      tooltip="%.3f" % enrich.enrichment_score,
                      user=enrich.enrichment_score)
             ]
             row[0].geneset = gset
             row[0].enrichment = enrich
-            row[1].setData(gset.link, gui.LinkRole)
-            row[1].setFont(linkFont)
-            row[1].setForeground(QColor(Qt.blue))
+            if gset.link:
+                row[1].setData(gset.link, gui.LinkRole)
+                row[1].setFont(linkFont)
+                row[1].setForeground(QColor(Qt.blue))
 
             model.appendRow(row)
 
-        self.annotationsChartView.setModel(model)
-        self.annotationsChartView.selectionModel().selectionChanged.connect(
-            self.commit
-        )
-
+        currmodel = self.proxy.sourceModel()
+        currmodel.deleteLater()
+        self.proxy.setSourceModel(model)
         if not model.rowCount():
             self.warning(0, "No enriched sets found.")
         else:
@@ -811,21 +858,25 @@ class OWSetEnrichment(widget.OWWidget):
                             default=1)
 
             self.annotationsChartView.setItemDelegateForColumn(
-                6, BarItemDelegate(self, scale=(0.0, max_score))
+                ResultsModel.Enrichment,
+                BarItemDelegate(self, scale=(0.0, max_score))
             )
 
         self.annotationsChartView.setItemDelegateForColumn(
-            1, gui.LinkStyledItemDelegate(self.annotationsChartView)
+            ResultsModel.TermID,
+            gui.LinkStyledItemDelegate(self.annotationsChartView)
         )
+
+        self._updateFDR()
+        self.filterAnnotationsChartView()
 
         header = self.annotationsChartView.header()
         for i in range(model.columnCount()):
             sh = self.annotationsChartView.sizeHintForColumn(i)
-            sh = max(sh, header.sectionSizeHint(i))
-            self.annotationsChartView.setColumnWidth(i, max(min(sh, 300), 30))
-#             self.annotationsChartView.resizeColumnToContents(i)
-
-        self.filterAnnotationsChartView()
+            sh = max(header.sectionSizeHint(i), sh)
+            width = self.annotationsChartView.columnWidth(i)
+            if min(sh, 300) > width:
+                self.annotationsChartView.setColumnWidth(i, max(min(sh, 300), 30))
 
         self.progressBarFinished()
         self.setStatusMessage("")
@@ -833,7 +884,8 @@ class OWSetEnrichment(widget.OWWidget):
     def _updatesummary(self):
         state = self.state
         if state is None:
-            self.error(0,)
+            self.information(0)
+            self.error(0)
             self.warning(0)
             self.infoBox.setText("No data on input.\n")
             return
@@ -852,25 +904,19 @@ class OWSetEnrichment(widget.OWWidget):
             text += "<Error {}>".format(str(state.results.exception()))
         self.infoBox.setText(text)
 
-        # TODO: warn on no enriched sets found (i.e no query genes
-        # mapped to any set)
-
-    def filterAnnotationsChartView(self, filterString=""):
-        if self.__state & OWSetEnrichment.RunningEnrichment:
-            return
-
-        # TODO: Move filtering to a filter proxy model
-        # TODO: Re-enable string search
+    def _updateFDR(self):
+        # Update the FDR in place due to a changed selected categories set and
+        # results for all of these categories are already available.
+        filter = self.proxy
+        model = filter.sourceModel()
+        assert isinstance(model, ResultsModel)
 
         categories = set(", ".join(cat)
                          for cat, _ in self.selectedCategories())
 
-#         filterString = str(self.filterLineEdit.text()).lower()
-
-        model = self.annotationsChartView.model()
-
         def ishidden(index):
-            # Is item at index (row) hidden
+            # Is item at index (row) omitted from the results entirely
+            # due to belonging to a non-selected category
             item = model.item(index)
             item_cat = item.data(Qt.DisplayRole)
             return item_cat not in categories
@@ -878,39 +924,92 @@ class OWSetEnrichment(widget.OWWidget):
         hidemask = [ishidden(i) for i in range(model.rowCount())]
 
         # compute FDR according the selected categories
-        pvals = [model.item(i, 4).data(Qt.UserRole)
+        pvals = [model.item(i, ResultsModel.Pval).data(Qt.UserRole)
                  for i, hidden in enumerate(hidemask) if not hidden]
         fdrs = utils.stats.FDR(pvals)
-
-        # update FDR for the selected collections and apply filtering rules
-        itemsHidden = []
         fdriter = iter(fdrs)
-        for index, hidden in enumerate(hidemask):
-            if not hidden:
-                fdr = next(fdriter)
-                pval = model.index(index, 4).data(Qt.UserRole)
-                count = model.index(index, 2).data(Qt.ToolTipRole)
 
-                hidden = (self.useMinCountFilter and count < self.minClusterCount) or \
-                         (self.useMaxPValFilter and pval > self.maxPValue) or \
-                         (self.useMaxFDRFilter and fdr > self.maxFDR)
-
+        old = model.blockSignals(True)
+        try:
+            for index, hidden in enumerate(hidemask):
+                item = model.item(index, ResultsModel.FDR)
                 if not hidden:
-                    fdr_item = model.item(index, 5)
-                    fdr_item.setData(fmtpdet(fdr), Qt.ToolTipRole)
-                    fdr_item.setData(fmtp(fdr), Qt.DisplayRole)
-                    fdr_item.setData(fdr, Qt.UserRole)
+                    fdr = next(fdriter)
+                else:
+                    fdr = np.nan
 
-            self.annotationsChartView.setRowHidden(
-                index, QModelIndex(), hidden)
+                item.setData(fdr, Qt.DisplayRole)
+                item.setData(fdr, Qt.UserRole)
+        finally:
+            model.blockSignals(old)
 
-            itemsHidden.append(hidden)
+        model.dataChanged.emit(
+            model.index(0, ResultsModel.FDR),
+            model.index(model.rowCount() - 1, ResultsModel.FDR)
+        )
 
-        if model.rowCount() and all(itemsHidden):
+    def filterAnnotationsChartView(self):
+        if self.__state & OWSetEnrichment.RunningEnrichment:
+            return
+
+        categories = set(", ".join(cat)
+                         for cat, _ in self.selectedCategories())
+
+        filterStrings = self.filterLineEdit.text().lower().strip().split()
+
+        filter = self.proxy  # type: FilterProxyModel
+        model = filter.sourceModel()
+        assert isinstance(model, ResultsModel)
+
+        # apply filtering rules
+        filters = []
+
+        # Filter selected collections.
+        # NOTE: MUST match the condition in _updateFDR
+        filters.append(
+            FilterProxyModel.Filter(
+                ResultsModel.Category, Qt.DisplayRole,
+                lambda value: value in categories
+            )
+        )
+        if filterStrings:
+            filters.append(
+                FilterProxyModel.Filter(
+                    ResultsModel.TermID, Qt.DisplayRole,
+                    lambda value: all(fs in value.lower()
+                                      for fs in filterStrings)
+                )
+            )
+
+        if self.useMinCountFilter:
+            mincount = self.minClusterCount
+            filters.append(
+                FilterProxyModel.Filter(
+                    ResultsModel.Count, Qt.DisplayRole,
+                    lambda value: value >= mincount,
+                )
+            )
+        if self.useMaxPValFilter:
+            maxpval = self.maxPValue
+            filters.append(
+                FilterProxyModel.Filter(
+                    ResultsModel.Pval, Qt.DisplayRole,
+                    lambda value: value < maxpval
+                )
+            )
+        if self.useMaxFDRFilter:
+            maxfdr = self.maxFDR
+            filters.append(
+                FilterProxyModel.Filter(
+                    ResultsModel.FDR, Qt.DisplayRole,
+                    lambda value: value < maxfdr
+                )
+            )
+        filter.setFilters(filters)
+        if model.rowCount() and not filter.rowCount():
             self.information(0, "All sets were filtered out.")
         else:
             self.information(0)
-
         self._updatesummary()
 
     @Slot(float)
@@ -926,9 +1025,11 @@ class OWSetEnrichment(widget.OWWidget):
         if self.data is None or \
                 self.__state & OWSetEnrichment.RunningEnrichment:
             return
-
-        model = self.annotationsChartView.model()
+        proxy = self.proxy
+        model = proxy.sourceModel()
+        assert isinstance(model, ResultsModel)
         rows = self.annotationsChartView.selectionModel().selectedRows(0)
+        rows = [proxy.mapToSource(index) for index in rows]
         selected = [model.item(index.row(), 0) for index in rows]
         mapped = reduce(operator.ior,
                         (set(item.enrichment.query_mapped)
@@ -957,6 +1058,28 @@ class OWSetEnrichment(widget.OWWidget):
             self._cancelPending()
             self.state = None
         self._executor.shutdown(wait=False)
+
+
+class ResultsModel(QStandardItemModel):
+    class Column(enum.IntEnum):
+        Category, TermID, Count, Reference, Pval, FDR, Enrichment = range(7)
+    Category, TermID, Count, Reference, Pval, FDR, Enrichment = Column
+
+    HeaderLabels = [
+        (Category, "Category"),
+        (TermID, "Term"),
+        (Count, "Count"),
+        (Reference, "Reference count"),
+        (Pval, "p-value"),
+        (FDR, "FDR"),
+        (Enrichment, "Enrichment")
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setHorizontalHeaderLabels(
+            [name for _, name in self.HeaderLabels]
+        )
 
 
 class UserInteruptException(Exception):
@@ -999,15 +1122,23 @@ def set_enrichment(target, reference, query,
     )
 
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
+def main(argv=None):
+    app = QApplication(argv or [])
+    argv = app.arguments()
+    if len(argv) > 1:
+        filename = argv[1]
+    else:
+        filename = "brown-selected"
+
     w = OWSetEnrichment()
-#     data = Orange.data.Table("yeast-class-RPR.tab")
-    data = Orange.data.Table("brown-selected")
+    data = Orange.data.Table(filename)
     w.setData(data)
-#     w.setReference(data)
     w.handleNewSignals()
     w.show()
     app.exec_()
     w.saveSettings()
     w.onDeleteWidget()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
